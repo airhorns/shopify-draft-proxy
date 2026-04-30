@@ -1,8 +1,11 @@
+import gleam/list
 import gleam/option.{None, Some}
+import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/operation_registry.{
   type RegistryEntry, AdminPlatform, Mutation, OverlayRead, Products, Query,
   RegistryEntry, StageLocally,
 }
+import shopify_draft_proxy/proxy/operation_registry_data
 
 const sample_json = "[
   {\"name\":\"product\",\"type\":\"query\",\"domain\":\"products\",\"execution\":\"overlay-read\",\"implemented\":true,\"matchNames\":[\"product\",\"Product\"],\"runtimeTests\":[\"a.test.ts\"]},
@@ -119,4 +122,48 @@ fn list_map_to_name(entries: List(RegistryEntry)) -> List(String) {
     [] -> []
     [e, ..rest] -> [e.name, ..list_map_to_name(rest)]
   }
+}
+
+// --- Codegen-backed default_registry / with_default_registry coverage. ---
+
+pub fn default_registry_has_many_entries_test() {
+  // The TS-side JSON has hundreds of entries; this is a sanity floor so
+  // a future codegen regression that produces a near-empty list fails
+  // loudly. Exact count drifts as the TS side adds operations; assert a
+  // generous lower bound only.
+  let entries = operation_registry_data.default_registry()
+  assert list.length(entries) >= 60
+}
+
+pub fn default_registry_includes_known_query_test() {
+  let entries = operation_registry_data.default_registry()
+  let assert Some(entry) =
+    operation_registry.find_entry(entries, Query, [Some("product")])
+  assert entry.domain == Products
+  assert entry.execution == OverlayRead
+}
+
+pub fn default_registry_includes_known_mutation_test() {
+  let entries = operation_registry_data.default_registry()
+  let assert Some(entry) =
+    operation_registry.find_entry(entries, Mutation, [Some("savedSearchCreate")])
+  assert entry.implemented == True
+}
+
+pub fn default_registry_implemented_subset_is_nonempty_test() {
+  let entries = operation_registry_data.default_registry()
+  let implemented = operation_registry.list_implemented(entries)
+  assert list.length(implemented) >= 1
+}
+
+pub fn with_default_registry_attaches_registry_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  assert list.length(proxy.registry) >= 60
+}
+
+pub fn new_proxy_has_empty_registry_test() {
+  // `new()` must not implicitly attach the default registry — Pass 1–7
+  // tests rely on the empty-registry fallback path.
+  let proxy = draft_proxy.new()
+  assert proxy.registry == []
 }

@@ -1,0 +1,17 @@
+{
+  "name": "shopify-draft-proxy-gleam-shim",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TS shim re-exporting the Gleam-port public API. Mirrors the surface area of the top-level shopify-draft-proxy package so consumers can drop the Gleam build in once domain coverage is complete.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}

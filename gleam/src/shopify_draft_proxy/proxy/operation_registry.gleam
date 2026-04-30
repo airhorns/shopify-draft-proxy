@@ -90,6 +90,16 @@ pub fn parse(input: String) -> Result(List(RegistryEntry), json.DecodeError) {
   json.parse(input, decode.list(of: registry_entry_decoder()))
 }
 
+/// Vendored operation registry. Mirrors the TS module-load
+/// `operationRegistrySchema.parse(operationRegistryJson)` at
+/// `src/proxy/operation-registry.ts:32`. The actual list lives in
+/// `operation_registry_data.default_registry/0` as Gleam source — no
+/// JSON, no FFI, no runtime IO. The data module imports types from
+/// here (one-way edge), so callers reach the registry via
+/// `operation_registry_data.default_registry()` directly. Regenerated
+/// from `config/operation-registry.json` via
+/// `gleam/scripts/sync-operation-registry.sh` when the TS
+/// implementation's registry changes.
 fn registry_entry_decoder() -> decode.Decoder(RegistryEntry) {
   use name <- decode.field("name", decode.string)
   use type_ <- decode.field("type", operation_type_decoder())

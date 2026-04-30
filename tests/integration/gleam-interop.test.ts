@@ -35,3 +35,82 @@ describe('gleam JS interop', () => {
     expect(mod.hello()).toBe('shopify_draft_proxy gleam port: phase 0');
   });
 });
+
+describe('public TS API', () => {
+  beforeAll(() => {
+    if (!existsSync(compiledEntrypoint)) {
+      execFileSync('gleam', ['build', '--target', 'javascript'], {
+        cwd: gleamProjectRoot,
+        stdio: 'inherit',
+      });
+    }
+  });
+
+  it('exposes createDraftProxy and answers /__meta/health end-to-end', async () => {
+    const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
+      createDraftProxy: (config: {
+        readMode: string;
+        port: number;
+        shopifyAdminOrigin: string;
+        snapshotPath?: string;
+      }) => {
+        processRequest: (req: { method: string; path: string }) => Promise<{
+          status: number;
+          body: unknown;
+        }>;
+        dumpState: (createdAt?: string) => { schema: string; createdAt: string };
+        restoreState: (dump: unknown) => void;
+        getState: () => unknown;
+      };
+      DRAFT_PROXY_STATE_DUMP_SCHEMA: string;
+    };
+    const proxy = shim.createDraftProxy({
+      readMode: 'snapshot',
+      port: 4000,
+      shopifyAdminOrigin: 'https://shopify.com',
+    });
+    const response = await proxy.processRequest({
+      method: 'GET',
+      path: '/__meta/health',
+    });
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      ok: true,
+      message: expect.stringContaining('shopify-draft-proxy'),
+    });
+  });
+
+  it('round-trips state via dumpState/restoreState with the documented schema', async () => {
+    const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
+      createDraftProxy: (config: {
+        readMode: string;
+        port: number;
+        shopifyAdminOrigin: string;
+        snapshotPath?: string;
+      }) => {
+        processRequest: (req: { method: string; path: string }) => Promise<{
+          status: number;
+          body: unknown;
+        }>;
+        dumpState: (createdAt?: string) => { schema: string; createdAt: string };
+        restoreState: (dump: unknown) => void;
+        getState: () => unknown;
+      };
+      DRAFT_PROXY_STATE_DUMP_SCHEMA: string;
+    };
+    const proxy = shim.createDraftProxy({
+      readMode: 'snapshot',
+      port: 4000,
+      shopifyAdminOrigin: 'https://shopify.com',
+    });
+    const dump = proxy.dumpState('2026-04-29T12:00:00.000Z');
+    expect(dump.schema).toBe(shim.DRAFT_PROXY_STATE_DUMP_SCHEMA);
+    const fresh = shim.createDraftProxy({
+      readMode: 'snapshot',
+      port: 4000,
+      shopifyAdminOrigin: 'https://shopify.com',
+    });
+    fresh.restoreState(dump);
+    expect(fresh.getState()).toBeDefined();
+  });
+});

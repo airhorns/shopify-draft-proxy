@@ -17,11 +17,7 @@
 
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode
-@target(javascript)
-import gleam/fetch
 import gleam/http/request as gleam_http_request
-@target(erlang)
-import gleam/httpc
 import gleam/int
 @target(javascript)
 import gleam/javascript/promise.{type Promise}
@@ -52,9 +48,12 @@ import shopify_draft_proxy/proxy/operation_registry.{
   Localization, Marketing, Media, Metafields, Metaobjects, SavedSearches,
   Segments, ShippingFulfillments, Webhooks,
 }
+import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
+import shopify_draft_proxy/proxy/upstream_dispatch
 import shopify_draft_proxy/proxy/webhooks
+import shopify_draft_proxy/shopify/upstream_client
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -170,6 +169,15 @@ pub fn with_registry(
   registry: List(RegistryEntry),
 ) -> DraftProxy {
   DraftProxy(..proxy, registry: registry)
+}
+
+/// Attach the vendored default registry built from
+/// `config/operation-registry.json` (mirrored as Gleam source in
+/// `operation_registry_data.gleam`). Convenience wrapper around
+/// `with_registry/2` for callers that want the registry the TS proxy
+/// loads at startup.
+pub fn with_default_registry(proxy: DraftProxy) -> DraftProxy {
+  with_registry(proxy, operation_registry_data.default_registry())
 }
 
 /// Process a request and return the response paired with the updated
@@ -507,22 +515,167 @@ fn dispatch_graphql(
       case parse_operation.parse_operation(body.query) {
         Error(_) -> #(bad_request("Could not parse GraphQL operation"), proxy)
         Ok(parsed) ->
-          case parsed.type_, list.first(parsed.root_fields) {
-            QueryOperation, Ok(field) ->
-              route_query(proxy, parsed, body.query, field, body.variables)
-            MutationOperation, Ok(field) ->
-              route_mutation(
-                proxy,
-                parsed,
-                request.path,
-                body.query,
-                field,
-                body.variables,
-              )
-            _, _ -> #(bad_request("Operation has no root field"), proxy)
+          case live_hybrid_passthrough_target(proxy, parsed) {
+            True -> dispatch_passthrough(proxy, request)
+            False ->
+              case parsed.type_, list.first(parsed.root_fields) {
+                QueryOperation, Ok(field) ->
+                  route_query(proxy, parsed, body.query, field, body.variables)
+                MutationOperation, Ok(field) ->
+                  route_mutation(
+                    proxy,
+                    parsed,
+                    request.path,
+                    body.query,
+                    field,
+                    body.variables,
+                  )
+                _, _ -> #(bad_request("Operation has no root field"), proxy)
+              }
           }
       }
   }
+}
+
+/// Substrate-level passthrough check. Returns `True` only when the
+/// proxy is in `LiveHybrid` mode AND the operation maps to the
+/// `Passthrough` execution branch (i.e. unknown / unimplemented). For
+/// every other read-mode the proxy answers locally; for every other
+/// capability execution the per-domain dispatcher already covers
+/// reads. Returning `False` here lets the existing local pipeline
+/// handle the request unchanged.
+fn live_hybrid_passthrough_target(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+) -> Bool {
+  case proxy.config.read_mode {
+    LiveHybrid -> {
+      let cap = capabilities.get_operation_capability(parsed, proxy.registry)
+      case cap.execution {
+        operation_registry.Passthrough -> True
+        _ -> False
+      }
+    }
+    _ -> False
+  }
+}
+
+@target(erlang)
+fn dispatch_passthrough(
+  proxy: DraftProxy,
+  request: Request,
+) -> #(Response, DraftProxy) {
+  passthrough_via(proxy, request, upstream_client.send_sync)
+}
+
+@target(erlang)
+/// Erlang-only test seam: dispatch a passthrough request with an
+/// injected `send`. Mirrors `commit.run_commit_sync` accepting a fake
+/// transport so tests don't need a real HTTP server. Production
+/// callers should use `process_request/2` or `dispatch_graphql`
+/// directly.
+pub fn process_passthrough_sync(
+  proxy: DraftProxy,
+  request: Request,
+  send: fn(gleam_http_request.Request(String)) ->
+    Result(commit.HttpOutcome, commit.CommitTransportError),
+) -> #(Response, DraftProxy) {
+  passthrough_via(proxy, request, send)
+}
+
+@target(javascript)
+/// JS-only test seam: same shape as `process_passthrough_sync` but
+/// the injected `send` returns a Promise.
+pub fn process_passthrough_async(
+  proxy: DraftProxy,
+  request: Request,
+  send: fn(gleam_http_request.Request(String)) ->
+    Promise(Result(commit.HttpOutcome, commit.CommitTransportError)),
+) -> Promise(#(Response, DraftProxy)) {
+  upstream_dispatch.fetch_async(
+    proxy.config.shopify_admin_origin,
+    request.path,
+    request.body,
+    request.headers,
+    send,
+  )
+  |> promise.map(fn(outcome) {
+    #(passthrough_outcome_to_response(outcome), proxy)
+  })
+}
+
+@target(javascript)
+fn dispatch_passthrough(
+  proxy: DraftProxy,
+  _request: Request,
+) -> #(Response, DraftProxy) {
+  // Passthrough requires an async fetch on JS — sync dispatch can't
+  // resolve the Promise. Callers that want live-hybrid on JS must use
+  // `process_request_async/2`, which awaits the upstream call.
+  #(passthrough_async_unsupported_response(), proxy)
+}
+
+@target(erlang)
+fn passthrough_via(
+  proxy: DraftProxy,
+  request: Request,
+  send: fn(gleam_http_request.Request(String)) ->
+    Result(commit.HttpOutcome, commit.CommitTransportError),
+) -> #(Response, DraftProxy) {
+  let outcome =
+    upstream_dispatch.fetch_sync(
+      proxy.config.shopify_admin_origin,
+      request.path,
+      request.body,
+      request.headers,
+      send,
+    )
+  #(passthrough_outcome_to_response(outcome), proxy)
+}
+
+fn passthrough_outcome_to_response(
+  outcome: Result(commit.HttpOutcome, commit.CommitTransportError),
+) -> Response {
+  case outcome {
+    Ok(commit.HttpOutcome(status: status, body: body_string)) -> {
+      let parsed_body = commit.parse_json_value(body_string)
+      Response(
+        status: status,
+        body: commit.json_value_to_json(parsed_body),
+        headers: [],
+      )
+    }
+    Error(commit.CommitTransportError(message: msg)) ->
+      Response(
+        status: 502,
+        body: json.object([
+          #(
+            "errors",
+            json.array([json.object([#("message", json.string(msg))])], fn(x) {
+              x
+            }),
+          ),
+        ]),
+        headers: [],
+      )
+  }
+}
+
+@target(javascript)
+fn passthrough_async_unsupported_response() -> Response {
+  Response(
+    status: 501,
+    body: json.object([
+      #("ok", json.bool(False)),
+      #(
+        "message",
+        json.string(
+          "Live-hybrid passthrough requires async dispatch on the JavaScript target. Call process_request_async(proxy, request) and await the returned Promise.",
+        ),
+      ),
+    ]),
+    headers: [],
+  )
 }
 
 fn route_mutation(
@@ -1516,7 +1669,7 @@ fn commit_via_route(
       proxy.store,
       proxy.config.shopify_admin_origin,
       request.headers,
-      httpc_send,
+      upstream_client.send_sync,
     )
   #(
     Response(
@@ -1541,7 +1694,7 @@ pub fn commit(
       proxy.store,
       proxy.config.shopify_admin_origin,
       inbound_headers,
-      httpc_send,
+      upstream_client.send_sync,
     )
   #(
     Response(
@@ -1566,7 +1719,7 @@ pub fn commit(
     proxy.store,
     proxy.config.shopify_admin_origin,
     inbound_headers,
-    fetch_send,
+    upstream_client.send_async,
   )
   |> promise.map(fn(pair) {
     let #(next_store, meta) = pair
@@ -1584,7 +1737,8 @@ pub fn commit(
 @target(javascript)
 /// Async dispatcher exposed only on JavaScript. Routes every request just
 /// like `process_request/2`, but the `MetaCommit` arm awaits the upstream
-/// fetch instead of returning a 501. Non-commit routes are wrapped in
+/// fetch instead of returning a 501. Live-hybrid passthrough requests
+/// also await an upstream `fetch`. Other routes are wrapped in
 /// `promise.resolve` so callers can use a single async entry point.
 pub fn process_request_async(
   proxy: DraftProxy,
@@ -1592,8 +1746,42 @@ pub fn process_request_async(
 ) -> Promise(#(Response, DraftProxy)) {
   case route(request) {
     MetaCommit -> commit(proxy, request.headers)
+    GraphQL(version: _) ->
+      case is_passthrough_request(proxy, request) {
+        True -> dispatch_passthrough_async(proxy, request)
+        False -> promise.resolve(process_request(proxy, request))
+      }
     _ -> promise.resolve(process_request(proxy, request))
   }
+}
+
+@target(javascript)
+fn is_passthrough_request(proxy: DraftProxy, request: Request) -> Bool {
+  case parse_request_body(request.body) {
+    Error(_) -> False
+    Ok(body) ->
+      case parse_operation.parse_operation(body.query) {
+        Error(_) -> False
+        Ok(parsed) -> live_hybrid_passthrough_target(proxy, parsed)
+      }
+  }
+}
+
+@target(javascript)
+fn dispatch_passthrough_async(
+  proxy: DraftProxy,
+  request: Request,
+) -> Promise(#(Response, DraftProxy)) {
+  upstream_dispatch.fetch_async(
+    proxy.config.shopify_admin_origin,
+    request.path,
+    request.body,
+    request.headers,
+    upstream_client.send_async,
+  )
+  |> promise.map(fn(outcome) {
+    #(passthrough_outcome_to_response(outcome), proxy)
+  })
 }
 
 @target(javascript)
@@ -1611,53 +1799,4 @@ fn commit_route_sync_unsupported_response() -> Response {
     ]),
     headers: [],
   )
-}
-
-// ---------------------------------------------------------------------------
-// Target-specific HTTP shims that adapt the production HTTP clients to the
-// `commit.run_commit_*` `send` parameter shape.
-// ---------------------------------------------------------------------------
-
-@target(erlang)
-fn httpc_send(
-  req: gleam_http_request.Request(String),
-) -> Result(commit.HttpOutcome, commit.CommitTransportError) {
-  case httpc.send(req) {
-    Ok(resp) -> Ok(commit.HttpOutcome(status: resp.status, body: resp.body))
-    Error(err) ->
-      Error(commit.CommitTransportError(message: httpc_error_message(err)))
-  }
-}
-
-@target(erlang)
-fn httpc_error_message(err: httpc.HttpError) -> String {
-  case err {
-    httpc.InvalidUtf8Response -> "upstream response body was not valid UTF-8"
-    httpc.FailedToConnect(_, _) -> "failed to connect to upstream"
-    httpc.ResponseTimeout -> "upstream response timed out"
-  }
-}
-
-@target(javascript)
-fn fetch_send(
-  req: gleam_http_request.Request(String),
-) -> Promise(Result(commit.HttpOutcome, commit.CommitTransportError)) {
-  fetch.send(req)
-  |> promise.try_await(fetch.read_text_body)
-  |> promise.map(fn(result) {
-    case result {
-      Ok(resp) -> Ok(commit.HttpOutcome(status: resp.status, body: resp.body))
-      Error(err) ->
-        Error(commit.CommitTransportError(message: fetch_error_message(err)))
-    }
-  })
-}
-
-@target(javascript)
-fn fetch_error_message(err: fetch.FetchError) -> String {
-  case err {
-    fetch.NetworkError(msg) -> "upstream network error: " <> msg
-    fetch.UnableToReadBody -> "unable to read upstream response body"
-    fetch.InvalidJsonBody -> "invalid JSON body in upstream response"
-  }
 }
