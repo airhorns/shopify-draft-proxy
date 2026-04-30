@@ -49,13 +49,15 @@ import shopify_draft_proxy/state/types.{
   type InventoryItemRecord, type InventoryLevelRecord,
   type InventoryLocationRecord, type InventoryMeasurementRecord,
   type InventoryQuantityRecord, type InventoryWeightRecord,
-  type ProductCategoryRecord, type ProductOptionRecord,
-  type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
-  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  type InventoryWeightValue, type ProductCategoryRecord,
+  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
+  type ProductSeoRecord, type ProductVariantRecord,
+  type ProductVariantSelectedOptionRecord, InventoryItemRecord,
+  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
   InventoryQuantityRecord, InventoryWeightFloat, InventoryWeightInt,
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  InventoryWeightRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord,
 }
 
 pub type ProductsError {
@@ -112,6 +114,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "inventoryActivate"
     | "inventoryDeactivate"
     | "inventoryBulkToggleActivation"
+    | "inventoryItemUpdate"
     | "inventorySetQuantities"
     | "inventoryMoveQuantities"
     | "tagsAdd"
@@ -2252,6 +2255,33 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "inventoryItemUpdate" -> {
+              let result =
+                handle_inventory_item_update(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged inventoryItemUpdate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "inventorySetQuantities" -> {
               let result =
                 handle_inventory_set_quantities(
@@ -3938,6 +3968,109 @@ fn handle_inventory_bulk_toggle_activation(
   )
 }
 
+fn handle_inventory_item_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let inventory_item_id = read_string_field(args, "id")
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let existing_variant = case inventory_item_id {
+    Some(inventory_item_id) ->
+      store.find_effective_variant_by_inventory_item_id(
+        store,
+        inventory_item_id,
+      )
+    None -> None
+  }
+  case existing_variant {
+    Some(variant) ->
+      case variant.inventory_item {
+        Some(existing_item) -> {
+          let #(next_item, _) =
+            read_variant_inventory_item(
+              identity,
+              Some(input),
+              Some(existing_item),
+            )
+          case next_item {
+            Some(next_item) -> {
+              let next_variant =
+                ProductVariantRecord(..variant, inventory_item: Some(next_item))
+              let next_variants =
+                store.get_effective_variants_by_product_id(
+                  store,
+                  variant.product_id,
+                )
+                |> list.map(fn(candidate) {
+                  case candidate.id == variant.id {
+                    True -> next_variant
+                    False -> candidate
+                  }
+                })
+              let next_store =
+                store.replace_staged_variants_for_product(
+                  store,
+                  variant.product_id,
+                  next_variants,
+                )
+              let #(_, synced_store, synced_identity) =
+                sync_product_inventory_summary(
+                  next_store,
+                  identity,
+                  variant.product_id,
+                )
+              let updated_variant =
+                store.get_effective_variant_by_id(synced_store, variant.id)
+                |> option.unwrap(next_variant)
+              mutation_result(
+                key,
+                inventory_item_update_payload(
+                  synced_store,
+                  Some(updated_variant),
+                  [],
+                  field,
+                  fragments,
+                ),
+                synced_store,
+                synced_identity,
+                variant_staged_ids(updated_variant),
+              )
+            }
+            None ->
+              inventory_item_update_missing_result(
+                key,
+                store,
+                identity,
+                field,
+                fragments,
+              )
+          }
+        }
+        None ->
+          inventory_item_update_missing_result(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+          )
+      }
+    None ->
+      inventory_item_update_missing_result(
+        key,
+        store,
+        identity,
+        field,
+        fragments,
+      )
+  }
+}
+
 fn handle_inventory_set_quantities(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -5420,6 +5553,56 @@ fn inventory_bulk_toggle_activation_payload(
   )
 }
 
+fn inventory_item_update_missing_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  mutation_result(
+    key,
+    inventory_item_update_payload(
+      store,
+      None,
+      [
+        ProductUserError(
+          ["id"],
+          "The product couldn't be updated because it does not exist.",
+          None,
+        ),
+      ],
+      field,
+      fragments,
+    ),
+    store,
+    identity,
+    [],
+  )
+}
+
+fn inventory_item_update_payload(
+  store: Store,
+  variant: Option(ProductVariantRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let inventory_item = case variant {
+    Some(variant) -> inventory_item_source(store, variant)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("InventoryItemUpdatePayload")),
+      #("inventoryItem", inventory_item),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn inventory_adjustment_group_source(
   store: Store,
   group: Option(InventoryAdjustmentGroup),
@@ -6535,7 +6718,10 @@ fn read_variant_inventory_item(
             |> option.or(
               option.then(existing, fn(item) { item.requires_shipping }),
             ),
-          measurement: option.then(existing, fn(item) { item.measurement }),
+          measurement: read_inventory_measurement_input(
+            input,
+            option.then(existing, fn(item) { item.measurement }),
+          ),
           country_code_of_origin: read_string_field(
             input,
             "countryCodeOfOrigin",
@@ -6562,6 +6748,50 @@ fn read_variant_inventory_item(
         next_identity,
       )
     }
+  }
+}
+
+fn read_inventory_measurement_input(
+  input: Dict(String, ResolvedValue),
+  fallback: Option(InventoryMeasurementRecord),
+) -> Option(InventoryMeasurementRecord) {
+  case read_object_field(input, "measurement") {
+    Some(measurement) ->
+      Some(
+        InventoryMeasurementRecord(weight: read_inventory_weight_input(
+          measurement,
+          option.then(fallback, fn(measurement) { measurement.weight }),
+        )),
+      )
+    None -> fallback
+  }
+}
+
+fn read_inventory_weight_input(
+  input: Dict(String, ResolvedValue),
+  fallback: Option(InventoryWeightRecord),
+) -> Option(InventoryWeightRecord) {
+  case read_object_field(input, "weight") {
+    Some(weight) ->
+      case
+        read_string_field(weight, "unit"),
+        read_inventory_weight_value_input(weight)
+      {
+        Some(unit), Some(value) ->
+          Some(InventoryWeightRecord(unit: unit, value: value))
+        _, _ -> fallback
+      }
+    None -> fallback
+  }
+}
+
+fn read_inventory_weight_value_input(
+  input: Dict(String, ResolvedValue),
+) -> Option(InventoryWeightValue) {
+  case dict.get(input, "value") {
+    Ok(IntVal(value)) -> Some(InventoryWeightInt(value))
+    Ok(FloatVal(value)) -> Some(InventoryWeightFloat(value))
+    _ -> None
   }
 }
 

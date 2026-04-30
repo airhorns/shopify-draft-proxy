@@ -203,6 +203,8 @@ fn seed_capture_preconditions(
       seed_inventory_activate_preconditions(capture, proxy)
     "inventory-bulk-toggle-activation-live-parity" ->
       seed_inventory_activate_preconditions(capture, proxy)
+    "inventory-item-update-live-parity" ->
+      seed_inventory_item_update_preconditions(capture, proxy)
     "product-variants-bulk-reorder-live-parity" ->
       seed_product_variants_bulk_reorder_preconditions(capture, proxy)
     _ -> proxy
@@ -1158,6 +1160,32 @@ fn seed_inventory_activate_preconditions(
         proxy.store
         |> store_mod.upsert_base_products([product])
         |> store_mod.upsert_base_product_variants([variant])
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_inventory_item_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.create.response.data.productCreate.product",
+    )
+  {
+    Some(product_json) -> {
+      let products = case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [product]
+        Error(_) -> []
+      }
+      let variants = seed_variants_for_product(product_json)
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_variants(variants)
       draft_proxy.DraftProxy(..proxy, store: store)
     }
     None -> proxy

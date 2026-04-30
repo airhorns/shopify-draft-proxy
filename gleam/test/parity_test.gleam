@@ -290,6 +290,10 @@ pub fn inventory_bulk_toggle_activation_parity_plan_test() {
   )
 }
 
+pub fn inventory_item_update_parity_plan_test() {
+  check("config/parity-specs/products/inventoryItemUpdate-parity-plan.json")
+}
+
 pub fn tags_add_parity_plan_test() {
   check("config/parity-specs/products/tagsAdd-parity-plan.json")
 }

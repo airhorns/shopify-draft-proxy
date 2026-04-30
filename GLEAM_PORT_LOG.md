@@ -9,6 +9,69 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 64: inventory item update lifecycle
+
+Adds local staging for the captured `inventoryItemUpdate` success path. The
+Gleam Products mutation handler now routes the root locally, preserves the raw
+mutation request through the centralized draft-log path, updates tracked,
+shipping, country/province origin, HS code, and measurement weight fields on the
+InventoryItem, syncs the owning Product inventory summary, and exposes the
+updated InventoryItem through immediate ProductVariant and InventoryItem reads
+without runtime Shopify writes.
+
+The pass promotes `inventoryItemUpdate-parity-plan` into the Gleam parity suite.
+Runner seeding reconstructs the captured Product/ProductVariant/InventoryItem
+from the fixture's productCreate setup payload, then replays the captured
+mutation and downstream read without changing any fixture, request, or
+comparison contract.
+
+| Module                                               | Change                                                                                 |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds inventory item update routing, item field staging, measurement parsing, payloads. |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured productCreate item-update preconditions.                            |
+| `gleam/test/parity_test.gleam`                       | Enables the strict inventory item update parity scenario.                              |
+
+Validation: `gleam test --target javascript` is green at 762 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails before tests execute
+on the local Erlang install with the known `undef` runner issue; after clearing
+host-built Erlang artifacts, the Docker Erlang fallback is green at 758 tests.
+Product parity inventory remains 115 checked-in specs, with 48 product specs
+executable in the Gleam parity suite plus the admin-platform ProductOption node
+scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  request returning HTTP 400 for `inventoryItemUpdate` because the root was not
+  routed by the Gleam Products mutation dispatcher.
+- The downstream read target depends on syncing Product `tracksInventory` after
+  setting the InventoryItem `tracked` field to true; the existing
+  `sync_product_inventory_summary` helper already models that relationship.
+- The existing InventoryItem input reader preserved origin/shipping fields but
+  did not parse measurement weight input; this pass adds that parser so the
+  captured weight payload round-trips.
+
+### Risks / open items
+
+- This pass covers the captured success path and existing not-found validation
+  shape, not a broad validation matrix for all `InventoryItemInput` fields.
+- Collections, publication, product feeds/feedback, selling plans, product
+  metafields, inventory shipment/transfer, and remaining variant
+  relationship/media behavior remain incomplete in Gleam.
+- Only 48 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 65 candidates
+
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+- Port product metafield behavior now that several Products mutation families
+  are locally staged.
+- Port inventory shipment/transfer roots if their checked-in specs can be seeded
+  from existing inventory fixtures.
+
+---
+
 ## 2026-04-30 — Pass 63: inventory bulk toggle activation lifecycle
 
 Adds local staging for the captured `inventoryBulkToggleActivation` slices. The
