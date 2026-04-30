@@ -164,6 +164,38 @@ pub type InventoryItemRecord {
   )
 }
 
+pub type InventoryShipmentTrackingRecord {
+  InventoryShipmentTrackingRecord(
+    tracking_number: Option(String),
+    company: Option(String),
+    tracking_url: Option(String),
+    arrives_at: Option(String),
+  )
+}
+
+pub type InventoryShipmentLineItemRecord {
+  InventoryShipmentLineItemRecord(
+    id: String,
+    inventory_item_id: String,
+    quantity: Int,
+    accepted_quantity: Int,
+    rejected_quantity: Int,
+  )
+}
+
+pub type InventoryShipmentRecord {
+  InventoryShipmentRecord(
+    id: String,
+    movement_id: String,
+    name: String,
+    status: String,
+    created_at: String,
+    updated_at: String,
+    tracking: Option(InventoryShipmentTrackingRecord),
+    line_items: List(InventoryShipmentLineItemRecord),
+  )
+}
+
 pub type ProductVariantRecord {
   ProductVariantRecord(
     id: String,

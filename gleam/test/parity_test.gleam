@@ -178,6 +178,18 @@ pub fn inventory_level_read_test() {
   check("config/parity-specs/products/inventory-level-read.json")
 }
 
+pub fn inventory_shipment_lifecycle_local_staging_test() {
+  check(
+    "config/parity-specs/products/inventory-shipment-lifecycle-local-staging.json",
+  )
+}
+
+pub fn inventory_shipment_partial_receive_update_delete_local_staging_test() {
+  check(
+    "config/parity-specs/products/inventory-shipment-partial-receive-update-delete-local-staging.json",
+  )
+}
+
 pub fn products_variant_search_read_test() {
   check("config/parity-specs/products/products-variant-search-read.json")
 }

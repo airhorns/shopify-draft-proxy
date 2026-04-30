@@ -9,6 +9,73 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 85: inventory shipment local staging
+
+Completes the two captured inventory shipment local-staging parity scenarios in
+the Gleam Products handler. The pass adds normalized shipment state, stages
+`inventoryShipmentCreateInTransit`, `inventoryShipmentReceive`,
+`inventoryShipmentUpdateItemQuantities`, and `inventoryShipmentDelete` locally,
+and routes `inventoryShipment(id:)` detail reads through the local Products
+dispatcher. Shipment staging now updates product-backed InventoryItem quantity
+reads for incoming, available, and on-hand quantities without runtime Shopify
+writes.
+
+The pass promotes `inventory-shipment-lifecycle-local-staging` and
+`inventory-shipment-partial-receive-update-delete-local-staging` into the Gleam
+parity suite. The checked-in fixtures, request documents, variables capture
+paths, and strict comparison contracts stay unchanged.
+
+| Module                                               | Change                                                                |
+| ---------------------------------------------------- | --------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds shipment, line-item, and tracking record shapes.                 |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds base/staged shipment storage, ordering, deletion, and lookup.    |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages shipment lifecycle mutations and serializes shipment reads.    |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured shipment product/variant preconditions for replay.     |
+| `gleam/test/parity_test.gleam`                       | Enables the two strict inventory shipment local-staging parity specs. |
+
+Validation:
+Focused JavaScript parity for the two inventory shipment tests is green at 788
+tests, and full `gleam test --target javascript` is green at 788 tests on the
+host Node runtime. Host `gleam test --target erlang` still fails before tests
+execute on the local Erlang install with the known `undef` runner issue; after
+clearing host-built Erlang artifacts, the Docker Erlang fallback is green at
+784 tests. Product parity inventory remains 115 checked-in specs, with 74
+product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was strict parity replay returning HTTP 400 for
+  `inventoryShipmentCreateInTransit`: `No mutation dispatcher implemented for
+root field`.
+- Shipment parity needs product variant seeding, not product-only seeding,
+  because nested shipment line-item `inventoryItem { sku }` is sourced from the
+  variant that owns the captured InventoryItem.
+- The local shipment lifecycle mutates only the product-backed inventory level:
+  create-in-transit increases `incoming`, partial receive moves accepted
+  quantity from `incoming` to `available`/`on_hand`, quantity updates adjust
+  remaining `incoming`, and delete reverses unreceived incoming quantity.
+
+### Risks / open items
+
+- Inventory transfer roots, broader publication roots, selling plans, product
+  metafields, media, advanced search, duplicate/productSet/media roots, and
+  broader validation atomicity parity remain incomplete in Gleam.
+- Only 74 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 86 candidates
+
+- Continue inventory transfer local-staging now that shipment-side inventory
+  quantity effects are represented.
+- Continue the broader publication roots local-runtime scenario now that
+  top-level publications and product publish/unpublish are represented.
+- Port selling-plan or product metafield behavior now that core Product,
+  Variant, Inventory, Collection, Location, Publication, feed, feedback, and
+  shipment read/write slices are locally staged or seeded.
+
+---
+
 ## 2026-04-30 - Pass 84: product feedback lifecycle
 
 Completes the captured product and shop resource feedback local-runtime

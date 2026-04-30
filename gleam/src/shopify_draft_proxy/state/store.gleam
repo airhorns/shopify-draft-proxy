@@ -22,10 +22,10 @@ import shopify_draft_proxy/state/types.{
   type CartTransformRecord, type CollectionRecord,
   type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
   type GiftCardConfigurationRecord, type GiftCardRecord,
-  type InventoryLevelRecord, type LocaleRecord, type LocationRecord,
-  type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
-  type ProductCollectionRecord, type ProductFeedRecord, type ProductOptionRecord,
-  type ProductOptionValueRecord, type ProductRecord,
+  type InventoryLevelRecord, type InventoryShipmentRecord, type LocaleRecord,
+  type LocationRecord, type MarketingEngagementRecord, type MarketingRecord,
+  type MarketingValue, type ProductCollectionRecord, type ProductFeedRecord,
+  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductVariantRecord,
   type PublicationRecord, type SavedSearchRecord, type SegmentRecord,
   type ShopLocaleRecord, type ShopRecord, type ShopResourceFeedbackRecord,
@@ -61,6 +61,9 @@ pub type BaseState {
     deleted_product_feed_ids: Dict(String, Bool),
     product_resource_feedback: Dict(String, ProductResourceFeedbackRecord),
     shop_resource_feedback: Dict(String, ShopResourceFeedbackRecord),
+    inventory_shipments: Dict(String, InventoryShipmentRecord),
+    inventory_shipment_order: List(String),
+    deleted_inventory_shipment_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -150,6 +153,9 @@ pub type StagedState {
     deleted_product_feed_ids: Dict(String, Bool),
     product_resource_feedback: Dict(String, ProductResourceFeedbackRecord),
     shop_resource_feedback: Dict(String, ShopResourceFeedbackRecord),
+    inventory_shipments: Dict(String, InventoryShipmentRecord),
+    inventory_shipment_order: List(String),
+    deleted_inventory_shipment_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -307,6 +313,9 @@ pub fn empty_base_state() -> BaseState {
     deleted_product_feed_ids: dict.new(),
     product_resource_feedback: dict.new(),
     shop_resource_feedback: dict.new(),
+    inventory_shipments: dict.new(),
+    inventory_shipment_order: [],
+    deleted_inventory_shipment_ids: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -389,6 +398,9 @@ pub fn empty_staged_state() -> StagedState {
     deleted_product_feed_ids: dict.new(),
     product_resource_feedback: dict.new(),
     shop_resource_feedback: dict.new(),
+    inventory_shipments: dict.new(),
+    inventory_shipment_order: [],
+    deleted_inventory_shipment_ids: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -1002,6 +1014,147 @@ pub fn upsert_staged_shop_resource_feedback(
       ),
     )
   #(record, Store(..store, staged_state: next_staged))
+}
+
+pub fn upsert_base_inventory_shipments(
+  store: Store,
+  shipments: List(InventoryShipmentRecord),
+) -> Store {
+  list.fold(shipments, store, fn(acc, shipment) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    let next_order = case
+      list.contains(base.inventory_shipment_order, shipment.id)
+    {
+      True -> base.inventory_shipment_order
+      False -> list.append(base.inventory_shipment_order, [shipment.id])
+    }
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        inventory_shipments: dict.insert(
+          base.inventory_shipments,
+          shipment.id,
+          shipment,
+        ),
+        inventory_shipment_order: next_order,
+        deleted_inventory_shipment_ids: dict.delete(
+          base.deleted_inventory_shipment_ids,
+          shipment.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_inventory_shipment_ids: dict.delete(
+          staged.deleted_inventory_shipment_ids,
+          shipment.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_staged_inventory_shipment(
+  store: Store,
+  shipment: InventoryShipmentRecord,
+) -> #(InventoryShipmentRecord, Store) {
+  let staged = store.staged_state
+  let next_order = case
+    list.contains(store.base_state.inventory_shipment_order, shipment.id)
+    || list.contains(staged.inventory_shipment_order, shipment.id)
+  {
+    True -> staged.inventory_shipment_order
+    False -> list.append(staged.inventory_shipment_order, [shipment.id])
+  }
+  let next_staged =
+    StagedState(
+      ..staged,
+      inventory_shipments: dict.insert(
+        staged.inventory_shipments,
+        shipment.id,
+        shipment,
+      ),
+      inventory_shipment_order: next_order,
+      deleted_inventory_shipment_ids: dict.delete(
+        staged.deleted_inventory_shipment_ids,
+        shipment.id,
+      ),
+    )
+  #(shipment, Store(..store, staged_state: next_staged))
+}
+
+pub fn delete_staged_inventory_shipment(
+  store: Store,
+  shipment_id: String,
+) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      inventory_shipments: dict.delete(staged.inventory_shipments, shipment_id),
+      deleted_inventory_shipment_ids: dict.insert(
+        staged.deleted_inventory_shipment_ids,
+        shipment_id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_inventory_shipment_by_id(
+  store: Store,
+  shipment_id: String,
+) -> Option(InventoryShipmentRecord) {
+  case
+    dict.has_key(store.staged_state.deleted_inventory_shipment_ids, shipment_id)
+    || dict.has_key(
+      store.base_state.deleted_inventory_shipment_ids,
+      shipment_id,
+    )
+  {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.inventory_shipments, shipment_id) {
+        Ok(shipment) -> Some(shipment)
+        Error(_) ->
+          case dict.get(store.base_state.inventory_shipments, shipment_id) {
+            Ok(shipment) -> Some(shipment)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_inventory_shipments(
+  store: Store,
+) -> List(InventoryShipmentRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.inventory_shipment_order,
+      store.staged_state.inventory_shipment_order,
+    )
+    |> dedupe_strings
+  let ordered_shipments =
+    ordered_ids
+    |> list.filter_map(fn(id) {
+      get_effective_inventory_shipment_by_id(store, id)
+      |> option.to_result(Nil)
+    })
+  let unordered_ids =
+    dict.keys(store.base_state.inventory_shipments)
+    |> list.append(dict.keys(store.staged_state.inventory_shipments))
+    |> dedupe_strings
+    |> list.filter(fn(id) { !list.contains(ordered_ids, id) })
+    |> list.sort(string_compare)
+  let unordered_shipments =
+    unordered_ids
+    |> list.filter_map(fn(id) {
+      get_effective_inventory_shipment_by_id(store, id)
+      |> option.to_result(Nil)
+    })
+  list.append(ordered_shipments, unordered_shipments)
 }
 
 pub fn replace_base_products_for_collection(
