@@ -168,6 +168,8 @@ fn seed_capture_preconditions(
     "product-detail-read" -> seed_product_preconditions(capture, proxy)
     "collection-detail-read" | "collection-identifier-read" ->
       seed_collection_detail_preconditions(capture, proxy)
+    "collections-catalog-read" ->
+      seed_collections_catalog_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
@@ -408,6 +410,84 @@ fn seed_collection_products(
   }
 }
 
+fn seed_collections_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let edges = case jsonpath.lookup(capture, "$.data.collections.edges") {
+    Some(JArray(edges)) -> edges
+    _ -> []
+  }
+  let collections =
+    edges
+    |> list.filter_map(make_seed_collection_from_edge)
+    |> merge_collection_cursors_from_path(
+      capture,
+      "$.data.titleWildcard.edges",
+      "title",
+    )
+    |> merge_collection_cursors_from_path(
+      capture,
+      "$.data.smartCollections.edges",
+      "title",
+    )
+    |> merge_collection_cursors_from_path(
+      capture,
+      "$.data.updatedNewest.edges",
+      "updated_at",
+    )
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_collections(collections)
+  let proxy = draft_proxy.DraftProxy(..proxy, store: store)
+  list.fold(edges, proxy, fn(acc, edge) {
+    case read_object_field(edge, "node") {
+      Some(collection_json) ->
+        seed_collection_products(collection_json, None, acc)
+      None -> acc
+    }
+  })
+}
+
+fn make_seed_collection_from_edge(
+  edge: JsonValue,
+) -> Result(CollectionRecord, Nil) {
+  use node <- result.try(required_object_field(edge, "node"))
+  use collection <- result.try(make_seed_collection(node))
+  Ok(CollectionRecord(..collection, cursor: read_string_field(edge, "cursor")))
+}
+
+fn merge_collection_cursors_from_path(
+  collections: List(CollectionRecord),
+  capture: JsonValue,
+  path: String,
+  cursor_kind: String,
+) -> List(CollectionRecord) {
+  let edges = case jsonpath.lookup(capture, path) {
+    Some(JArray(edges)) -> edges
+    _ -> []
+  }
+  list.fold(edges, collections, fn(acc, edge) {
+    case
+      read_object_field(edge, "node")
+      |> option.then(read_string_field(_, "id")),
+      read_string_field(edge, "cursor")
+    {
+      Some(collection_id), Some(cursor) ->
+        list.map(acc, fn(collection) {
+          case collection.id == collection_id, cursor_kind {
+            True, "title" ->
+              CollectionRecord(..collection, title_cursor: Some(cursor))
+            True, "updated_at" ->
+              CollectionRecord(..collection, updated_at_cursor: Some(cursor))
+            _, _ -> collection
+          }
+        })
+      _, _ -> acc
+    }
+  })
+}
+
 fn make_seed_collection(source: JsonValue) -> Result(CollectionRecord, Nil) {
   use id <- result.try(required_string_field(source, "id"))
   use title <- result.try(required_string_field(source, "title"))
@@ -435,6 +515,8 @@ fn make_seed_collection(source: JsonValue) -> Result(CollectionRecord, Nil) {
       None -> False
     },
     cursor: None,
+    title_cursor: None,
+    updated_at_cursor: None,
   ))
 }
 

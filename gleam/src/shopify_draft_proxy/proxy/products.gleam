@@ -228,7 +228,14 @@ fn serialize_root_fields(
                 field,
                 variables,
               )
-            "collections" | "productFeeds" | "productSavedSearches" ->
+            "collections" ->
+              serialize_collections_connection(
+                store,
+                field,
+                variables,
+                fragments,
+              )
+            "productFeeds" | "productSavedSearches" ->
               serialize_empty_connection(
                 field,
                 default_selected_field_options(),
@@ -615,6 +622,206 @@ fn serialize_collection_products_connection(
       ),
     ),
   )
+}
+
+fn serialize_collections_connection(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let collections =
+    filtered_collections(store, field, variables)
+    |> sort_collections(field, variables)
+  case collections {
+    [] -> serialize_empty_connection(field, default_selected_field_options())
+    _ -> {
+      let get_cursor = fn(collection, _index) {
+        collection_cursor_for_field(collection, field, variables)
+      }
+      let window =
+        paginate_connection_items(
+          collections,
+          field,
+          variables,
+          get_cursor,
+          default_connection_window_options(),
+        )
+      serialize_connection(
+        field,
+        SerializeConnectionConfig(
+          items: window.items,
+          has_next_page: window.has_next_page,
+          has_previous_page: window.has_previous_page,
+          get_cursor_value: get_cursor,
+          serialize_node: fn(collection, node_field, _index) {
+            serialize_collection_object(
+              store,
+              collection,
+              get_selected_child_fields(
+                node_field,
+                default_selected_field_options(),
+              ),
+              variables,
+              fragments,
+            )
+          },
+          selected_field_options: default_selected_field_options(),
+          page_info_options: ConnectionPageInfoOptions(
+            include_inline_fragments: False,
+            prefix_cursors: False,
+            include_cursors: True,
+            fallback_start_cursor: None,
+            fallback_end_cursor: None,
+          ),
+        ),
+      )
+    }
+  }
+}
+
+fn filtered_collections(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> List(CollectionRecord) {
+  search_query_parser.apply_search_query(
+    store.list_effective_collections(store),
+    read_string_argument(field, variables, "query"),
+    product_search_parse_options(),
+    fn(collection, term) {
+      collection_matches_positive_query_term(store, collection, term)
+    },
+  )
+}
+
+fn collection_matches_positive_query_term(
+  store: Store,
+  collection: CollectionRecord,
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  let value = search_query_parser.search_query_term_value(term)
+  case option.map(term.field, string.lowercase) {
+    None ->
+      search_query_parser.matches_search_query_string(
+        Some(collection.title),
+        value,
+        search_query_parser.IncludesMatch,
+        product_string_match_options(),
+      )
+      || search_query_parser.matches_search_query_string(
+        Some(collection.handle),
+        value,
+        search_query_parser.IncludesMatch,
+        product_string_match_options(),
+      )
+    Some("title") ->
+      search_query_parser.matches_search_query_string(
+        Some(collection.title),
+        value,
+        search_query_parser.IncludesMatch,
+        product_string_match_options(),
+      )
+    Some("handle") ->
+      search_query_parser.matches_search_query_string(
+        Some(collection.handle),
+        value,
+        search_query_parser.ExactMatch,
+        product_string_match_options(),
+      )
+    Some("collection_type") -> {
+      let normalized =
+        search_query_parser.strip_search_query_value_quotes(value)
+        |> string.trim
+        |> string.lowercase
+      case normalized {
+        "smart" -> collection.is_smart
+        "custom" -> !collection.is_smart
+        _ -> True
+      }
+    }
+    Some("id") ->
+      resource_id_matches(collection.id, collection.legacy_resource_id, value)
+    Some("product_id") -> collection_has_product_id(store, collection.id, value)
+    Some("updated_at") -> True
+    Some("product_publication_status")
+    | Some("publishable_status")
+    | Some("published_at")
+    | Some("published_status") -> True
+    _ -> True
+  }
+}
+
+fn collection_has_product_id(
+  store: Store,
+  collection_id: String,
+  raw_value: String,
+) -> Bool {
+  let normalized =
+    search_query_parser.strip_search_query_value_quotes(raw_value)
+    |> string.trim
+  store.list_effective_products_for_collection(store, collection_id)
+  |> list.any(fn(entry) {
+    let #(product, _) = entry
+    product.id == normalized
+    || product.legacy_resource_id == Some(normalized)
+    || resource_tail(product.id) == normalized
+    || resource_tail(normalized) == resource_tail(product.id)
+  })
+}
+
+fn sort_collections(
+  collections: List(CollectionRecord),
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> List(CollectionRecord) {
+  let sort_key = read_string_argument(field, variables, "sortKey")
+  let sorted =
+    list.sort(collections, fn(left, right) {
+      compare_collections_by_sort_key(left, right, sort_key)
+    })
+  case read_bool_argument(field, variables, "reverse") {
+    Some(True) -> list.reverse(sorted)
+    _ -> sorted
+  }
+}
+
+fn compare_collections_by_sort_key(
+  left: CollectionRecord,
+  right: CollectionRecord,
+  sort_key: Option(String),
+) -> order.Order {
+  case sort_key {
+    Some("TITLE") ->
+      case string.compare(left.title, right.title) {
+        order.Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+        other -> other
+      }
+    Some("UPDATED_AT") ->
+      case
+        resource_ids.compare_nullable_strings(left.updated_at, right.updated_at)
+      {
+        order.Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+        other -> other
+      }
+    _ -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+  }
+}
+
+fn collection_cursor_for_field(
+  collection: CollectionRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> String {
+  case read_string_argument(field, variables, "sortKey") {
+    Some("TITLE") ->
+      collection.title_cursor
+      |> option.unwrap(option.unwrap(collection.cursor, collection.id))
+    Some("UPDATED_AT") ->
+      collection.updated_at_cursor
+      |> option.unwrap(option.unwrap(collection.cursor, collection.id))
+    _ -> option.unwrap(collection.cursor, collection.id)
+  }
 }
 
 fn collection_product_cursor(

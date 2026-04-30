@@ -104,6 +104,10 @@ pub fn collection_identifier_read_test() {
   check("config/parity-specs/products/collection-identifier-read.json")
 }
 
+pub fn collections_catalog_read_test() {
+  check("config/parity-specs/products/collections-catalog-read.json")
+}
+
 pub fn products_catalog_read_test() {
   check("config/parity-specs/products/products-catalog-read.json")
 }

@@ -63,6 +63,8 @@ pub type CollectionRecord {
     products_count: Option(Int),
     is_smart: Bool,
     cursor: Option(String),
+    title_cursor: Option(String),
+    updated_at_cursor: Option(String),
   )
 }
 

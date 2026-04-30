@@ -9,6 +9,69 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 72: collections catalog reads
+
+Extends the normalized collection slice from Pass 71 to the top-level
+`collections` catalog root. The pass seeds the captured catalog page into base
+state, preserves captured cursors for default, title, and updated-at orderings,
+and routes collection catalog reads through local search filtering, Shopify-like
+sort handling, connection pagination, and the existing collection serializer.
+
+The pass promotes `collections-catalog-read` into the Gleam parity suite. The
+checked-in fixture, request document, variables, and comparison contract stay
+unchanged.
+
+| Module                                               | Change                                                        |
+| ---------------------------------------------------- | ------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Tracks per-sort captured collection cursors.                  |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Serializes top-level collection catalog connections locally.  |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured catalog collections and sort-specific cursors. |
+| `gleam/test/parity_test.gleam`                       | Enables the strict collections catalog parity spec.           |
+
+Validation:
+`gleam test --target javascript collections_catalog_read_test` is green at 771
+tests, and full `gleam test --target javascript` is green at 771 tests on the
+host Node runtime. Host `gleam test --target erlang` still fails before tests
+execute on the local Erlang install with the known `undef` runner issue; after
+clearing host-built Erlang artifacts, the Docker Erlang fallback is green at
+767 tests. Product parity inventory remains 115 checked-in specs, with 57
+product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay where the
+  top-level `collections` root returned the empty no-data connection and
+  produced 21 mismatches against the captured catalog fixture.
+- Shopify's catalog fixture reuses the same collection records across default,
+  title-filtered, smart-only, product-membership, updated-newest, and empty
+  query reads, but each sorted connection can carry a distinct opaque cursor;
+  the seeder stores those cursors without decoding them.
+- The collection search path follows the shared Admin query parser and keeps
+  permissive handling for publication and updated-at terms that are present in
+  captured catalog requests but are not yet modeled as first-class collection
+  publication state.
+
+### Risks / open items
+
+- Collection mutation roots, publication links, product feeds/feedback, selling
+  plans, product metafields, inventory shipment/transfer, media, advanced
+  search, and broader validation atomicity parity remain incomplete in Gleam.
+- Only 57 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 73 candidates
+
+- Port collection membership mutation roots now that collection reads and
+  product membership rows are normalized in Gleam state.
+- Port product metafield behavior now that Product, Product Option,
+  Product Variant, Inventory, and Collection read slices are locally staged or
+  seeded.
+- Continue publication-related collection/product roots if the captured
+  fixtures can be represented without weakening request shapes.
+
+---
+
 ## 2026-04-30 — Pass 71: collection detail and identifier reads
 
 Adds the first normalized collection read slice to the Gleam Products handler.
