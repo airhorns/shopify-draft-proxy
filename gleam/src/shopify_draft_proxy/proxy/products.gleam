@@ -130,6 +130,8 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "collectionUpdate"
     | "collectionDelete"
     | "collectionCreate"
+    | "productPublish"
+    | "productUnpublish"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -1847,10 +1849,21 @@ fn product_source_with_relationships(
     #("templateSuffix", optional_string_source(product.template_suffix)),
     #("seo", product_seo_source(product.seo)),
     #("category", optional_product_category_source(product.category)),
+    #("publishedOnCurrentPublication", SrcBool(False)),
+    #("availablePublicationsCount", count_source(0)),
+    #("resourcePublicationsCount", count_source(0)),
     #("collections", collections),
     #("media", empty_connection_source()),
     #("options", options),
     #("variants", variants),
+  ])
+}
+
+fn count_source(count: Int) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Count")),
+    #("count", SrcInt(count)),
+    #("precision", SrcString("EXACT")),
   ])
 }
 
@@ -3341,6 +3354,62 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "productPublish" -> {
+              let result =
+                handle_product_publication_mutation(
+                  current_store,
+                  current_identity,
+                  "ProductPublishPayload",
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productPublish locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "productUnpublish" -> {
+              let result =
+                handle_product_publication_mutation(
+                  current_store,
+                  current_identity,
+                  "ProductUnpublishPayload",
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productUnpublish locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "tagsAdd" -> {
               let result =
                 handle_tags_update(
@@ -3930,6 +3999,79 @@ fn handle_product_update(
             identity,
             [],
           )
+      }
+  }
+}
+
+fn handle_product_publication_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  typename: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input")
+  let id = case input {
+    Some(input) -> read_arg_string(input, "id")
+    None -> None
+  }
+  case id {
+    None ->
+      mutation_result(
+        key,
+        product_publication_payload(
+          typename,
+          store,
+          None,
+          [
+            ProductUserError(["input", "id"], "Product id is required", None),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            product_publication_payload(
+              typename,
+              store,
+              None,
+              [
+                ProductUserError(["input", "id"], "Product not found", None),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(product) -> {
+          let #(_, next_store) = store.upsert_staged_product(store, product)
+          mutation_result(
+            key,
+            product_publication_payload(
+              typename,
+              next_store,
+              Some(product),
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            identity,
+            [product.id],
+          )
+        }
       }
   }
 }
@@ -7183,6 +7325,29 @@ fn product_create_payload(
   project_graphql_value(
     src_object([
       #("__typename", SrcString("ProductCreatePayload")),
+      #("product", product_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_publication_payload(
+  typename: String,
+  store: Store,
+  product: Option(ProductRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString(typename)),
       #("product", product_value),
       #("userErrors", user_errors_source(user_errors)),
     ]),

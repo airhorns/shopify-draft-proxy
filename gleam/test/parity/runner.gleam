@@ -238,6 +238,11 @@ fn seed_capture_preconditions(
       seed_inventory_item_update_preconditions(capture, proxy)
     "product-variants-bulk-reorder-live-parity" ->
       seed_product_variants_bulk_reorder_preconditions(capture, proxy)
+    "productPublish-parity-plan"
+    | "productPublish-aggregate-parity"
+    | "productUnpublish-parity-plan"
+    | "productUnpublish-aggregate-parity" ->
+      seed_product_publication_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -324,6 +329,22 @@ fn make_seed_product_option_value(
     name: name,
     has_variants: read_bool_field(source, "hasVariants") |> option.unwrap(False),
   ))
+}
+
+fn seed_product_publication_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products = case read_object_field(capture, "seedProduct") {
+    Some(product_json) ->
+      case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [product]
+        Error(_) -> []
+      }
+    None -> []
+  }
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  draft_proxy.DraftProxy(..proxy, store: store)
 }
 
 fn seed_product_preconditions(

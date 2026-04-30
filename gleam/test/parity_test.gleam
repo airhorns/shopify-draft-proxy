@@ -390,6 +390,22 @@ pub fn tags_remove_parity_plan_test() {
   check("config/parity-specs/products/tagsRemove-parity-plan.json")
 }
 
+pub fn product_publish_parity_plan_test() {
+  check("config/parity-specs/products/productPublish-parity-plan.json")
+}
+
+pub fn product_publish_aggregate_parity_test() {
+  check("config/parity-specs/products/productPublish-aggregate-parity.json")
+}
+
+pub fn product_unpublish_parity_plan_test() {
+  check("config/parity-specs/products/productUnpublish-parity-plan.json")
+}
+
+pub fn product_unpublish_aggregate_parity_test() {
+  check("config/parity-specs/products/productUnpublish-aggregate-parity.json")
+}
+
 pub fn admin_platform_product_option_node_reads_test() {
   check(
     "config/parity-specs/admin-platform/admin-platform-product-option-node-reads.json",

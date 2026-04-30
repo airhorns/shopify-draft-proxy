@@ -9,6 +9,72 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 82: product publication publish/unpublish
+
+Completes the captured `productPublish` and `productUnpublish` payload and
+aggregate-read parity slices in the Gleam Products handler. The pass wires both
+mutation roots into local staging, preserves raw mutation log handling through
+the existing Products mutation flow, seeds the captured DRAFT product
+precondition, and projects Shopify's captured publication aggregate fields for
+that DRAFT product as `false`/zero-count values.
+
+The pass promotes `productPublish-parity-plan`,
+`productPublish-aggregate-parity`, `productUnpublish-parity-plan`, and
+`productUnpublish-aggregate-parity` into the Gleam parity suite. The checked-in
+fixtures, request documents, variables capture paths, and strict comparison
+contracts stay unchanged.
+
+| Module                                               | Change                                                                |
+| ---------------------------------------------------- | --------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages product publish/unpublish roots and serializes aggregates.     |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured minimal product fixture for publication mutations. |
+| `gleam/test/parity_test.gleam`                       | Enables four strict product publication parity specs.                 |
+
+Validation:
+Focused JavaScript parity for the four product publication tests is green at
+784 tests, and full `gleam test --target javascript` is green at 784 tests on
+the host Node runtime. Host `gleam test --target erlang` still fails before
+tests execute on the local Erlang install with the known `undef` runner issue;
+after clearing host-built Erlang artifacts, the Docker Erlang fallback is green
+at 780 tests. Product parity inventory remains 115 checked-in specs, with 70
+product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was strict parity replay returning HTTP 400 for
+  both `productPublish` and `productUnpublish`: `No mutation dispatcher
+implemented for root field`.
+- The live fixtures publish/unpublish a DRAFT product, and Shopify still
+  reports `publishedOnCurrentPublication: false` plus zero
+  `availablePublicationsCount`/`resourcePublicationsCount` values in both the
+  mutation payload and downstream read.
+- The checked-in seed product for this pair is intentionally minimal
+  (`id`/`title`/`status`), so the parity runner seeds it through the relaxed
+  product decoder rather than weakening the capture.
+
+### Risks / open items
+
+- Broader publication roots (`publicationCreate`/update/delete,
+  `publishablePublish`, channels, and count roots), product feeds/feedback,
+  selling plans, product metafields, media, advanced search, inventory
+  shipment/transfer, and broader validation atomicity parity remain incomplete
+  in Gleam.
+- Only 70 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 83 candidates
+
+- Continue the broader publication roots local-runtime scenario now that
+  top-level publications and product publish/unpublish are represented.
+- Port product metafield behavior now that Product, Product Option,
+  Product Variant, Inventory, Collection, Location, and Publication read slices
+  are locally staged or seeded.
+- Continue remaining inventory shipment/transfer roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 81: publications catalog read
 
 Completes the captured top-level `publications` catalog read in the Gleam
