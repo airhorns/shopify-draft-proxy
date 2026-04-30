@@ -215,6 +215,13 @@ If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
 path syntax instead of narrowing or rewriting the checked-in spec.
 
+Functions parity note: captures with `seedShopifyFunctions` can share one
+runner seeding helper for local staging and live read-only scenarios. When a
+local-runtime Functions fixture appears one synthetic id/timestamp step ahead,
+check whether the TypeScript conformance harness seeds the synthetic registry
+before the primary request; mirror that seed in the Gleam runner rather than
+adding broad synthetic-id/timestamp expected differences.
+
 ### Porting notes
 
 - Events is a read-only, no-data domain. Gleam coverage for `event`, `events`,
