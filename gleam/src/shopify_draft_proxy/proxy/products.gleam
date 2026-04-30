@@ -8,6 +8,7 @@
 
 import gleam/bit_array
 import gleam/dict.{type Dict}
+import gleam/float
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
@@ -65,10 +66,11 @@ import shopify_draft_proxy/state/types.{
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  type PublicationRecord, type ShopResourceFeedbackRecord, CapturedArray,
-  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
-  CapturedString, CollectionRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
+  type PublicationRecord, type SellingPlanGroupRecord, type SellingPlanRecord,
+  type ShopResourceFeedbackRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, CollectionRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryMeasurementRecord, InventoryQuantityRecord,
   InventoryShipmentLineItemRecord, InventoryShipmentRecord,
   InventoryShipmentTrackingRecord, InventoryTransferLineItemRecord,
   InventoryTransferLocationSnapshotRecord, InventoryTransferRecord,
@@ -78,7 +80,7 @@ import shopify_draft_proxy/state/types.{
   ProductOperationUserErrorRecord, ProductOptionRecord, ProductOptionValueRecord,
   ProductRecord, ProductResourceFeedbackRecord, ProductSeoRecord,
   ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
-  ShopResourceFeedbackRecord,
+  SellingPlanGroupRecord, SellingPlanRecord, ShopResourceFeedbackRecord,
 }
 
 pub type ProductsError {
@@ -129,7 +131,9 @@ pub fn is_products_query_root(name: String) -> Bool {
     | "productSavedSearches"
     | "productResourceFeedback"
     | "productOperation"
-    | "productDuplicateJob" -> True
+    | "productDuplicateJob"
+    | "sellingPlanGroup"
+    | "sellingPlanGroups" -> True
     _ -> False
   }
 }
@@ -200,6 +204,17 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "inventoryTransferCancel"
     | "inventoryTransferDelete"
     | "shopResourceFeedbackCreate"
+    | "sellingPlanGroupCreate"
+    | "sellingPlanGroupUpdate"
+    | "sellingPlanGroupDelete"
+    | "sellingPlanGroupAddProducts"
+    | "sellingPlanGroupRemoveProducts"
+    | "sellingPlanGroupAddProductVariants"
+    | "sellingPlanGroupRemoveProductVariants"
+    | "productJoinSellingPlanGroups"
+    | "productLeaveSellingPlanGroups"
+    | "productVariantJoinSellingPlanGroups"
+    | "productVariantLeaveSellingPlanGroups"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -394,6 +409,20 @@ fn serialize_root_fields(
               })
             "productDuplicateJob" ->
               serialize_product_duplicate_job(field, variables)
+            "sellingPlanGroup" ->
+              serialize_selling_plan_group_root(
+                store,
+                field,
+                variables,
+                fragments,
+              )
+            "sellingPlanGroups" ->
+              serialize_selling_plan_groups_connection(
+                store,
+                field,
+                variables,
+                fragments,
+              )
             _ -> json.null()
           }
         _ -> json.null()
@@ -2251,6 +2280,343 @@ fn serialize_products_connection(
   }
 }
 
+fn serialize_selling_plan_group_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.get_effective_selling_plan_group_by_id(store, id) {
+        Some(group) ->
+          serialize_selling_plan_group_object(
+            store,
+            group,
+            get_selected_child_fields(field, default_selected_field_options()),
+            variables,
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn serialize_selling_plan_groups_connection(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let groups = store.list_effective_selling_plan_groups(store)
+  case groups {
+    [] -> serialize_empty_connection(field, default_selected_field_options())
+    _ -> {
+      let window =
+        paginate_connection_items(
+          groups,
+          field,
+          variables,
+          selling_plan_group_cursor,
+          default_connection_window_options(),
+        )
+      serialize_connection(
+        field,
+        SerializeConnectionConfig(
+          items: window.items,
+          has_next_page: window.has_next_page,
+          has_previous_page: window.has_previous_page,
+          get_cursor_value: selling_plan_group_cursor,
+          serialize_node: fn(group, node_field, _index) {
+            serialize_selling_plan_group_object(
+              store,
+              group,
+              get_selected_child_fields(
+                node_field,
+                default_selected_field_options(),
+              ),
+              variables,
+              fragments,
+            )
+          },
+          selected_field_options: default_selected_field_options(),
+          page_info_options: default_connection_page_info_options(),
+        ),
+      )
+    }
+  }
+}
+
+fn serialize_selling_plan_group_object(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  selections: List(Selection),
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  json.object(
+    list.map(selections, fn(selection) {
+      let key = get_field_response_key(selection)
+      let value = case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "__typename" -> json.string("SellingPlanGroup")
+            "id" -> json.string(group.id)
+            "appId" -> optional_string(group.app_id)
+            "name" -> json.string(group.name)
+            "merchantCode" -> json.string(group.merchant_code)
+            "description" -> optional_string(group.description)
+            "options" -> json.array(group.options, json.string)
+            "position" -> optional_int_json(group.position)
+            "summary" -> optional_string(group.summary)
+            "createdAt" -> optional_string(group.created_at)
+            "productsCount" ->
+              serialize_exact_count(selection, list.length(group.product_ids))
+            "productVariantsCount" ->
+              serialize_exact_count(
+                selection,
+                product_variant_count_for_selling_plan_group(
+                  store,
+                  group,
+                  selection,
+                  variables,
+                ),
+              )
+            "appliesToProduct" ->
+              json.bool(
+                case read_string_argument(selection, variables, "productId") {
+                  Some(product_id) ->
+                    list.contains(group.product_ids, product_id)
+                  None -> False
+                },
+              )
+            "appliesToProductVariant" ->
+              json.bool(
+                case
+                  read_string_argument(selection, variables, "productVariantId")
+                {
+                  Some(variant_id) ->
+                    list.contains(group.product_variant_ids, variant_id)
+                  None -> False
+                },
+              )
+            "appliesToProductVariants" ->
+              json.bool(
+                case read_string_argument(selection, variables, "productId") {
+                  Some(product_id) ->
+                    list.any(group.product_variant_ids, fn(variant_id) {
+                      case
+                        store.get_effective_variant_by_id(store, variant_id)
+                      {
+                        Some(variant) -> variant.product_id == product_id
+                        None -> False
+                      }
+                    })
+                  None -> False
+                },
+              )
+            "products" ->
+              serialize_selling_plan_group_products_connection(
+                store,
+                group,
+                selection,
+                variables,
+                fragments,
+              )
+            "productVariants" ->
+              serialize_selling_plan_group_variants_connection(
+                store,
+                group,
+                selection,
+                variables,
+                fragments,
+              )
+            "sellingPlans" ->
+              serialize_selling_plans_connection(
+                group.selling_plans,
+                selection,
+                variables,
+                fragments,
+              )
+            _ -> json.null()
+          }
+        _ -> json.null()
+      }
+      #(key, value)
+    }),
+  )
+}
+
+fn serialize_selling_plan_group_products_connection(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let products =
+    group.product_ids
+    |> list.filter_map(fn(product_id) {
+      store.get_effective_product_by_id(store, product_id) |> option_to_result
+    })
+  serialize_product_list_connection(
+    products,
+    store,
+    field,
+    variables,
+    fragments,
+  )
+}
+
+fn serialize_selling_plan_group_variants_connection(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let product_id = read_string_argument(field, variables, "productId")
+  let variants =
+    group.product_variant_ids
+    |> list.filter_map(fn(variant_id) {
+      store.get_effective_variant_by_id(store, variant_id) |> option_to_result
+    })
+    |> list.filter(fn(variant) {
+      case product_id {
+        Some(id) -> variant.product_id == id
+        None -> True
+      }
+    })
+  let window =
+    paginate_connection_items(
+      variants,
+      field,
+      variables,
+      product_variant_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: product_variant_cursor,
+      serialize_node: fn(variant, node_field, _index) {
+        serialize_product_variant_object(
+          store,
+          variant,
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          node_field,
+          variables,
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn serialize_product_list_connection(
+  products: List(ProductRecord),
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let window =
+    paginate_connection_items(
+      products,
+      field,
+      variables,
+      product_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: product_cursor,
+      serialize_node: fn(product, node_field, _index) {
+        project_graphql_value(
+          product_source_with_store(store, product),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn serialize_selling_plans_connection(
+  plans: List(SellingPlanRecord),
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let window =
+    paginate_connection_items(
+      plans,
+      field,
+      variables,
+      selling_plan_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: selling_plan_cursor,
+      serialize_node: fn(plan, node_field, _index) {
+        project_graphql_value(
+          captured_json_source(plan.data),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn product_variant_count_for_selling_plan_group(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Int {
+  case read_string_argument(field, variables, "productId") {
+    Some(product_id) ->
+      group.product_variant_ids
+      |> list.filter(fn(variant_id) {
+        case store.get_effective_variant_by_id(store, variant_id) {
+          Some(variant) -> variant.product_id == product_id
+          None -> False
+        }
+      })
+      |> list.length
+    None -> list.length(group.product_variant_ids)
+  }
+}
+
 fn filtered_products(
   store: Store,
   field: Selection,
@@ -2889,6 +3255,20 @@ fn product_cursor(product: ProductRecord, _index: Int) -> String {
   }
 }
 
+fn selling_plan_group_cursor(
+  group: SellingPlanGroupRecord,
+  _index: Int,
+) -> String {
+  case group.cursor {
+    Some(cursor) -> cursor
+    None -> group.id
+  }
+}
+
+fn selling_plan_cursor(plan: SellingPlanRecord, _index: Int) -> String {
+  plan.id
+}
+
 fn product_cursor_for_field(
   product: ProductRecord,
   index: Int,
@@ -3310,6 +3690,8 @@ pub fn product_source(product: ProductRecord) -> SourceValue {
     empty_connection_source(),
     empty_connection_source(),
     SrcList([]),
+    empty_connection_source(),
+    count_source(0),
     None,
   )
 }
@@ -3335,6 +3717,18 @@ fn product_source_with_store_and_publication(
       store,
       product.id,
     )),
+    selling_plan_group_connection_source(
+      store.list_effective_selling_plan_groups_visible_for_product(
+        store,
+        product.id,
+      ),
+    ),
+    count_source(
+      list.length(store.list_effective_selling_plan_groups_for_product(
+        store,
+        product.id,
+      )),
+    ),
     publication_id,
   )
 }
@@ -3345,6 +3739,8 @@ fn product_source_with_relationships(
   variants: SourceValue,
   media: SourceValue,
   options: SourceValue,
+  selling_plan_groups: SourceValue,
+  selling_plan_groups_count: SourceValue,
   publication_id: Option(String),
 ) -> SourceValue {
   let visible_publication_count = case product.status == "ACTIVE" {
@@ -3392,6 +3788,9 @@ fn product_source_with_relationships(
     #("images", empty_connection_source()),
     #("options", options),
     #("variants", variants),
+    #("requiresSellingPlan", SrcBool(False)),
+    #("sellingPlanGroups", selling_plan_groups),
+    #("sellingPlanGroupsCount", selling_plan_groups_count),
   ])
 }
 
@@ -3805,9 +4204,48 @@ fn product_variant_source_with_inventory(
     #("product", variant_product_source(store, variant.product_id)),
     #("media", variant_media_connection_source(store, variant)),
     #(
+      "sellingPlanGroups",
+      selling_plan_group_connection_source(
+        store.list_effective_selling_plan_groups_visible_for_product_variant(
+          store,
+          variant.id,
+        ),
+      ),
+    ),
+    #(
+      "sellingPlanGroupsCount",
+      count_source(
+        list.length(
+          store.list_effective_selling_plan_groups_for_product_variant(
+            store,
+            variant.id,
+          ),
+        ),
+      ),
+    ),
+    #(
       "contextualPricing",
       optional_captured_json_source(variant.contextual_pricing),
     ),
+  ])
+}
+
+fn selling_plan_group_connection_source(
+  groups: List(SellingPlanGroupRecord),
+) -> SourceValue {
+  src_object([
+    #("nodes", SrcList(list.map(groups, selling_plan_group_summary_source))),
+  ])
+}
+
+fn selling_plan_group_summary_source(
+  group: SellingPlanGroupRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("SellingPlanGroup")),
+    #("id", SrcString(group.id)),
+    #("name", SrcString(group.name)),
+    #("merchantCode", SrcString(group.merchant_code)),
   ])
 }
 
@@ -6125,6 +6563,71 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some("Gleam staged shopResourceFeedbackCreate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "sellingPlanGroupCreate"
+            | "sellingPlanGroupUpdate"
+            | "sellingPlanGroupDelete"
+            | "sellingPlanGroupAddProducts"
+            | "sellingPlanGroupRemoveProducts"
+            | "sellingPlanGroupAddProductVariants"
+            | "sellingPlanGroupRemoveProductVariants" -> {
+              let result =
+                handle_selling_plan_group_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged " <> name.value <> " locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "productJoinSellingPlanGroups"
+            | "productLeaveSellingPlanGroups"
+            | "productVariantJoinSellingPlanGroups"
+            | "productVariantLeaveSellingPlanGroups" -> {
+              let result =
+                handle_product_selling_plan_group_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged " <> name.value <> " locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -15212,6 +15715,1408 @@ fn stage_product_options_create(
     final_identity,
     staged_ids,
   )
+}
+
+fn handle_selling_plan_group_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case root_name {
+    "sellingPlanGroupCreate" -> {
+      let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+      let resources =
+        read_arg_object(args, "resources") |> option.unwrap(dict.new())
+      let #(group, next_identity) =
+        make_selling_plan_group_record(identity, input, None, resources)
+      let #(_, next_store) =
+        store.upsert_staged_selling_plan_group(store, group)
+      mutation_result(
+        key,
+        selling_plan_group_mutation_payload(
+          next_store,
+          field,
+          variables,
+          fragments,
+          Some(group),
+          [],
+          None,
+          None,
+          None,
+          None,
+        ),
+        next_store,
+        next_identity,
+        selling_plan_group_staged_ids(group),
+      )
+    }
+    "sellingPlanGroupUpdate" -> {
+      let id = read_arg_string(args, "id")
+      case
+        id
+        |> option.then(fn(id) {
+          store.get_effective_selling_plan_group_by_id(store, id)
+        })
+      {
+        None ->
+          mutation_result(
+            key,
+            selling_plan_group_mutation_payload(
+              store,
+              field,
+              variables,
+              fragments,
+              None,
+              [selling_plan_group_does_not_exist_error()],
+              Some(None),
+              None,
+              None,
+              None,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(existing) -> {
+          let input =
+            read_arg_object(args, "input") |> option.unwrap(dict.new())
+          let deleted_plan_ids =
+            read_string_list_field(input, "sellingPlansToDelete")
+            |> option.unwrap([])
+            |> list.filter(fn(plan_id) {
+              list.any(existing.selling_plans, fn(plan) { plan.id == plan_id })
+            })
+          let #(group, next_identity) =
+            make_selling_plan_group_record(
+              identity,
+              input,
+              Some(existing),
+              dict.new(),
+            )
+          let #(_, next_store) =
+            store.upsert_staged_selling_plan_group(store, group)
+          mutation_result(
+            key,
+            selling_plan_group_mutation_payload(
+              next_store,
+              field,
+              variables,
+              fragments,
+              Some(group),
+              [],
+              Some(Some(deleted_plan_ids)),
+              None,
+              None,
+              None,
+            ),
+            next_store,
+            next_identity,
+            selling_plan_group_staged_ids(group),
+          )
+        }
+      }
+    }
+    "sellingPlanGroupDelete" -> {
+      let id = read_arg_string(args, "id")
+      case
+        id
+        |> option.then(fn(id) {
+          store.get_effective_selling_plan_group_by_id(store, id)
+        })
+      {
+        None ->
+          mutation_result(
+            key,
+            selling_plan_group_mutation_payload(
+              store,
+              field,
+              variables,
+              fragments,
+              None,
+              [selling_plan_group_does_not_exist_error()],
+              None,
+              Some(None),
+              None,
+              None,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(group) -> {
+          let next_store =
+            store.delete_staged_selling_plan_group(store, group.id)
+          mutation_result(
+            key,
+            selling_plan_group_mutation_payload(
+              next_store,
+              field,
+              variables,
+              fragments,
+              None,
+              [],
+              None,
+              Some(Some(group.id)),
+              None,
+              None,
+            ),
+            next_store,
+            identity,
+            [group.id],
+          )
+        }
+      }
+    }
+    "sellingPlanGroupAddProducts" | "sellingPlanGroupAddProductVariants" -> {
+      let id = read_arg_string(args, "id")
+      case
+        id
+        |> option.then(fn(id) {
+          store.get_effective_selling_plan_group_by_id(store, id)
+        })
+      {
+        None ->
+          mutation_result(
+            key,
+            selling_plan_group_mutation_payload(
+              store,
+              field,
+              variables,
+              fragments,
+              None,
+              [selling_plan_group_does_not_exist_error()],
+              None,
+              None,
+              None,
+              None,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(group) -> {
+          let next_group = case root_name {
+            "sellingPlanGroupAddProducts" ->
+              SellingPlanGroupRecord(
+                ..group,
+                product_ids: dedupe_preserving_order(list.append(
+                  group.product_ids,
+                  read_arg_string_list(args, "productIds"),
+                )),
+              )
+            _ ->
+              SellingPlanGroupRecord(
+                ..group,
+                product_variant_ids: dedupe_preserving_order(list.append(
+                  group.product_variant_ids,
+                  read_arg_string_list(args, "productVariantIds"),
+                )),
+              )
+          }
+          let #(_, next_store) =
+            store.upsert_staged_selling_plan_group(store, next_group)
+          mutation_result(
+            key,
+            selling_plan_group_mutation_payload(
+              next_store,
+              field,
+              variables,
+              fragments,
+              Some(next_group),
+              [],
+              None,
+              None,
+              None,
+              None,
+            ),
+            next_store,
+            identity,
+            [next_group.id],
+          )
+        }
+      }
+    }
+    "sellingPlanGroupRemoveProducts"
+    | "sellingPlanGroupRemoveProductVariants" -> {
+      let id = read_arg_string(args, "id")
+      case
+        id
+        |> option.then(fn(id) {
+          store.get_effective_selling_plan_group_by_id(store, id)
+        })
+      {
+        None ->
+          mutation_result(
+            key,
+            selling_plan_group_mutation_payload(
+              store,
+              field,
+              variables,
+              fragments,
+              None,
+              [selling_plan_group_does_not_exist_error()],
+              None,
+              None,
+              case root_name {
+                "sellingPlanGroupRemoveProducts" -> Some(None)
+                _ -> None
+              },
+              case root_name {
+                "sellingPlanGroupRemoveProductVariants" -> Some(None)
+                _ -> None
+              },
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(group) -> {
+          case root_name {
+            "sellingPlanGroupRemoveProducts" -> {
+              let requested = read_arg_string_list(args, "productIds")
+              let removed =
+                group.product_ids
+                |> list.filter(fn(product_id) {
+                  list.contains(requested, product_id)
+                })
+              let next_group =
+                SellingPlanGroupRecord(
+                  ..group,
+                  product_ids: group.product_ids
+                    |> list.filter(fn(product_id) {
+                      !list.contains(requested, product_id)
+                    }),
+                )
+              let #(_, next_store) =
+                store.upsert_staged_selling_plan_group(store, next_group)
+              mutation_result(
+                key,
+                selling_plan_group_mutation_payload(
+                  next_store,
+                  field,
+                  variables,
+                  fragments,
+                  None,
+                  [],
+                  None,
+                  None,
+                  Some(Some(removed)),
+                  None,
+                ),
+                next_store,
+                identity,
+                [next_group.id],
+              )
+            }
+            _ -> {
+              let requested = read_arg_string_list(args, "productVariantIds")
+              let removed =
+                group.product_variant_ids
+                |> list.filter(fn(variant_id) {
+                  list.contains(requested, variant_id)
+                })
+              let next_group =
+                SellingPlanGroupRecord(
+                  ..group,
+                  product_variant_ids: group.product_variant_ids
+                    |> list.filter(fn(variant_id) {
+                      !list.contains(requested, variant_id)
+                    }),
+                )
+              let #(_, next_store) =
+                store.upsert_staged_selling_plan_group(store, next_group)
+              mutation_result(
+                key,
+                selling_plan_group_mutation_payload(
+                  next_store,
+                  field,
+                  variables,
+                  fragments,
+                  None,
+                  [],
+                  None,
+                  None,
+                  None,
+                  Some(Some(removed)),
+                ),
+                next_store,
+                identity,
+                [next_group.id],
+              )
+            }
+          }
+        }
+      }
+    }
+    _ -> mutation_result(key, json.null(), store, identity, [])
+  }
+}
+
+fn handle_product_selling_plan_group_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case root_name {
+    "productJoinSellingPlanGroups" | "productLeaveSellingPlanGroups" -> {
+      let product_id = read_arg_string(args, "id")
+      case
+        product_id
+        |> option.then(fn(id) { store.get_effective_product_by_id(store, id) })
+      {
+        None ->
+          mutation_result(
+            key,
+            product_selling_plan_group_mutation_payload(
+              store,
+              field,
+              variables,
+              fragments,
+              None,
+              None,
+              [
+                ProductUserError(
+                  ["id"],
+                  "Product does not exist.",
+                  Some("PRODUCT_DOES_NOT_EXIST"),
+                ),
+              ],
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(product) -> {
+          let #(next_store, errors, staged_ids) =
+            update_product_selling_plan_group_membership(
+              store,
+              product.id,
+              read_arg_string_list(args, "sellingPlanGroupIds"),
+              root_name == "productJoinSellingPlanGroups",
+            )
+          mutation_result(
+            key,
+            product_selling_plan_group_mutation_payload(
+              next_store,
+              field,
+              variables,
+              fragments,
+              store.get_effective_product_by_id(next_store, product.id),
+              None,
+              errors,
+            ),
+            next_store,
+            identity,
+            staged_ids,
+          )
+        }
+      }
+    }
+    "productVariantJoinSellingPlanGroups"
+    | "productVariantLeaveSellingPlanGroups" -> {
+      let variant_id = read_arg_string(args, "id")
+      case
+        variant_id
+        |> option.then(fn(id) { store.get_effective_variant_by_id(store, id) })
+      {
+        None ->
+          mutation_result(
+            key,
+            product_selling_plan_group_mutation_payload(
+              store,
+              field,
+              variables,
+              fragments,
+              None,
+              None,
+              [
+                ProductUserError(
+                  ["id"],
+                  "Product variant does not exist.",
+                  Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
+                ),
+              ],
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(variant) -> {
+          let #(next_store, errors, staged_ids) =
+            update_variant_selling_plan_group_membership(
+              store,
+              variant.id,
+              read_arg_string_list(args, "sellingPlanGroupIds"),
+              root_name == "productVariantJoinSellingPlanGroups",
+            )
+          mutation_result(
+            key,
+            product_selling_plan_group_mutation_payload(
+              next_store,
+              field,
+              variables,
+              fragments,
+              None,
+              store.get_effective_variant_by_id(next_store, variant.id),
+              errors,
+            ),
+            next_store,
+            identity,
+            staged_ids,
+          )
+        }
+      }
+    }
+    _ -> mutation_result(key, json.null(), store, identity, [])
+  }
+}
+
+fn update_product_selling_plan_group_membership(
+  store: Store,
+  product_id: String,
+  group_ids: List(String),
+  join: Bool,
+) -> #(Store, List(ProductUserError), List(String)) {
+  let #(next_store, errors, staged_ids) =
+    list.fold(group_ids, #(store, [], []), fn(acc, group_id) {
+      let #(current_store, current_errors, current_ids) = acc
+      case
+        store.get_effective_selling_plan_group_by_id(current_store, group_id)
+      {
+        None -> #(
+          current_store,
+          list.append(current_errors, [
+            selling_plan_group_does_not_exist_error(),
+          ]),
+          current_ids,
+        )
+        Some(group) -> {
+          let next_product_ids = case join {
+            True ->
+              dedupe_preserving_order(
+                list.append(group.product_ids, [
+                  product_id,
+                ]),
+              )
+            False ->
+              group.product_ids
+              |> list.filter(fn(existing_id) { existing_id != product_id })
+          }
+          let next_group =
+            SellingPlanGroupRecord(..group, product_ids: next_product_ids)
+          let #(_, updated_store) =
+            store.upsert_staged_selling_plan_group(current_store, next_group)
+          #(updated_store, current_errors, list.append(current_ids, [group_id]))
+        }
+      }
+    })
+  #(next_store, errors, staged_ids)
+}
+
+fn update_variant_selling_plan_group_membership(
+  store: Store,
+  variant_id: String,
+  group_ids: List(String),
+  join: Bool,
+) -> #(Store, List(ProductUserError), List(String)) {
+  let #(next_store, errors, staged_ids) =
+    list.fold(group_ids, #(store, [], []), fn(acc, group_id) {
+      let #(current_store, current_errors, current_ids) = acc
+      case
+        store.get_effective_selling_plan_group_by_id(current_store, group_id)
+      {
+        None -> #(
+          current_store,
+          list.append(current_errors, [
+            selling_plan_group_does_not_exist_error(),
+          ]),
+          current_ids,
+        )
+        Some(group) -> {
+          let next_variant_ids = case join {
+            True ->
+              dedupe_preserving_order(
+                list.append(group.product_variant_ids, [
+                  variant_id,
+                ]),
+              )
+            False ->
+              group.product_variant_ids
+              |> list.filter(fn(existing_id) { existing_id != variant_id })
+          }
+          let next_group =
+            SellingPlanGroupRecord(
+              ..group,
+              product_variant_ids: next_variant_ids,
+            )
+          let #(_, updated_store) =
+            store.upsert_staged_selling_plan_group(current_store, next_group)
+          #(updated_store, current_errors, list.append(current_ids, [group_id]))
+        }
+      }
+    })
+  #(next_store, errors, staged_ids)
+}
+
+fn make_selling_plan_group_record(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, ResolvedValue),
+  existing: Option(SellingPlanGroupRecord),
+  resources: Dict(String, ResolvedValue),
+) -> #(SellingPlanGroupRecord, SyntheticIdentityRegistry) {
+  let current_plans = case existing {
+    Some(group) -> group.selling_plans
+    None -> []
+  }
+  let #(created_plans, identity_after_creates) =
+    read_object_list_field(input, "sellingPlansToCreate")
+    |> list.fold(#(current_plans, identity), fn(acc, plan_input) {
+      let #(plans, current_identity) = acc
+      let #(plan, next_identity) =
+        make_selling_plan_record(current_identity, plan_input, None)
+      #(list.append(plans, [plan]), next_identity)
+    })
+  let #(updated_plans, identity_after_updates) =
+    read_object_list_field(input, "sellingPlansToUpdate")
+    |> list.fold(#(created_plans, identity_after_creates), fn(acc, plan_input) {
+      let #(plans, current_identity) = acc
+      case read_string_field(plan_input, "id") {
+        None -> acc
+        Some(plan_id) ->
+          case find_selling_plan(plans, plan_id) {
+            None -> acc
+            Some(existing_plan) -> {
+              let #(next_plan, next_identity) =
+                make_selling_plan_record(
+                  current_identity,
+                  plan_input,
+                  Some(existing_plan),
+                )
+              #(replace_selling_plan(plans, next_plan), next_identity)
+            }
+          }
+      }
+    })
+  let deleted_plan_ids =
+    read_string_list_field(input, "sellingPlansToDelete") |> option.unwrap([])
+  let plans =
+    updated_plans
+    |> list.filter(fn(plan) { !list.contains(deleted_plan_ids, plan.id) })
+  let #(created_at, identity_after_timestamp) = case existing {
+    Some(group) -> #(group.created_at, identity_after_updates)
+    None -> {
+      let #(timestamp, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity_after_updates)
+      #(Some(timestamp), next_identity)
+    }
+  }
+  let #(id, next_identity) = case existing {
+    Some(group) -> #(group.id, identity_after_timestamp)
+    None ->
+      synthetic_identity.make_proxy_synthetic_gid(
+        identity_after_timestamp,
+        "SellingPlanGroup",
+      )
+  }
+  let existing_product_ids = case existing {
+    Some(group) -> group.product_ids
+    None -> []
+  }
+  let existing_variant_ids = case existing {
+    Some(group) -> group.product_variant_ids
+    None -> []
+  }
+  let group =
+    SellingPlanGroupRecord(
+      id: id,
+      app_id: read_string_field(input, "appId")
+        |> option.or(existing_group_app_id(existing)),
+      name: read_string_field(input, "name")
+        |> option.unwrap(existing_group_name(existing)),
+      merchant_code: read_string_field(input, "merchantCode")
+        |> option.unwrap(existing_group_merchant_code(existing)),
+      description: read_string_field(input, "description")
+        |> option.or(existing_group_description(existing)),
+      options: read_string_list_field(input, "options")
+        |> option.unwrap(existing_group_options(existing)),
+      position: read_int_field(input, "position")
+        |> option.or(existing_group_position(existing)),
+      summary: summarize_selling_plan_group(plans),
+      created_at: created_at,
+      product_ids: dedupe_preserving_order(list.append(
+        existing_product_ids,
+        read_string_list_field(resources, "productIds") |> option.unwrap([]),
+      )),
+      product_variant_ids: dedupe_preserving_order(list.append(
+        existing_variant_ids,
+        read_string_list_field(resources, "productVariantIds")
+          |> option.unwrap([]),
+      )),
+      selling_plans: plans,
+      cursor: case existing {
+        Some(group) -> group.cursor
+        None -> None
+      },
+    )
+  #(group, next_identity)
+}
+
+fn make_selling_plan_record(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, ResolvedValue),
+  existing: Option(SellingPlanRecord),
+) -> #(SellingPlanRecord, SyntheticIdentityRegistry) {
+  let #(id, identity_after_id) = case read_string_field(input, "id"), existing {
+    Some(id), _ -> #(id, identity)
+    None, Some(plan) -> #(plan.id, identity)
+    None, None ->
+      synthetic_identity.make_proxy_synthetic_gid(identity, "SellingPlan")
+  }
+  let previous = case existing {
+    Some(plan) -> plan.data
+    None -> CapturedObject([])
+  }
+  let #(created_at, next_identity) = case
+    captured_string_field(previous, "createdAt")
+  {
+    Some(value) -> #(value, identity_after_id)
+    None -> synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  }
+  let data =
+    CapturedObject([
+      #("__typename", CapturedString("SellingPlan")),
+      #("id", CapturedString(id)),
+      #(
+        "name",
+        CapturedString(
+          read_string_field(input, "name")
+          |> option.or(captured_string_field(previous, "name"))
+          |> option.unwrap("Selling plan"),
+        ),
+      ),
+      #(
+        "description",
+        optional_captured_string(
+          read_string_field(input, "description")
+          |> option.or(captured_string_field(previous, "description")),
+        ),
+      ),
+      #(
+        "options",
+        CapturedArray(
+          read_string_list_field(input, "options")
+          |> option.or(captured_string_array_field(previous, "options"))
+          |> option.unwrap([])
+          |> list.map(CapturedString),
+        ),
+      ),
+      #(
+        "position",
+        optional_captured_int(
+          read_int_field(input, "position")
+          |> option.or(captured_int_field(previous, "position")),
+        ),
+      ),
+      #(
+        "category",
+        optional_captured_string(
+          read_string_field(input, "category")
+          |> option.or(captured_string_field(previous, "category")),
+        ),
+      ),
+      #("createdAt", CapturedString(created_at)),
+      #(
+        "billingPolicy",
+        selling_plan_billing_policy(
+          read_object_field(input, "billingPolicy") |> option.unwrap(dict.new()),
+          captured_object_field(previous, "billingPolicy"),
+        ),
+      ),
+      #(
+        "deliveryPolicy",
+        selling_plan_delivery_policy(
+          read_object_field(input, "deliveryPolicy")
+            |> option.unwrap(dict.new()),
+          captured_object_field(previous, "deliveryPolicy"),
+        ),
+      ),
+      #(
+        "inventoryPolicy",
+        selling_plan_inventory_policy(
+          read_object_field(input, "inventoryPolicy")
+            |> option.unwrap(dict.new()),
+          captured_object_field(previous, "inventoryPolicy"),
+        ),
+      ),
+      #("pricingPolicies", case dict.has_key(input, "pricingPolicies") {
+        True ->
+          CapturedArray(list.map(
+            read_object_list_field(input, "pricingPolicies"),
+            selling_plan_pricing_policy,
+          ))
+        False -> CapturedArray([])
+      }),
+    ])
+  #(SellingPlanRecord(id: id, data: data), next_identity)
+}
+
+fn selling_plan_billing_policy(
+  input: Dict(String, ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> CapturedJsonValue {
+  case read_object_field(input, "recurring") {
+    Some(recurring) ->
+      CapturedObject([
+        #("__typename", CapturedString("SellingPlanRecurringBillingPolicy")),
+        #(
+          "interval",
+          optional_captured_string(read_string_field(recurring, "interval")),
+        ),
+        #(
+          "intervalCount",
+          optional_captured_int(read_int_field(recurring, "intervalCount")),
+        ),
+        #(
+          "minCycles",
+          optional_captured_int(read_int_field(recurring, "minCycles")),
+        ),
+        #(
+          "maxCycles",
+          optional_captured_int(read_int_field(recurring, "maxCycles")),
+        ),
+      ])
+    None ->
+      case read_object_field(input, "fixed") {
+        Some(fixed) ->
+          CapturedObject([
+            #("__typename", CapturedString("SellingPlanFixedBillingPolicy")),
+            #(
+              "checkoutCharge",
+              captured_object_or_null(read_object_field(fixed, "checkoutCharge")),
+            ),
+            #(
+              "remainingBalanceChargeTrigger",
+              optional_captured_string(read_string_field(
+                fixed,
+                "remainingBalanceChargeTrigger",
+              )),
+            ),
+            #(
+              "remainingBalanceChargeExactTime",
+              optional_captured_string(read_string_field(
+                fixed,
+                "remainingBalanceChargeExactTime",
+              )),
+            ),
+            #(
+              "remainingBalanceChargeTimeAfterCheckout",
+              optional_captured_string(read_string_field(
+                fixed,
+                "remainingBalanceChargeTimeAfterCheckout",
+              )),
+            ),
+          ])
+        None ->
+          existing
+          |> option.unwrap(
+            CapturedObject([
+              #(
+                "__typename",
+                CapturedString("SellingPlanRecurringBillingPolicy"),
+              ),
+            ]),
+          )
+      }
+  }
+}
+
+fn selling_plan_delivery_policy(
+  input: Dict(String, ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> CapturedJsonValue {
+  case read_object_field(input, "recurring") {
+    Some(recurring) ->
+      CapturedObject([
+        #("__typename", CapturedString("SellingPlanRecurringDeliveryPolicy")),
+        #(
+          "interval",
+          optional_captured_string(read_string_field(recurring, "interval")),
+        ),
+        #(
+          "intervalCount",
+          optional_captured_int(read_int_field(recurring, "intervalCount")),
+        ),
+        #("cutoff", optional_captured_int(read_int_field(recurring, "cutoff"))),
+        #(
+          "intent",
+          CapturedString(
+            read_string_field(recurring, "intent")
+            |> option.unwrap("FULFILLMENT_BEGIN"),
+          ),
+        ),
+        #(
+          "preAnchorBehavior",
+          CapturedString(
+            read_string_field(recurring, "preAnchorBehavior")
+            |> option.unwrap("ASAP"),
+          ),
+        ),
+      ])
+    None ->
+      case read_object_field(input, "fixed") {
+        Some(fixed) ->
+          CapturedObject([
+            #("__typename", CapturedString("SellingPlanFixedDeliveryPolicy")),
+            #("cutoff", optional_captured_int(read_int_field(fixed, "cutoff"))),
+            #(
+              "fulfillmentTrigger",
+              optional_captured_string(read_string_field(
+                fixed,
+                "fulfillmentTrigger",
+              )),
+            ),
+            #(
+              "fulfillmentExactTime",
+              optional_captured_string(read_string_field(
+                fixed,
+                "fulfillmentExactTime",
+              )),
+            ),
+            #(
+              "intent",
+              optional_captured_string(read_string_field(fixed, "intent")),
+            ),
+            #(
+              "preAnchorBehavior",
+              optional_captured_string(read_string_field(
+                fixed,
+                "preAnchorBehavior",
+              )),
+            ),
+          ])
+        None ->
+          existing
+          |> option.unwrap(
+            CapturedObject([
+              #(
+                "__typename",
+                CapturedString("SellingPlanRecurringDeliveryPolicy"),
+              ),
+            ]),
+          )
+      }
+  }
+}
+
+fn selling_plan_inventory_policy(
+  input: Dict(String, ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "reserve",
+      optional_captured_string(
+        read_string_field(input, "reserve")
+        |> option.or(
+          option.then(existing, fn(value) {
+            captured_string_field(value, "reserve")
+          }),
+        ),
+      ),
+    ),
+  ])
+}
+
+fn selling_plan_pricing_policy(
+  input: Dict(String, ResolvedValue),
+) -> CapturedJsonValue {
+  case read_object_field(input, "fixed") {
+    Some(fixed) ->
+      CapturedObject([
+        #("__typename", CapturedString("SellingPlanFixedPricingPolicy")),
+        #(
+          "adjustmentType",
+          optional_captured_string(read_string_field(fixed, "adjustmentType")),
+        ),
+        #(
+          "adjustmentValue",
+          selling_plan_policy_value(
+            read_object_field(fixed, "adjustmentValue")
+            |> option.unwrap(dict.new()),
+          ),
+        ),
+      ])
+    None -> {
+      let recurring =
+        read_object_field(input, "recurring") |> option.unwrap(dict.new())
+      CapturedObject([
+        #("__typename", CapturedString("SellingPlanRecurringPricingPolicy")),
+        #(
+          "adjustmentType",
+          optional_captured_string(read_string_field(
+            recurring,
+            "adjustmentType",
+          )),
+        ),
+        #(
+          "adjustmentValue",
+          selling_plan_policy_value(
+            read_object_field(recurring, "adjustmentValue")
+            |> option.unwrap(dict.new()),
+          ),
+        ),
+        #(
+          "afterCycle",
+          optional_captured_int(read_int_field(recurring, "afterCycle")),
+        ),
+      ])
+    }
+  }
+}
+
+fn selling_plan_policy_value(
+  input: Dict(String, ResolvedValue),
+) -> CapturedJsonValue {
+  case read_number_captured_field(input, "fixedValue") {
+    Some(value) ->
+      CapturedObject([
+        #("__typename", CapturedString("SellingPlanPricingPolicyFixedValue")),
+        #("fixedValue", value),
+      ])
+    None ->
+      case read_string_field(input, "fixedValue") {
+        Some(value) ->
+          CapturedObject([
+            #(
+              "__typename",
+              CapturedString("SellingPlanPricingPolicyFixedValue"),
+            ),
+            #("fixedValue", CapturedString(value)),
+          ])
+        None ->
+          CapturedObject([
+            #(
+              "__typename",
+              CapturedString("SellingPlanPricingPolicyPercentageValue"),
+            ),
+            #(
+              "percentage",
+              read_number_captured_field(input, "percentage")
+                |> option.unwrap(CapturedNull),
+            ),
+          ])
+      }
+  }
+}
+
+fn selling_plan_group_mutation_payload(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+  group: Option(SellingPlanGroupRecord),
+  user_errors: List(ProductUserError),
+  deleted_selling_plan_ids: Option(Option(List(String))),
+  deleted_selling_plan_group_id: Option(Option(String)),
+  removed_product_ids: Option(Option(List(String))),
+  removed_product_variant_ids: Option(Option(List(String))),
+) -> Json {
+  json.object(
+    get_selected_child_fields(field, default_selected_field_options())
+    |> list.map(fn(selection) {
+      let key = get_field_response_key(selection)
+      let value = case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "sellingPlanGroup" ->
+              case group {
+                Some(group) ->
+                  serialize_selling_plan_group_object(
+                    store,
+                    group,
+                    get_selected_child_fields(
+                      selection,
+                      default_selected_field_options(),
+                    ),
+                    variables,
+                    fragments,
+                  )
+                None -> json.null()
+              }
+            "userErrors" ->
+              serialize_product_user_errors_json(user_errors, selection)
+            "deletedSellingPlanIds" ->
+              optional_string_list_json(deleted_selling_plan_ids)
+            "deletedSellingPlanGroupId" ->
+              optional_string_value_json(deleted_selling_plan_group_id)
+            "removedProductIds" ->
+              optional_string_list_json(removed_product_ids)
+            "removedProductVariantIds" ->
+              optional_string_list_json(removed_product_variant_ids)
+            _ -> json.null()
+          }
+        _ -> json.null()
+      }
+      #(key, value)
+    }),
+  )
+}
+
+fn product_selling_plan_group_mutation_payload(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+  product: Option(ProductRecord),
+  variant: Option(ProductVariantRecord),
+  user_errors: List(ProductUserError),
+) -> Json {
+  json.object(
+    get_selected_child_fields(field, default_selected_field_options())
+    |> list.map(fn(selection) {
+      let key = get_field_response_key(selection)
+      let value = case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "product" ->
+              case product {
+                Some(product) ->
+                  serialize_product_selection(
+                    store,
+                    product,
+                    selection,
+                    variables,
+                    fragments,
+                  )
+                None -> json.null()
+              }
+            "productVariant" ->
+              case variant {
+                Some(variant) ->
+                  serialize_product_variant_object(
+                    store,
+                    variant,
+                    get_selected_child_fields(
+                      selection,
+                      default_selected_field_options(),
+                    ),
+                    selection,
+                    variables,
+                    fragments,
+                  )
+                None -> json.null()
+              }
+            "userErrors" ->
+              serialize_product_user_errors_json(user_errors, selection)
+            _ -> json.null()
+          }
+        _ -> json.null()
+      }
+      #(key, value)
+    }),
+  )
+}
+
+fn optional_string_list_json(value: Option(Option(List(String)))) -> Json {
+  case value {
+    Some(Some(items)) -> json.array(items, json.string)
+    _ -> json.null()
+  }
+}
+
+fn optional_string_value_json(value: Option(Option(String))) -> Json {
+  case value {
+    Some(Some(item)) -> json.string(item)
+    _ -> json.null()
+  }
+}
+
+fn serialize_product_user_errors_json(
+  errors: List(ProductUserError),
+  field: Selection,
+) -> Json {
+  let selections =
+    get_selected_child_fields(field, default_selected_field_options())
+  json.array(errors, fn(error) {
+    let ProductUserError(field: path, message: message, code: code) = error
+    json.object(
+      list.map(selections, fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "field" -> json.array(path, json.string)
+              "message" -> json.string(message)
+              "code" -> optional_string_json(code)
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      }),
+    )
+  })
+}
+
+fn selling_plan_group_does_not_exist_error() -> ProductUserError {
+  ProductUserError(
+    ["id"],
+    "Selling plan group does not exist.",
+    Some("GROUP_DOES_NOT_EXIST"),
+  )
+}
+
+fn selling_plan_group_staged_ids(
+  group: SellingPlanGroupRecord,
+) -> List(String) {
+  [group.id, ..list.map(group.selling_plans, fn(plan) { plan.id })]
+}
+
+fn find_selling_plan(
+  plans: List(SellingPlanRecord),
+  id: String,
+) -> Option(SellingPlanRecord) {
+  plans
+  |> list.find(fn(plan) { plan.id == id })
+  |> option.from_result
+}
+
+fn replace_selling_plan(
+  plans: List(SellingPlanRecord),
+  next_plan: SellingPlanRecord,
+) -> List(SellingPlanRecord) {
+  list.map(plans, fn(plan) {
+    case plan.id == next_plan.id {
+      True -> next_plan
+      False -> plan
+    }
+  })
+}
+
+fn summarize_selling_plan_group(
+  plans: List(SellingPlanRecord),
+) -> Option(String) {
+  let percentage =
+    plans
+    |> list.find_map(fn(plan) {
+      first_selling_plan_percentage(plan.data) |> option_to_result
+    })
+    |> option.from_result
+    |> option.unwrap("")
+  Some(
+    int.to_string(list.length(plans))
+    <> " delivery frequency, "
+    <> percentage
+    <> " discount",
+  )
+}
+
+fn first_selling_plan_percentage(value: CapturedJsonValue) -> Option(String) {
+  case captured_object_field(value, "pricingPolicies") {
+    Some(CapturedArray(policies)) ->
+      policies
+      |> list.find_map(fn(policy) {
+        case
+          captured_object_field(policy, "adjustmentValue")
+          |> option.then(fn(adjustment) {
+            captured_number_string_field(adjustment, "percentage")
+          })
+        {
+          Some(value) -> Ok(value <> "%")
+          None -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn existing_group_app_id(
+  group: Option(SellingPlanGroupRecord),
+) -> Option(String) {
+  case group {
+    Some(group) -> group.app_id
+    None -> None
+  }
+}
+
+fn existing_group_name(group: Option(SellingPlanGroupRecord)) -> String {
+  case group {
+    Some(group) -> group.name
+    None -> "Selling plan group"
+  }
+}
+
+fn existing_group_merchant_code(
+  group: Option(SellingPlanGroupRecord),
+) -> String {
+  case group {
+    Some(group) -> group.merchant_code
+    None -> "selling-plan-group"
+  }
+}
+
+fn existing_group_description(
+  group: Option(SellingPlanGroupRecord),
+) -> Option(String) {
+  case group {
+    Some(group) -> group.description
+    None -> None
+  }
+}
+
+fn existing_group_options(
+  group: Option(SellingPlanGroupRecord),
+) -> List(String) {
+  case group {
+    Some(group) -> group.options
+    None -> []
+  }
+}
+
+fn existing_group_position(
+  group: Option(SellingPlanGroupRecord),
+) -> Option(Int) {
+  case group {
+    Some(group) -> group.position
+    None -> None
+  }
+}
+
+fn optional_captured_string(value: Option(String)) -> CapturedJsonValue {
+  case value {
+    Some(value) -> CapturedString(value)
+    None -> CapturedNull
+  }
+}
+
+fn optional_captured_int(value: Option(Int)) -> CapturedJsonValue {
+  case value {
+    Some(value) -> CapturedInt(value)
+    None -> CapturedNull
+  }
+}
+
+fn captured_object_or_null(
+  value: Option(Dict(String, ResolvedValue)),
+) -> CapturedJsonValue {
+  case value {
+    Some(fields) ->
+      CapturedObject(
+        dict.to_list(fields)
+        |> list.map(fn(pair) {
+          let #(key, value) = pair
+          #(key, resolved_value_to_captured(value))
+        }),
+      )
+    None -> CapturedNull
+  }
+}
+
+fn resolved_value_to_captured(value: ResolvedValue) -> CapturedJsonValue {
+  case value {
+    NullVal -> CapturedNull
+    BoolVal(value) -> CapturedBool(value)
+    IntVal(value) -> CapturedInt(value)
+    FloatVal(value) -> CapturedFloat(value)
+    StringVal(value) -> CapturedString(value)
+    ListVal(values) ->
+      CapturedArray(list.map(values, resolved_value_to_captured))
+    ObjectVal(fields) ->
+      CapturedObject(
+        dict.to_list(fields)
+        |> list.map(fn(pair) {
+          let #(key, value) = pair
+          #(key, resolved_value_to_captured(value))
+        }),
+      )
+  }
+}
+
+fn read_number_captured_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(CapturedJsonValue) {
+  case dict.get(input, name) {
+    Ok(IntVal(value)) -> Some(CapturedInt(value))
+    Ok(FloatVal(value)) -> Some(CapturedFloat(value))
+    _ -> None
+  }
+}
+
+fn captured_object_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(CapturedJsonValue) {
+  case value {
+    CapturedObject(fields) ->
+      fields
+      |> list.find_map(fn(pair) {
+        let #(key, item) = pair
+        case key == name {
+          True -> Ok(item)
+          False -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn captured_string_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(String) {
+  case captured_object_field(value, name) {
+    Some(CapturedString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn captured_int_field(value: CapturedJsonValue, name: String) -> Option(Int) {
+  case captured_object_field(value, name) {
+    Some(CapturedInt(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn captured_string_array_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(List(String)) {
+  case captured_object_field(value, name) {
+    Some(CapturedArray(items)) ->
+      Some(
+        list.filter_map(items, fn(item) {
+          case item {
+            CapturedString(value) -> Ok(value)
+            _ -> Error(Nil)
+          }
+        }),
+      )
+    _ -> None
+  }
+}
+
+fn captured_number_string_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(String) {
+  case captured_object_field(value, name) {
+    Some(CapturedInt(value)) -> Some(int.to_string(value))
+    Some(CapturedFloat(value)) -> Some(float.to_string(value))
+    _ -> None
+  }
 }
 
 fn mutation_result(

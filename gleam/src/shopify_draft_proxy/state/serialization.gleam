@@ -39,6 +39,18 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
       json.array(state.product_variant_order, json.string),
     ),
     #(
+      "sellingPlanGroups",
+      dict_to_json(state.selling_plan_groups, selling_plan_group_json),
+    ),
+    #(
+      "sellingPlanGroupOrder",
+      json.array(state.selling_plan_group_order, json.string),
+    ),
+    #(
+      "deletedSellingPlanGroupIds",
+      bool_dict_to_json(state.deleted_selling_plan_group_ids),
+    ),
+    #(
       "locations",
       dict_to_json(state.store_property_locations, store_property_record_json),
     ),
@@ -392,6 +404,18 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
     #(
       "productVariantOrder",
       json.array(state.product_variant_order, json.string),
+    ),
+    #(
+      "sellingPlanGroups",
+      dict_to_json(state.selling_plan_groups, selling_plan_group_json),
+    ),
+    #(
+      "sellingPlanGroupOrder",
+      json.array(state.selling_plan_group_order, json.string),
+    ),
+    #(
+      "deletedSellingPlanGroupIds",
+      bool_dict_to_json(state.deleted_selling_plan_group_ids),
     ),
     #(
       "locations",
@@ -1027,6 +1051,31 @@ fn product_variant_json(record: types.ProductVariantRecord) -> Json {
       optional_to_json(record.contextual_pricing, captured_json_value_json),
     ),
     #("cursor", optional_string(record.cursor)),
+  ])
+}
+
+fn selling_plan_group_json(record: types.SellingPlanGroupRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("appId", optional_string(record.app_id)),
+    #("name", json.string(record.name)),
+    #("merchantCode", json.string(record.merchant_code)),
+    #("description", optional_string(record.description)),
+    #("options", json.array(record.options, json.string)),
+    #("position", optional_int(record.position)),
+    #("summary", optional_string(record.summary)),
+    #("createdAt", optional_string(record.created_at)),
+    #("productIds", json.array(record.product_ids, json.string)),
+    #("productVariantIds", json.array(record.product_variant_ids, json.string)),
+    #("sellingPlans", json.array(record.selling_plans, selling_plan_json)),
+    #("cursor", optional_string(record.cursor)),
+  ])
+}
+
+fn selling_plan_json(record: types.SellingPlanRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("data", captured_json_value_json(record.data)),
   ])
 }
 
@@ -2325,6 +2374,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     product_variant_count: empty.product_variant_count,
     product_options: empty.product_options,
     product_operations: empty.product_operations,
+    selling_plan_groups: empty.selling_plan_groups,
+    selling_plan_group_order: empty.selling_plan_group_order,
+    deleted_selling_plan_group_ids: empty.deleted_selling_plan_group_ids,
     product_media: empty.product_media,
     collections: empty.collections,
     collection_order: empty.collection_order,
@@ -2643,6 +2695,9 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     product_variant_count: empty.product_variant_count,
     product_options: empty.product_options,
     product_operations: empty.product_operations,
+    selling_plan_groups: empty.selling_plan_groups,
+    selling_plan_group_order: empty.selling_plan_group_order,
+    deleted_selling_plan_group_ids: empty.deleted_selling_plan_group_ids,
     product_media: empty.product_media,
     collections: empty.collections,
     collection_order: empty.collection_order,

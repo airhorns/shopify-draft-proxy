@@ -9,6 +9,63 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 110: selling-plan lifecycle parity
+
+Promotes the captured selling-plan group lifecycle and product/variant
+selling-plan association fixtures into the Gleam parity suite. The port now
+stages SellingPlanGroup create/update/delete, group-centric product and variant
+membership edits, and product-/variant-centric join/leave roots locally while
+preserving read-after-write Product and ProductVariant selling-plan overlays.
+
+| Module                                                    | Change                                                                                                            |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`      | Adds SellingPlanGroup state projection, query roots, mutation staging, payload serializers, and membership reads. |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds SellingPlan and SellingPlanGroup records for captured and staged group lifecycle state.                      |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds effective/staged SellingPlanGroup store helpers and Product/ProductVariant visibility helpers.               |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries SellingPlanGroup state through the state dump serializer.                                                 |
+| `gleam/test/parity/runner.gleam`                          | Seeds captured `seedSellingPlanGroups` records for association parity.                                            |
+| `config/gleam-port-ci-gates.json`                         | Removes the two newly passing selling-plan parity specs.                                                          |
+
+Validation:
+Focused JavaScript parity is green for
+`selling-plan-product-variant-associations.json`,
+`selling-plan-group-lifecycle.json`, and `products-catalog-read.json` as a
+regression guard. Full JavaScript is green at 716 tests. Host Erlang still
+fails with the known local `Undef` runner class and the crash dump was removed;
+the Docker Erlang fallback is green at 712 tests. `corepack pnpm
+elixir:smoke` is green at 16 ExUnit tests. `corepack pnpm
+gleam:port:coverage` is green with 379 specs and 178 expected failures. Product
+parity inventory remains 115 checked-in specs, with 114 product specs
+executable in the Gleam parity suite and 1 product spec still expected-failing.
+
+### Findings
+
+- Product-centric `productLeaveSellingPlanGroups` has Shopify's captured
+  visibility/count split: after a Product leaves a group, Product
+  `sellingPlanGroups.nodes` can still show the group through a remaining
+  variant membership while `sellingPlanGroupsCount.count` is 0.
+- ProductVariant `sellingPlanGroups.nodes` is visible through either direct
+  variant membership or Product-level membership, but
+  `sellingPlanGroupsCount` counts only direct variant membership.
+- SellingPlanGroup updates preserve existing billing, delivery, inventory, and
+  created-at fields for a plan update, but clear pricing policies when
+  `pricingPolicies` is omitted, matching the captured Shopify update payload.
+
+### Risks / open items
+
+- `products-search-grammar-read.json` remains gated because the checked-in
+  capture only contains phrase aliases while the replay request selects
+  additional NOT/tag_not aliases.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 111 candidates
+
+- Resolve `products-search-grammar-read.json` with a faithful capture/request
+  decision.
+
+---
+
 ## 2026-04-30 - Pass 109: advanced product search read parity
 
 Promotes four captured advanced Product search read fixtures into the Gleam

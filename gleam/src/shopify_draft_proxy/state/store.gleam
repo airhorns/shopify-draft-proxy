@@ -38,9 +38,9 @@ import shopify_draft_proxy/state/types.{
   type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductVariantRecord,
   type PublicationRecord, type SavedSearchRecord, type SegmentRecord,
-  type ShopLocaleRecord, type ShopRecord, type ShopResourceFeedbackRecord,
-  type ShopifyFunctionRecord, type StoreCreditAccountRecord,
-  type StoreCreditAccountTransactionRecord,
+  type SellingPlanGroupRecord, type ShopLocaleRecord, type ShopRecord,
+  type ShopResourceFeedbackRecord, type ShopifyFunctionRecord,
+  type StoreCreditAccountRecord, type StoreCreditAccountTransactionRecord,
   type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
   type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
   type WebhookSubscriptionRecord, BulkOperationRecord, ChannelRecord,
@@ -61,6 +61,9 @@ pub type BaseState {
     product_variant_count: Option(Int),
     product_options: Dict(String, ProductOptionRecord),
     product_operations: Dict(String, ProductOperationRecord),
+    selling_plan_groups: Dict(String, SellingPlanGroupRecord),
+    selling_plan_group_order: List(String),
+    deleted_selling_plan_group_ids: Dict(String, Bool),
     product_media: Dict(String, List(ProductMediaRecord)),
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
@@ -222,6 +225,9 @@ pub type StagedState {
     product_variant_count: Option(Int),
     product_options: Dict(String, ProductOptionRecord),
     product_operations: Dict(String, ProductOperationRecord),
+    selling_plan_groups: Dict(String, SellingPlanGroupRecord),
+    selling_plan_group_order: List(String),
+    deleted_selling_plan_group_ids: Dict(String, Bool),
     product_media: Dict(String, List(ProductMediaRecord)),
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
@@ -444,6 +450,9 @@ pub fn empty_base_state() -> BaseState {
     product_variant_count: None,
     product_options: dict.new(),
     product_operations: dict.new(),
+    selling_plan_groups: dict.new(),
+    selling_plan_group_order: [],
+    deleted_selling_plan_group_ids: dict.new(),
     product_media: dict.new(),
     collections: dict.new(),
     collection_order: [],
@@ -580,6 +589,9 @@ pub fn empty_staged_state() -> StagedState {
     product_variant_count: None,
     product_options: dict.new(),
     product_operations: dict.new(),
+    selling_plan_groups: dict.new(),
+    selling_plan_group_order: [],
+    deleted_selling_plan_group_ids: dict.new(),
     product_media: dict.new(),
     collections: dict.new(),
     collection_order: [],
@@ -2318,6 +2330,190 @@ pub fn get_effective_product_operation_by_id(
         Error(_) -> None
       }
   }
+}
+
+pub fn upsert_base_selling_plan_groups(
+  store: Store,
+  groups: List(SellingPlanGroupRecord),
+) -> Store {
+  list.fold(groups, store, fn(acc, group) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    let next_base =
+      BaseState(
+        ..base,
+        selling_plan_groups: dict.insert(
+          base.selling_plan_groups,
+          group.id,
+          group,
+        ),
+        selling_plan_group_order: append_unique_id(
+          base.selling_plan_group_order,
+          group.id,
+        ),
+        deleted_selling_plan_group_ids: dict.delete(
+          base.deleted_selling_plan_group_ids,
+          group.id,
+        ),
+      )
+    let next_staged =
+      StagedState(
+        ..staged,
+        deleted_selling_plan_group_ids: dict.delete(
+          staged.deleted_selling_plan_group_ids,
+          group.id,
+        ),
+      )
+    Store(..acc, base_state: next_base, staged_state: next_staged)
+  })
+}
+
+pub fn upsert_staged_selling_plan_group(
+  store: Store,
+  group: SellingPlanGroupRecord,
+) -> #(SellingPlanGroupRecord, Store) {
+  let base = store.base_state
+  let staged = store.staged_state
+  let already_known =
+    list.contains(base.selling_plan_group_order, group.id)
+    || list.contains(staged.selling_plan_group_order, group.id)
+  let next_order = case already_known {
+    True -> staged.selling_plan_group_order
+    False -> list.append(staged.selling_plan_group_order, [group.id])
+  }
+  let next_staged =
+    StagedState(
+      ..staged,
+      selling_plan_groups: dict.insert(
+        staged.selling_plan_groups,
+        group.id,
+        group,
+      ),
+      selling_plan_group_order: next_order,
+      deleted_selling_plan_group_ids: dict.delete(
+        staged.deleted_selling_plan_group_ids,
+        group.id,
+      ),
+    )
+  #(group, Store(..store, staged_state: next_staged))
+}
+
+pub fn delete_staged_selling_plan_group(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      selling_plan_groups: dict.delete(staged.selling_plan_groups, id),
+      deleted_selling_plan_group_ids: dict.insert(
+        staged.deleted_selling_plan_group_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_selling_plan_group_by_id(
+  store: Store,
+  id: String,
+) -> Option(SellingPlanGroupRecord) {
+  let deleted =
+    dict_has(store.base_state.deleted_selling_plan_group_ids, id)
+    || dict_has(store.staged_state.deleted_selling_plan_group_ids, id)
+  case deleted {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.selling_plan_groups, id) {
+        Ok(group) -> Some(group)
+        Error(_) ->
+          case dict.get(store.base_state.selling_plan_groups, id) {
+            Ok(group) -> Some(group)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_selling_plan_groups(
+  store: Store,
+) -> List(SellingPlanGroupRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.selling_plan_group_order,
+      store.staged_state.selling_plan_group_order,
+    )
+    |> dedupe_strings()
+  let ordered =
+    list.filter_map(ordered_ids, fn(id) {
+      get_effective_selling_plan_group_by_id(store, id) |> option_to_result
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(
+      store.base_state.selling_plan_groups,
+      store.staged_state.selling_plan_groups,
+    )
+  let unordered =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(resource_ids.compare_shopify_resource_ids)
+    |> list.filter_map(fn(id) {
+      get_effective_selling_plan_group_by_id(store, id) |> option_to_result
+    })
+  list.append(ordered, unordered)
+}
+
+pub fn list_effective_selling_plan_groups_for_product(
+  store: Store,
+  product_id: String,
+) -> List(SellingPlanGroupRecord) {
+  list_effective_selling_plan_groups(store)
+  |> list.filter(fn(group) { list.contains(group.product_ids, product_id) })
+}
+
+pub fn list_effective_selling_plan_groups_visible_for_product(
+  store: Store,
+  product_id: String,
+) -> List(SellingPlanGroupRecord) {
+  list_effective_selling_plan_groups(store)
+  |> list.filter(fn(group) {
+    list.contains(group.product_ids, product_id)
+    || list.any(group.product_variant_ids, fn(variant_id) {
+      case get_effective_variant_by_id(store, variant_id) {
+        Some(variant) -> variant.product_id == product_id
+        None -> False
+      }
+    })
+  })
+}
+
+pub fn list_effective_selling_plan_groups_for_product_variant(
+  store: Store,
+  variant_id: String,
+) -> List(SellingPlanGroupRecord) {
+  list_effective_selling_plan_groups(store)
+  |> list.filter(fn(group) {
+    list.contains(group.product_variant_ids, variant_id)
+  })
+}
+
+pub fn list_effective_selling_plan_groups_visible_for_product_variant(
+  store: Store,
+  variant_id: String,
+) -> List(SellingPlanGroupRecord) {
+  let product_id = case get_effective_variant_by_id(store, variant_id) {
+    Some(variant) -> Some(variant.product_id)
+    None -> None
+  }
+  list_effective_selling_plan_groups(store)
+  |> list.filter(fn(group) {
+    list.contains(group.product_variant_ids, variant_id)
+    || case product_id {
+      Some(id) -> list.contains(group.product_ids, id)
+      None -> False
+    }
+  })
 }
 
 fn remove_options_for_product(
@@ -6859,6 +7055,13 @@ fn dict_has(d: Dict(String, a), key: String) -> Bool {
   case dict.get(d, key) {
     Ok(_) -> True
     Error(_) -> False
+  }
+}
+
+fn option_to_result(value: Option(a)) -> Result(a, Nil) {
+  case value {
+    Some(value) -> Ok(value)
+    None -> Error(Nil)
   }
 }
 

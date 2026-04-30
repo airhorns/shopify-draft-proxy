@@ -68,9 +68,10 @@ import shopify_draft_proxy/state/types.{
   type ProductMediaRecord, type ProductMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  type PublicationRecord, type ShopAddressRecord, type ShopDomainRecord,
-  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
+  type PublicationRecord, type SellingPlanGroupRecord, type SellingPlanRecord,
+  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
+  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
+  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, type StoreCreditAccountRecord,
   type StorePropertyRecord, type StorePropertyValue, CapturedArray, CapturedBool,
   CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
@@ -102,12 +103,12 @@ import shopify_draft_proxy/state/types.{
   ProductMediaRecord, ProductMetafieldRecord, ProductOptionRecord,
   ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
   ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
-  ShopAddressRecord, ShopBundlesFeatureRecord,
-  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
-  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
-  ShopifyFunctionRecord, StoreCreditAccountRecord, StorePropertyBool,
-  StorePropertyFloat, StorePropertyInt, StorePropertyList,
+  SellingPlanGroupRecord, SellingPlanRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
+  ShopifyFunctionAppRecord, ShopifyFunctionRecord, StoreCreditAccountRecord,
+  StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
   StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
   StorePropertyRecord, StorePropertyString,
 }
@@ -209,6 +210,7 @@ fn seed_capture_preconditions(
   proxy: DraftProxy,
 ) -> DraftProxy {
   let proxy = seed_captured_products_preconditions(capture, proxy)
+  let proxy = seed_selling_plan_group_preconditions(capture, proxy)
   let proxy = seed_product_media_preconditions(capture, proxy)
   case parsed.scenario_id {
     "gift-card-search-filters" ->
@@ -1855,6 +1857,66 @@ fn seed_captured_products_preconditions(
     |> store_mod.upsert_base_product_variants(variants)
   let store = list.fold(product_nodes, store, seed_options_for_product)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_selling_plan_group_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let groups = case read_array_field(capture, "seedSellingPlanGroups") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_selling_plan_group)
+    None -> []
+  }
+  case groups {
+    [] -> proxy
+    _ ->
+      draft_proxy.DraftProxy(
+        ..proxy,
+        store: store_mod.upsert_base_selling_plan_groups(proxy.store, groups),
+      )
+  }
+}
+
+fn make_seed_selling_plan_group(
+  source: JsonValue,
+) -> Result(SellingPlanGroupRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  use merchant_code <- result.try(required_string_field(source, "merchantCode"))
+  Ok(SellingPlanGroupRecord(
+    id: id,
+    app_id: read_string_field(source, "appId"),
+    name: name,
+    merchant_code: merchant_code,
+    description: read_string_field(source, "description"),
+    options: read_string_array_field(source, "options"),
+    position: read_int_field(source, "position"),
+    summary: read_string_field(source, "summary"),
+    created_at: read_string_field(source, "createdAt"),
+    product_ids: read_connection_node_ids(source, "products"),
+    product_variant_ids: read_connection_node_ids(source, "productVariants"),
+    selling_plans: read_connection_nodes(source, "sellingPlans")
+      |> list.filter_map(make_seed_selling_plan),
+    cursor: None,
+  ))
+}
+
+fn make_seed_selling_plan(source: JsonValue) -> Result(SellingPlanRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  Ok(SellingPlanRecord(id: id, data: captured_json_from_parity(source)))
+}
+
+fn read_connection_node_ids(source: JsonValue, field: String) -> List(String) {
+  read_connection_nodes(source, field)
+  |> list.filter_map(fn(node) { required_string_field(node, "id") })
+}
+
+fn read_connection_nodes(source: JsonValue, field: String) -> List(JsonValue) {
+  case read_object_field(source, field) {
+    Some(connection) ->
+      read_array_field(connection, "nodes") |> option.unwrap([])
+    None -> []
+  }
 }
 
 fn seed_product_media_preconditions(

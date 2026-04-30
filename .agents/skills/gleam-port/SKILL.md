@@ -381,6 +381,14 @@ synthetic-id/timestamp expected differences.
   store rows exist; in that case seed scenario-local sentinel Products that
   match the same query and sort after the captured edge instead of weakening
   the captured request or expected comparison.
+- SellingPlanGroup Product/ProductVariant overlays have separate visibility and
+  count semantics. Product `sellingPlanGroups.nodes` should include groups made
+  visible by either direct Product membership or variant membership for that
+  Product, while `sellingPlanGroupsCount` counts only direct Product
+  membership. ProductVariant nodes are visible through direct variant membership
+  or Product-level membership, while the variant count includes only direct
+  variant membership. Preserve that split for product/variant join and leave
+  roots.
 - Product media async plan fixtures depend on timing-sensitive lifecycle state:
   create returns `UPLOADED` in the mutation payload, the immediate downstream
   Product media read is null-url `PROCESSING`, and later successful media

@@ -352,6 +352,28 @@ pub type ProductRecord {
   )
 }
 
+pub type SellingPlanRecord {
+  SellingPlanRecord(id: String, data: CapturedJsonValue)
+}
+
+pub type SellingPlanGroupRecord {
+  SellingPlanGroupRecord(
+    id: String,
+    app_id: Option(String),
+    name: String,
+    merchant_code: String,
+    description: Option(String),
+    options: List(String),
+    position: Option(Int),
+    summary: Option(String),
+    created_at: Option(String),
+    product_ids: List(String),
+    product_variant_ids: List(String),
+    selling_plans: List(SellingPlanRecord),
+    cursor: Option(String),
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Metafields domain
 // ---------------------------------------------------------------------------
