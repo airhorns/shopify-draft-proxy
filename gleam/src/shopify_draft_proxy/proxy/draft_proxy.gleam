@@ -24,7 +24,8 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{Field}
 import shopify_draft_proxy/graphql/parse_operation.{
-  type ParsedOperation, MutationOperation, QueryOperation,
+  type GraphQLOperationType, type ParsedOperation, MutationOperation,
+  QueryOperation,
 }
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/admin_platform
@@ -42,11 +43,7 @@ import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
-import shopify_draft_proxy/proxy/operation_registry.{
-  type RegistryEntry, AdminPlatform, Apps, BulkOperations, Events, Functions,
-  GiftCards, Localization, Marketing, Media, Metafields, Metaobjects,
-  SavedSearches, Segments, ShippingFulfillments, StoreProperties, Webhooks,
-}
+import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/saved_searches
@@ -492,7 +489,12 @@ fn live_hybrid_passthrough_target(
       let cap = capabilities.get_operation_capability(parsed, proxy.registry)
       case cap.execution {
         operation_registry.Passthrough -> True
-        _ -> False
+        _ ->
+          case list.first(parsed.root_fields) {
+            Ok(primary_root_field) ->
+              !local_dispatch_supported(cap.type_, primary_root_field)
+            Error(_) -> False
+          }
       }
     }
     _ -> False
@@ -1151,19 +1153,31 @@ type Domain {
   ProductsDomain
 }
 
-/// Resolve a query operation's domain. With a registry loaded, the
-/// capability lookup decides; without one (or if it returns Unknown),
-/// fall back to the legacy hardcoded predicates so unmigrated tests
-/// keep working.
+/// Resolve a query operation's domain. The registry decides whether a
+/// known root is implemented at all; the local dispatch table decides
+/// whether this Gleam port can actually handle that root today.
 fn query_domain_for(
   proxy: DraftProxy,
   parsed: ParsedOperation,
   query: String,
   primary_root_field: String,
 ) -> Result(Domain, Nil) {
-  case capability_to_query_domain(proxy, parsed) {
-    Ok(d) -> Ok(d)
-    Error(_) -> legacy_query_domain_for(primary_root_field, query)
+  case parsed.type_ {
+    QueryOperation -> {
+      case
+        operation_registry.find_entry(proxy.registry, operation_registry.Query, [
+          Some(primary_root_field),
+        ])
+      {
+        Some(entry) ->
+          case entry.implemented {
+            True -> local_query_dispatch_domain(primary_root_field, query)
+            False -> Error(Nil)
+          }
+        None -> local_query_dispatch_domain(primary_root_field, query)
+      }
+    }
+    _ -> Error(Nil)
   }
 }
 
@@ -1172,169 +1186,170 @@ fn mutation_domain_for(
   parsed: ParsedOperation,
   primary_root_field: String,
 ) -> Result(Domain, Nil) {
-  case capability_to_mutation_domain(proxy, parsed) {
-    Ok(d) -> Ok(d)
-    Error(_) -> legacy_mutation_domain_for(primary_root_field)
-  }
-}
-
-fn capability_to_query_domain(
-  proxy: DraftProxy,
-  parsed: ParsedOperation,
-) -> Result(Domain, Nil) {
-  case proxy.registry {
-    [] -> Error(Nil)
-    _ -> {
-      let cap = capabilities.get_operation_capability(parsed, proxy.registry)
-      case cap.domain {
-        Events -> Ok(EventsDomain)
-        SavedSearches -> Ok(SavedSearchesDomain)
-        ShippingFulfillments -> Ok(DeliverySettingsDomain)
-        Webhooks -> Ok(WebhooksDomain)
-        Apps -> Ok(AppsDomain)
-        Functions -> Ok(FunctionsDomain)
-        GiftCards -> Ok(GiftCardsDomain)
-        Segments -> Ok(SegmentsDomain)
-        Metafields -> Ok(MetafieldDefinitionsDomain)
-        Localization -> Ok(LocalizationDomain)
-        Metaobjects -> Ok(MetaobjectDefinitionsDomain)
-        Marketing -> Ok(MarketingDomain)
-        BulkOperations -> Ok(BulkOperationsDomain)
-        Media -> Ok(MediaDomain)
-        AdminPlatform -> Ok(AdminPlatformDomain)
-        StoreProperties -> Ok(StorePropertiesDomain)
-        _ -> Error(Nil)
-      }
-    }
-  }
-}
-
-fn capability_to_mutation_domain(
-  proxy: DraftProxy,
-  parsed: ParsedOperation,
-) -> Result(Domain, Nil) {
-  case proxy.registry {
-    [] -> Error(Nil)
-    _ -> {
-      let cap = capabilities.get_operation_capability(parsed, proxy.registry)
-      case cap.domain {
-        SavedSearches -> Ok(SavedSearchesDomain)
-        Webhooks -> Ok(WebhooksDomain)
-        Apps -> Ok(AppsDomain)
-        Functions -> Ok(FunctionsDomain)
-        GiftCards -> Ok(GiftCardsDomain)
-        Segments -> Ok(SegmentsDomain)
-        Metafields -> Ok(MetafieldDefinitionsDomain)
-        Localization -> Ok(LocalizationDomain)
-        Marketing -> Ok(MarketingDomain)
-        Metaobjects -> Ok(MetaobjectDefinitionsDomain)
-        BulkOperations -> Ok(BulkOperationsDomain)
-        AdminPlatform -> Ok(AdminPlatformDomain)
-        StoreProperties -> Ok(StorePropertiesDomain)
-        _ -> Error(Nil)
-      }
-    }
-  }
-}
-
-fn legacy_query_domain_for(name: String, query: String) -> Result(Domain, Nil) {
-  case events.is_events_query_root(name) {
-    True -> Ok(EventsDomain)
-    False ->
-      case name {
-        "deliverySettings" | "deliveryPromiseSettings" ->
-          Ok(DeliverySettingsDomain)
-        "shop" -> Ok(StorePropertiesDomain)
-        "product" | "collection" ->
-          case store_publishable_owner_query(name, query) {
-            True -> Ok(StorePropertiesDomain)
-            False -> Ok(MetafieldDefinitionsDomain)
+  case parsed.type_ {
+    MutationOperation -> {
+      case
+        operation_registry.find_entry(
+          proxy.registry,
+          operation_registry.Mutation,
+          [
+            Some(primary_root_field),
+          ],
+        )
+      {
+        Some(entry) ->
+          case entry.implemented {
+            True -> local_mutation_dispatch_domain(primary_root_field)
+            False -> Error(Nil)
           }
-        _ ->
-          case saved_searches.is_saved_search_query_root(name) {
-            True -> Ok(SavedSearchesDomain)
+        None -> local_mutation_dispatch_domain(primary_root_field)
+      }
+    }
+    _ -> Error(Nil)
+  }
+}
+
+/// True when a registry entry names a root that this Gleam port can
+/// dispatch locally today. This intentionally gates on the explicit
+/// local dispatch table so registry metadata cannot claim unported
+/// roots as local support.
+pub fn registry_entry_has_local_dispatch(entry: RegistryEntry) -> Bool {
+  case entry.implemented {
+    False -> False
+    True ->
+      list.any(entry.match_names, fn(name) {
+        local_registry_dispatch_supported(entry.type_, name)
+      })
+  }
+}
+
+fn local_dispatch_supported(type_: GraphQLOperationType, name: String) -> Bool {
+  case type_ {
+    QueryOperation ->
+      case local_query_dispatch_domain(name, "") {
+        Ok(_) -> True
+        Error(_) -> False
+      }
+    MutationOperation ->
+      case local_mutation_dispatch_domain(name) {
+        Ok(_) -> True
+        Error(_) -> False
+      }
+  }
+}
+
+fn local_registry_dispatch_supported(
+  type_: operation_registry.OperationType,
+  name: String,
+) -> Bool {
+  case type_ {
+    operation_registry.Query ->
+      case local_query_dispatch_domain(name, "") {
+        Ok(_) -> True
+        Error(_) -> False
+      }
+    operation_registry.Mutation ->
+      case local_mutation_dispatch_domain(name) {
+        Ok(_) -> True
+        Error(_) -> False
+      }
+  }
+}
+
+fn local_query_dispatch_domain(
+  name: String,
+  query: String,
+) -> Result(Domain, Nil) {
+  case name {
+    "event" | "events" | "eventsCount" -> Ok(EventsDomain)
+    "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
+    "shop" -> Ok(StorePropertiesDomain)
+    "product" | "collection" ->
+      case store_publishable_owner_query(name, query) {
+        True -> Ok(StorePropertiesDomain)
+        False -> Ok(MetafieldDefinitionsDomain)
+      }
+    _ ->
+      case saved_searches.is_saved_search_query_root(name) {
+        True -> Ok(SavedSearchesDomain)
+        False ->
+          case webhooks.is_webhook_subscription_query_root(name) {
+            True -> Ok(WebhooksDomain)
             False ->
-              case webhooks.is_webhook_subscription_query_root(name) {
-                True -> Ok(WebhooksDomain)
+              case apps.is_app_query_root(name) {
+                True -> Ok(AppsDomain)
                 False ->
-                  case apps.is_app_query_root(name) {
-                    True -> Ok(AppsDomain)
+                  case functions.is_function_query_root(name) {
+                    True -> Ok(FunctionsDomain)
                     False ->
-                      case functions.is_function_query_root(name) {
-                        True -> Ok(FunctionsDomain)
+                      case gift_cards.is_gift_card_query_root(name) {
+                        True -> Ok(GiftCardsDomain)
                         False ->
-                          case gift_cards.is_gift_card_query_root(name) {
-                            True -> Ok(GiftCardsDomain)
+                          case segments.is_segment_query_root(name) {
+                            True -> Ok(SegmentsDomain)
                             False ->
-                              case segments.is_segment_query_root(name) {
-                                True -> Ok(SegmentsDomain)
+                              case
+                                metafield_definitions.is_metafield_definitions_query_root(
+                                  name,
+                                )
+                              {
+                                True -> Ok(MetafieldDefinitionsDomain)
                                 False ->
                                   case
-                                    metafield_definitions.is_metafield_definitions_query_root(
+                                    localization.is_localization_query_root(
                                       name,
                                     )
                                   {
-                                    True -> Ok(MetafieldDefinitionsDomain)
+                                    True -> Ok(LocalizationDomain)
                                     False ->
                                       case
-                                        localization.is_localization_query_root(
+                                        metaobject_definitions.is_metaobject_definitions_query_root(
                                           name,
                                         )
                                       {
-                                        True -> Ok(LocalizationDomain)
+                                        True -> Ok(MetaobjectDefinitionsDomain)
                                         False ->
                                           case
-                                            metaobject_definitions.is_metaobject_definitions_query_root(
+                                            marketing.is_marketing_query_root(
                                               name,
                                             )
                                           {
-                                            True ->
-                                              Ok(MetaobjectDefinitionsDomain)
+                                            True -> Ok(MarketingDomain)
                                             False ->
                                               case
-                                                marketing.is_marketing_query_root(
+                                                bulk_operations.is_bulk_operations_query_root(
                                                   name,
                                                 )
                                               {
-                                                True -> Ok(MarketingDomain)
+                                                True -> Ok(BulkOperationsDomain)
                                                 False ->
                                                   case
-                                                    bulk_operations.is_bulk_operations_query_root(
+                                                    media.is_media_query_root(
                                                       name,
                                                     )
                                                   {
-                                                    True ->
-                                                      Ok(BulkOperationsDomain)
+                                                    True -> Ok(MediaDomain)
                                                     False ->
                                                       case
-                                                        media.is_media_query_root(
+                                                        admin_platform.is_admin_platform_query_root(
                                                           name,
                                                         )
                                                       {
-                                                        True -> Ok(MediaDomain)
+                                                        True ->
+                                                          Ok(
+                                                            AdminPlatformDomain,
+                                                          )
                                                         False ->
                                                           case
-                                                            admin_platform.is_admin_platform_query_root(
+                                                            store_properties.is_store_properties_query_root(
                                                               name,
                                                             )
                                                           {
                                                             True ->
                                                               Ok(
-                                                                AdminPlatformDomain,
+                                                                StorePropertiesDomain,
                                                               )
-                                                            False ->
-                                                              case
-                                                                store_properties.is_store_properties_query_root(
-                                                                  name,
-                                                                )
-                                                              {
-                                                                True ->
-                                                                  Ok(
-                                                                    StorePropertiesDomain,
-                                                                  )
-                                                                False ->
-                                                                  Error(Nil)
-                                                              }
+                                                            False -> Error(Nil)
                                                           }
                                                       }
                                                   }
@@ -1401,78 +1416,85 @@ fn selection_names_request_store_publishable_fields(
   || { has_store_identity_field && !has_metafield_owner_field }
 }
 
-fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
-  case store_properties.is_store_properties_mutation_root(name) {
-    True -> Ok(StorePropertiesDomain)
-    False ->
-      case products.is_product_mutation_root(name) {
-        True -> Ok(ProductsDomain)
+fn local_mutation_dispatch_domain(name: String) -> Result(Domain, Nil) {
+  case name {
+    _ ->
+      case store_properties.is_store_properties_mutation_root(name) {
+        True -> Ok(StorePropertiesDomain)
         False ->
-          case saved_searches.is_saved_search_mutation_root(name) {
-            True -> Ok(SavedSearchesDomain)
+          case products.is_product_mutation_root(name) {
+            True -> Ok(ProductsDomain)
             False ->
-              case webhooks.is_webhook_subscription_mutation_root(name) {
-                True -> Ok(WebhooksDomain)
+              case saved_searches.is_saved_search_mutation_root(name) {
+                True -> Ok(SavedSearchesDomain)
                 False ->
-                  case apps.is_app_mutation_root(name) {
-                    True -> Ok(AppsDomain)
+                  case webhooks.is_webhook_subscription_mutation_root(name) {
+                    True -> Ok(WebhooksDomain)
                     False ->
-                      case functions.is_function_mutation_root(name) {
-                        True -> Ok(FunctionsDomain)
+                      case apps.is_app_mutation_root(name) {
+                        True -> Ok(AppsDomain)
                         False ->
-                          case gift_cards.is_gift_card_mutation_root(name) {
-                            True -> Ok(GiftCardsDomain)
+                          case functions.is_function_mutation_root(name) {
+                            True -> Ok(FunctionsDomain)
                             False ->
-                              case segments.is_segment_mutation_root(name) {
-                                True -> Ok(SegmentsDomain)
+                              case gift_cards.is_gift_card_mutation_root(name) {
+                                True -> Ok(GiftCardsDomain)
                                 False ->
-                                  case
-                                    metafield_definitions.is_metafield_definitions_mutation_root(
-                                      name,
-                                    )
-                                  {
-                                    True -> Ok(MetafieldDefinitionsDomain)
+                                  case segments.is_segment_mutation_root(name) {
+                                    True -> Ok(SegmentsDomain)
                                     False ->
                                       case
-                                        localization.is_localization_mutation_root(
+                                        metafield_definitions.is_metafield_definitions_mutation_root(
                                           name,
                                         )
                                       {
-                                        True -> Ok(LocalizationDomain)
+                                        True -> Ok(MetafieldDefinitionsDomain)
                                         False ->
                                           case
-                                            metaobject_definitions.is_metaobject_definitions_mutation_root(
+                                            localization.is_localization_mutation_root(
                                               name,
                                             )
                                           {
-                                            True ->
-                                              Ok(MetaobjectDefinitionsDomain)
+                                            True -> Ok(LocalizationDomain)
                                             False ->
                                               case
-                                                marketing.is_marketing_mutation_root(
+                                                metaobject_definitions.is_metaobject_definitions_mutation_root(
                                                   name,
                                                 )
                                               {
-                                                True -> Ok(MarketingDomain)
+                                                True ->
+                                                  Ok(
+                                                    MetaobjectDefinitionsDomain,
+                                                  )
                                                 False ->
                                                   case
-                                                    bulk_operations.is_bulk_operations_mutation_root(
+                                                    marketing.is_marketing_mutation_root(
                                                       name,
                                                     )
                                                   {
-                                                    True ->
-                                                      Ok(BulkOperationsDomain)
+                                                    True -> Ok(MarketingDomain)
                                                     False ->
                                                       case
-                                                        admin_platform.is_admin_platform_mutation_root(
+                                                        bulk_operations.is_bulk_operations_mutation_root(
                                                           name,
                                                         )
                                                       {
                                                         True ->
                                                           Ok(
-                                                            AdminPlatformDomain,
+                                                            BulkOperationsDomain,
                                                           )
-                                                        False -> Error(Nil)
+                                                        False ->
+                                                          case
+                                                            admin_platform.is_admin_platform_mutation_root(
+                                                              name,
+                                                            )
+                                                          {
+                                                            True ->
+                                                              Ok(
+                                                                AdminPlatformDomain,
+                                                              )
+                                                            False -> Error(Nil)
+                                                          }
                                                       }
                                                   }
                                               }

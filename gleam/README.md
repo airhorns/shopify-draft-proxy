@@ -46,6 +46,10 @@ differs.
   parsed operation registry so dispatch routes by capability instead of the
   hardcoded predicates. Optional; without a registry the proxy falls back to
   the legacy domain predicates.
+- `registry_entry_has_local_dispatch(RegistryEntry) -> Bool` — report whether
+  a TS registry entry is both marked implemented and accepted by a currently
+  ported Gleam root predicate. This is intentionally narrower than capability
+  classification so unported TS roots are not advertised as local support.
 - `process_request(DraftProxy, Request) -> #(Response, DraftProxy)` — handle
   one request and return the response paired with the next proxy state. The
   TS class mutates itself in place; the Gleam port returns both halves so
