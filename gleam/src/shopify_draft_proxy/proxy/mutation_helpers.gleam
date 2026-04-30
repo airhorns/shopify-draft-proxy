@@ -463,7 +463,10 @@ pub fn record_log_drafts(
   list.fold(drafts, #(store, identity), fn(acc, draft) {
     let #(current_store, current_identity) = acc
     let #(log_id, identity_after_id) =
-      synthetic_identity.make_synthetic_gid(current_identity, "MutationLogEntry")
+      synthetic_identity.make_synthetic_gid(
+        current_identity,
+        "MutationLogEntry",
+      )
     let #(received_at, identity_after_ts) =
       synthetic_identity.make_synthetic_timestamp(identity_after_id)
     let entry =

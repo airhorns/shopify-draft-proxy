@@ -325,8 +325,8 @@ pub fn get_log_snapshot(proxy: DraftProxy) -> Json {
 /// Base + staged in-memory state snapshot, equivalent to the TS class's
 /// `getState()` and the body of `GET /__meta/state`.
 ///
-/// > Note: only resource slices that have been ported (currently
-/// > `savedSearches`) are serialized here. Adding a slice means
+/// > Note: only resource slices that have been ported are serialized
+/// > here. Adding a slice means
 /// > extending `serialize_base_state` / `serialize_staged_state`. Until
 /// > then this lags behind the TS shape, which serializes every slice.
 pub fn get_state_snapshot(proxy: DraftProxy) -> Json {
@@ -417,6 +417,38 @@ fn serialize_base_state(state: store.BaseState) -> Json {
         #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
       ])
   }
+  let entries =
+    append_store_property_record_dict(entries, "locations", state.locations)
+  let entries =
+    append_string_list(entries, "locationOrder", state.location_order)
+  let entries =
+    append_bool_dict(entries, "deletedLocationIds", state.deleted_location_ids)
+  let entries =
+    append_store_property_record_dict(
+      entries,
+      "businessEntities",
+      state.business_entities,
+    )
+  let entries =
+    append_string_list(
+      entries,
+      "businessEntityOrder",
+      state.business_entity_order,
+    )
+  let entries =
+    append_store_property_record_dict(
+      entries,
+      "publishables",
+      state.publishables,
+    )
+  let entries =
+    append_string_list(entries, "publishableOrder", state.publishable_order)
+  let entries =
+    append_store_property_mutation_payload_dict(
+      entries,
+      "storePropertyMutationPayloads",
+      state.store_property_mutation_payloads,
+    )
   json.object(entries)
 }
 
@@ -444,7 +476,161 @@ fn serialize_staged_state(state: store.StagedState) -> Json {
         ),
       ])
   }
+  let entries =
+    append_store_property_record_dict(entries, "locations", state.locations)
+  let entries =
+    append_string_list(entries, "locationOrder", state.location_order)
+  let entries =
+    append_bool_dict(entries, "deletedLocationIds", state.deleted_location_ids)
+  let entries =
+    append_store_property_record_dict(
+      entries,
+      "businessEntities",
+      state.business_entities,
+    )
+  let entries =
+    append_string_list(
+      entries,
+      "businessEntityOrder",
+      state.business_entity_order,
+    )
+  let entries =
+    append_store_property_record_dict(
+      entries,
+      "publishables",
+      state.publishables,
+    )
+  let entries =
+    append_string_list(entries, "publishableOrder", state.publishable_order)
+  let entries =
+    append_store_property_mutation_payload_dict(
+      entries,
+      "storePropertyMutationPayloads",
+      state.store_property_mutation_payloads,
+    )
   json.object(entries)
+}
+
+fn append_string_list(
+  entries: List(#(String, Json)),
+  key: String,
+  values: List(String),
+) -> List(#(String, Json)) {
+  case values {
+    [] -> entries
+    _ -> list.append(entries, [#(key, json.array(values, json.string))])
+  }
+}
+
+fn append_bool_dict(
+  entries: List(#(String, Json)),
+  key: String,
+  values: Dict(String, Bool),
+) -> List(#(String, Json)) {
+  case dict.is_empty(values) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          key,
+          json.object(
+            dict.to_list(values)
+            |> list.map(fn(pair) {
+              let #(id, value) = pair
+              #(id, json.bool(value))
+            }),
+          ),
+        ),
+      ])
+  }
+}
+
+fn append_store_property_record_dict(
+  entries: List(#(String, Json)),
+  key: String,
+  records: Dict(String, types.StorePropertyRecord),
+) -> List(#(String, Json)) {
+  case dict.is_empty(records) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          key,
+          json.object(
+            dict.to_list(records)
+            |> list.map(fn(pair) {
+              let #(id, record) = pair
+              #(id, serialize_store_property_record(record))
+            }),
+          ),
+        ),
+      ])
+  }
+}
+
+fn append_store_property_mutation_payload_dict(
+  entries: List(#(String, Json)),
+  key: String,
+  records: Dict(String, types.StorePropertyMutationPayloadRecord),
+) -> List(#(String, Json)) {
+  case dict.is_empty(records) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          key,
+          json.object(
+            dict.to_list(records)
+            |> list.map(fn(pair) {
+              let #(id, record) = pair
+              #(id, serialize_store_property_mutation_payload_record(record))
+            }),
+          ),
+        ),
+      ])
+  }
+}
+
+fn serialize_store_property_record(record: types.StorePropertyRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", serialize_store_property_data(record.data)),
+  ])
+}
+
+fn serialize_store_property_mutation_payload_record(
+  record: types.StorePropertyMutationPayloadRecord,
+) -> Json {
+  json.object([
+    #("key", json.string(record.key)),
+    #("data", serialize_store_property_data(record.data)),
+  ])
+}
+
+fn serialize_store_property_data(
+  data: Dict(String, types.StorePropertyValue),
+) -> Json {
+  json.object(
+    dict.to_list(data)
+    |> list.map(fn(pair) {
+      let #(key, value) = pair
+      #(key, serialize_store_property_value(value))
+    }),
+  )
+}
+
+fn serialize_store_property_value(value: types.StorePropertyValue) -> Json {
+  case value {
+    types.StorePropertyNull -> json.null()
+    types.StorePropertyString(value) -> json.string(value)
+    types.StorePropertyBool(value) -> json.bool(value)
+    types.StorePropertyInt(value) -> json.int(value)
+    types.StorePropertyFloat(value) -> json.float(value)
+    types.StorePropertyList(values) ->
+      json.array(values, serialize_store_property_value)
+    types.StorePropertyObject(values) -> serialize_store_property_data(values)
+  }
 }
 
 fn serialize_saved_search_dict(
@@ -1316,7 +1502,18 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
                                                           Ok(
                                                             AdminPlatformDomain,
                                                           )
-                                                        False -> Error(Nil)
+                                                        False ->
+                                                          case
+                                                            store_properties.is_store_properties_query_root(
+                                                              name,
+                                                            )
+                                                          {
+                                                            True ->
+                                                              Ok(
+                                                                StorePropertiesDomain,
+                                                              )
+                                                            False -> Error(Nil)
+                                                          }
                                                       }
                                                   }
                                               }

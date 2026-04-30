@@ -182,6 +182,38 @@ pub type ShopRecord {
   )
 }
 
+/// JSON-shaped Store Properties resource value. This is used for captured
+/// Location, BusinessEntity, Product, and Collection projection slices whose
+/// full owning domains have not all been ported yet.
+pub type StorePropertyValue {
+  StorePropertyNull
+  StorePropertyString(String)
+  StorePropertyBool(Bool)
+  StorePropertyInt(Int)
+  StorePropertyFloat(Float)
+  StorePropertyList(List(StorePropertyValue))
+  StorePropertyObject(Dict(String, StorePropertyValue))
+}
+
+/// Captured Store Properties resource row, keyed by Shopify GID where the
+/// captured payload has one. `cursor` preserves connection order evidence.
+pub type StorePropertyRecord {
+  StorePropertyRecord(
+    id: String,
+    cursor: Option(String),
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+/// Locally staged publishable mutation payload for the minimal Product /
+/// Collection publication projection used by Store Properties parity.
+pub type StorePropertyMutationPayloadRecord {
+  StorePropertyMutationPayloadRecord(
+    key: String,
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
 /// A single saved-search record. Mirrors `SavedSearchRecord` in
 /// `src/state/types.ts`. `cursor` is set on records the proxy stages
 /// from upstream-hybrid responses; static defaults and freshly-created

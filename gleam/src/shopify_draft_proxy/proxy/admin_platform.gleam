@@ -399,13 +399,7 @@ pub fn process_mutation(
     |> result.map_error(ParseFailed),
   )
   let fragments = get_document_fragments(document)
-  Ok(handle_mutation_fields(
-    store,
-    identity,
-    fields,
-    fragments,
-    variables,
-  ))
+  Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
 }
 
 fn handle_mutation_fields(
