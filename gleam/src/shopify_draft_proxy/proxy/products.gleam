@@ -1843,7 +1843,9 @@ fn shipment_inventory_item_source(
         ),
         #(
           "inventoryLevels",
-          inventory_levels_connection_source(item.inventory_levels),
+          inventory_levels_connection_source(active_inventory_levels(
+            item.inventory_levels,
+          )),
         ),
         #("variant", product_variant_source_without_inventory(store, variant)),
       ])
@@ -2126,9 +2128,12 @@ fn serialize_inventory_item_root(
     Some(id) ->
       case store.find_effective_variant_by_inventory_item_id(store, id) {
         Some(variant) ->
-          project_graphql_value(
-            inventory_item_source(store, variant),
+          serialize_inventory_item_object(
+            store,
+            variant,
             get_selected_child_fields(field, default_selected_field_options()),
+            field,
+            variables,
             fragments,
           )
         None -> json.null()
@@ -2145,10 +2150,10 @@ fn serialize_inventory_level_root(
 ) -> Json {
   case read_string_argument(field, variables, "id") {
     Some(id) ->
-      case store.find_effective_inventory_level_by_id(store, id) {
-        Some(level) ->
+      case find_inventory_level_target(store, id) {
+        Some(#(variant, level)) ->
           project_graphql_value(
-            inventory_level_source(level),
+            inventory_level_source_with_item(store, variant, level),
             get_selected_child_fields(field, default_selected_field_options()),
             fragments,
           )
@@ -2838,6 +2843,16 @@ fn read_bool_argument(
   }
 }
 
+fn read_include_inactive_argument(
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Bool {
+  case read_bool_argument(field, variables, "includeInactive") {
+    Some(True) -> True
+    _ -> False
+  }
+}
+
 fn read_string_field(
   fields: Dict(String, ResolvedValue),
   name: String,
@@ -3359,10 +3374,104 @@ fn inventory_item_source_with_variant(
     ),
     #(
       "inventoryLevels",
-      inventory_levels_connection_source(item.inventory_levels),
+      inventory_levels_connection_source(active_inventory_levels(
+        item.inventory_levels,
+      )),
     ),
     #("variant", variant),
   ])
+}
+
+fn serialize_inventory_item_object(
+  store: Store,
+  variant: ProductVariantRecord,
+  selections: List(Selection),
+  owner_field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case variant.inventory_item {
+    Some(item) -> {
+      let source = inventory_item_source(store, variant)
+      json.object(
+        list.map(selections, fn(selection) {
+          let key = get_field_response_key(selection)
+          let value = case selection {
+            Field(name: name, ..) ->
+              case name.value {
+                "inventoryLevels" ->
+                  serialize_inventory_item_levels_field(
+                    item,
+                    selection,
+                    variables,
+                    fragments,
+                  )
+                "inventoryLevel" ->
+                  serialize_inventory_item_level_field(
+                    item,
+                    selection,
+                    variables,
+                    fragments,
+                  )
+                _ -> project_graphql_field_value(source, selection, fragments)
+              }
+            _ -> project_graphql_field_value(source, owner_field, fragments)
+          }
+          #(key, value)
+        }),
+      )
+    }
+    None -> json.null()
+  }
+}
+
+fn serialize_inventory_item_levels_field(
+  item: InventoryItemRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let levels =
+    filter_inventory_levels_by_include_inactive(
+      item.inventory_levels,
+      read_include_inactive_argument(field, variables),
+    )
+  project_graphql_field_value(
+    src_object([
+      #("inventoryLevels", inventory_levels_connection_source(levels)),
+    ]),
+    field,
+    fragments,
+  )
+}
+
+fn serialize_inventory_item_level_field(
+  item: InventoryItemRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let include_inactive = read_include_inactive_argument(field, variables)
+  case read_string_argument(field, variables, "locationId") {
+    Some(location_id) ->
+      case find_inventory_level(item.inventory_levels, location_id) {
+        Some(level) ->
+          case include_inactive || inventory_level_is_active(level) {
+            True ->
+              project_graphql_value(
+                inventory_level_source(level),
+                get_selected_child_fields(
+                  field,
+                  default_selected_field_options(),
+                ),
+                fragments,
+              )
+            False -> json.null()
+          }
+        None -> json.null()
+      }
+    None -> json.null()
+  }
 }
 
 fn inventory_levels_connection_source(
@@ -3389,6 +3498,7 @@ fn inventory_level_source(level: InventoryLevelRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("InventoryLevel")),
     #("id", SrcString(level.id)),
+    #("isActive", optional_bool_source(level.is_active)),
     #(
       "location",
       src_object([
@@ -3409,6 +3519,7 @@ fn inventory_level_source_with_item(
   src_object([
     #("__typename", SrcString("InventoryLevel")),
     #("id", SrcString(level.id)),
+    #("isActive", optional_bool_source(level.is_active)),
     #(
       "location",
       src_object([
@@ -8455,6 +8566,7 @@ fn default_shipment_inventory_level(
       ),
       InventoryQuantityRecord(name: "incoming", quantity: 0, updated_at: None),
     ],
+    is_active: Some(True),
     cursor: None,
   )
 }
@@ -8488,6 +8600,26 @@ fn write_inventory_quantity_delta(
       Some(updated_at),
     )
   #(InventoryLevelRecord(..level, quantities: quantities), next_identity)
+}
+
+fn reactivate_inventory_level(
+  level: InventoryLevelRecord,
+  identity: SyntheticIdentityRegistry,
+) -> #(InventoryLevelRecord, SyntheticIdentityRegistry) {
+  let available = inventory_quantity_amount(level.quantities, "available")
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let quantities =
+    write_inventory_quantity_with_timestamp(
+      level.quantities,
+      "available",
+      available,
+      Some(updated_at),
+    )
+  #(
+    InventoryLevelRecord(..level, quantities: quantities, is_active: Some(True)),
+    next_identity,
+  )
 }
 
 fn write_inventory_quantity_with_timestamp(
@@ -9401,19 +9533,43 @@ fn handle_inventory_activate(
     }
     _, _, _ -> None
   }
-  let staged_ids = case resolved {
-    Some(#(variant, level)) ->
-      case variant.inventory_item {
-        Some(item) -> [level.id, item.id]
-        None -> [level.id]
+  let activation_result = case resolved, user_errors {
+    Some(#(variant, level)), [] -> {
+      case inventory_level_is_active(level) {
+        True -> #(store, identity, resolved)
+        False -> {
+          let #(next_level, next_identity) =
+            reactivate_inventory_level(level, identity)
+          let next_levels =
+            replace_inventory_level(
+              variant_inventory_levels(variant),
+              level.location.id,
+              next_level,
+            )
+          let next_variant = variant_with_inventory_levels(variant, next_levels)
+          #(
+            stage_variant_inventory_levels(store, variant, next_levels),
+            next_identity,
+            Some(#(next_variant, next_level)),
+          )
+        }
       }
-    None -> []
+    }
+    _, _ -> #(store, identity, resolved)
   }
+  let #(next_store, next_identity, next_resolved) = activation_result
+  let staged_ids = inventory_activate_staged_ids(next_resolved)
   mutation_result(
     key,
-    inventory_activate_payload(store, resolved, user_errors, field, fragments),
-    store,
-    identity,
+    inventory_activate_payload(
+      next_store,
+      next_resolved,
+      user_errors,
+      field,
+      fragments,
+    ),
+    next_store,
+    next_identity,
     staged_ids,
   )
 }
@@ -9435,7 +9591,9 @@ fn handle_inventory_deactivate(
   }
   let user_errors = case target {
     Some(#(variant, level)) -> {
-      let active_levels = variant_inventory_levels(variant)
+      let active_levels =
+        variant_inventory_levels(variant)
+        |> active_inventory_levels
       case list.length(active_levels) <= 1 {
         True -> [
           NullableFieldUserError(
@@ -9452,9 +9610,10 @@ fn handle_inventory_deactivate(
   }
   let next_store = case target, user_errors {
     Some(#(variant, level)), [] -> {
+      let next_level = InventoryLevelRecord(..level, is_active: Some(False))
       let next_levels =
         variant_inventory_levels(variant)
-        |> list.filter(fn(candidate) { candidate.id != level.id })
+        |> replace_inventory_level(level.location.id, next_level)
       stage_variant_inventory_levels(store, variant, next_levels)
     }
     _, _ -> store
@@ -14588,12 +14747,48 @@ fn inventory_adjustment_staged_ids(
   ]
 }
 
+fn inventory_activate_staged_ids(
+  resolved: Option(#(ProductVariantRecord, InventoryLevelRecord)),
+) -> List(String) {
+  case resolved {
+    Some(#(variant, level)) ->
+      case variant.inventory_item {
+        Some(item) -> [level.id, item.id]
+        None -> [level.id]
+      }
+    None -> []
+  }
+}
+
 fn variant_inventory_levels(
   variant: ProductVariantRecord,
 ) -> List(InventoryLevelRecord) {
   case variant.inventory_item {
     Some(item) -> item.inventory_levels
     None -> []
+  }
+}
+
+fn inventory_level_is_active(level: InventoryLevelRecord) -> Bool {
+  case level.is_active {
+    Some(False) -> False
+    _ -> True
+  }
+}
+
+fn active_inventory_levels(
+  levels: List(InventoryLevelRecord),
+) -> List(InventoryLevelRecord) {
+  list.filter(levels, inventory_level_is_active)
+}
+
+fn filter_inventory_levels_by_include_inactive(
+  levels: List(InventoryLevelRecord),
+  include_inactive: Bool,
+) -> List(InventoryLevelRecord) {
+  case include_inactive {
+    True -> levels
+    False -> active_inventory_levels(levels)
   }
 }
 
@@ -14643,14 +14838,7 @@ fn stage_variant_inventory_levels(
   variant: ProductVariantRecord,
   next_levels: List(InventoryLevelRecord),
 ) -> Store {
-  let next_variant =
-    ProductVariantRecord(
-      ..variant,
-      inventory_quantity: sum_inventory_level_available(next_levels),
-      inventory_item: option.map(variant.inventory_item, fn(item) {
-        InventoryItemRecord(..item, inventory_levels: next_levels)
-      }),
-    )
+  let next_variant = variant_with_inventory_levels(variant, next_levels)
   let next_variants =
     store.get_effective_variants_by_product_id(store, variant.product_id)
     |> list.map(fn(candidate) {
@@ -14666,11 +14854,26 @@ fn stage_variant_inventory_levels(
   )
 }
 
+fn variant_with_inventory_levels(
+  variant: ProductVariantRecord,
+  next_levels: List(InventoryLevelRecord),
+) -> ProductVariantRecord {
+  ProductVariantRecord(
+    ..variant,
+    inventory_quantity: sum_inventory_level_available(next_levels),
+    inventory_item: option.map(variant.inventory_item, fn(item) {
+      InventoryItemRecord(..item, inventory_levels: next_levels)
+    }),
+  )
+}
+
 fn sum_inventory_level_available(
   levels: List(InventoryLevelRecord),
 ) -> Option(Int) {
   Some(
-    list.fold(levels, 0, fn(total, level) {
+    levels
+    |> active_inventory_levels
+    |> list.fold(0, fn(total, level) {
       total + inventory_quantity_amount(level.quantities, "available")
     }),
   )

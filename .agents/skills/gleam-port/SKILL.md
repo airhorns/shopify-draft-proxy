@@ -281,6 +281,10 @@ adding broad synthetic-id/timestamp expected differences.
   walkable state JSON value and projected through normal source projection.
   Do not hardcode contextual pricing response fragments in the parity runner;
   the capture seeding path should hydrate the Product/Variant records.
+- Inactive inventory levels are stateful rows, not deleted rows. Model
+  `isActive` on the level, exclude inactive levels from default
+  `inventoryLevels` reads, honor `includeInactive: true`, and make
+  reactivation flip the same row back to active while preserving quantities.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.

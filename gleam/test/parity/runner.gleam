@@ -319,6 +319,8 @@ fn seed_capture_preconditions(
       seed_inventory_activate_preconditions(capture, proxy)
     "inventory-deactivate-live-parity" ->
       seed_inventory_activate_preconditions(capture, proxy)
+    "inventory-inactive-level-lifecycle-2026-04" ->
+      seed_inventory_inactive_lifecycle_preconditions(capture, proxy)
     "inventory-bulk-toggle-activation-live-parity" ->
       seed_inventory_activate_preconditions(capture, proxy)
     "inventory-item-update-live-parity" ->
@@ -3647,6 +3649,7 @@ fn inventory_adjust_seed_variant(
               available,
               quantity_updated_at,
             ),
+            is_active: Some(True),
             cursor: None,
           ),
         ],
@@ -3810,6 +3813,37 @@ fn seed_inventory_activate_preconditions(
   }
 }
 
+fn seed_inventory_inactive_lifecycle_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_json = case
+    jsonpath.lookup(capture, "$.setup.seedProductRead.data.product")
+  {
+    Some(product) -> Some(product)
+    None ->
+      case jsonpath.lookup(capture, "$.createdProduct") {
+        Some(product) -> Some(product)
+        None -> None
+      }
+  }
+  case product_json {
+    Some(product_json) -> {
+      let products = case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [product]
+        Error(_) -> []
+      }
+      let variants = seed_variants_for_product(product_json)
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_variants(variants)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
 fn seed_inventory_item_update_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -3849,6 +3883,7 @@ fn inventory_quantity_seed_level(
       InventoryQuantityRecord(name: "on_hand", quantity: 0, updated_at: None),
       InventoryQuantityRecord(name: "damaged", quantity: 0, updated_at: None),
     ],
+    is_active: Some(True),
     cursor: None,
   )
 }
@@ -4192,6 +4227,7 @@ fn make_seed_inventory_level(
     quantities: read_array_field(source, "quantities")
       |> option.unwrap([])
       |> list.filter_map(make_seed_inventory_quantity),
+    is_active: read_bool_field(source, "isActive"),
     cursor: cursor,
   ))
 }

@@ -175,6 +175,7 @@ pub type InventoryLevelRecord {
     id: String,
     location: InventoryLocationRecord,
     quantities: List(InventoryQuantityRecord),
+    is_active: Option(Bool),
     cursor: Option(String),
   )
 }

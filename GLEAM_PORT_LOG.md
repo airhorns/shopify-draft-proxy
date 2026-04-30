@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 97: inactive inventory level lifecycle
+
+Promotes the captured inactive inventory level lifecycle scenario into the
+Gleam parity suite. Inventory levels now retain Shopify's active/inactive state
+instead of being removed on `inventoryDeactivate`, `InventoryItem` reads honor
+`includeInactive: true`, and `inventoryActivate` reactivates the same row while
+preserving quantities and synthesizing the captured available-quantity
+timestamp shape.
+
+| Module                                               | Change                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds optional `is_active` state to inventory levels.                |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Toggles active state for deactivate/reactivate and filters reads.   |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured inactive-level product and level activity state. |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing inactive-level lifecycle spec.            |
+| `.agents/skills/gleam-port/SKILL.md`                 | Records the inactive inventory-level modeling trap.                 |
+
+Validation:
+Focused JavaScript parity is green for
+`inventory-inactive-level-lifecycle-2026-04.json`. Full JavaScript is green at
+711 tests. Host Erlang still fails with the known local `Undef` runner class;
+the Docker Erlang fallback is green at 707 tests. `corepack pnpm
+gleam:port:coverage`, `corepack pnpm lint`, and whitespace checks are green.
+Product parity inventory remains 115 checked-in specs, with 94 product specs
+executable in the Gleam parity suite and 21 product specs still
+expected-failing.
+
+### Findings
+
+- Shopify keeps deactivated inventory levels readable by id and through
+  `inventoryItem.inventoryLevel(locationId:, includeInactive: true)` with
+  `isActive: false`; deleting the local level breaks downstream reads and
+  reactivation.
+- Default `inventoryLevels` reads should continue to omit inactive rows unless
+  `includeInactive: true` is supplied. The existing literal `first:` projection
+  still needs to apply after the activity filter.
+
+### Risks / open items
+
+- Selling plans, media, advanced search, inventory contracts, duplicate,
+  productSet/media roots, and broader validation atomicity parity remain
+  incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 98 candidates
+
+- Continue inventory quantity contracts and validation atomicity.
+- Port selling-plan group behavior with strict captured lifecycle evidence.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 96: product contextual pricing read
 
 Promotes the captured Product/ProductVariant contextual pricing read scenario
