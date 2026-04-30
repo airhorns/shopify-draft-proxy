@@ -9,6 +9,71 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 71: collection detail and identifier reads
+
+Adds the first normalized collection read slice to the Gleam Products handler.
+The pass models captured collection records, collection images, SEO, smart
+rule sets, product membership rows, exact product counts, and collection product
+connection cursors so strict collection detail and identifier/handle reads can
+replay against the local proxy instead of returning no-data placeholders.
+
+The pass promotes `collection-detail-read` and `collection-identifier-read` into
+the Gleam parity suite. The checked-in fixtures, request documents, variables,
+and comparison contracts stay unchanged.
+
+| Module                                               | Change                                                             |
+| ---------------------------------------------------- | ------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds collection, image, rule-set, and product-membership records.  |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds base/staged collection storage and effective read helpers.    |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Serializes `collection`, identifier, and deprecated handle roots.  |
+| `gleam/test/parity/runner.gleam`                     | Seeds collection detail captures into normalized collection state. |
+| `gleam/test/parity_test.gleam`                       | Enables the strict collection detail and identifier specs.         |
+
+Validation:
+`gleam test --target javascript collection_detail_read_test` is green at 769
+tests, `gleam test --target javascript collection_identifier_read_test` is green
+at 770 tests, and full `gleam test --target javascript` is green at 770 tests on
+the host Node runtime. Host `gleam test --target erlang` still fails before
+tests execute on the local Erlang install with the known `undef` runner issue;
+after clearing host-built Erlang artifacts, the Docker Erlang fallback is green
+at 766 tests. Product parity inventory remains 115 checked-in specs, with 56
+product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay where both
+  `customCollection` and `smartCollection` came back `null`.
+- Shopify's captured smart collection had `hasProduct: true` for the queried
+  product even though that product was not on the first product-connection page;
+  the seeder preserves that membership after the visible page so `hasProduct`
+  and page cursors both stay faithful.
+- The detail fixture's captured `productsCount` is authoritative for connection
+  pagination and count serialization, so the normalized collection record keeps
+  that exact count instead of inferring it only from the locally seeded first
+  page.
+
+### Risks / open items
+
+- Top-level `collections` catalog search/sort/filter parity remains incomplete.
+- Collection mutation roots, publication links, product feeds/feedback, selling
+  plans, product metafields, inventory shipment/transfer, media, advanced
+  search, and broader validation atomicity parity remain incomplete in Gleam.
+- Only 56 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 72 candidates
+
+- Build on the collection slice with top-level `collections` catalog
+  search/sort/filter replay.
+- Port collection membership mutation roots now that product membership rows
+  exist in normalized Gleam state.
+- Port product metafield behavior now that Product, Product Option, Product
+  Variant, Inventory, and initial Collection read slices are locally staged or
+  seeded.
+
+---
+
 ## 2026-04-30 — Pass 70: product variant bulk create inventory reads
 
 Enables strict Gleam parity coverage for the captured

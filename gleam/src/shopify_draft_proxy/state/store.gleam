@@ -19,10 +19,11 @@ import shopify_draft_proxy/state/types.{
   type AppInstallationRecord, type AppOneTimePurchaseRecord, type AppRecord,
   type AppSubscriptionLineItemRecord, type AppSubscriptionRecord,
   type AppUsageRecord, type BackupRegionRecord, type BulkOperationRecord,
-  type CartTransformRecord, type CustomerSegmentMembersQueryRecord,
-  type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
-  type GiftCardRecord, type InventoryLevelRecord, type LocaleRecord,
-  type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
+  type CartTransformRecord, type CollectionRecord,
+  type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
+  type GiftCardConfigurationRecord, type GiftCardRecord,
+  type InventoryLevelRecord, type LocaleRecord, type MarketingEngagementRecord,
+  type MarketingRecord, type MarketingValue, type ProductCollectionRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductVariantRecord, type SavedSearchRecord, type SegmentRecord,
   type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
@@ -45,6 +46,10 @@ pub type BaseState {
     product_variant_order: List(String),
     product_variant_count: Option(Int),
     product_options: Dict(String, ProductOptionRecord),
+    collections: Dict(String, CollectionRecord),
+    collection_order: List(String),
+    product_collections: Dict(String, ProductCollectionRecord),
+    deleted_collection_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -124,6 +129,10 @@ pub type StagedState {
     product_variant_order: List(String),
     product_variant_count: Option(Int),
     product_options: Dict(String, ProductOptionRecord),
+    collections: Dict(String, CollectionRecord),
+    collection_order: List(String),
+    product_collections: Dict(String, ProductCollectionRecord),
+    deleted_collection_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -268,6 +277,10 @@ pub fn empty_base_state() -> BaseState {
     product_variant_order: [],
     product_variant_count: None,
     product_options: dict.new(),
+    collections: dict.new(),
+    collection_order: [],
+    product_collections: dict.new(),
+    deleted_collection_ids: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -340,6 +353,10 @@ pub fn empty_staged_state() -> StagedState {
     product_variant_order: [],
     product_variant_count: None,
     product_options: dict.new(),
+    collections: dict.new(),
+    collection_order: [],
+    product_collections: dict.new(),
+    deleted_collection_ids: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -570,6 +587,140 @@ pub fn get_effective_product_count(store: Store) -> Int {
         None -> list.length(list_effective_products(store))
       }
   }
+}
+
+pub fn upsert_base_collections(
+  store: Store,
+  records: List(CollectionRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    let new_base =
+      BaseState(
+        ..base,
+        collections: dict.insert(base.collections, record.id, record),
+        collection_order: append_unique_id(base.collection_order, record.id),
+        deleted_collection_ids: dict.delete(
+          base.deleted_collection_ids,
+          record.id,
+        ),
+      )
+    let new_staged =
+      StagedState(
+        ..staged,
+        deleted_collection_ids: dict.delete(
+          staged.deleted_collection_ids,
+          record.id,
+        ),
+      )
+    Store(..acc, base_state: new_base, staged_state: new_staged)
+  })
+}
+
+pub fn replace_base_products_for_collection(
+  store: Store,
+  collection_id: String,
+  records: List(ProductCollectionRecord),
+) -> Store {
+  let base = store.base_state
+  let retained =
+    base.product_collections
+    |> dict.keys()
+    |> list.fold(base.product_collections, fn(acc, key) {
+      case dict.get(acc, key) {
+        Ok(record) ->
+          case record.collection_id == collection_id {
+            True -> dict.delete(acc, key)
+            False -> acc
+          }
+        Error(_) -> acc
+      }
+    })
+  let next =
+    list.fold(records, retained, fn(acc, record) {
+      dict.insert(acc, product_collection_storage_key(record), record)
+    })
+  Store(..store, base_state: BaseState(..base, product_collections: next))
+}
+
+pub fn get_effective_collection_by_id(
+  store: Store,
+  id: String,
+) -> Option(CollectionRecord) {
+  let deleted =
+    dict_has(store.base_state.deleted_collection_ids, id)
+    || dict_has(store.staged_state.deleted_collection_ids, id)
+  case deleted {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.collections, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.collections, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn get_effective_collection_by_handle(
+  store: Store,
+  handle: String,
+) -> Option(CollectionRecord) {
+  list.find(list_effective_collections(store), fn(collection) {
+    collection.handle == handle
+  })
+  |> option.from_result
+}
+
+pub fn list_effective_collections(store: Store) -> List(CollectionRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.collection_order,
+      store.staged_state.collection_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_collection_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(store.base_state.collections, store.staged_state.collections)
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_collection_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+pub fn list_effective_products_for_collection(
+  store: Store,
+  collection_id: String,
+) -> List(#(ProductRecord, ProductCollectionRecord)) {
+  let memberships =
+    dict.values(store.base_state.product_collections)
+    |> list.append(dict.values(store.staged_state.product_collections))
+    |> list.filter(fn(record) { record.collection_id == collection_id })
+    |> list.sort(compare_product_collection_records)
+  list.filter_map(memberships, fn(membership) {
+    case get_effective_product_by_id(store, membership.product_id) {
+      Some(product) -> Ok(#(product, membership))
+      None -> Error(Nil)
+    }
+  })
 }
 
 pub fn upsert_base_product_variants(
@@ -3496,6 +3647,20 @@ fn append_unique_id(order: List(String), id: String) -> List(String) {
   case list.contains(order, id) {
     True -> order
     False -> list.append(order, [id])
+  }
+}
+
+fn product_collection_storage_key(record: ProductCollectionRecord) -> String {
+  record.product_id <> "::" <> record.collection_id
+}
+
+fn compare_product_collection_records(
+  left: ProductCollectionRecord,
+  right: ProductCollectionRecord,
+) -> order.Order {
+  case int.compare(left.position, right.position) {
+    order.Eq -> string.compare(left.product_id, right.product_id)
+    other -> other
   }
 }
 

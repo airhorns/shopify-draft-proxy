@@ -38,25 +38,29 @@ import shopify_draft_proxy/proxy/draft_proxy.{
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord, type InventoryItemRecord,
+  type CollectionImageRecord, type CollectionRecord, type CollectionRuleRecord,
+  type CollectionRuleSetRecord, type GiftCardConfigurationRecord,
+  type GiftCardRecipientAttributesRecord, type GiftCardRecord,
+  type GiftCardTransactionRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
   type InventoryWeightRecord, type Money, type PaymentSettingsRecord,
-  type ProductCategoryRecord, type ProductOptionRecord,
-  type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
-  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
-  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
-  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
-  type ShopifyFunctionRecord, GiftCardConfigurationRecord,
+  type ProductCategoryRecord, type ProductCollectionRecord,
+  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
+  type ProductSeoRecord, type ProductVariantRecord,
+  type ProductVariantSelectedOptionRecord, type ShopAddressRecord,
+  type ShopDomainRecord, type ShopFeaturesRecord, type ShopPlanRecord,
+  type ShopPolicyRecord, type ShopRecord, type ShopResourceLimitsRecord,
+  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
+  CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
+  CollectionRuleSetRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
   InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
   InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
   InventoryWeightInt, InventoryWeightRecord, Money, PaymentSettingsRecord,
-  ProductCategoryRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord, ShopAddressRecord,
+  ProductCategoryRecord, ProductCollectionRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
   ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
@@ -162,6 +166,8 @@ fn seed_capture_preconditions(
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
     "product-detail-read" -> seed_product_preconditions(capture, proxy)
+    "collection-detail-read" | "collection-identifier-read" ->
+      seed_collection_detail_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
@@ -319,6 +325,180 @@ fn seed_product_preconditions(
       }
     None -> proxy
   }
+}
+
+fn seed_collection_detail_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let collection_sources =
+    ["$.data.customCollection", "$.data.smartCollection"]
+    |> list.filter_map(fn(path) {
+      case jsonpath.lookup(capture, path) {
+        Some(value) -> Ok(value)
+        None -> Error(Nil)
+      }
+    })
+  let has_product_seed_id =
+    jsonpath.lookup(
+      capture,
+      "$.data.customCollection.products.edges[0].node.id",
+    )
+    |> json_string_option
+  let collections = list.filter_map(collection_sources, make_seed_collection)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_collections(collections)
+  let proxy = draft_proxy.DraftProxy(..proxy, store: store)
+  list.fold(collection_sources, proxy, fn(acc, collection_json) {
+    seed_collection_products(collection_json, has_product_seed_id, acc)
+  })
+}
+
+fn seed_collection_products(
+  collection_json: JsonValue,
+  has_product_seed_id: Option(String),
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case make_seed_collection(collection_json) {
+    Ok(collection) -> {
+      let edges = case jsonpath.lookup(collection_json, "$.products.edges") {
+        Some(JArray(edges)) -> edges
+        _ -> []
+      }
+      let products = list.filter_map(edges, make_seed_product_relaxed_from_edge)
+      let memberships =
+        edges
+        |> enumerate_json_values()
+        |> list.filter_map(fn(pair) {
+          let #(edge, position) = pair
+          make_seed_product_collection_from_edge(collection.id, edge, position)
+        })
+      let memberships = case
+        read_bool_field(collection_json, "hasProduct"),
+        has_product_seed_id
+      {
+        Some(True), Some(product_id) ->
+          case
+            list.any(memberships, fn(record) { record.product_id == product_id })
+          {
+            True -> memberships
+            False ->
+              list.append(memberships, [
+                ProductCollectionRecord(
+                  collection_id: collection.id,
+                  product_id: product_id,
+                  position: list.length(memberships),
+                  cursor: None,
+                ),
+              ])
+          }
+        _, _ -> memberships
+      }
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.replace_base_products_for_collection(
+          collection.id,
+          memberships,
+        )
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    Error(_) -> proxy
+  }
+}
+
+fn make_seed_collection(source: JsonValue) -> Result(CollectionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use title <- result.try(required_string_field(source, "title"))
+  use handle <- result.try(required_string_field(source, "handle"))
+  let rule_set =
+    make_seed_collection_rule_set(read_object_field(source, "ruleSet"))
+  Ok(CollectionRecord(
+    id: id,
+    legacy_resource_id: read_string_field(source, "legacyResourceId"),
+    title: title,
+    handle: handle,
+    publication_ids: [],
+    updated_at: read_string_field(source, "updatedAt"),
+    description: read_string_field(source, "description"),
+    description_html: read_string_field(source, "descriptionHtml"),
+    image: make_seed_collection_image(read_object_field(source, "image")),
+    sort_order: read_string_field(source, "sortOrder"),
+    template_suffix: read_string_field(source, "templateSuffix"),
+    seo: make_seed_product_seo(read_object_field(source, "seo")),
+    rule_set: rule_set,
+    products_count: read_object_field(source, "productsCount")
+      |> option.then(read_int_field(_, "count")),
+    is_smart: case rule_set {
+      Some(_) -> True
+      None -> False
+    },
+    cursor: None,
+  ))
+}
+
+fn make_seed_collection_image(
+  source: Option(JsonValue),
+) -> Option(CollectionImageRecord) {
+  case source {
+    None -> None
+    Some(value) ->
+      Some(CollectionImageRecord(
+        id: read_string_field(value, "id"),
+        alt_text: read_string_field(value, "altText"),
+        url: read_string_field(value, "url"),
+        width: read_int_field(value, "width"),
+        height: read_int_field(value, "height"),
+      ))
+  }
+}
+
+fn make_seed_collection_rule_set(
+  source: Option(JsonValue),
+) -> Option(CollectionRuleSetRecord) {
+  case source {
+    None -> None
+    Some(value) ->
+      Some(
+        CollectionRuleSetRecord(
+          applied_disjunctively: read_bool_field(value, "appliedDisjunctively")
+            |> option.unwrap(False),
+          rules: case read_array_field(value, "rules") {
+            Some(rules) -> list.filter_map(rules, make_seed_collection_rule)
+            None -> []
+          },
+        ),
+      )
+  }
+}
+
+fn make_seed_collection_rule(
+  source: JsonValue,
+) -> Result(CollectionRuleRecord, Nil) {
+  use column <- result.try(required_string_field(source, "column"))
+  use relation <- result.try(required_string_field(source, "relation"))
+  use condition <- result.try(required_string_field(source, "condition"))
+  Ok(CollectionRuleRecord(
+    column: column,
+    relation: relation,
+    condition: condition,
+  ))
+}
+
+fn make_seed_product_collection_from_edge(
+  collection_id: String,
+  edge: JsonValue,
+  position: Int,
+) -> Result(ProductCollectionRecord, Nil) {
+  use node <- result.try(required_object_field(edge, "node"))
+  use product_id <- result.try(required_string_field(node, "id"))
+  Ok(ProductCollectionRecord(
+    collection_id: collection_id,
+    product_id: product_id,
+    position: position,
+    cursor: read_string_field(edge, "cursor"),
+  ))
 }
 
 fn make_seed_product(source: JsonValue) -> Result(ProductRecord, Nil) {
@@ -2161,10 +2341,27 @@ fn required_string_field(
   }
 }
 
+fn required_object_field(
+  value: JsonValue,
+  name: String,
+) -> Result(JsonValue, Nil) {
+  case read_object_field(value, name) {
+    Some(object) -> Ok(object)
+    None -> Error(Nil)
+  }
+}
+
 fn required_int_field(value: JsonValue, name: String) -> Result(Int, Nil) {
   case read_int_field(value, name) {
     Some(i) -> Ok(i)
     None -> Error(Nil)
+  }
+}
+
+fn json_string_option(value: Option(JsonValue)) -> Option(String) {
+  case value {
+    Some(JString(value)) -> Some(value)
+    _ -> None
   }
 }
 
@@ -2252,6 +2449,22 @@ fn json_bool_or(value: Option(JsonValue), fallback: Bool) -> Bool {
   case value {
     Some(JBool(value)) -> value
     _ -> fallback
+  }
+}
+
+fn enumerate_json_values(items: List(JsonValue)) -> List(#(JsonValue, Int)) {
+  enumerate_json_values_loop(items, 0, [])
+}
+
+fn enumerate_json_values_loop(
+  items: List(JsonValue),
+  index: Int,
+  acc: List(#(JsonValue, Int)),
+) -> List(#(JsonValue, Int)) {
+  case items {
+    [] -> list.reverse(acc)
+    [first, ..rest] ->
+      enumerate_json_values_loop(rest, index + 1, [#(first, index), ..acc])
   }
 }
 

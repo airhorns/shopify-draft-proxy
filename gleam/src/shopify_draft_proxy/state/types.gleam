@@ -24,6 +24,57 @@ pub type ProductCategoryRecord {
   ProductCategoryRecord(id: String, full_name: String)
 }
 
+pub type CollectionImageRecord {
+  CollectionImageRecord(
+    id: Option(String),
+    alt_text: Option(String),
+    url: Option(String),
+    width: Option(Int),
+    height: Option(Int),
+  )
+}
+
+pub type CollectionRuleRecord {
+  CollectionRuleRecord(column: String, relation: String, condition: String)
+}
+
+pub type CollectionRuleSetRecord {
+  CollectionRuleSetRecord(
+    applied_disjunctively: Bool,
+    rules: List(CollectionRuleRecord),
+  )
+}
+
+pub type CollectionRecord {
+  CollectionRecord(
+    id: String,
+    legacy_resource_id: Option(String),
+    title: String,
+    handle: String,
+    publication_ids: List(String),
+    updated_at: Option(String),
+    description: Option(String),
+    description_html: Option(String),
+    image: Option(CollectionImageRecord),
+    sort_order: Option(String),
+    template_suffix: Option(String),
+    seo: ProductSeoRecord,
+    rule_set: Option(CollectionRuleSetRecord),
+    products_count: Option(Int),
+    is_smart: Bool,
+    cursor: Option(String),
+  )
+}
+
+pub type ProductCollectionRecord {
+  ProductCollectionRecord(
+    collection_id: String,
+    product_id: String,
+    position: Int,
+    cursor: Option(String),
+  )
+}
+
 pub type ProductVariantSelectedOptionRecord {
   ProductVariantSelectedOptionRecord(name: String, value: String)
 }

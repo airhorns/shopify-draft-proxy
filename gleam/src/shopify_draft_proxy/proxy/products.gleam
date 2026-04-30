@@ -46,10 +46,12 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type InventoryItemRecord, type InventoryLevelRecord,
-  type InventoryLocationRecord, type InventoryMeasurementRecord,
-  type InventoryQuantityRecord, type InventoryWeightRecord,
-  type InventoryWeightValue, type ProductCategoryRecord,
+  type CollectionImageRecord, type CollectionRecord, type CollectionRuleRecord,
+  type CollectionRuleSetRecord, type InventoryItemRecord,
+  type InventoryLevelRecord, type InventoryLocationRecord,
+  type InventoryMeasurementRecord, type InventoryQuantityRecord,
+  type InventoryWeightRecord, type InventoryWeightValue,
+  type ProductCategoryRecord, type ProductCollectionRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductSeoRecord, type ProductVariantRecord,
   type ProductVariantSelectedOptionRecord, InventoryItemRecord,
@@ -71,6 +73,8 @@ pub fn is_products_query_root(name: String) -> Bool {
     | "products"
     | "productsCount"
     | "collection"
+    | "collectionByIdentifier"
+    | "collectionByHandle"
     | "collections"
     | "productVariant"
     | "productVariantByIdentifier"
@@ -161,10 +165,24 @@ fn serialize_root_fields(
                 variables,
                 fragments,
               )
-            "collection"
-            | "productFeed"
-            | "productResourceFeedback"
-            | "productOperation" -> json.null()
+            "collection" ->
+              serialize_collection_root(store, field, variables, fragments)
+            "collectionByIdentifier" ->
+              serialize_collection_by_identifier_root(
+                store,
+                field,
+                variables,
+                fragments,
+              )
+            "collectionByHandle" ->
+              serialize_collection_by_handle_root(
+                store,
+                field,
+                variables,
+                fragments,
+              )
+            "productFeed" | "productResourceFeedback" | "productOperation" ->
+              json.null()
             "inventoryItem" ->
               serialize_inventory_item_root(store, field, variables, fragments)
             "inventoryLevel" ->
@@ -285,6 +303,342 @@ fn product_by_identifier(
         Some(handle) -> store.get_effective_product_by_handle(store, handle)
         None -> None
       }
+  }
+}
+
+fn serialize_collection_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.get_effective_collection_by_id(store, id) {
+        Some(collection) ->
+          serialize_collection_object(
+            store,
+            collection,
+            get_selected_child_fields(field, default_selected_field_options()),
+            variables,
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn serialize_collection_by_identifier_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_identifier_argument(field, variables) {
+    Some(identifier) ->
+      case collection_by_identifier(store, identifier) {
+        Some(collection) ->
+          serialize_collection_object(
+            store,
+            collection,
+            get_selected_child_fields(field, default_selected_field_options()),
+            variables,
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn serialize_collection_by_handle_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "handle") {
+    Some(handle) ->
+      case store.get_effective_collection_by_handle(store, handle) {
+        Some(collection) ->
+          serialize_collection_object(
+            store,
+            collection,
+            get_selected_child_fields(field, default_selected_field_options()),
+            variables,
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn collection_by_identifier(
+  store: Store,
+  identifier: Dict(String, ResolvedValue),
+) -> Option(CollectionRecord) {
+  case read_string_field(identifier, "id") {
+    Some(id) -> store.get_effective_collection_by_id(store, id)
+    None ->
+      case read_string_field(identifier, "handle") {
+        Some(handle) -> store.get_effective_collection_by_handle(store, handle)
+        None -> None
+      }
+  }
+}
+
+fn serialize_collection_object(
+  store: Store,
+  collection: CollectionRecord,
+  selections: List(Selection),
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  json.object(
+    list.map(selections, fn(selection) {
+      let key = get_field_response_key(selection)
+      let value = case selection {
+        Field(name: name, ..) ->
+          serialize_collection_field(
+            store,
+            collection,
+            selection,
+            name.value,
+            variables,
+            fragments,
+          )
+        _ -> json.null()
+      }
+      #(key, value)
+    }),
+  )
+}
+
+fn serialize_collection_field(
+  store: Store,
+  collection: CollectionRecord,
+  field: Selection,
+  field_name: String,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case field_name {
+    "__typename" -> json.string("Collection")
+    "id" -> json.string(collection.id)
+    "legacyResourceId" ->
+      json.string(
+        collection.legacy_resource_id
+        |> option.unwrap(legacy_resource_id_from_gid(collection.id)),
+      )
+    "title" -> json.string(collection.title)
+    "handle" -> json.string(collection.handle)
+    "updatedAt" -> optional_string_json(collection.updated_at)
+    "description" -> optional_string_json(collection.description)
+    "descriptionHtml" -> optional_string_json(collection.description_html)
+    "image" ->
+      serialize_collection_image(
+        collection.image,
+        get_selected_child_fields(field, default_selected_field_options()),
+      )
+    "productsCount" ->
+      serialize_exact_count(
+        field,
+        collection.products_count
+          |> option.unwrap(
+            list.length(store.list_effective_products_for_collection(
+              store,
+              collection.id,
+            )),
+          ),
+      )
+    "hasProduct" ->
+      json.bool(collection_has_product(store, collection.id, field, variables))
+    "sortOrder" -> optional_string_json(collection.sort_order)
+    "templateSuffix" -> optional_string_json(collection.template_suffix)
+    "seo" ->
+      project_graphql_value(
+        product_seo_source(collection.seo),
+        get_selected_child_fields(field, default_selected_field_options()),
+        fragments,
+      )
+    "ruleSet" ->
+      serialize_collection_rule_set(
+        collection.rule_set,
+        get_selected_child_fields(field, default_selected_field_options()),
+      )
+    "products" ->
+      serialize_collection_products_connection(
+        store,
+        collection,
+        field,
+        variables,
+        fragments,
+      )
+    _ -> json.null()
+  }
+}
+
+fn serialize_collection_image(
+  image: Option(CollectionImageRecord),
+  selections: List(Selection),
+) -> Json {
+  case image {
+    None -> json.null()
+    Some(image) ->
+      json.object(
+        list.map(selections, fn(selection) {
+          let key = get_field_response_key(selection)
+          let value = case selection {
+            Field(name: name, ..) ->
+              case name.value {
+                "id" -> optional_string_json(image.id)
+                "altText" -> optional_string_json(image.alt_text)
+                "url" | "src" | "originalSrc" | "transformedSrc" ->
+                  optional_string_json(image.url)
+                "width" -> optional_int_json(image.width)
+                "height" -> optional_int_json(image.height)
+                _ -> json.null()
+              }
+            _ -> json.null()
+          }
+          #(key, value)
+        }),
+      )
+  }
+}
+
+fn serialize_collection_rule_set(
+  rule_set: Option(CollectionRuleSetRecord),
+  selections: List(Selection),
+) -> Json {
+  case rule_set {
+    None -> json.null()
+    Some(rule_set) ->
+      json.object(
+        list.map(selections, fn(selection) {
+          let key = get_field_response_key(selection)
+          let value = case selection {
+            Field(name: name, ..) ->
+              case name.value {
+                "appliedDisjunctively" ->
+                  json.bool(rule_set.applied_disjunctively)
+                "rules" ->
+                  json.array(rule_set.rules, fn(rule) {
+                    serialize_collection_rule(
+                      rule,
+                      get_selected_child_fields(
+                        selection,
+                        default_selected_field_options(),
+                      ),
+                    )
+                  })
+                _ -> json.null()
+              }
+            _ -> json.null()
+          }
+          #(key, value)
+        }),
+      )
+  }
+}
+
+fn serialize_collection_rule(
+  rule: CollectionRuleRecord,
+  selections: List(Selection),
+) -> Json {
+  json.object(
+    list.map(selections, fn(selection) {
+      let key = get_field_response_key(selection)
+      let value = case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "column" -> json.string(rule.column)
+            "relation" -> json.string(rule.relation)
+            "condition" -> json.string(rule.condition)
+            _ -> json.null()
+          }
+        _ -> json.null()
+      }
+      #(key, value)
+    }),
+  )
+}
+
+fn serialize_collection_products_connection(
+  store: Store,
+  collection: CollectionRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    store.list_effective_products_for_collection(store, collection.id)
+  let window =
+    paginate_connection_items(
+      entries,
+      field,
+      variables,
+      collection_product_cursor,
+      default_connection_window_options(),
+    )
+  let has_next_page = case collection.products_count {
+    Some(count) -> window.has_next_page || count > list.length(window.items)
+    None -> window.has_next_page
+  }
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: collection_product_cursor,
+      serialize_node: fn(entry, node_field, _index) {
+        let #(product, _) = entry
+        project_graphql_value(
+          product_source_with_store(store, product),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: False,
+        prefix_cursors: False,
+        include_cursors: True,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn collection_product_cursor(
+  entry: #(ProductRecord, ProductCollectionRecord),
+  _index: Int,
+) -> String {
+  let #(_, membership) = entry
+  membership.cursor |> option.unwrap(membership.product_id)
+}
+
+fn collection_has_product(
+  store: Store,
+  collection_id: String,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Bool {
+  case read_string_argument(field, variables, "id") {
+    Some(product_id) ->
+      store.list_effective_products_for_collection(store, collection_id)
+      |> list.any(fn(entry) {
+        let #(product, _) = entry
+        product.id == product_id
+      })
+    None -> False
   }
 }
 
@@ -1549,6 +1903,31 @@ fn optional_bool_source(value: Option(Bool)) -> SourceValue {
   case value {
     Some(value) -> SrcBool(value)
     None -> SrcNull
+  }
+}
+
+fn optional_string_json(value: Option(String)) -> Json {
+  case value {
+    Some(value) -> json.string(value)
+    None -> json.null()
+  }
+}
+
+fn optional_int_json(value: Option(Int)) -> Json {
+  case value {
+    Some(value) -> json.int(value)
+    None -> json.null()
+  }
+}
+
+fn legacy_resource_id_from_gid(id: String) -> String {
+  case string.split(id, "/") |> list.last {
+    Ok(tail_with_query) ->
+      case string.split(tail_with_query, "?") {
+        [tail, ..] -> tail
+        [] -> id
+      }
+    Error(_) -> id
   }
 }
 
