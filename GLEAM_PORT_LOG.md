@@ -29,13 +29,14 @@ missing-field coverage instead of relying on a manually maintained test list.
 | `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Uses strict base/staged state decoders for `restore_state` while leaving `restore_snapshot` on the existing permissive snapshot-compatible path. |
 | `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | Adds exhaustive missing-bucket tests for every serialized base/staged state field plus a whole-runtime dump round-trip assertion.                |
 
-Validation: `cd gleam && gleam test --target javascript` is green at 680 tests;
-`docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w
-/repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test
---target erlang` is green at 676 tests; `corepack pnpm gleam:registry:check`,
-`corepack pnpm gleam:port:coverage`, `corepack pnpm lint`, `corepack pnpm
-typecheck`, `corepack pnpm build`, `corepack pnpm gleam:test:js`, `corepack
-pnpm gleam:smoke:js`, and `git diff --check` are green.
+Validation after merging `origin/main@cf7be0ae`: `corepack pnpm
+gleam:registry:check`, `corepack pnpm gleam:port:coverage`, `corepack pnpm
+lint`, `corepack pnpm typecheck`, `corepack pnpm build`, `corepack pnpm
+conformance:check`, `corepack pnpm conformance:parity`, `corepack pnpm
+conformance:capture:check`, `corepack pnpm gleam:test:js`, `corepack pnpm
+gleam:smoke:js`, and `git diff --check` are green. The JS target is green at
+683 tests. The Erlang target is green at 679 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`.
 
 ### Findings
 
@@ -45,6 +46,9 @@ pnpm gleam:smoke:js`, and `git diff --check` are green.
 - Strictness needs to be scoped to current state dumps. Snapshot restore must
   keep accepting partial TypeScript snapshot files until the port owns every
   bucket and fixture shape.
+- The post-merge parity gate showed
+  `localization-disable-clears-translations` now passes in the Gleam suite, so
+  its stale expected-failure entry was removed from the port gate manifest.
 
 ### Risks / open items
 
