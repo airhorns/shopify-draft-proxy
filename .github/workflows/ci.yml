@@ -13,8 +13,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  verify:
-    name: Verify
+  gleam:
+    name: Gleam
     runs-on: ubuntu-latest
 
     steps:
@@ -51,13 +51,13 @@ jobs:
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
-      - name: Lint
+      - name: Lint TypeScript interop, tooling, and Gleam formatting
         run: corepack pnpm lint
 
-      - name: Typecheck
+      - name: Typecheck TypeScript interop and tooling
         run: corepack pnpm typecheck
 
-      - name: Check conformance coverage
+      - name: Check conformance metadata
         run: corepack pnpm conformance:check
 
       - name: Find latest main conformance baseline
@@ -83,7 +83,7 @@ jobs:
           mkdir -p .conformance/main
           echo "No main conformance baseline artifact found; PR status will omit the baseline comparison."
 
-      - name: Generate conformance status report
+      - name: Generate Gleam conformance status report
         id: conformance_status
         run: >
           corepack pnpm conformance:status --
@@ -91,23 +91,23 @@ jobs:
           --output-json .conformance/current/conformance-status-report.json
           --output-markdown .conformance/current/conformance-status-comment.md
 
-      - name: Build
+      - name: Build TypeScript interop output
         run: corepack pnpm build
 
       - name: Gleam format check
         run: corepack pnpm gleam:format:check
 
-      - name: Gleam tests (JavaScript target)
+      - name: Gleam tests and parity specs (JavaScript target)
         run: corepack pnpm gleam:test:js
 
-      - name: Gleam tests (Erlang target)
+      - name: Gleam tests and parity specs (Erlang target)
         run: corepack pnpm gleam:test:erlang
+
+      - name: Node ESM consumer smoke
+        run: corepack pnpm gleam:smoke:js
 
       - name: Elixir BEAM interop smoke
         run: corepack pnpm elixir:smoke
-
-      - name: Test
-        run: corepack pnpm test
 
       - name: Upload main conformance baseline
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
