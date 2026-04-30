@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 40: gift-card parity completion
+## 2026-04-30 — Pass 41: gift-card parity completion
 
 Completes the Gift Cards Gleam parity handoff while keeping the TypeScript
 runtime in place. Both checked-in gift-card parity specs now execute in the
@@ -25,20 +25,22 @@ remain present for this pass. That keeps the public TypeScript/Koa proxy and
 existing runtime coverage unchanged while the Gleam port gains executable
 parity evidence.
 
-| Module                                                          | Change                                                                                                                |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `gleam/test/parity_test.gleam`                                  | Enables `gift-card-lifecycle` alongside `gift-card-search-filters` as executable Gleam parity evidence.               |
-| `gleam/test/parity/runner.gleam`                                | Seeds lifecycle/search captures from the gift-card conformance fixture before replaying local mutation/read requests. |
-| `gleam/test/parity/spec.gleam` / `gleam/test/parity/diff.gleam` | Adds target-level `selectedPaths` decoding and selected-slice diffing for parity specs.                               |
-| `src/proxy/gift-cards.ts` / TypeScript gift-card test flow      | Remains in place as the legacy TypeScript runtime and integration coverage until a later explicit removal pass.       |
-| `config/operation-registry.json` and gift-card parity specs     | Keeps legacy TS coverage visible while also pointing to the new Gleam gift-card query/mutation tests.                 |
+| Module                                                             | Change                                                                                                                |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `config/gleam-port-ci-gates.json` / `gleam/test/parity_test.gleam` | Removes `gift-card-lifecycle` from expected failures so discovery-based Gleam parity treats it as passing evidence.   |
+| `gleam/test/parity/runner.gleam`                                   | Seeds lifecycle/search captures from the gift-card conformance fixture before replaying local mutation/read requests. |
+| `gleam/test/parity/spec.gleam` / `gleam/test/parity/diff.gleam`    | Adds target-level `selectedPaths` decoding and selected-slice diffing for parity specs.                               |
+| `src/proxy/gift-cards.ts` / TypeScript gift-card test flow         | Remains in place as the legacy TypeScript runtime and integration coverage until a later explicit removal pass.       |
+| `config/operation-registry.json` and gift-card parity specs        | Keeps legacy TS coverage visible while also pointing to the new Gleam gift-card query/mutation tests.                 |
 
 Validation after rework and the latest `origin/main` merge: `gleam test
---target javascript` was green at 720 tests. `gleam test --target erlang` was
-green at 716 tests via the `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`
+--target javascript` was green at 676 tests. `gleam test --target erlang` was
+green at 672 tests via the `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`
 container because the host lacks `escript`. `corepack pnpm typecheck`,
 `corepack pnpm conformance:check`, `corepack pnpm conformance:parity`,
-`corepack pnpm lint`, targeted `corepack pnpm vitest run
+`corepack pnpm lint`, `corepack pnpm gleam:port:coverage`, `corepack pnpm
+gleam:registry:check`, `corepack pnpm conformance:capture:check`, `corepack
+pnpm build`, targeted `corepack pnpm vitest run
 tests/integration/gift-card-flow.test.ts`, and `git diff --check` were green.
 
 ### Findings
@@ -60,7 +62,7 @@ tests/integration/gift-card-flow.test.ts`, and `git diff --check` were green.
   GiftCard node dispatch when a future pass broadens cross-domain Relay node
   coverage.
 
-### Pass 41 candidates
+### Pass 42 candidates
 
 - Port product-owned `metafieldDelete` / `metafieldsDelete` and their
   hydrated/downstream deletion flows into Gleam.
@@ -68,6 +70,72 @@ tests/integration/gift-card-flow.test.ts`, and `git diff --check` were green.
   captured template-catalog fixture exists.
 - Continue Store Properties locations and fulfillment/carrier-service lifecycle
   roots, reusing the existing shop state slice.
+
+---
+
+## 2026-04-30 — Pass 40: CI gate hardening for port completion
+
+Adds CI gates for the Gleam port without making the current partial parity
+runner list an allowlist. The gate keeps the vendored Gleam operation registry
+synchronized with `config/operation-registry.json`, requires checked-in parity
+specs to remain strict executable evidence, and verifies the Gleam parity suite
+still attempts every convention-discovered parity spec while tracking only the
+expected failures that remain unported.
+
+This pass does not port a new endpoint domain and does not delete any TypeScript
+runtime code. It makes port/conformance coverage harder to reduce silently while
+preserving the normal workflow where agents add Gleam parity support and remove
+expected-failure entries as domain work lands.
+
+| Module                                | Change                                                                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config/gleam-port-ci-gates.json`     | Adds the reviewed CI gate manifest for expected Gleam parity failures, required workflow commands, and remaining capture-tooling checks.             |
+| `scripts/gleam-port-coverage-gate.ts` | Adds the CI gate checker for parity inventory, expected-failure drift, workflow commands, package scripts, and capture-tooling checks.               |
+| `package.json`                        | Adds `gleam:registry:check`, `gleam:port:coverage`, and `conformance:capture:check` scripts.                                                         |
+| `.github/workflows/ci.yml`            | Runs registry drift, conformance parity, remaining TypeScript capture tooling, conformance status, the new port gate, both targets, and smoke tests. |
+
+Validation: `corepack pnpm gleam:port:coverage`, `corepack pnpm
+gleam:registry:check`, `corepack pnpm lint`, `corepack pnpm typecheck`,
+`corepack pnpm conformance:check`, `corepack pnpm conformance:parity`,
+`corepack pnpm conformance:capture:check`, `corepack pnpm conformance:status
+-- --output-json .conformance/current/conformance-status-report.json
+--output-markdown .conformance/current/conformance-status-comment.md`,
+`corepack pnpm build`, `corepack pnpm gleam:format:check`, `corepack pnpm
+gleam:test:js`, and `corepack pnpm gleam:smoke:js` are green. The host lacks
+`escript`, so Erlang target and Elixir smoke were validated with the matching
+Gleam 1.16 containers:
+`docker run --rm -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`
+and
+`docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-elixir-alpine sh -lc 'cd gleam && gleam export erlang-shipment && cd elixir_smoke && mix test'`.
+
+### Findings
+
+- `gleam/scripts/sync-operation-registry.sh` emits unformatted Gleam; the drift
+  check regenerates, formats, then diffs the generated registry module.
+- Review clarified that the Gleam parity gate must run every parity spec and
+  maintain an expected-failure list, not freeze the current runner list or a
+  discovered-spec count.
+- The current JS target has 323 expected parity failures; the Erlang target has
+  those plus two target-specific metaobject parity failures recorded with
+  `targets: ["erlang"]`.
+- CI checks TypeScript conformance capture tooling as remaining tooling,
+  separate from the Gleam runtime authority.
+
+### Risks / open items
+
+- The gate proves the current coverage surface cannot shrink silently; it does
+  not claim the remaining endpoint domains are fully ported.
+- Host-local Erlang/Elixir package scripts still require a BEAM installation;
+  CI installs BEAM directly, while this workspace uses containers for local
+  equivalent validation.
+
+### Pass 41 candidates
+
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots.
+- Continue Admin Platform parity seeding for utility roots that now have
+  owning-domain serializers in Gleam.
+- Continue Marketing upstream hydration and parity-runner seeding.
 
 ---
 
