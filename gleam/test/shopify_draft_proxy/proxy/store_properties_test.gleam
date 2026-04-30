@@ -358,7 +358,8 @@ pub fn location_reads_and_local_mutations_use_store_state_test() {
     draft_proxy.process_request(proxy, meta_get("/__meta/state"))
   let serialized_state = json.to_string(state_json)
   assert state_status == 200
-  assert string.contains(serialized_state, "\"stagedState\":{\"locations\":")
+  assert string.contains(serialized_state, "\"stagedState\":{")
+  assert string.contains(serialized_state, "\"locations\":{")
   assert string.contains(serialized_state, "\"name\":\"Annex\"")
 }
 
