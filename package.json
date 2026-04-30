@@ -29,6 +29,7 @@
     "gleam:test:erlang": "cd gleam && gleam test --target erlang",
     "gleam:format": "cd gleam && gleam format",
     "gleam:format:check": "cd gleam && gleam format --check",
+    "gleam:integration-inventory": "tsx ./scripts/verify-gleam-integration-inventory.ts",
     "gleam:smoke:js": "vitest run tests/integration/gleam-interop.test.ts",
     "elixir:smoke": "cd gleam && gleam export erlang-shipment && cd elixir_smoke && mix test",
     "perf:smoke": "vitest run tests/integration/performance-smoke.test.ts",

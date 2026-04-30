@@ -1,0 +1,831 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "source": "tests/integration/abandoned-checkout-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/abandoned-checkout-empty-read.json",
+        "config/parity-specs/orders/abandonment-delivery-status-unknown.json"
+      ],
+      "notes": "Abandoned-checkout and abandonment empty/no-data query shapes are carried by captured orders parity specs; the Gleam corpus test ensures these specs remain discoverable and comparison-ready."
+    },
+    {
+      "source": "tests/integration/admin-platform-query-shapes.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/parity_corpus_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/admin-platform/admin-platform-utility-reads.json",
+        "config/parity-specs/admin-platform/admin-platform-staff-access-blocker.json",
+        "config/parity-specs/admin-platform/admin-platform-supported-node-reads.json",
+        "config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json"
+      ]
+    },
+    {
+      "source": "tests/integration/app-billing-access-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/apps_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/apps_mutation_test.gleam",
+        "gleam/test/parity_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/apps/app-billing-access-local-staging.json",
+        "config/parity-specs/apps/delegate-access-token-current-input-local-staging.json"
+      ]
+    },
+    {
+      "source": "tests/integration/b2b-company-lifecycle-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/b2b/b2b-company-create-lifecycle.json",
+        "config/parity-specs/b2b/b2b-company-contact-main-delete.json",
+        "config/parity-specs/b2b/b2b-contact-location-assignments-tax.json"
+      ],
+      "notes": "B2B lifecycle behavior is preserved as captured parity evidence until a dedicated Gleam B2B domain pass lands."
+    },
+    {
+      "source": "tests/integration/b2b-company-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/b2b/b2b-company-roots-read.json"]
+    },
+    {
+      "source": "tests/integration/bulk-operation-conformance-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/bulk_operations_test.gleam",
+        "gleam/test/parity_corpus_test.gleam"
+      ],
+      "paritySpecs": ["config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json"]
+    },
+    {
+      "source": "tests/integration/business-entity-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/store-properties/business-entities-catalog-read.json",
+        "config/parity-specs/store-properties/business-entity-fallbacks-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/carrier-service-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/shipping-fulfillments/carrier-service-lifecycle.json"]
+    },
+    {
+      "source": "tests/integration/collection-draft-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/collectionCreate-parity-plan.json",
+        "config/parity-specs/products/collectionCreate-initial-products-parity.json",
+        "config/parity-specs/products/collectionUpdate-parity-plan.json",
+        "config/parity-specs/products/collectionDelete-parity-plan.json",
+        "config/parity-specs/products/collectionAddProducts-parity-plan.json",
+        "config/parity-specs/products/collectionRemoveProducts-parity-plan.json",
+        "config/parity-specs/products/collectionReorderProducts-parity-plan.json"
+      ]
+    },
+    {
+      "source": "tests/integration/collection-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/collection-detail-read.json",
+        "config/parity-specs/products/collection-identifier-read.json",
+        "config/parity-specs/products/collections-catalog-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/customer-draft-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/customers/customerCreate-parity-plan.json",
+        "config/parity-specs/customers/customerUpdate-parity-plan.json",
+        "config/parity-specs/customers/customerDelete-parity-plan.json",
+        "config/parity-specs/customers/customerSet-parity.json",
+        "config/parity-specs/customers/customerAddressLifecycle-parity.json",
+        "config/parity-specs/customers/customerAddTaxExemptions-parity.json",
+        "config/parity-specs/customers/customerRemoveTaxExemptions-parity.json",
+        "config/parity-specs/customers/customerReplaceTaxExemptions-parity.json",
+        "config/parity-specs/privacy/dataSaleOptOut-parity.json"
+      ]
+    },
+    {
+      "source": "tests/integration/customer-payment-method-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/payments/customer-payment-method-local-staging.json"]
+    },
+    {
+      "source": "tests/integration/customer-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/customers/customer-by-identifier-read.json",
+        "config/parity-specs/customers/customer-detail-parity-plan.json",
+        "config/parity-specs/customers/customer-nested-subresources-read.json",
+        "config/parity-specs/customers/customer-order-summary-read-effects.json",
+        "config/parity-specs/customers/customers-catalog-parity-plan.json",
+        "config/parity-specs/customers/customers-count-read.json",
+        "config/parity-specs/customers/customers-search-read.json",
+        "config/parity-specs/customers/customers-advanced-search-read.json",
+        "config/parity-specs/customers/customers-relevance-search-read.json",
+        "config/parity-specs/customers/customers-sort-keys-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/customer-segment-member-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/segments_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/segments_mutation_test.gleam",
+        "gleam/test/parity_test.gleam"
+      ],
+      "paritySpecs": ["config/parity-specs/segments/customer-segment-members-query-lifecycle.json"]
+    },
+    {
+      "source": "tests/integration/delivery-profile-lifecycle-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/shipping-fulfillments/delivery-profile-lifecycle.json"]
+    },
+    {
+      "source": "tests/integration/delivery-profile-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/shipping-fulfillments/delivery-profile-read.json"]
+    },
+    {
+      "source": "tests/integration/delivery-settings-query-shapes.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/delivery_settings_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"
+      ],
+      "paritySpecs": ["config/parity-specs/shipping-fulfillments/delivery-settings-read.json"]
+    },
+    {
+      "source": "tests/integration/discount-app-bulk-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/discounts/discount-app-bulk-local-runtime.json"]
+    },
+    {
+      "source": "tests/integration/discount-automatic-basic-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/discounts/discount-automatic-basic-lifecycle.json",
+        "config/parity-specs/discounts/discount-automatic-basic-buyer-context-lifecycle.json",
+        "config/parity-specs/discounts/discount-automatic-basic-detail-read.json",
+        "config/parity-specs/discounts/discount-automatic-basic-nodes-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/discount-bxgy-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/discounts/discount-bxgy-lifecycle.json"]
+    },
+    {
+      "source": "tests/integration/discount-code-basic-lifecycle-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/discounts/discount-code-basic-lifecycle.json",
+        "config/parity-specs/discounts/discount-code-basic-buyer-context-lifecycle.json",
+        "config/parity-specs/discounts/discount-code-basic-detail-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/discount-free-shipping-lifecycle-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/discounts/discount-free-shipping-lifecycle.json"]
+    },
+    {
+      "source": "tests/integration/discount-mutation-validation.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/discounts/discount-validation-branches.json",
+        "config/parity-specs/discounts/discountCodeBasicCreate-missing-input-parity.json",
+        "config/parity-specs/discounts/discountCodeBasicCreate-inline-null-input-parity.json"
+      ]
+    },
+    {
+      "source": "tests/integration/discount-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/discounts/discount-catalog-empty-read.json",
+        "config/parity-specs/discounts/discount-catalog-non-empty-read.json",
+        "config/parity-specs/discounts/discount-catalog-code-filter-empty-read.json",
+        "config/parity-specs/discounts/discount-catalog-status-filter-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/discount-redeem-code-bulk-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/discounts/discount-redeem-code-bulk.json"]
+    },
+    {
+      "source": "tests/integration/draft-order-mutation-family-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/draftOrderCreate-parity-plan.json",
+        "config/parity-specs/orders/draftOrderUpdate-parity-plan.json",
+        "config/parity-specs/orders/draftOrderDelete-parity-plan.json",
+        "config/parity-specs/orders/draftOrderComplete-parity-plan.json",
+        "config/parity-specs/orders/draftOrderDuplicate-parity-plan.json",
+        "config/parity-specs/orders/draftOrderCreateFromOrder-parity-plan.json",
+        "config/parity-specs/orders/draftOrderInvoiceSend-parity-plan.json",
+        "config/parity-specs/orders/draftOrderCreate-validation-matrix.json"
+      ]
+    },
+    {
+      "source": "tests/integration/event-query-shapes.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/events_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
+        "gleam/test/parity_test.gleam"
+      ],
+      "paritySpecs": ["config/parity-specs/events/event-empty-read.json"]
+    },
+    {
+      "source": "tests/integration/fulfillment-service-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/shipping-fulfillments/fulfillment-service-lifecycle.json"]
+    },
+    {
+      "source": "tests/integration/functions-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/functions_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/functions_mutation_test.gleam",
+        "gleam/test/parity_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/functions/functions-live-owner-metadata-read.json",
+        "config/parity-specs/functions/functions-metadata-local-staging.json",
+        "config/parity-specs/functions/functions-owner-metadata-local-staging.json"
+      ]
+    },
+    {
+      "source": "tests/integration/gift-card-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+        "gleam/test/parity_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/gift-cards/gift-card-lifecycle.json",
+        "config/parity-specs/gift-cards/gift-card-search-filters.json"
+      ]
+    },
+    {
+      "source": "tests/integration/gleam-interop.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_async_test.gleam"
+      ],
+      "retainedTypeScriptCoverage": ["tests/integration/gleam-interop.test.ts"],
+      "notes": "The TypeScript interop smoke remains a required validation item until the legacy TS test harness is retired."
+    },
+    {
+      "source": "tests/integration/inventory-quantity-roots.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/inventory-quantity-roots-parity.json",
+        "config/parity-specs/products/inventory-quantity-contracts-2026-04.json"
+      ]
+    },
+    {
+      "source": "tests/integration/inventory-shipment-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/inventory-shipment-lifecycle-local-staging.json",
+        "config/parity-specs/products/inventory-shipment-partial-receive-update-delete-local-staging.json"
+      ]
+    },
+    {
+      "source": "tests/integration/inventory-transfer-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/inventory-transfer-lifecycle-local-staging.json",
+        "config/parity-specs/products/inventory-transfer-ready-item-adjustments-local-staging.json"
+      ]
+    },
+    {
+      "source": "tests/integration/launch-scripts.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_async_test.gleam"
+      ],
+      "retainedTypeScriptCoverage": ["tests/integration/launch-scripts.test.ts"],
+      "notes": "Gleam covers the health route and async request surface; package-level `dev`/`start` process launch remains TypeScript-retained until the HTTP adapter is ported per GLEAM_PORT_INTENT."
+    },
+    {
+      "source": "tests/integration/localization-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/localization_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/localization/localization-disable-clears-translations.json",
+        "config/parity-specs/localization/localization-locale-translation-fixture.json"
+      ]
+    },
+    {
+      "source": "tests/integration/location-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/locations-catalog-read.json",
+        "config/parity-specs/store-properties/location-detail-read.json",
+        "config/parity-specs/store-properties/location-custom-id-miss-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/marketing-activity-lifecycle-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/marketing_test.gleam",
+        "gleam/test/parity_corpus_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/marketing/marketing-activity-lifecycle.json",
+        "config/parity-specs/marketing/marketing-native-activity-lifecycle.json"
+      ]
+    },
+    {
+      "source": "tests/integration/marketing-engagement-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/marketing_test.gleam",
+        "gleam/test/parity_corpus_test.gleam"
+      ],
+      "paritySpecs": ["config/parity-specs/marketing/marketing-engagement-lifecycle.json"]
+    },
+    {
+      "source": "tests/integration/marketing-query-shapes.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/marketing_test.gleam",
+        "gleam/test/parity_corpus_test.gleam"
+      ],
+      "paritySpecs": ["config/parity-specs/marketing/marketing-baseline-read.json"]
+    },
+    {
+      "source": "tests/integration/markets-lifecycle-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/markets/market-create-blank-name-validation.json",
+        "config/parity-specs/markets/market-update-unknown-id-validation.json",
+        "config/parity-specs/markets/market-delete-unknown-id-validation.json",
+        "config/parity-specs/markets/catalog-create-blank-title-validation.json",
+        "config/parity-specs/markets/catalog-update-unknown-id-validation.json",
+        "config/parity-specs/markets/catalog-delete-unknown-id-validation.json",
+        "config/parity-specs/markets/catalog-context-update-unknown-id-validation.json",
+        "config/parity-specs/markets/price-list-fixed-prices-by-product-update.json",
+        "config/parity-specs/markets/price-list-mutation-validation.json",
+        "config/parity-specs/markets/quantity-pricing-rules-local-staging.json",
+        "config/parity-specs/markets/web-presence-lifecycle-local-staging.json",
+        "config/parity-specs/markets/web-presence-delete-local-staging.json",
+        "config/parity-specs/markets/web-presence-create-invalid-routing-validation.json",
+        "config/parity-specs/markets/web-presence-update-unknown-id-validation.json"
+      ]
+    },
+    {
+      "source": "tests/integration/markets-localization-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/markets/market-localizable-empty-read.json",
+        "config/parity-specs/markets/market-localization-metafield-lifecycle.json",
+        "config/parity-specs/markets/market-localizations-register-unknown-resource-validation.json",
+        "config/parity-specs/markets/market-localizations-remove-unknown-resource-validation.json"
+      ]
+    },
+    {
+      "source": "tests/integration/markets-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/markets/market-detail-read.json",
+        "config/parity-specs/markets/markets-catalog-read.json",
+        "config/parity-specs/markets/markets-resolved-values-read.json",
+        "config/parity-specs/markets/market-catalog-detail-read.json",
+        "config/parity-specs/markets/market-catalogs-read.json",
+        "config/parity-specs/markets/market-web-presences-read.json",
+        "config/parity-specs/markets/price-list-detail-read.json",
+        "config/parity-specs/markets/price-list-prices-filtered-read.json",
+        "config/parity-specs/markets/price-lists-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/media-draft-flow.test.ts",
+      "gleamTests": ["gleam/test/shopify_draft_proxy/proxy/media_test.gleam", "gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/media/fileCreate-parity-plan.json",
+        "config/parity-specs/media/fileUpdate-parity.json",
+        "config/parity-specs/media/fileDelete-product-media-parity.json",
+        "config/parity-specs/media/fileUpdate-product-reference-local-staging.json",
+        "config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json",
+        "config/parity-specs/media/files-upload-local-runtime.json",
+        "config/parity-specs/media/staged-upload-targets-parity.json"
+      ]
+    },
+    {
+      "source": "tests/integration/meta-routes.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/commit_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_async_test.gleam"
+      ],
+      "retainedTypeScriptCoverage": ["tests/integration/meta-routes.test.ts"],
+      "notes": "Gleam covers JSON meta health/config/log/state/reset/commit behavior; the operator HTML UI remains TypeScript-retained until the HTTP adapter/UI surface is ported."
+    },
+    {
+      "source": "tests/integration/metafield-definition-draft-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/metafields_test.gleam",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/parity_corpus_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json",
+        "config/parity-specs/metafields/metafield-definition-pinning-parity.json",
+        "config/parity-specs/metafields/standard-metafield-definition-enable-validation.json"
+      ]
+    },
+    {
+      "source": "tests/integration/metafield-definition-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/shopify_draft_proxy/proxy/metafields_test.gleam", "gleam/test/parity_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/metafields/metafield-definitions-product-empty-read.json",
+        "config/parity-specs/metafields/metafield-definitions-product-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/metaobject-definition-draft-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam",
+        "gleam/test/parity_corpus_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/metaobjects/metaobject-definition-lifecycle-local-staging.json",
+        "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json"
+      ]
+    },
+    {
+      "source": "tests/integration/metaobject-definition-query-shapes.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam",
+        "gleam/test/parity_corpus_test.gleam"
+      ],
+      "paritySpecs": ["config/parity-specs/metaobjects/metaobject-definitions-read.json"]
+    },
+    {
+      "source": "tests/integration/metaobject-draft-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam",
+        "gleam/test/parity_corpus_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/metaobjects/metaobject-entry-lifecycle-local-staging.json",
+        "config/parity-specs/metaobjects/metaobject-reference-lifecycle.json",
+        "config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json"
+      ]
+    },
+    {
+      "source": "tests/integration/metaobject-query-shapes.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam",
+        "gleam/test/parity_corpus_test.gleam"
+      ],
+      "paritySpecs": ["config/parity-specs/metaobjects/metaobjects-read.json"]
+    },
+    {
+      "source": "tests/integration/metaobject-schema-change-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/metaobjects/metaobject-schema-change-lifecycle.json"]
+    },
+    {
+      "source": "tests/integration/online-store-content-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/online-store/online-store-content-lifecycle.json",
+        "config/parity-specs/online-store/online-store-content-search-filters.json",
+        "config/parity-specs/online-store/online-store-page-default-publish-local-staging.json",
+        "config/parity-specs/online-store-article-media-navigation-follow-through.json",
+        "config/parity-specs/online-store/storefront-access-token-local-staging.json"
+      ]
+    },
+    {
+      "source": "tests/integration/online-store-integrations-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/online-store/online-store-integrations-local-staging.json"]
+    },
+    {
+      "source": "tests/integration/order-creation-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/orderCreate-parity-plan.json",
+        "config/parity-specs/orders/orderCreate-validation-matrix.json",
+        "config/parity-specs/orders/orderCreate-missing-order-parity.json",
+        "config/parity-specs/orders/orderCreate-inline-missing-order-parity.json",
+        "config/parity-specs/orders/orderCreate-inline-null-order-parity.json",
+        "config/parity-specs/orders/orderCreateManualPayment-access-denied-parity.json"
+      ]
+    },
+    {
+      "source": "tests/integration/order-draft-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/orderUpdate-parity-plan.json",
+        "config/parity-specs/orders/orderUpdate-expanded-parity-plan.json",
+        "config/parity-specs/orders/orderUpdate-live-parity.json",
+        "config/parity-specs/orders/orderCancel-parity.json",
+        "config/parity-specs/orders/orderClose-parity.json",
+        "config/parity-specs/orders/orderOpen-parity.json",
+        "config/parity-specs/orders/orderMarkAsPaid-parity.json",
+        "config/parity-specs/orders/orderCustomerSet-parity.json",
+        "config/parity-specs/orders/orderCustomerRemove-parity.json",
+        "config/parity-specs/orders/orderInvoiceSend-parity.json"
+      ]
+    },
+    {
+      "source": "tests/integration/order-edit-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/order-edit-residual-local-staging.json",
+        "config/parity-specs/orders/orderEditExistingOrder-happy-path.json",
+        "config/parity-specs/orders/orderEditExistingOrder-validation.json",
+        "config/parity-specs/orders/orderEditExistingOrder-zero-removal.json",
+        "config/parity-specs/orders/orderEditResidualWorkflow-calculated-edits.json",
+        "config/parity-specs/orders/orderEditBegin-parity-plan.json",
+        "config/parity-specs/orders/orderEditAddVariant-parity-plan.json",
+        "config/parity-specs/orders/orderEditSetQuantity-parity-plan.json",
+        "config/parity-specs/orders/orderEditCommit-parity-plan.json"
+      ]
+    },
+    {
+      "source": "tests/integration/order-fulfillment-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/fulfillmentCreate-invalid-id-parity.json",
+        "config/parity-specs/orders/fulfillmentCancel-parity-plan.json",
+        "config/parity-specs/orders/fulfillmentTrackingInfoUpdate-parity-plan.json",
+        "config/parity-specs/shipping-fulfillments/fulfillment-detail-events-lifecycle.json",
+        "config/parity-specs/shipping-fulfillments/fulfillment-order-lifecycle-local-staging.json",
+        "config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json",
+        "config/parity-specs/shipping-fulfillments/fulfillment-top-level-reads.json"
+      ]
+    },
+    {
+      "source": "tests/integration/order-lifecycle-payment-customer-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/order-payment-mandate-local-staging.json",
+        "config/parity-specs/orders/order-payment-transaction-local-staging.json",
+        "config/parity-specs/orders/orderCustomerSet-parity.json",
+        "config/parity-specs/orders/orderCustomerRemove-parity.json",
+        "config/parity-specs/payments/customer-payment-method-local-staging.json"
+      ]
+    },
+    {
+      "source": "tests/integration/order-payment-transaction-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/order-payment-transaction-local-staging.json",
+        "config/parity-specs/orders/order-payment-transaction-void-local-staging.json"
+      ]
+    },
+    {
+      "source": "tests/integration/order-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/order-empty-state-read.json",
+        "config/parity-specs/orders/order-merchant-detail-read.json",
+        "config/parity-specs/orders/order-catalog-count-read.json",
+        "config/parity-specs/orders/draft-order-by-id-not-found-read.json",
+        "config/parity-specs/orders/draftOrders-read-parity-plan.json",
+        "config/parity-specs/orders/draftOrdersCount-read-parity-plan.json",
+        "config/parity-specs/orders/draftOrders-invalid-email-query-read.json",
+        "config/parity-specs/orders/draftOrder-read-parity-plan.json",
+        "config/parity-specs/orders/draft-order-residual-helper-roots.json"
+      ]
+    },
+    {
+      "source": "tests/integration/order-refund-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/refundCreate-parity-plan.json",
+        "config/parity-specs/orders/refundCreate-full-parity.json",
+        "config/parity-specs/orders/refundCreate-over-refund-user-errors.json"
+      ]
+    },
+    {
+      "source": "tests/integration/order-return-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/orders/return-lifecycle-local-staging.json",
+        "config/parity-specs/orders/return-request-decline-local-staging.json",
+        "config/parity-specs/orders/return-reverse-logistics-local-staging.json",
+        "config/parity-specs/orders/return-reverse-logistics-recorded.json",
+        "config/parity-specs/orders/removeFromReturn-local-staging.json"
+      ]
+    },
+    {
+      "source": "tests/integration/payment-customization-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/payments/payment-customization-empty-read.json",
+        "config/parity-specs/payments/payment-customization-validation.json"
+      ]
+    },
+    {
+      "source": "tests/integration/payment-terms-lifecycle-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/payments/payment-terms-lifecycle-local-staging.json"]
+    },
+    {
+      "source": "tests/integration/payment-terms-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/payments/payment-terms-templates-read.json"]
+    },
+    {
+      "source": "tests/integration/performance-smoke.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "retainedTypeScriptCoverage": ["tests/integration/performance-smoke.test.ts"],
+      "notes": "This is a TypeScript runtime performance guard over large product/customer/order/catalog snapshots. It stays retained until the corresponding Gleam resource domains and snapshot loader exist."
+    },
+    {
+      "source": "tests/integration/product-draft-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/productCreate-parity-plan.json",
+        "config/parity-specs/products/productUpdate-parity-plan.json",
+        "config/parity-specs/products/productDelete-parity-plan.json",
+        "config/parity-specs/products/productChangeStatus-parity-plan.json",
+        "config/parity-specs/products/productDuplicate-parity-plan.json",
+        "config/parity-specs/products/productSet-parity-plan.json",
+        "config/parity-specs/products/productVariantCreate-parity-plan.json",
+        "config/parity-specs/products/productVariantUpdate-parity-plan.json",
+        "config/parity-specs/products/productVariantDelete-parity-plan.json",
+        "config/parity-specs/products/productVariantsBulkCreate-parity-plan.json",
+        "config/parity-specs/products/productVariantsBulkUpdate-parity-plan.json",
+        "config/parity-specs/products/productVariantsBulkDelete-parity-plan.json",
+        "config/parity-specs/products/productVariantsBulkReorder-parity.json",
+        "config/parity-specs/products/tagsAdd-parity-plan.json",
+        "config/parity-specs/products/tagsRemove-parity-plan.json",
+        "config/parity-specs/products/metafieldsSet-parity-plan.json",
+        "config/parity-specs/products/metafieldDelete-parity-plan.json",
+        "config/parity-specs/products/metafieldsDelete-parity-plan.json"
+      ]
+    },
+    {
+      "source": "tests/integration/product-merchandising-feedback-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/product-feedback-lifecycle-local-runtime.json",
+        "config/parity-specs/products/product-merchandising-mutation-guardrails.json",
+        "config/parity-specs/products/product-feed-lifecycle-local-runtime.json",
+        "config/parity-specs/products/product-feeds-empty-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/product-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/product-detail-read.json",
+        "config/parity-specs/products/product-empty-state-read.json",
+        "config/parity-specs/products/product-helper-roots-read.json",
+        "config/parity-specs/products/product-metafields-read.json",
+        "config/parity-specs/products/product-related-by-id-not-found-read.json",
+        "config/parity-specs/products/product-relationship-roots-live-parity.json",
+        "config/parity-specs/products/product-variants-read.json",
+        "config/parity-specs/products/products-catalog-read.json",
+        "config/parity-specs/products/products-search-read.json",
+        "config/parity-specs/products/products-advanced-search-read.json",
+        "config/parity-specs/products/products-relevance-search-read.json",
+        "config/parity-specs/products/products-search-grammar-read.json",
+        "config/parity-specs/products/products-search-pagination-read.json",
+        "config/parity-specs/products/products-sort-keys-read.json",
+        "config/parity-specs/products/products-variant-search-read.json",
+        "config/parity-specs/products/products-or-precedence-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/proxy-capability-classification.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/capabilities_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/operation_registry_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"
+      ]
+    },
+    {
+      "source": "tests/integration/proxy-instance.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/commit_test.gleam",
+        "gleam/test/shopify_draft_proxy/state/store_test.gleam",
+        "gleam/test/shopify_draft_proxy/state/synthetic_identity_test.gleam",
+        "gleam/test/shopify_draft_proxy_test.gleam"
+      ],
+      "notes": "Gleam coverage exercises immutable instance threading, reset, dump/restore envelope, synthetic identity, and the JS shim surface."
+    },
+    {
+      "source": "tests/integration/publication-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/publication-roots-local-runtime.json",
+        "config/parity-specs/products/publications-catalog-read.json",
+        "config/parity-specs/store-properties/collectionPublishablePublication-parity.json",
+        "config/parity-specs/store-properties/publishablePublish-product-parity.json",
+        "config/parity-specs/store-properties/publishableUnpublish-product-parity.json",
+        "config/parity-specs/store-properties/publishablePublish-shop-count-parity.json",
+        "config/parity-specs/store-properties/publishableUnpublish-shop-count-parity.json"
+      ]
+    },
+    {
+      "source": "tests/integration/saved-search-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/saved_searches_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
+        "gleam/test/parity_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/saved-searches/saved-search-local-staging.json",
+        "config/parity-specs/saved-searches/saved-search-query-grammar.json",
+        "config/parity-specs/saved-searches/saved-search-resource-roots.json"
+      ]
+    },
+    {
+      "source": "tests/integration/segment-lifecycle-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/segments_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/segments_mutation_test.gleam",
+        "gleam/test/parity_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/segments/segment-create-invalid-query-validation.json",
+        "config/parity-specs/segments/segment-update-unknown-id-validation.json",
+        "config/parity-specs/segments/segment-delete-unknown-id-validation.json",
+        "config/parity-specs/segments/segments-baseline-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/segment-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/shopify_draft_proxy/proxy/segments_test.gleam", "gleam/test/parity_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/segments/segment-query-grammar-not-contains.json",
+        "config/parity-specs/segments/segments-baseline-read.json"
+      ]
+    },
+    {
+      "source": "tests/integration/selling-plan-group-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/products/selling-plan-group-lifecycle.json",
+        "config/parity-specs/products/selling-plan-product-variant-associations.json",
+        "config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json"
+      ]
+    },
+    {
+      "source": "tests/integration/shipping-settings-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": [
+        "config/parity-specs/shipping-fulfillments/shipping-package-default-lifecycle-local-runtime.json",
+        "config/parity-specs/shipping-fulfillments/shipping-settings-package-pickup-constraints.json"
+      ]
+    },
+    {
+      "source": "tests/integration/shop-policy-update-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/store_properties_test.gleam",
+        "gleam/test/parity_test.gleam"
+      ],
+      "paritySpecs": ["config/parity-specs/store-properties/shopPolicyUpdate-parity.json"]
+    },
+    {
+      "source": "tests/integration/shop-query-shapes.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/store_properties_test.gleam",
+        "gleam/test/parity_test.gleam"
+      ],
+      "paritySpecs": ["config/parity-specs/store-properties/shop-baseline-read.json"]
+    },
+    {
+      "source": "tests/integration/snapshot-loading.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
+        "gleam/test/shopify_draft_proxy/state/store_test.gleam"
+      ],
+      "retainedTypeScriptCoverage": ["tests/integration/snapshot-loading.test.ts"],
+      "notes": "Gleam covers snapshot-path configuration and store reset/dump substrate. Full normalized snapshot-file loading is intentionally retained in TypeScript until the Gleam snapshot loader lands."
+    },
+    {
+      "source": "tests/integration/store-credit-flow.test.ts",
+      "gleamTests": ["gleam/test/parity_corpus_test.gleam"],
+      "paritySpecs": ["config/parity-specs/customers/store-credit-account-local-staging.json"]
+    },
+    {
+      "source": "tests/integration/webhook-subscription-mutation-flow.test.ts",
+      "gleamTests": [
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
+        "gleam/test/parity_test.gleam"
+      ],
+      "paritySpecs": [
+        "config/parity-specs/webhooks/webhook-subscription-conformance.json",
+        "config/parity-specs/webhooks/webhook-subscription-required-argument-validation.json"
+      ]
+    },
+    {
+      "source": "tests/integration/webhook-subscription-query-shapes.test.ts",
+      "gleamTests": ["gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam", "gleam/test/parity_test.gleam"],
+      "paritySpecs": ["config/parity-specs/webhooks/webhook-subscription-catalog-read.json"]
+    }
+  ]
+}

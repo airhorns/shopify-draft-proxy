@@ -9,6 +9,65 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 33: legacy integration inventory guard
+
+Adds a traceable migration inventory for the legacy TypeScript integration
+suite. Every `tests/integration/*.test.ts` file is now mapped to checked-in
+Gleam test evidence, parity spec evidence, or a retained TypeScript boundary
+where the behavior is explicitly tied to the not-yet-ported HTTP/runtime
+adapter surface. CI now runs the inventory verifier so future TypeScript-only
+integration additions cannot be missed during cutover.
+
+This pass does not delete any TypeScript integration tests. The retained
+boundary entries are intentionally narrow: JS interop, package launch scripts,
+operator HTML meta UI, normalized snapshot file loading, and the large
+TypeScript runtime performance smoke remain guarded by their existing TS tests
+until the corresponding Gleam HTTP adapter, snapshot loader, and broad resource
+domains land.
+
+| Module                                          | Change                                                                                                                    |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `config/gleam-integration-inventory.json`       | Adds one inventory entry for every legacy TypeScript integration test with Gleam/parity/retained evidence references.     |
+| `scripts/verify-gleam-integration-inventory.ts` | Adds the inventory command that scans `tests/integration` and `gleam/test`, validates all references, and reports counts. |
+| `package.json`                                  | Adds `gleam:integration-inventory`.                                                                                       |
+| `.github/workflows/ci.yml`                      | Runs the inventory verifier in CI before Gleam target tests.                                                              |
+
+Validation: `corepack pnpm gleam:integration-inventory` is green, verifying 84
+TypeScript integration entries against 49 Gleam test files with 276 parity spec
+links and 5 retained TypeScript boundaries.
+
+### Findings
+
+- The existing Gleam parity corpus test already discovers the full
+  `config/parity-specs` tree and is the correct broad evidence hook for legacy
+  integration files whose domain behavior is currently captured in parity specs
+  but not yet listed as executable scenario tests in `parity_test.gleam`.
+- Five legacy integration files still exercise TypeScript-specific boundaries
+  that the Gleam port explicitly has not replaced yet: JS interop smoke,
+  package launch scripts, the operator HTML meta UI, normalized snapshot file
+  loading, and the large TypeScript runtime performance smoke.
+
+### Risks / open items
+
+- Inventory evidence is traceability and CI drift prevention; it is not a
+  substitute for porting the retained TypeScript-only runtime boundaries.
+- Product, customer, order, discounts, markets, B2B, online-store, and several
+  shipping/store-property flows still depend primarily on captured parity specs
+  until their full Gleam domain passes land.
+
+### Pass 34 candidates
+
+- Port normalized snapshot-file loading into the Gleam JS shim/core so
+  `snapshot-loading.test.ts` can move from retained TypeScript boundary to
+  executable Gleam coverage.
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the new shop slice where those reads nest under
+  shop state.
+- Promote more parity specs from corpus-discovered evidence into executable
+  `parity_test.gleam` scenario checks as runner seeding support expands.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain
