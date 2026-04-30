@@ -58,6 +58,22 @@ pub type MetafieldsSetUserError {
   )
 }
 
+type SimpleUserError {
+  SimpleUserError(field: List(String), message: String)
+}
+
+type DeletedMetafieldIdentifier {
+  DeletedMetafieldIdentifier(owner_id: String, namespace: String, key: String)
+}
+
+type MetafieldsDeleteResult {
+  MetafieldsDeleteResult(
+    deleted_metafields: List(Option(DeletedMetafieldIdentifier)),
+    user_errors: List(SimpleUserError),
+    store: Store,
+  )
+}
+
 pub type MutationOutcome {
   MutationOutcome(
     data: Json,
@@ -102,7 +118,9 @@ pub fn is_metafield_definitions_mutation_root(name: String) -> Bool {
     | "standardMetafieldDefinitionEnable"
     | "metafieldDefinitionPin"
     | "metafieldDefinitionUnpin"
-    | "metafieldsSet" -> True
+    | "metafieldsSet"
+    | "metafieldsDelete"
+    | "metafieldDelete" -> True
     _ -> False
   }
 }
@@ -267,6 +285,10 @@ fn dispatch_mutation_field(
       serialize_definition_unpin_root(store_in, identity, field, variables)
     "metafieldsSet" ->
       serialize_metafields_set_root(store_in, identity, field, variables)
+    "metafieldsDelete" ->
+      serialize_metafields_delete_root(store_in, identity, field, variables)
+    "metafieldDelete" ->
+      serialize_metafield_delete_root(store_in, identity, field, variables)
     _ -> #(json.null(), store_in, identity, [])
   }
 }
@@ -284,6 +306,8 @@ fn metafield_definitions_notes_for(root_field_name: String) -> String {
   case root_field_name {
     "metafieldsSet" ->
       "Staged locally in the in-memory owner-scoped metafield draft store."
+    "metafieldsDelete" | "metafieldDelete" ->
+      "Staged owner-scoped metafield deletions locally in the in-memory draft store."
     _ -> "Staged locally in the in-memory metafield definition draft store."
   }
 }
@@ -2213,6 +2237,322 @@ fn stage_delete_definition(
     }
   }
   store.stage_delete_metafield_definition(compacted_store, definition.id)
+}
+
+fn serialize_metafields_delete_root(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let args = read_args(field, variables)
+  let inputs = read_input_objects(args, "metafields")
+  let result = delete_metafields_by_identifiers(store_in, inputs)
+  #(
+    serialize_metafields_delete_payload(result, field),
+    result.store,
+    identity,
+    deleted_identifiers_to_stage_ids(result.deleted_metafields),
+  )
+}
+
+fn serialize_metafield_delete_root(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let args = read_args(field, variables)
+  let input = read_object(args, "input")
+  case read_optional_string(input, "id") {
+    None -> #(
+      serialize_metafield_delete_payload(
+        None,
+        [SimpleUserError(["input", "id"], "Metafield id is required")],
+        field,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    Some(metafield_id) -> {
+      case store.find_effective_metafield_by_id(store_in, metafield_id) {
+        None -> #(
+          serialize_metafield_delete_payload(
+            None,
+            [SimpleUserError(["input", "id"], "Metafield not found")],
+            field,
+          ),
+          store_in,
+          identity,
+          [],
+        )
+        Some(record) -> {
+          let result =
+            delete_metafields_by_identifiers(store_in, [
+              dict.from_list([
+                #("ownerId", root_field.StringVal(record.owner_id)),
+                #("namespace", root_field.StringVal(record.namespace)),
+                #("key", root_field.StringVal(record.key)),
+              ]),
+            ])
+          let deleted_id = case result.user_errors {
+            [] -> Some(metafield_id)
+            [_, ..] -> None
+          }
+          let stage_ids = case deleted_id {
+            Some(id) -> [id]
+            None -> []
+          }
+          #(
+            serialize_metafield_delete_payload(
+              deleted_id,
+              result.user_errors,
+              field,
+            ),
+            result.store,
+            identity,
+            stage_ids,
+          )
+        }
+      }
+    }
+  }
+}
+
+fn delete_metafields_by_identifiers(
+  store_in: Store,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> MetafieldsDeleteResult {
+  let errors = validate_metafields_delete_inputs(inputs)
+  case errors {
+    [_, ..] ->
+      MetafieldsDeleteResult(
+        deleted_metafields: [],
+        user_errors: errors,
+        store: store_in,
+      )
+    [] -> {
+      let #(store_out, deleted) =
+        list.fold(inputs, #(store_in, []), fn(acc, input) {
+          let #(current_store, deleted_acc) = acc
+          case read_metafield_delete_identifier(input) {
+            None -> acc
+            Some(#(owner_id, namespace, key)) -> {
+              let existing =
+                find_owner_metafield(
+                  current_store,
+                  owner_id,
+                  namespace,
+                  Some(key),
+                )
+              case existing {
+                None -> #(current_store, list.append(deleted_acc, [None]))
+                Some(_) -> {
+                  let remaining =
+                    store.get_effective_metafields_by_owner_id(
+                      current_store,
+                      owner_id,
+                    )
+                    |> list.filter(fn(record) {
+                      !{ record.namespace == namespace && record.key == key }
+                    })
+                  let next_store =
+                    store.replace_staged_metafields_for_owner(
+                      current_store,
+                      owner_id,
+                      remaining,
+                    )
+                  #(
+                    next_store,
+                    list.append(deleted_acc, [
+                      Some(DeletedMetafieldIdentifier(owner_id, namespace, key)),
+                    ]),
+                  )
+                }
+              }
+            }
+          }
+        })
+      MetafieldsDeleteResult(
+        deleted_metafields: deleted,
+        user_errors: [],
+        store: store_out,
+      )
+    }
+  }
+}
+
+fn validate_metafields_delete_inputs(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(SimpleUserError) {
+  inputs
+  |> enumerate
+  |> list.filter_map(fn(pair) {
+    let #(index, input) = pair
+    case read_optional_string(input, "ownerId") {
+      None ->
+        Ok(SimpleUserError(
+          ["metafields", int.to_string(index), "ownerId"],
+          "Owner id is required",
+        ))
+      Some(_) ->
+        case read_optional_string(input, "namespace") {
+          None ->
+            Ok(SimpleUserError(
+              ["metafields", int.to_string(index), "namespace"],
+              "Namespace is required",
+            ))
+          Some(_) ->
+            case read_optional_string(input, "key") {
+              None ->
+                Ok(SimpleUserError(
+                  ["metafields", int.to_string(index), "key"],
+                  "Key is required",
+                ))
+              Some(_) -> Error(Nil)
+            }
+        }
+    }
+  })
+}
+
+fn read_metafield_delete_identifier(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(#(String, String, String)) {
+  case
+    read_optional_string(input, "ownerId"),
+    read_optional_string(input, "namespace"),
+    read_optional_string(input, "key")
+  {
+    Some(owner_id), Some(namespace), Some(key) ->
+      Some(#(owner_id, namespace, key))
+    _, _, _ -> None
+  }
+}
+
+fn serialize_metafields_delete_payload(
+  result: MetafieldsDeleteResult,
+  field: Selection,
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "deletedMetafields" ->
+                serialize_deleted_metafield_identifiers(
+                  result.deleted_metafields,
+                  selection,
+                )
+              "userErrors" ->
+                serialize_simple_user_errors(selection, result.user_errors)
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_metafield_delete_payload(
+  deleted_id: Option(String),
+  errors: List(SimpleUserError),
+  field: Selection,
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "deletedId" -> optional_string(deleted_id)
+              "userErrors" -> serialize_simple_user_errors(selection, errors)
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_deleted_metafield_identifiers(
+  identifiers: List(Option(DeletedMetafieldIdentifier)),
+  field: Selection,
+) -> Json {
+  json.array(identifiers, fn(identifier) {
+    case identifier {
+      None -> json.null()
+      Some(record) ->
+        json.object(
+          list.map(
+            get_selected_child_fields(field, default_selected_field_options()),
+            fn(selection) {
+              let key = get_field_response_key(selection)
+              let value = case selection {
+                Field(name: name, ..) ->
+                  case name.value {
+                    "ownerId" -> json.string(record.owner_id)
+                    "namespace" -> json.string(record.namespace)
+                    "key" -> json.string(record.key)
+                    _ -> json.null()
+                  }
+                _ -> json.null()
+              }
+              #(key, value)
+            },
+          ),
+        )
+    }
+  })
+}
+
+fn serialize_simple_user_errors(
+  field: Selection,
+  errors: List(SimpleUserError),
+) -> Json {
+  json.array(errors, fn(error) {
+    json.object(
+      list.map(
+        get_selected_child_fields(field, default_selected_field_options()),
+        fn(selection) {
+          let key = get_field_response_key(selection)
+          let value = case selection {
+            Field(name: name, ..) ->
+              case name.value {
+                "field" -> json.array(error.field, json.string)
+                "message" -> json.string(error.message)
+                _ -> json.null()
+              }
+            _ -> json.null()
+          }
+          #(key, value)
+        },
+      ),
+    )
+  })
+}
+
+fn deleted_identifiers_to_stage_ids(
+  identifiers: List(Option(DeletedMetafieldIdentifier)),
+) -> List(String) {
+  identifiers
+  |> list.filter_map(fn(identifier) {
+    case identifier {
+      Some(record) -> Ok(record.owner_id)
+      None -> Error(Nil)
+    }
+  })
+  |> dedupe_strings
 }
 
 fn serialize_metafields_set_root(

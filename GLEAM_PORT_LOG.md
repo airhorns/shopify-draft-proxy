@@ -9,6 +9,64 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 93: product metafield delete roots
+
+Promotes the captured Product `metafieldsDelete` parity plan and the singular
+`metafieldDelete` compatibility shim into the Gleam parity suite. The pass
+keeps both roots local in the owner-scoped metafields domain, seeds the shared
+delete capture from the downstream Product read plus the deleted
+`custom/material` metafield, and stages removals by replacing the owner
+metafield slice so the immediate Product downstream read retains the same
+sibling metafields Shopify returned.
+
+| Module                                                            | Change                                                                  |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | Routes and serializes `metafieldsDelete` / `metafieldDelete` locally.   |
+| `gleam/test/parity/runner.gleam`                                  | Seeds the shared Product metafield delete capture before replay.        |
+| `config/gleam-port-ci-gates.json`                                 | Removes the two newly passing Product delete specs from expected fails. |
+
+Validation:
+Focused JavaScript parity is green for `metafieldDelete-parity-plan.json` and
+`metafieldsDelete-parity-plan.json`. The all-discovered JavaScript parity gate
+is green at 708 tests after manifest alignment. Full JavaScript is green at
+708 tests. Host Erlang still fails under OTP 25 with the `gleam_json` OTP 27
+requirement plus the known `Undef` runner class; the Docker Erlang fallback is
+green at 704 tests. `corepack pnpm gleam:port:coverage`, `corepack pnpm lint`,
+and whitespace checks are green. Product parity inventory remains 115
+checked-in specs, with 88 product specs executable in the Gleam parity suite
+and 27 product specs still expected-failing.
+
+### Findings
+
+- The singular `metafieldDelete` fixture intentionally compares only the
+  compatibility alias user-errors and downstream read against the plural live
+  capture, so the runner seeds `gid://shopify/Metafield/9001` as the local
+  deleted metafield ID while keeping the downstream owner state faithful to the
+  capture.
+- The plural delete root returns an ordered `deletedMetafields` list where an
+  existing owner namespace/key serializes its identifier and a missing
+  namespace/key remains `null`; the local staging path must preserve that
+  order before downstream reads.
+
+### Risks / open items
+
+- GraphQL variable validation branches for malformed `metafieldsSet` inputs,
+  `metafieldsSet` owner expansion, selling plans, media, advanced search,
+  duplicate/productSet/media roots, and broader validation atomicity parity
+  remain incomplete in Gleam.
+- Only 88 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 94 candidates
+
+- Continue Product `metafieldsSet` GraphQL variable validation or owner
+  expansion parity.
+- Port selling-plan group behavior with strict captured lifecycle evidence.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 92: product metafieldsSet seeded validation reads
 
 Promotes three additional captured Product `metafieldsSet` scenarios whose

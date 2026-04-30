@@ -256,6 +256,11 @@ adding broad synthetic-id/timestamp expected differences.
   ordering Shopify-like by placing those low draft-digest local IDs after
   captured upstream IDs; do not broaden parity expected differences just to
   hide ordering drift.
+- The singular Product `metafieldDelete` compatibility parity spec shares the
+  plural `metafieldsDelete` live capture and compares user-errors plus
+  downstream owner state, not Shopify's removed singular payload. Seed the
+  local deleted metafield ID expected by the compatibility request while
+  keeping the owner metafield siblings from the plural capture unchanged.
 
 ## Workflow for a new pass
 

@@ -309,6 +309,9 @@ fn seed_capture_preconditions(
     | "metafields-set-missing-type"
     | "metafields-set-over-limit" ->
       seed_metafields_set_preconditions(capture, proxy)
+    "metafields-delete-live-parity"
+    | "metafield-delete-compatibility-live-parity" ->
+      seed_metafields_delete_preconditions(capture, proxy)
     "inventory-shipment-lifecycle-local-staging"
     | "inventory-shipment-partial-receive-update-delete-local-staging" ->
       seed_inventory_shipment_preconditions(capture, proxy)
@@ -569,6 +572,49 @@ fn seed_metafields_set_preconditions(
         })
       draft_proxy.DraftProxy(..proxy, store: store)
     }
+  }
+}
+
+fn seed_metafields_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamRead.data.product") {
+    Some(product_json) -> {
+      let proxy = seed_product_metafield_product_json(product_json, proxy)
+      case read_string_field(product_json, "id") {
+        Some(owner_id) -> {
+          let retained =
+            collect_product_metafield_sources(product_json)
+            |> list.filter_map(fn(source) {
+              make_seed_product_metafield_for_owner(source, owner_id)
+            })
+          let material =
+            ProductMetafieldRecord(
+              id: "gid://shopify/Metafield/9001",
+              owner_id: owner_id,
+              namespace: "custom",
+              key: "material",
+              type_: Some("single_line_text_field"),
+              value: Some("Seed material"),
+              compare_digest: None,
+              json_value: None,
+              created_at: None,
+              updated_at: None,
+              owner_type: Some("PRODUCT"),
+            )
+          let store =
+            store_mod.replace_base_metafields_for_owner(
+              proxy.store,
+              owner_id,
+              dedupe_product_metafields([material, ..retained]),
+            )
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        None -> proxy
+      }
+    }
+    None -> proxy
   }
 }
 
