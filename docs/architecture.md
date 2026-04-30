@@ -171,10 +171,11 @@ Current implementation note:
   versioned envelope containing the instance-owned store state, mutation log,
   snapshot/reset baselines, runtime-only caches, and synthetic identity cursor.
   The store portion is serialized as a full own-field state map rather than a
-  hand-maintained subset so newly added in-memory buckets cannot be silently
-  omitted from persistence. Unknown envelope metadata is ignored by v1 restore
-  so future dump writers can add extension data without invalidating the current
-  reader.
+  hand-maintained subset, and v1 restore rejects dumps that are missing any
+  current store-owned field so newly added in-memory buckets cannot be silently
+  omitted from persistence. Unknown envelope metadata and unknown future store
+  fields are ignored by v1 restore so future dump writers can add extension data
+  without invalidating the current reader.
 - The Koa server creates a fresh `DraftProxy` instance when `createApp(config)`
   is called, unless the caller explicitly provides one to mount. The server does
   not use a process-wide runtime store or proxy singleton.
