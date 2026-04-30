@@ -152,6 +152,22 @@ pub fn product_options_delete_parity_plan_test() {
   check("config/parity-specs/products/productOptionsDelete-parity-plan.json")
 }
 
+pub fn product_change_status_parity_plan_test() {
+  check("config/parity-specs/products/productChangeStatus-parity-plan.json")
+}
+
+pub fn product_change_status_unknown_product_parity_test() {
+  check(
+    "config/parity-specs/products/productChangeStatus-unknown-product-parity.json",
+  )
+}
+
+pub fn product_change_status_null_product_id_parity_test() {
+  check(
+    "config/parity-specs/products/productChangeStatus-null-product-id-parity.json",
+  )
+}
+
 pub fn admin_platform_product_option_node_reads_test() {
   check(
     "config/parity-specs/admin-platform/admin-platform-product-option-node-reads.json",

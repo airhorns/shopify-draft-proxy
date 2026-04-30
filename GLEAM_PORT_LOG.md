@@ -9,6 +9,71 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 51: productChangeStatus lifecycle
+
+Adds local `productChangeStatus` staging to the Gleam Products mutation
+handler. The handler now stages Product status updates without a runtime
+Shopify write, mints a synthetic `updatedAt`, returns Shopify-like userErrors
+for missing/unknown products and invalid statuses, preserves the raw mutation
+through the centralized mutation-log path, and surfaces the captured top-level
+GraphQL error shape for an inline `productId: null` literal.
+
+The Product search path now preserves Shopify's captured status-search lag for
+base products whose status is changed locally: direct `product(id:)` reads see
+the staged status immediately, while catalog `products(query:)` /
+`productsCount(query:)` status filters continue matching the base product
+status. The parity runner also seeds the single `seedProduct` capture shape
+used by the status-change fixture.
+
+| Module                                                              | Change                                                                                    |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds `productChangeStatus`, top-level null-argument error support, and status search lag. |
+| `gleam/test/parity/runner.gleam`                                    | Seeds captured single `seedProduct` preconditions for status lifecycle parity.            |
+| `gleam/test/parity_test.gleam`                                      | Enables three strict `productChangeStatus` parity scenarios.                              |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct mutation/read-after-write/log coverage for status staging and search lag.     |
+
+Validation: `gleam test --target javascript` is green at 725 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 721 tests. Product parity
+inventory remains 115 checked-in specs, with 19 product specs executable in the
+Gleam parity suite plus the admin-platform ProductOption node scenario after
+this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  test returning HTTP 400 for `productChangeStatus` because the root was not
+  routed by the Gleam Products mutation dispatcher.
+- The captured downstream read proves a Shopify search-index lag: the changed
+  product is archived in `product(id:)`, but an immediate
+  `products(query: "status:archived ...")` read can still return no catalog
+  match.
+- The null-literal branch is a top-level GraphQL error rather than a
+  payload-level `userErrors` response, so the Products mutation envelope now
+  supports the same error-only shape already used by other mutation domains.
+
+### Risks / open items
+
+- The status-search lag model is intentionally scoped to local staged status
+  differences for base products; broader product update/search recency behavior
+  remains future work.
+- Product create/update/delete, variants, collections, inventory mutation
+  families, publications, product metafields, tags, selling plans, feeds, and
+  feedback remain incomplete in Gleam.
+- Only 19 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 52 candidates
+
+- Add `productCreate` / `productUpdate` / `productDelete` local lifecycle
+  slices with their captured validation branches.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Port collection membership and product variant media relationship roots so
+  the full `product-relationship-roots-live-parity` scenario can run.
+
+---
+
 ## 2026-04-30 — Pass 50: productOptionsReorder lifecycle
 
 Adds local `productOptionsReorder` staging to the Gleam Products mutation

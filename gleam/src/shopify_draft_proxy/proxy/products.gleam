@@ -14,7 +14,8 @@ import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/ast.{type Selection, Field, NullValue}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field.{
   type ResolvedValue, type RootFieldError, BoolVal, IntVal, ListVal, NullVal,
   ObjectVal, StringVal, get_field_arguments, get_root_fields,
@@ -29,7 +30,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type LogDraft, build_null_argument_error, find_argument, single_root_log_draft,
 }
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
@@ -45,7 +46,7 @@ import shopify_draft_proxy/state/types.{
   type ProductSeoRecord, type ProductVariantRecord,
   type ProductVariantSelectedOptionRecord, InventoryItemRecord,
   InventoryWeightFloat, InventoryWeightInt, ProductOptionRecord,
-  ProductOptionValueRecord, ProductVariantRecord,
+  ProductOptionValueRecord, ProductRecord, ProductVariantRecord,
   ProductVariantSelectedOptionRecord,
 }
 
@@ -87,7 +88,8 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     "productOptionsCreate"
     | "productOptionUpdate"
     | "productOptionsDelete"
-    | "productOptionsReorder" -> True
+    | "productOptionsReorder"
+    | "productChangeStatus" -> True
     _ -> False
   }
 }
@@ -484,7 +486,7 @@ fn product_matches_positive_query_term(
       )
     Some("status") ->
       search_query_parser.matches_search_query_string(
-        Some(product.status),
+        Some(product_searchable_status(store, product)),
         search_query_parser.search_query_term_value(term),
         search_query_parser.ExactMatch,
         product_string_match_options(),
@@ -505,6 +507,17 @@ fn product_matches_positive_query_term(
         term,
       )
     _ -> True
+  }
+}
+
+fn product_searchable_status(store: Store, product: ProductRecord) -> String {
+  case dict.get(store.base_state.products, product.id) {
+    Ok(base_product) ->
+      case base_product.status == product.status {
+        True -> product.status
+        False -> base_product.status
+      }
+    Error(_) -> product.status
   }
 }
 
@@ -1467,6 +1480,7 @@ type MutationFieldResult {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    top_level_errors: List(Json),
   )
 }
 
@@ -1481,22 +1495,63 @@ pub fn process_mutation(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
+      let operation_path = get_operation_path_label(document)
+      Ok(handle_mutation_fields(
+        store,
+        identity,
+        document,
+        operation_path,
+        fields,
+        fragments,
+        variables,
+      ))
     }
+  }
+}
+
+fn get_operation_path_label(document: String) -> String {
+  case parse_operation.parse_operation(document) {
+    Ok(parsed) -> {
+      let kind = case parsed.type_ {
+        parse_operation.QueryOperation -> "query"
+        parse_operation.MutationOperation -> "mutation"
+      }
+      case parsed.name {
+        Some(name) -> kind <> " " <> name
+        None -> kind
+      }
+    }
+    Error(_) -> "mutation"
   }
 }
 
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [], [])
-  let #(data_entries, final_store, final_identity, all_staged, all_drafts) =
+  let initial = #([], [], store, identity, [], [])
+  let #(
+    data_entries,
+    all_errors,
+    final_store,
+    final_identity,
+    all_staged,
+    all_drafts,
+  ) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids, drafts) = acc
+      let #(
+        entries,
+        errors,
+        current_store,
+        current_identity,
+        staged_ids,
+        drafts,
+      ) = acc
       case field {
         Field(name: name, ..) ->
           case name.value {
@@ -1520,6 +1575,7 @@ fn handle_mutation_fields(
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
+                errors,
                 result.store,
                 result.identity,
                 list.append(staged_ids, result.staged_resource_ids),
@@ -1546,6 +1602,7 @@ fn handle_mutation_fields(
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
+                errors,
                 result.store,
                 result.identity,
                 list.append(staged_ids, result.staged_resource_ids),
@@ -1572,6 +1629,7 @@ fn handle_mutation_fields(
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
+                errors,
                 result.store,
                 result.identity,
                 list.append(staged_ids, result.staged_resource_ids),
@@ -1598,10 +1656,53 @@ fn handle_mutation_fields(
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
+                errors,
                 result.store,
                 result.identity,
                 list.append(staged_ids, result.staged_resource_ids),
                 list.append(drafts, [draft]),
+              )
+            }
+            "productChangeStatus" -> {
+              let result =
+                handle_product_change_status(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productChangeStatus locally."),
+                )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> entries
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
+              #(
+                next_entries,
+                next_errors,
+                result.store,
+                result.identity,
+                next_staged,
+                next_drafts,
               )
             }
             _ -> acc
@@ -1609,11 +1710,19 @@ fn handle_mutation_fields(
         _ -> acc
       }
     })
+  let envelope = case all_errors {
+    [] -> json.object([#("data", json.object(data_entries))])
+    _ -> json.object([#("errors", json.preprocessed_array(all_errors))])
+  }
+  let final_staged_ids = case all_errors {
+    [] -> all_staged
+    _ -> []
+  }
   MutationOutcome(
-    data: json.object([#("data", json.object(data_entries))]),
+    data: envelope,
     store: final_store,
     identity: final_identity,
-    staged_resource_ids: all_staged,
+    staged_resource_ids: final_staged_ids,
     log_drafts: all_drafts,
   )
 }
@@ -1782,6 +1891,155 @@ fn handle_product_options_reorder(
             fragments,
           )
       }
+  }
+}
+
+fn handle_product_change_status(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  case
+    product_change_status_null_product_id_error(document, operation_path, field)
+  {
+    Some(error) -> mutation_error_result(key, store, identity, [error])
+    None -> {
+      let args = field_args(field, variables)
+      case read_arg_string(args, "productId") {
+        None ->
+          mutation_result(
+            key,
+            product_change_status_payload(
+              store,
+              None,
+              [ProductUserError(["productId"], "Product id is required", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(product_id) -> {
+          let status = read_arg_string(args, "status")
+          case is_valid_product_status(status) {
+            False ->
+              mutation_result(
+                key,
+                product_change_status_payload(
+                  store,
+                  None,
+                  [
+                    ProductUserError(
+                      ["status"],
+                      "Product status is required",
+                      None,
+                    ),
+                  ],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            True ->
+              case store.get_effective_product_by_id(store, product_id) {
+                None ->
+                  mutation_result(
+                    key,
+                    product_change_status_payload(
+                      store,
+                      None,
+                      [
+                        ProductUserError(
+                          ["productId"],
+                          "Product does not exist",
+                          None,
+                        ),
+                      ],
+                      field,
+                      fragments,
+                    ),
+                    store,
+                    identity,
+                    [],
+                  )
+                Some(product) -> {
+                  let assert Some(next_status) = status
+                  let #(updated_at, next_identity) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let next_product =
+                    ProductRecord(
+                      ..product,
+                      status: next_status,
+                      updated_at: Some(updated_at),
+                    )
+                  let #(_, next_store) =
+                    store.upsert_staged_product(store, next_product)
+                  mutation_result(
+                    key,
+                    product_change_status_payload(
+                      next_store,
+                      Some(next_product),
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    next_store,
+                    next_identity,
+                    [next_product.id],
+                  )
+                }
+              }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn product_change_status_null_product_id_error(
+  document: String,
+  operation_path: String,
+  field: Selection,
+) -> Option(Json) {
+  let arguments = case field {
+    Field(arguments: args, ..) -> args
+    _ -> []
+  }
+  case find_argument(arguments, "productId") {
+    Some(argument) ->
+      case argument.value {
+        NullValue(..) -> {
+          let field_loc = case field {
+            Field(loc: loc, ..) -> loc
+            _ -> None
+          }
+          Some(build_null_argument_error(
+            "productChangeStatus",
+            "productId",
+            "ID!",
+            operation_path,
+            field_loc,
+            document,
+          ))
+        }
+        _ -> None
+      }
+    None -> None
+  }
+}
+
+fn is_valid_product_status(status: Option(String)) -> Bool {
+  case status {
+    Some("ACTIVE") | Some("ARCHIVED") | Some("DRAFT") -> True
+    _ -> False
   }
 }
 
@@ -2180,6 +2438,23 @@ fn mutation_result(
     store: store,
     identity: identity,
     staged_resource_ids: staged_resource_ids,
+    top_level_errors: [],
+  )
+}
+
+fn mutation_error_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  errors: List(Json),
+) -> MutationFieldResult {
+  MutationFieldResult(
+    key: key,
+    payload: json.null(),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    top_level_errors: errors,
   )
 }
 
@@ -2199,6 +2474,28 @@ fn product_options_delete_payload(
     src_object([
       #("__typename", SrcString("ProductOptionsDeletePayload")),
       #("deletedOptionsIds", SrcList(list.map(deleted_option_ids, SrcString))),
+      #("product", product_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_change_status_payload(
+  store: Store,
+  product: Option(ProductRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductChangeStatusPayload")),
       #("product", product_value),
       #("userErrors", user_errors_source(user_errors)),
     ]),

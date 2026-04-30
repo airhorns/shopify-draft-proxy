@@ -184,10 +184,15 @@ fn seed_captured_products_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
+  let single_product_nodes = case read_object_field(capture, "seedProduct") {
+    Some(node) -> [node]
+    None -> []
+  }
   let product_nodes = case read_array_field(capture, "seedProducts") {
     Some(nodes) -> nodes
     None -> []
   }
+  let product_nodes = list.append(single_product_nodes, product_nodes)
   let products = case product_nodes {
     [] -> []
     nodes -> list.filter_map(nodes, make_seed_product)
