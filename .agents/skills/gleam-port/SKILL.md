@@ -187,6 +187,12 @@ If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
 path syntax instead of narrowing or rewriting the checked-in spec.
 
+If an existing parity target declares `selectedPaths`, preserve that contract in
+the Gleam parity runner instead of broadening or narrowing the checked-in spec.
+The Gift Cards lifecycle parity spec depends on target-level selected-path
+diffing so mutation payload comparisons ignore unselected Shopify fields while
+still strictly comparing the requested stable slices.
+
 ## Workflow for a new pass
 
 1. Pick a candidate from the most recent log entry's "Pass N candidates"

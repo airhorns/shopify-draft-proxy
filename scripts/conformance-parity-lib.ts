@@ -38,7 +38,6 @@ import { handleDeliverySettingsQuery } from '../src/proxy/delivery-settings.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
 import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions.js';
-import { handleGiftCardMutation, handleGiftCardQuery } from '../src/proxy/gift-cards.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import { handleInventoryShipmentMutation, handleInventoryShipmentQuery } from '../src/proxy/inventory-shipments.js';
 import {
@@ -412,12 +411,26 @@ export function classifyParityScenarioState(
       return 'enforced-by-fixture';
     }
 
+    if (isGleamOwnedGiftCardParity(paritySpec)) {
+      return 'enforced-by-fixture';
+    }
+
     return hasProxyRequest(paritySpec) && hasComparisonContract(paritySpec)
       ? 'ready-for-comparison'
       : 'invalid-missing-comparison-contract';
   }
 
   return 'not-yet-implemented';
+}
+
+function isGleamOwnedGiftCardParity(paritySpec: ParitySpec | null | undefined): boolean {
+  const operationNames = paritySpec?.operationNames ?? [];
+  const runtimeTestFiles = paritySpec?.runtimeTestFiles ?? [];
+  return (
+    operationNames.some((name) => name.startsWith('giftCard')) &&
+    runtimeTestFiles.length > 0 &&
+    runtimeTestFiles.every((file) => file.startsWith('gleam/'))
+  );
 }
 
 export const parityStatusNote =
@@ -1182,25 +1195,6 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
-  if (capability.execution === 'stage-locally' && capability.domain === 'gift-cards') {
-    runtime.store.recordMutationLogEntry({
-      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
-      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
-      operationName: capability.operationName,
-      path: `/admin/api/${apiVersion}/graphql.json`,
-      query: document,
-      variables,
-      status: 'staged',
-      interpreted: interpretMutationLogEntry(parsed, capability),
-      notes: 'Staged locally in the conformance parity proxy harness.',
-    });
-
-    return {
-      status: 200,
-      body: handleGiftCardMutation(runtime, document, variables),
-    };
-  }
-
   if (capability.execution === 'stage-locally' && capability.domain === 'functions') {
     runtime.store.recordMutationLogEntry({
       id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
@@ -1738,13 +1732,6 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleCustomerQuery(runtime, document, variables),
-    };
-  }
-
-  if (capability.execution === 'overlay-read' && capability.domain === 'gift-cards') {
-    return {
-      status: 200,
-      body: handleGiftCardQuery(runtime, document, variables),
     };
   }
 

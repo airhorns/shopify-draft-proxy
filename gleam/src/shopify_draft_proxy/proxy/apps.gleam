@@ -1031,8 +1031,7 @@ fn handle_revoke_access_scopes(
     [] -> store.Staged
     _ -> store.Failed
   }
-  let draft =
-    make_log_draft("appRevokeAccessScopes", [installation.id], status)
+  let draft = make_log_draft("appRevokeAccessScopes", [installation.id], status)
   #(
     MutationFieldResult(
       key: key,
@@ -1151,8 +1150,7 @@ fn handle_delegate_destroy(
           field,
           fragments,
         )
-      let draft =
-        make_log_draft("delegateAccessTokenDestroy", [], store.Failed)
+      let draft = make_log_draft("delegateAccessTokenDestroy", [], store.Failed)
       #(
         MutationFieldResult(
           key: key,

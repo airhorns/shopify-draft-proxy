@@ -63,6 +63,65 @@ pub fn diff_with_expected(
   |> list.filter(fn(m) { !is_expected(m, rules, actual) })
 }
 
+/// Compare only the selected JSONPath slices. Paths are relative to
+/// the target's capture/proxy slice, matching the `selectedPaths`
+/// contract in checked-in parity specs.
+pub fn diff_selected_paths(
+  expected: JsonValue,
+  actual: JsonValue,
+  selected_paths: List(String),
+  rules: List(ExpectedDifference),
+) -> List(Mismatch) {
+  selected_paths
+  |> list.fold([], fn(acc, path) {
+    let path_mismatches = diff_selected_path(expected, actual, path, rules)
+    list.append(path_mismatches, acc)
+  })
+  |> list.reverse
+}
+
+fn diff_selected_path(
+  expected: JsonValue,
+  actual: JsonValue,
+  path: String,
+  rules: List(ExpectedDifference),
+) -> List(Mismatch) {
+  case parity_lookup(expected, path), parity_lookup(actual, path) {
+    None, None -> []
+    None, Some(actual_value) -> [
+      Mismatch(
+        path: path,
+        expected: "<missing>",
+        actual: json_value.to_string(actual_value),
+      ),
+    ]
+    Some(expected_value), None -> [
+      Mismatch(
+        path: path,
+        expected: json_value.to_string(expected_value),
+        actual: "<missing>",
+      ),
+    ]
+    Some(expected_value), Some(actual_value) ->
+      diff_with_expected(expected_value, actual_value, rules)
+      |> list.map(fn(m) {
+        Mismatch(
+          path: path <> selected_suffix(m.path),
+          expected: m.expected,
+          actual: m.actual,
+        )
+      })
+  }
+}
+
+fn selected_suffix(path: String) -> String {
+  case path {
+    "$" -> ""
+    "$" <> rest -> rest
+    _ -> path
+  }
+}
+
 fn is_expected(
   m: Mismatch,
   rules: List(ExpectedDifference),

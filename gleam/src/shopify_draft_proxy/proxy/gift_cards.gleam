@@ -1352,7 +1352,8 @@ fn gift_cards_status_for(
 ) -> store.EntryStatus {
   case root_field_name, staged_resource_ids {
     "giftCardSendNotificationToCustomer", _
-    | "giftCardSendNotificationToRecipient", _ -> store.Staged
+    | "giftCardSendNotificationToRecipient", _
+    -> store.Staged
     _, [] -> store.Failed
     _, [_, ..] -> store.Staged
   }

@@ -60,6 +60,10 @@ pub fn gift_card_search_filters_test() {
   check("config/parity-specs/gift-cards/gift-card-search-filters.json")
 }
 
+pub fn gift_card_lifecycle_test() {
+  check("config/parity-specs/gift-cards/gift-card-lifecycle.json")
+}
+
 // ----------- store properties -----------
 
 pub fn shop_baseline_read_test() {
