@@ -218,6 +218,7 @@ fn seed_capture_preconditions(
       seed_customer_merge_preconditions(capture, proxy)
     "customer-order-summary-read-effects" ->
       seed_customer_order_summary_preconditions(capture, proxy)
+    "data-sale-opt-out-parity" -> seed_customer_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "location-detail-read" -> seed_location_detail_preconditions(capture, proxy)
