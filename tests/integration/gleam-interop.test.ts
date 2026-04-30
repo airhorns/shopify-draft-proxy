@@ -48,12 +48,15 @@ describe('public TS API', () => {
 
   it('exposes createDraftProxy and answers /__meta/health end-to-end', async () => {
     const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
-      createDraftProxy: (config: {
-        readMode: string;
-        port: number;
-        shopifyAdminOrigin: string;
-        snapshotPath?: string;
-      }) => {
+      createDraftProxy: (
+        config: {
+          readMode: string;
+          port: number;
+          shopifyAdminOrigin: string;
+          snapshotPath?: string;
+        },
+        options?: { state?: unknown },
+      ) => {
         processRequest: (req: { method: string; path: string }) => Promise<{
           status: number;
           body: unknown;
@@ -82,12 +85,15 @@ describe('public TS API', () => {
 
   it('round-trips state via dumpState/restoreState with the documented schema', async () => {
     const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
-      createDraftProxy: (config: {
-        readMode: string;
-        port: number;
-        shopifyAdminOrigin: string;
-        snapshotPath?: string;
-      }) => {
+      createDraftProxy: (
+        config: {
+          readMode: string;
+          port: number;
+          shopifyAdminOrigin: string;
+          snapshotPath?: string;
+        },
+        options?: { state?: unknown },
+      ) => {
         processRequest: (req: { method: string; path: string }) => Promise<{
           status: number;
           body: unknown;
@@ -105,12 +111,45 @@ describe('public TS API', () => {
     });
     const dump = proxy.dumpState('2026-04-29T12:00:00.000Z');
     expect(dump.schema).toBe(shim.DRAFT_PROXY_STATE_DUMP_SCHEMA);
-    const fresh = shim.createDraftProxy({
+    const fresh = shim.createDraftProxy(
+      {
+        readMode: 'snapshot',
+        port: 4000,
+        shopifyAdminOrigin: 'https://shopify.com',
+      },
+      { state: dump },
+    );
+    expect(fresh.getState()).toBeDefined();
+  });
+
+  it('loads an existing normalized snapshot file when snapshotPath is configured', async () => {
+    const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
+      createDraftProxy: (config: {
+        readMode: string;
+        port: number;
+        shopifyAdminOrigin: string;
+        snapshotPath?: string;
+      }) => {
+        getConfig: () => { snapshot: { enabled: boolean; path: string | null } };
+        getState: () => unknown;
+      };
+    };
+    const snapshotPath = resolve(repoRoot, 'fixtures/snapshots/dev-store.json');
+    const proxy = shim.createDraftProxy({
       readMode: 'snapshot',
       port: 4000,
       shopifyAdminOrigin: 'https://shopify.com',
+      snapshotPath,
     });
-    fresh.restoreState(dump);
-    expect(fresh.getState()).toBeDefined();
+    expect(proxy.getConfig().snapshot).toEqual({ enabled: true, path: snapshotPath });
+    expect(proxy.getState()).toMatchObject({
+      baseState: expect.objectContaining({
+        savedSearches: {},
+        webhookSubscriptions: {},
+      }),
+      stagedState: expect.objectContaining({
+        savedSearches: {},
+      }),
+    });
   });
 });
