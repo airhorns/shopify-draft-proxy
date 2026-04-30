@@ -245,7 +245,12 @@ pub fn meta_state_returns_empty_snapshot_test() {
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, request)
   assert status == 200
-  assert json.to_string(body) == "{\"baseState\":{},\"stagedState\":{}}"
+  let serialized = json.to_string(body)
+  assert string.contains(serialized, "\"baseState\"")
+  assert string.contains(serialized, "\"stagedState\"")
+  assert string.contains(serialized, "\"savedSearches\":{}")
+  assert string.contains(serialized, "\"webhookSubscriptions\":{}")
+  assert string.contains(serialized, "\"marketingActivities\":{}")
 }
 
 pub fn meta_reset_returns_ok_test() {
@@ -501,8 +506,14 @@ pub fn meta_state_reflects_staged_saved_search_test() {
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, meta_get("/__meta/state"))
   assert status == 200
-  assert json.to_string(body)
-    == "{\"baseState\":{},\"stagedState\":{\"savedSearches\":{\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"legacyResourceId\":\"1\",\"name\":\"Promo orders\",\"query\":\"tag:promo\",\"resourceType\":\"ORDER\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"tag\",\"value\":\"promo\"}],\"cursor\":null}}}}"
+  let serialized = json.to_string(body)
+  assert string.contains(serialized, "\"savedSearches\":{")
+  assert string.contains(
+    serialized,
+    "\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\"",
+  )
+  assert string.contains(serialized, "\"savedSearchOrder\":[")
+  assert string.contains(serialized, "\"name\":\"Promo orders\"")
 }
 
 pub fn meta_log_reflects_staged_mutation_test() {
@@ -574,7 +585,10 @@ pub fn meta_reset_clears_staged_state_test() {
     draft_proxy.process_request(proxy, meta_get("/__meta/state"))
   let #(Response(body: log_body, ..), _) =
     draft_proxy.process_request(proxy, meta_get("/__meta/log"))
-  assert json.to_string(state_body) == "{\"baseState\":{},\"stagedState\":{}}"
+  let serialized_state = json.to_string(state_body)
+  assert string.contains(serialized_state, "\"savedSearches\":{}")
+  assert string.contains(serialized_state, "\"webhookSubscriptions\":{}")
+  assert string.contains(serialized_state, "\"marketingActivities\":{}")
   assert json.to_string(log_body) == "{\"entries\":[]}"
 }
 
@@ -743,16 +757,22 @@ pub fn graphql_webhook_subscription_create_returns_payload_test() {
   let proxy = draft_proxy.new()
   let body =
     "{\"query\":\"mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \\\"https://hooks.example.com/orders\\\", format: JSON }) { webhookSubscription { id topic uri format } userErrors { field message } } }\"}"
-  let #(Response(status: status, body: response_body, ..), _) =
+  let #(Response(status: status, body: response_body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(body))
   assert status == 200
   // Body confirms the dispatcher routed to webhooks.process_mutation,
   // synthetic identity minted a new gid, and the payload was projected.
-  // (The /__meta/state endpoint does not serialize webhookSubscriptions
-  // yet — a deferred follow-on; the in-store assertion lives in
-  // webhooks_test.)
   assert json.to_string(response_body)
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"ORDERS_CREATE\",\"uri\":\"https://hooks.example.com/orders\",\"format\":\"JSON\"},\"userErrors\":[]}}}"
+  let #(Response(body: state_body, ..), _) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/state"))
+  let serialized_state = json.to_string(state_body)
+  assert string.contains(serialized_state, "\"webhookSubscriptions\":{")
+  assert string.contains(
+    serialized_state,
+    "\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\"",
+  )
+  assert string.contains(serialized_state, "\"topic\":\"ORDERS_CREATE\"")
 }
 
 pub fn graphql_webhook_subscription_create_missing_topic_top_level_error_test() {
@@ -858,8 +878,10 @@ pub fn reset_method_clears_state_test() {
   let proxy = draft_proxy.reset(proxy)
   assert json.to_string(draft_proxy.get_log_snapshot(proxy))
     == "{\"entries\":[]}"
-  assert json.to_string(draft_proxy.get_state_snapshot(proxy))
-    == "{\"baseState\":{},\"stagedState\":{}}"
+  let serialized_state = json.to_string(draft_proxy.get_state_snapshot(proxy))
+  assert string.contains(serialized_state, "\"savedSearches\":{}")
+  assert string.contains(serialized_state, "\"webhookSubscriptions\":{}")
+  assert string.contains(serialized_state, "\"marketingActivities\":{}")
 }
 
 pub fn reset_method_resets_synthetic_identity_counter_test() {
@@ -999,8 +1021,19 @@ const fixed_created_at: String = "2026-04-29T12:00:00.000Z"
 
 pub fn dump_state_default_proxy_test() {
   let proxy = draft_proxy.new()
-  assert json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
-    == "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+  let dumped = json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
+  assert string.contains(
+    dumped,
+    "\"schema\":\"shopify-draft-proxy/state-dump\"",
+  )
+  assert string.contains(dumped, "\"createdAt\":\"2026-04-29T12:00:00.000Z\"")
+  assert string.contains(dumped, "\"baseState\":{\"kind\":\"plain\"")
+  assert string.contains(dumped, "\"stagedState\":{\"kind\":\"plain\"")
+  assert string.contains(
+    dumped,
+    "\"mutationLog\":{\"kind\":\"plain\",\"value\":[]}",
+  )
+  assert string.contains(dumped, "\"nextSyntheticId\":1")
 }
 
 pub fn dump_state_after_mutation_includes_log_and_advances_identity_test() {
@@ -1071,6 +1104,38 @@ pub fn restore_state_round_trips_mutation_log_test() {
     json.to_string(draft_proxy.dump_state(original, fixed_created_at))
   let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
   assert json.to_string(draft_proxy.get_log_snapshot(restored)) == original_log
+}
+
+pub fn restore_state_round_trips_ported_state_buckets_test() {
+  let proxy = draft_proxy.new()
+  let #(_, proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
+  let webhook_body =
+    "{\"query\":\"mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \\\"https://hooks.example.com/orders\\\", format: JSON }) { webhookSubscription { id topic uri format } userErrors { field message } } }\"}"
+  let #(_, proxy) =
+    draft_proxy.process_request(proxy, graphql_request(webhook_body))
+  let dumped = json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
+  let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
+  let serialized = json.to_string(draft_proxy.get_state_snapshot(restored))
+  assert string.contains(serialized, "\"savedSearches\":{")
+  assert string.contains(serialized, "\"webhookSubscriptions\":{")
+  assert string.contains(serialized, "\"name\":\"Promo orders\"")
+  assert string.contains(serialized, "\"topic\":\"ORDERS_CREATE\"")
+}
+
+pub fn restore_snapshot_installs_base_state_and_ignores_unknown_buckets_test() {
+  let snapshot =
+    "{\"kind\":\"normalized-state-snapshot\",\"baseState\":{\"products\":{},\"savedSearches\":{\"gid://shopify/SavedSearch/900\":{\"id\":\"gid://shopify/SavedSearch/900\",\"legacyResourceId\":\"900\",\"name\":\"Snapshot search\",\"query\":\"tag:snapshot\",\"resourceType\":\"ORDER\",\"searchTerms\":\"\",\"filters\":[],\"cursor\":null}},\"savedSearchOrder\":[\"gid://shopify/SavedSearch/900\"]}}"
+  let assert Ok(proxy) =
+    draft_proxy.restore_snapshot(draft_proxy.new(), snapshot)
+  let serialized = json.to_string(draft_proxy.get_state_snapshot(proxy))
+  assert string.contains(serialized, "\"baseState\"")
+  assert string.contains(serialized, "\"Snapshot search\"")
+  assert string.contains(serialized, "\"stagedState\"")
+  assert string.contains(serialized, "\"savedSearches\":{}")
 }
 
 pub fn restore_state_rejects_unsupported_schema_test() {
