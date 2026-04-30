@@ -9,6 +9,70 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 41: gift-card parity completion
+
+Completes the Gift Cards Gleam parity handoff while keeping the TypeScript
+runtime in place. Both checked-in gift-card parity specs now execute in the
+Gleam parity suite: the existing search-filter scenario remains enabled, and
+the lifecycle scenario now runs against the captured fixture with seeded
+gift-card/configuration preconditions. The parity runner also decodes and
+honors target-level `selectedPaths`, which is required by the lifecycle spec's
+mutation-payload comparisons and preserves the checked-in capture/request shape
+without adding expected differences.
+
+The TypeScript gift-card runtime handler and legacy TypeScript integration flow
+remain present for this pass. That keeps the public TypeScript/Koa proxy and
+existing runtime coverage unchanged while the Gleam port gains executable
+parity evidence.
+
+| Module                                                             | Change                                                                                                                |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `config/gleam-port-ci-gates.json` / `gleam/test/parity_test.gleam` | Removes `gift-card-lifecycle` from expected failures so discovery-based Gleam parity treats it as passing evidence.   |
+| `gleam/test/parity/runner.gleam`                                   | Seeds lifecycle/search captures from the gift-card conformance fixture before replaying local mutation/read requests. |
+| `gleam/test/parity/spec.gleam` / `gleam/test/parity/diff.gleam`    | Adds target-level `selectedPaths` decoding and selected-slice diffing for parity specs.                               |
+| `src/proxy/gift-cards.ts` / TypeScript gift-card test flow         | Remains in place as the legacy TypeScript runtime and integration coverage until a later explicit removal pass.       |
+| `config/operation-registry.json` and gift-card parity specs        | Keeps legacy TS coverage visible while also pointing to the new Gleam gift-card query/mutation tests.                 |
+
+Validation after rework and the latest `origin/main` merge: `gleam test
+--target javascript` was green at 676 tests. `gleam test --target erlang` was
+green at 672 tests via the `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`
+container because the host lacks `escript`. `corepack pnpm typecheck`,
+`corepack pnpm conformance:check`, `corepack pnpm conformance:parity`,
+`corepack pnpm lint`, `corepack pnpm gleam:port:coverage`, `corepack pnpm
+gleam:registry:check`, `corepack pnpm conformance:capture:check`, `corepack
+pnpm build`, targeted `corepack pnpm vitest run
+tests/integration/gift-card-flow.test.ts`, and `git diff --check` were green.
+
+### Findings
+
+- The gift-card lifecycle parity spec already had enough captured evidence, but
+  it was not wired into the Gleam parity suite.
+- The Gleam parity spec decoder previously ignored `selectedPaths`, so enabling
+  the lifecycle spec compared full mutation payload objects and reported
+  expected unselected Shopify fields as missing from the proxy selection.
+- Gift-card capture seeding can reuse the same lifecycle precondition loader for
+  both lifecycle and search-filter parity specs.
+
+### Risks / open items
+
+- The TypeScript gift-card runtime still needs a later explicit cutover/removal
+  pass once reviewers are ready to retire the public TS handler path.
+- Admin Platform generic Node resolution for `GiftCard` still depends on the
+  TypeScript runtime in Node; the Gleam Admin Platform resolver should add
+  GiftCard node dispatch when a future pass broadens cross-domain Relay node
+  coverage.
+
+### Pass 42 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
+
+---
+
 ## 2026-04-30 — Pass 40: CI gate hardening for port completion
 
 Adds CI gates for the Gleam port without making the current partial parity

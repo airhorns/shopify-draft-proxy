@@ -192,6 +192,8 @@ fn seed_capture_preconditions(
   case parsed.scenario_id {
     "gift-card-search-filters" ->
       seed_gift_card_lifecycle_preconditions(capture, proxy)
+    "gift-card-lifecycle" ->
+      seed_gift_card_lifecycle_preconditions(capture, proxy)
     "functions-metadata-local-staging"
     | "functions-owner-metadata-local-staging"
     | "functions-live-owner-metadata-read" ->
@@ -3257,7 +3259,11 @@ fn run_target(
       let #(expected, actual) =
         apply_selected_paths(expected, actual, target.selected_paths)
       let rules = spec.rules_for(parsed, target)
-      let mismatches = diff.diff_with_expected(expected, actual, rules)
+      let mismatches = case target.selected_paths {
+        [] -> diff.diff_with_expected(expected, actual, rules)
+        selected_paths ->
+          diff.diff_selected_paths(expected, actual, selected_paths, rules)
+      }
       Ok(#(
         next_proxy,
         #(
