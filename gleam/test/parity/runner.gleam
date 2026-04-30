@@ -93,7 +93,7 @@ import shopify_draft_proxy/state/types.{
   ShopifyFunctionAppRecord, ShopifyFunctionRecord, StoreCreditAccountRecord,
   StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
   StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
-  StorePropertyRecord, StorePropertyString,
+  StorePropertyRecord, StorePropertyString, TranslationRecord,
 }
 import simplifile
 
@@ -211,6 +211,8 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
+    "localization-disable-clears-translations" ->
+      seed_localization_disable_cleanup_preconditions(capture, proxy)
     "marketing-baseline-read" ->
       seed_marketing_baseline_preconditions(capture, proxy)
     "store-credit-account-local-staging" ->
@@ -274,6 +276,41 @@ fn is_customer_seeded_scenario(scenario_id: String) -> Bool {
     _ ->
       string.starts_with(scenario_id, "customer")
       || string.starts_with(scenario_id, "customers")
+  }
+}
+
+fn seed_localization_disable_cleanup_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.disableCleanupLifecycle") {
+    Some(source) -> {
+      case
+        read_string_field(source, "resourceId"),
+        read_string_field(source, "titleDigest")
+      {
+        Some(resource_id), Some(title_digest) -> {
+          let #(_, seeded_store) =
+            store_mod.stage_translation(
+              proxy.store,
+              TranslationRecord(
+                resource_id: resource_id,
+                key: "title",
+                locale: "__source",
+                value: "",
+                translatable_content_digest: title_digest,
+                market_id: None,
+                updated_at: read_string_field(capture, "capturedAt")
+                  |> option.unwrap("1970-01-01T00:00:00Z"),
+                outdated: False,
+              ),
+            )
+          draft_proxy.DraftProxy(..proxy, store: seeded_store)
+        }
+        _, _ -> proxy
+      }
+    }
+    None -> proxy
   }
 }
 

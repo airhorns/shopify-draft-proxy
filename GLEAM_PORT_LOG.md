@@ -9,6 +9,46 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 43: localization source-content parity seeding
+
+Keeps the latest mainline localization parity gate green after the HAR-505
+branch was refreshed with webhook evidence. The checked-in
+`localization-disable-clears-translations` capture registers a translation
+against an existing Shopify product, but the Gleam port still lacks the Products
+domain. This pass seeds the captured source title digest into the parity runner
+as a non-target-locale source marker, then lets the localization runtime
+reconstruct the minimal translatable content slot needed for Shopify-like
+`translationsRegister` validation.
+
+| Module                                                                  | Change                                                                                                                                    |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`                                        | Seeds the captured product title digest for `localization-disable-clears-translations` before replaying the enable/register/disable flow. |
+| `gleam/src/shopify_draft_proxy/proxy/localization.gleam`                | Reconstructs translatable content slots from seeded translation/source markers while preserving `RESOURCE_NOT_FOUND` for unknown ids.     |
+| `gleam/test/shopify_draft_proxy/proxy/localization_mutation_test.gleam` | Covers the seeded source marker register-disable-read lifecycle directly.                                                                 |
+
+Validation after the `origin/main@3e99c073` merge: `gleam test --target
+javascript` passed at 681 tests, Erlang passed at 677 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container, `corepack pnpm
+lint`, `git diff --check`, `corepack pnpm gleam:port:coverage`, and `corepack
+pnpm gleam:registry:check` are green.
+
+### Findings
+
+- The source digest already exists in the live capture, so no parity request or
+  fixture shape needed to change.
+- Unknown localization resource ids still fail unless a product/metafield
+  domain record or a capture-seeded source marker exists.
+- The expected Gleam parity-failure manifest now reports 292 remaining failures
+  after this localization scenario passes.
+
+### Risks / open items
+
+- The real Product-backed `find_resource` path remains deferred until the
+  Products domain ports; this seed is only the parity runner bridge for captured
+  upstream resources that already exist.
+
+---
+
 ## 2026-04-30 — Pass 42: webhook parity evidence metadata with TS retained
 
 Records the completed Webhooks Gleam parity evidence in repository metadata
