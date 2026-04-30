@@ -197,6 +197,8 @@ fn seed_capture_preconditions(
       seed_inventory_quantity_roots_preconditions(capture, proxy)
     "inventory-adjust-quantities-live-parity" ->
       seed_inventory_adjust_quantities_preconditions(capture, proxy)
+    "inventory-activate-live-parity" ->
+      seed_inventory_activate_preconditions(capture, proxy)
     "product-variants-bulk-reorder-live-parity" ->
       seed_product_variants_bulk_reorder_preconditions(capture, proxy)
     _ -> proxy
@@ -1038,6 +1040,124 @@ fn inventory_adjust_seed_quantities(
       updated_at: None,
     ),
   ]
+}
+
+fn seed_inventory_activate_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel",
+    )
+  {
+    Some(level_json) -> {
+      let product_id =
+        jsonpath.lookup(
+          capture,
+          "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.variant.product.id",
+        )
+        |> json_string_or("gid://shopify/Product/9257220047081")
+      let variant_id =
+        jsonpath.lookup(
+          capture,
+          "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.variant.id",
+        )
+        |> json_string_or("gid://shopify/ProductVariant/50897202282729")
+      let inventory_item_id =
+        jsonpath.lookup(
+          capture,
+          "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.id",
+        )
+        |> json_string_or("gid://shopify/InventoryItem/53044947648745")
+      let product =
+        ProductRecord(
+          id: product_id,
+          legacy_resource_id: None,
+          title: "inventory-activate-parity",
+          handle: "inventory-activate-parity",
+          status: "ACTIVE",
+          vendor: None,
+          product_type: None,
+          tags: [],
+          total_inventory: jsonpath.lookup(
+            capture,
+            "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.variant.product.totalInventory",
+          )
+            |> json_int_or(0)
+            |> Some,
+          tracks_inventory: jsonpath.lookup(
+            capture,
+            "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.variant.product.tracksInventory",
+          )
+            |> json_bool_or(False)
+            |> Some,
+          created_at: None,
+          updated_at: None,
+          description_html: "",
+          online_store_preview_url: None,
+          template_suffix: None,
+          seo: ProductSeoRecord(title: None, description: None),
+          category: None,
+          cursor: None,
+        )
+      let variant =
+        ProductVariantRecord(
+          id: variant_id,
+          product_id: product_id,
+          title: "Default Title",
+          sku: None,
+          barcode: None,
+          price: None,
+          compare_at_price: None,
+          taxable: None,
+          inventory_policy: None,
+          inventory_quantity: jsonpath.lookup(
+            capture,
+            "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.variant.inventoryQuantity",
+          )
+            |> json_int_or(0)
+            |> Some,
+          selected_options: [],
+          inventory_item: Some(
+            InventoryItemRecord(
+              id: inventory_item_id,
+              tracked: jsonpath.lookup(
+                capture,
+                "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.tracked",
+              )
+                |> json_bool_or(False)
+                |> Some,
+              requires_shipping: None,
+              measurement: None,
+              country_code_of_origin: None,
+              province_code_of_origin: None,
+              harmonized_system_code: None,
+              inventory_levels: [
+                make_seed_inventory_level(level_json, None)
+                |> result.unwrap(inventory_quantity_seed_level(
+                  inventory_item_id,
+                  jsonpath.lookup(
+                    capture,
+                    "$.inventoryActivateNoOp.variables.locationId",
+                  )
+                    |> json_string_or("gid://shopify/Location/68509171945"),
+                  "103 ossington",
+                )),
+              ],
+            ),
+          ),
+          cursor: None,
+        )
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products([product])
+        |> store_mod.upsert_base_product_variants([variant])
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
 }
 
 fn inventory_quantity_seed_level(
@@ -2086,6 +2206,13 @@ fn json_string_or(value: Option(JsonValue), fallback: String) -> String {
 fn json_int_or(value: Option(JsonValue), fallback: Int) -> Int {
   case value {
     Some(JInt(value)) -> value
+    _ -> fallback
+  }
+}
+
+fn json_bool_or(value: Option(JsonValue), fallback: Bool) -> Bool {
+  case value {
+    Some(JBool(value)) -> value
     _ -> fallback
   }
 }

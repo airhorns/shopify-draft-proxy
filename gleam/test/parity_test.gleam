@@ -276,6 +276,10 @@ pub fn inventory_adjust_quantities_parity_plan_test() {
   )
 }
 
+pub fn inventory_activate_parity_plan_test() {
+  check("config/parity-specs/products/inventoryActivate-parity-plan.json")
+}
+
 pub fn tags_add_parity_plan_test() {
   check("config/parity-specs/products/tagsAdd-parity-plan.json")
 }

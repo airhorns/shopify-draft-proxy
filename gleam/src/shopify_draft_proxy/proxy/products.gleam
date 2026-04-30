@@ -109,6 +109,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productVariantsBulkDelete"
     | "productVariantsBulkReorder"
     | "inventoryAdjustQuantities"
+    | "inventoryActivate"
     | "inventorySetQuantities"
     | "inventoryMoveQuantities"
     | "tagsAdd"
@@ -1358,6 +1359,27 @@ fn inventory_level_source(level: InventoryLevelRecord) -> SourceValue {
   ])
 }
 
+fn inventory_level_source_with_item(
+  store: Store,
+  variant: ProductVariantRecord,
+  level: InventoryLevelRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("InventoryLevel")),
+    #("id", SrcString(level.id)),
+    #(
+      "location",
+      src_object([
+        #("__typename", SrcString("Location")),
+        #("id", SrcString(level.location.id)),
+        #("name", SrcString(level.location.name)),
+      ]),
+    ),
+    #("quantities", SrcList(list.map(level.quantities, quantity_source))),
+    #("item", inventory_item_source(store, variant)),
+  ])
+}
+
 fn quantity_source(quantity: InventoryQuantityRecord) -> SourceValue {
   src_object([
     #("name", SrcString(quantity.name)),
@@ -2133,6 +2155,33 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some("Gleam staged inventoryAdjustQuantities locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "inventoryActivate" -> {
+              let result =
+                handle_inventory_activate(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged inventoryActivate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -3603,6 +3652,64 @@ fn handle_inventory_adjust_quantities(
   }
 }
 
+fn handle_inventory_activate(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let inventory_item_id = read_string_field(args, "inventoryItemId")
+  let location_id = read_string_field(args, "locationId")
+  let user_errors = case dict.get(args, "available") {
+    Ok(_) -> [
+      ProductUserError(
+        ["available"],
+        "Not allowed to set available quantity when the item is already active at the location.",
+        None,
+      ),
+    ]
+    Error(_) -> []
+  }
+  let resolved = case inventory_item_id, location_id, user_errors {
+    Some(inventory_item_id), Some(location_id), [] -> {
+      case
+        store.find_effective_variant_by_inventory_item_id(
+          store,
+          inventory_item_id,
+        )
+      {
+        Some(variant) ->
+          case
+            find_inventory_level(variant_inventory_levels(variant), location_id)
+          {
+            Some(level) -> Some(#(variant, level))
+            None -> None
+          }
+        None -> None
+      }
+    }
+    _, _, _ -> None
+  }
+  let staged_ids = case resolved {
+    Some(#(variant, level)) ->
+      case variant.inventory_item {
+        Some(item) -> [level.id, item.id]
+        None -> [level.id]
+      }
+    None -> []
+  }
+  mutation_result(
+    key,
+    inventory_activate_payload(store, resolved, user_errors, field, fragments),
+    store,
+    identity,
+    staged_ids,
+  )
+}
+
 fn handle_inventory_set_quantities(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -5006,6 +5113,29 @@ fn inventory_quantity_payload(
         "inventoryAdjustmentGroup",
         inventory_adjustment_group_source(store, group),
       ),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn inventory_activate_payload(
+  store: Store,
+  resolved: Option(#(ProductVariantRecord, InventoryLevelRecord)),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let inventory_level = case resolved {
+    Some(#(variant, level)) ->
+      inventory_level_source_with_item(store, variant, level)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("InventoryActivatePayload")),
+      #("inventoryLevel", inventory_level),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
