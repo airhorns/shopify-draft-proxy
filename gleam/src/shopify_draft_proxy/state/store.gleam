@@ -1,7 +1,6 @@
-//// Mirrors the slice of `src/state/store.ts` that backs the
-//// saved-searches domain plus the mutation log. Only the saved-search
-//// fields of `BaseState`/`StagedState` are modelled here; every other
-//// resource will land slice-by-slice as its domain handler ports.
+//// Mirrors the slices of `src/state/store.ts` that have been ported to
+//// Gleam plus the mutation log. Additional resources still land
+//// slice-by-slice with their domain handlers.
 ////
 //// The TS class mutates state in place. This Gleam port returns updated
 //// `Store` records from every mutator so callers thread state through
@@ -28,9 +27,8 @@ import shopify_draft_proxy/state/types.{
   BulkOperationRecord, MarketingObject, MarketingString,
 } as types_mod
 
-/// Server-authoritative state. Mirrors the saved-search,
-/// webhook-subscription, and apps slices of `StateSnapshot` for
-/// `baseState`. Other resources land slice-by-slice as their domain
+/// Server-authoritative state. Mirrors the ported slices of `StateSnapshot`
+/// for `baseState`. Other resources land slice-by-slice as their domain
 /// handlers port.
 pub type BaseState {
   BaseState(
