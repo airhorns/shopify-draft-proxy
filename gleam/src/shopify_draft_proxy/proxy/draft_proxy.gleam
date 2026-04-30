@@ -1680,6 +1680,29 @@ pub fn process_graphql_request(
   )
 }
 
+@target(javascript)
+/// Async JavaScript-target variant of `process_graphql_request`.
+/// Keeps the default GraphQL route construction in Gleam while still
+/// allowing live-hybrid passthrough requests to await upstream `fetch`.
+pub fn process_graphql_request_async(
+  proxy: DraftProxy,
+  body: String,
+  options: GraphQLRequestOptions,
+) -> Promise(#(Response, DraftProxy)) {
+  let path = case options.path {
+    Some(p) -> p
+    None ->
+      default_graphql_path(option.unwrap(
+        options.api_version,
+        default_admin_api_version,
+      ))
+  }
+  process_request_async(
+    proxy,
+    Request(method: "POST", path: path, headers: options.headers, body: body),
+  )
+}
+
 /// Build the default `/admin/api/<version>/graphql.json` path. Mirrors
 /// TS `defaultGraphQLPath`.
 pub fn default_graphql_path(api_version: String) -> String {
