@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 
 import { parseOperation, type ParsedOperation } from '../src/graphql/parse-operation.js';
@@ -931,6 +932,7 @@ const gleamCompiledEntrypoint = path.resolve(
   gleamProjectRoot,
   'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy.mjs',
 );
+const gleamShimEntrypoint = path.resolve(gleamProjectRoot, 'js/src/index.ts');
 const gleamSavedSearchProxies = new WeakMap<ProxyRuntimeContext, GleamShimDraftProxy>();
 
 async function getGleamSavedSearchProxy(runtime: ProxyRuntimeContext): Promise<GleamShimDraftProxy> {
@@ -946,7 +948,7 @@ async function getGleamSavedSearchProxy(runtime: ProxyRuntimeContext): Promise<G
     });
   }
 
-  const shim = (await import('../gleam/js/src/index.js')) as GleamShimModule;
+  const shim = (await import(pathToFileURL(gleamShimEntrypoint).href)) as GleamShimModule;
   const proxy = shim.createDraftProxy({
     readMode: 'snapshot',
     port: 4000,
