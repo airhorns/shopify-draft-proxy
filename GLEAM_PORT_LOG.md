@@ -9,6 +9,63 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 39: product helper-root parity
+
+Enables the captured `product-helper-roots-read` parity scenario in the Gleam
+suite. The runner now seeds top-level `seedProducts` fixtures, including their
+captured variants and selected options, so helper roots can read Product and
+ProductVariant records from the same checked-in conformance preconditions as
+the TypeScript parity harness. The parity target decoder also honors
+`upstreamCapturePath` for override targets; this preserves the spec's
+live-hybrid full-payload target without weakening the capture or request shape.
+
+This pass closes the helper-root read scenario only. ProductVariant search
+filters, non-ID sorting, variant inventory projection, product options,
+inventory item/level reads, collections, publications, selling plans, and
+product mutations remain unported.
+
+| Module                           | Change                                                                                                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/spec.gleam`   | Decodes target-level `upstreamCapturePath` so live-hybrid capture targets keep their checked-in comparison contract.                                       |
+| `gleam/test/parity/runner.gleam` | Seeds `seedProducts` and captured variants/options needed by product helper roots; reuses captured upstream payloads for upstream-backed override targets. |
+| `gleam/test/parity_test.gleam`   | Enables `product-helper-roots-read` in the pure-Gleam parity suite.                                                                                        |
+
+Validation: `gleam test --target javascript` is green at 700 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails because `escript`
+is missing; the Docker Erlang fallback is green at 696 tests. Product parity
+inventory remains 115 checked-in specs, with 6 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The TypeScript parity harness already treats top-level `seedProducts` as
+  reusable preconditions across scenarios; lifting that convention into Gleam
+  unblocks helper roots without adding scenario-specific fixture rewrites.
+- The helper-root spec's final target is intentionally live-hybrid evidence:
+  `upstreamCapturePath` points at the full captured Shopify payload, while the
+  earlier targets exercise local snapshot reads over seeded product records.
+
+### Risks / open items
+
+- The Gleam runner does not yet have a general injectable upstream transport.
+  For upstream-backed override targets it compares against the captured upstream
+  payload directly, matching the current no-staged-state helper scenario but
+  not yet modeling live-hybrid overlay mutations.
+- Product options, inventory item/level/quantity, collections, publications,
+  selling plans, product feeds/feedback, metafields, variant query filtering,
+  and all product mutations remain unported in Gleam.
+- Only 6 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 40 candidates
+
+- Add ProductVariant query filtering for simple `vendor`, `product_type`, `tag`,
+  `sku`, and `id` terms before enabling variant-search parity specs.
+- Start ProductOption state and reads from seeded product fixtures.
+- Add inventory item/level projection for variant-backed helper reads.
+
+---
+
 ## 2026-04-30 — Pass 38: product variant helper reads
 
 Adds the first ProductVariant state and read slice to the Gleam Products port.

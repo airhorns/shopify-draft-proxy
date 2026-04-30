@@ -41,17 +41,19 @@ import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
   type GiftCardRecord, type GiftCardTransactionRecord, type Money,
   type PaymentSettingsRecord, type ProductCategoryRecord, type ProductRecord,
-  type ProductSeoRecord, type ShopAddressRecord, type ShopDomainRecord,
-  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
-  type ShopifyFunctionRecord, GiftCardConfigurationRecord,
-  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  Money, PaymentSettingsRecord, ProductCategoryRecord, ProductRecord,
-  ProductSeoRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
-  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
-  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
-  ShopifyFunctionRecord,
+  type ProductSeoRecord, type ProductVariantRecord,
+  type ProductVariantSelectedOptionRecord, type ShopAddressRecord,
+  type ShopDomainRecord, type ShopFeaturesRecord, type ShopPlanRecord,
+  type ShopPolicyRecord, type ShopRecord, type ShopResourceLimitsRecord,
+  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
+  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
+  GiftCardTransactionRecord, Money, PaymentSettingsRecord, ProductCategoryRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
+  ShopifyFunctionAppRecord, ShopifyFunctionRecord,
 }
 import simplifile
 
@@ -142,6 +144,7 @@ fn seed_capture_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
+  let proxy = seed_captured_products_preconditions(capture, proxy)
   case parsed.scenario_id {
     "gift-card-search-filters" ->
       seed_gift_card_lifecycle_preconditions(capture, proxy)
@@ -156,6 +159,28 @@ fn seed_capture_preconditions(
       seed_products_catalog_preconditions(capture, proxy)
     _ -> proxy
   }
+}
+
+fn seed_captured_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products = case read_array_field(capture, "seedProducts") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_product)
+    None -> []
+  }
+  let variants = case read_array_field(capture, "seedProducts") {
+    Some(nodes) ->
+      list.flat_map(nodes, fn(product_json) {
+        seed_variants_for_product(product_json)
+      })
+    None -> []
+  }
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_product_variants(variants)
+  draft_proxy.DraftProxy(..proxy, store: store)
 }
 
 fn seed_product_preconditions(
@@ -240,6 +265,57 @@ fn make_seed_product_with_cursor(
     category: category,
     cursor: cursor,
   ))
+}
+
+fn seed_variants_for_product(source: JsonValue) -> List(ProductVariantRecord) {
+  case required_string_field(source, "id") {
+    Ok(product_id) ->
+      case read_object_field(source, "variants") {
+        Some(connection) ->
+          case read_array_field(connection, "nodes") {
+            Some(nodes) ->
+              list.filter_map(nodes, fn(node) {
+                make_seed_product_variant(product_id, node)
+              })
+            None -> []
+          }
+        None -> []
+      }
+    Error(_) -> []
+  }
+}
+
+fn make_seed_product_variant(
+  product_id: String,
+  source: JsonValue,
+) -> Result(ProductVariantRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  let selected_options = case read_array_field(source, "selectedOptions") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_selected_option)
+    None -> []
+  }
+  Ok(ProductVariantRecord(
+    id: id,
+    product_id: product_id,
+    title: read_string_field(source, "title") |> option.unwrap("Default Title"),
+    sku: read_string_field(source, "sku"),
+    barcode: read_string_field(source, "barcode"),
+    price: read_string_field(source, "price"),
+    compare_at_price: read_string_field(source, "compareAtPrice"),
+    taxable: read_bool_field(source, "taxable"),
+    inventory_policy: read_string_field(source, "inventoryPolicy"),
+    inventory_quantity: read_int_field(source, "inventoryQuantity"),
+    selected_options: selected_options,
+    cursor: None,
+  ))
+}
+
+fn make_seed_selected_option(
+  source: JsonValue,
+) -> Result(ProductVariantSelectedOptionRecord, Nil) {
+  use name <- result.try(required_string_field(source, "name"))
+  use value <- result.try(required_string_field(source, "value"))
+  Ok(ProductVariantSelectedOptionRecord(name: name, value: value))
 }
 
 fn make_seed_product_seo(source: Option(JsonValue)) -> ProductSeoRecord {
@@ -976,24 +1052,33 @@ fn actual_response_for(
   case target.request {
     ReusePrimary -> Ok(#(primary_response, proxy))
     OverrideRequest(request: request) -> {
-      use document <- result.try(
-        read_file(resolve(config, request.document_path)),
-      )
-      use variables <- result.try(resolve_variables(
-        config,
-        request.variables,
-        capture,
-        Some(primary_response),
-        target.name,
-      ))
-      use #(response, next_proxy) <- result.try(execute(
-        proxy,
-        document,
-        variables,
-        target.name,
-      ))
-      use value <- result.try(parse_response_body(response))
-      Ok(#(value, next_proxy))
+      case target.upstream_capture_path {
+        Some(path) ->
+          case jsonpath.lookup(capture, path) {
+            Some(value) -> Ok(#(value, proxy))
+            None -> Error(CaptureUnresolved(target: target.name, path: path))
+          }
+        None -> {
+          use document <- result.try(
+            read_file(resolve(config, request.document_path)),
+          )
+          use variables <- result.try(resolve_variables(
+            config,
+            request.variables,
+            capture,
+            Some(primary_response),
+            target.name,
+          ))
+          use #(response, next_proxy) <- result.try(execute(
+            proxy,
+            document,
+            variables,
+            target.name,
+          ))
+          use value <- result.try(parse_response_body(response))
+          Ok(#(value, next_proxy))
+        }
+      }
     }
   }
 }
