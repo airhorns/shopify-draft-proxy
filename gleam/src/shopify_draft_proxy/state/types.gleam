@@ -12,6 +12,41 @@
 import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 
+// ---------------------------------------------------------------------------
+// Admin Platform utility domain
+// ---------------------------------------------------------------------------
+
+/// Mirrors the captured `MarketRegionCountry` shape used by
+/// `backupRegion` and `backupRegionUpdate`.
+pub type BackupRegionRecord {
+  BackupRegionRecord(id: String, name: String, code: String)
+}
+
+/// Audit record for locally handled `flowGenerateSignature`.
+/// The proxy stores hashes rather than the raw signature or payload.
+pub type AdminPlatformFlowSignatureRecord {
+  AdminPlatformFlowSignatureRecord(
+    id: String,
+    flow_trigger_id: String,
+    payload_sha256: String,
+    signature_sha256: String,
+    created_at: String,
+  )
+}
+
+/// Audit record for locally handled `flowTriggerReceive`.
+/// The external Flow trigger delivery side effect is intentionally not
+/// attempted by the draft proxy.
+pub type AdminPlatformFlowTriggerRecord {
+  AdminPlatformFlowTriggerRecord(
+    id: String,
+    handle: String,
+    payload_bytes: Int,
+    payload_sha256: String,
+    received_at: String,
+  )
+}
+
 /// A single saved-search record. Mirrors `SavedSearchRecord` in
 /// `src/state/types.ts`. `cursor` is set on records the proxy stages
 /// from upstream-hybrid responses; static defaults and freshly-created

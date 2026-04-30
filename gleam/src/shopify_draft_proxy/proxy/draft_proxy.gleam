@@ -34,6 +34,7 @@ import shopify_draft_proxy/graphql/parse_operation.{
   type ParsedOperation, MutationOperation, QueryOperation,
 }
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/admin_platform
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/bulk_operations
 import shopify_draft_proxy/proxy/capabilities
@@ -48,9 +49,9 @@ import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/operation_registry.{
-  type RegistryEntry, Apps, BulkOperations, Events, Functions, GiftCards,
-  Localization, Marketing, Media, Metafields, Metaobjects, SavedSearches,
-  Segments, ShippingFulfillments, Webhooks,
+  type RegistryEntry, AdminPlatform, Apps, BulkOperations, Events, Functions,
+  GiftCards, Localization, Marketing, Media, Metafields, Metaobjects,
+  SavedSearches, Segments, ShippingFulfillments, Webhooks,
 }
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
@@ -750,6 +751,29 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(AdminPlatformDomain) ->
+      case
+        admin_platform.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(
+          bad_request("Failed to handle admin platform mutation"),
+          proxy,
+        )
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -844,6 +868,12 @@ fn route_query(
       )
     Ok(MediaDomain) ->
       respond(proxy, media.process(query), "Failed to handle media query")
+    Ok(AdminPlatformDomain) ->
+      respond(
+        proxy,
+        admin_platform.process(proxy.store, query, variables),
+        "Failed to handle admin platform query",
+      )
     Error(_) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -869,6 +899,7 @@ type Domain {
   MarketingDomain
   BulkOperationsDomain
   MediaDomain
+  AdminPlatformDomain
 }
 
 /// Resolve a query operation's domain. With a registry loaded, the
@@ -920,6 +951,7 @@ fn capability_to_query_domain(
         Marketing -> Ok(MarketingDomain)
         BulkOperations -> Ok(BulkOperationsDomain)
         Media -> Ok(MediaDomain)
+        AdminPlatform -> Ok(AdminPlatformDomain)
         _ -> Error(Nil)
       }
     }
@@ -945,6 +977,7 @@ fn capability_to_mutation_domain(
         Localization -> Ok(LocalizationDomain)
         Marketing -> Ok(MarketingDomain)
         BulkOperations -> Ok(BulkOperationsDomain)
+        AdminPlatform -> Ok(AdminPlatformDomain)
         _ -> Error(Nil)
       }
     }
@@ -1015,7 +1048,18 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
                                                     )
                                                   {
                                                     True -> Ok(MediaDomain)
-                                                    False -> Error(Nil)
+                                                    False ->
+                                                      case
+                                                        admin_platform.is_admin_platform_query_root(
+                                                          name,
+                                                        )
+                                                      {
+                                                        True ->
+                                                          Ok(
+                                                            AdminPlatformDomain,
+                                                          )
+                                                        False -> Error(Nil)
+                                                      }
                                                   }
                                               }
                                           }
@@ -1073,7 +1117,15 @@ fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
                                         )
                                       {
                                         True -> Ok(BulkOperationsDomain)
-                                        False -> Error(Nil)
+                                        False ->
+                                          case
+                                            admin_platform.is_admin_platform_mutation_root(
+                                              name,
+                                            )
+                                          {
+                                            True -> Ok(AdminPlatformDomain)
+                                            False -> Error(Nil)
+                                          }
                                       }
                                   }
                               }
