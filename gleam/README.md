@@ -101,29 +101,6 @@ envelope `{"data": ...}` — encode it with `json.to_string` before sending it
 on the wire. Thread the second element of the tuple back into the next
 `process_request` call to keep the staged mutation log advancing.
 
-## Operation Registry Sync
-
-The TypeScript-side `../config/operation-registry.json` is still the source of
-truth while the port is in progress. The Gleam mirror lives in
-`src/shopify_draft_proxy/proxy/operation_registry_data.gleam` and is generated
-deterministically:
-
-```sh
-gleam/scripts/sync-operation-registry.sh
-```
-
-CI checks drift through `corepack pnpm conformance:check`, which runs:
-
-```sh
-gleam/scripts/sync-operation-registry.sh --check
-```
-
-Capability lookup mirrors the TypeScript registry for every implemented match
-name. Local dispatch is gated separately by each ported domain's
-`is_*_query_root` / `is_*_mutation_root` predicate; an implemented TS root whose
-domain or specific root is not ported to Gleam remains unsupported locally and
-uses live-hybrid passthrough instead of being claimed as staged/overlay support.
-
 To use a non-default config:
 
 ```gleam
