@@ -34,6 +34,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_field_response_key, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, single_root_log_draft,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -615,6 +618,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -663,10 +667,10 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [])
-  let #(data_entries, final_store, final_identity, all_staged) =
+  let initial = #([], store, identity, [], [])
+  let #(data_entries, final_store, final_identity, all_staged, all_drafts) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids) = acc
+      let #(entries, current_store, current_identity, staged_ids, drafts) = acc
       case field {
         Field(name: name, ..) -> {
           let dispatch = case name.value {
@@ -706,12 +710,24 @@ fn handle_mutation_fields(
           }
           case dispatch {
             None -> acc
-            Some(#(result, next_store, next_identity)) -> #(
-              list.append(entries, [#(result.key, result.payload)]),
-              next_store,
-              next_identity,
-              list.append(staged_ids, result.staged_resource_ids),
-            )
+            Some(#(result, next_store, next_identity)) -> {
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  segments_status_for(name.value, result.staged_resource_ids),
+                  "segments",
+                  "stage-locally",
+                  Some(segments_notes_for(name.value)),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                next_store,
+                next_identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
           }
         }
         _ -> acc
@@ -722,7 +738,26 @@ fn handle_mutation_fields(
     store: final_store,
     identity: final_identity,
     staged_resource_ids: all_staged,
+    log_drafts: all_drafts,
   )
+}
+
+/// Per-root-field log status for segments mutations. Default rule:
+/// empty `staged_resource_ids` (validation rejected the request) →
+/// `Failed`; otherwise `Staged`.
+fn segments_status_for(
+  _root_field_name: String,
+  staged_resource_ids: List(String),
+) -> store.EntryStatus {
+  case staged_resource_ids {
+    [] -> store.Failed
+    [_, ..] -> store.Staged
+  }
+}
+
+/// Notes string mirroring the `segments` dispatcher in `routes.ts`.
+fn segments_notes_for(_root_field_name: String) -> String {
+  "Staged locally in the in-memory segment draft store."
 }
 
 // ---------------------------------------------------------------------------

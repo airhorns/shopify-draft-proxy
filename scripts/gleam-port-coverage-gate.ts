@@ -4,11 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
-import {
-  listConformanceParitySpecPaths,
-  loadConformanceScenarios,
-  loadOperationRegistry,
-} from './conformance-scenario-registry.js';
+import { listConformanceParitySpecPaths, loadConformanceScenarios } from './conformance-scenario-registry.js';
 import {
   classifyParityScenarioState,
   type ParitySpec,
@@ -23,16 +19,15 @@ const parityRunnerTestPath = path.join(repoRoot, 'gleam', 'test', 'parity_test.g
 const packageJsonPath = path.join(repoRoot, 'package.json');
 
 const gateConfigSchema = z.strictObject({
-  expectedParitySpecCount: z.number().int().nonnegative(),
-  gleamParityRunnerSpecPaths: z.array(z.string().min(1)),
-  requiredWorkflowCommands: z.array(z.string().min(1)),
-  captureToolingChecks: z.array(z.string().min(1)),
-  domainGates: z.array(
+  expectedGleamParityFailures: z.array(
     z.strictObject({
-      domain: z.string().min(1),
-      integrationTests: z.array(z.string().min(1)),
+      specPath: z.string().min(1),
+      reason: z.string().min(1),
+      targets: z.array(z.enum(['erlang', 'javascript'])).optional(),
     }),
   ),
+  requiredWorkflowCommands: z.array(z.string().min(1)),
+  captureToolingChecks: z.array(z.string().min(1)),
 });
 
 type GateConfig = z.infer<typeof gateConfigSchema>;
@@ -57,20 +52,14 @@ function formatList(values: string[]): string {
   return values.length === 0 ? '(none)' : values.join(', ');
 }
 
+function expectedFailureKey(failure: GateConfig['expectedGleamParityFailures'][number]): string {
+  const targets = failure.targets ? sorted(failure.targets).join('+') : '*';
+  return `${failure.specPath} [${targets}]`;
+}
+
 function pushMissingPath(errors: string[], label: string, relativePath: string): void {
   if (!existsSync(path.join(repoRoot, relativePath))) {
     errors.push(`${label} does not exist: ${relativePath}`);
-  }
-}
-
-function compareSets(errors: string[], label: string, actual: Iterable<string>, expected: Iterable<string>): void {
-  const actualSet = new Set(actual);
-  const expectedSet = new Set(expected);
-  const missing = sorted([...expectedSet].filter((value) => !actualSet.has(value)));
-  const extra = sorted([...actualSet].filter((value) => !expectedSet.has(value)));
-
-  if (missing.length > 0 || extra.length > 0) {
-    errors.push(`${label} mismatch. Missing: ${formatList(missing)}. Extra: ${formatList(extra)}.`);
   }
 }
 
@@ -84,22 +73,32 @@ function extractGleamParityRunnerSpecPaths(source: string): string[] {
 
 function checkParityInventory(config: GateConfig, errors: string[]): void {
   const paritySpecPaths = listConformanceParitySpecPaths(repoRoot);
-  if (paritySpecPaths.length !== config.expectedParitySpecCount) {
-    errors.push(
-      `Parity spec discovery count changed to ${paritySpecPaths.length}; expected ${config.expectedParitySpecCount}. Update config/gleam-port-ci-gates.json when intentionally adding or removing specs.`,
+  const paritySpecSet = new Set(paritySpecPaths);
+
+  const expectedFailureKeys = config.expectedGleamParityFailures.map(expectedFailureKey);
+  const uniqueExpectedFailureKeys = new Set(expectedFailureKeys);
+  if (uniqueExpectedFailureKeys.size !== expectedFailureKeys.length) {
+    const seen = new Set<string>();
+    const duplicates = sorted(
+      expectedFailureKeys.filter((key) => {
+        if (seen.has(key)) {
+          return true;
+        }
+        seen.add(key);
+        return false;
+      }),
     );
+    errors.push(`Expected Gleam parity failure list has duplicate specs: ${formatList(duplicates)}.`);
   }
 
-  const paritySpecSet = new Set(paritySpecPaths);
-  for (const specPath of config.gleamParityRunnerSpecPaths) {
-    pushMissingPath(errors, 'Configured Gleam parity runner spec', specPath);
+  for (const specPath of new Set(config.expectedGleamParityFailures.map((failure) => failure.specPath))) {
+    pushMissingPath(errors, 'Expected Gleam parity failure spec', specPath);
     if (!paritySpecSet.has(specPath)) {
-      errors.push(`Configured Gleam parity runner spec is not discovered by convention: ${specPath}`);
+      errors.push(`Expected Gleam parity failure spec is not discovered by convention: ${specPath}`);
     }
   }
 
-  const runnerSpecPaths = extractGleamParityRunnerSpecPaths(readFileSync(parityRunnerTestPath, 'utf8'));
-  compareSets(errors, 'Gleam parity runner spec list', runnerSpecPaths, config.gleamParityRunnerSpecPaths);
+  checkGleamParityRunner(errors);
 
   for (const scenario of loadConformanceScenarios(repoRoot)) {
     const paritySpec = readParitySpec(scenario.paritySpecPath);
@@ -117,48 +116,22 @@ function checkParityInventory(config: GateConfig, errors: string[]): void {
   }
 }
 
-function checkDomainGates(config: GateConfig, errors: string[]): void {
-  const implementedRegistryEntries = loadOperationRegistry(repoRoot).filter((entry) => entry.implemented);
-  const expectedDomains = sorted(new Set(implementedRegistryEntries.map((entry) => entry.domain)));
-  const gatesByDomain = new Map(config.domainGates.map((gate) => [gate.domain, gate]));
+function checkGleamParityRunner(errors: string[]): void {
+  const runnerSource = readFileSync(parityRunnerTestPath, 'utf8');
+  const runnerSpecPaths = extractGleamParityRunnerSpecPaths(readFileSync(parityRunnerTestPath, 'utf8'));
 
-  compareSets(errors, 'Gleam domain gate domains', gatesByDomain.keys(), expectedDomains);
-
-  for (const gate of config.domainGates) {
-    const domainParityDirectory = path.join('config', 'parity-specs', gate.domain);
-    pushMissingPath(errors, `Parity spec directory for domain ${gate.domain}`, domainParityDirectory);
-
-    const domainParitySpecs = listConformanceParitySpecPaths(repoRoot).filter((specPath) => {
-      return specPath.startsWith(`${domainParityDirectory}/`);
-    });
-    if (domainParitySpecs.length === 0) {
-      errors.push(`Domain ${gate.domain} has no discovered parity specs under ${domainParityDirectory}.`);
-    }
-
-    for (const integrationTest of gate.integrationTests) {
-      pushMissingPath(errors, `Integration-test port mapping for domain ${gate.domain}`, integrationTest);
-    }
+  if (runnerSpecPaths.length > 0) {
+    errors.push(
+      `Gleam parity runner must discover specs dynamically instead of hardcoding an allowlist. Hardcoded specs: ${formatList(runnerSpecPaths)}.`,
+    );
   }
 
-  for (const domain of expectedDomains) {
-    const expectedIntegrationTests = sorted(
-      new Set(
-        implementedRegistryEntries
-          .filter((entry) => entry.domain === domain)
-          .flatMap((entry) => entry.runtimeTests)
-          .filter((testPath) => testPath.startsWith('tests/integration/')),
-      ),
-    );
-    const gate = gatesByDomain.get(domain);
-    if (!gate) {
-      continue;
-    }
-    compareSets(
-      errors,
-      `Integration-test port mappings for ${domain}`,
-      gate.integrationTests,
-      expectedIntegrationTests,
-    );
+  if (!runnerSource.includes('discover.discover(')) {
+    errors.push('Gleam parity runner must discover parity specs through parity/discover.');
+  }
+
+  if (!runnerSource.includes('expectedGleamParityFailures')) {
+    errors.push('Gleam parity runner must read expectedGleamParityFailures from config/gleam-port-ci-gates.json.');
   }
 }
 
@@ -197,7 +170,6 @@ function run(): void {
   const errors: string[] = [];
 
   checkParityInventory(config, errors);
-  checkDomainGates(config, errors);
   checkWorkflowAndPackageScripts(config, errors);
 
   if (errors.length > 0) {
@@ -209,9 +181,9 @@ function run(): void {
   process.stdout.write(
     [
       'Gleam port CI gate passed:',
-      `- ${config.expectedParitySpecCount} parity specs discovered and all checked-in specs are strict executable comparisons`,
-      `- ${config.gleamParityRunnerSpecPaths.length} Gleam parity runner specs are manifest-backed`,
-      `- ${config.domainGates.length} implemented registry domains have parity/spec and integration-test gates`,
+      `- ${listConformanceParitySpecPaths(repoRoot).length} parity specs discovered and all checked-in specs are strict executable comparisons`,
+      `- ${config.expectedGleamParityFailures.length} expected Gleam parity failures are manifest-backed`,
+      '- Gleam parity runner discovers the full parity corpus and does not hardcode a spec allowlist',
       '- CI workflow and TypeScript capture-tooling checks are wired',
     ].join('\n') + '\n',
   );

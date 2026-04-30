@@ -58,6 +58,58 @@ describe('createDraftProxy', () => {
     // After restore, getState should serialize without throwing.
     expect(fresh.getState()).toBeDefined();
   });
+
+  it('stages saved-search mutations through the Gleam-backed shim', async () => {
+    const proxy = createDraftProxy(baseConfig);
+
+    const createResponse = await proxy.processRequest({
+      method: 'POST',
+      path: '/admin/api/2026-04/graphql.json',
+      body: {
+        query:
+          'mutation { savedSearchCreate(input: { name: "Promo products", query: "tag:promo", resourceType: PRODUCT }) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } } }',
+      },
+    });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body).toMatchObject({
+      data: {
+        savedSearchCreate: {
+          savedSearch: {
+            id: 'gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic',
+            name: 'Promo products',
+            query: 'tag:promo',
+            resourceType: 'PRODUCT',
+            filters: [{ key: 'tag', value: 'promo' }],
+          },
+          userErrors: [],
+        },
+      },
+    });
+
+    const readResponse = await proxy.processRequest({
+      method: 'POST',
+      path: '/admin/api/2026-04/graphql.json',
+      body: {
+        query: '{ productSavedSearches(first: 1) { nodes { id name resourceType } } }',
+      },
+    });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toMatchObject({
+      data: {
+        productSavedSearches: {
+          nodes: [
+            {
+              id: 'gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic',
+              name: 'Promo products',
+              resourceType: 'PRODUCT',
+            },
+          ],
+        },
+      },
+    });
+  });
 });
 
 describe('public API stubs', () => {
