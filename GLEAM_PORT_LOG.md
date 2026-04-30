@@ -20,15 +20,15 @@ seam. A narrow Products smoke foundation was added in Gleam for the
 productCreate -> product(id:) lifecycle required by the wrapper smoke; this is
 not a full Products-domain parity port.
 
-| Module                                                    | Change                                                                                                                                               |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/elixir_smoke/lib/shopify_draft_proxy.ex`           | Adds Elixir structs and wrapper helpers for config, GraphQL, meta state/log/reset/commit, dump/restore, and injected commit reports.                 |
-| `gleam/elixir_smoke/test/interop_test.exs`                | Uses the Elixir wrapper broadly for config, GraphQL, meta state/log, dump/restore, reset, and commit report/error smoke coverage.                    |
-| `gleam/src/shopify_draft_proxy/proxy/products.gleam`      | Adds narrow staged `productCreate` and `product(id:)` read support for the BEAM smoke lifecycle only.                                                |
-| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds minimal Product/ProductVariant records, effective staged-state helpers, and dump/restore serialization.                            |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`   | Routes the narrow Products smoke roots while leaving product-metafield owner reads with the Metafields domain.                                      |
-| `scripts/elixir-smoke.ts` / `package.json`                | Keeps `corepack pnpm elixir:smoke` as the canonical command, with a Docker fallback when host `escript`/`mix` are unavailable.                       |
-| `gleam/README.md`                                         | Documents the Elixir wrapper calling conventions and Erlang shipment path.                                                                           |
+| Module                                                                  | Change                                                                                                                               |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/elixir_smoke/lib/shopify_draft_proxy.ex`                         | Adds Elixir structs and wrapper helpers for config, GraphQL, meta state/log/reset/commit, dump/restore, and injected commit reports. |
+| `gleam/elixir_smoke/test/interop_test.exs`                              | Uses the Elixir wrapper broadly for config, GraphQL, meta state/log, dump/restore, reset, and commit report/error smoke coverage.    |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                    | Adds narrow staged `productCreate` and `product(id:)` read support for the BEAM smoke lifecycle only.                                |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds minimal Product/ProductVariant records, effective staged-state helpers, and dump/restore serialization.                         |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Routes the narrow Products smoke roots while leaving product-metafield owner reads with the Metafields domain.                       |
+| `scripts/elixir-smoke.ts` / `package.json`                              | Keeps `corepack pnpm elixir:smoke` as the canonical command, with a Docker fallback when host `escript`/`mix` are unavailable.       |
+| `gleam/README.md`                                                       | Documents the Elixir wrapper calling conventions and Erlang shipment path.                                                           |
 
 Validation: `corepack pnpm elixir:smoke` is green at 16 ExUnit tests through
 the container fallback on the current host. Host `gleam test --target erlang`
