@@ -126,6 +126,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "collectionReorderProducts"
     | "collectionUpdate"
     | "collectionDelete"
+    | "collectionCreate"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -3058,6 +3059,33 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "collectionCreate" -> {
+              let result =
+                handle_collection_create(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged collectionCreate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "collectionRemoveProducts" -> {
               let result =
                 handle_collection_remove_products(
@@ -5363,6 +5391,58 @@ fn handle_collection_update(
   }
 }
 
+fn handle_collection_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  case read_non_empty_string_field(input, "title") {
+    None ->
+      mutation_result(
+        key,
+        collection_create_payload(
+          store,
+          None,
+          [
+            ProductUserError(
+              ["input", "title"],
+              "Collection title is required",
+              None,
+            ),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(_) -> {
+      let #(collection, next_identity) =
+        created_collection_record(store, identity, input)
+      let next_store = store.upsert_staged_collections(store, [collection])
+      mutation_result(
+        key,
+        collection_create_payload(
+          next_store,
+          Some(collection),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        next_identity,
+        [collection.id],
+      )
+    }
+  }
+}
+
 fn handle_collection_add_products(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -7245,6 +7325,28 @@ fn collection_add_products_payload(
   )
 }
 
+fn collection_create_payload(
+  store: Store,
+  collection: Option(CollectionRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let collection_value = case collection {
+    Some(record) -> collection_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("CollectionCreatePayload")),
+      #("collection", collection_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn collection_update_payload(
   store: Store,
   collection: Option(CollectionRecord),
@@ -7894,6 +7996,74 @@ fn updated_collection_record(
     ),
     next_identity,
   )
+}
+
+fn created_collection_record(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, ResolvedValue),
+) -> #(CollectionRecord, SyntheticIdentityRegistry) {
+  let title =
+    read_non_empty_string_field(input, "title")
+    |> option.unwrap("Untitled collection")
+  let #(updated_at, identity_after_timestamp) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let #(id, next_identity) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_timestamp,
+      "Collection",
+    )
+  let handle = case read_non_empty_string_field(input, "handle") {
+    Some(handle) -> normalize_product_handle(handle)
+    None -> slugify_collection_handle(title)
+  }
+  #(
+    CollectionRecord(
+      id: id,
+      legacy_resource_id: None,
+      title: title,
+      handle: ensure_unique_collection_handle(store, handle),
+      publication_ids: [],
+      updated_at: Some(updated_at),
+      description: read_string_field(input, "description"),
+      description_html: read_string_field(input, "descriptionHtml")
+        |> option.or(Some("")),
+      image: None,
+      sort_order: read_string_field(input, "sortOrder")
+        |> option.or(Some("MANUAL")),
+      template_suffix: read_string_field(input, "templateSuffix"),
+      seo: updated_product_seo(
+        ProductSeoRecord(title: None, description: None),
+        input,
+      ),
+      rule_set: None,
+      products_count: Some(0),
+      is_smart: False,
+      cursor: None,
+      title_cursor: None,
+      updated_at_cursor: None,
+    ),
+    next_identity,
+  )
+}
+
+fn slugify_collection_handle(title: String) -> String {
+  let normalized = normalize_product_handle(title)
+  let handle = case normalized {
+    "" -> "untitled-collection"
+    _ -> normalized
+  }
+  case string.ends_with(handle, "product") {
+    True -> string.drop_end(handle, 7) <> "collection"
+    False -> handle
+  }
+}
+
+fn ensure_unique_collection_handle(store: Store, handle: String) -> String {
+  case store.get_effective_collection_by_handle(store, handle) {
+    Some(_) -> ensure_unique_collection_handle(store, handle <> "-1")
+    None -> handle
+  }
 }
 
 fn read_explicit_product_handle(

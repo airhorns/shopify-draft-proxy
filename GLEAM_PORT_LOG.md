@@ -9,6 +9,66 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 78: collection create staging
+
+Completes the captured base collection create mutation in the Gleam Products
+handler. The pass wires `collectionCreate` into the local mutation dispatcher,
+allocates Shopify-shaped synthetic collection IDs, derives Shopify-like handles
+from collection titles, stages new collections without runtime Shopify writes,
+and returns the captured collection/userErrors payload shape.
+
+The pass promotes `collectionCreate-parity-plan` into the Gleam parity suite.
+The checked-in fixture, request document, variables capture path, expected ID
+difference, and strict comparison contract stay unchanged.
+
+| Module                                               | Change                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages base `collectionCreate` and serializes create output. |
+| `gleam/test/parity_test.gleam`                       | Enables the strict base collection create parity spec.       |
+
+Validation:
+`gleam test --target javascript collection_create_live_parity_test` is green at
+777 tests, and full `gleam test --target javascript` is green at 777 tests on
+the host Node runtime. Host `gleam test --target erlang` still fails before
+tests execute on the local Erlang install with the known `undef` runner issue;
+after clearing host-built Erlang artifacts, the Docker Erlang fallback is green
+at 773 tests. Product parity inventory remains 115 checked-in specs, with 63
+product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay returning
+  HTTP 400 with `No mutation dispatcher implemented for root field:
+collectionCreate`.
+- The base captured fixture creates a manual collection with no initial
+  products, so the staged collection projects an empty `products` connection
+  and `productsCount: 0`.
+- Shopify allocates the created collection ID independently of local replay; the
+  existing parity spec already path-scopes that ID difference.
+
+### Risks / open items
+
+- `collectionCreate` with initial products remains a separate captured fixture
+  because it asserts immediate downstream collection/product relationship reads.
+- Inventory shipment/transfer, publication links, product feeds/feedback,
+  selling plans, product metafields, media, advanced search, and broader
+  validation atomicity parity remain incomplete in Gleam.
+- Only 63 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 79 candidates
+
+- Extend `collectionCreate` with the captured initial-products behavior and
+  downstream relationship reads.
+- Port product metafield behavior now that Product, Product Option,
+  Product Variant, Inventory, and Collection relationship slices are locally
+  staged or seeded.
+- Continue publication-related collection/product roots if the captured
+  fixtures can be represented without weakening request shapes.
+
+---
+
 ## 2026-04-30 - Pass 77: collection delete staging
 
 Completes the captured collection delete mutation in the Gleam Products
