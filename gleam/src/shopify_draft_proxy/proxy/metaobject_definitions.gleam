@@ -1,47 +1,120 @@
-//// Minimal port of `src/proxy/metaobject-definitions.ts`.
+//// Stateful Gleam port of the metaobject definition + entry runtime.
 ////
-//// The full TS module is ~2700 LOC and covers metaobject + metaobject-
-//// definition lifecycle (create/update/upsert/delete/bulkDelete plus
-//// definitionCreate/Update/Delete plus standardMetaobjectDefinitionEnable),
-//// field validation, capability inspection, type-scoped enumeration,
-//// handle/type lookups, and connection pagination with field-value
-//// query filters. This stub only ships the always-on read shape — every
-//// query root returns an empty answer so the dispatcher can route the
-//// "Metaobjects" capability without falling back to the upstream proxy.
-////
-//// Reads (all empty/null until the store slice ports):
-////   - `metaobject(id:)` / `metaobjectByHandle(handle:, type:)` → null.
-////   - `metaobjectDefinition(id:)` /
-////     `metaobjectDefinitionByType(type:)` → null.
-////   - `metaobjects(...)` / `metaobjectDefinitions(...)` → empty
-////     connection (`nodes`/`edges` empty, `pageInfo` all-false-with-
-////     null-cursors).
-////
-//// Mutations are intentionally not handled here. With no store slice
-//// the only honest response is a not-implemented error — the existing
-//// `Ok(_) | Error(_)` arm in the mutation dispatcher already produces
-//// that "No mutation dispatcher implemented" path, so metaobject
-//// mutations stay unrouted until a follow-up pass lands the lifecycle.
+//// This module mirrors the TypeScript `metaobject-definitions.ts` slice:
+//// definitions and entries are staged locally, downstream reads resolve from
+//// effective base+staged state, and successful supported mutations record log
+//// drafts for commit replay.
 
+import gleam/dict.{type Dict}
+import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode
+import gleam/float
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
-import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import gleam/option.{type Option, None, Some}
+import gleam/order.{Eq}
+import gleam/result
+import gleam/string
+import shopify_draft_proxy/graphql/ast.{
+  type Selection, Field, FragmentDefinition, FragmentSpread, InlineFragment,
+  NamedType, SelectionSet,
+}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  default_selected_field_options, get_field_response_key,
-  serialize_empty_connection,
+  type FragmentMap, type SourceValue, ConnectionWindow, SelectedFieldOptions,
+  SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
+  SrcObject, SrcString, default_connection_page_info_options,
+  default_connection_window_options, default_type_condition_applies,
+  get_document_fragments, get_field_response_key, paginate_connection_items,
+  project_graphql_value, serialize_connection, source_to_json, src_object,
+}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, RequiredArgument, read_optional_string, single_root_log_draft,
+  validate_required_field_arguments, validate_required_id_argument,
+}
+import shopify_draft_proxy/shopify/resource_ids
+import shopify_draft_proxy/state/store.{
+  type Store, delete_staged_metaobject, delete_staged_metaobject_definition,
+  find_effective_metaobject_by_handle,
+  find_effective_metaobject_definition_by_type, get_effective_metaobject_by_id,
+  get_effective_metaobject_definition_by_id,
+  list_effective_metaobject_definitions, list_effective_metaobjects,
+  list_effective_metaobjects_by_type, upsert_staged_metaobject,
+  upsert_staged_metaobject_definition,
+}
+import shopify_draft_proxy/state/synthetic_identity.{
+  type SyntheticIdentityRegistry,
+}
+import shopify_draft_proxy/state/types.{
+  type MetaobjectCapabilitiesRecord, type MetaobjectDefinitionCapabilitiesRecord,
+  type MetaobjectDefinitionCapabilityRecord, type MetaobjectDefinitionRecord,
+  type MetaobjectDefinitionTypeRecord, type MetaobjectFieldDefinitionRecord,
+  type MetaobjectFieldDefinitionReferenceRecord,
+  type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
+  type MetaobjectJsonValue, type MetaobjectRecord,
+  type MetaobjectStandardTemplateRecord, MetaobjectBool,
+  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
+  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
+  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
+  MetaobjectFieldDefinitionReferenceRecord,
+  MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
+  MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
+  MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
+  MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
+  MetaobjectStandardTemplateRecord, MetaobjectString,
 }
 
-/// Errors specific to the metaobject-definitions handler. Currently
-/// just propagates upstream parse errors.
+const domain_name = "metaobjects"
+
+const execution_name = "stage-locally"
+
 pub type MetaobjectDefinitionsError {
   ParseFailed(root_field.RootFieldError)
 }
 
-/// Predicate matching every supported metaobject(-definition) query
-/// root. The full TS surface is enumerated here even though every
-/// branch currently returns null/empty — this lets the dispatcher's
-/// legacy fallback recognise the domain by root-field name.
+pub type MutationOutcome {
+  MutationOutcome(
+    data: Json,
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
+  )
+}
+
+type UserError {
+  UserError(
+    field: Option(List(String)),
+    message: String,
+    code: String,
+    element_key: Option(String),
+    element_index: Option(Int),
+  )
+}
+
+type BulkDeleteJob {
+  BulkDeleteJob(id: String, done: Bool)
+}
+
+type MutationFieldResult {
+  MutationFieldResult(
+    key: String,
+    payload: Json,
+    staged_resource_ids: List(String),
+    top_level_errors: List(Json),
+    log_drafts: List(LogDraft),
+  )
+}
+
+type FieldOperation {
+  FieldCreate(Dict(String, root_field.ResolvedValue))
+  FieldUpdate(Dict(String, root_field.ResolvedValue))
+  FieldDelete(String)
+  FieldUpsert(Dict(String, root_field.ResolvedValue))
+}
+
 pub fn is_metaobject_definitions_query_root(name: String) -> Bool {
   case name {
     "metaobject" -> True
@@ -54,57 +127,4687 @@ pub fn is_metaobject_definitions_query_root(name: String) -> Bool {
   }
 }
 
-/// Handle a `query` operation against the metaobject(-definition)
-/// surface. Returns the unwrapped data object — the caller wraps it
-/// in `{"data": ...}`.
-pub fn handle_metaobject_definitions_query(
-  document: String,
-) -> Result(Json, MetaobjectDefinitionsError) {
-  case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
-    Ok(fields) -> Ok(serialize_root_fields(fields))
+pub fn is_metaobject_definitions_mutation_root(name: String) -> Bool {
+  case name {
+    "metaobjectDefinitionCreate" -> True
+    "metaobjectDefinitionUpdate" -> True
+    "metaobjectDefinitionDelete" -> True
+    "standardMetaobjectDefinitionEnable" -> True
+    "metaobjectCreate" -> True
+    "metaobjectUpdate" -> True
+    "metaobjectUpsert" -> True
+    "metaobjectDelete" -> True
+    "metaobjectBulkDelete" -> True
+    _ -> False
   }
 }
 
-fn serialize_root_fields(fields: List(Selection)) -> Json {
-  let entries =
+pub fn handle_metaobject_definitions_query(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(Json, MetaobjectDefinitionsError) {
+  case root_field.get_root_fields(document) {
+    Error(err) -> Error(ParseFailed(err))
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      Ok(serialize_root_fields(store, fields, fragments, variables))
+    }
+  }
+}
+
+fn serialize_root_fields(
+  store: Store,
+  fields: List(Selection),
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  json.object(
     list.map(fields, fn(field) {
       let key = get_field_response_key(field)
       let value = case field {
         Field(name: name, ..) ->
           case name.value {
-            "metaobject" -> json.null()
-            "metaobjectByHandle" -> json.null()
-            "metaobjects" ->
-              serialize_empty_connection(
-                field,
-                default_selected_field_options(),
-              )
-            "metaobjectDefinition" -> json.null()
-            "metaobjectDefinitionByType" -> json.null()
+            "metaobjectDefinition" ->
+              case read_id_arg(field, variables) {
+                Some(id) ->
+                  case get_effective_metaobject_definition_by_id(store, id) {
+                    Some(definition) ->
+                      serialize_definition_selection(
+                        definition,
+                        field,
+                        fragments,
+                      )
+                    None -> json.null()
+                  }
+                None -> json.null()
+              }
+            "metaobjectDefinitionByType" ->
+              case read_string_arg(field, variables, "type") {
+                Some(type_) ->
+                  case
+                    find_effective_metaobject_definition_by_type(store, type_)
+                  {
+                    Some(definition) ->
+                      serialize_definition_selection(
+                        definition,
+                        field,
+                        fragments,
+                      )
+                    None -> json.null()
+                  }
+                None -> json.null()
+              }
             "metaobjectDefinitions" ->
-              serialize_empty_connection(
+              serialize_definitions_connection(
+                store,
                 field,
-                default_selected_field_options(),
+                fragments,
+                variables,
+              )
+            "metaobject" ->
+              case read_id_arg(field, variables) {
+                Some(id) ->
+                  case get_effective_metaobject_by_id(store, id) {
+                    Some(metaobject) ->
+                      serialize_metaobject_selection(
+                        store,
+                        metaobject,
+                        field,
+                        fragments,
+                      )
+                    None -> json.null()
+                  }
+                None -> json.null()
+              }
+            "metaobjectByHandle" ->
+              case read_handle_arg(field, variables) {
+                #(Some(type_), Some(handle)) ->
+                  case
+                    find_effective_metaobject_by_handle(store, type_, handle)
+                  {
+                    Some(metaobject) ->
+                      serialize_metaobject_selection(
+                        store,
+                        metaobject,
+                        field,
+                        fragments,
+                      )
+                    None -> json.null()
+                  }
+                _ -> json.null()
+              }
+            "metaobjects" ->
+              serialize_metaobjects_connection(
+                store,
+                field,
+                fragments,
+                variables,
               )
             _ -> json.null()
           }
         _ -> json.null()
       }
       #(key, value)
-    })
-  json.object(entries)
+    }),
+  )
 }
 
-/// Wrap a successful response in the standard GraphQL envelope.
 pub fn wrap_data(data: Json) -> Json {
   json.object([#("data", data)])
 }
 
-/// Convenience: parse + handle + wrap, for the dispatcher.
-pub fn process(document: String) -> Result(Json, MetaobjectDefinitionsError) {
-  case handle_metaobject_definitions_query(document) {
+pub fn process(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(Json, MetaobjectDefinitionsError) {
+  case handle_metaobject_definitions_query(store, document, variables) {
     Ok(data) -> Ok(wrap_data(data))
     Error(e) -> Error(e)
   }
+}
+
+pub fn process_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  _request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, MetaobjectDefinitionsError) {
+  case root_field.get_root_fields(document) {
+    Error(err) -> Error(ParseFailed(err))
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      let operation_path = get_operation_path_label(document)
+      Ok(handle_mutation_fields(
+        store,
+        identity,
+        document,
+        operation_path,
+        fields,
+        fragments,
+        variables,
+      ))
+    }
+  }
+}
+
+fn get_operation_path_label(document: String) -> String {
+  case parse_operation.parse_operation(document) {
+    Ok(parsed) -> {
+      let kind = case parsed.type_ {
+        parse_operation.QueryOperation -> "query"
+        parse_operation.MutationOperation -> "mutation"
+      }
+      case parsed.name {
+        Some(name) -> kind <> " " <> name
+        None -> kind
+      }
+    }
+    Error(_) -> "mutation"
+  }
+}
+
+fn handle_mutation_fields(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  fields: List(Selection),
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationOutcome {
+  let initial = #([], [], store, identity, [], [])
+  let #(entries, errors, final_store, final_identity, staged_ids, drafts) =
+    list.fold(fields, initial, fn(acc, field) {
+      let #(
+        data_entries,
+        all_errors,
+        current_store,
+        current_identity,
+        ids,
+        all_drafts,
+      ) = acc
+      case field {
+        Field(name: name, ..) -> {
+          let result =
+            dispatch_mutation_field(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+              name.value,
+            )
+          let #(field_result, next_store, next_identity) = result
+          let next_errors =
+            list.append(all_errors, field_result.top_level_errors)
+          let next_entries = case field_result.top_level_errors {
+            [] ->
+              list.append(data_entries, [
+                #(field_result.key, field_result.payload),
+              ])
+            _ -> data_entries
+          }
+          let next_ids = case field_result.top_level_errors {
+            [] -> list.append(ids, field_result.staged_resource_ids)
+            _ -> ids
+          }
+          #(
+            next_entries,
+            next_errors,
+            next_store,
+            next_identity,
+            next_ids,
+            list.append(all_drafts, field_result.log_drafts),
+          )
+        }
+        _ -> acc
+      }
+    })
+  let envelope = case errors {
+    [] -> json.object([#("data", json.object(entries))])
+    _ -> json.object([#("errors", json.preprocessed_array(errors))])
+  }
+  MutationOutcome(
+    data: envelope,
+    store: final_store,
+    identity: final_identity,
+    staged_resource_ids: case errors {
+      [] -> staged_ids
+      _ -> []
+    },
+    log_drafts: case errors {
+      [] -> drafts
+      _ -> []
+    },
+  )
+}
+
+fn dispatch_mutation_field(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  case name {
+    "metaobjectDefinitionCreate" ->
+      handle_definition_create(
+        store,
+        identity,
+        document,
+        operation_path,
+        field,
+        fragments,
+        variables,
+      )
+    "metaobjectDefinitionUpdate" ->
+      handle_definition_update(
+        store,
+        identity,
+        document,
+        operation_path,
+        field,
+        fragments,
+        variables,
+      )
+    "metaobjectDefinitionDelete" ->
+      handle_definition_delete(
+        store,
+        identity,
+        document,
+        operation_path,
+        field,
+        variables,
+      )
+    "standardMetaobjectDefinitionEnable" ->
+      handle_standard_definition_enable(
+        store,
+        identity,
+        document,
+        operation_path,
+        field,
+        fragments,
+        variables,
+      )
+    "metaobjectCreate" ->
+      handle_metaobject_create(
+        store,
+        identity,
+        document,
+        operation_path,
+        field,
+        fragments,
+        variables,
+      )
+    "metaobjectUpdate" ->
+      handle_metaobject_update(
+        store,
+        identity,
+        document,
+        operation_path,
+        field,
+        fragments,
+        variables,
+      )
+    "metaobjectUpsert" ->
+      handle_metaobject_upsert(
+        store,
+        identity,
+        document,
+        operation_path,
+        field,
+        fragments,
+        variables,
+      )
+    "metaobjectDelete" ->
+      handle_metaobject_delete(
+        store,
+        identity,
+        document,
+        operation_path,
+        field,
+        variables,
+      )
+    "metaobjectBulkDelete" ->
+      handle_metaobject_bulk_delete(
+        store,
+        identity,
+        document,
+        operation_path,
+        field,
+        fragments,
+        variables,
+      )
+    _ -> #(
+      MutationFieldResult(
+        get_field_response_key(field),
+        json.null(),
+        [],
+        [],
+        [],
+      ),
+      store,
+      identity,
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mutation handlers
+// ---------------------------------------------------------------------------
+
+fn handle_definition_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "metaobjectDefinitionCreate",
+      [
+        RequiredArgument("definition", "MetaobjectDefinitionCreateInput!"),
+      ],
+      operation_path,
+      document,
+    )
+  case errors {
+    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+    [] -> {
+      let args = field_args(field, variables)
+      let input = read_object_arg(args, "definition")
+      let user_errors = build_create_definition_user_errors(store, input)
+      case user_errors {
+        [_, ..] -> {
+          let payload = definition_payload(field, fragments, None, user_errors)
+          #(MutationFieldResult(key, payload, [], [], []), store, identity)
+        }
+        [] -> {
+          let #(definition, next_identity) =
+            build_definition_from_create_input(identity, input)
+          let #(staged, next_store) =
+            upsert_staged_metaobject_definition(store, definition)
+          let payload = definition_payload(field, fragments, Some(staged), [])
+          #(
+            MutationFieldResult(key, payload, [staged.id], [], [
+              log_draft("metaobjectDefinitionCreate", [staged.id]),
+            ]),
+            next_store,
+            next_identity,
+          )
+        }
+      }
+    }
+  }
+}
+
+fn handle_definition_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "metaobjectDefinitionUpdate",
+      [
+        RequiredArgument("id", "ID!"),
+        RequiredArgument("definition", "MetaobjectDefinitionUpdateInput!"),
+      ],
+      operation_path,
+      document,
+    )
+  case errors {
+    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+    [] -> {
+      let args = field_args(field, variables)
+      let id = read_string(args, "id")
+      let input = read_object_arg(args, "definition")
+      case id {
+        None -> {
+          let payload =
+            definition_payload(field, fragments, None, [
+              record_not_found_user_error(["id"]),
+            ])
+          #(MutationFieldResult(key, payload, [], [], []), store, identity)
+        }
+        Some(definition_id) ->
+          case get_effective_metaobject_definition_by_id(store, definition_id) {
+            None -> {
+              let payload =
+                definition_payload(field, fragments, None, [
+                  record_not_found_user_error(["id"]),
+                ])
+              #(MutationFieldResult(key, payload, [], [], []), store, identity)
+            }
+            Some(existing) -> {
+              let reset_field_order =
+                read_bool_arg(field, variables, "resetFieldOrder")
+                || option.unwrap(read_bool(input, "resetFieldOrder"), False)
+              let #(updated, next_identity, user_errors) =
+                apply_definition_update(
+                  identity,
+                  existing,
+                  input,
+                  reset_field_order,
+                )
+              case user_errors {
+                [_, ..] -> {
+                  let payload =
+                    definition_payload(field, fragments, None, user_errors)
+                  #(
+                    MutationFieldResult(key, payload, [], [], []),
+                    store,
+                    identity,
+                  )
+                }
+                [] -> {
+                  let #(staged, next_store) =
+                    upsert_staged_metaobject_definition(store, updated)
+                  let payload =
+                    definition_payload(field, fragments, Some(staged), [])
+                  #(
+                    MutationFieldResult(key, payload, [staged.id], [], [
+                      log_draft("metaobjectDefinitionUpdate", [staged.id]),
+                    ]),
+                    next_store,
+                    next_identity,
+                  )
+                }
+              }
+            }
+          }
+      }
+    }
+  }
+}
+
+fn handle_definition_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let #(id, errors) =
+    validate_required_id_argument(
+      field,
+      variables,
+      "metaobjectDefinitionDelete",
+      operation_path,
+      document,
+    )
+  case errors {
+    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+    [] ->
+      case id {
+        None -> #(
+          definition_delete_result(key, field, None, [
+            record_not_found_user_error(["id"]),
+          ]),
+          store,
+          identity,
+        )
+        Some(definition_id) ->
+          case get_effective_metaobject_definition_by_id(store, definition_id) {
+            None -> #(
+              definition_delete_result(key, field, None, [
+                record_not_found_user_error(["id"]),
+              ]),
+              store,
+              identity,
+            )
+            Some(definition) -> {
+              let count = option.unwrap(definition.metaobjects_count, 0)
+              case count > 0 {
+                True -> {
+                  let user_error =
+                    UserError(
+                      field: Some(["id"]),
+                      message: "Local proxy cannot delete a metaobject definition with associated metaobjects until entry cascade behavior is modeled.",
+                      code: "UNSUPPORTED",
+                      element_key: None,
+                      element_index: None,
+                    )
+                  #(
+                    definition_delete_result(key, field, None, [user_error]),
+                    store,
+                    identity,
+                  )
+                }
+                False -> {
+                  let next_store =
+                    delete_staged_metaobject_definition(store, definition_id)
+                  #(
+                    definition_delete_result(
+                      key,
+                      field,
+                      Some(definition_id),
+                      [],
+                    ),
+                    next_store,
+                    identity,
+                  )
+                }
+              }
+            }
+          }
+      }
+  }
+}
+
+fn handle_standard_definition_enable(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "standardMetaobjectDefinitionEnable",
+      [
+        RequiredArgument("type", "String!"),
+      ],
+      operation_path,
+      document,
+    )
+  case errors {
+    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+    [] -> {
+      let args = field_args(field, variables)
+      case read_string(args, "type") {
+        None -> {
+          let payload =
+            definition_payload(field, fragments, None, [
+              UserError(
+                Some(["type"]),
+                "A standard metaobject definition wasn't found for the specified type.",
+                "TEMPLATE_NOT_FOUND",
+                None,
+                None,
+              ),
+            ])
+          #(MutationFieldResult(key, payload, [], [], []), store, identity)
+        }
+        Some(type_) ->
+          case standard_template(type_) {
+            None -> {
+              let payload =
+                definition_payload(field, fragments, None, [
+                  UserError(
+                    Some(["type"]),
+                    "A standard metaobject definition wasn't found for the specified type.",
+                    "TEMPLATE_NOT_FOUND",
+                    None,
+                    None,
+                  ),
+                ])
+              #(MutationFieldResult(key, payload, [], [], []), store, identity)
+            }
+            Some(template) -> {
+              let #(definition, next_identity) = case
+                find_effective_metaobject_definition_by_type(store, type_)
+              {
+                Some(existing) -> #(existing, identity)
+                None -> build_standard_definition(identity, template)
+              }
+              let #(staged, next_store) =
+                upsert_staged_metaobject_definition(store, definition)
+              let payload =
+                definition_payload(field, fragments, Some(staged), [])
+              #(
+                MutationFieldResult(key, payload, [staged.id], [], [
+                  log_draft("standardMetaobjectDefinitionEnable", [staged.id]),
+                ]),
+                next_store,
+                next_identity,
+              )
+            }
+          }
+      }
+    }
+  }
+}
+
+fn handle_metaobject_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "metaobjectCreate",
+      [
+        RequiredArgument("metaobject", "MetaobjectCreateInput!"),
+      ],
+      operation_path,
+      document,
+    )
+  case errors {
+    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+    [] -> {
+      let input = read_object_arg(field_args(field, variables), "metaobject")
+      let type_ = read_string(input, "type")
+      let definition = case type_ {
+        Some(t) -> find_effective_metaobject_definition_by_type(store, t)
+        None -> None
+      }
+      let user_errors = build_create_metaobject_user_errors(type_, definition)
+      case user_errors, definition {
+        [_, ..], _ -> #(
+          MutationFieldResult(
+            key,
+            metaobject_payload(store, field, fragments, None, user_errors),
+            [],
+            [],
+            [],
+          ),
+          store,
+          identity,
+        )
+        [], None -> #(
+          MutationFieldResult(
+            key,
+            metaobject_payload(store, field, fragments, None, []),
+            [],
+            [],
+            [],
+          ),
+          store,
+          identity,
+        )
+        [], Some(defn) -> {
+          let #(created, next_identity, field_errors) =
+            build_metaobject_from_create_input(store, identity, input, defn)
+          case field_errors, created {
+            [_, ..], _ -> #(
+              MutationFieldResult(
+                key,
+                metaobject_payload(store, field, fragments, None, field_errors),
+                [],
+                [],
+                [],
+              ),
+              store,
+              identity,
+            )
+            [], None -> #(
+              MutationFieldResult(
+                key,
+                metaobject_payload(store, field, fragments, None, []),
+                [],
+                [],
+                [],
+              ),
+              store,
+              identity,
+            )
+            [], Some(metaobject) -> {
+              let #(staged, staged_store) =
+                upsert_staged_metaobject(store, metaobject)
+              let #(next_store, final_identity) =
+                adjust_definition_count(
+                  staged_store,
+                  next_identity,
+                  staged.type_,
+                  1,
+                )
+              #(
+                MutationFieldResult(
+                  key,
+                  metaobject_payload(
+                    next_store,
+                    field,
+                    fragments,
+                    Some(staged),
+                    [],
+                  ),
+                  [staged.id],
+                  [],
+                  [log_draft("metaobjectCreate", [staged.id])],
+                ),
+                next_store,
+                final_identity,
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn handle_metaobject_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "metaobjectUpdate",
+      [
+        RequiredArgument("id", "ID!"),
+        RequiredArgument("metaobject", "MetaobjectUpdateInput!"),
+      ],
+      operation_path,
+      document,
+    )
+  case errors {
+    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+    [] -> {
+      let args = field_args(field, variables)
+      let input = read_object_arg(args, "metaobject")
+      case read_string(args, "id") {
+        None -> #(
+          MutationFieldResult(
+            key,
+            metaobject_payload(store, field, fragments, None, [
+              record_not_found_user_error(["id"]),
+            ]),
+            [],
+            [],
+            [],
+          ),
+          store,
+          identity,
+        )
+        Some(id) ->
+          case get_effective_metaobject_by_id(store, id) {
+            None -> #(
+              MutationFieldResult(
+                key,
+                metaobject_payload(store, field, fragments, None, [
+                  record_not_found_user_error(["id"]),
+                ]),
+                [],
+                [],
+                [],
+              ),
+              store,
+              identity,
+            )
+            Some(existing) ->
+              case
+                find_effective_metaobject_definition_by_type(
+                  store,
+                  existing.type_,
+                )
+              {
+                None -> {
+                  let err =
+                    UserError(
+                      Some(["metaobject", "type"]),
+                      "No metaobject definition exists for type \""
+                        <> existing.type_
+                        <> "\"",
+                      "UNDEFINED_OBJECT_TYPE",
+                      None,
+                      None,
+                    )
+                  #(
+                    MutationFieldResult(
+                      key,
+                      metaobject_payload(store, field, fragments, None, [err]),
+                      [],
+                      [],
+                      [],
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+                Some(definition) -> {
+                  let #(updated, next_identity, user_errors) =
+                    apply_metaobject_update_input(
+                      store,
+                      identity,
+                      existing,
+                      input,
+                      definition,
+                    )
+                  case user_errors, updated {
+                    [_, ..], _ -> #(
+                      MutationFieldResult(
+                        key,
+                        metaobject_payload(
+                          store,
+                          field,
+                          fragments,
+                          None,
+                          user_errors,
+                        ),
+                        [],
+                        [],
+                        [],
+                      ),
+                      store,
+                      identity,
+                    )
+                    [], None -> #(
+                      MutationFieldResult(
+                        key,
+                        metaobject_payload(store, field, fragments, None, []),
+                        [],
+                        [],
+                        [],
+                      ),
+                      store,
+                      identity,
+                    )
+                    [], Some(metaobject) -> {
+                      let #(staged, next_store) =
+                        upsert_staged_metaobject(store, metaobject)
+                      #(
+                        MutationFieldResult(
+                          key,
+                          metaobject_payload(
+                            next_store,
+                            field,
+                            fragments,
+                            Some(staged),
+                            [],
+                          ),
+                          [staged.id],
+                          [],
+                          [log_draft("metaobjectUpdate", [staged.id])],
+                        ),
+                        next_store,
+                        next_identity,
+                      )
+                    }
+                  }
+                }
+              }
+          }
+      }
+    }
+  }
+}
+
+fn handle_metaobject_upsert(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "metaobjectUpsert",
+      [
+        RequiredArgument("handle", "MetaobjectHandleInput!"),
+        RequiredArgument("metaobject", "MetaobjectUpsertInput!"),
+      ],
+      operation_path,
+      document,
+    )
+  case errors {
+    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+    [] -> {
+      let args = field_args(field, variables)
+      let #(type_, handle) = read_handle_value(read_object_arg(args, "handle"))
+      let input = read_object_arg(args, "metaobject")
+      case type_, handle {
+        Some(t), Some(h) ->
+          case find_effective_metaobject_definition_by_type(store, t) {
+            None -> {
+              let err =
+                UserError(
+                  Some(["handle", "type"]),
+                  "No metaobject definition exists for type \"" <> t <> "\"",
+                  "UNDEFINED_OBJECT_TYPE",
+                  None,
+                  None,
+                )
+              #(
+                MutationFieldResult(
+                  key,
+                  metaobject_payload(store, field, fragments, None, [err]),
+                  [],
+                  [],
+                  [],
+                ),
+                store,
+                identity,
+              )
+            }
+            Some(definition) ->
+              case find_effective_metaobject_by_handle(store, t, h) {
+                Some(existing) -> {
+                  let input_with_handle = case dict.get(input, "handle") {
+                    Ok(_) -> input
+                    Error(_) ->
+                      dict.insert(
+                        input,
+                        "handle",
+                        root_field.StringVal(existing.handle),
+                      )
+                  }
+                  let #(updated, next_identity, user_errors) =
+                    apply_metaobject_update_input(
+                      store,
+                      identity,
+                      existing,
+                      input_with_handle,
+                      definition,
+                    )
+                  case user_errors, updated {
+                    [_, ..], _ -> #(
+                      MutationFieldResult(
+                        key,
+                        metaobject_payload(
+                          store,
+                          field,
+                          fragments,
+                          None,
+                          user_errors,
+                        ),
+                        [],
+                        [],
+                        [],
+                      ),
+                      store,
+                      identity,
+                    )
+                    [], Some(metaobject) -> {
+                      let #(staged, next_store) =
+                        upsert_staged_metaobject(store, metaobject)
+                      #(
+                        MutationFieldResult(
+                          key,
+                          metaobject_payload(
+                            next_store,
+                            field,
+                            fragments,
+                            Some(staged),
+                            [],
+                          ),
+                          [staged.id],
+                          [],
+                          [log_draft("metaobjectUpsert", [staged.id])],
+                        ),
+                        next_store,
+                        next_identity,
+                      )
+                    }
+                    [], None -> #(
+                      MutationFieldResult(
+                        key,
+                        metaobject_payload(store, field, fragments, None, []),
+                        [],
+                        [],
+                        [],
+                      ),
+                      store,
+                      identity,
+                    )
+                  }
+                }
+                None -> {
+                  let create_input =
+                    dict.insert(input, "type", root_field.StringVal(t))
+                  let create_input =
+                    dict.insert(create_input, "handle", root_field.StringVal(h))
+                  let #(created, next_identity, field_errors) =
+                    build_metaobject_from_create_input(
+                      store,
+                      identity,
+                      create_input,
+                      definition,
+                    )
+                  case field_errors, created {
+                    [_, ..], _ -> #(
+                      MutationFieldResult(
+                        key,
+                        metaobject_payload(
+                          store,
+                          field,
+                          fragments,
+                          None,
+                          field_errors,
+                        ),
+                        [],
+                        [],
+                        [],
+                      ),
+                      store,
+                      identity,
+                    )
+                    [], Some(metaobject) -> {
+                      let #(staged, staged_store) =
+                        upsert_staged_metaobject(store, metaobject)
+                      let #(next_store, final_identity) =
+                        adjust_definition_count(
+                          staged_store,
+                          next_identity,
+                          staged.type_,
+                          1,
+                        )
+                      #(
+                        MutationFieldResult(
+                          key,
+                          metaobject_payload(
+                            next_store,
+                            field,
+                            fragments,
+                            Some(staged),
+                            [],
+                          ),
+                          [staged.id],
+                          [],
+                          [log_draft("metaobjectUpsert", [staged.id])],
+                        ),
+                        next_store,
+                        final_identity,
+                      )
+                    }
+                    [], None -> #(
+                      MutationFieldResult(
+                        key,
+                        metaobject_payload(store, field, fragments, None, []),
+                        [],
+                        [],
+                        [],
+                      ),
+                      store,
+                      identity,
+                    )
+                  }
+                }
+              }
+          }
+        _, _ -> {
+          let err =
+            UserError(
+              Some(["handle"]),
+              "Handle can't be blank",
+              "BLANK",
+              None,
+              None,
+            )
+          #(
+            MutationFieldResult(
+              key,
+              metaobject_payload(store, field, fragments, None, [err]),
+              [],
+              [],
+              [],
+            ),
+            store,
+            identity,
+          )
+        }
+      }
+    }
+  }
+}
+
+fn handle_metaobject_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let #(id, errors) =
+    validate_required_id_argument(
+      field,
+      variables,
+      "metaobjectDelete",
+      operation_path,
+      document,
+    )
+  case errors {
+    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+    [] ->
+      case id {
+        None -> #(
+          metaobject_delete_result(key, field, None, [
+            record_not_found_user_error(["id"]),
+          ]),
+          store,
+          identity,
+        )
+        Some(metaobject_id) ->
+          case get_effective_metaobject_by_id(store, metaobject_id) {
+            None -> #(
+              metaobject_delete_result(key, field, None, [
+                record_not_found_user_error(["id"]),
+              ]),
+              store,
+              identity,
+            )
+            Some(metaobject) -> {
+              let staged_store = delete_staged_metaobject(store, metaobject_id)
+              let #(next_store, next_identity) =
+                adjust_definition_count(
+                  staged_store,
+                  identity,
+                  metaobject.type_,
+                  -1,
+                )
+              #(
+                metaobject_delete_result(key, field, Some(metaobject_id), []),
+                next_store,
+                next_identity,
+              )
+            }
+          }
+      }
+  }
+}
+
+fn handle_metaobject_bulk_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "metaobjectBulkDelete",
+      [
+        RequiredArgument("where", "MetaobjectBulkDeleteWhereCondition!"),
+      ],
+      operation_path,
+      document,
+    )
+  case errors {
+    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+    [] -> {
+      let args = field_args(field, variables)
+      let ids = read_bulk_delete_ids(store, args)
+      case ids {
+        [] -> {
+          let err =
+            UserError(
+              Some(["where"]),
+              "No metaobjects were selected for deletion.",
+              "NO_OBJECTS_SELECTED",
+              None,
+              None,
+            )
+          #(
+            MutationFieldResult(
+              key,
+              bulk_delete_payload(field, fragments, None, [err]),
+              [],
+              [],
+              [],
+            ),
+            store,
+            identity,
+          )
+        }
+        _ -> {
+          let #(job_id, identity_after_job) =
+            synthetic_identity.make_synthetic_gid(identity, "Job")
+          let #(next_store, user_errors, deleted_ids, final_identity) =
+            delete_metaobject_ids(store, identity_after_job, ids)
+          let job = BulkDeleteJob(id: job_id, done: True)
+          #(
+            MutationFieldResult(
+              key,
+              bulk_delete_payload(field, fragments, Some(job), user_errors),
+              list.append([job_id], deleted_ids),
+              [],
+              [
+                log_draft(
+                  "metaobjectBulkDelete",
+                  list.append([job_id], deleted_ids),
+                ),
+              ],
+            ),
+            next_store,
+            final_identity,
+          )
+        }
+      }
+    }
+  }
+}
+
+fn delete_metaobject_ids(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  ids: List(String),
+) -> #(Store, List(UserError), List(String), SyntheticIdentityRegistry) {
+  list.fold(ids, #(store, [], [], identity), fn(acc, id) {
+    let #(current_store, errors, deleted_ids, current_identity) = acc
+    case get_effective_metaobject_by_id(current_store, id) {
+      None -> {
+        let err =
+          UserError(
+            Some(["where", "ids"]),
+            "Record not found",
+            "RECORD_NOT_FOUND",
+            Some(id),
+            None,
+          )
+        #(
+          current_store,
+          list.append(errors, [err]),
+          deleted_ids,
+          current_identity,
+        )
+      }
+      Some(metaobject) -> {
+        let staged_store = delete_staged_metaobject(current_store, id)
+        let #(next_store, next_identity) =
+          adjust_definition_count(
+            staged_store,
+            current_identity,
+            metaobject.type_,
+            -1,
+          )
+        #(next_store, errors, list.append(deleted_ids, [id]), next_identity)
+      }
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Definition construction/update
+// ---------------------------------------------------------------------------
+
+fn default_definition_access() -> Dict(String, Option(String)) {
+  dict.from_list([
+    #("admin", Some("PUBLIC_READ_WRITE")),
+    #("storefront", Some("NONE")),
+  ])
+}
+
+fn default_definition_capabilities() -> MetaobjectDefinitionCapabilitiesRecord {
+  MetaobjectDefinitionCapabilitiesRecord(
+    publishable: Some(MetaobjectDefinitionCapabilityRecord(False)),
+    translatable: Some(MetaobjectDefinitionCapabilityRecord(False)),
+    renderable: Some(MetaobjectDefinitionCapabilityRecord(False)),
+    online_store: Some(MetaobjectDefinitionCapabilityRecord(False)),
+  )
+}
+
+fn build_create_definition_user_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  let type_ = read_string(input, "type")
+  let name = read_string(input, "name")
+  let access = read_object(input, "access")
+  []
+  |> append_if(
+    option.is_none(type_),
+    UserError(
+      Some(["definition", "type"]),
+      "Type can't be blank",
+      "BLANK",
+      None,
+      None,
+    ),
+  )
+  |> append_if(
+    option.is_none(name),
+    UserError(
+      Some(["definition", "name"]),
+      "Name can't be blank",
+      "BLANK",
+      None,
+      None,
+    ),
+  )
+  |> append_if(
+    case type_, access {
+      Some(t), Some(a) ->
+        !string.starts_with(t, "$app:") && dict.has_key(a, "admin")
+      _, _ -> False
+    },
+    UserError(
+      Some(["definition", "access", "admin"]),
+      "Admin access can only be specified on metaobject definitions that have an app-reserved type.",
+      "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
+      None,
+      None,
+    ),
+  )
+  |> append_if(
+    case type_ {
+      Some(t) ->
+        case find_effective_metaobject_definition_by_type(store, t) {
+          Some(_) -> True
+          None -> False
+        }
+      None -> False
+    },
+    UserError(
+      Some(["definition", "type"]),
+      "Type has already been taken",
+      "TAKEN",
+      None,
+      None,
+    ),
+  )
+}
+
+fn build_definition_from_create_input(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry) {
+  let #(id, after_id) =
+    synthetic_identity.make_proxy_synthetic_gid(
+      identity,
+      "MetaobjectDefinition",
+    )
+  let #(now, after_time) = synthetic_identity.make_synthetic_timestamp(after_id)
+  let type_ =
+    read_string(input, "type") |> option.unwrap("metaobject_definition")
+  #(
+    MetaobjectDefinitionRecord(
+      id: id,
+      type_: type_,
+      name: read_string(input, "name"),
+      description: read_string(input, "description"),
+      display_name_key: read_string(input, "displayNameKey"),
+      access: build_definition_access(
+        read_object(input, "access"),
+        default_definition_access(),
+      ),
+      capabilities: normalize_definition_capabilities(
+        read_object(input, "capabilities"),
+        default_definition_capabilities(),
+      ),
+      field_definitions: read_field_definitions(read_list(
+        input,
+        "fieldDefinitions",
+      )),
+      has_thumbnail_field: Some(False),
+      metaobjects_count: Some(0),
+      standard_template: None,
+      created_at: Some(now),
+      updated_at: Some(now),
+    ),
+    after_time,
+  )
+}
+
+fn apply_definition_update(
+  identity: SyntheticIdentityRegistry,
+  existing: MetaobjectDefinitionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  reset_field_order: Bool,
+) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry, List(UserError)) {
+  let #(now, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let #(fields, user_errors, ordered_keys) =
+    apply_field_definition_operations(
+      existing.field_definitions,
+      read_list(input, "fieldDefinitions"),
+    )
+  let next_fields = case reset_field_order {
+    True -> reorder_field_definitions(fields, ordered_keys)
+    False -> fields
+  }
+  let updated =
+    MetaobjectDefinitionRecord(
+      ..existing,
+      name: read_string_if_present(input, "name", existing.name),
+      description: read_string_if_present(
+        input,
+        "description",
+        existing.description,
+      ),
+      display_name_key: read_string_if_present(
+        input,
+        "displayNameKey",
+        existing.display_name_key,
+      ),
+      access: case read_object(input, "access") {
+        Some(access) -> build_definition_access(Some(access), existing.access)
+        None -> existing.access
+      },
+      capabilities: case read_object(input, "capabilities") {
+        Some(capabilities) ->
+          normalize_definition_capabilities(
+            Some(capabilities),
+            existing.capabilities,
+          )
+        None -> existing.capabilities
+      },
+      field_definitions: next_fields,
+      updated_at: Some(now),
+    )
+  #(updated, next_identity, user_errors)
+}
+
+fn standard_template(
+  type_: String,
+) -> Option(#(String, String, String, List(MetaobjectFieldDefinitionRecord))) {
+  case type_ {
+    "shopify--qa-pair" ->
+      Some(
+        #("shopify--qa-pair", "Q&A pair", "question", [
+          MetaobjectFieldDefinitionRecord(
+            "question",
+            Some("Question"),
+            None,
+            Some(True),
+            MetaobjectDefinitionTypeRecord(
+              "single_line_text_field",
+              Some("TEXT"),
+            ),
+            [],
+          ),
+          MetaobjectFieldDefinitionRecord(
+            "answer",
+            Some("Answer"),
+            None,
+            Some(True),
+            MetaobjectDefinitionTypeRecord(
+              "multi_line_text_field",
+              Some("TEXT"),
+            ),
+            [],
+          ),
+        ]),
+      )
+    _ -> None
+  }
+}
+
+fn build_standard_definition(
+  identity: SyntheticIdentityRegistry,
+  template: #(String, String, String, List(MetaobjectFieldDefinitionRecord)),
+) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry) {
+  let #(type_, name, display_name_key, fields) = template
+  let #(id, after_id) =
+    synthetic_identity.make_proxy_synthetic_gid(
+      identity,
+      "MetaobjectDefinition",
+    )
+  let #(now, after_time) = synthetic_identity.make_synthetic_timestamp(after_id)
+  #(
+    MetaobjectDefinitionRecord(
+      id: id,
+      type_: type_,
+      name: Some(name),
+      description: None,
+      display_name_key: Some(display_name_key),
+      access: default_definition_access(),
+      capabilities: default_definition_capabilities(),
+      field_definitions: fields,
+      has_thumbnail_field: Some(False),
+      metaobjects_count: Some(0),
+      standard_template: Some(MetaobjectStandardTemplateRecord(
+        Some(type_),
+        Some(name),
+      )),
+      created_at: Some(now),
+      updated_at: Some(now),
+    ),
+    after_time,
+  )
+}
+
+fn read_field_definitions(
+  values: List(root_field.ResolvedValue),
+) -> List(MetaobjectFieldDefinitionRecord) {
+  list.filter_map(values, fn(value) {
+    case value {
+      root_field.ObjectVal(obj) ->
+        case read_field_definition_input(obj) {
+          Some(field) -> Ok(field)
+          None -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn read_field_definition_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(MetaobjectFieldDefinitionRecord) {
+  case read_string(input, "key"), read_type_name(input) {
+    Some(key), Some(type_name) ->
+      Some(MetaobjectFieldDefinitionRecord(
+        key: key,
+        name: read_string(input, "name"),
+        description: read_string(input, "description"),
+        required: Some(read_bool(input, "required") |> option.unwrap(False)),
+        type_: MetaobjectDefinitionTypeRecord(
+          type_name,
+          infer_field_type_category(type_name),
+        ),
+        validations: read_validation_inputs(read_list(input, "validations")),
+      ))
+    _, _ -> None
+  }
+}
+
+fn apply_field_definition_operations(
+  existing: List(MetaobjectFieldDefinitionRecord),
+  operations: List(root_field.ResolvedValue),
+) -> #(List(MetaobjectFieldDefinitionRecord), List(UserError), List(String)) {
+  list.fold(enumerate_values(operations), #(existing, [], []), fn(acc, pair) {
+    let #(fields, errors, ordered_keys) = acc
+    let #(index, value) = pair
+    case read_field_operation(value) {
+      None -> #(fields, errors, ordered_keys)
+      Some(operation) -> {
+        let key = field_operation_key(operation)
+        case key {
+          None -> #(
+            fields,
+            list.append(errors, [
+              UserError(
+                Some([
+                  "definition",
+                  "fieldDefinitions",
+                  int.to_string(index),
+                  "key",
+                ]),
+                "Key can't be blank",
+                "BLANK",
+                None,
+                Some(index),
+              ),
+            ]),
+            ordered_keys,
+          )
+          Some(k) ->
+            apply_field_operation(
+              fields,
+              errors,
+              list.append(ordered_keys, [k]),
+              operation,
+              k,
+              index,
+            )
+        }
+      }
+    }
+  })
+}
+
+fn apply_field_operation(
+  fields: List(MetaobjectFieldDefinitionRecord),
+  errors: List(UserError),
+  ordered_keys: List(String),
+  operation: FieldOperation,
+  key: String,
+  index: Int,
+) -> #(List(MetaobjectFieldDefinitionRecord), List(UserError), List(String)) {
+  let existing = find_field_definition(fields, key)
+  case operation {
+    FieldDelete(_) ->
+      case existing {
+        None -> #(
+          fields,
+          list.append(errors, [
+            UserError(
+              Some([
+                "definition",
+                "fieldDefinitions",
+                int.to_string(index),
+                "delete",
+              ]),
+              "Field definition not found.",
+              "NOT_FOUND",
+              Some(key),
+              Some(index),
+            ),
+          ]),
+          ordered_keys,
+        )
+        Some(_) -> #(
+          list.filter(fields, fn(field) { field.key != key }),
+          errors,
+          ordered_keys,
+        )
+      }
+    FieldCreate(input) ->
+      case existing {
+        Some(_) -> #(
+          fields,
+          list.append(errors, [
+            UserError(
+              Some([
+                "definition",
+                "fieldDefinitions",
+                int.to_string(index),
+                "create",
+              ]),
+              "Field definition already exists.",
+              "TAKEN",
+              Some(key),
+              Some(index),
+            ),
+          ]),
+          ordered_keys,
+        )
+        None ->
+          case read_field_definition_input(input) {
+            Some(field) -> #(list.append(fields, [field]), errors, ordered_keys)
+            None -> #(fields, errors, ordered_keys)
+          }
+      }
+    FieldUpdate(input) ->
+      case existing {
+        None -> #(
+          fields,
+          list.append(errors, [
+            UserError(
+              Some([
+                "definition",
+                "fieldDefinitions",
+                int.to_string(index),
+                "update",
+              ]),
+              "Field definition not found.",
+              "NOT_FOUND",
+              Some(key),
+              Some(index),
+            ),
+          ]),
+          ordered_keys,
+        )
+        Some(field) -> #(
+          replace_field_definition(fields, merge_field_definition(field, input)),
+          errors,
+          ordered_keys,
+        )
+      }
+    FieldUpsert(input) ->
+      case existing {
+        Some(field) -> #(
+          replace_field_definition(fields, merge_field_definition(field, input)),
+          errors,
+          ordered_keys,
+        )
+        None ->
+          case read_field_definition_input(input) {
+            Some(field) -> #(list.append(fields, [field]), errors, ordered_keys)
+            None -> #(fields, errors, ordered_keys)
+          }
+      }
+  }
+}
+
+fn read_field_operation(
+  value: root_field.ResolvedValue,
+) -> Option(FieldOperation) {
+  case value {
+    root_field.ObjectVal(obj) ->
+      case read_object(obj, "create") {
+        Some(payload) -> Some(FieldCreate(payload))
+        None ->
+          case read_object(obj, "update") {
+            Some(payload) -> Some(FieldUpdate(payload))
+            None ->
+              case dict.get(obj, "delete") {
+                Ok(root_field.StringVal(key)) -> Some(FieldDelete(key))
+                Ok(root_field.ObjectVal(payload)) ->
+                  Some(FieldDelete(
+                    read_string(payload, "key") |> option.unwrap(""),
+                  ))
+                _ -> Some(FieldUpsert(obj))
+              }
+          }
+      }
+    _ -> None
+  }
+}
+
+fn field_operation_key(operation: FieldOperation) -> Option(String) {
+  case operation {
+    FieldDelete(key) ->
+      case key {
+        "" -> None
+        _ -> Some(key)
+      }
+    FieldCreate(input) | FieldUpdate(input) | FieldUpsert(input) ->
+      read_string(input, "key")
+  }
+}
+
+fn merge_field_definition(
+  existing: MetaobjectFieldDefinitionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> MetaobjectFieldDefinitionRecord {
+  let type_name = read_type_name(input)
+  MetaobjectFieldDefinitionRecord(
+    key: read_string(input, "key") |> option.unwrap(existing.key),
+    name: read_string_if_present(input, "name", existing.name),
+    description: read_string_if_present(
+      input,
+      "description",
+      existing.description,
+    ),
+    required: case dict.get(input, "required") {
+      Ok(root_field.BoolVal(value)) -> Some(value)
+      Ok(root_field.NullVal) -> None
+      _ -> existing.required
+    },
+    type_: case type_name {
+      Some(name) ->
+        MetaobjectDefinitionTypeRecord(
+          name,
+          infer_field_type_category(name) |> option.or(existing.type_.category),
+        )
+      None -> existing.type_
+    },
+    validations: case dict.get(input, "validations") {
+      Ok(root_field.ListVal(values)) -> read_validation_inputs(values)
+      _ -> existing.validations
+    },
+  )
+}
+
+fn reorder_field_definitions(
+  fields: List(MetaobjectFieldDefinitionRecord),
+  ordered_keys: List(String),
+) -> List(MetaobjectFieldDefinitionRecord) {
+  let ordered =
+    list.filter_map(ordered_keys |> dedupe_strings(), fn(key) {
+      case find_field_definition(fields, key) {
+        Some(field) -> Ok(field)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_keys)
+  list.append(
+    ordered,
+    list.filter(fields, fn(field) { !dict.has_key(ordered_set, field.key) }),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Metaobject construction/update
+// ---------------------------------------------------------------------------
+
+fn build_create_metaobject_user_errors(
+  type_: Option(String),
+  definition: Option(MetaobjectDefinitionRecord),
+) -> List(UserError) {
+  []
+  |> append_if(
+    option.is_none(type_),
+    UserError(
+      Some(["metaobject", "type"]),
+      "Type can't be blank",
+      "BLANK",
+      None,
+      None,
+    ),
+  )
+  |> append_if(
+    case type_, definition {
+      Some(_), None -> True
+      _, _ -> False
+    },
+    UserError(
+      Some(["metaobject", "type"]),
+      "No metaobject definition exists for type \""
+        <> option.unwrap(type_, "")
+        <> "\"",
+      "UNDEFINED_OBJECT_TYPE",
+      None,
+      None,
+    ),
+  )
+}
+
+fn build_metaobject_from_create_input(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetaobjectDefinitionRecord,
+) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
+  let #(fields, errors) =
+    build_metaobject_fields_from_input(input, definition, [], True, True)
+  case errors {
+    [_, ..] -> #(None, identity, errors)
+    [] -> {
+      let display_name = metaobject_display_name(definition, fields, None)
+      let preferred =
+        read_non_blank_string(input, "handle")
+        |> option.or(display_name)
+        |> option.unwrap(definition.type_)
+      let handle =
+        make_unique_metaobject_handle(store, definition.type_, preferred)
+      let #(id, after_id) =
+        synthetic_identity.make_proxy_synthetic_gid(identity, "Metaobject")
+      let #(now, after_time) =
+        synthetic_identity.make_synthetic_timestamp(after_id)
+      #(
+        Some(MetaobjectRecord(
+          id: id,
+          handle: handle,
+          type_: definition.type_,
+          display_name: display_name,
+          fields: fields,
+          capabilities: build_metaobject_capabilities(input, definition, None),
+          created_at: Some(now),
+          updated_at: Some(now),
+        )),
+        after_time,
+        [],
+      )
+    }
+  }
+}
+
+fn apply_metaobject_update_input(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  existing: MetaobjectRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetaobjectDefinitionRecord,
+) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
+  let requested_handle = case dict.get(input, "handle") {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    Ok(root_field.NullVal) -> None
+    _ -> Some(existing.handle)
+  }
+  case requested_handle {
+    None | Some("") -> #(None, identity, [
+      UserError(
+        Some(["metaobject", "handle"]),
+        "Handle can't be blank",
+        "BLANK",
+        None,
+        None,
+      ),
+    ])
+    Some(handle) -> {
+      case find_effective_metaobject_by_handle(store, existing.type_, handle) {
+        Some(owner) if owner.id != existing.id -> #(None, identity, [
+          UserError(
+            Some(["metaobject", "handle"]),
+            "Handle has already been taken",
+            "TAKEN",
+            None,
+            None,
+          ),
+        ])
+        _ -> {
+          let #(fields_from_input, errors) =
+            build_metaobject_fields_from_input(
+              input,
+              definition,
+              existing.fields,
+              False,
+              True,
+            )
+          case errors {
+            [_, ..] -> #(None, identity, errors)
+            [] -> {
+              let fields = case dict.get(input, "fields") {
+                Ok(_) -> fields_from_input
+                Error(_) -> existing.fields
+              }
+              let #(now, next_identity) =
+                synthetic_identity.make_synthetic_timestamp(identity)
+              #(
+                Some(
+                  MetaobjectRecord(
+                    ..existing,
+                    handle: handle,
+                    display_name: metaobject_display_name(
+                      definition,
+                      fields,
+                      Some(handle),
+                    ),
+                    fields: fields,
+                    capabilities: build_metaobject_capabilities(
+                      input,
+                      definition,
+                      Some(existing.capabilities),
+                    ),
+                    updated_at: Some(now),
+                  ),
+                ),
+                next_identity,
+                [],
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn build_metaobject_fields_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetaobjectDefinitionRecord,
+  existing_fields: List(MetaobjectFieldRecord),
+  include_missing: Bool,
+  require_required: Bool,
+) -> #(List(MetaobjectFieldRecord), List(UserError)) {
+  let existing_by_key =
+    list.fold(existing_fields, dict.new(), fn(acc, field) {
+      dict.insert(acc, field.key, field)
+    })
+  let definitions_by_key =
+    list.fold(definition.field_definitions, dict.new(), fn(acc, field) {
+      dict.insert(acc, field.key, field)
+    })
+  let #(fields_by_key, errors, provided_keys) =
+    list.fold(
+      enumerate_values(read_list(input, "fields")),
+      #(existing_by_key, [], []),
+      fn(acc, pair) {
+        let #(by_key, errs, provided) = acc
+        let #(index, value) = pair
+        case value {
+          root_field.ObjectVal(raw_field) ->
+            case read_string(raw_field, "key") {
+              None -> #(
+                by_key,
+                list.append(errs, [
+                  UserError(
+                    Some(["metaobject", "fields", int.to_string(index), "key"]),
+                    "Key can't be blank",
+                    "BLANK",
+                    None,
+                    Some(index),
+                  ),
+                ]),
+                provided,
+              )
+              Some(key) ->
+                case dict.get(definitions_by_key, key) {
+                  Error(_) -> #(
+                    by_key,
+                    list.append(errs, [
+                      UserError(
+                        Some(["metaobject", "fields", int.to_string(index)]),
+                        "Field definition \"" <> key <> "\" does not exist",
+                        "UNDEFINED_OBJECT_FIELD",
+                        Some(key),
+                        None,
+                      ),
+                    ]),
+                    provided,
+                  )
+                  Ok(field_definition) -> {
+                    let value_errors =
+                      validate_metaobject_field_input_value(
+                        raw_field,
+                        field_definition,
+                        index,
+                      )
+                    case value_errors {
+                      [_, ..] -> #(
+                        by_key,
+                        list.append(errs, value_errors),
+                        list.append(provided, [key]),
+                      )
+                      [] -> #(
+                        dict.insert(
+                          by_key,
+                          key,
+                          build_metaobject_field_from_input(
+                            raw_field,
+                            field_definition,
+                          ),
+                        ),
+                        errs,
+                        list.append(provided, [key]),
+                      )
+                    }
+                  }
+                }
+            }
+          _ -> #(by_key, errs, provided)
+        }
+      },
+    )
+  let required_errors = case require_required {
+    False -> []
+    True ->
+      list.filter_map(definition.field_definitions, fn(field_definition) {
+        let has_field = dict.has_key(fields_by_key, field_definition.key)
+        let provided = list.contains(provided_keys, field_definition.key)
+        case
+          field_definition.required == Some(True) && !has_field && !provided
+        {
+          True ->
+            Ok(UserError(
+              Some(["metaobject"]),
+              option.unwrap(field_definition.name, field_definition.key)
+                <> " can't be blank",
+              "OBJECT_FIELD_REQUIRED",
+              Some(field_definition.key),
+              None,
+            ))
+          False -> Error(Nil)
+        }
+      })
+  }
+  let all_errors = list.append(errors, required_errors)
+  let fields =
+    list.filter_map(definition.field_definitions, fn(field_definition) {
+      case dict.get(fields_by_key, field_definition.key) {
+        Ok(field) -> Ok(field)
+        Error(_) ->
+          case include_missing {
+            True -> Ok(empty_metaobject_field(field_definition))
+            False -> Error(Nil)
+          }
+      }
+    })
+  #(fields, all_errors)
+}
+
+fn validate_metaobject_field_input_value(
+  raw_field: Dict(String, root_field.ResolvedValue),
+  field_definition: MetaobjectFieldDefinitionRecord,
+  index: Int,
+) -> List(UserError) {
+  let value = read_string(raw_field, "value")
+  let json_error = case value, field_definition.type_.name {
+    Some(v), "json" ->
+      case json.parse(v, decode.dynamic) {
+        Ok(_) -> []
+        Error(_) -> [
+          UserError(
+            Some(["metaobject", "fields", int.to_string(index)]),
+            build_invalid_json_message(v),
+            "INVALID_VALUE",
+            Some(field_definition.key),
+            None,
+          ),
+        ]
+      }
+    _, _ -> []
+  }
+  let max_error = case
+    value,
+    find_validation(field_definition.validations, "max")
+  {
+    Some(v), Some(max_string) ->
+      case int.parse(max_string) {
+        Ok(max) ->
+          case string.length(v) > max {
+            True -> [
+              UserError(
+                Some(["metaobject", "fields", int.to_string(index)]),
+                "Value has a maximum length of " <> int.to_string(max) <> ".",
+                "INVALID_VALUE",
+                Some(field_definition.key),
+                None,
+              ),
+            ]
+            False -> []
+          }
+        Error(_) -> []
+      }
+    _, _ -> []
+  }
+  list.append(json_error, max_error)
+}
+
+fn build_metaobject_field_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetaobjectFieldDefinitionRecord,
+) -> MetaobjectFieldRecord {
+  let value =
+    normalize_metaobject_value(
+      definition.type_.name,
+      read_string(input, "value"),
+    )
+  MetaobjectFieldRecord(
+    key: definition.key,
+    type_: Some(definition.type_.name),
+    value: value,
+    json_value: read_metaobject_json_value(definition.type_.name, value),
+    definition: Some(field_definition_reference(definition)),
+  )
+}
+
+fn empty_metaobject_field(
+  definition: MetaobjectFieldDefinitionRecord,
+) -> MetaobjectFieldRecord {
+  MetaobjectFieldRecord(
+    key: definition.key,
+    type_: Some(definition.type_.name),
+    value: None,
+    json_value: MetaobjectNull,
+    definition: Some(field_definition_reference(definition)),
+  )
+}
+
+fn project_metaobject_fields_through_definition(
+  metaobject: MetaobjectRecord,
+  definition: Option(MetaobjectDefinitionRecord),
+) -> List(MetaobjectFieldRecord) {
+  case definition {
+    None -> metaobject.fields
+    Some(defn) ->
+      case defn.field_definitions {
+        [] -> metaobject.fields
+        definitions -> {
+          let fields_by_key =
+            list.fold(metaobject.fields, dict.new(), fn(acc, field) {
+              dict.insert(acc, field.key, field)
+            })
+          list.map(definitions, fn(field_definition) {
+            case dict.get(fields_by_key, field_definition.key) {
+              Ok(field) ->
+                MetaobjectFieldRecord(
+                  ..field,
+                  type_: Some(field_definition.type_.name),
+                  json_value: read_metaobject_json_value(
+                    field_definition.type_.name,
+                    field.value,
+                  ),
+                  definition: Some(field_definition_reference(field_definition)),
+                )
+              Error(_) -> empty_metaobject_field(field_definition)
+            }
+          })
+        }
+      }
+  }
+}
+
+fn project_metaobject_through_definition(
+  store: Store,
+  metaobject: MetaobjectRecord,
+) -> MetaobjectRecord {
+  let definition =
+    find_effective_metaobject_definition_by_type(store, metaobject.type_)
+  let fields =
+    project_metaobject_fields_through_definition(metaobject, definition)
+  let display_name = case definition {
+    Some(defn) ->
+      case list.is_empty(defn.field_definitions) {
+        True -> metaobject.display_name
+        False -> metaobject_display_name(defn, fields, Some(metaobject.handle))
+      }
+    _ -> metaobject.display_name
+  }
+  MetaobjectRecord(..metaobject, display_name: display_name, fields: fields)
+}
+
+fn metaobject_display_name(
+  definition: MetaobjectDefinitionRecord,
+  fields: List(MetaobjectFieldRecord),
+  handle: Option(String),
+) -> Option(String) {
+  case definition.display_name_key {
+    None -> None
+    Some(key) ->
+      case list.find(fields, fn(field) { field.key == key }) {
+        Ok(field) ->
+          case field.type_ {
+            Some(type_) ->
+              case
+                is_display_measurement_metaobject_type(type_),
+                field.json_value
+              {
+                True, MetaobjectNull -> field_value_or_handle(field, handle)
+                True, json_value ->
+                  Some(measurement_display_json_value_to_string(json_value))
+                _, _ -> field_value_or_handle(field, handle)
+              }
+            None -> field_value_or_handle(field, handle)
+          }
+        Error(_) -> option.map(handle, metaobject_handle_display_name)
+      }
+  }
+}
+
+fn is_display_measurement_metaobject_type(type_: String) -> Bool {
+  case string.starts_with(type_, "list.") {
+    True -> is_measurement_metaobject_type(string.drop_start(type_, 5))
+    False -> is_measurement_metaobject_type(type_)
+  }
+}
+
+fn field_value_or_handle(
+  field: MetaobjectFieldRecord,
+  handle: Option(String),
+) -> Option(String) {
+  case field.value {
+    Some(value) -> Some(value)
+    None -> option.map(handle, metaobject_handle_display_name)
+  }
+}
+
+fn measurement_display_json_value_to_string(
+  value: MetaobjectJsonValue,
+) -> String {
+  case value {
+    MetaobjectList(items) ->
+      "["
+      <> string.join(
+        list.map(items, measurement_display_json_value_to_string),
+        ",",
+      )
+      <> "]"
+    MetaobjectObject(fields) -> {
+      let normalized_fields = case dict.get(fields, "unit") {
+        Ok(MetaobjectString(unit)) ->
+          dict.insert(fields, "unit", MetaobjectString(string.lowercase(unit)))
+        _ -> fields
+      }
+      measurement_object_to_compact_string(normalized_fields)
+    }
+    _ -> metaobject_json_value_to_compact_string(value)
+  }
+}
+
+fn measurement_object_to_compact_string(
+  fields: Dict(String, MetaobjectJsonValue),
+) -> String {
+  let value = case dict.get(fields, "value") {
+    Ok(value) -> measurement_display_scalar_to_string(value)
+    Error(_) -> "null"
+  }
+  let unit = case dict.get(fields, "unit") {
+    Ok(MetaobjectString(unit)) -> json_string_literal(unit)
+    Ok(value) -> metaobject_json_value_to_compact_string(value)
+    Error(_) -> "null"
+  }
+  "{\"value\":" <> value <> ",\"unit\":" <> unit <> "}"
+}
+
+fn measurement_display_scalar_to_string(value: MetaobjectJsonValue) -> String {
+  case value {
+    MetaobjectFloat(float_value) -> {
+      let rendered = float.to_string(float_value)
+      case string.ends_with(rendered, ".0") {
+        True -> string.drop_end(rendered, 2)
+        False -> rendered
+      }
+    }
+    _ -> metaobject_json_value_to_compact_string(value)
+  }
+}
+
+fn json_string_literal(value: String) -> String {
+  json.string(value) |> json.to_string
+}
+
+fn metaobject_handle_display_name(handle: String) -> String {
+  handle
+  |> string.replace("-", " ")
+  |> string.replace("_", " ")
+  |> string.split(" ")
+  |> list.filter(fn(part) { part != "" })
+  |> list.map(capitalise_handle_part)
+  |> string.join(" ")
+}
+
+fn capitalise_handle_part(part: String) -> String {
+  case string.pop_grapheme(part) {
+    Ok(#(first, rest)) -> string.uppercase(first) <> rest
+    Error(_) -> part
+  }
+}
+
+fn make_unique_metaobject_handle(
+  store: Store,
+  type_: String,
+  preferred: String,
+) -> String {
+  let base = normalize_metaobject_handle(preferred)
+  let base = case base {
+    "" -> normalize_metaobject_handle(type_)
+    other -> other
+  }
+  unique_handle_loop(
+    store,
+    type_,
+    case base {
+      "" -> "metaobject"
+      other -> other
+    },
+    case base {
+      "" -> "metaobject"
+      other -> other
+    },
+    1,
+  )
+}
+
+fn unique_handle_loop(
+  store: Store,
+  type_: String,
+  base: String,
+  handle: String,
+  suffix: Int,
+) -> String {
+  case find_effective_metaobject_by_handle(store, type_, handle) {
+    None -> handle
+    Some(_) ->
+      unique_handle_loop(
+        store,
+        type_,
+        base,
+        base <> "-" <> int.to_string(suffix + 1),
+        suffix + 1,
+      )
+  }
+}
+
+fn normalize_metaobject_handle(value: String) -> String {
+  value
+  |> string.trim
+  |> string.lowercase
+  |> string.replace(" ", "-")
+  |> string.replace("_", "-")
+}
+
+fn build_metaobject_capabilities(
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetaobjectDefinitionRecord,
+  existing: Option(MetaobjectCapabilitiesRecord),
+) -> MetaobjectCapabilitiesRecord {
+  let raw = read_object(input, "capabilities")
+  let existing_record =
+    option.unwrap(existing, MetaobjectCapabilitiesRecord(None, None))
+  let publishable = case raw {
+    Some(capabilities) ->
+      case read_object(capabilities, "publishable") {
+        Some(publishable) ->
+          case read_string(publishable, "status") {
+            Some(status) ->
+              Some(MetaobjectPublishableCapabilityRecord(Some(status)))
+            None -> existing_record.publishable
+          }
+        None -> existing_record.publishable
+      }
+    None -> existing_record.publishable
+  }
+  let publishable = case publishable, existing {
+    None, None ->
+      case definition.capabilities.publishable {
+        Some(MetaobjectDefinitionCapabilityRecord(enabled: True)) ->
+          Some(MetaobjectPublishableCapabilityRecord(Some("DRAFT")))
+        _ -> None
+      }
+    _, _ -> publishable
+  }
+  let online_store = case raw {
+    Some(capabilities) ->
+      case dict.get(capabilities, "onlineStore") {
+        Ok(root_field.NullVal) -> None
+        Ok(root_field.ObjectVal(obj)) ->
+          Some(
+            MetaobjectOnlineStoreCapabilityRecord(read_string(
+              obj,
+              "templateSuffix",
+            )),
+          )
+        _ ->
+          case existing {
+            Some(_) -> existing_record.online_store
+            None -> None
+          }
+      }
+    None ->
+      case existing {
+        Some(_) -> existing_record.online_store
+        None -> None
+      }
+  }
+  MetaobjectCapabilitiesRecord(
+    publishable: publishable,
+    online_store: online_store,
+  )
+}
+
+fn adjust_definition_count(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  type_: String,
+  delta: Int,
+) -> #(Store, SyntheticIdentityRegistry) {
+  case find_effective_metaobject_definition_by_type(store, type_) {
+    None -> #(store, identity)
+    Some(definition) -> {
+      let #(now, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      let count = option.unwrap(definition.metaobjects_count, 0) + delta
+      let next_count = case count < 0 {
+        True -> 0
+        False -> count
+      }
+      let updated =
+        MetaobjectDefinitionRecord(
+          ..definition,
+          metaobjects_count: Some(next_count),
+          updated_at: Some(now),
+        )
+      let #(_, next_store) = upsert_staged_metaobject_definition(store, updated)
+      #(next_store, next_identity)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Serialization
+// ---------------------------------------------------------------------------
+
+pub fn metaobject_definition_source(
+  definition: MetaobjectDefinitionRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("MetaobjectDefinition")),
+    #("id", SrcString(definition.id)),
+    #("type", SrcString(definition.type_)),
+    #("name", optional_string_source(definition.name)),
+    #("description", optional_string_source(definition.description)),
+    #("displayNameKey", optional_string_source(definition.display_name_key)),
+    #("access", access_source(definition.access)),
+    #("capabilities", definition_capabilities_source(definition.capabilities)),
+    #(
+      "fieldDefinitions",
+      SrcList(list.map(definition.field_definitions, field_definition_source)),
+    ),
+    #("hasThumbnailField", optional_bool_source(definition.has_thumbnail_field)),
+    #("metaobjectsCount", optional_int_source(definition.metaobjects_count)),
+    #(
+      "standardTemplate",
+      standard_template_source(definition.standard_template),
+    ),
+    #("createdAt", optional_string_source(definition.created_at)),
+    #("updatedAt", optional_string_source(definition.updated_at)),
+  ])
+}
+
+fn serialize_definition_selection(
+  definition: MetaobjectDefinitionRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_selection(metaobject_definition_source(definition), field, fragments)
+}
+
+fn serialize_definitions_connection(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_args(field, variables)
+  let items = case read_string(args, "type") {
+    Some(type_) ->
+      list.filter(list_effective_metaobject_definitions(store), fn(defn) {
+        defn.type_ == type_
+      })
+    None -> list_effective_metaobject_definitions(store)
+  }
+  let window =
+    paginate_connection_items(
+      items,
+      field,
+      variables,
+      fn(item, _index) { item.id },
+      default_connection_window_options(),
+    )
+  let ConnectionWindow(items: page_items, has_next_page:, has_previous_page:) =
+    window
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: page_items,
+      has_next_page: has_next_page,
+      has_previous_page: has_previous_page,
+      get_cursor_value: fn(item, _index) { item.id },
+      serialize_node: fn(item, node_field, _index) {
+        serialize_definition_selection(item, node_field, fragments)
+      },
+      selected_field_options: SelectedFieldOptions(
+        include_inline_fragments: False,
+      ),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+pub fn metaobject_source(
+  store: Store,
+  metaobject: MetaobjectRecord,
+) -> SourceValue {
+  let projected = project_metaobject_through_definition(store, metaobject)
+  let definition =
+    find_effective_metaobject_definition_by_type(store, projected.type_)
+  src_object([
+    #("__typename", SrcString("Metaobject")),
+    #("id", SrcString(projected.id)),
+    #("handle", SrcString(projected.handle)),
+    #("type", SrcString(projected.type_)),
+    #("displayName", optional_string_source(projected.display_name)),
+    #("createdAt", optional_string_source(projected.created_at)),
+    #("updatedAt", optional_string_source(projected.updated_at)),
+    #(
+      "capabilities",
+      metaobject_capabilities_source(projected.capabilities, definition),
+    ),
+    #("fields", SrcList(list.map(projected.fields, metaobject_field_source))),
+    #("definition", case definition {
+      Some(defn) -> metaobject_definition_source(defn)
+      None -> SrcNull
+    }),
+  ])
+}
+
+fn serialize_metaobject_selection(
+  store: Store,
+  metaobject: MetaobjectRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let projected = project_metaobject_through_definition(store, metaobject)
+  let source = metaobject_source(store, projected)
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      json.object(
+        list.flat_map(selections, fn(selection) {
+          project_metaobject_selection(
+            store,
+            projected,
+            source,
+            selection,
+            fragments,
+          )
+        }),
+      )
+    _ -> source_to_json(source)
+  }
+}
+
+fn project_metaobject_selection(
+  store: Store,
+  metaobject: MetaobjectRecord,
+  source: SourceValue,
+  selection: Selection,
+  fragments: FragmentMap,
+) -> List(#(String, Json)) {
+  case selection {
+    Field(name: name, ..) -> {
+      let key = get_field_response_key(selection)
+      case name.value {
+        "field" -> {
+          let args = field_args(selection, dict.new())
+          let selected = case read_string(args, "key") {
+            Some(field_key) ->
+              list.find(metaobject.fields, fn(f) { f.key == field_key })
+              |> option.from_result
+            None -> None
+          }
+          [
+            #(key, case selected {
+              Some(meta_field) ->
+                serialize_metaobject_field_selection(
+                  store,
+                  meta_field,
+                  selection,
+                  fragments,
+                )
+              None -> json.null()
+            }),
+          ]
+        }
+        "fields" -> [
+          #(
+            key,
+            json.array(metaobject.fields, fn(meta_field) {
+              serialize_metaobject_field_selection(
+                store,
+                meta_field,
+                selection,
+                fragments,
+              )
+            }),
+          ),
+        ]
+        "referencedBy" -> [
+          #(
+            key,
+            serialize_referenced_by_connection(
+              store,
+              metaobject.id,
+              selection,
+              fragments,
+            ),
+          ),
+        ]
+        _ ->
+          case source {
+            SrcObject(fields) -> [
+              project_source_field(fields, selection, fragments),
+            ]
+            _ -> [#(key, json.null())]
+          }
+      }
+    }
+    InlineFragment(type_condition: tc, selection_set: ss, ..) ->
+      case source {
+        SrcObject(fields) -> {
+          let cond = case tc {
+            Some(NamedType(name: name, ..)) -> Some(name.value)
+            _ -> None
+          }
+          case default_type_condition_applies(fields, cond) {
+            True -> {
+              let SelectionSet(selections: inner, ..) = ss
+              list.flat_map(inner, fn(child) {
+                project_metaobject_selection(
+                  store,
+                  metaobject,
+                  source,
+                  child,
+                  fragments,
+                )
+              })
+            }
+            False -> []
+          }
+        }
+        _ -> []
+      }
+    FragmentSpread(name: name, ..) ->
+      case dict.get(fragments, name.value), source {
+        Ok(FragmentDefinition(
+          type_condition: NamedType(name: cond_name, ..),
+          selection_set: SelectionSet(selections: inner, ..),
+          ..,
+        )),
+          SrcObject(fields)
+        ->
+          case default_type_condition_applies(fields, Some(cond_name.value)) {
+            True ->
+              list.flat_map(inner, fn(child) {
+                project_metaobject_selection(
+                  store,
+                  metaobject,
+                  source,
+                  child,
+                  fragments,
+                )
+              })
+            False -> []
+          }
+        _, _ -> []
+      }
+  }
+}
+
+fn serialize_metaobjects_connection(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_args(field, variables)
+  let items = case read_string(args, "type") {
+    Some(type_) -> list_effective_metaobjects_by_type(store, type_)
+    None -> list_effective_metaobjects(store)
+  }
+  let items =
+    items
+    |> list.filter(fn(item) { is_metaobject_visible_in_catalog(store, item) })
+    |> sort_metaobjects_for_connection(
+      read_string(args, "sortKey"),
+      option.unwrap(read_bool(args, "reverse"), False),
+    )
+  let window =
+    paginate_connection_items(
+      items,
+      field,
+      variables,
+      fn(item, _index) { item.id },
+      default_connection_window_options(),
+    )
+  let ConnectionWindow(items: page_items, has_next_page:, has_previous_page:) =
+    window
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: page_items,
+      has_next_page: has_next_page,
+      has_previous_page: has_previous_page,
+      get_cursor_value: fn(item, _index) { item.id },
+      serialize_node: fn(item, node_field, _index) {
+        serialize_metaobject_selection(store, item, node_field, fragments)
+      },
+      selected_field_options: SelectedFieldOptions(
+        include_inline_fragments: False,
+      ),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn sort_metaobjects_for_connection(
+  items: List(MetaobjectRecord),
+  sort_key: Option(String),
+  reverse: Bool,
+) -> List(MetaobjectRecord) {
+  let normalized = option.unwrap(sort_key, "id") |> string.lowercase
+  let sorted =
+    list.sort(items, fn(left, right) {
+      case normalized {
+        "display_name" -> {
+          let primary =
+            resource_ids.compare_nullable_strings(
+              left.display_name,
+              right.display_name,
+            )
+          case primary {
+            Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+            _ -> primary
+          }
+        }
+        "type" -> {
+          let primary = string.compare(left.type_, right.type_)
+          case primary {
+            Eq -> {
+              let secondary = string.compare(left.handle, right.handle)
+              case secondary {
+                Eq ->
+                  resource_ids.compare_shopify_resource_ids(left.id, right.id)
+                _ -> secondary
+              }
+            }
+            _ -> primary
+          }
+        }
+        "updated_at" -> {
+          let primary =
+            resource_ids.compare_nullable_strings(
+              left.updated_at,
+              right.updated_at,
+            )
+          case primary {
+            Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+            _ -> primary
+          }
+        }
+        _ -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+      }
+    })
+  case reverse {
+    True -> list.reverse(sorted)
+    False -> sorted
+  }
+}
+
+fn is_metaobject_visible_in_catalog(
+  store: Store,
+  metaobject: MetaobjectRecord,
+) -> Bool {
+  case find_effective_metaobject_definition_by_type(store, metaobject.type_) {
+    None -> True
+    Some(definition) ->
+      metaobject_has_required_field_values(metaobject, definition)
+      && metaobject_publishable_visible(metaobject, definition)
+  }
+}
+
+fn metaobject_has_required_field_values(
+  metaobject: MetaobjectRecord,
+  definition: MetaobjectDefinitionRecord,
+) -> Bool {
+  list.all(definition.field_definitions, fn(field_definition) {
+    case field_definition.required {
+      Some(True) ->
+        case
+          list.find(metaobject.fields, fn(field) {
+            field.key == field_definition.key
+          })
+        {
+          Ok(field) ->
+            case field.value {
+              Some(value) -> value != ""
+              None -> False
+            }
+          Error(_) -> False
+        }
+      _ -> True
+    }
+  })
+}
+
+fn metaobject_publishable_visible(
+  metaobject: MetaobjectRecord,
+  definition: MetaobjectDefinitionRecord,
+) -> Bool {
+  case
+    definition.capabilities.publishable,
+    metaobject.capabilities.publishable
+  {
+    Some(MetaobjectDefinitionCapabilityRecord(enabled: False)), None -> False
+    _, _ -> True
+  }
+}
+
+fn metaobject_field_source(field: MetaobjectFieldRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("MetaobjectField")),
+    #("key", SrcString(field.key)),
+    #("type", optional_string_source(field.type_)),
+    #("value", optional_string_source(field.value)),
+    #("jsonValue", metaobject_field_json_value_source(field)),
+    #("definition", case field.definition {
+      Some(defn) -> field_definition_reference_source(defn)
+      None -> SrcNull
+    }),
+  ])
+}
+
+fn metaobject_field_json_value_source(
+  field: MetaobjectFieldRecord,
+) -> SourceValue {
+  case field.type_, field.value {
+    Some(type_), Some(raw) ->
+      case measurement_json_value_source(type_, raw) {
+        Some(source) -> source
+        None -> metaobject_field_stored_json_value_source(field)
+      }
+    _, _ -> metaobject_field_stored_json_value_source(field)
+  }
+}
+
+fn metaobject_field_stored_json_value_source(
+  field: MetaobjectFieldRecord,
+) -> SourceValue {
+  case field.json_value, field.type_ {
+    MetaobjectString(raw), Some(type_) ->
+      case should_parse_metaobject_json_value(type_) {
+        True ->
+          metaobject_json_value_to_source(read_metaobject_json_value(
+            type_,
+            Some(raw),
+          ))
+        False -> metaobject_json_value_to_source(field.json_value)
+      }
+    _, _ -> metaobject_json_value_to_source(field.json_value)
+  }
+}
+
+fn measurement_json_value_source(
+  type_: String,
+  raw: String,
+) -> Option(SourceValue) {
+  case string.starts_with(type_, "list.") {
+    True -> {
+      let base_type = string.drop_start(type_, 5)
+      case is_measurement_metaobject_type(base_type) {
+        True -> parse_single_item_measurement_list_source(raw, base_type)
+        False -> None
+      }
+    }
+    False ->
+      case is_measurement_metaobject_type(type_) {
+        True -> parse_measurement_source(raw)
+        False -> None
+      }
+  }
+}
+
+fn parse_single_item_measurement_list_source(
+  raw: String,
+  type_: String,
+) -> Option(SourceValue) {
+  case string.starts_with(raw, "[") && string.ends_with(raw, "]") {
+    True ->
+      parse_measurement_list_item_source(
+        string.drop_start(raw, 1) |> string.drop_end(1),
+        type_,
+      )
+      |> option.map(fn(item) { SrcList([item]) })
+    False -> None
+  }
+}
+
+fn parse_measurement_list_item_source(
+  raw: String,
+  type_: String,
+) -> Option(SourceValue) {
+  case parse_measurement_source(raw) {
+    Some(SrcObject(fields)) ->
+      case dict.get(fields, "unit") {
+        Ok(SrcString(unit)) ->
+          Some(
+            SrcObject(dict.insert(
+              fields,
+              "unit",
+              SrcString(normalize_measurement_list_json_unit(type_, unit)),
+            )),
+          )
+        _ -> Some(SrcObject(fields))
+      }
+    other -> other
+  }
+}
+
+fn parse_measurement_source(raw: String) -> Option(SourceValue) {
+  case string.split(raw, on: ",\"unit\":\"") {
+    [left, right] -> {
+      let value_raw = string.drop_start(left, string.length("{\"value\":"))
+      let unit = string.drop_end(right, 2)
+      case measurement_number_source(value_raw) {
+        Some(value) ->
+          Some(src_object([#("value", value), #("unit", SrcString(unit))]))
+        None -> None
+      }
+    }
+    _ -> None
+  }
+}
+
+fn measurement_number_source(raw: String) -> Option(SourceValue) {
+  case string.contains(raw, ".") {
+    True ->
+      case float.parse(raw) {
+        Ok(value) -> Some(SrcFloat(value))
+        Error(_) -> None
+      }
+    False ->
+      case int.parse(raw) {
+        Ok(value) -> Some(SrcInt(value))
+        Error(_) -> None
+      }
+  }
+}
+
+fn serialize_metaobject_field_selection(
+  store: Store,
+  meta_field: MetaobjectFieldRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let source = metaobject_field_source(meta_field)
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      json.object(
+        list.flat_map(selections, fn(selection) {
+          project_metaobject_field_selection(
+            store,
+            meta_field,
+            source,
+            selection,
+            fragments,
+          )
+        }),
+      )
+    _ -> source_to_json(source)
+  }
+}
+
+fn project_metaobject_field_selection(
+  store: Store,
+  meta_field: MetaobjectFieldRecord,
+  source: SourceValue,
+  selection: Selection,
+  fragments: FragmentMap,
+) -> List(#(String, Json)) {
+  case selection {
+    Field(name: name, ..) -> {
+      let key = get_field_response_key(selection)
+      case name.value {
+        "reference" -> [
+          #(
+            key,
+            serialize_single_reference(store, meta_field, selection, fragments),
+          ),
+        ]
+        "references" -> [
+          #(
+            key,
+            serialize_field_references_connection(
+              store,
+              meta_field,
+              selection,
+              fragments,
+            ),
+          ),
+        ]
+        _ ->
+          case source {
+            SrcObject(fields) -> [
+              project_source_field(fields, selection, fragments),
+            ]
+            _ -> [#(key, json.null())]
+          }
+      }
+    }
+    InlineFragment(type_condition: tc, selection_set: ss, ..) ->
+      case source {
+        SrcObject(fields) -> {
+          let cond = case tc {
+            Some(NamedType(name: name, ..)) -> Some(name.value)
+            _ -> None
+          }
+          case default_type_condition_applies(fields, cond) {
+            True -> {
+              let SelectionSet(selections: inner, ..) = ss
+              list.flat_map(inner, fn(child) {
+                project_metaobject_field_selection(
+                  store,
+                  meta_field,
+                  source,
+                  child,
+                  fragments,
+                )
+              })
+            }
+            False -> []
+          }
+        }
+        _ -> []
+      }
+    FragmentSpread(name: name, ..) ->
+      case dict.get(fragments, name.value), source {
+        Ok(FragmentDefinition(
+          type_condition: NamedType(name: cond_name, ..),
+          selection_set: SelectionSet(selections: inner, ..),
+          ..,
+        )),
+          SrcObject(fields)
+        ->
+          case default_type_condition_applies(fields, Some(cond_name.value)) {
+            True ->
+              list.flat_map(inner, fn(child) {
+                project_metaobject_field_selection(
+                  store,
+                  meta_field,
+                  source,
+                  child,
+                  fragments,
+                )
+              })
+            False -> []
+          }
+        _, _ -> []
+      }
+  }
+}
+
+fn serialize_single_reference(
+  store: Store,
+  field: MetaobjectFieldRecord,
+  selection: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case field.type_, field.value {
+    Some("metaobject_reference"), Some(id) ->
+      case get_effective_metaobject_by_id(store, id) {
+        Some(metaobject) ->
+          serialize_metaobject_selection(
+            store,
+            metaobject,
+            selection,
+            fragments,
+          )
+        None -> json.null()
+      }
+    _, _ -> json.null()
+  }
+}
+
+fn serialize_field_references_connection(
+  store: Store,
+  field_record: MetaobjectFieldRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case field_record.type_ {
+    Some("list.metaobject_reference") -> {
+      let refs =
+        read_metaobject_reference_ids_from_field(field_record)
+        |> list.filter_map(fn(id) {
+          case get_effective_metaobject_by_id(store, id) {
+            Some(record) -> Ok(record)
+            None -> Error(Nil)
+          }
+        })
+      let window =
+        paginate_connection_items(
+          refs,
+          field,
+          dict.new(),
+          fn(item, _index) { item.id },
+          default_connection_window_options(),
+        )
+      let ConnectionWindow(
+        items: page_items,
+        has_next_page:,
+        has_previous_page:,
+      ) = window
+      serialize_connection(
+        field,
+        SerializeConnectionConfig(
+          items: page_items,
+          has_next_page: has_next_page,
+          has_previous_page: has_previous_page,
+          get_cursor_value: fn(item, _index) { item.id },
+          serialize_node: fn(item, node_field, _index) {
+            serialize_metaobject_selection(store, item, node_field, fragments)
+          },
+          selected_field_options: SelectedFieldOptions(False),
+          page_info_options: default_connection_page_info_options(),
+        ),
+      )
+    }
+    _ -> json.null()
+  }
+}
+
+fn serialize_referenced_by_connection(
+  store: Store,
+  target_id: String,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let relations =
+    list.flat_map(list_effective_metaobjects(store), fn(referencer) {
+      let projected = project_metaobject_through_definition(store, referencer)
+      list.filter_map(projected.fields, fn(meta_field) {
+        case
+          list.contains(
+            read_metaobject_reference_ids_from_field(meta_field),
+            target_id,
+          )
+        {
+          True -> Ok(#(meta_field, projected))
+          False -> Error(Nil)
+        }
+      })
+    })
+  let window =
+    paginate_connection_items(
+      relations,
+      field,
+      dict.new(),
+      fn(item, _index) {
+        let #(meta_field, referencer) = item
+        referencer.id <> ":" <> meta_field.key
+      },
+      default_connection_window_options(),
+    )
+  let ConnectionWindow(items: page_items, has_next_page:, has_previous_page:) =
+    window
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: page_items,
+      has_next_page: has_next_page,
+      has_previous_page: has_previous_page,
+      get_cursor_value: fn(item, _index) {
+        let #(meta_field, referencer) = item
+        referencer.id <> ":" <> meta_field.key
+      },
+      serialize_node: fn(item, node_field, _index) {
+        let #(meta_field, referencer) = item
+        let relation_source =
+          src_object([
+            #("__typename", SrcString("MetaobjectFieldReference")),
+            #("key", SrcString(meta_field.key)),
+            #(
+              "name",
+              optional_string_source(case meta_field.definition {
+                Some(defn) -> defn.name
+                None -> None
+              }),
+            ),
+            #("namespace", SrcString(referencer.type_)),
+            #("referencer", metaobject_source(store, referencer)),
+          ])
+        project_selection(relation_source, node_field, fragments)
+      },
+      selected_field_options: SelectedFieldOptions(False),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn definition_payload(
+  field: Selection,
+  fragments: FragmentMap,
+  definition: Option(MetaobjectDefinitionRecord),
+  user_errors: List(UserError),
+) -> Json {
+  let source =
+    src_object([
+      #("metaobjectDefinition", case definition {
+        Some(defn) -> metaobject_definition_source(defn)
+        None -> SrcNull
+      }),
+      #("userErrors", SrcList(list.map(user_errors, user_error_source))),
+    ])
+  project_selection(source, field, fragments)
+}
+
+fn metaobject_payload(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  metaobject: Option(MetaobjectRecord),
+  user_errors: List(UserError),
+) -> Json {
+  let source =
+    src_object([
+      #("metaobject", case metaobject {
+        Some(record) -> metaobject_source(store, record)
+        None -> SrcNull
+      }),
+      #("userErrors", SrcList(list.map(user_errors, user_error_source))),
+    ])
+  project_selection_with_metaobject(store, source, field, fragments)
+}
+
+fn definition_delete_result(
+  key: String,
+  field: Selection,
+  deleted_id: Option(String),
+  user_errors: List(UserError),
+) -> MutationFieldResult {
+  let source =
+    src_object([
+      #("deletedId", optional_string_source(deleted_id)),
+      #("userErrors", SrcList(list.map(user_errors, user_error_source))),
+    ])
+  MutationFieldResult(
+    key,
+    project_selection(source, field, dict.new()),
+    option_string_to_list(deleted_id),
+    [],
+    case deleted_id {
+      Some(id) -> [log_draft("metaobjectDefinitionDelete", [id])]
+      None -> []
+    },
+  )
+}
+
+fn metaobject_delete_result(
+  key: String,
+  field: Selection,
+  deleted_id: Option(String),
+  user_errors: List(UserError),
+) -> MutationFieldResult {
+  let source =
+    src_object([
+      #("deletedId", optional_string_source(deleted_id)),
+      #("userErrors", SrcList(list.map(user_errors, user_error_source))),
+    ])
+  MutationFieldResult(
+    key,
+    project_selection(source, field, dict.new()),
+    option_string_to_list(deleted_id),
+    [],
+    case deleted_id {
+      Some(id) -> [log_draft("metaobjectDelete", [id])]
+      None -> []
+    },
+  )
+}
+
+fn bulk_delete_payload(
+  field: Selection,
+  fragments: FragmentMap,
+  job: Option(BulkDeleteJob),
+  user_errors: List(UserError),
+) -> Json {
+  let source =
+    src_object([
+      #("job", case job {
+        Some(BulkDeleteJob(id:, done:)) ->
+          src_object([
+            #("__typename", SrcString("Job")),
+            #("id", SrcString(id)),
+            #("done", SrcBool(done)),
+          ])
+        None -> SrcNull
+      }),
+      #("userErrors", SrcList(list.map(user_errors, user_error_source))),
+    ])
+  project_selection(source, field, fragments)
+}
+
+fn top_level_error_result(
+  key: String,
+  errors: List(Json),
+) -> MutationFieldResult {
+  MutationFieldResult(key, json.null(), [], errors, [])
+}
+
+fn project_selection(
+  source: SourceValue,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      project_graphql_value(source, selections, fragments)
+    _ -> source_to_json(source)
+  }
+}
+
+fn project_selection_with_metaobject(
+  store: Store,
+  source: SourceValue,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case source, field {
+    SrcObject(fields),
+      Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..)
+    ->
+      json.object(
+        list.map(selections, fn(selection) {
+          let key = get_field_response_key(selection)
+          case selection {
+            Field(name: name, ..) if name.value == "metaobject" ->
+              case dict.get(fields, "metaobject") {
+                Ok(SrcObject(meta_fields)) ->
+                  project_source_field_with_metaobject(
+                    store,
+                    meta_fields,
+                    selection,
+                    fragments,
+                  )
+                Ok(SrcNull) -> #(key, json.null())
+                _ -> #(key, json.null())
+              }
+            _ -> project_source_field(fields, selection, fragments)
+          }
+        }),
+      )
+    _, _ -> project_selection(source, field, fragments)
+  }
+}
+
+fn project_source_field_with_metaobject(
+  store: Store,
+  meta_fields: Dict(String, SourceValue),
+  selection: Selection,
+  fragments: FragmentMap,
+) -> #(String, Json) {
+  let key = get_field_response_key(selection)
+  let id = case dict.get(meta_fields, "id") {
+    Ok(SrcString(value)) -> Some(value)
+    _ -> None
+  }
+  case id {
+    Some(metaobject_id) ->
+      case get_effective_metaobject_by_id(store, metaobject_id) {
+        Some(record) -> #(
+          key,
+          serialize_metaobject_selection(store, record, selection, fragments),
+        )
+        None -> #(
+          key,
+          project_graphql_value(
+            SrcObject(meta_fields),
+            child_selections(selection),
+            fragments,
+          ),
+        )
+      }
+    None -> #(
+      key,
+      project_graphql_value(
+        SrcObject(meta_fields),
+        child_selections(selection),
+        fragments,
+      ),
+    )
+  }
+}
+
+fn project_source_field(
+  source: Dict(String, SourceValue),
+  selection: Selection,
+  fragments: FragmentMap,
+) -> #(String, Json) {
+  let key = get_field_response_key(selection)
+  case selection {
+    Field(name: name, ..) ->
+      case name.value {
+        "__typename" -> #(key, case dict.get(source, "__typename") {
+          Ok(value) -> source_to_json(value)
+          Error(_) -> json.null()
+        })
+        field_name -> {
+          let value = dict.get(source, field_name) |> result.unwrap(SrcNull)
+          let selections = child_selections(selection)
+          case selections {
+            [] -> #(key, source_to_json(value))
+            _ -> #(key, project_graphql_value(value, selections, fragments))
+          }
+        }
+      }
+    _ -> #(key, json.null())
+  }
+}
+
+fn child_selections(field: Selection) -> List(Selection) {
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      selections
+    _ -> []
+  }
+}
+
+fn user_error_source(error: UserError) -> SourceValue {
+  src_object([
+    #("field", case error.field {
+      Some(parts) -> SrcList(list.map(parts, SrcString))
+      None -> SrcNull
+    }),
+    #("message", SrcString(error.message)),
+    #("code", SrcString(error.code)),
+    #("elementKey", optional_string_source(error.element_key)),
+    #("elementIndex", optional_int_source(error.element_index)),
+  ])
+}
+
+// ---------------------------------------------------------------------------
+// Source helpers
+// ---------------------------------------------------------------------------
+
+fn access_source(access: Dict(String, Option(String))) -> SourceValue {
+  SrcObject(
+    dict.to_list(access)
+    |> list.map(fn(pair) {
+      let #(key, value) = pair
+      #(key, optional_string_source(value))
+    })
+    |> dict.from_list,
+  )
+}
+
+fn definition_capabilities_source(
+  capabilities: MetaobjectDefinitionCapabilitiesRecord,
+) -> SourceValue {
+  src_object([
+    #("publishable", definition_capability_source(capabilities.publishable)),
+    #("translatable", definition_capability_source(capabilities.translatable)),
+    #("renderable", definition_capability_source(capabilities.renderable)),
+    #("onlineStore", definition_capability_source(capabilities.online_store)),
+  ])
+}
+
+fn definition_capability_source(
+  capability: Option(MetaobjectDefinitionCapabilityRecord),
+) -> SourceValue {
+  case capability {
+    Some(MetaobjectDefinitionCapabilityRecord(enabled: enabled)) ->
+      src_object([#("enabled", SrcBool(enabled))])
+    None -> SrcNull
+  }
+}
+
+fn field_definition_source(
+  definition: MetaobjectFieldDefinitionRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("MetaobjectFieldDefinition")),
+    #("key", SrcString(definition.key)),
+    #("name", optional_string_source(definition.name)),
+    #("description", optional_string_source(definition.description)),
+    #("required", optional_bool_source(definition.required)),
+    #("type", type_source(definition.type_)),
+    #(
+      "validations",
+      SrcList(list.map(definition.validations, validation_source)),
+    ),
+  ])
+}
+
+fn field_definition_reference_source(
+  definition: MetaobjectFieldDefinitionReferenceRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("MetaobjectFieldDefinition")),
+    #("key", SrcString(definition.key)),
+    #("name", optional_string_source(definition.name)),
+    #("required", optional_bool_source(definition.required)),
+    #("type", type_source(definition.type_)),
+  ])
+}
+
+fn field_definition_reference(
+  definition: MetaobjectFieldDefinitionRecord,
+) -> MetaobjectFieldDefinitionReferenceRecord {
+  MetaobjectFieldDefinitionReferenceRecord(
+    key: definition.key,
+    name: definition.name,
+    required: definition.required,
+    type_: definition.type_,
+  )
+}
+
+fn type_source(type_: MetaobjectDefinitionTypeRecord) -> SourceValue {
+  src_object([
+    #("name", SrcString(type_.name)),
+    #("category", optional_string_source(type_.category)),
+  ])
+}
+
+fn validation_source(
+  validation: MetaobjectFieldDefinitionValidationRecord,
+) -> SourceValue {
+  src_object([
+    #("name", SrcString(validation.name)),
+    #("value", optional_string_source(validation.value)),
+  ])
+}
+
+fn standard_template_source(
+  template: Option(MetaobjectStandardTemplateRecord),
+) -> SourceValue {
+  case template {
+    Some(MetaobjectStandardTemplateRecord(type_: type_, name: name)) ->
+      src_object([
+        #("type", optional_string_source(type_)),
+        #("name", optional_string_source(name)),
+      ])
+    None -> SrcNull
+  }
+}
+
+fn metaobject_capabilities_source(
+  capabilities: MetaobjectCapabilitiesRecord,
+  definition: Option(MetaobjectDefinitionRecord),
+) -> SourceValue {
+  let publishable = case definition {
+    Some(defn) ->
+      case defn.capabilities.publishable {
+        Some(MetaobjectDefinitionCapabilityRecord(enabled: False)) -> SrcNull
+        _ -> metaobject_publishable_capability_source(capabilities, definition)
+      }
+    None -> metaobject_publishable_capability_source(capabilities, definition)
+  }
+  let online_store = case capabilities.online_store {
+    Some(MetaobjectOnlineStoreCapabilityRecord(template_suffix: suffix)) ->
+      src_object([#("templateSuffix", optional_string_source(suffix))])
+    None -> SrcNull
+  }
+  src_object([
+    #("publishable", publishable),
+    #("onlineStore", online_store),
+  ])
+}
+
+fn metaobject_publishable_capability_source(
+  capabilities: MetaobjectCapabilitiesRecord,
+  definition: Option(MetaobjectDefinitionRecord),
+) -> SourceValue {
+  case capabilities.publishable {
+    Some(MetaobjectPublishableCapabilityRecord(status: status)) ->
+      src_object([#("status", optional_string_source(status))])
+    None ->
+      case definition {
+        Some(defn) ->
+          case defn.capabilities.publishable {
+            Some(MetaobjectDefinitionCapabilityRecord(enabled: True)) ->
+              src_object([#("status", SrcString("DRAFT"))])
+            _ -> SrcNull
+          }
+        None -> SrcNull
+      }
+  }
+}
+
+fn metaobject_json_value_to_source(value: MetaobjectJsonValue) -> SourceValue {
+  case value {
+    MetaobjectNull -> SrcNull
+    MetaobjectString(value) -> SrcString(value)
+    MetaobjectBool(value) -> SrcBool(value)
+    MetaobjectInt(value) -> SrcInt(value)
+    MetaobjectFloat(value) -> SrcFloat(value)
+    MetaobjectList(items) ->
+      SrcList(list.map(items, metaobject_json_value_to_source))
+    MetaobjectObject(fields) ->
+      SrcObject(
+        dict.to_list(fields)
+        |> list.map(fn(pair) {
+          #(pair.0, metaobject_json_value_to_source(pair.1))
+        })
+        |> dict.from_list,
+      )
+  }
+}
+
+fn optional_string_source(value: Option(String)) -> SourceValue {
+  case value {
+    Some(value) -> SrcString(value)
+    None -> SrcNull
+  }
+}
+
+fn optional_bool_source(value: Option(Bool)) -> SourceValue {
+  case value {
+    Some(value) -> SrcBool(value)
+    None -> SrcNull
+  }
+}
+
+fn optional_int_source(value: Option(Int)) -> SourceValue {
+  case value {
+    Some(value) -> SrcInt(value)
+    None -> SrcNull
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Readers and small utilities
+// ---------------------------------------------------------------------------
+
+fn field_args(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  root_field.get_field_arguments(field, variables)
+  |> result.unwrap(dict.new())
+}
+
+fn read_id_arg(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  read_string(field_args(field, variables), "id")
+}
+
+fn read_string_arg(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(String) {
+  read_string(field_args(field, variables), key)
+}
+
+fn read_bool_arg(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Bool {
+  read_bool(field_args(field, variables), key) |> option.unwrap(False)
+}
+
+fn read_handle_arg(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Option(String), Option(String)) {
+  read_handle_value(read_object_arg(field_args(field, variables), "handle"))
+}
+
+fn read_handle_value(
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(Option(String), Option(String)) {
+  #(read_string(input, "type"), read_string(input, "handle"))
+}
+
+fn read_string(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(String) {
+  read_optional_string(input, key)
+}
+
+fn read_non_blank_string(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(String) {
+  case read_string(input, key) {
+    Some(value) ->
+      case string.trim(value) {
+        "" -> None
+        trimmed -> Some(trimmed)
+      }
+    None -> None
+  }
+}
+
+fn read_string_if_present(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+  existing: Option(String),
+) -> Option(String) {
+  case dict.get(input, key) {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    Ok(root_field.NullVal) -> None
+    _ -> existing
+  }
+}
+
+fn read_bool(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(Bool) {
+  case dict.get(input, key) {
+    Ok(root_field.BoolVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn read_object(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(input, key) {
+    Ok(root_field.ObjectVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn read_object_arg(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  read_object(input, key) |> option.unwrap(dict.new())
+}
+
+fn read_list(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(root_field.ResolvedValue) {
+  case dict.get(input, key) {
+    Ok(root_field.ListVal(values)) -> values
+    _ -> []
+  }
+}
+
+fn read_type_name(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case read_string(input, "type") {
+    Some(value) -> Some(value)
+    None ->
+      case read_object(input, "type") {
+        Some(type_obj) -> read_string(type_obj, "name")
+        None -> None
+      }
+  }
+}
+
+fn read_validation_inputs(
+  values: List(root_field.ResolvedValue),
+) -> List(MetaobjectFieldDefinitionValidationRecord) {
+  list.filter_map(values, fn(value) {
+    case value {
+      root_field.ObjectVal(obj) ->
+        case read_string(obj, "name") {
+          Some(name) ->
+            Ok(MetaobjectFieldDefinitionValidationRecord(
+              name,
+              read_string(obj, "value"),
+            ))
+          None -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn normalize_definition_capabilities(
+  raw: Option(Dict(String, root_field.ResolvedValue)),
+  base: MetaobjectDefinitionCapabilitiesRecord,
+) -> MetaobjectDefinitionCapabilitiesRecord {
+  case raw {
+    None -> base
+    Some(capabilities) ->
+      MetaobjectDefinitionCapabilitiesRecord(
+        publishable: merge_definition_capability(
+          capabilities,
+          "publishable",
+          base.publishable,
+        ),
+        translatable: merge_definition_capability(
+          capabilities,
+          "translatable",
+          base.translatable,
+        ),
+        renderable: merge_definition_capability(
+          capabilities,
+          "renderable",
+          base.renderable,
+        ),
+        online_store: merge_definition_capability(
+          capabilities,
+          "onlineStore",
+          base.online_store,
+        ),
+      )
+  }
+}
+
+fn merge_definition_capability(
+  raw: Dict(String, root_field.ResolvedValue),
+  key: String,
+  base: Option(MetaobjectDefinitionCapabilityRecord),
+) -> Option(MetaobjectDefinitionCapabilityRecord) {
+  case read_object(raw, key) {
+    Some(capability) ->
+      case read_bool(capability, "enabled") {
+        Some(enabled) -> Some(MetaobjectDefinitionCapabilityRecord(enabled))
+        None -> base
+      }
+    None -> base
+  }
+}
+
+fn build_definition_access(
+  raw: Option(Dict(String, root_field.ResolvedValue)),
+  base: Dict(String, Option(String)),
+) -> Dict(String, Option(String)) {
+  case raw {
+    None -> base
+    Some(access) ->
+      list.fold(dict.to_list(access), base, fn(acc, pair) {
+        let #(key, value) = pair
+        case value {
+          root_field.StringVal(text) -> dict.insert(acc, key, Some(text))
+          root_field.NullVal -> dict.insert(acc, key, None)
+          _ -> acc
+        }
+      })
+  }
+}
+
+fn infer_field_type_category(type_name: String) -> Option(String) {
+  case
+    string.contains(type_name, "text")
+    || type_name == "url"
+    || type_name == "color"
+  {
+    True -> Some("TEXT")
+    False ->
+      case
+        string.contains(type_name, "number")
+        || type_name == "rating"
+        || type_name == "volume"
+        || type_name == "weight"
+      {
+        True -> Some("NUMBER")
+        False ->
+          case string.contains(type_name, "reference") {
+            True -> Some("REFERENCE")
+            False ->
+              case type_name {
+                "boolean" -> Some("TRUE_FALSE")
+                "date" | "date_time" -> Some("DATE_TIME")
+                "json" -> Some("JSON")
+                _ -> None
+              }
+          }
+      }
+  }
+}
+
+fn normalize_metaobject_value(
+  type_name: String,
+  value: Option(String),
+) -> Option(String) {
+  case value {
+    None -> None
+    Some(raw) ->
+      case type_name {
+        "date_time" -> Some(normalize_date_time_value(raw))
+        "rating" -> Some(normalize_rating_value_string(raw))
+        _ ->
+          case string.starts_with(type_name, "list.") {
+            True ->
+              normalize_list_metaobject_value_string(
+                string.drop_start(type_name, 5),
+                raw,
+              )
+            False ->
+              case is_measurement_metaobject_type(type_name) {
+                True -> normalize_measurement_value_string(raw)
+                False -> Some(raw)
+              }
+          }
+      }
+  }
+}
+
+fn normalize_date_time_value(value: String) -> String {
+  let lower = string.lowercase(value)
+  case string.ends_with(lower, "z") {
+    True -> string.drop_end(value, 1) <> "+00:00"
+    False ->
+      case has_timezone_offset(value) {
+        True -> value
+        False -> value <> "+00:00"
+      }
+  }
+}
+
+fn has_timezone_offset(value: String) -> Bool {
+  let length = string.length(value)
+  case length >= 6 {
+    False -> False
+    True -> {
+      let sign = string.slice(value, length - 6, 1)
+      let colon = string.slice(value, length - 3, 1)
+      case sign, colon {
+        "+", ":" -> True
+        "-", ":" -> True
+        _, _ -> False
+      }
+    }
+  }
+}
+
+fn normalize_list_metaobject_value_string(
+  type_name: String,
+  raw: String,
+) -> Option(String) {
+  case json.parse(raw, decode.dynamic) {
+    Ok(dynamic) ->
+      case decode.run(dynamic, decode.list(decode.dynamic)) {
+        Ok(items) ->
+          case type_name {
+            "number_decimal" | "float" ->
+              Some(normalize_decimal_list_string(raw))
+            "date_time" ->
+              items
+              |> list.try_map(fn(item) {
+                case decode.run(item, decode.string) {
+                  Ok(value) ->
+                    Ok(MetaobjectString(normalize_date_time_value(value)))
+                  Error(_) -> dynamic_to_metaobject_json(item)
+                }
+              })
+              |> result.map(metaobject_json_list_to_string)
+              |> option.from_result
+            "rating" -> Some(normalize_rating_list_string(raw))
+            _ ->
+              case is_measurement_metaobject_type(type_name) {
+                True ->
+                  items
+                  |> list.try_map(normalize_measurement_value_dynamic_to_string)
+                  |> result.map(fn(parts) {
+                    "[" <> string.join(parts, ",") <> "]"
+                  })
+                  |> option.from_result
+                False -> Some(raw)
+              }
+          }
+        Error(_) -> Some(raw)
+      }
+    Error(_) -> Some(raw)
+  }
+}
+
+fn is_measurement_metaobject_type(type_name: String) -> Bool {
+  case type_name {
+    "antenna_gain"
+    | "area"
+    | "battery_charge_capacity"
+    | "battery_energy_capacity"
+    | "capacitance"
+    | "concentration"
+    | "data_storage_capacity"
+    | "data_transfer_rate"
+    | "dimension"
+    | "display_density"
+    | "distance"
+    | "duration"
+    | "electric_current"
+    | "electrical_resistance"
+    | "energy"
+    | "frequency"
+    | "illuminance"
+    | "inductance"
+    | "luminous_flux"
+    | "mass_flow_rate"
+    | "power"
+    | "pressure"
+    | "resolution"
+    | "rotational_speed"
+    | "sound_level"
+    | "speed"
+    | "temperature"
+    | "thermal_power"
+    | "voltage"
+    | "volume"
+    | "volumetric_flow_rate"
+    | "weight" -> True
+    _ -> False
+  }
+}
+
+fn normalize_decimal_list_string(raw: String) -> String {
+  case string.starts_with(raw, "[") && string.ends_with(raw, "]") {
+    True -> {
+      let inner = string.drop_start(raw, 1) |> string.drop_end(1)
+      "[\"" <> inner <> "\"]"
+    }
+    False -> raw
+  }
+}
+
+fn should_parse_metaobject_json_value(type_name: String) -> Bool {
+  case type_name {
+    "json" | "json_string" | "link" | "money" | "rating" | "rich_text_field" ->
+      True
+    _ ->
+      is_measurement_metaobject_type(type_name)
+      || string.starts_with(type_name, "list.")
+  }
+}
+
+fn normalize_measurement_value_string(raw: String) -> Option(String) {
+  case json.parse(raw, decode.dynamic) {
+    Ok(dynamic) ->
+      normalize_measurement_value_dynamic_to_string(dynamic)
+      |> option.from_result
+      |> option.or(Some(raw))
+    Error(_) -> Some(raw)
+  }
+}
+
+fn normalize_measurement_value_dynamic_to_string(
+  dynamic: Dynamic,
+) -> Result(String, Nil) {
+  use fields <- result.try(
+    decode.run(dynamic, decode.dict(decode.string, decode.dynamic))
+    |> result.replace_error(Nil),
+  )
+  use value <- result.try(
+    dict.get(fields, "value") |> result.replace_error(Nil),
+  )
+  use unit <- result.try(dict.get(fields, "unit") |> result.replace_error(Nil))
+  use value_string <- result.try(read_measurement_number_string(value))
+  use unit_string <- result.try(
+    decode.run(unit, decode.string) |> result.replace_error(Nil),
+  )
+  Ok(
+    "{\"value\":"
+    <> value_string
+    <> ",\"unit\":\""
+    <> string.uppercase(unit_string)
+    <> "\"}",
+  )
+}
+
+fn read_measurement_number_string(dynamic: Dynamic) -> Result(String, Nil) {
+  case decode.run(dynamic, decode.int) {
+    Ok(value) -> Ok(int.to_string(value) <> ".0")
+    Error(_) ->
+      case decode.run(dynamic, decode.float) {
+        Ok(value) -> Ok(float.to_string(value))
+        Error(_) ->
+          case decode.run(dynamic, decode.string) {
+            Ok(value) ->
+              case int.parse(value) {
+                Ok(parsed) -> Ok(int.to_string(parsed) <> ".0")
+                Error(_) ->
+                  case float.parse(value) {
+                    Ok(parsed) -> Ok(float.to_string(parsed))
+                    Error(_) -> Error(Nil)
+                  }
+              }
+            Error(_) -> Error(Nil)
+          }
+      }
+  }
+}
+
+fn normalize_rating_value_string(raw: String) -> String {
+  case rating_parts(raw) {
+    Some(parts) -> rating_parts_to_string(parts)
+    None -> raw
+  }
+}
+
+fn normalize_rating_list_string(raw: String) -> String {
+  case string.starts_with(raw, "[") && string.ends_with(raw, "]") {
+    True -> {
+      let inner = string.drop_start(raw, 1) |> string.drop_end(1)
+      case rating_parts(inner) {
+        Some(parts) -> "[" <> rating_parts_to_string(parts) <> "]"
+        None -> raw
+      }
+    }
+    False -> raw
+  }
+}
+
+fn rating_parts_to_string(parts: #(String, String, String)) -> String {
+  let #(scale_min, scale_max, value) = parts
+  "{\"scale_min\":\""
+  <> scale_min
+  <> "\",\"scale_max\":\""
+  <> scale_max
+  <> "\",\"value\":\""
+  <> value
+  <> "\"}"
+}
+
+fn rating_parts(raw: String) -> Option(#(String, String, String)) {
+  case json.parse(raw, decode.dynamic) {
+    Ok(dynamic) ->
+      case normalize_rating_dynamic(dynamic) {
+        Ok(MetaobjectObject(fields)) ->
+          case
+            dict.get(fields, "scale_min"),
+            dict.get(fields, "scale_max"),
+            dict.get(fields, "value")
+          {
+            Ok(MetaobjectString(min)),
+              Ok(MetaobjectString(max)),
+              Ok(MetaobjectString(value))
+            -> Some(#(min, max, value))
+            _, _, _ -> None
+          }
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
+fn normalize_rating_dynamic(
+  dynamic: Dynamic,
+) -> Result(MetaobjectJsonValue, Nil) {
+  use fields <- result.try(
+    decode.run(dynamic, decode.dict(decode.string, decode.dynamic))
+    |> result.replace_error(Nil),
+  )
+  use scale_min <- result.try(read_dynamic_string_field(fields, "scale_min"))
+  use scale_max <- result.try(read_dynamic_string_field(fields, "scale_max"))
+  use value <- result.try(read_dynamic_string_field(fields, "value"))
+  Ok(
+    MetaobjectObject(
+      dict.from_list([
+        #("scale_min", MetaobjectString(scale_min)),
+        #("scale_max", MetaobjectString(scale_max)),
+        #("value", MetaobjectString(value)),
+      ]),
+    ),
+  )
+}
+
+fn read_dynamic_string_field(
+  fields: Dict(String, Dynamic),
+  key: String,
+) -> Result(String, Nil) {
+  use value <- result.try(dict.get(fields, key) |> result.replace_error(Nil))
+  decode.run(value, decode.string) |> result.replace_error(Nil)
+}
+
+fn metaobject_json_list_to_string(items: List(MetaobjectJsonValue)) -> String {
+  "["
+  <> string.join(list.map(items, metaobject_json_value_to_compact_string), ",")
+  <> "]"
+}
+
+fn metaobject_json_value_to_compact_string(
+  value: MetaobjectJsonValue,
+) -> String {
+  source_to_json(metaobject_json_value_to_source(value))
+  |> json.to_string
+}
+
+fn read_metaobject_json_value(
+  type_name: String,
+  value: Option(String),
+) -> MetaobjectJsonValue {
+  case value {
+    None -> MetaobjectNull
+    Some(raw) ->
+      case type_name {
+        "date_time" -> MetaobjectString(normalize_date_time_value(raw))
+        "boolean" ->
+          case raw {
+            "true" -> MetaobjectBool(True)
+            "false" -> MetaobjectBool(False)
+            _ -> MetaobjectString(raw)
+          }
+        "number_integer" ->
+          case int.parse(raw) {
+            Ok(value) -> MetaobjectInt(value)
+            Error(_) -> MetaobjectString(raw)
+          }
+        "number_decimal" | "float" -> MetaobjectString(raw)
+        "rating" -> parse_rating_json_value(raw)
+        _ ->
+          case string.starts_with(type_name, "list.") {
+            True ->
+              case
+                is_measurement_metaobject_type(string.drop_start(type_name, 5))
+              {
+                True ->
+                  parse_measurement_list_json_value(
+                    raw,
+                    string.drop_start(type_name, 5),
+                  )
+                False -> parse_json_value(raw)
+              }
+            False ->
+              case is_measurement_metaobject_type(type_name) {
+                True -> parse_measurement_json_value(raw)
+                False ->
+                  case should_parse_metaobject_json_value(type_name) {
+                    True -> parse_json_value(raw)
+                    False -> MetaobjectString(raw)
+                  }
+              }
+          }
+      }
+  }
+}
+
+fn parse_measurement_json_value(raw: String) -> MetaobjectJsonValue {
+  case json.parse(raw, decode.dynamic) {
+    Ok(dynamic) ->
+      measurement_dynamic_to_metaobject_json(dynamic)
+      |> result.unwrap(parse_json_value(raw))
+    Error(_) -> MetaobjectString(raw)
+  }
+}
+
+fn parse_measurement_list_json_value(
+  raw: String,
+  type_: String,
+) -> MetaobjectJsonValue {
+  case json.parse(raw, decode.dynamic) {
+    Ok(dynamic) ->
+      case decode.run(dynamic, decode.list(decode.dynamic)) {
+        Ok(items) ->
+          items
+          |> list.try_map(fn(item) {
+            use value <- result.try(measurement_dynamic_to_metaobject_json(item))
+            Ok(normalize_measurement_json_unit_for_list(value, type_))
+          })
+          |> result.map(MetaobjectList)
+          |> result.unwrap(parse_json_value(raw))
+        Error(_) -> parse_json_value(raw)
+      }
+    Error(_) -> MetaobjectString(raw)
+  }
+}
+
+fn normalize_measurement_json_unit_for_list(
+  value: MetaobjectJsonValue,
+  type_: String,
+) -> MetaobjectJsonValue {
+  case value {
+    MetaobjectObject(fields) ->
+      case dict.get(fields, "unit") {
+        Ok(MetaobjectString(unit)) ->
+          MetaobjectObject(dict.insert(
+            fields,
+            "unit",
+            MetaobjectString(normalize_measurement_list_json_unit(type_, unit)),
+          ))
+        _ -> value
+      }
+    _ -> value
+  }
+}
+
+fn normalize_measurement_list_json_unit(type_: String, unit: String) -> String {
+  let normalized = string.lowercase(unit)
+  case type_, normalized {
+    "dimension", "centimeters" -> "cm"
+    "volume", "milliliters" -> "ml"
+    "weight", "kilograms" -> "kg"
+    _, _ -> normalized
+  }
+}
+
+fn measurement_dynamic_to_metaobject_json(
+  dynamic: Dynamic,
+) -> Result(MetaobjectJsonValue, Nil) {
+  use value_dynamic <- result.try(
+    decode.run(
+      dynamic,
+      decode.field("value", decode.dynamic, fn(value) { decode.success(value) }),
+    )
+    |> result.replace_error(Nil),
+  )
+  use unit <- result.try(
+    decode.run(
+      dynamic,
+      decode.field("unit", decode.string, fn(value) { decode.success(value) }),
+    )
+    |> result.replace_error(Nil),
+  )
+  use value <- result.try(dynamic_number_to_metaobject_json(value_dynamic))
+  Ok(
+    MetaobjectObject(
+      dict.from_list([
+        #("value", value),
+        #("unit", MetaobjectString(unit)),
+      ]),
+    ),
+  )
+}
+
+fn dynamic_number_to_metaobject_json(
+  dynamic: Dynamic,
+) -> Result(MetaobjectJsonValue, Nil) {
+  case decode.run(dynamic, decode.int) {
+    Ok(value) -> Ok(MetaobjectInt(value))
+    Error(_) ->
+      case decode.run(dynamic, decode.float) {
+        Ok(value) -> Ok(MetaobjectFloat(value))
+        Error(_) ->
+          case decode.run(dynamic, decode.string) {
+            Ok(value) ->
+              case int.parse(value) {
+                Ok(parsed) -> Ok(MetaobjectInt(parsed))
+                Error(_) ->
+                  case float.parse(value) {
+                    Ok(parsed) -> Ok(MetaobjectFloat(parsed))
+                    Error(_) -> Error(Nil)
+                  }
+              }
+            Error(_) -> Error(Nil)
+          }
+      }
+  }
+}
+
+fn parse_rating_json_value(raw: String) -> MetaobjectJsonValue {
+  case json.parse(raw, decode.dynamic) {
+    Ok(dynamic) ->
+      normalize_rating_dynamic(dynamic)
+      |> result.unwrap(parse_json_value(raw))
+    Error(_) -> MetaobjectString(raw)
+  }
+}
+
+fn parse_json_value(raw: String) -> MetaobjectJsonValue {
+  case json.parse(raw, decode.dynamic) {
+    Ok(dynamic) ->
+      dynamic_to_metaobject_json(dynamic)
+      |> result.unwrap(MetaobjectString(raw))
+    Error(_) -> MetaobjectString(raw)
+  }
+}
+
+fn dynamic_to_metaobject_json(
+  value: Dynamic,
+) -> Result(MetaobjectJsonValue, Nil) {
+  case decode.run(value, decode.bool) {
+    Ok(value) -> Ok(MetaobjectBool(value))
+    Error(_) -> dynamic_to_metaobject_json_non_bool(value)
+  }
+}
+
+fn dynamic_to_metaobject_json_non_bool(
+  value: Dynamic,
+) -> Result(MetaobjectJsonValue, Nil) {
+  case decode.run(value, decode.optional(decode.dynamic)) {
+    Ok(None) -> Ok(MetaobjectNull)
+    _ -> dynamic_to_metaobject_json_present(value)
+  }
+}
+
+fn dynamic_to_metaobject_json_present(
+  value: Dynamic,
+) -> Result(MetaobjectJsonValue, Nil) {
+  case decode.run(value, decode.int) {
+    Ok(n) -> Ok(MetaobjectInt(n))
+    Error(_) ->
+      case decode.run(value, decode.float) {
+        Ok(n) -> Ok(MetaobjectFloat(n))
+        Error(_) ->
+          case decode.run(value, decode.string) {
+            Ok(s) -> Ok(MetaobjectString(s))
+            Error(_) ->
+              case decode.run(value, decode.list(decode.dynamic)) {
+                Ok(items) ->
+                  items
+                  |> list.try_map(dynamic_to_metaobject_json)
+                  |> result.map(MetaobjectList)
+                Error(_) ->
+                  case
+                    decode.run(
+                      value,
+                      decode.dict(decode.string, decode.dynamic),
+                    )
+                  {
+                    Ok(fields) ->
+                      fields
+                      |> dict.to_list
+                      |> list.try_map(fn(pair) {
+                        use converted <- result.try(dynamic_to_metaobject_json(
+                          pair.1,
+                        ))
+                        Ok(#(pair.0, converted))
+                      })
+                      |> result.map(fn(entries) {
+                        MetaobjectObject(dict.from_list(entries))
+                      })
+                    Error(_) -> Error(Nil)
+                  }
+              }
+          }
+      }
+  }
+}
+
+fn read_metaobject_reference_ids_from_field(
+  field: MetaobjectFieldRecord,
+) -> List(String) {
+  case field.type_ {
+    Some("metaobject_reference") ->
+      case field.value {
+        Some(id) -> [id]
+        None -> []
+      }
+    Some("list.metaobject_reference") ->
+      case field.json_value {
+        MetaobjectList(items) ->
+          list.filter_map(items, fn(item) {
+            case item {
+              MetaobjectString(id) -> Ok(id)
+              _ -> Error(Nil)
+            }
+          })
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn read_bulk_delete_ids(
+  store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  let explicit_ids = case read_object(args, "where") {
+    Some(where) -> read_string_list(where, "ids")
+    None -> []
+  }
+  case explicit_ids {
+    [_, ..] -> explicit_ids
+    [] ->
+      case read_object(args, "where") {
+        Some(where) ->
+          case read_string(where, "type") {
+            Some(type_) ->
+              list.map(
+                list_effective_metaobjects_by_type(store, type_),
+                fn(item) { item.id },
+              )
+            None -> []
+          }
+        None -> []
+      }
+  }
+}
+
+fn read_string_list(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(String) {
+  case dict.get(input, key) {
+    Ok(root_field.ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          root_field.StringVal(s) -> Ok(s)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn record_not_found_user_error(field: List(String)) -> UserError {
+  UserError(Some(field), "Record not found", "RECORD_NOT_FOUND", None, None)
+}
+
+fn build_invalid_json_message(value: String) -> String {
+  case string.starts_with(string.trim(value), "{") {
+    True -> "Value is invalid JSON."
+    False -> "Value is invalid JSON."
+  }
+}
+
+fn find_validation(
+  validations: List(MetaobjectFieldDefinitionValidationRecord),
+  name: String,
+) -> Option(String) {
+  list.find(validations, fn(validation) { validation.name == name })
+  |> result.map(fn(validation) { validation.value })
+  |> result.unwrap(None)
+}
+
+fn find_field_definition(
+  fields: List(MetaobjectFieldDefinitionRecord),
+  key: String,
+) -> Option(MetaobjectFieldDefinitionRecord) {
+  list.find(fields, fn(field) { field.key == key }) |> option.from_result
+}
+
+fn replace_field_definition(
+  fields: List(MetaobjectFieldDefinitionRecord),
+  replacement: MetaobjectFieldDefinitionRecord,
+) -> List(MetaobjectFieldDefinitionRecord) {
+  list.map(fields, fn(field) {
+    case field.key == replacement.key {
+      True -> replacement
+      False -> field
+    }
+  })
+}
+
+fn append_if(items: List(a), condition: Bool, item: a) -> List(a) {
+  case condition {
+    True -> list.append(items, [item])
+    False -> items
+  }
+}
+
+fn log_draft(root: String, ids: List(String)) -> LogDraft {
+  single_root_log_draft(
+    root,
+    ids,
+    store.Staged,
+    domain_name,
+    execution_name,
+    None,
+  )
+}
+
+fn option_string_to_list(value: Option(String)) -> List(String) {
+  case value {
+    Some(item) -> [item]
+    None -> []
+  }
+}
+
+fn enumerate_values(items: List(a)) -> List(#(Int, a)) {
+  enumerate_loop(items, 0, [])
+}
+
+fn enumerate_loop(
+  items: List(a),
+  index: Int,
+  acc: List(#(Int, a)),
+) -> List(#(Int, a)) {
+  case items {
+    [] -> list.reverse(acc)
+    [first, ..rest] -> enumerate_loop(rest, index + 1, [#(index, first), ..acc])
+  }
+}
+
+fn dedupe_strings(items: List(String)) -> List(String) {
+  dedupe_loop(items, dict.new(), [])
+}
+
+fn dedupe_loop(
+  items: List(String),
+  seen: Dict(String, Bool),
+  acc: List(String),
+) -> List(String) {
+  case items {
+    [] -> list.reverse(acc)
+    [first, ..rest] ->
+      case dict.has_key(seen, first) {
+        True -> dedupe_loop(rest, seen, acc)
+        False ->
+          dedupe_loop(rest, dict.insert(seen, first, True), [first, ..acc])
+      }
+  }
+}
+
+fn list_to_set(items: List(String)) -> Dict(String, Bool) {
+  list.fold(items, dict.new(), fn(acc, item) { dict.insert(acc, item, True) })
 }
