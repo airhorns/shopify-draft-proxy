@@ -9,6 +9,74 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 66: product variant bulk create default strategy edge
+
+Adds strict Gleam parity coverage for the captured
+`productVariantsBulkCreate(strategy: DEFAULT)` standalone default-variant edge.
+When Shopify removes the standalone `Default Title` variant during bulk create,
+it derives the Product option/value graph from the created variant's selected
+options. The Gleam Products handler now mirrors that path by rebuilding option
+records from created variant selections when the standalone default variant is
+removed, while preserving raw mutation logging and local read-after-write
+staging.
+
+The pass promotes
+`productVariantsBulkCreate-strategy-default-default-standalone` into the Gleam
+parity suite. Runner seeding reuses the captured `preMutationRead` product,
+option, and variant baseline; the checked-in fixture, request document, and
+comparison contract stay unchanged.
+
+| Module                                               | Change                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Rebuilds option/value rows from variant selections after standalone default removal. |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured standalone default-variant precondition graph.                    |
+| `gleam/test/parity_test.gleam`                       | Enables the strict default/default standalone bulk-create strategy scenario.         |
+
+Validation:
+`gleam test --target javascript product_variants_bulk_create_strategy_default_default_standalone_test`
+is green at 764 tests, and full `gleam test --target javascript` is green at
+764 tests on the host Node runtime. Host `gleam test --target erlang` still
+fails before tests execute on the local Erlang install with the known `undef`
+runner issue; after clearing host-built Erlang artifacts, the Docker Erlang
+fallback is green at 760 tests. Product parity inventory remains 115 checked-in
+specs, with 50 product specs executable in the Gleam parity suite plus the
+admin-platform ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay failing
+  because `$.data.productVariantsBulkCreate.product.id` could not be resolved
+  before seeding the captured product baseline.
+- After seeding, the real fidelity gap was Shopify rewriting the standalone
+  default option value from `Default Title` to the created variant value
+  `Default Blue`; the previous Gleam sync path only toggled `hasVariants` on
+  existing option values.
+- The TypeScript oracle derives missing option/value rows from variant selected
+  options when the standalone default variant is removed; this pass ports that
+  behavior for the bulk-create removal path.
+
+### Risks / open items
+
+- This pass covers the captured DEFAULT/default standalone strategy slice. The
+  sibling DEFAULT/custom and REMOVE_STANDALONE strategy edge specs still need
+  their own parity enablement.
+- Collections, publication, product feeds/feedback, selling plans, product
+  metafields, inventory shipment/transfer, media, and advanced search parity
+  remain incomplete in Gleam.
+- Only 50 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 67 candidates
+
+- Enable the sibling `productVariantsBulkCreate` standalone strategy specs now
+  that option/value derivation from created variants exists.
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+- Port product metafield behavior now that several Product and Product Option
+  mutation families are locally staged.
+
+---
+
 ## 2026-04-30 — Pass 65: product options create parity seeding
 
 Enables the captured `productOptionsCreate-parity-plan` in the Gleam parity

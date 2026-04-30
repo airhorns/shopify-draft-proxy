@@ -3301,13 +3301,24 @@ fn handle_product_variants_bulk_create(
             True -> []
             False -> effective_variants
           }
-          let options_for_sync = case should_remove_standalone_variant {
-            True -> []
-            False -> effective_options
-          }
           let next_variants = list.append(retained_variants, created_variants)
-          let synced_options =
-            sync_product_options_with_variants(options_for_sync, next_variants)
+          let #(synced_options, identity_after_options) = case
+            should_remove_standalone_variant
+          {
+            True ->
+              make_options_from_variant_selections(
+                identity_after_variants,
+                product_id,
+                next_variants,
+              )
+            False -> #(
+              sync_product_options_with_variants(
+                effective_options,
+                next_variants,
+              ),
+              identity_after_variants,
+            )
+          }
           let next_store =
             store.replace_staged_variants_for_product(
               store,
@@ -3321,7 +3332,7 @@ fn handle_product_variants_bulk_create(
           let #(product, next_store, final_identity) =
             sync_product_inventory_summary(
               next_store,
-              identity_after_variants,
+              identity_after_options,
               product_id,
             )
           mutation_result(
@@ -8446,6 +8457,128 @@ fn sync_product_options_with_variants(
       }),
     )
   })
+}
+
+fn make_options_from_variant_selections(
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  variants: List(ProductVariantRecord),
+) -> #(List(ProductOptionRecord), SyntheticIdentityRegistry) {
+  let #(options, next_identity) =
+    variants
+    |> list.flat_map(fn(variant) { variant.selected_options })
+    |> list.fold(#([], identity), fn(acc, selected) {
+      let #(current_options, current_identity) = acc
+      upsert_option_selection(
+        current_options,
+        current_identity,
+        product_id,
+        selected,
+      )
+    })
+  #(sync_product_options_with_variants(options, variants), next_identity)
+}
+
+fn upsert_option_selection(
+  options: List(ProductOptionRecord),
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  selected: ProductVariantSelectedOptionRecord,
+) -> #(List(ProductOptionRecord), SyntheticIdentityRegistry) {
+  let #(updated, found, next_identity) =
+    upsert_option_selection_loop(options, identity, product_id, selected, [])
+  case found {
+    True -> #(updated, next_identity)
+    False -> {
+      let #(option_id, identity_after_option) =
+        synthetic_identity.make_synthetic_gid(identity, "ProductOption")
+      let #(value_id, identity_after_value) =
+        synthetic_identity.make_synthetic_gid(
+          identity_after_option,
+          "ProductOptionValue",
+        )
+      #(
+        list.append(options, [
+          ProductOptionRecord(
+            id: option_id,
+            product_id: product_id,
+            name: selected.name,
+            position: list.length(options) + 1,
+            option_values: [
+              ProductOptionValueRecord(
+                id: value_id,
+                name: selected.value,
+                has_variants: True,
+              ),
+            ],
+          ),
+        ]),
+        identity_after_value,
+      )
+    }
+  }
+}
+
+fn upsert_option_selection_loop(
+  options: List(ProductOptionRecord),
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  selected: ProductVariantSelectedOptionRecord,
+  reversed_before: List(ProductOptionRecord),
+) -> #(List(ProductOptionRecord), Bool, SyntheticIdentityRegistry) {
+  case options {
+    [] -> #(list.reverse(reversed_before), False, identity)
+    [option, ..rest] ->
+      case option.name == selected.name {
+        True -> {
+          let #(option_values, next_identity) =
+            upsert_option_value(option.option_values, identity, selected.value)
+          #(
+            list.append(list.reverse(reversed_before), [
+              ProductOptionRecord(
+                ..option,
+                product_id: product_id,
+                option_values: option_values,
+              ),
+              ..rest
+            ]),
+            True,
+            next_identity,
+          )
+        }
+        False ->
+          upsert_option_selection_loop(rest, identity, product_id, selected, [
+            option,
+            ..reversed_before
+          ])
+      }
+  }
+}
+
+fn upsert_option_value(
+  option_values: List(ProductOptionValueRecord),
+  identity: SyntheticIdentityRegistry,
+  value_name: String,
+) -> #(List(ProductOptionValueRecord), SyntheticIdentityRegistry) {
+  case
+    list.any(option_values, fn(option_value) { option_value.name == value_name })
+  {
+    True -> #(option_values, identity)
+    False -> {
+      let #(value_id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "ProductOptionValue")
+      #(
+        list.append(option_values, [
+          ProductOptionValueRecord(
+            id: value_id,
+            name: value_name,
+            has_variants: True,
+          ),
+        ]),
+        next_identity,
+      )
+    }
+  }
 }
 
 fn variants_use_option_value(

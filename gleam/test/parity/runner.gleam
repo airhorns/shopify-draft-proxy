@@ -175,6 +175,7 @@ fn seed_capture_preconditions(
     | "product-options-create-live-parity"
     | "product-option-update-live-parity"
     | "product-options-delete-live-parity"
+    | "product-variants-bulk-create-strategy-default-default-standalone"
     | "admin-platform-product-option-node-reads" ->
       seed_pre_mutation_product_preconditions(capture, proxy)
     "product-delete-live-parity" ->
