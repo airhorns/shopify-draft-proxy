@@ -51,6 +51,9 @@ jobs:
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
+      - name: Lint TypeScript interop, tooling, and Gleam formatting
+        run: corepack pnpm lint
+
       - name: Typecheck TypeScript interop and tooling
         run: corepack pnpm typecheck
 
@@ -87,6 +90,9 @@ jobs:
           --baseline .conformance/main/conformance-status-report.json
           --output-json .conformance/current/conformance-status-report.json
           --output-markdown .conformance/current/conformance-status-comment.md
+
+      - name: Build TypeScript interop output
+        run: corepack pnpm build
 
       - name: Gleam format check
         run: corepack pnpm gleam:format:check
