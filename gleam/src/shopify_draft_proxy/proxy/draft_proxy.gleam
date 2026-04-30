@@ -45,6 +45,7 @@ import shopify_draft_proxy/proxy/marketing
 import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
+import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/operation_registry.{
   type RegistryEntry, AdminPlatform, Apps, BulkOperations, Events, Functions,
   GiftCards, Localization, Marketing, Media, Metafields, Metaobjects,
@@ -416,6 +417,23 @@ fn serialize_base_state(state: store.BaseState) -> Json {
         #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
       ])
   }
+  let entries = case dict.is_empty(state.metaobject_definitions) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "metaobjectDefinitions",
+          serialize_metaobject_definition_dict(state.metaobject_definitions),
+        ),
+      ])
+  }
+  let entries = case dict.is_empty(state.metaobjects) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #("metaobjects", serialize_metaobject_dict(state.metaobjects)),
+      ])
+  }
   json.object(entries)
 }
 
@@ -440,6 +458,46 @@ fn serialize_staged_state(state: store.StagedState) -> Json {
         #(
           "deletedSavedSearchIds",
           json.array(dict.keys(state.deleted_saved_search_ids), json.string),
+        ),
+      ])
+  }
+  let entries = case dict.is_empty(state.metaobject_definitions) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "metaobjectDefinitions",
+          serialize_metaobject_definition_dict(state.metaobject_definitions),
+        ),
+      ])
+  }
+  let entries = case dict.is_empty(state.deleted_metaobject_definition_ids) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "deletedMetaobjectDefinitionIds",
+          json.array(
+            dict.keys(state.deleted_metaobject_definition_ids),
+            json.string,
+          ),
+        ),
+      ])
+  }
+  let entries = case dict.is_empty(state.metaobjects) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #("metaobjects", serialize_metaobject_dict(state.metaobjects)),
+      ])
+  }
+  let entries = case dict.is_empty(state.deleted_metaobject_ids) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "deletedMetaobjectIds",
+          json.array(dict.keys(state.deleted_metaobject_ids), json.string),
         ),
       ])
   }
@@ -477,6 +535,39 @@ fn serialize_saved_search_record(record: types.SavedSearchRecord) -> Json {
     ),
     #("cursor", optional_string(record.cursor)),
   ])
+}
+
+fn serialize_metaobject_definition_dict(
+  records: dict.Dict(String, types.MetaobjectDefinitionRecord),
+) -> Json {
+  json.object(
+    dict.to_list(records)
+    |> list.map(fn(pair) {
+      let #(id, record) = pair
+      #(
+        id,
+        source_to_json(metaobject_definitions.metaobject_definition_source(
+          record,
+        )),
+      )
+    }),
+  )
+}
+
+fn serialize_metaobject_dict(
+  records: dict.Dict(String, types.MetaobjectRecord),
+) -> Json {
+  json.object(
+    dict.to_list(records)
+    |> list.map(fn(pair) {
+      let #(id, record) = pair
+      let empty = store.new()
+      #(
+        id,
+        source_to_json(metaobject_definitions.metaobject_source(empty, record)),
+      )
+    }),
+  )
 }
 
 fn reset_response() -> Response {
@@ -700,6 +791,39 @@ fn passthrough_async_unsupported_response() -> Response {
   )
 }
 
+/// Single point of mutation log entry recording. Each domain
+/// `process_mutation` returns a `MutationOutcome` carrying
+/// `log_drafts: List(LogDraft)`; the dispatcher records them here so
+/// individual handlers can never silently skip the buffer (which was
+/// the regression in `gift_cards`/`localization`/`metafield_definitions`/
+/// `segments` before this refactor centralized recording).
+fn finalize_mutation_outcome(
+  proxy: DraftProxy,
+  request_path: String,
+  query: String,
+  data: Json,
+  next_store: Store,
+  next_identity: SyntheticIdentityRegistry,
+  log_drafts: List(mutation_helpers.LogDraft),
+) -> #(Response, DraftProxy) {
+  let #(logged_store, logged_identity) =
+    mutation_helpers.record_log_drafts(
+      next_store,
+      next_identity,
+      request_path,
+      query,
+      log_drafts,
+    )
+  #(
+    Response(status: 200, body: data, headers: []),
+    DraftProxy(
+      ..proxy,
+      store: logged_store,
+      synthetic_identity: logged_identity,
+    ),
+  )
+}
+
 fn route_mutation(
   proxy: DraftProxy,
   parsed: ParsedOperation,
@@ -719,14 +843,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle saved searches mutation"),
           proxy,
@@ -742,14 +868,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle webhooks mutation"), proxy)
       }
     Ok(AppsDomain) ->
@@ -763,14 +891,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle apps mutation"), proxy)
       }
     Ok(FunctionsDomain) ->
@@ -783,14 +913,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle functions mutation"), proxy)
       }
     Ok(GiftCardsDomain) ->
@@ -803,14 +935,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle gift cards mutation"),
           proxy,
@@ -826,14 +960,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle segments mutation"), proxy)
       }
     Ok(MetafieldDefinitionsDomain) ->
@@ -846,14 +982,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle metafield definitions mutation"),
           proxy,
@@ -869,16 +1007,43 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle localization mutation"),
+          proxy,
+        )
+      }
+    Ok(MetaobjectDefinitionsDomain) ->
+      case
+        metaobject_definitions.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(
+          bad_request("Failed to handle metaobject definitions mutation"),
           proxy,
         )
       }
@@ -892,14 +1057,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle marketing mutation"), proxy)
       }
     Ok(BulkOperationsDomain) ->
@@ -912,14 +1079,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle bulk operations mutation"),
           proxy,
@@ -935,14 +1104,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle admin platform mutation"),
           proxy,
@@ -1048,7 +1219,7 @@ fn route_query(
     Ok(MetaobjectDefinitionsDomain) ->
       respond(
         proxy,
-        metaobject_definitions.process(query),
+        metaobject_definitions.process(proxy.store, query, variables),
         "Failed to handle metaobject definitions query",
       )
     Ok(MarketingDomain) ->
@@ -1384,6 +1555,15 @@ fn mutation_domain_for_capability(
         True -> Ok(LocalizationDomain)
         False -> Error(Nil)
       }
+    Metaobjects ->
+      case
+        metaobject_definitions.is_metaobject_definitions_mutation_root(
+          primary_root_field,
+        )
+      {
+        True -> Ok(MetaobjectDefinitionsDomain)
+        False -> Error(Nil)
+      }
     Marketing ->
       case marketing.is_marketing_mutation_root(primary_root_field) {
         True -> Ok(MarketingDomain)
@@ -1541,26 +1721,35 @@ fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
                                     True -> Ok(LocalizationDomain)
                                     False ->
                                       case
-                                        marketing.is_marketing_mutation_root(
+                                        metaobject_definitions.is_metaobject_definitions_mutation_root(
                                           name,
                                         )
                                       {
-                                        True -> Ok(MarketingDomain)
+                                        True -> Ok(MetaobjectDefinitionsDomain)
                                         False ->
                                           case
-                                            bulk_operations.is_bulk_operations_mutation_root(
+                                            marketing.is_marketing_mutation_root(
                                               name,
                                             )
                                           {
-                                            True -> Ok(BulkOperationsDomain)
+                                            True -> Ok(MarketingDomain)
                                             False ->
                                               case
-                                                admin_platform.is_admin_platform_mutation_root(
+                                                bulk_operations.is_bulk_operations_mutation_root(
                                                   name,
                                                 )
                                               {
-                                                True -> Ok(AdminPlatformDomain)
-                                                False -> Error(Nil)
+                                                True -> Ok(BulkOperationsDomain)
+                                                False ->
+                                                  case
+                                                    admin_platform.is_admin_platform_mutation_root(
+                                                      name,
+                                                    )
+                                                  {
+                                                    True ->
+                                                      Ok(AdminPlatformDomain)
+                                                    False -> Error(Nil)
+                                                  }
                                               }
                                           }
                                       }
