@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 37: CI gate hardening for port completion
+## 2026-04-30 — Pass 38: CI gate hardening for port completion
 
 Adds CI gates for the Gleam port without making the current partial parity
 runner list an allowlist. The gate keeps the vendored Gleam operation registry
@@ -65,13 +65,85 @@ and
   CI installs BEAM directly, while this workspace uses containers for local
   equivalent validation.
 
-### Pass 38 candidates
+### Pass 39 candidates
 
 - Continue Store Properties with locations and fulfillment/carrier-service
   lifecycle roots.
 - Continue Admin Platform parity seeding for utility roots that now have
   owning-domain serializers in Gleam.
 - Continue Marketing upstream hydration and parity-runner seeding.
+
+---
+
+## 2026-04-30 — Pass 37: metafield definitions and owner-scoped metafields
+
+Ports the Metafields definition lifecycle and owner-scoped metafield staging
+surface into the Gleam dispatcher. The new domain state covers metafield
+definition records, product/customer/collection/variant-owned metafields,
+standard definition enablement from the fixture-backed template subset,
+definition pin/unpin ordering, definition-backed `metafieldsSet` validation,
+compareDigest/CAS checks, downstream owner reads, and the captured custom-data
+type matrix. The Gleam parity runner now seeds captured metafield definition
+fixtures and honors target-level `excludedPaths`, which lets the checked-in
+metafields specs run without editing their recorded request or fixture shape.
+
+The TypeScript Metafields implementation remains in place for this pass. The
+root TS package still exposes the public runtime, product-owned
+`metafieldDelete`/`metafieldsDelete` remain under the Products TS surface, and
+`standardMetafieldDefinitionTemplates` is still a registry-only gap. Deleting
+the TS runtime before that remaining surface is ported would break existing TS
+behavior instead of retiring a fully duplicated implementation.
+
+| Module                                                            | Change                                                                                                                                                                       |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                 | Adds owner-scoped metafield records plus typed metafield definition capability, constraint, type, validation, and definition records.                                        |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                 | Adds base/staged metafield and definition buckets, definition tombstones, owner replacement helpers, definition lookup/listing, associated metafield cleanup, and GID order. |
+| `gleam/src/shopify_draft_proxy/proxy/metafields.gleam`            | Adds Shopify-like value normalization and `jsonValue` parsing for scalar, measurement, rating, object, list, and reference metafield types on both targets.                  |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | Adds stateful query/mutation handling for definition reads, lifecycle mutations, standard enablement, pin/unpin, owner reads, and `metafieldsSet`.                           |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`           | Routes metafield definition queries with store/variables so downstream reads observe local state.                                                                            |
+| `gleam/test/parity/runner.gleam`                                  | Seeds captured metafield definition records and definition-owned metafield nodes from parity fixtures.                                                                       |
+| `gleam/test/parity/spec.gleam`                                    | Decodes target-level `excludedPaths` as ignore rules, matching the existing parity spec contract.                                                                            |
+| `gleam/test/parity_test.gleam`                                    | Enables all six checked-in Metafields parity specs as executable Gleam evidence.                                                                                             |
+
+Validation: `gleam test --target javascript` is green at 685 tests on the host
+Node runtime. `gleam test --target erlang` is green at 681 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` with OTP 28 because the host
+Erlang runtime is OTP 25 and `gleam_json` requires OTP 27+. Targeted
+`gleam format --check ...` and `git diff --check` are green.
+
+### Findings
+
+- Shopify's owner metafields connection preserves numeric GID creation order
+  within the non-app/app namespace split; lexicographic synthetic IDs reorder
+  `Metafield/10` before `Metafield/2` and break multi-batch type-matrix reads.
+- Erlang and JavaScript differ in how parsed JSON numbers preserve `100.0`;
+  measurement `jsonValue.value` must coerce whole-number floats back to integer
+  JSON so both targets match the captured Shopify payload.
+- Captured metafield definition fixtures can include the same definition ID in
+  both rich detail selections and narrower catalog selections. Runner seeding
+  keeps the first richer record so later narrow rows do not erase description,
+  access, or capability fields.
+
+### Risks / open items
+
+- `standardMetafieldDefinitionTemplates` remains intentionally unimplemented in
+  the registry; this pass covers the fixture-backed enablement subset, not the
+  standard template catalog query root.
+- Product-owned `metafieldDelete` and `metafieldsDelete` are still part of the
+  TypeScript Products runtime and need a separate Gleam products/metafields
+  deletion pass before the TS metafield runtime can be removed safely.
+- Owner root reads are deliberately narrow and synthetic for Product,
+  ProductVariant, Collection, and Customer IDs; broader HasMetafields owners
+  should be added only with owning-domain state and parity evidence.
+
+### Pass 38 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
 
 ---
 
