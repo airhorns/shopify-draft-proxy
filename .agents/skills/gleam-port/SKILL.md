@@ -160,14 +160,36 @@ exists.
 5 lines in `proxy/draft_proxy.gleam`:
 
 1. New `<Domain>Domain` variant on the local `Domain` type.
-2. `<Domain> -> Ok(<Domain>Domain)` arm in `capability_to_query_domain`
-   (and `capability_to_mutation_domain` if it mutates).
-3. Legacy fallback in `legacy_query_domain_for` /
-   `legacy_mutation_domain_for` calling `is_<x>_query_root` /
-   `is_<x>_mutation_root`.
+2. Add the root to the explicit local dispatch table in
+   `local_query_dispatch_domain` and/or `local_mutation_dispatch_domain`.
+3. The registry decides whether a known root is implemented; the local dispatch
+   table decides whether this Gleam port can actually handle that root today.
 4. Dispatch arm in `route_query` / `route_mutation` calling
    `<domain>.process(...)` / `<domain>.process_mutation(...)`.
 5. Import the new module.
+
+### Operation registry sync
+
+The TypeScript-side `config/operation-registry.json` is the source of truth
+while the port is in progress. The Gleam mirror lives in
+`gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam` and is
+generated deterministically:
+
+```sh
+gleam/scripts/sync-operation-registry.sh
+```
+
+CI checks drift through `corepack pnpm conformance:check`, which runs:
+
+```sh
+gleam/scripts/sync-operation-registry.sh --check
+```
+
+Capability lookup mirrors the TypeScript registry for every implemented match
+name. Local dispatch is gated separately by the explicit local dispatch table
+and the ported domain root predicates; an implemented TypeScript root whose
+domain or specific root is not ported to Gleam remains unsupported locally and
+uses live-hybrid passthrough instead of being claimed as staged/overlay support.
 
 ### Mutation validation
 
