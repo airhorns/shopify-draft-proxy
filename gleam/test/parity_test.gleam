@@ -192,6 +192,14 @@ pub fn product_delete_variable_missing_id_parity_test() {
   )
 }
 
+pub fn tags_add_parity_plan_test() {
+  check("config/parity-specs/products/tagsAdd-parity-plan.json")
+}
+
+pub fn tags_remove_parity_plan_test() {
+  check("config/parity-specs/products/tagsRemove-parity-plan.json")
+}
+
 pub fn admin_platform_product_option_node_reads_test() {
   check(
     "config/parity-specs/admin-platform/admin-platform-product-option-node-reads.json",

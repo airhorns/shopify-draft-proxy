@@ -9,6 +9,70 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 53: tagsAdd/tagsRemove lifecycle
+
+Adds local `tagsAdd` and `tagsRemove` staging to the Gleam Products mutation
+handler. Both roots now route locally, validate missing Product IDs and empty
+tag input with Shopify-like payload-level `userErrors`, normalize Product tags,
+preserve raw mutation logging through the centralized log-draft path, and
+update direct Product reads without runtime Shopify writes.
+
+Tag-filtered Product searches now preserve Shopify's captured immediate
+search-index lag for hydrated/base products: direct `product(id:)` reads see
+the staged tag list immediately, while `products(query: "tag:...")` and
+`productsCount(query: "tag:...")` keep matching against the pre-mutation
+base/searchable tag set. The parity runner also seeds the captured
+`tagsRemove` fixture's pre-mutation/searchable tag state so the strict
+downstream remaining/removed tag-filter reads can replay unchanged.
+
+| Module                                                              | Change                                                                                        |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds `tagsAdd`/`tagsRemove` routing, staging, payload projection, and tag search lag.         |
+| `gleam/test/parity/runner.gleam`                                    | Seeds captured `tagsRemove` preconditions from mutation and downstream-read fixture payloads. |
+| `gleam/test/parity_test.gleam`                                      | Enables two strict tag parity scenarios.                                                      |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct tag add/remove read-after-write and mutation-log coverage.                        |
+
+Validation: `gleam test --target javascript` is green at 735 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails before tests execute
+on the local Erlang install; after clearing host-built Erlang artifacts, the
+Docker Erlang fallback is green at 731 tests. Product parity inventory remains
+115 checked-in specs, with 26 product specs executable in the Gleam parity suite
+plus the admin-platform ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was direct `draft_proxy.process_request`
+  requests returning HTTP 400 for both `tagsAdd` and `tagsRemove` because the
+  roots were not routed by the Gleam Products mutation dispatcher.
+- Shopify sorts Product tags in mutation payloads and direct reads, but its
+  immediate Product tag search index can lag behind staged tag changes for
+  hydrated/base products.
+- The captured `tagsRemove` fixture needs a specialized seed: the direct
+  Product payload is post-mutation, while the immediate `tag:` filters still
+  prove both remaining and removed tags searchable.
+
+### Risks / open items
+
+- This pass models the captured base-product tag search lag by consulting base
+  tags when staged tags differ; explicit time-based lag expiry remains a future
+  fidelity improvement if a later capture requires delayed-read parity.
+- Product create/update, variants, collections, inventory mutation families,
+  publications, product metafields, selling plans, feeds, and feedback remain
+  incomplete in Gleam.
+- Only 26 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 54 candidates
+
+- Add `productCreate` / `productUpdate` local lifecycle slices with their
+  captured validation branches.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Port collection membership and product variant media relationship roots so
+  the full `product-relationship-roots-live-parity` scenario can run.
+
+---
+
 ## 2026-04-30 — Pass 52: productDelete lifecycle
 
 Adds local `productDelete` staging to the Gleam Products mutation handler. The

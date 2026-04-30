@@ -97,7 +97,9 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productOptionsDelete"
     | "productOptionsReorder"
     | "productChangeStatus"
-    | "productDelete" -> True
+    | "productDelete"
+    | "tagsAdd"
+    | "tagsRemove" -> True
     _ -> False
   }
 }
@@ -470,7 +472,7 @@ fn product_matches_positive_query_term(
         product_string_match_options(),
       )
     Some("tag") ->
-      list.any(product.tags, fn(tag) {
+      list.any(product_searchable_tags(store, product), fn(tag) {
         search_query_parser.matches_search_query_string(
           Some(tag),
           search_query_parser.search_query_term_value(term),
@@ -526,6 +528,20 @@ fn product_searchable_status(store: Store, product: ProductRecord) -> String {
         False -> base_product.status
       }
     Error(_) -> product.status
+  }
+}
+
+fn product_searchable_tags(
+  store: Store,
+  product: ProductRecord,
+) -> List(String) {
+  case dict.get(store.base_state.products, product.id) {
+    Ok(base_product) ->
+      case base_product.tags == product.tags {
+        True -> product.tags
+        False -> base_product.tags
+      }
+    Error(_) -> product.tags
   }
 }
 
@@ -1754,6 +1770,62 @@ fn handle_mutation_fields(
                 next_drafts,
               )
             }
+            "tagsAdd" -> {
+              let result =
+                handle_tags_update(
+                  current_store,
+                  current_identity,
+                  True,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged tagsAdd locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "tagsRemove" -> {
+              let result =
+                handle_tags_update(
+                  current_store,
+                  current_identity,
+                  False,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged tagsRemove locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             _ -> acc
           }
         _ -> acc
@@ -2109,6 +2181,107 @@ fn handle_product_delete(
           }
       }
     }
+  }
+}
+
+fn handle_tags_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  is_add: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "id") {
+    None ->
+      mutation_result(
+        key,
+        tags_update_payload(
+          store,
+          is_add,
+          None,
+          [ProductUserError(["id"], "Product id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            tags_update_payload(
+              store,
+              is_add,
+              None,
+              [ProductUserError(["id"], "Product not found", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(product) -> {
+          let tags = read_tag_inputs(args, is_add)
+          case tags {
+            [] ->
+              mutation_result(
+                key,
+                tags_update_payload(
+                  store,
+                  is_add,
+                  None,
+                  [
+                    ProductUserError(
+                      ["tags"],
+                      "At least one tag is required",
+                      None,
+                    ),
+                  ],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            _ -> {
+              let next_tags = case is_add {
+                True -> normalize_product_tags(list.append(product.tags, tags))
+                False ->
+                  normalize_product_tags(
+                    list.filter(product.tags, fn(tag) {
+                      !list.contains(tags, tag)
+                    }),
+                  )
+              }
+              let next_product = ProductRecord(..product, tags: next_tags)
+              let #(_, next_store) =
+                store.upsert_staged_product(store, next_product)
+              mutation_result(
+                key,
+                tags_update_payload(
+                  next_store,
+                  is_add,
+                  Some(next_product),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                identity,
+                [next_product.id],
+              )
+            }
+          }
+        }
+      }
   }
 }
 
@@ -2850,6 +3023,33 @@ fn product_delete_payload(
   )
 }
 
+fn tags_update_payload(
+  store: Store,
+  is_add: Bool,
+  product: Option(ProductRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  let typename = case is_add {
+    True -> "TagsAddPayload"
+    False -> "TagsRemovePayload"
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString(typename)),
+      #("node", product_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn product_options_delete_payload(
   store: Store,
   deleted_option_ids: List(String),
@@ -3036,6 +3236,58 @@ fn read_arg_string_list(
       })
     _ -> []
   }
+}
+
+fn read_tag_inputs(
+  args: Dict(String, ResolvedValue),
+  allow_comma_separated_string: Bool,
+) -> List(String) {
+  let values = case dict.get(args, "tags") {
+    Ok(ListVal(items)) ->
+      list.filter_map(items, fn(value) {
+        case value {
+          StringVal(tag) -> trimmed_non_empty(tag)
+          _ -> Error(Nil)
+        }
+      })
+    Ok(StringVal(raw)) ->
+      case allow_comma_separated_string {
+        True ->
+          string.split(raw, on: ",")
+          |> list.filter_map(trimmed_non_empty)
+        False -> []
+      }
+    _ -> []
+  }
+  dedupe_preserving_order(values)
+}
+
+fn trimmed_non_empty(value: String) -> Result(String, Nil) {
+  let trimmed = string.trim(value)
+  case string.length(trimmed) > 0 {
+    True -> Ok(trimmed)
+    False -> Error(Nil)
+  }
+}
+
+fn normalize_product_tags(tags: List(String)) -> List(String) {
+  tags
+  |> list.filter_map(trimmed_non_empty)
+  |> list.fold(dict.new(), fn(seen, tag) { dict.insert(seen, tag, True) })
+  |> dict.keys()
+  |> list.sort(string.compare)
+}
+
+fn dedupe_preserving_order(values: List(String)) -> List(String) {
+  let #(reversed, _) =
+    list.fold(values, #([], dict.new()), fn(acc, value) {
+      let #(items, seen) = acc
+      case dict.has_key(seen, value) {
+        True -> #(items, seen)
+        False -> #([value, ..items], dict.insert(seen, value, True))
+      }
+    })
+  list.reverse(reversed)
 }
 
 fn read_option_create_inputs(

@@ -178,6 +178,7 @@ fn seed_capture_preconditions(
       seed_pre_mutation_product_preconditions(capture, proxy)
     "product-delete-live-parity" ->
       seed_product_delete_preconditions(capture, proxy)
+    "tags-remove-live-parity" -> seed_tags_remove_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -430,6 +431,143 @@ fn seed_product_delete_preconditions(
     }
     _ -> proxy
   }
+}
+
+fn seed_tags_remove_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.mutation.response.data.tagsRemove.node") {
+    Some(product_json) -> {
+      case make_seed_product_relaxed(product_json) {
+        Ok(post_product) -> {
+          let removed_tags = case
+            jsonpath.lookup(capture, "$.mutation.variables")
+          {
+            Some(variables) -> read_string_array_field(variables, "tags")
+            None -> []
+          }
+          let search_lagged_tags = read_tags_remove_search_lagged_tags(capture)
+          let queried_tags = read_tags_remove_queried_tags(capture)
+          let base_tags =
+            post_product.tags
+            |> list.filter(fn(tag) {
+              !list.contains(queried_tags, tag)
+              || list.contains(search_lagged_tags, tag)
+            })
+            |> list.append(
+              list.filter(removed_tags, fn(tag) {
+                list.contains(search_lagged_tags, tag)
+              }),
+            )
+            |> dedupe_strings_preserving_order
+          let pre_mutation_tags =
+            list.append(post_product.tags, removed_tags)
+            |> dedupe_strings_preserving_order
+          let base_product = ProductRecord(..post_product, tags: base_tags)
+          let pre_mutation_product =
+            ProductRecord(..post_product, tags: pre_mutation_tags)
+          let base_store =
+            store_mod.upsert_base_products(proxy.store, [base_product])
+          let #(_, seeded_store) =
+            store_mod.upsert_staged_product(base_store, pre_mutation_product)
+          draft_proxy.DraftProxy(..proxy, store: seeded_store)
+        }
+        Error(_) -> proxy
+      }
+    }
+    None -> proxy
+  }
+}
+
+fn read_tags_remove_search_lagged_tags(capture: JsonValue) -> List(String) {
+  let variables =
+    jsonpath.lookup(capture, "$.downstreamReadVariables")
+    |> option.unwrap(JObject([]))
+  let data =
+    jsonpath.lookup(capture, "$.downstreamRead.data")
+    |> option.unwrap(JObject([]))
+  ["remainingQuery", "removedQuery"]
+  |> list.filter_map(fn(key) {
+    let tag = read_tag_query_value(read_string_field(variables, key))
+    let response_key = case key {
+      "remainingQuery" -> "remaining"
+      _ -> "removed"
+    }
+    let has_nodes = case read_object_field(data, response_key) {
+      Some(connection) ->
+        case read_array_field(connection, "nodes") {
+          Some([_, ..]) -> True
+          _ -> False
+        }
+      None -> False
+    }
+    case tag, has_nodes {
+      Some(tag), True -> Ok(tag)
+      _, _ -> Error(Nil)
+    }
+  })
+}
+
+fn read_tags_remove_queried_tags(capture: JsonValue) -> List(String) {
+  let variables =
+    jsonpath.lookup(capture, "$.downstreamReadVariables")
+    |> option.unwrap(JObject([]))
+  ["remainingQuery", "removedQuery"]
+  |> list.filter_map(fn(key) {
+    case read_tag_query_value(read_string_field(variables, key)) {
+      Some(tag) -> Ok(tag)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn read_tag_query_value(query: Option(String)) -> Option(String) {
+  case query {
+    Some(raw) ->
+      case string.split_once(raw, "tag:") {
+        Ok(#(_, tail)) -> {
+          let token = case string.split_once(string.trim(tail), " ") {
+            Ok(#(head, _)) -> head
+            Error(_) -> string.trim(tail)
+          }
+          Some(strip_query_quotes(token))
+        }
+        Error(_) -> None
+      }
+    None -> None
+  }
+}
+
+fn strip_query_quotes(value: String) -> String {
+  let trimmed = string.trim(value)
+  let trimmed = case string.ends_with(trimmed, ")") {
+    True -> string.drop_end(trimmed, 1)
+    False -> trimmed
+  }
+  case
+    string.length(trimmed) >= 2
+    && {
+      let first = string.slice(trimmed, 0, 1)
+      let last = string.slice(trimmed, string.length(trimmed) - 1, 1)
+      first == last && { first == "\"" || first == "'" }
+    }
+  {
+    True -> string.slice(trimmed, 1, string.length(trimmed) - 2)
+    False -> trimmed
+  }
+}
+
+fn dedupe_strings_preserving_order(values: List(String)) -> List(String) {
+  let #(reversed, _) =
+    list.fold(values, #([], dict.new()), fn(acc, value) {
+      let #(items, seen) = acc
+      case dict.has_key(seen, value) {
+        True -> #(items, seen)
+        False -> #([value, ..items], dict.insert(seen, value, True))
+      }
+    })
+  list.reverse(reversed)
 }
 
 fn make_seed_product_from_edge(edge: JsonValue) -> Result(ProductRecord, Nil) {
