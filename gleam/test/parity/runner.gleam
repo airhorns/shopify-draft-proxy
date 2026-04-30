@@ -183,9 +183,15 @@ fn seed_capture_preconditions(
     "tags-remove-live-parity" -> seed_tags_remove_preconditions(capture, proxy)
     "product-variant-create-compatibility-evidence" ->
       seed_product_variant_create_preconditions(capture, proxy)
+    "product-variants-bulk-create-live-parity" ->
+      seed_product_variants_bulk_create_preconditions(capture, proxy)
     "product-variant-update-compatibility-evidence" ->
       seed_product_variant_update_preconditions(capture, proxy)
+    "product-variants-bulk-update-live-parity" ->
+      seed_product_variants_bulk_update_preconditions(capture, proxy)
     "product-variant-delete-compatibility-evidence" ->
+      seed_product_variant_delete_preconditions(capture, proxy)
+    "product-variants-bulk-delete-live-parity" ->
       seed_product_variant_delete_preconditions(capture, proxy)
     _ -> proxy
   }
@@ -631,6 +637,45 @@ fn seed_product_variant_update_preconditions(
         Ok(variant) -> [
           ProductVariantRecord(..variant, sku: None, selected_options: []),
         ]
+        Error(_) -> []
+      }
+      seed_product_and_base_variants(proxy, product, variants)
+    }
+    _, _ -> proxy
+  }
+}
+
+fn seed_product_variants_bulk_create_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamRead.data.product") {
+    Some(product_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let variants = seed_variants_for_product(product_json) |> take_first(1)
+      seed_product_and_base_variants(proxy, product, variants)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_variants_bulk_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.productVariantsBulkUpdate.product",
+    ),
+    jsonpath.lookup(capture, "$.downstreamRead.data.product.variants.nodes[0]")
+  {
+    Some(product_json), Some(variant_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let variants = case
+        make_seed_product_variant_from_product_json(product_json, variant_json)
+      {
+        Ok(variant) -> [ProductVariantRecord(..variant, sku: None)]
         Error(_) -> []
       }
       seed_product_and_base_variants(proxy, product, variants)

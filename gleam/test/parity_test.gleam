@@ -244,6 +244,24 @@ pub fn product_variant_delete_parity_plan_test() {
   check("config/parity-specs/products/productVariantDelete-parity-plan.json")
 }
 
+pub fn product_variants_bulk_create_parity_plan_test() {
+  check(
+    "config/parity-specs/products/productVariantsBulkCreate-parity-plan.json",
+  )
+}
+
+pub fn product_variants_bulk_update_parity_plan_test() {
+  check(
+    "config/parity-specs/products/productVariantsBulkUpdate-parity-plan.json",
+  )
+}
+
+pub fn product_variants_bulk_delete_parity_plan_test() {
+  check(
+    "config/parity-specs/products/productVariantsBulkDelete-parity-plan.json",
+  )
+}
+
 pub fn tags_add_parity_plan_test() {
   check("config/parity-specs/products/tagsAdd-parity-plan.json")
 }

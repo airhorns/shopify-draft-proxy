@@ -9,6 +9,74 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 57: product variant bulk lifecycle
+
+Adds local staging for the live-supported product variant bulk roots:
+`productVariantsBulkCreate`, `productVariantsBulkUpdate`, and
+`productVariantsBulkDelete`. The Gleam Products mutation handler now routes
+these roots locally, logs the original raw mutations through the centralized
+draft-log path, stages variant-family replacements, refreshes Product inventory
+summaries, keeps option value `hasVariants` usage in sync for known options,
+and exposes immediate downstream Product/variant reads without runtime Shopify
+writes.
+
+The pass promotes the three captured bulk variant parity scenarios into the
+Gleam suite. Runner seeding reconstructs the pre-mutation Product/variant state
+from the recorded live fixtures, including the richer downstream create/update
+variant records needed for inherited merchandising fields and selected-option
+reads. The existing SKU search-lag behavior from Pass 56 covers these bulk
+family changes: direct Product reads see staged variants while immediate
+SKU-filtered `products` / `productsCount` reads keep matching the base variant
+family when staged variants differ.
+
+| Module                                               | Change                                                                                                |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds bulk variant create/update/delete routing, staging, payloads, inventory summary and option sync. |
+| `gleam/test/parity/runner.gleam`                     | Seeds bulk create/update/delete fixture preconditions from captured Product and variant payloads.     |
+| `gleam/test/parity_test.gleam`                       | Enables three strict bulk product-variant parity scenarios.                                           |
+
+Validation: `gleam test --target javascript` is green at 755 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails before tests execute
+on the local Erlang install with the known `undef` runner issue; after clearing
+host-built Erlang artifacts, the Docker Erlang fallback is green at 751 tests.
+Product parity inventory remains 115 checked-in specs, with 41 product specs
+executable in the Gleam parity suite plus the admin-platform ProductOption node
+scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was direct `draft_proxy.process_request`
+  requests returning HTTP 400 for `productVariantsBulkCreate`,
+  `productVariantsBulkUpdate`, and `productVariantsBulkDelete` because the
+  roots were not routed by the Gleam Products mutation dispatcher.
+- Bulk create fixture parity needs the downstream Product seed rather than only
+  the mutation payload, because Shopify's downstream read includes inherited
+  compare-at-price, taxable, and inventory-policy fields that are not selected
+  by the mutation payload.
+- Bulk update fixture parity must preserve selected options in the seeded base
+  variant while clearing only SKU, so the immediate SKU search lag remains
+  faithful without losing direct downstream selected-option reads.
+
+### Risks / open items
+
+- This pass covers the captured bulk create/update/delete happy-path slices,
+  not the full bulk validation/atomicity matrix or bulk reorder.
+- Collections, inventory quantity/shipment/transfer, publications, product
+  metafields, selling plans, feeds, and feedback remain incomplete in Gleam.
+- Only 41 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 58 candidates
+
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Port `productVariantsBulkReorder` and the remaining variant strategy/media
+  relationship scenarios.
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+
+---
+
 ## 2026-04-30 — Pass 56: product variant compatibility lifecycle
 
 Adds local staging for the legacy single-variant compatibility roots:
