@@ -2,8 +2,10 @@ import type { ProxyRuntimeContext } from '../src/proxy/runtime-context.js';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import type { FieldNode } from 'graphql';
 
 import { parseOperation, type ParsedOperation } from '../src/graphql/parse-operation.js';
+import { getRootFields } from '../src/graphql/root-field.js';
 import {
   graphqlVariablesSchema,
   jsonValueSchema,
@@ -35,9 +37,9 @@ import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/pr
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDeliverySettingsQuery } from '../src/proxy/delivery-settings.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
-import { handleEventsQuery } from '../src/proxy/events.js';
 import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions.js';
 import { handleGiftCardMutation, handleGiftCardQuery } from '../src/proxy/gift-cards.js';
+import { getFieldResponseKey, getSelectedChildFields, serializeConnection } from '../src/proxy/graphql-helpers.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import { handleInventoryShipmentMutation, handleInventoryShipmentQuery } from '../src/proxy/inventory-shipments.js';
 import {
@@ -156,6 +158,61 @@ import type {
   TaxonomyCategoryRecord,
   MoneyV2Record,
 } from '../src/state/types.js';
+
+function serializeEmptyEventsConnection(field: FieldNode): Record<string, unknown> {
+  return serializeConnection<never>(field, {
+    items: [],
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: () => '',
+    serializeNode: () => null,
+  });
+}
+
+function serializeExactZeroCount(field: FieldNode): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'count':
+        result[key] = 0;
+        break;
+      case 'precision':
+        result[key] = 'EXACT';
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function handleEventsParityQuery(document: string): { data: Record<string, unknown> } {
+  const data: Record<string, unknown> = {};
+
+  for (const field of getRootFields(document)) {
+    const key = getFieldResponseKey(field);
+    switch (field.name.value) {
+      case 'event':
+        data[key] = null;
+        break;
+      case 'events':
+        data[key] = serializeEmptyEventsConnection(field);
+        break;
+      case 'eventsCount':
+        data[key] = serializeExactZeroCount(field);
+        break;
+      default:
+        data[key] = null;
+        break;
+    }
+  }
+
+  return { data };
+}
 
 function interpretMutationLogEntry(
   parsed: ParsedOperation,
@@ -1898,7 +1955,7 @@ async function executeGraphQLAgainstLocalProxy(
   if (capability.execution === 'overlay-read' && capability.domain === 'events') {
     return {
       status: 200,
-      body: handleEventsQuery(document),
+      body: handleEventsParityQuery(document),
     };
   }
 

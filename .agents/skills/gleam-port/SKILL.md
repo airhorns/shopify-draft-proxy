@@ -200,6 +200,13 @@ node serializers in the owning domain and wire only those owned GID types into
 delegated tokens are hidden from effective lookup/read paths, while the app
 identity itself remains resolvable for later Node reads.
 
+### Porting notes
+
+- Events is a read-only, no-data domain. Once its parity spec is enabled
+  and dispatcher-level Gleam tests cover `event`, `events`, and `eventsCount`,
+  delete the TS handler and point operation-registry runtime coverage at the
+  Gleam tests; do not keep a TS empty-response stub beside the Gleam port.
+
 ## Workflow for a new pass
 
 1. Pick a candidate from the most recent log entry's "Pass N candidates"

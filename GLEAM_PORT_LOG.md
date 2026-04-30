@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 34: apps billing/access parity cutover
+## 2026-04-30 — Pass 35: apps billing/access parity cutover
 
 Completes the broader Apps billing/access parity scenario in the Gleam runner.
 Both checked-in app parity specs now execute against the Gleam proxy, including
@@ -54,7 +54,7 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
 - Several previously ported domains still have TypeScript runtime modules in
   main and should be cut over by their own parity-completion passes.
 
-### Pass 35 candidates
+### Pass 36 candidates
 
 - Continue Store Properties with locations and fulfillment/carrier-service
   lifecycle roots, reusing the existing shop slice.
@@ -62,6 +62,63 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
   scenarios can execute against the Gleam proxy.
 - Audit other already-ported domains for the same TypeScript-runtime cutover
   once their broad parity specs are enabled in Gleam.
+
+---
+
+## 2026-04-30 — Pass 34: events read/count parity cutover
+
+Finishes the read-only Events cutover. The Gleam events domain remains scoped
+to the captured no-data contract for `event`, `events`, and `eventsCount`, adds
+dispatcher-level query-shape coverage for the recorded variable/query shape,
+and becomes the operation-registry runtime coverage anchor. The legacy
+TypeScript events runtime and its TS integration test are removed; the TS
+conformance parity harness keeps the checked-in `event-empty-read` fixture
+executable with a parity-local serializer so historical parity evidence still
+runs while runtime ownership sits in Gleam.
+
+| Module                                                                | Change                                                                                                     |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/events.gleam`                    | Adds explicit root detection and keeps null/empty/exact-zero serialization as the Events source of truth.  |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`               | Routes legacy Events query roots through the Events module helper.                                         |
+| `gleam/test/shopify_draft_proxy/proxy/events_test.gleam`              | Covers Events root detection plus direct no-data serialization.                                            |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam`         | Adds dispatcher coverage for the captured `event` + `events` + `eventsCount` variable-bearing query shape. |
+| `config/operation-registry.json`                                      | Points Events runtime coverage at the Gleam tests and regenerates the vendored Gleam registry.             |
+| `src/proxy/events.ts`, `tests/integration/event-query-shapes.test.ts` | Deletes the legacy TypeScript runtime handler and TS event integration test.                               |
+| `scripts/conformance-parity-lib.ts`                                   | Preserves executable TS-side parity for `event-empty-read` after the runtime handler deletion.             |
+
+Validation: `gleam test --target javascript` is green at 683 tests. Host
+`gleam test --target erlang` still fails because `escript` is not installed;
+the same Erlang target passes at 679 tests through
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`. `corepack pnpm
+conformance:parity -- --testNamePattern event-empty-read` is green, and
+`corepack pnpm typecheck` is green.
+
+### Findings
+
+- Top-level Events remains a no-data-only read domain; non-empty top-level
+  event hydration is still intentionally unclaimed until a dedicated capture
+  establishes subject/type/filter/sort/count behavior.
+- The TypeScript conformance parity harness still needs a non-runtime Events
+  serializer while repository-level parity specs are executed by the TS Vitest
+  suite.
+
+### Risks / open items
+
+- The host environment still lacks Erlang `escript`; use the Gleam Erlang
+  container for local Erlang target validation unless the host is repaired.
+- Event emission from staged mutations in other domains remains owned by those
+  endpoint modules, not by a shared top-level Events catalog.
+
+### Pass 35 candidates
+
+- Add the TypeScript-to-Gleam runtime bridge needed to retire fully ported TS
+  domain modules without breaking public `createDraftProxy` consumers.
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the shop slice from Pass 32.
+- Continue Admin Platform parity seeding for utility roots that only require
+  backup-region/no-data behavior.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
 
 ---
 
