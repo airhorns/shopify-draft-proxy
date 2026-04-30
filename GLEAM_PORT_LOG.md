@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 42: privacy data-sale opt-out parity
+## 2026-04-30 — Pass 43: privacy data-sale opt-out parity
 
 Ports the privacy-owned `dataSaleOptOut` mutation into a dedicated Gleam privacy
 module while keeping the downstream read effect on customer state. The Gleam
@@ -23,14 +23,14 @@ repeat idempotency, and invalid-email `FAILED` user error shape. The original
 TypeScript runtime and TypeScript tests remain in place for the incremental port
 guardrail.
 
-| Module                                                             | Change                                                                                                            |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/privacy.gleam`                | Adds privacy-domain local staging for `dataSaleOptOut`, including existing/unknown customer effects and errors.  |
-| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`              | Removes `dataSaleOptOut` from customer mutation dispatch while preserving customer read serialization.            |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`            | Adds `PrivacyDomain` mutation routing without adding privacy query/root breadth.                                  |
-| `gleam/test/shopify_draft_proxy/proxy/privacy_test.gleam`          | Covers existing-customer opt-out readback/logs, unknown-email creation, invalid-email errors, unsupported roots. |
+| Module                                                               | Change                                                                                                           |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/privacy.gleam`                  | Adds privacy-domain local staging for `dataSaleOptOut`, including existing/unknown customer effects and errors.  |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`                | Removes `dataSaleOptOut` from customer mutation dispatch while preserving customer read serialization.           |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | Adds `PrivacyDomain` mutation routing without adding privacy query/root breadth.                                 |
+| `gleam/test/shopify_draft_proxy/proxy/privacy_test.gleam`            | Covers existing-customer opt-out readback/logs, unknown-email creation, invalid-email errors, unsupported roots. |
 | `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json` | Enables privacy parity by seeding capture customer state and removing the privacy expected-failure entry.        |
-| `.agents/skills/gleam-port/SKILL.md`                               | Records the privacy/customer ownership note for future domain passes.                                             |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Records the privacy/customer ownership note for future domain passes.                                            |
 
 Validation: `gleam test --target javascript` is green at 684 tests. The host
 `gleam test --target erlang` fails because local Erlang/OTP is 25 while
@@ -58,7 +58,7 @@ Validation: `gleam test --target javascript` is green at 684 tests. The host
 - Local host Erlang validation requires OTP 27; OTP 25 can compile but fails at
   runtime through `gleam_json`.
 
-### Pass 43 candidates
+### Pass 44 candidates
 
 - Port product-owned `metafieldDelete` / `metafieldsDelete` and their
   hydrated/downstream deletion flows into Gleam.
@@ -66,6 +66,54 @@ Validation: `gleam test --target javascript` is green at 684 tests. The host
   captured template-catalog fixture exists.
 - Continue Store Properties locations and fulfillment/carrier-service lifecycle
   roots, reusing the existing shop state slice.
+
+---
+
+## 2026-04-30 — Pass 42: webhook parity evidence metadata with TS retained
+
+Records the completed Webhooks Gleam parity evidence in repository metadata
+while leaving the legacy TypeScript runtime, dispatcher hooks, and TypeScript
+tests in place. This pass does not change webhook runtime code; it updates the
+checked-in parity specs and operation registry so the already-present Gleam
+parity/direct tests are listed beside the retained TypeScript evidence.
+
+| Module                                                              | Change                                                                                                                          |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `config/parity-specs/webhooks/*.json`                               | Adds `gleam/test/parity_test.gleam` and direct Gleam webhook/log tests while keeping existing TypeScript runtime-test evidence. |
+| `config/operation-registry.json`                                    | Adds Gleam runtime-test metadata and support notes while making the retained TypeScript runtime boundary explicit.              |
+| `gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam` | Regenerates the vendored Gleam registry from the updated JSON source.                                                           |
+| `.agents/skills/gleam-port/SKILL.md`                                | Records that TypeScript runtime retirement belongs to an explicit final cleanup phase, not routine per-domain parity handoff.   |
+
+Validation: `gleam test --target javascript`, the Erlang target via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`, `corepack pnpm typecheck`,
+`corepack pnpm conformance:check`, `corepack pnpm conformance:parity`,
+`corepack pnpm lint`, and `git diff --check` are green.
+
+### Findings
+
+- The webhook parity specs can remain byte-faithful on request/capture data;
+  runtime-test metadata now names both retained TypeScript coverage and the
+  already-present Gleam parity/direct tests.
+- Reviewer feedback clarified that TypeScript runtime retirement should wait
+  for the final cleanup phase even when a domain reaches Gleam parity.
+- Erlang validation must mount the repository root at the expected relative path
+  when using Docker; mounting only `gleam/` breaks parity fixtures resolved via
+  `../config` and `../fixtures`.
+
+### Risks / open items
+
+- The TypeScript HTTP dispatcher still handles webhook roots until the final
+  cleanup phase; Webhooks are also owned by the Gleam embeddable/parity path.
+
+### Pass 42 candidates
+
+- Add a fixture-bundle snapshot loader once parity runner scenarios need
+  recorded GraphQL bundle startup state.
+- Continue Store Properties location / fulfillment-service roots now that
+  state dump/restore can persist the expanded store shape.
+- Add broader runtime smoke around `process_request_async` live-hybrid
+  passthrough and commit replay once test transport injection is exposed through
+  the JS shim.
 
 ---
 
