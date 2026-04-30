@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy.{type Request, Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
@@ -288,6 +289,63 @@ pub fn product_update_blank_title_returns_existing_product_test() {
   assert json.to_string(body)
     == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"handle\":\"optioned-board\"},\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\"}]}}}"
   assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_create_stages_product_default_variant_and_inventory_test() {
+  let proxy = draft_proxy.new()
+  let query =
+    "mutation { productCreate(product: { title: \\\"Created Board\\\", status: DRAFT, vendor: \\\"HERMES\\\", productType: \\\"BOARDS\\\", tags: [\\\"beta\\\", \\\"alpha\\\"], descriptionHtml: \\\"<p>Created</p>\\\", templateSuffix: \\\"custom\\\", seo: { title: \\\"SEO title\\\", description: \\\"SEO description\\\" } }) { product { id title handle status vendor productType tags descriptionHtml templateSuffix seo { title description } totalInventory tracksInventory variants(first: 10) { nodes { id title inventoryQuantity inventoryItem { id tracked requiresShipping } } } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Created Board\",\"handle\":\"created-board\",\"status\":\"DRAFT\",\"vendor\":\"HERMES\",\"productType\":\"BOARDS\",\"tags\":[\"alpha\",\"beta\"],\"descriptionHtml\":\"<p>Created</p>\",\"templateSuffix\":\"custom\",\"seo\":{\"title\":\"SEO title\",\"description\":\"SEO description\"},\"totalInventory\":0,\"tracksInventory\":false,\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/4\",\"title\":\"Default Title\",\"inventoryQuantity\":0,\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/5\",\"tracked\":false,\"requiresShipping\":true}}]}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title inventoryQuantity inventoryItem { id tracked requiresShipping } } } } variant: productVariant(id: \\\"gid://shopify/ProductVariant/4\\\") { id title inventoryQuantity inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory } } stock: inventoryItem(id: \\\"gid://shopify/InventoryItem/5\\\") { id tracked requiresShipping variant { id title sku inventoryQuantity product { id title handle status totalInventory tracksInventory } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Created Board\",\"handle\":\"created-board\",\"status\":\"DRAFT\",\"totalInventory\":0,\"tracksInventory\":false,\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/4\",\"title\":\"Default Title\",\"inventoryQuantity\":0,\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/5\",\"tracked\":false,\"requiresShipping\":true}}]}},\"variant\":{\"id\":\"gid://shopify/ProductVariant/4\",\"title\":\"Default Title\",\"inventoryQuantity\":0,\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/5\",\"tracked\":false,\"requiresShipping\":true},\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Created Board\",\"handle\":\"created-board\",\"status\":\"DRAFT\",\"totalInventory\":0,\"tracksInventory\":false}},\"stock\":{\"id\":\"gid://shopify/InventoryItem/5\",\"tracked\":false,\"requiresShipping\":true,\"variant\":{\"id\":\"gid://shopify/ProductVariant/4\",\"title\":\"Default Title\",\"sku\":null,\"inventoryQuantity\":0,\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Created Board\",\"handle\":\"created-board\",\"status\":\"DRAFT\",\"totalInventory\":0,\"tracksInventory\":false}}}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_create_validation_branches_return_user_errors_test() {
+  let blank_query =
+    "mutation { productCreate(product: { title: \\\"\\\" }) { product { id title handle } userErrors { field message } } }"
+  let #(Response(status: blank_status, body: blank_body, ..), blank_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(blank_query))
+  assert blank_status == 200
+  assert json.to_string(blank_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\"}]}}}"
+  assert store.get_log(blank_proxy.store)
+    |> list.length
+    == 1
+
+  let long_handle = string.repeat("a", times: 260)
+  let handle_query =
+    "mutation { productCreate(product: { title: \\\"Too Long\\\", handle: \\\""
+    <> long_handle
+    <> "\\\" }) { product { id title handle } userErrors { field message } } }"
+  let #(Response(status: handle_status, body: handle_body, ..), handle_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(handle_query),
+    )
+  assert handle_status == 200
+  assert json.to_string(handle_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"handle\"],\"message\":\"Handle is too long (maximum is 255 characters)\"}]}}}"
+  assert store.get_log(handle_proxy.store)
     |> list.length
     == 1
 }

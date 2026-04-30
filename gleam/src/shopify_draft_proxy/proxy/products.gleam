@@ -93,6 +93,7 @@ pub fn is_products_query_root(name: String) -> Bool {
 pub fn is_products_mutation_root(name: String) -> Bool {
   case name {
     "productOptionsCreate"
+    | "productCreate"
     | "productOptionUpdate"
     | "productOptionsDelete"
     | "productOptionsReorder"
@@ -1607,6 +1608,33 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "productCreate" -> {
+              let result =
+                handle_product_create(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productCreate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "productOptionUpdate" -> {
               let result =
                 handle_product_option_update(
@@ -1929,6 +1957,86 @@ fn handle_product_options_create(
             field,
             fragments,
           )
+      }
+  }
+}
+
+fn handle_product_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "product")
+  case input {
+    None ->
+      mutation_result(
+        key,
+        product_create_payload(
+          store,
+          None,
+          [ProductUserError(["title"], "Title can't be blank", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(input) ->
+      case product_create_validation_error(input) {
+        Some(error) ->
+          mutation_result(
+            key,
+            product_create_payload(store, None, [error], field, fragments),
+            store,
+            identity,
+            [],
+          )
+        None -> {
+          let #(product, identity_after_product) =
+            created_product_record(store, identity, input)
+          let #(default_option, identity_after_option, option_ids) =
+            make_default_option_record(identity_after_product, product)
+          let #(default_variant, final_identity, variant_ids) =
+            make_default_variant_record(identity_after_option, product)
+          let #(_, next_store) = store.upsert_staged_product(store, product)
+          let next_store =
+            next_store
+            |> store.replace_staged_options_for_product(product.id, [
+              default_option,
+            ])
+            |> store.replace_staged_variants_for_product(product.id, [
+              default_variant,
+            ])
+          let synced_product =
+            ProductRecord(
+              ..product,
+              total_inventory: Some(0),
+              tracks_inventory: Some(False),
+            )
+          let #(_, next_store) =
+            store.upsert_staged_product(next_store, synced_product)
+          mutation_result(
+            key,
+            product_create_payload(
+              next_store,
+              Some(synced_product),
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            final_identity,
+            list.append(
+              [synced_product.id],
+              list.append(option_ids, variant_ids),
+            ),
+          )
+        }
       }
   }
 }
@@ -2321,6 +2429,37 @@ fn product_update_validation_error(
         False -> product_update_handle_validation_error(input)
       }
     None -> product_update_handle_validation_error(input)
+  }
+}
+
+fn product_create_validation_error(
+  input: Dict(String, ResolvedValue),
+) -> Option(ProductUserError) {
+  case read_string_field(input, "title") {
+    Some(title) ->
+      case string.length(string.trim(title)) == 0 {
+        True -> Some(ProductUserError(["title"], "Title can't be blank", None))
+        False -> product_create_handle_validation_error(input)
+      }
+    None -> Some(ProductUserError(["title"], "Title can't be blank", None))
+  }
+}
+
+fn product_create_handle_validation_error(
+  input: Dict(String, ResolvedValue),
+) -> Option(ProductUserError) {
+  case read_explicit_product_handle(input) {
+    Some(handle) ->
+      case string.length(handle) > 255 {
+        True ->
+          Some(ProductUserError(
+            ["handle"],
+            "Handle is too long (maximum is 255 characters)",
+            None,
+          ))
+        False -> None
+      }
+    None -> None
   }
 }
 
@@ -3203,6 +3342,28 @@ fn product_update_payload(
   )
 }
 
+fn product_create_payload(
+  store: Store,
+  product: Option(ProductRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductCreatePayload")),
+      #("product", product_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn tags_update_payload(
   store: Store,
   is_add: Bool,
@@ -3499,6 +3660,209 @@ fn updated_product_record(
       updated_at: Some(updated_at),
     ),
     next_identity,
+  )
+}
+
+fn created_product_record(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, ResolvedValue),
+) -> #(ProductRecord, SyntheticIdentityRegistry) {
+  let title =
+    read_non_empty_string_field(input, "title")
+    |> option.unwrap("Untitled product")
+  let #(created_at, identity_after_timestamp) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let #(id, next_identity) =
+    synthetic_identity.make_proxy_synthetic_gid(
+      identity_after_timestamp,
+      "Product",
+    )
+  let base_handle = case read_explicit_product_handle(input) {
+    Some(handle) -> handle
+    None -> slugify_product_handle(title)
+  }
+  #(
+    ProductRecord(
+      id: id,
+      legacy_resource_id: None,
+      title: title,
+      handle: ensure_unique_product_handle(store, base_handle),
+      status: read_product_status_field(input) |> option.unwrap("ACTIVE"),
+      vendor: read_string_field(input, "vendor"),
+      product_type: read_string_field(input, "productType"),
+      tags: read_string_list_field(input, "tags")
+        |> option.map(normalize_product_tags)
+        |> option.unwrap([]),
+      total_inventory: Some(0),
+      tracks_inventory: Some(False),
+      created_at: Some(created_at),
+      updated_at: Some(created_at),
+      description_html: read_string_field(input, "descriptionHtml")
+        |> option.unwrap(""),
+      online_store_preview_url: None,
+      template_suffix: read_string_field(input, "templateSuffix"),
+      seo: updated_product_seo(
+        ProductSeoRecord(title: None, description: None),
+        input,
+      ),
+      category: None,
+      cursor: None,
+    ),
+    next_identity,
+  )
+}
+
+fn read_explicit_product_handle(
+  input: Dict(String, ResolvedValue),
+) -> Option(String) {
+  case read_non_empty_string_field(input, "handle") {
+    Some(handle) -> {
+      let normalized = normalize_product_handle(handle)
+      case normalized {
+        "" -> Some("product")
+        _ -> Some(normalized)
+      }
+    }
+    None -> None
+  }
+}
+
+fn slugify_product_handle(title: String) -> String {
+  let normalized = normalize_product_handle(title)
+  case normalized {
+    "" -> "untitled-product"
+    _ -> normalized
+  }
+}
+
+fn normalize_product_handle(value: String) -> String {
+  value
+  |> string.trim
+  |> string.lowercase
+  |> string.to_graphemes
+  |> list.fold(#([], ""), fn(acc, grapheme) {
+    let #(parts, current) = acc
+    case is_handle_grapheme(grapheme) {
+      True -> #(parts, current <> grapheme)
+      False ->
+        case current {
+          "" -> #(parts, "")
+          _ -> #([current, ..parts], "")
+        }
+    }
+  })
+  |> finish_handle_parts
+}
+
+fn finish_handle_parts(parts_state: #(List(String), String)) -> String {
+  let #(parts, current) = parts_state
+  let parts = case current {
+    "" -> parts
+    _ -> [current, ..parts]
+  }
+  parts
+  |> list.reverse
+  |> string.join("-")
+}
+
+fn is_handle_grapheme(grapheme: String) -> Bool {
+  case grapheme {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" -> True
+    "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" -> True
+    "u" | "v" | "w" | "x" | "y" | "z" -> True
+    _ -> False
+  }
+}
+
+fn ensure_unique_product_handle(store: Store, handle: String) -> String {
+  case product_handle_in_use(store, handle) {
+    True -> ensure_unique_product_handle(store, handle <> "-1")
+    False -> handle
+  }
+}
+
+fn product_handle_in_use(store: Store, handle: String) -> Bool {
+  store.list_effective_products(store)
+  |> list.any(fn(product) { product.handle == handle })
+}
+
+fn make_default_option_record(
+  identity: SyntheticIdentityRegistry,
+  product: ProductRecord,
+) -> #(ProductOptionRecord, SyntheticIdentityRegistry, List(String)) {
+  let #(option_id, identity_after_option) =
+    synthetic_identity.make_synthetic_gid(identity, "ProductOption")
+  let #(value_id, next_identity) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_option,
+      "ProductOptionValue",
+    )
+  #(
+    ProductOptionRecord(
+      id: option_id,
+      product_id: product.id,
+      name: "Title",
+      position: 1,
+      option_values: [
+        ProductOptionValueRecord(
+          id: value_id,
+          name: "Default Title",
+          has_variants: True,
+        ),
+      ],
+    ),
+    next_identity,
+    [option_id, value_id],
+  )
+}
+
+fn make_default_variant_record(
+  identity: SyntheticIdentityRegistry,
+  product: ProductRecord,
+) -> #(ProductVariantRecord, SyntheticIdentityRegistry, List(String)) {
+  let #(variant_id, identity_after_variant) =
+    synthetic_identity.make_synthetic_gid(identity, "ProductVariant")
+  let #(inventory_item_id, next_identity) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_variant,
+      "InventoryItem",
+    )
+  #(
+    ProductVariantRecord(
+      id: variant_id,
+      product_id: product.id,
+      title: "Default Title",
+      sku: None,
+      barcode: None,
+      price: None,
+      compare_at_price: None,
+      taxable: None,
+      inventory_policy: None,
+      inventory_quantity: Some(0),
+      selected_options: [
+        ProductVariantSelectedOptionRecord(
+          name: "Title",
+          value: "Default Title",
+        ),
+      ],
+      inventory_item: Some(
+        InventoryItemRecord(
+          id: inventory_item_id,
+          tracked: Some(False),
+          requires_shipping: Some(True),
+          measurement: None,
+          country_code_of_origin: None,
+          province_code_of_origin: None,
+          harmonized_system_code: None,
+          inventory_levels: [],
+        ),
+      ),
+      cursor: None,
+    ),
+    next_identity,
+    [variant_id, inventory_item_id],
   )
 }
 

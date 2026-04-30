@@ -214,6 +214,24 @@ pub fn product_update_too_long_handle_parity_test() {
   )
 }
 
+pub fn product_create_parity_plan_test() {
+  check("config/parity-specs/products/productCreate-parity-plan.json")
+}
+
+pub fn product_create_blank_title_parity_test() {
+  check("config/parity-specs/products/productCreate-blank-title-parity.json")
+}
+
+pub fn product_create_too_long_handle_parity_test() {
+  check(
+    "config/parity-specs/products/productCreate-too-long-handle-parity.json",
+  )
+}
+
+pub fn product_create_inventory_read_parity_test() {
+  check("config/parity-specs/products/productCreate-inventory-read-parity.json")
+}
+
 pub fn tags_add_parity_plan_test() {
   check("config/parity-specs/products/tagsAdd-parity-plan.json")
 }

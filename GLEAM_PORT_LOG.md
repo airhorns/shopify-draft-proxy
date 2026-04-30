@@ -9,6 +9,68 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 55: productCreate lifecycle
+
+Adds local `productCreate` staging to the Gleam Products mutation handler. The
+handler now routes the root locally, validates captured blank-title and
+over-length handle branches, mints a staged Product, creates Shopify-like
+default option/option value state, creates a default ProductVariant with a
+synthetic InventoryItem, preserves raw mutation logging through the centralized
+log-draft path, and exposes immediate downstream Product, ProductVariant, and
+InventoryItem reads without runtime Shopify writes.
+
+The parity suite now enables the captured product create success, blank-title
+validation, too-long handle validation, and product-create inventory read
+scenarios without changing the checked-in captures or request shapes.
+
+| Module                                                              | Change                                                                                         |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds `productCreate` routing, validation, default Product/variant/inventory staging, payloads. |
+| `gleam/test/parity_test.gleam`                                      | Enables four strict `productCreate` parity scenarios.                                          |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct product create success, downstream read, validation, and mutation-log coverage.    |
+
+Validation: `gleam test --target javascript` is green at 748 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails before tests execute
+on the local Erlang install with the known `undef` runner issue; after clearing
+host-built Erlang artifacts, the Docker Erlang fallback is green at 744 tests.
+Product parity inventory remains 115 checked-in specs, with 35 product specs
+executable in the Gleam parity suite plus the admin-platform ProductOption node
+scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  request returning HTTP 400 for `productCreate` because the root was not
+  routed by the Gleam Products mutation dispatcher.
+- The captured inventory-read scenario depends on the staged default variant's
+  synthetic InventoryItem being readable both through `productVariant(id:)` and
+  `inventoryItem(id:)` immediately after create.
+- Product create uses the proxy synthetic Product GID form while default
+  ProductOption, ProductOptionValue, ProductVariant, and InventoryItem records
+  use plain synthetic Shopify GIDs.
+
+### Risks / open items
+
+- Handle normalization is modeled for the captured ASCII/title/too-long paths;
+  broader Unicode handle normalization remains a future fidelity slice if a
+  capture exercises it.
+- Variant mutation families, collections, inventory quantity/shipment/transfer,
+  publications, product metafields, selling plans, feeds, and feedback remain
+  incomplete in Gleam.
+- Only 35 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 56 candidates
+
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Port collection membership and product variant media relationship roots so
+  the full `product-relationship-roots-live-parity` scenario can run.
+- Add product variant lifecycle mutation slices that build on the staged
+  default variant created by `productCreate`.
+
+---
+
 ## 2026-04-30 — Pass 54: productUpdate lifecycle
 
 Adds local `productUpdate` staging to the Gleam Products mutation handler. The
