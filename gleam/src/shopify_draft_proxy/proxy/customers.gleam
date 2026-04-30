@@ -112,8 +112,7 @@ pub fn is_customer_mutation_root(name: String) -> Bool {
     | "storeCreditAccountCredit"
     | "storeCreditAccountDebit"
     | "orderCustomerSet"
-    | "orderCustomerRemove"
-    | "dataSaleOptOut" -> True
+    | "orderCustomerRemove" -> True
     _ -> False
   }
 }
@@ -2122,8 +2121,6 @@ fn handle_mutation_field(
       ))
     "customerMerge" ->
       Some(handle_customer_merge(store, identity, field, fragments, variables))
-    "dataSaleOptOut" ->
-      Some(handle_data_sale_opt_out(store, identity, field, variables))
     _ -> None
   }
 }
@@ -4461,103 +4458,6 @@ fn customer_metafield_key(metafield: CustomerMetafieldRecord) -> String {
   metafield.namespace <> "::" <> metafield.key
 }
 
-fn handle_data_sale_opt_out(store, identity, field, variables) {
-  let args = field_args(field, variables)
-  let email = read_arg_string(args, "email")
-  let existing = case email {
-    Some(value) ->
-      find_customer_by_email_or_phone(
-        store.list_effective_customers(store),
-        Some(value),
-        None,
-      )
-    None -> None
-  }
-  case existing, email {
-    Some(customer), _ -> {
-      let updated = CustomerRecord(..customer, data_sale_opt_out: True)
-      let #(_, next_store) = store.stage_update_customer(store, updated)
-      let payload = data_sale_payload(field, Some(updated.id), [])
-      #(
-        MutationFieldResult(
-          get_field_response_key(field),
-          payload,
-          [updated.id],
-          "dataSaleOptOut",
-        ),
-        next_store,
-        identity,
-      )
-    }
-    None, Some(value) -> {
-      let #(id, after_id) =
-        synthetic_identity.make_synthetic_gid(identity, "Customer")
-      let #(timestamp, after_ts) =
-        synthetic_identity.make_synthetic_timestamp(after_id)
-      let customer =
-        CustomerRecord(
-          id: id,
-          first_name: None,
-          last_name: None,
-          display_name: Some(value),
-          email: Some(value),
-          legacy_resource_id: gid_tail(id),
-          locale: None,
-          note: None,
-          can_delete: Some(True),
-          verified_email: Some(True),
-          data_sale_opt_out: True,
-          tax_exempt: Some(False),
-          tax_exemptions: [],
-          state: Some("DISABLED"),
-          tags: [],
-          number_of_orders: Some("0"),
-          amount_spent: Some(Money("0.0", "USD")),
-          default_email_address: Some(CustomerDefaultEmailAddressRecord(
-            Some(value),
-            None,
-            None,
-            None,
-          )),
-          default_phone_number: None,
-          email_marketing_consent: None,
-          sms_marketing_consent: None,
-          default_address: None,
-          created_at: Some(timestamp),
-          updated_at: Some(timestamp),
-        )
-      let #(_, next_store) = store.stage_create_customer(store, customer)
-      let payload = data_sale_payload(field, Some(id), [])
-      #(
-        MutationFieldResult(
-          get_field_response_key(field),
-          payload,
-          [id],
-          "dataSaleOptOut",
-        ),
-        next_store,
-        after_ts,
-      )
-    }
-    None, None -> {
-      let payload =
-        data_sale_payload(field, None, [
-          UserError(["email"], "Email is invalid", Some("INVALID")),
-        ])
-      #(
-        MutationFieldResult(
-          get_field_response_key(field),
-          payload,
-          [],
-          "dataSaleOptOut",
-        ),
-        store,
-        identity,
-      )
-    }
-  }
-}
-
 fn customer_payload_json(
   store: Store,
   typename: String,
@@ -4725,22 +4625,6 @@ fn merge_error_payload(field, fragments, error_field, message, code) {
         ]),
         selections,
         fragments,
-      )
-    _ -> json.object([])
-  }
-}
-
-fn data_sale_payload(field, customer_id, errors) {
-  case field {
-    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
-      project_graphql_value(
-        src_object([
-          #("__typename", SrcString("DataSaleOptOutPayload")),
-          #("customerId", optional_string_source(customer_id)),
-          #("userErrors", SrcList(list.map(errors, user_error_source))),
-        ]),
-        selections,
-        dict.new(),
       )
     _ -> json.object([])
   }

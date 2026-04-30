@@ -271,6 +271,11 @@ synthetic-id/timestamp expected differences.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.
+- Privacy `dataSaleOptOut` is a privacy-domain mutation whose downstream read
+  effect belongs on `CustomerRecord.data_sale_opt_out`. Keep only that root in
+  `proxy/privacy.gleam`; seed its parity capture from the downstream customer
+  read so the proxy returns the captured customer id without broadening shop
+  privacy settings support.
 
 ## Workflow for a new pass
 
