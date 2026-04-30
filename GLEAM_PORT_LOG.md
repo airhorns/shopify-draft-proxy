@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 90: CI parity gate merge alignment
+
+Merges the mainline Gleam port CI coverage gate into the HAR-487 product branch
+and keeps the Products dispatcher aligned with the product roots already ported
+locally. The pass preserves the new dynamic all-spec parity runner and
+manifest-backed expected-failure gate, removes only product specs that are
+currently passing from the expected-failure manifest, and keeps normal
+product-adjacent roots on the Products dispatcher before metafield owner-root
+fallbacks.
+
+| Module                                                  | Change                                                                      |
+| ------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `config/gleam-port-ci-gates.json`                       | Tracks expected Gleam parity failures for the dynamic all-spec gate.        |
+| `gleam/test/parity_test.gleam`                          | Uses the discovered parity corpus instead of a hand-coded allowlist.        |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes product-adjacent roots to Products before metafield owner fallbacks. |
+| `scripts/gleam-port-coverage-gate.ts`                   | Verifies strict executable parity specs and CI gate wiring.                 |
+
+Validation:
+Full `gleam test --target javascript` is green at 708 tests. Host
+`gleam test --target erlang` still fails before tests execute with the known
+`undef` runner issue; the Docker Erlang fallback is green at 704 tests.
+`corepack pnpm gleam:port:coverage`, `corepack pnpm lint`, and
+`git diff --check` are green. The dynamic parity gate discovers 379 parity
+specs with 246 manifest-backed expected Gleam failures. Product parity inventory
+remains 115 checked-in specs, with 79 product specs executable in the Gleam
+parity suite and 36 product specs still expected-failing.
+
+### Findings
+
+- Mainline now enforces the Gleam parity corpus through a generated
+  expected-failure manifest instead of a hand-coded test allowlist.
+- During the merge, `productVariant` downstream inventory reads exposed that
+  metafield owner-root dispatch must remain a fallback after Products for
+  product-adjacent roots; otherwise owner shells return inventory fields as
+  null.
+
+### Risks / open items
+
+- Metafield delete/CAS/validation branches, selling plans, media, advanced
+  search, duplicate/productSet/media roots, and broader validation atomicity
+  parity remain incomplete in Gleam.
+- Only 79 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 91 candidates
+
+- Continue product metafield mutation parity with `metafieldsDelete`,
+  `metafieldDelete`, CAS, or validation branches.
+- Port selling-plan group behavior with strict captured lifecycle evidence.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 89: metafieldsSet product downstream parity
 
 Promotes the captured `metafields-set-live-parity` Product spec into the Gleam
@@ -3493,6 +3547,135 @@ with 3 product specs now executable in the Gleam parity suite:
   first mutation lifecycle slice, including raw mutation log preservation.
 - Expand product helper roots once product and variant state can resolve
   identifier, variant, tag/type/vendor, count, and saved-search projections.
+
+## 2026-04-30 — Pass 40: CI gate hardening for port completion
+
+Adds CI gates for the Gleam port without making the current partial parity
+runner list an allowlist. The gate keeps the vendored Gleam operation registry
+synchronized with `config/operation-registry.json`, requires checked-in parity
+specs to remain strict executable evidence, and verifies the Gleam parity suite
+still attempts every convention-discovered parity spec while tracking only the
+expected failures that remain unported.
+
+This pass does not port a new endpoint domain and does not delete any TypeScript
+runtime code. It makes port/conformance coverage harder to reduce silently while
+preserving the normal workflow where agents add Gleam parity support and remove
+expected-failure entries as domain work lands.
+
+| Module                                | Change                                                                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config/gleam-port-ci-gates.json`     | Adds the reviewed CI gate manifest for expected Gleam parity failures, required workflow commands, and remaining capture-tooling checks.             |
+| `scripts/gleam-port-coverage-gate.ts` | Adds the CI gate checker for parity inventory, expected-failure drift, workflow commands, package scripts, and capture-tooling checks.               |
+| `package.json`                        | Adds `gleam:registry:check`, `gleam:port:coverage`, and `conformance:capture:check` scripts.                                                         |
+| `.github/workflows/ci.yml`            | Runs registry drift, conformance parity, remaining TypeScript capture tooling, conformance status, the new port gate, both targets, and smoke tests. |
+
+Validation: `corepack pnpm gleam:port:coverage`, `corepack pnpm
+gleam:registry:check`, `corepack pnpm lint`, `corepack pnpm typecheck`,
+`corepack pnpm conformance:check`, `corepack pnpm conformance:parity`,
+`corepack pnpm conformance:capture:check`, `corepack pnpm conformance:status
+-- --output-json .conformance/current/conformance-status-report.json
+--output-markdown .conformance/current/conformance-status-comment.md`,
+`corepack pnpm build`, `corepack pnpm gleam:format:check`, `corepack pnpm
+gleam:test:js`, and `corepack pnpm gleam:smoke:js` are green. The host lacks
+`escript`, so Erlang target and Elixir smoke were validated with the matching
+Gleam 1.16 containers:
+`docker run --rm -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`
+and
+`docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-elixir-alpine sh -lc 'cd gleam && gleam export erlang-shipment && cd elixir_smoke && mix test'`.
+
+### Findings
+
+- `gleam/scripts/sync-operation-registry.sh` emits unformatted Gleam; the drift
+  check regenerates, formats, then diffs the generated registry module.
+- Review clarified that the Gleam parity gate must run every parity spec and
+  maintain an expected-failure list, not freeze the current runner list or a
+  discovered-spec count.
+- The current JS target has 323 expected parity failures; the Erlang target has
+  those plus two target-specific metaobject parity failures recorded with
+  `targets: ["erlang"]`.
+- CI checks TypeScript conformance capture tooling as remaining tooling,
+  separate from the Gleam runtime authority.
+
+### Risks / open items
+
+- The gate proves the current coverage surface cannot shrink silently; it does
+  not claim the remaining endpoint domains are fully ported.
+- Host-local Erlang/Elixir package scripts still require a BEAM installation;
+  CI installs BEAM directly, while this workspace uses containers for local
+  equivalent validation.
+
+### Pass 41 candidates
+
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots.
+- Continue Admin Platform parity seeding for utility roots that now have
+  owning-domain serializers in Gleam.
+- Continue Marketing upstream hydration and parity-runner seeding.
+
+---
+
+## 2026-04-30 — Pass 39: operation registry and dispatcher support guards
+
+Locks the Gleam operation registry mirror and dispatcher classification around
+the TypeScript registry without overclaiming roots that the Gleam port cannot
+handle locally yet. Capability lookup still mirrors the TS registry for every
+implemented match name, while local dispatch is now gated by explicit
+Gleam-local query and mutation dispatch tables. In live-hybrid mode, an
+implemented TS root whose domain or specific root is not ported to Gleam falls
+through to upstream passthrough rather than returning a local "no dispatcher"
+error or claiming stage/overlay support.
+
+| Module                                                               | Change                                                                                                                                          |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | Separates TS capability classification from Gleam-local dispatch support and gates registry-driven routing with explicit local dispatch tables. |
+| `gleam/test/shopify_draft_proxy/proxy/operation_registry_test.gleam` | Adds generated-registry semantic coverage for every implemented match name, unimplemented fallback behavior, and local-dispatch support guards. |
+| `gleam/test/shopify_draft_proxy/proxy/passthrough_test.gleam`        | Proves an implemented-but-unported TS root uses the live-hybrid passthrough branch on JS instead of claiming local dispatch.                    |
+| `gleam/scripts/sync-operation-registry.sh`                           | Adds deterministic `--check` mode and formats generated output before comparing/writing.                                                        |
+| `tests/unit/operation-registry.test.ts`                              | Wires the sync `--check` into `conformance:check`, which already runs in CI.                                                                    |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Documents the registry mirror, drift check command, and capability-vs-local-dispatch split for future porting agents.                           |
+
+Validation after merging `origin/main@cb46f01`: `corepack pnpm
+conformance:check` is green at 1402 tests, `gleam test --target javascript` is
+green at 719 tests, and `gleam test --target erlang` is green at 715 tests via
+the established `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container.
+
+### Findings
+
+- The registry currently mirrors 601 implemented TS roots across all 25
+  implemented TS domains, but Gleam-local support is narrower and sometimes
+  root-specific inside a partially ported domain.
+- Domain-level capability mapping was too coarse for the port: roots such as
+  `orders` and `productCreate` classify correctly as TS-supported, but Gleam
+  has no local dispatcher for those roots yet. Live-hybrid now treats those as
+  passthrough until the owning domain is ported.
+- A broad capability-to-domain helper layer made the guard harder to review
+  than a direct dispatch table, so the final dispatcher uses flat local root
+  routing and lets unknown implemented roots fall through conservatively.
+- Formatting the generated registry is part of determinism; raw generator
+  output alone did not match the checked-in formatted file.
+
+### Risks / open items
+
+- This pass does not port any new endpoint family. Products, customers, orders,
+  B2B, discounts, markets, online-store, payments, privacy, and other unported
+  or partially ported roots still need their own domain passes.
+- The public `registry_entry_has_local_dispatch` helper is intentionally
+  conservative and should be kept aligned with root predicates as new domains
+  land.
+- The host still lacks a local Erlang `escript`; Erlang validation uses the
+  container fallback until the host toolchain is repaired.
+
+### Pass 40 candidates
+
+- Start Product read/mutation substrate work so the highest-volume implemented
+  TS roots can stop using live-hybrid passthrough in Gleam.
+- Start Shipping/Fulfillments substrate so fulfillment-service,
+  carrier-service, delivery-profile, and shipping-settings roots can consume
+  ported Location state without reaching back into the TypeScript module.
+- Add a small CI helper script for containerized Erlang validation in
+  workspaces that do not have `escript` installed locally.
+
+---
 
 ## 2026-04-30 — Pass 38: store-properties locations, business entities, and publishables
 
