@@ -212,4 +212,13 @@ defmodule ShopifyDraftProxy.InteropTest do
     assert json_str =~ "baseState"
     assert json_str =~ "stagedState"
   end
+
+  test "with_default_registry/1 attaches the vendored operation registry" do
+    proxy = DraftProxy.new() |> DraftProxy.with_default_registry()
+    # DraftProxy is a record/tuple — the registry sits at the same field
+    # position the Gleam type defines. Pull it out and assert non-empty.
+    registry = elem(proxy, 4)
+    assert is_list(registry)
+    assert length(registry) >= 60
+  end
 end
