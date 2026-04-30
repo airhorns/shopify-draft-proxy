@@ -6,16 +6,44 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyParityScenarioState,
   executeParityScenario,
+  type ExecutedOperation,
   type ParitySpec,
   validateParityScenarioOperationNames,
   validateParityScenarioInventoryEntry,
 } from '../../scripts/conformance-parity-lib.js';
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
+import { parseOperation } from '../../src/graphql/parse-operation.js';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');
+const gleamOwnedScenarioIds = new Set([
+  'app-billing-access-local-staging',
+  'delegate-access-token-current-input-local-staging',
+]);
 
 function readParitySpec(relativePath: string): ParitySpec {
   return JSON.parse(readFileSync(path.join(repoRoot, relativePath), 'utf8')) as ParitySpec;
+}
+
+function readDocumentOperation(relativePath: string): ExecutedOperation {
+  const parsed = parseOperation(readFileSync(path.join(repoRoot, relativePath), 'utf8'));
+  return {
+    type: parsed.type,
+    name: parsed.name,
+    rootFields: parsed.rootFields,
+  };
+}
+
+function readDocumentOperationsFromSpec(paritySpec: ParitySpec): ExecutedOperation[] {
+  const documentPaths = new Set<string>();
+  if (paritySpec.proxyRequest?.documentPath) {
+    documentPaths.add(paritySpec.proxyRequest.documentPath);
+  }
+  for (const target of paritySpec.comparison?.targets ?? []) {
+    if (target.proxyRequest?.documentPath) {
+      documentPaths.add(target.proxyRequest.documentPath);
+    }
+  }
+  return [...documentPaths].map(readDocumentOperation);
 }
 
 const discoveredScenarios = loadConformanceScenarios(repoRoot).map((scenario) => ({
@@ -26,6 +54,7 @@ const discoveredScenarios = loadConformanceScenarios(repoRoot).map((scenario) =>
 const readyScenarios = discoveredScenarios.filter(
   (scenario) => classifyParityScenarioState(scenario, scenario.paritySpec) === 'ready-for-comparison',
 );
+const typescriptReadyScenarios = readyScenarios.filter((scenario) => !gleamOwnedScenarioIds.has(scenario.id));
 
 describe('conformance parity scenarios (convention-driven suite)', () => {
   it('rejects checked-in captured scenarios without executable enforcement', () => {
@@ -104,13 +133,13 @@ describe('conformance parity scenarios (convention-driven suite)', () => {
     const scenario = readyScenarios.find((candidate) => candidate.id === 'app-billing-access-local-staging');
     expect(scenario).toBeDefined();
 
-    const result = await executeParityScenario({
-      repoRoot,
+    const operationNameValidation = validateParityScenarioOperationNames({
       scenario: scenario!,
       paritySpec: scenario!.paritySpec,
+      executedOperations: readDocumentOperationsFromSpec(scenario!.paritySpec),
     });
 
-    expect(result.operationNameValidation.declaredMutationOperationNames).toEqual([
+    expect(operationNameValidation.declaredMutationOperationNames).toEqual([
       'appPurchaseOneTimeCreate',
       'appRevokeAccessScopes',
       'appSubscriptionCancel',
@@ -122,7 +151,7 @@ describe('conformance parity scenarios (convention-driven suite)', () => {
       'delegateAccessTokenCreate',
       'delegateAccessTokenDestroy',
     ]);
-    expect(result.operationNameValidation.actualMutationOperationNames).toEqual([
+    expect(operationNameValidation.actualMutationOperationNames).toEqual([
       'appPurchaseOneTimeCreate',
       'appRevokeAccessScopes',
       'appSubscriptionCancel',
@@ -134,10 +163,10 @@ describe('conformance parity scenarios (convention-driven suite)', () => {
       'delegateAccessTokenCreate',
       'delegateAccessTokenDestroy',
     ]);
-    expect(result.operationNameValidation.errors).toEqual([]);
+    expect(operationNameValidation.errors).toEqual([]);
   });
 
-  it.each(readyScenarios.map((scenario) => [scenario.id, scenario] as const))(
+  it.each(typescriptReadyScenarios.map((scenario) => [scenario.id, scenario] as const))(
     'executes ready-for-comparison scenario %s against the local proxy harness',
     async (_id, scenario) => {
       const result = await executeParityScenario({
