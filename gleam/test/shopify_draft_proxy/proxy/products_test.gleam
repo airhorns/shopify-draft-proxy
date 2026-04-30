@@ -1,6 +1,8 @@
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import shopify_draft_proxy/graphql/root_field.{StringVal}
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/state/store
@@ -335,6 +337,43 @@ pub fn seeded_products_variant_sku_search_read_test() {
     == "{\"data\":{\"matches\":{\"count\":1,\"precision\":\"EXACT\"},\"products\":{\"edges\":[{\"node\":{\"id\":\"gid://shopify/Product/1\",\"title\":\"Helper Hat\",\"handle\":\"helper-hat\"}}],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":\"gid://shopify/Product/1\",\"endCursor\":\"gid://shopify/Product/1\"}}}}"
 }
 
+pub fn seeded_products_scalar_search_read_test() {
+  let variables =
+    dict.from_list([
+      #("vendorQuery", StringVal("vendor:NIKE")),
+      #("inventoryQuery", StringVal("inventory_total:<=0")),
+      #("typeQuery", StringVal("product_type:ACCESSORIES")),
+      #("tagQuery", StringVal("tag:Hat")),
+      #("idQuery", StringVal("id:101")),
+      #("textQuery", StringVal("running")),
+    ])
+  let assert Ok(result) =
+    products.process(
+      seeded_product_search_store(),
+      "query ProductsScalarSearch(
+        $vendorQuery: String!
+        $inventoryQuery: String!
+        $typeQuery: String!
+        $tagQuery: String!
+        $idQuery: String!
+        $textQuery: String!
+      ) {
+        vendor: products(first: 5, query: $vendorQuery) {
+          nodes { id title vendor }
+        }
+        lowInventory: productsCount(query: $inventoryQuery) { count precision }
+        accessories: productsCount(query: $typeQuery) { count precision }
+        hats: productsCount(query: $tagQuery) { count precision }
+        byId: products(first: 5, query: $idQuery) { nodes { id title } }
+        text: productsCount(query: $textQuery) { count precision }
+        active: productsCount(query: \"status:ACTIVE\") { count precision }
+      }",
+      variables,
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"vendor\":{\"nodes\":[{\"id\":\"gid://shopify/Product/100\",\"title\":\"Running Cap\",\"vendor\":\"NIKE\"},{\"id\":\"gid://shopify/Product/101\",\"title\":\"Trail Shoe\",\"vendor\":\"NIKE\"}]},\"lowInventory\":{\"count\":2,\"precision\":\"EXACT\"},\"accessories\":{\"count\":2,\"precision\":\"EXACT\"},\"hats\":{\"count\":1,\"precision\":\"EXACT\"},\"byId\":{\"nodes\":[{\"id\":\"gid://shopify/Product/101\",\"title\":\"Trail Shoe\"}]},\"text\":{\"count\":1,\"precision\":\"EXACT\"},\"active\":{\"count\":2,\"precision\":\"EXACT\"}}}"
+}
+
 pub fn seeded_products_catalog_read_test() {
   let product =
     ProductRecord(
@@ -544,4 +583,78 @@ fn variant_record(
     inventory_item: None,
     cursor: None,
   )
+}
+
+fn seeded_product_search_store() {
+  store.upsert_base_products(store.new(), [
+    search_product(
+      "gid://shopify/Product/100",
+      "Running Cap",
+      "running-cap",
+      "ACTIVE",
+      Some("NIKE"),
+      Some("ACCESSORIES"),
+      ["egnition-sample-data", "Hat"],
+      Some(0),
+    ),
+    search_product(
+      "gid://shopify/Product/101",
+      "Trail Shoe",
+      "trail-shoe",
+      "DRAFT",
+      Some("NIKE"),
+      Some("FOOTWEAR"),
+      ["sample"],
+      Some(12),
+    ),
+    search_product(
+      "gid://shopify/Product/102",
+      "Classic Slip-On",
+      "classic-slip-on",
+      "ACTIVE",
+      Some("VANS"),
+      Some("ACCESSORIES"),
+      ["vans"],
+      Some(0),
+    ),
+  ])
+}
+
+fn search_product(
+  id: String,
+  title: String,
+  handle: String,
+  status: String,
+  vendor: Option(String),
+  product_type: Option(String),
+  tags: List(String),
+  total_inventory: Option(Int),
+) {
+  ProductRecord(
+    id: id,
+    legacy_resource_id: resource_tail(id),
+    title: title,
+    handle: handle,
+    status: status,
+    vendor: vendor,
+    product_type: product_type,
+    tags: tags,
+    total_inventory: total_inventory,
+    tracks_inventory: None,
+    created_at: None,
+    updated_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    category: None,
+    cursor: None,
+  )
+}
+
+fn resource_tail(id: String) -> Option(String) {
+  case string.split(id, "/") |> list.last {
+    Ok(tail) -> Some(tail)
+    Error(_) -> None
+  }
 }

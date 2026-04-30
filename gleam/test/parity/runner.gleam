@@ -162,6 +162,8 @@ fn seed_capture_preconditions(
     "product-detail-read" -> seed_product_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
+    "products-search-read" ->
+      seed_products_search_read_preconditions(capture, proxy)
     "product-variants-read" | "inventory-level-read" ->
       seed_product_variants_read_preconditions(capture, proxy)
     _ -> proxy
@@ -227,6 +229,68 @@ fn seed_products_catalog_preconditions(
     _ -> store
   }
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_products_search_read_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products =
+    list.append(
+      seed_products_from_connection_path(capture, "$.data.nike.edges"),
+      seed_products_from_connection_path(capture, "$.data.lowInventory.edges"),
+    )
+  let products = append_search_has_next_page_sentinel(capture, products)
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  let store = case jsonpath.lookup(capture, "$.data.total.count") {
+    Some(JInt(count)) -> store_mod.set_base_product_count(store, count)
+    _ -> store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_products_from_connection_path(
+  capture: JsonValue,
+  path: String,
+) -> List(ProductRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(edges)) ->
+      list.filter_map(edges, fn(edge) {
+        make_seed_product_relaxed_from_edge(edge)
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_product_relaxed_from_edge(
+  edge: JsonValue,
+) -> Result(ProductRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) -> make_seed_product_relaxed(node)
+    None -> Error(Nil)
+  }
+}
+
+fn append_search_has_next_page_sentinel(
+  capture: JsonValue,
+  products: List(ProductRecord),
+) -> List(ProductRecord) {
+  case jsonpath.lookup(capture, "$.data.nike.pageInfo.hasNextPage") {
+    Some(JBool(True)) ->
+      case list.find(products, fn(product) { product.vendor == Some("NIKE") }) {
+        Ok(product) ->
+          list.append(products, [
+            ProductRecord(
+              ..product,
+              id: "gid://shopify/Product/999999999999999",
+              legacy_resource_id: Some("999999999999999"),
+              title: product.title <> " (pagination sentinel)",
+            ),
+          ])
+        Error(_) -> products
+      }
+    _ -> products
+  }
 }
 
 fn seed_product_variants_read_preconditions(

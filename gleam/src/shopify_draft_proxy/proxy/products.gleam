@@ -7,6 +7,7 @@
 //// TS product runtime can be removed.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -380,11 +381,22 @@ fn filtered_products(
   search_query_parser.apply_search_query(
     store.list_effective_products(store),
     read_string_argument(field, variables, "query"),
-    search_query_parser.default_parse_options(),
+    product_search_parse_options(),
     fn(product, term) {
       product_matches_positive_query_term(store, product, term)
     },
   )
+}
+
+fn product_search_parse_options() -> search_query_parser.SearchQueryParseOptions {
+  search_query_parser.SearchQueryParseOptions(
+    ..search_query_parser.default_parse_options(),
+    recognize_not_keyword: True,
+  )
+}
+
+fn product_string_match_options() -> search_query_parser.SearchQueryStringMatchOptions {
+  search_query_parser.SearchQueryStringMatchOptions(word_prefix: True)
 }
 
 fn product_count_for_field(
@@ -404,17 +416,110 @@ fn product_matches_positive_query_term(
   term: search_query_parser.SearchQueryTerm,
 ) -> Bool {
   case option.map(term.field, string.lowercase) {
+    None -> product_matches_search_text(product, term.value)
+    Some("id") -> product_id_matches(product, term.value)
+    Some("title") ->
+      search_query_parser.matches_search_query_string(
+        Some(product.title),
+        search_query_parser.search_query_term_value(term),
+        search_query_parser.IncludesMatch,
+        product_string_match_options(),
+      )
+    Some("handle") ->
+      search_query_parser.matches_search_query_string(
+        Some(product.handle),
+        search_query_parser.search_query_term_value(term),
+        search_query_parser.ExactMatch,
+        product_string_match_options(),
+      )
+    Some("tag") ->
+      list.any(product.tags, fn(tag) {
+        search_query_parser.matches_search_query_string(
+          Some(tag),
+          search_query_parser.search_query_term_value(term),
+          search_query_parser.ExactMatch,
+          product_string_match_options(),
+        )
+      })
+    Some("product_type") ->
+      search_query_parser.matches_search_query_string(
+        product.product_type,
+        search_query_parser.search_query_term_value(term),
+        search_query_parser.ExactMatch,
+        product_string_match_options(),
+      )
+    Some("vendor") ->
+      search_query_parser.matches_search_query_string(
+        product.vendor,
+        search_query_parser.search_query_term_value(term),
+        search_query_parser.ExactMatch,
+        product_string_match_options(),
+      )
+    Some("status") ->
+      search_query_parser.matches_search_query_string(
+        Some(product.status),
+        search_query_parser.search_query_term_value(term),
+        search_query_parser.ExactMatch,
+        product_string_match_options(),
+      )
     Some("sku") ->
       store.get_effective_variants_by_product_id(store, product.id)
       |> list.any(fn(variant) {
         search_query_parser.matches_search_query_string(
           variant.sku,
-          term.value,
+          search_query_parser.search_query_term_value(term),
           search_query_parser.ExactMatch,
-          search_query_parser.default_string_match_options(),
+          product_string_match_options(),
         )
       })
-    _ -> False
+    Some("inventory_total") ->
+      search_query_parser.matches_search_query_number(
+        option.map(product.total_inventory, int.to_float),
+        term,
+      )
+    _ -> True
+  }
+}
+
+fn product_matches_search_text(
+  product: ProductRecord,
+  raw_value: String,
+) -> Bool {
+  let searchable_values = [
+    product.title,
+    product.handle,
+    option.unwrap(product.vendor, ""),
+    option.unwrap(product.product_type, ""),
+  ]
+  list.any(list.append(searchable_values, product.tags), fn(candidate) {
+    search_query_parser.matches_search_query_string(
+      Some(candidate),
+      raw_value,
+      search_query_parser.IncludesMatch,
+      product_string_match_options(),
+    )
+  })
+}
+
+fn product_id_matches(product: ProductRecord, raw_value: String) -> Bool {
+  let normalized =
+    search_query_parser.strip_search_query_value_quotes(raw_value)
+    |> string.trim
+  case normalized {
+    "" -> True
+    _ -> {
+      product.id == normalized
+      || option.unwrap(product.legacy_resource_id, "") == normalized
+      || resource_tail(product.id) == normalized
+      || resource_tail(normalized) == resource_tail(product.id)
+    }
+  }
+}
+
+fn resource_tail(id: String) -> String {
+  case list.last(string.split(id, "/")) {
+    Ok(tail) -> tail
+    Error(_) -> id
   }
 }
 

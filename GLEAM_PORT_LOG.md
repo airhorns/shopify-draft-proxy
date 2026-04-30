@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 43: product scalar search parity
+
+Enables the captured `products-search-read` parity scenario in the Gleam suite.
+Product `query:` filtering now covers the scalar/read predicates exercised by
+that capture: unfielded product text, `vendor:`, `product_type:`, `tag:`,
+`status:`, `id:`, `sku:`, and numeric `inventory_total:` comparisons. The
+parity runner seeds the captured vendor-filtered and low-inventory product
+rows plus the captured total count, preserving the first-page `hasNextPage`
+signal without changing the checked-in spec or request.
+
+This remains a narrow read slice. Advanced product search grammar, sort-key
+ordering, saved-search connection hydration, timestamp/publication filters,
+relationship-backed filters, and search lag semantics remain unported.
+
+| Module                                                     | Change                                                                            |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Adds shared-parser-backed product scalar/text/id/inventory search predicates.     |
+| `gleam/test/parity/runner.gleam`                           | Seeds the captured products search result rows and total count for strict replay. |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct multi-product coverage for scalar search filtering/count behavior.    |
+| `gleam/test/parity_test.gleam`                             | Enables `products-search-read` in the pure-Gleam parity suite.                    |
+
+Validation: `gleam test --target javascript` is green at 706 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 702 tests. Product parity
+inventory remains 115 checked-in specs, with 10 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- Enabling `products-search-read` before implementation produced the expected
+  strict mismatch: the proxy returned no search result rows and total count
+  `0` instead of the captured Shopify product rows and count.
+- The capture selects only the first two `vendor:NIKE` rows while Shopify
+  reports `hasNextPage: true`; the runner adds an internal sentinel row after
+  the captured rows so pagination truthiness is preserved without weakening the
+  comparison contract or serializing non-captured data.
+
+### Risks / open items
+
+- Product search fields beyond this scalar slice remain unported, including
+  timestamp/publication filters and relationship-backed filters.
+- Product search sort keys and relevance ordering remain unported.
+- Only 10 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 44 candidates
+
+- Add ProductOption state and product `options`/option value projection from
+  captured fixtures.
+- Add product search sort-key ordering for the captured `products-sort-keys-read`
+  or advanced-search slices.
+- Start inventory item/level catalog/search reads over effective
+  variant-backed inventory items.
+
+---
+
 ## 2026-04-30 — Pass 42: variant SKU product search
 
 Enables the captured `products-variant-search-read` parity scenario in the
