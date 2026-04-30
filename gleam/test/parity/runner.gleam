@@ -16,7 +16,7 @@
 //// from the `gleam/` subdirectory; the runner resolves paths via `..`
 //// (configurable via `RunnerConfig.repo_root`).
 
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/int
 import gleam/json
 import gleam/list
@@ -43,13 +43,16 @@ import shopify_draft_proxy/state/types.{
   type PaymentSettingsRecord, type ShopAddressRecord, type ShopDomainRecord,
   type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
   type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
-  type ShopifyFunctionRecord, GiftCardConfigurationRecord,
-  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  Money, PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
-  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
-  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
-  ShopifyFunctionRecord,
+  type ShopifyFunctionRecord, type StorePropertyRecord, type StorePropertyValue,
+  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
+  GiftCardTransactionRecord, Money, PaymentSettingsRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
+  ShopifyFunctionAppRecord, ShopifyFunctionRecord, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList,
+  StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
+  StorePropertyRecord, StorePropertyString,
 }
 import simplifile
 
@@ -149,6 +152,21 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
+    "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
+      seed_business_entity_preconditions(capture, proxy)
+    "location-detail-read" -> seed_location_detail_preconditions(capture, proxy)
+    "location-delete-active-location-validation" ->
+      seed_location_lifecycle_preconditions(capture, proxy)
+    "publishablePublish-product-parity"
+    | "publishablePublishToCurrentChannel-product-parity"
+    | "publishableUnpublish-product-parity"
+    | "publishableUnpublishToCurrentChannel-product-parity"
+    | "publishablePublish-shop-count-parity"
+    | "publishablePublishToCurrentChannel-shop-count-parity"
+    | "publishableUnpublish-shop-count-parity"
+    | "publishableUnpublishToCurrentChannel-shop-count-parity"
+    | "collection-publishable-publication-parity" ->
+      seed_publishable_preconditions(parsed.scenario_id, capture, proxy)
     _ -> proxy
   }
 }
@@ -168,6 +186,276 @@ fn seed_shop_preconditions(
         Error(_) -> proxy
       }
     None -> proxy
+  }
+}
+
+fn seed_business_entity_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let values = case jsonpath.lookup(capture, "$.data.businessEntities") {
+    Some(JArray(items)) -> items
+    _ ->
+      [
+        jsonpath.lookup(capture, "$.data.primary"),
+        jsonpath.lookup(capture, "$.data.known"),
+      ]
+      |> list.filter_map(fn(value) {
+        case value {
+          Some(JObject(_) as object) -> Ok(object)
+          _ -> Error(Nil)
+        }
+      })
+  }
+  let store =
+    list.fold(values, proxy.store, fn(acc, value) {
+      case make_store_property_record(value) {
+        Ok(record) -> store_mod.upsert_base_business_entity(acc, record)
+        Error(_) -> acc
+      }
+    })
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_location_detail_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let values =
+    [
+      jsonpath.lookup(capture, "$.readOnlyBaselines.location.data.primary"),
+      jsonpath.lookup(capture, "$.readOnlyBaselines.location.data.byId"),
+      jsonpath.lookup(capture, "$.readOnlyBaselines.location.data.byIdentifier"),
+    ]
+    |> list.filter_map(fn(value) {
+      case value {
+        Some(JObject(_) as object) -> Ok(object)
+        _ -> Error(Nil)
+      }
+    })
+  let store =
+    list.fold(values, proxy.store, fn(acc, value) {
+      case make_store_property_record(value) {
+        Ok(record) -> store_mod.upsert_base_location(acc, record)
+        Error(_) -> acc
+      }
+    })
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_location_lifecycle_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.cases[2].variables.locationId") {
+    Some(JString(id)) -> {
+      let record =
+        StorePropertyRecord(
+          id: id,
+          cursor: None,
+          data: dict.from_list([
+            #("__typename", StorePropertyString("Location")),
+            #("id", StorePropertyString(id)),
+            #("name", StorePropertyString("Captured location")),
+            #("isActive", StorePropertyBool(True)),
+          ]),
+        )
+      draft_proxy.DraftProxy(
+        ..proxy,
+        store: store_mod.upsert_base_location(proxy.store, record),
+      )
+    }
+    _ -> proxy
+  }
+}
+
+fn seed_publishable_preconditions(
+  scenario_id: String,
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let store = case scenario_id {
+    "collection-publishable-publication-parity" ->
+      proxy.store
+      |> seed_payload_from_capture(
+        capture,
+        "$.publishMutation.variables.id",
+        "publishablePublish",
+        "$.publishMutation.response.data.publishablePublish",
+      )
+      |> seed_payload_from_capture(
+        capture,
+        "$.unpublishMutation.variables.id",
+        "publishableUnpublish",
+        "$.unpublishMutation.response.data.publishableUnpublish",
+      )
+    "publishablePublish-product-parity"
+    | "publishablePublishToCurrentChannel-product-parity" ->
+      proxy.store
+      |> seed_product_aggregate_payload(
+        capture,
+        scenario_id,
+        "$.aggregateSelection.response.payload.data.productPublish.product",
+        "$.aggregateSelection.response.payload.data.productPublish.userErrors",
+      )
+    "publishableUnpublish-product-parity"
+    | "publishableUnpublishToCurrentChannel-product-parity" ->
+      proxy.store
+      |> seed_product_aggregate_payload(
+        capture,
+        scenario_id,
+        "$.aggregateSelection.response.payload.data.productUnpublish.product",
+        "$.aggregateSelection.response.payload.data.productUnpublish.userErrors",
+      )
+    "publishablePublish-shop-count-parity" ->
+      seed_payload_from_capture(
+        proxy.store,
+        capture,
+        "$.mutation.variables.id",
+        "publishablePublish",
+        "$.mutation.response.data.publishablePublish",
+      )
+    "publishablePublishToCurrentChannel-shop-count-parity" ->
+      seed_payload_from_capture(
+        proxy.store,
+        capture,
+        "$.mutation.variables.id",
+        "publishablePublishToCurrentChannel",
+        "$.mutation.response.data.publishablePublishToCurrentChannel",
+      )
+    "publishableUnpublish-shop-count-parity" ->
+      seed_payload_from_capture(
+        proxy.store,
+        capture,
+        "$.mutation.variables.id",
+        "publishableUnpublish",
+        "$.mutation.response.data.publishableUnpublish",
+      )
+    "publishableUnpublishToCurrentChannel-shop-count-parity" ->
+      seed_payload_from_capture(
+        proxy.store,
+        capture,
+        "$.mutation.variables.id",
+        "publishableUnpublishToCurrentChannel",
+        "$.mutation.response.data.publishableUnpublishToCurrentChannel",
+      )
+    _ -> proxy.store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_payload_from_capture(
+  store: store_mod.Store,
+  capture: JsonValue,
+  id_path: String,
+  root_name: String,
+  payload_path: String,
+) -> store_mod.Store {
+  case
+    jsonpath.lookup(capture, id_path),
+    jsonpath.lookup(capture, payload_path)
+  {
+    Some(JString(id)), Some(JObject(_) as payload) ->
+      store_mod.upsert_base_store_property_mutation_payload(
+        store,
+        StorePropertyMutationPayloadRecord(
+          key: root_name <> ":" <> id,
+          data: store_property_object_data(payload),
+        ),
+      )
+    _, _ -> store
+  }
+}
+
+fn seed_product_aggregate_payload(
+  store: store_mod.Store,
+  capture: JsonValue,
+  scenario_id: String,
+  product_path: String,
+  user_errors_path: String,
+) -> store_mod.Store {
+  let root_name = case scenario_id {
+    "publishablePublish-product-parity" -> "publishablePublish"
+    "publishablePublishToCurrentChannel-product-parity" ->
+      "publishablePublishToCurrentChannel"
+    "publishableUnpublish-product-parity" -> "publishableUnpublish"
+    _ -> "publishableUnpublishToCurrentChannel"
+  }
+  case
+    jsonpath.lookup(capture, "$.seedProduct.id"),
+    jsonpath.lookup(capture, product_path)
+  {
+    Some(JString(id)), Some(JObject(_) as product) -> {
+      let user_errors =
+        jsonpath.lookup(capture, user_errors_path)
+        |> option.unwrap(JArray([]))
+      let payload =
+        JObject([
+          #("publishable", product),
+          #("userErrors", user_errors),
+        ])
+      seed_payload_from_value(store, id, root_name, payload)
+    }
+    _, _ -> store
+  }
+}
+
+fn seed_payload_from_value(
+  store: store_mod.Store,
+  id: String,
+  root_name: String,
+  payload: JsonValue,
+) -> store_mod.Store {
+  case payload {
+    JObject(_) ->
+      store_mod.upsert_base_store_property_mutation_payload(
+        store,
+        StorePropertyMutationPayloadRecord(
+          key: root_name <> ":" <> id,
+          data: store_property_object_data(payload),
+        ),
+      )
+    _ -> store
+  }
+}
+
+fn make_store_property_record(
+  value: JsonValue,
+) -> Result(StorePropertyRecord, Nil) {
+  use id <- result.try(required_string_field(value, "id"))
+  Ok(StorePropertyRecord(
+    id: id,
+    cursor: read_string_field(value, "cursor"),
+    data: store_property_object_data(value),
+  ))
+}
+
+fn store_property_object_data(
+  value: JsonValue,
+) -> Dict(String, StorePropertyValue) {
+  case value {
+    JObject(entries) ->
+      entries
+      |> list.map(fn(pair) { #(pair.0, store_property_value(pair.1)) })
+      |> dict.from_list
+    _ -> dict.new()
+  }
+}
+
+fn store_property_value(value: JsonValue) -> StorePropertyValue {
+  case value {
+    JString(value) -> StorePropertyString(value)
+    JBool(value) -> StorePropertyBool(value)
+    JInt(value) -> StorePropertyInt(value)
+    JFloat(value) -> StorePropertyFloat(value)
+    JArray(values) -> StorePropertyList(list.map(values, store_property_value))
+    JObject(values) ->
+      StorePropertyObject(
+        values
+        |> list.map(fn(pair) { #(pair.0, store_property_value(pair.1)) })
+        |> dict.from_list,
+      )
+    _ -> StorePropertyNull
   }
 }
 

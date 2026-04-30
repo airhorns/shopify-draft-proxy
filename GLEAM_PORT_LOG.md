@@ -9,6 +9,79 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 33: store-properties locations, business entities, and publishables
+
+Completes the parity-backed Store Properties root batch in the Gleam dispatcher.
+The port now covers the 15 implemented Store Properties registry roots: shop
+and shop-policy behavior from Pass 32, business-entity reads, location
+catalog/detail/identifier reads, local location lifecycle guardrails, and
+publishable publish/unpublish staging for the captured Product and Collection
+publication projections. The parity runner seeds captured Store Properties
+baselines and publishable mutation payloads so all 20 checked-in
+`config/parity-specs/store-properties/*.json` scenarios execute on both
+targets.
+
+The TypeScript Store Properties runtime remains in place. This pass ports the
+implemented registry roots and parity-backed projections, but the TS module
+still owns broader cross-domain helpers for unported Products, Markets,
+Shipping/Fulfillments, and Online Store flows until those Gleam domains exist.
+
+| Module                                                             | Change                                                                                                                                                   |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                  | Adds JSON-shaped Store Properties records and mutation-payload records for captured Location, BusinessEntity, Product, and Collection projections.       |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                  | Adds base/staged locations, business entities, publishables, payload fixtures, deletion markers, ordered listing, and effective lookup helpers.          |
+| `gleam/src/shopify_draft_proxy/proxy/store_properties.gleam`       | Adds Store Properties read roots, local location lifecycle validation/staging, publishable mutation staging, generic projection, and mutation logging.   |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`            | Routes legacy Store Properties query roots and serializes the new slices through `__meta/state` for local observability.                                 |
+| `gleam/test/parity/runner.gleam`                                   | Seeds remaining Store Properties capture fixtures for business entities, locations, publishable payloads, and collection publication readback.           |
+| `gleam/test/parity_test.gleam`                                     | Enables all 20 Store Properties parity specs as executable Gleam parity evidence.                                                                        |
+| `gleam/test/shopify_draft_proxy/proxy/store_properties_test.gleam` | Adds direct coverage for location read/edit/log/meta-state behavior, business-entity reads, and publishable collection staging/read-after-write effects. |
+
+Validation: `gleam test --target javascript` is green at 702 tests on the host
+Node runtime. `gleam test --target erlang` is green at 698 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container with the repository
+root mounted because the host still lacks `escript`. The Store Properties parity
+report shows 20 spec files and 20 Gleam parity registrations, with no missing or
+extra registrations.
+
+### Findings
+
+- The implemented Store Properties registry batch is smaller than the TypeScript
+  module boundary: the TS file also contains helper behavior used by domains not
+  yet present in the Gleam port.
+- Publishable parity can be modeled from captured payload fixtures without
+  claiming the full Products domain; staged Product/Collection records are
+  limited to the selected publication projections needed by Store Properties
+  scenarios.
+- Location validation branches that fail Shopify guardrails do not create
+  mutation-log entries; successful local lifecycle mutations preserve the
+  original mutation document and staged resource IDs.
+
+### Risks / open items
+
+- Deleting `src/proxy/store-properties.ts` remains deferred until the dependent
+  Products, Markets, Shipping/Fulfillments, and Online Store Gleam slices that
+  rely on its helper behavior have their own ported equivalents.
+- The new Store Properties records intentionally preserve captured JSON-shaped
+  projections. Stronger typed records should be introduced only when an owning
+  domain needs local lifecycle logic beyond these parity-backed fields.
+- Location lifecycle support covers the captured validation/success behavior in
+  the Store Properties parity suite; fulfillment-service, carrier-service, and
+  delivery-profile location interactions still belong to the future
+  Shipping/Fulfillments port.
+
+### Pass 34 candidates
+
+- Start Shipping/Fulfillments substrate so fulfillment-service, carrier-service,
+  delivery-profile, and shipping-settings roots can consume ported Location
+  state without reaching back into the TypeScript module.
+- Start Products publication substrate so Product and Collection publishable
+  projections can move from captured Store Properties rows into typed product
+  and collection records.
+- Continue Markets or Online Store ports where Store Properties shop/location
+  read effects are now available as local Gleam state.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain
