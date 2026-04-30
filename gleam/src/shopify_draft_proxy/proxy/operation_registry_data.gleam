@@ -5896,7 +5896,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["giftCard", "GiftCard"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+      ],
       support_notes: Some(
         "Snapshot reads resolve from normalized gift-card state and return null for missing IDs. Staged lifecycle mutations are visible to downstream giftCard(id:) reads without sending supported writes upstream.",
       ),
@@ -5908,7 +5911,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["giftCards", "GiftCards"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+      ],
       support_notes: Some(
         "Connection reads use shared pagination helpers over normalized gift-card state and preserve empty/no-data structures in snapshot mode.",
       ),
@@ -5920,7 +5926,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["giftCardsCount", "GiftCardsCount"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+      ],
       support_notes: Some(
         "Local count support covers exact no-data and staged gift-card counts with id, status, balance_status, and visible code-fragment query filtering.",
       ),
@@ -5932,7 +5941,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["giftCardConfiguration", "GiftCardConfiguration"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+      ],
       support_notes: Some(
         "Snapshot support exposes issueLimit and purchaseLimit money objects from normalized gift-card configuration, with safe zero-value placeholders when no readable configuration fixture is present.",
       ),
@@ -5944,7 +5956,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["giftCardCreate", "GiftCardCreate"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Locally stages gift-card creation with initial balance, masked code metadata, optional note/expiry/template/customer metadata, stable timestamps, and raw mutation retention for commit replay.",
       ),
@@ -5956,7 +5971,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["giftCardUpdate", "GiftCardUpdate"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Locally stages mutable metadata updates and keeps downstream giftCard/giftCards reads consistent without runtime Shopify writes.",
       ),
@@ -5968,7 +5986,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["giftCardCredit", "GiftCardCredit"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Locally stages balance credits and transaction nodes for supported local gift cards.",
       ),
@@ -5980,7 +6001,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["giftCardDebit", "GiftCardDebit"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Locally stages balance debits and transaction nodes for supported local gift cards, including a local insufficient-balance guardrail.",
       ),
@@ -5992,7 +6016,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["giftCardDeactivate", "GiftCardDeactivate"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Locally stages deactivation by flipping enabled state and recording deactivatedAt while preserving read-after-write visibility.",
       ),
@@ -6007,7 +6034,10 @@ pub fn default_registry() -> List(RegistryEntry) {
         "giftCardSendNotificationToCustomer",
         "GiftCardSendNotificationToCustomer",
       ],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Short-circuits customer notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling.",
       ),
@@ -6022,7 +6052,10 @@ pub fn default_registry() -> List(RegistryEntry) {
         "giftCardSendNotificationToRecipient",
         "GiftCardSendNotificationToRecipient",
       ],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Short-circuits recipient notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling.",
       ),
