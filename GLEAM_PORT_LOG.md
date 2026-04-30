@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 67: product variant bulk create remove strategy edge
+
+Enables strict Gleam parity coverage for the captured
+`productVariantsBulkCreate(strategy: REMOVE_STANDALONE_VARIANT)` standalone
+default-variant edge. The Products handler behavior added in Pass 66 already
+matched this sibling strategy capture once the runner seeded the captured
+pre-mutation Product, option, and variant graph, so this pass promotes the
+scenario without changing the fixture, request document, or comparison
+contract.
+
+| Module                           | Change                                                                      |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam` | Seeds the captured standalone default-variant precondition graph.           |
+| `gleam/test/parity_test.gleam`   | Enables the strict remove/default standalone bulk-create strategy scenario. |
+
+Validation:
+`gleam test --target javascript product_variants_bulk_create_strategy_remove_default_standalone_test`
+is green at 765 tests, and full `gleam test --target javascript` is green at
+765 tests on the host Node runtime. Host `gleam test --target erlang` still
+fails before tests execute on the local Erlang install with the known `undef`
+runner issue; after clearing host-built Erlang artifacts, the Docker Erlang
+fallback is green at 761 tests. Product parity inventory remains 115 checked-in
+specs, with 51 product specs executable in the Gleam parity suite plus the
+admin-platform ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay failing
+  because `$.data.productVariantsBulkCreate.product.id` could not be resolved
+  before seeding the captured product baseline.
+- The sibling DEFAULT/default standalone fix from Pass 66 already handled the
+  option/value derivation needed by this REMOVE_STANDALONE_VARIANT capture.
+- The checked-in request and fixture shapes were sufficient; only the Gleam
+  runner needed to seed the captured pre-mutation graph and register the spec.
+
+### Risks / open items
+
+- This pass covers one captured remove/default standalone strategy slice, not
+  the remaining bulk-create strategy matrix.
+- Collections, publication, product feeds/feedback, selling plans, product
+  metafields, inventory shipment/transfer, media, and advanced search parity
+  remain incomplete in Gleam.
+- Only 51 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 68 candidates
+
+- Enable the remaining sibling `productVariantsBulkCreate` standalone strategy
+  specs if the seeded graph and option/value rewrite behavior already match.
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+- Port product metafield behavior now that several Product and Product Option
+  mutation families are locally staged.
+
+---
+
 ## 2026-04-30 — Pass 66: product variant bulk create default strategy edge
 
 Adds strict Gleam parity coverage for the captured
