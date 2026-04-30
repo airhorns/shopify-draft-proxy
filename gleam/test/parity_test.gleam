@@ -124,6 +124,10 @@ pub fn collection_reorder_products_live_parity_test() {
   )
 }
 
+pub fn collection_update_live_parity_test() {
+  check("config/parity-specs/products/collectionUpdate-parity-plan.json")
+}
+
 pub fn products_catalog_read_test() {
   check("config/parity-specs/products/products-catalog-read.json")
 }

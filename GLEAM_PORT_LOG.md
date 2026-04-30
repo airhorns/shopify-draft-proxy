@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 76: collection update staging
+
+Completes the captured collection update mutation in the Gleam Products
+handler. The pass wires `collectionUpdate` into the local mutation dispatcher,
+stages updated collection records without runtime Shopify writes, preserves the
+existing collection/product membership reads, and returns the captured
+collection/userErrors payload shape.
+
+The pass promotes `collectionUpdate-parity-plan` into the Gleam parity suite.
+The checked-in fixture, request document, variables capture path, downstream
+read, and strict comparison contract stay unchanged.
+
+| Module                                               | Change                                                      |
+| ---------------------------------------------------- | ----------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages `collectionUpdate` and serializes collection output. |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured update collection/product preconditions.     |
+| `gleam/test/parity_test.gleam`                       | Enables the strict collection update parity spec.           |
+
+Validation:
+`gleam test --target javascript collection_update_live_parity_test` is green at
+775 tests, and full `gleam test --target javascript` is green at 775 tests on
+the host Node runtime. Host `gleam test --target erlang` still fails before
+tests execute on the local Erlang install with the known `undef` runner issue;
+after clearing host-built Erlang artifacts, the Docker Erlang fallback is green
+at 771 tests. Product parity inventory remains 115 checked-in specs, with 61
+product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay returning
+  HTTP 400 with `No mutation dispatcher implemented for root field:
+collectionUpdate`.
+- The captured update fixture only changes `title` and `handle`, but the
+  handler preserves collection membership and projects the selected
+  `Collection.products` connection from the effective store.
+- Seeding the target collection from the captured mutation payload plus its
+  product nodes is enough for strict mutation payload parity without changing
+  the fixture or request shape.
+
+### Risks / open items
+
+- Remaining collection create/delete roots, inventory shipment/transfer,
+  publication links, product feeds/feedback, selling plans, product metafields,
+  media, advanced search, and broader validation atomicity parity remain
+  incomplete in Gleam.
+- Only 61 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 77 candidates
+
+- Continue collection lifecycle roots with `collectionCreate` initial-products
+  behavior or `collectionDelete`.
+- Port product metafield behavior now that Product, Product Option,
+  Product Variant, Inventory, and Collection relationship slices are locally
+  staged or seeded.
+- Continue publication-related collection/product roots if the captured
+  fixtures can be represented without weakening request shapes.
+
+---
+
 ## 2026-04-30 - Pass 75: collection reorder-products staging
 
 Completes the captured collection product reorder mutation in the Gleam

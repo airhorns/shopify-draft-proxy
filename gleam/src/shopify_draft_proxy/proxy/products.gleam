@@ -124,6 +124,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "collectionAddProducts"
     | "collectionRemoveProducts"
     | "collectionReorderProducts"
+    | "collectionUpdate"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -3110,6 +3111,33 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "collectionUpdate" -> {
+              let result =
+                handle_collection_update(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged collectionUpdate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "tagsAdd" -> {
               let result =
                 handle_tags_update(
@@ -5215,6 +5243,98 @@ fn product_update_handle_validation_error(
   }
 }
 
+fn handle_collection_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input")
+  let collection_id = case input {
+    Some(input) -> read_arg_string(input, "id")
+    None -> None
+  }
+  case collection_id {
+    None ->
+      mutation_result(
+        key,
+        collection_update_payload(
+          store,
+          None,
+          [
+            ProductUserError(["input", "id"], "Collection id is required", None),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(collection_id) ->
+      case store.get_effective_collection_by_id(store, collection_id), input {
+        None, _ ->
+          mutation_result(
+            key,
+            collection_update_payload(
+              store,
+              None,
+              [
+                ProductUserError(["input", "id"], "Collection not found", None),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(collection), Some(input) -> {
+          let #(next_collection, next_identity) =
+            updated_collection_record(identity, collection, input)
+          let next_store =
+            store.upsert_staged_collections(store, [next_collection])
+          mutation_result(
+            key,
+            collection_update_payload(
+              next_store,
+              Some(next_collection),
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            next_identity,
+            [next_collection.id],
+          )
+        }
+        Some(_), None ->
+          mutation_result(
+            key,
+            collection_update_payload(
+              store,
+              None,
+              [
+                ProductUserError(
+                  ["input", "id"],
+                  "Collection id is required",
+                  None,
+                ),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+      }
+  }
+}
+
 fn handle_collection_add_products(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -7036,6 +7156,28 @@ fn collection_add_products_payload(
   )
 }
 
+fn collection_update_payload(
+  store: Store,
+  collection: Option(CollectionRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let collection_value = case collection {
+    Some(record) -> collection_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("CollectionUpdatePayload")),
+      #("collection", collection_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn collection_remove_products_payload(
   job_id: Option(String),
   user_errors: List(ProductUserError),
@@ -7606,6 +7748,39 @@ fn created_product_record(
       ),
       category: None,
       cursor: None,
+    ),
+    next_identity,
+  )
+}
+
+fn updated_collection_record(
+  identity: SyntheticIdentityRegistry,
+  collection: CollectionRecord,
+  input: Dict(String, ResolvedValue),
+) -> #(CollectionRecord, SyntheticIdentityRegistry) {
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let title =
+    read_non_empty_string_field(input, "title")
+    |> option.unwrap(collection.title)
+  let handle =
+    read_non_empty_string_field(input, "handle")
+    |> option.unwrap(collection.handle)
+  #(
+    CollectionRecord(
+      ..collection,
+      title: title,
+      handle: handle,
+      updated_at: Some(updated_at),
+      description: read_string_field(input, "description")
+        |> option.or(collection.description),
+      description_html: read_string_field(input, "descriptionHtml")
+        |> option.or(collection.description_html),
+      sort_order: read_string_field(input, "sortOrder")
+        |> option.or(collection.sort_order),
+      template_suffix: read_string_field(input, "templateSuffix")
+        |> option.or(collection.template_suffix),
+      seo: updated_product_seo(collection.seo, input),
     ),
     next_identity,
   )

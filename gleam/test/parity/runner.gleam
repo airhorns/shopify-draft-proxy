@@ -176,6 +176,8 @@ fn seed_capture_preconditions(
       seed_collection_remove_products_preconditions(capture, proxy)
     "collection-reorder-products-live-parity" ->
       seed_collection_reorder_products_preconditions(capture, proxy)
+    "collection-update-live-parity" ->
+      seed_collection_update_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
@@ -674,6 +676,57 @@ fn seed_collection_reorder_products_preconditions(
           target_memberships,
           existing_memberships,
         ))
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_collection_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.collectionUpdate.collection",
+    )
+  {
+    Some(collection_json) -> {
+      let target_collection_id =
+        read_string_field(collection_json, "id") |> option.unwrap("")
+      let target_collections = case make_seed_collection(collection_json) {
+        Ok(collection) -> [collection]
+        Error(_) -> []
+      }
+      let product_nodes = case
+        jsonpath.lookup(collection_json, "$.products.nodes")
+      {
+        Some(JArray(nodes)) -> nodes
+        _ -> []
+      }
+      let products = list.filter_map(product_nodes, make_seed_product_relaxed)
+      let memberships =
+        product_nodes
+        |> enumerate_json_values()
+        |> list.filter_map(fn(entry) {
+          let #(product_json, position) = entry
+          case read_string_field(product_json, "id") {
+            Some(product_id) ->
+              Ok(ProductCollectionRecord(
+                collection_id: target_collection_id,
+                product_id: product_id,
+                position: position,
+                cursor: None,
+              ))
+            None -> Error(Nil)
+          }
+        })
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(target_collections)
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_collections(memberships)
       draft_proxy.DraftProxy(..proxy, store: store)
     }
     None -> proxy
