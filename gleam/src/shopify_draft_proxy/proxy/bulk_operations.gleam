@@ -25,6 +25,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_selected_child_fields, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -380,6 +381,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -398,7 +400,7 @@ type MutationFieldResult {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(MutationOutcome, BulkOperationsError) {
@@ -409,8 +411,6 @@ pub fn process_mutation(
       Ok(handle_mutation_fields(
         store,
         identity,
-        request_path,
-        document,
         fields,
         fragments,
         variables,
@@ -422,8 +422,6 @@ pub fn process_mutation(
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -471,41 +469,26 @@ fn handle_mutation_fields(
     Ok(name) -> Some(name)
     Error(_) -> None
   }
-  let #(log_id, identity_after_log) =
-    synthetic_identity.make_synthetic_gid(final_identity, "MutationLogEntry")
-  let #(received_at, identity_after_entry) =
-    synthetic_identity.make_synthetic_timestamp(identity_after_log)
-  let entry =
-    store.MutationLogEntry(
-      id: log_id,
-      received_at: received_at,
+  let log_drafts = [
+    LogDraft(
       operation_name: primary_root,
-      path: request_path,
-      query: document,
-      variables: dict.new(),
+      root_fields: root_names,
+      primary_root_field: primary_root,
+      domain: "bulk-operations",
+      execution: "stage-locally",
       staged_resource_ids: all_staged,
       status: store.Staged,
-      interpreted: store.InterpretedMetadata(
-        operation_type: store.Mutation,
-        operation_name: primary_root,
-        root_fields: root_names,
-        primary_root_field: primary_root,
-        capability: store.Capability(
-          operation_name: primary_root,
-          domain: "bulk-operations",
-          execution: "stage-locally",
-        ),
-      ),
       notes: Some(
         "Handled BulkOperation mutation locally against the in-memory BulkOperation job store.",
       ),
-    )
-  let logged_store = store.record_mutation_log_entry(final_store, entry)
+    ),
+  ]
   MutationOutcome(
     data: json.object([#("data", json.object(data_entries))]),
-    store: logged_store,
-    identity: identity_after_entry,
+    store: final_store,
+    identity: final_identity,
     staged_resource_ids: all_staged,
+    log_drafts: log_drafts,
   )
 }
 

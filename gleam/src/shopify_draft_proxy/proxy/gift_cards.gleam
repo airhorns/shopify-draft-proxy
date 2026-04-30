@@ -35,6 +35,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_field_response_key, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, single_root_log_draft,
+}
 import shopify_draft_proxy/search_query_parser.{type SearchQueryTerm}
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
@@ -1169,6 +1172,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -1228,10 +1232,10 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [])
-  let #(data_entries, final_store, final_identity, all_staged) =
+  let initial = #([], store, identity, [], [])
+  let #(data_entries, final_store, final_identity, all_staged, all_drafts) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids) = acc
+      let #(entries, current_store, current_identity, staged_ids, drafts) = acc
       case field {
         Field(name: name, ..) -> {
           let dispatch = case name.value {
@@ -1305,12 +1309,24 @@ fn handle_mutation_fields(
           }
           case dispatch {
             None -> acc
-            Some(#(result, next_store, next_identity)) -> #(
-              list.append(entries, [#(result.key, result.payload)]),
-              next_store,
-              next_identity,
-              list.append(staged_ids, result.staged_resource_ids),
-            )
+            Some(#(result, next_store, next_identity)) -> {
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  gift_cards_status_for(name.value, result.staged_resource_ids),
+                  "gift-cards",
+                  "stage-locally",
+                  Some(gift_cards_notes_for(name.value)),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                next_store,
+                next_identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
           }
         }
         _ -> acc
@@ -1321,7 +1337,38 @@ fn handle_mutation_fields(
     store: final_store,
     identity: final_identity,
     staged_resource_ids: all_staged,
+    log_drafts: all_drafts,
   )
+}
+
+/// Mirror the TS dispatcher: notification root fields are
+/// short-circuited (no record staged) but still log a `Staged` entry
+/// because the merchant intent was a stage-locally action. Every
+/// other gift-cards root field that produced no staged record is a
+/// validation `Failed` outcome.
+fn gift_cards_status_for(
+  root_field_name: String,
+  staged_resource_ids: List(String),
+) -> store.EntryStatus {
+  case root_field_name, staged_resource_ids {
+    "giftCardSendNotificationToCustomer", _
+    | "giftCardSendNotificationToRecipient", _ -> store.Staged
+    _, [] -> store.Failed
+    _, [_, ..] -> store.Staged
+  }
+}
+
+/// Notes string mirroring the TS `gift-cards` dispatcher in
+/// `routes.ts`: notification root fields explicitly call out that
+/// they're short-circuited and never invoke a customer-visible
+/// notification at runtime.
+fn gift_cards_notes_for(root_field_name: String) -> String {
+  case root_field_name {
+    "giftCardSendNotificationToCustomer"
+    | "giftCardSendNotificationToRecipient" ->
+      "Short-circuited locally in the in-memory gift-card draft store; no customer-visible notification is sent at runtime."
+    _ -> "Staged locally in the in-memory gift-card draft store."
+  }
 }
 
 // ---------------------------------------------------------------------------

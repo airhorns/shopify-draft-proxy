@@ -24,6 +24,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, source_to_json, src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -512,6 +513,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -537,7 +539,7 @@ type MutationFieldResult {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(MutationOutcome, MarketingError) {
@@ -548,8 +550,6 @@ pub fn process_mutation(
       Ok(handle_mutation_fields(
         store,
         identity,
-        request_path,
-        document,
         fields,
         fragments,
         variables,
@@ -561,8 +561,6 @@ pub fn process_mutation(
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -605,23 +603,31 @@ fn handle_mutation_fields(
 
   let root_names = mutation_root_names(fields)
   let final_ids = dedupe_strings(staged_ids)
-  let #(logged_store, logged_identity) = case should_log {
-    False -> #(final_store, final_identity)
-    True ->
-      record_marketing_mutation_log(
-        final_store,
-        final_identity,
-        request_path,
-        document,
-        root_names,
-        final_ids,
-      )
+  let primary_root = case list.first(root_names) {
+    Ok(name) -> Some(name)
+    Error(_) -> None
+  }
+  let log_drafts = case should_log {
+    False -> []
+    True -> [
+      LogDraft(
+        operation_name: primary_root,
+        root_fields: root_names,
+        primary_root_field: primary_root,
+        domain: "marketing",
+        execution: "stage-locally",
+        staged_resource_ids: final_ids,
+        status: store.Staged,
+        notes: Some("Staged locally in the in-memory marketing draft store."),
+      ),
+    ]
   }
   MutationOutcome(
     data: json.object([#("data", json.object(entries))]),
-    store: logged_store,
-    identity: logged_identity,
+    store: final_store,
+    identity: final_identity,
     staged_resource_ids: final_ids,
+    log_drafts: log_drafts,
   )
 }
 
@@ -2324,44 +2330,3 @@ fn mutation_root_names(fields: List(Selection)) -> List(String) {
   })
 }
 
-fn record_marketing_mutation_log(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  root_names: List(String),
-  staged_resource_ids: List(String),
-) -> #(Store, SyntheticIdentityRegistry) {
-  let primary_root = case list.first(root_names) {
-    Ok(name) -> Some(name)
-    Error(_) -> None
-  }
-  let #(log_id, identity) =
-    synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
-  let #(received_at, identity) =
-    synthetic_identity.make_synthetic_timestamp(identity)
-  let entry =
-    store.MutationLogEntry(
-      id: log_id,
-      received_at: received_at,
-      operation_name: primary_root,
-      path: request_path,
-      query: document,
-      variables: dict.new(),
-      staged_resource_ids: staged_resource_ids,
-      status: store.Staged,
-      interpreted: store.InterpretedMetadata(
-        operation_type: store.Mutation,
-        operation_name: primary_root,
-        root_fields: root_names,
-        primary_root_field: primary_root,
-        capability: store.Capability(
-          operation_name: primary_root,
-          domain: "marketing",
-          execution: "stage-locally",
-        ),
-      ),
-      notes: Some("Staged locally in the in-memory marketing draft store."),
-    )
-  #(store.record_mutation_log_entry(store, entry), identity)
-}
