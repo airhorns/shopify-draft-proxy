@@ -201,6 +201,8 @@ fn seed_capture_preconditions(
       seed_inventory_activate_preconditions(capture, proxy)
     "inventory-deactivate-live-parity" ->
       seed_inventory_activate_preconditions(capture, proxy)
+    "inventory-bulk-toggle-activation-live-parity" ->
+      seed_inventory_activate_preconditions(capture, proxy)
     "product-variants-bulk-reorder-live-parity" ->
       seed_product_variants_bulk_reorder_preconditions(capture, proxy)
     _ -> proxy

@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 63: inventory bulk toggle activation lifecycle
+
+Adds local staging for the captured `inventoryBulkToggleActivation` slices. The
+Gleam Products mutation handler now routes the root locally, preserves the raw
+mutation request through the centralized draft-log path, returns the captured
+already-active `activate: true` no-op inventory item/level payload, and models
+the `activate: false` single-location guardrail with Shopify's
+`CANNOT_DEACTIVATE_FROM_ONLY_LOCATION` user error without runtime Shopify writes.
+
+The pass promotes `inventoryBulkToggleActivation-parity-plan` into the Gleam
+parity suite. Runner seeding reuses the captured activation fixture state so
+both strict targets replay against the same single active inventory level from
+the live inventory linkage capture without changing any fixture, request, or
+comparison contract.
+
+| Module                                               | Change                                                                                         |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds inventory bulk toggle routing, captured payload projection, guardrail errors, and drafts. |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured single-level inventory item preconditions for bulk toggle parity.           |
+| `gleam/test/parity_test.gleam`                       | Enables the strict inventory bulk toggle parity scenario.                                      |
+
+Validation: `gleam test --target javascript` is green at 761 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails before tests execute
+on the local Erlang install with the known `undef` runner issue; after clearing
+host-built Erlang artifacts, the Docker Erlang fallback is green at 757 tests.
+Product parity inventory remains 115 checked-in specs, with 47 product specs
+executable in the Gleam parity suite plus the admin-platform ProductOption node
+scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  request returning HTTP 400 for `inventoryBulkToggleActivation` because the
+  root was not routed by the Gleam Products mutation dispatcher.
+- The parity spec has two strict targets using the same request document:
+  already-active activation returns the existing item/level graph, while
+  deactivation of the only level returns null resources plus a coded userError.
+- The existing inventory item and inventory level source projections were enough
+  for the selected payload shape; no request or capture narrowing was needed.
+
+### Risks / open items
+
+- This pass covers the captured no-op and only-location guardrail slices, not
+  broad unknown-location activation or first-class inactive inventory-level
+  state.
+- Collections, publication, product feeds/feedback, selling plans, product
+  metafields, inventory item update, inventory shipment/transfer, and remaining
+  variant relationship/media behavior remain incomplete in Gleam.
+- Only 47 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 64 candidates
+
+- Port `inventoryItemUpdate` as the next inventory item lifecycle root.
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+- Port product metafield behavior now that the Products mutation dispatcher has
+  several local mutation families to reuse.
+
+---
+
 ## 2026-04-30 — Pass 62: inventory deactivate guardrail
 
 Adds local staging for the captured `inventoryDeactivate` single-location

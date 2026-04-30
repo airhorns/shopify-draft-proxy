@@ -111,6 +111,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "inventoryAdjustQuantities"
     | "inventoryActivate"
     | "inventoryDeactivate"
+    | "inventoryBulkToggleActivation"
     | "inventorySetQuantities"
     | "inventoryMoveQuantities"
     | "tagsAdd"
@@ -2224,6 +2225,33 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "inventoryBulkToggleActivation" -> {
+              let result =
+                handle_inventory_bulk_toggle_activation(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged inventoryBulkToggleActivation locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "inventorySetQuantities" -> {
               let result =
                 handle_inventory_set_quantities(
@@ -3796,6 +3824,120 @@ fn handle_inventory_deactivate(
   )
 }
 
+fn handle_inventory_bulk_toggle_activation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let inventory_item_id = read_string_field(args, "inventoryItemId")
+  let first_update =
+    read_arg_object_list(args, "inventoryItemUpdates")
+    |> list.first
+    |> option.from_result
+  let location_id = case first_update {
+    Some(update) -> read_string_field(update, "locationId")
+    None -> None
+  }
+  let activate = case first_update {
+    Some(update) -> read_bool_field(update, "activate")
+    None -> None
+  }
+  let variant = case inventory_item_id {
+    Some(inventory_item_id) ->
+      store.find_effective_variant_by_inventory_item_id(
+        store,
+        inventory_item_id,
+      )
+    None -> None
+  }
+  let target = case variant, location_id {
+    Some(variant), Some(location_id) ->
+      case
+        find_inventory_level(variant_inventory_levels(variant), location_id)
+      {
+        Some(level) -> Some(#(variant, level))
+        None -> None
+      }
+    _, _ -> None
+  }
+  let user_errors = case variant, location_id, target, activate {
+    Some(_variant), Some(_location_id), None, _ -> [
+      ProductUserError(
+        ["inventoryItemUpdates", "0", "locationId"],
+        "The quantity couldn't be updated because the location was not found.",
+        Some("LOCATION_NOT_FOUND"),
+      ),
+    ]
+    Some(variant),
+      Some(_location_id),
+      Some(#(_target_variant, level)),
+      Some(False)
+    -> {
+      case list.length(variant_inventory_levels(variant)) <= 1 {
+        True -> [
+          ProductUserError(
+            ["inventoryItemUpdates", "0", "locationId"],
+            "The variant couldn't be unstocked from "
+              <> level.location.name
+              <> " because products need to be stocked at a minimum of 1 location.",
+            Some("CANNOT_DEACTIVATE_FROM_ONLY_LOCATION"),
+          ),
+        ]
+        False -> []
+      }
+    }
+    _, _, _, _ -> []
+  }
+  let outcome = case target, activate, user_errors {
+    Some(#(variant, level)), Some(False), [] -> {
+      let next_levels =
+        variant_inventory_levels(variant)
+        |> list.filter(fn(candidate) { candidate.id != level.id })
+      let next_store =
+        stage_variant_inventory_levels(store, variant, next_levels)
+      #(
+        next_store,
+        store.find_effective_variant_by_inventory_item_id(
+          next_store,
+          option.unwrap(inventory_item_id, ""),
+        ),
+        Some([]),
+        [level.id],
+      )
+    }
+    Some(#(variant, level)), _, [] -> #(
+      store,
+      Some(variant),
+      Some([#(variant, level)]),
+      case variant.inventory_item {
+        Some(item) -> [level.id, item.id]
+        None -> [level.id]
+      },
+    )
+    _, _, [] -> #(store, variant, None, [])
+    _, _, _ -> #(store, None, None, [])
+  }
+  let #(next_store, payload_variant, response_levels, staged_ids) = outcome
+  mutation_result(
+    key,
+    inventory_bulk_toggle_activation_payload(
+      next_store,
+      payload_variant,
+      response_levels,
+      user_errors,
+      field,
+      fragments,
+    ),
+    next_store,
+    identity,
+    staged_ids,
+  )
+}
+
 fn handle_inventory_set_quantities(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -5238,6 +5380,40 @@ fn inventory_deactivate_payload(
     src_object([
       #("__typename", SrcString("InventoryDeactivatePayload")),
       #("userErrors", nullable_field_user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn inventory_bulk_toggle_activation_payload(
+  store: Store,
+  variant: Option(ProductVariantRecord),
+  levels: Option(List(#(ProductVariantRecord, InventoryLevelRecord))),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let inventory_item = case variant {
+    Some(variant) -> inventory_item_source(store, variant)
+    None -> SrcNull
+  }
+  let inventory_levels = case levels {
+    Some(levels) ->
+      SrcList(
+        list.map(levels, fn(level) {
+          let #(variant, level) = level
+          inventory_level_source_with_item(store, variant, level)
+        }),
+      )
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("InventoryBulkToggleActivationPayload")),
+      #("inventoryItem", inventory_item),
+      #("inventoryLevels", inventory_levels),
+      #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,

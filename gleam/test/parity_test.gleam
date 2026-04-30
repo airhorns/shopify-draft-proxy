@@ -284,6 +284,12 @@ pub fn inventory_deactivate_parity_plan_test() {
   check("config/parity-specs/products/inventoryDeactivate-parity-plan.json")
 }
 
+pub fn inventory_bulk_toggle_activation_parity_plan_test() {
+  check(
+    "config/parity-specs/products/inventoryBulkToggleActivation-parity-plan.json",
+  )
+}
+
 pub fn tags_add_parity_plan_test() {
   check("config/parity-specs/products/tagsAdd-parity-plan.json")
 }
