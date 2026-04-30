@@ -261,6 +261,11 @@ adding broad synthetic-id/timestamp expected differences.
   downstream owner state, not Shopify's removed singular payload. Seed the
   local deleted metafield ID expected by the compatibility request while
   keeping the owner metafield siblings from the plural capture unchanged.
+- Product `metafieldsSet` inputs supplied through a GraphQL variable are
+  rejected as top-level `INVALID_VARIABLE` errors when `ownerId`, `key`, or
+  `value` is missing or null. Do not serialize those branches as
+  `metafieldsSet.userErrors`, and abort the local mutation without staging
+  store changes or draft log entries.
 
 ## Workflow for a new pass
 

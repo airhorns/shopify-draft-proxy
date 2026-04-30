@@ -803,18 +803,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/products/metafieldsSet-missing-key.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/products/metafieldsSet-missing-owner.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/products/metafieldsSet-missing-value.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/products/metafieldsSet-owner-expansion.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },

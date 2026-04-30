@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 94: product metafieldsSet invalid variables
+
+Promotes the captured Product `metafieldsSet` missing required variable-input
+branches into the Gleam parity suite. Shopify rejects missing `ownerId`, `key`,
+or `value` on a `metafields` variable before mutation execution with a
+top-level `INVALID_VARIABLE` GraphQL error, not a
+`metafieldsSet.userErrors` payload, so the Gleam mutation path now detects that
+variable shape and returns the captured error envelope without staging local
+state or draft log entries.
+
+| Module                                                            | Change                                                                   |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | Adds top-level invalid-variable handling for `metafieldsSet`.            |
+| `config/gleam-port-ci-gates.json`                                 | Removes the three newly passing missing-field specs from expected fails. |
+| `.agents/skills/gleam-port/SKILL.md`                              | Records the `metafieldsSet` variable-validation trap for future passes.  |
+
+Validation:
+Focused JavaScript parity is green for `metafieldsSet-missing-key`,
+`metafieldsSet-missing-owner`, and `metafieldsSet-missing-value`. The
+all-discovered JavaScript parity gate is green at 708 tests after manifest
+alignment. Full JavaScript is green at 708 tests. Host Erlang still fails under
+OTP 25 with the `gleam_json` OTP 27 requirement plus the known `Undef` runner
+class; after clearing root-owned build artifacts, the Docker Erlang fallback is
+green at 704 tests. `corepack pnpm gleam:port:coverage`, `corepack pnpm lint`,
+and whitespace checks are green. Product parity inventory remains 115
+checked-in specs, with 91 product specs executable in the Gleam parity suite
+and 24 product specs still expected-failing.
+
+### Findings
+
+- Missing required fields on the `metafields` variable input are GraphQL
+  invalid-variable errors. They include `extensions.value` echoing the supplied
+  variable list and `extensions.problems[0].path` pointing at the list index
+  and missing field.
+- Top-level variable validation must abort the whole mutation operation before
+  local staging, even if the GraphQL document contains other mutation roots.
+
+### Risks / open items
+
+- `metafieldsSet` owner expansion, selling plans, media, advanced search,
+  duplicate/productSet/media roots, and broader validation atomicity parity
+  remain incomplete in Gleam.
+- Only 91 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 95 candidates
+
+- Continue Product `metafieldsSet` owner expansion parity.
+- Port selling-plan group behavior with strict captured lifecycle evidence.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 93: product metafield delete roots
 
 Promotes the captured Product `metafieldsDelete` parity plan and the singular

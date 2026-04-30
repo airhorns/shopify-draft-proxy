@@ -13,7 +13,9 @@ import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/ast.{
+  type Selection, Argument, Field, VariableValue,
+}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   ConnectionPageInfoOptions, SerializeConnectionConfig,
@@ -23,7 +25,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, read_optional_string, single_root_log_draft,
+  type LogDraft, find_argument, read_optional_string, single_root_log_draft,
 }
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -215,13 +217,20 @@ fn handle_mutation_fields(
   fields: List(Selection),
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let initial = #(store_in, identity, [], [], [])
-  let #(store_out, identity_out, entries, drafts, staged_all) =
+  let initial = #(store_in, identity, [], [], [], [])
+  let #(store_out, identity_out, entries, drafts, staged_all, top_errors) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(current_store, current_identity, entries, drafts, staged_all) = acc
+      let #(
+        current_store,
+        current_identity,
+        entries,
+        drafts,
+        staged_all,
+        top_errors,
+      ) = acc
       case field {
         Field(name: name, ..) -> {
-          let #(payload, next_store, next_identity, staged_ids) =
+          let #(payload, next_store, next_identity, staged_ids, field_errors) =
             dispatch_mutation_field(
               name.value,
               current_store,
@@ -229,32 +238,65 @@ fn handle_mutation_fields(
               field,
               variables,
             )
-          let draft =
-            single_root_log_draft(
-              name.value,
-              staged_ids,
-              metafield_definitions_status_for(staged_ids),
-              "metafields",
-              "stage-locally",
-              Some(metafield_definitions_notes_for(name.value)),
-            )
+          let next_entries = case field_errors {
+            [] ->
+              list.append(entries, [#(get_field_response_key(field), payload)])
+            [_, ..] -> entries
+          }
+          let next_drafts = case field_errors {
+            [] -> {
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  staged_ids,
+                  metafield_definitions_status_for(staged_ids),
+                  "metafields",
+                  "stage-locally",
+                  Some(metafield_definitions_notes_for(name.value)),
+                )
+              list.append(drafts, [draft])
+            }
+            [_, ..] -> drafts
+          }
+          let next_staged_all = case field_errors {
+            [] -> list.append(staged_all, staged_ids)
+            [_, ..] -> staged_all
+          }
           #(
             next_store,
             next_identity,
-            list.append(entries, [#(get_field_response_key(field), payload)]),
-            list.append(drafts, [draft]),
-            list.append(staged_all, staged_ids),
+            next_entries,
+            next_drafts,
+            next_staged_all,
+            list.append(top_errors, field_errors),
           )
         }
         _ -> acc
       }
     })
+  let envelope = case top_errors {
+    [] -> wrap_data(json.object(entries))
+    [_, ..] -> json.object([#("errors", json.preprocessed_array(top_errors))])
+  }
+  let staged_resource_ids = case top_errors {
+    [] -> staged_all
+    [_, ..] -> []
+  }
   MutationOutcome(
-    data: wrap_data(json.object(entries)),
-    store: store_out,
-    identity: identity_out,
-    staged_resource_ids: staged_all,
-    log_drafts: drafts,
+    data: envelope,
+    store: case top_errors {
+      [] -> store_out
+      [_, ..] -> store_in
+    },
+    identity: case top_errors {
+      [] -> identity_out
+      [_, ..] -> identity
+    },
+    staged_resource_ids: staged_resource_ids,
+    log_drafts: case top_errors {
+      [] -> drafts
+      [_, ..] -> []
+    },
   )
 }
 
@@ -264,33 +306,82 @@ fn dispatch_mutation_field(
   identity: SyntheticIdentityRegistry,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String), List(Json)) {
   case root_name {
     "metafieldDefinitionCreate" ->
-      serialize_definition_create_root(store_in, identity, field, variables)
+      no_top_level_errors(serialize_definition_create_root(
+        store_in,
+        identity,
+        field,
+        variables,
+      ))
     "metafieldDefinitionUpdate" ->
-      serialize_definition_update_root(store_in, identity, field, variables)
+      no_top_level_errors(serialize_definition_update_root(
+        store_in,
+        identity,
+        field,
+        variables,
+      ))
     "metafieldDefinitionDelete" ->
-      serialize_definition_delete_root(store_in, identity, field, variables)
+      no_top_level_errors(serialize_definition_delete_root(
+        store_in,
+        identity,
+        field,
+        variables,
+      ))
     "standardMetafieldDefinitionEnable" ->
-      serialize_standard_metafield_definition_enable_mutation(
+      no_top_level_errors(
+        serialize_standard_metafield_definition_enable_mutation(
+          store_in,
+          identity,
+          field,
+          variables,
+        ),
+      )
+    "metafieldDefinitionPin" ->
+      no_top_level_errors(serialize_definition_pin_root(
+        store_in,
+        identity,
+        field,
+        variables,
+      ))
+    "metafieldDefinitionUnpin" ->
+      no_top_level_errors(serialize_definition_unpin_root(
+        store_in,
+        identity,
+        field,
+        variables,
+      ))
+    "metafieldsSet" ->
+      serialize_metafields_set_root_with_top_level_validation(
         store_in,
         identity,
         field,
         variables,
       )
-    "metafieldDefinitionPin" ->
-      serialize_definition_pin_root(store_in, identity, field, variables)
-    "metafieldDefinitionUnpin" ->
-      serialize_definition_unpin_root(store_in, identity, field, variables)
-    "metafieldsSet" ->
-      serialize_metafields_set_root(store_in, identity, field, variables)
     "metafieldsDelete" ->
-      serialize_metafields_delete_root(store_in, identity, field, variables)
+      no_top_level_errors(serialize_metafields_delete_root(
+        store_in,
+        identity,
+        field,
+        variables,
+      ))
     "metafieldDelete" ->
-      serialize_metafield_delete_root(store_in, identity, field, variables)
-    _ -> #(json.null(), store_in, identity, [])
+      no_top_level_errors(serialize_metafield_delete_root(
+        store_in,
+        identity,
+        field,
+        variables,
+      ))
+    _ -> #(json.null(), store_in, identity, [], [])
   }
+}
+
+fn no_top_level_errors(
+  result: #(Json, Store, SyntheticIdentityRegistry, List(String)),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String), List(Json)) {
+  let #(payload, store_out, identity_out, staged_ids) = result
+  #(payload, store_out, identity_out, staged_ids, [])
 }
 
 fn metafield_definitions_status_for(
@@ -2553,6 +2644,173 @@ fn deleted_identifiers_to_stage_ids(
     }
   })
   |> dedupe_strings
+}
+
+fn serialize_metafields_set_root_with_top_level_validation(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String), List(Json)) {
+  let args = read_args(field, variables)
+  let inputs = read_input_objects(args, "metafields")
+  case metafields_set_invalid_variable_error(field, inputs) {
+    Some(error) -> #(json.null(), store_in, identity, [], [error])
+    None ->
+      no_top_level_errors(serialize_metafields_set_root(
+        store_in,
+        identity,
+        field,
+        variables,
+      ))
+  }
+}
+
+fn metafields_set_invalid_variable_error(
+  field: Selection,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> Option(Json) {
+  case metafields_argument_variable_name(field) {
+    None -> None
+    Some(variable_name) ->
+      case first_missing_metafields_set_required_field(inputs) {
+        None -> None
+        Some(#(index, field_name)) ->
+          Some(build_metafields_set_invalid_variable_error(
+            variable_name,
+            inputs,
+            index,
+            field_name,
+          ))
+      }
+  }
+}
+
+fn metafields_argument_variable_name(field: Selection) -> Option(String) {
+  case field {
+    Field(arguments: arguments, ..) ->
+      case find_argument(arguments, "metafields") {
+        Some(Argument(value: VariableValue(variable: variable), ..)) ->
+          Some(variable.name.value)
+        _ -> None
+      }
+    _ -> None
+  }
+}
+
+fn first_missing_metafields_set_required_field(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> Option(#(Int, String)) {
+  inputs
+  |> enumerate
+  |> list.find_map(fn(pair) {
+    let #(index, input) = pair
+    case first_missing_metafields_set_field(input) {
+      Some(field_name) -> Ok(#(index, field_name))
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn first_missing_metafields_set_field(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case required_input_field_present(input, "ownerId") {
+    False -> Some("ownerId")
+    True ->
+      case required_input_field_present(input, "key") {
+        False -> Some("key")
+        True ->
+          case required_input_field_present(input, "value") {
+            False -> Some("value")
+            True -> None
+          }
+      }
+  }
+}
+
+fn required_input_field_present(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Bool {
+  case dict.get(input, key) {
+    Ok(root_field.NullVal) | Error(_) -> False
+    _ -> True
+  }
+}
+
+fn build_metafields_set_invalid_variable_error(
+  variable_name: String,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  index: Int,
+  field_name: String,
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Variable $"
+        <> variable_name
+        <> " of type [MetafieldsSetInput!]! was provided invalid value for "
+        <> int.to_string(index)
+        <> "."
+        <> field_name
+        <> " (Expected value to not be null)",
+      ),
+    ),
+    #(
+      "locations",
+      json.preprocessed_array([
+        json.object([#("line", json.int(2)), #("column", json.int(37))]),
+      ]),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("INVALID_VARIABLE")),
+        #("value", json.array(inputs, resolved_object_to_json)),
+        #(
+          "problems",
+          json.preprocessed_array([
+            json.object([
+              #(
+                "path",
+                json.preprocessed_array([
+                  json.int(index),
+                  json.string(field_name),
+                ]),
+              ),
+              #("explanation", json.string("Expected value to not be null")),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
+fn resolved_object_to_json(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  json.object(
+    list.map(dict.to_list(input), fn(entry) {
+      let #(key, value) = entry
+      #(key, resolved_value_to_json(value))
+    }),
+  )
+}
+
+fn resolved_value_to_json(value: root_field.ResolvedValue) -> Json {
+  case value {
+    root_field.StringVal(value) -> json.string(value)
+    root_field.IntVal(value) -> json.int(value)
+    root_field.FloatVal(value) -> json.float(value)
+    root_field.BoolVal(value) -> json.bool(value)
+    root_field.NullVal -> json.null()
+    root_field.ListVal(values) -> json.array(values, resolved_value_to_json)
+    root_field.ObjectVal(fields) -> resolved_object_to_json(fields)
+  }
 }
 
 fn serialize_metafields_set_root(
