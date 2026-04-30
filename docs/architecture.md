@@ -2,9 +2,15 @@
 
 ## Overview
 
-`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy with a
-Koa webservice adapter. It supports three read execution modes and two mutation
-execution paths.
+`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The
+current implementation direction is the Gleam port in `gleam/`, which compiles
+the same core domain model to JavaScript and Erlang. The legacy TypeScript/Koa
+runtime in `src/` remains as a temporary compatibility baseline until the port
+reaches parity and is deleted.
+
+Across both implementations, the runtime supports local read/write staging,
+versioned Shopify Admin GraphQL routes, and the same supported/unsupported
+mutation split.
 
 ### Read execution modes
 
@@ -14,9 +20,12 @@ execution paths.
 2. **snapshot**
    - reads are resolved from a startup snapshot plus staged state
    - absent data should behave like Shopify behaves when no matching backend data exists
-3. **passthrough**
-   - reads are forwarded directly with no overlay
-   - useful as a debugging baseline
+3. **passthrough / live-only debugging**
+   - the legacy TypeScript runtime names this mode `passthrough`
+   - the Gleam API has a reserved `Live` read-mode variant for the same final
+     cutover need
+   - fully documented live-only server behavior is still part of the remaining
+     port work
 
 ### Mutation execution paths
 
@@ -45,22 +54,41 @@ App/test harness -> DraftProxy instance -> operation classifier
                                           ├─ reset/log/state/config/health
                                           └─ commit replay
 
-Koa server -> DraftProxy instance
+HTTP adapter -> DraftProxy instance
 ```
 
+The HTTP adapter is still Koa in the legacy TypeScript runtime. The Gleam core
+already accepts HTTP-shaped requests directly through `process_request`; the JS
+HTTP server adapter and BEAM-facing serving story are separate cutover tasks.
+
 ## Primary modules
+
+### `gleam/`
+
+- current implementation track for the proxy core
+- compiles to JavaScript and Erlang from the same domain implementation
+- exposes `shopify_draft_proxy/proxy/draft_proxy.gleam` as the main runtime
+  entry point
+- owns explicit `DraftProxy` state threading: request processing returns both a
+  `Response` and the next `DraftProxy`
+- includes the TypeScript compatibility shim under `gleam/js/` and the Elixir
+  shipment smoke project under `gleam/elixir_smoke/`
 
 ### `src/config.ts`
 
 - parse environment/configuration
 - select runtime mode
 - hold Shopify upstream URL/version settings
+- legacy TypeScript runtime only during the port; the final package cutover
+  should not add new runtime authority here
 
 ### `src/app.ts`
 
 - build Koa app
 - register body parser and mount incoming HTTP requests onto a `DraftProxy`
   instance
+- legacy TypeScript HTTP adapter kept until the Gleam JS HTTP adapter reaches
+  route parity
 
 ### `src/proxy-instance.ts`
 
@@ -70,6 +98,9 @@ Koa server -> DraftProxy instance
 - exposes request-form processing for versioned Shopify Admin GraphQL routes
   plus public meta-equivalent methods for config, log, state, reset, and commit
 - provides the public object used by the Koa webservice adapter
+- temporary compatibility baseline for the JS-facing `createDraftProxy(...)`
+  shape; the Gleam JS shim is expected to preserve that public shape after the
+  TypeScript runtime is removed
 
 ### `src/logger.ts`
 
@@ -81,6 +112,7 @@ Koa server -> DraftProxy instance
 ### `src/server.ts`
 
 - start HTTP server
+- legacy Koa entry point during the port
 
 ### `src/graphql/`
 
@@ -281,11 +313,12 @@ At startup, raw fixture bundles should be compiled into normalized state where p
 
 Current implementation note:
 
-- `createApp()` now reads `config.snapshotPath` eagerly when it is set
-- the current supported on-disk format is a normalized snapshot JSON file containing `baseState` plus optional product search connection baselines and customer catalog/search connection baselines
-- normalized snapshot JSON is parsed through Zod schemas at the file boundary; the same schemas derive the runtime snapshot TypeScript types
+- legacy `createApp()` reads `config.snapshotPath` eagerly when it is set
+- the current legacy supported on-disk format is a normalized snapshot JSON file containing `baseState` plus optional product search connection baselines and customer catalog/search connection baselines
+- legacy normalized snapshot JSON is parsed through Zod schemas at the file boundary; the same schemas derive the runtime snapshot TypeScript types
 - loading that file seeds the in-memory base state before the server handles requests
 - `POST /__meta/reset` restores that startup snapshot baseline, including captured connection cursor/pageInfo baselines, rather than wiping snapshot mode back to an empty store
+- the Gleam port already preserves the state-dump envelope and restores the mutation log / synthetic identity slices; full normalized snapshot loading expands as the remaining domain slices are ported
 
 Snapshot misses should return the same kind of empty/null structure Shopify returns when the backing store has no matching data.
 
@@ -303,10 +336,11 @@ Recommended endpoints:
 
 Current implementation notes:
 
-- `GET /__meta` serves a small operator web UI backed by the existing meta API and in-memory store; it renders the current mutation log/state and exposes reset/commit controls without adding separate persistent UI state
+- legacy `GET /__meta` serves a small operator web UI backed by the existing meta API and in-memory store; the Gleam core has not yet reimplemented this UI route
 - `GET /__meta/config` returns the active `port`, `shopifyAdminOrigin`, `readMode`, and `snapshotPath`
-- `GET /__meta/state` returns cloned `baseState` / `stagedState` buckets for debug inspection, including runtime-only object graph maps such as staged orders, draft orders, and calculated orders that are not part of the normalized snapshot file schema
+- `GET /__meta/state` returns cloned `baseState` / `stagedState` buckets for debug inspection; in the Gleam port this includes only slices that have been ported into the Gleam store serializer
 - mutation-log entries retain the original GraphQL route path as well as the raw request body, so commit replay can preserve the original versioned Admin API endpoint and GraphQL request fields such as `operationName`
+- Gleam `POST /__meta/commit` is synchronous on Erlang; JavaScript callers use `process_request_async` or the JS shim's async `processRequest` because upstream replay uses `fetch`
 
 Commit response should include:
 
