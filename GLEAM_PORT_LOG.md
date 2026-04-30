@@ -9,6 +9,70 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 35: seeded products catalog reads
+
+Extends the Product read foundation from by-ID detail reads to the first
+catalog connection. The product record now carries catalog-selected fields and
+captured cursors, the store tracks a seeded product count, and the Products
+handler serializes `products(first:)` over effective product state with
+Shopify-shaped edges, pageInfo, and `productsCount` precision. The parity runner
+seeds the captured `products-catalog-read` page from checked-in edge nodes
+without changing the GraphQL request, variables, or capture.
+
+This remains read-only progress. Product lifecycle mutations, search grammar,
+variant/collection/inventory/publication/selling-plan/metafield resources, and
+most product helper roots are still deferred, so the TypeScript Products runtime
+remains in place.
+
+| Module                                                     | Change                                                                                                                      |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | Expands the Product record with catalog fields, inventory summary fields, timestamps, and captured cursors.                 |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds effective product-count state and keeps product list order/cursor data available for catalog connection reads.         |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Serializes `products(first:)` connections and `productsCount` from seeded state while preserving empty behavior when unset. |
+| `gleam/test/parity/runner.gleam`                           | Seeds the captured `products-catalog-read` count and edge node rows into the Products base state.                           |
+| `gleam/test/parity_test.gleam`                             | Enables `products-catalog-read` as executable strict Gleam parity evidence.                                                 |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct coverage for seeded product catalog edges, captured cursors, pageInfo, and count precision.                     |
+
+Validation: `gleam test --target javascript` is green at 681 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 5
+product specs now executable in the Gleam parity suite:
+`product-empty-state-read`, `product-related-by-id-not-found-read`,
+`product-feeds-empty-read`, `product-detail-read`, and
+`products-catalog-read`.
+
+### Findings
+
+- The catalog capture records Shopify opaque cursors; the Gleam connection
+  serializer can preserve them by disabling synthetic cursor prefixes for this
+  seeded path.
+- A captured product count is necessary for strict `productsCount` and
+  `hasNextPage` parity because the checked-in catalog page only includes the
+  first three product rows from a much larger store.
+- The product record remains intentionally partial, but now includes the fields
+  needed by the first catalog page and can be widened as search/helper scenarios
+  require more of the TS product model.
+
+### Risks / open items
+
+- Product search/filter/sort semantics are not ported yet; this pass preserves
+  the seeded catalog ordering rather than claiming general Shopify search
+  behavior.
+- Product variants, collections, options, inventory, publications, selling
+  plans, feeds/feedback, tags, metafields, and all product mutations remain
+  unported in Gleam.
+- Only 5 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 36 candidates
+
+- Port simple product helper identifier roots over the Product state slice,
+  including `productByIdentifier` by ID/handle.
+- Add ProductVariant state and seed the helper-root first variant scenario.
+- Begin products search grammar support using the shared search-query parser
+  patterns before enabling search-specific parity specs.
+
+---
+
 ## 2026-04-30 — Pass 34: seeded product detail reads
 
 Extends the Products foundation from no-data reads to the first store-backed

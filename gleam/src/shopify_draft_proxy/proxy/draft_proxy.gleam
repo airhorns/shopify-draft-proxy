@@ -434,6 +434,10 @@ fn serialize_base_state(state: store.BaseState) -> Json {
         ),
       ])
   }
+  let entries = case state.product_count {
+    Some(count) -> list.append(entries, [#("productCount", json.int(count))])
+    None -> entries
+  }
   json.object(entries)
 }
 
@@ -467,6 +471,10 @@ fn serialize_staged_state(state: store.StagedState) -> Json {
           json.array(dict.keys(state.deleted_product_ids), json.string),
         ),
       ])
+  }
+  let entries = case state.product_count {
+    Some(count) -> list.append(entries, [#("productCount", json.int(count))])
+    None -> entries
   }
   let entries = case dict.is_empty(state.deleted_saved_search_ids) {
     True -> entries

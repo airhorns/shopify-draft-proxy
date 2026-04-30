@@ -17,10 +17,12 @@ import shopify_draft_proxy/graphql/root_field.{
   get_root_fields,
 }
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcString,
-  default_selected_field_options, get_document_fragments, get_field_response_key,
-  get_selected_child_fields, project_graphql_value, serialize_empty_connection,
-  src_object,
+  type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
+  SerializeConnectionConfig, SrcBool, SrcInt, SrcList, SrcNull, SrcString,
+  default_connection_window_options, default_selected_field_options,
+  get_document_fragments, get_field_response_key, get_selected_child_fields,
+  paginate_connection_items, project_graphql_value, serialize_connection,
+  serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
@@ -99,8 +101,9 @@ fn serialize_root_fields(
             | "productFeed"
             | "productResourceFeedback"
             | "productOperation" -> json.null()
-            "products"
-            | "collections"
+            "products" ->
+              serialize_products_connection(store, field, variables, fragments)
+            "collections"
             | "productVariants"
             | "inventoryItems"
             | "productFeeds"
@@ -113,7 +116,10 @@ fn serialize_root_fields(
                 default_selected_field_options(),
               )
             "productsCount" | "productVariantsCount" ->
-              serialize_exact_zero_count(field)
+              serialize_exact_count(field, case name.value {
+                "productsCount" -> store.get_effective_product_count(store)
+                _ -> 0
+              })
             "productDuplicateJob" ->
               serialize_product_duplicate_job(field, variables)
             _ -> json.null()
@@ -146,7 +152,66 @@ fn serialize_product_root(
   }
 }
 
-fn serialize_exact_zero_count(field: Selection) -> Json {
+fn serialize_products_connection(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let products = store.list_effective_products(store)
+  case products {
+    [] -> serialize_empty_connection(field, default_selected_field_options())
+    _ -> {
+      let window =
+        paginate_connection_items(
+          products,
+          field,
+          variables,
+          product_cursor,
+          default_connection_window_options(),
+        )
+      let count = store.get_effective_product_count(store)
+      let has_next_page =
+        window.has_next_page || count > list.length(window.items)
+      serialize_connection(
+        field,
+        SerializeConnectionConfig(
+          items: window.items,
+          has_next_page: has_next_page,
+          has_previous_page: window.has_previous_page,
+          get_cursor_value: product_cursor,
+          serialize_node: fn(product, node_field, _index) {
+            project_graphql_value(
+              product_source(product),
+              get_selected_child_fields(
+                node_field,
+                default_selected_field_options(),
+              ),
+              fragments,
+            )
+          },
+          selected_field_options: default_selected_field_options(),
+          page_info_options: ConnectionPageInfoOptions(
+            include_inline_fragments: False,
+            prefix_cursors: False,
+            include_cursors: True,
+            fallback_start_cursor: None,
+            fallback_end_cursor: None,
+          ),
+        ),
+      )
+    }
+  }
+}
+
+fn product_cursor(product: ProductRecord, _index: Int) -> String {
+  case product.cursor {
+    Some(cursor) -> cursor
+    None -> product.id
+  }
+}
+
+fn serialize_exact_count(field: Selection, count: Int) -> Json {
   let entries =
     list.map(
       get_selected_child_fields(field, default_selected_field_options()),
@@ -155,7 +220,7 @@ fn serialize_exact_zero_count(field: Selection) -> Json {
         case child {
           Field(name: name, ..) ->
             case name.value {
-              "count" -> #(key, json.int(0))
+              "count" -> #(key, json.int(count))
               "precision" -> #(key, json.string("EXACT"))
               _ -> #(key, json.null())
             }
@@ -216,9 +281,17 @@ pub fn product_source(product: ProductRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("Product")),
     #("id", SrcString(product.id)),
+    #("legacyResourceId", optional_string_source(product.legacy_resource_id)),
     #("title", SrcString(product.title)),
     #("handle", SrcString(product.handle)),
     #("status", SrcString(product.status)),
+    #("vendor", optional_string_source(product.vendor)),
+    #("productType", optional_string_source(product.product_type)),
+    #("tags", SrcList(list.map(product.tags, SrcString))),
+    #("totalInventory", optional_int_source(product.total_inventory)),
+    #("tracksInventory", optional_bool_source(product.tracks_inventory)),
+    #("createdAt", optional_string_source(product.created_at)),
+    #("updatedAt", optional_string_source(product.updated_at)),
     #("descriptionHtml", SrcString(product.description_html)),
     #(
       "onlineStorePreviewUrl",
@@ -272,6 +345,20 @@ fn empty_connection_source() -> SourceValue {
 fn optional_string_source(value: Option(String)) -> SourceValue {
   case value {
     Some(value) -> SrcString(value)
+    None -> SrcNull
+  }
+}
+
+fn optional_int_source(value: Option(Int)) -> SourceValue {
+  case value {
+    Some(value) -> SrcInt(value)
+    None -> SrcNull
+  }
+}
+
+fn optional_bool_source(value: Option(Bool)) -> SourceValue {
+  case value {
+    Some(value) -> SrcBool(value)
     None -> SrcNull
   }
 }

@@ -152,6 +152,8 @@ fn seed_capture_preconditions(
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
     "product-detail-read" -> seed_product_preconditions(capture, proxy)
+    "products-catalog-read" ->
+      seed_products_catalog_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -175,6 +177,40 @@ fn seed_product_preconditions(
 }
 
 fn make_seed_product(source: JsonValue) -> Result(ProductRecord, Nil) {
+  make_seed_product_with_cursor(source, None)
+}
+
+fn seed_products_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products = case jsonpath.lookup(capture, "$.data.products.edges") {
+    Some(JArray(edges)) ->
+      list.filter_map(edges, fn(edge) { make_seed_product_from_edge(edge) })
+    _ -> []
+  }
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  let store = case jsonpath.lookup(capture, "$.data.productsCount.count") {
+    Some(JInt(count)) -> store_mod.set_base_product_count(store, count)
+    _ -> store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_product_from_edge(edge: JsonValue) -> Result(ProductRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) -> {
+      let cursor = read_string_field(edge, "cursor")
+      make_seed_product_with_cursor(node, cursor)
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_product_with_cursor(
+  source: JsonValue,
+  cursor: Option(String),
+) -> Result(ProductRecord, Nil) {
   use id <- result.try(required_string_field(source, "id"))
   use title <- result.try(required_string_field(source, "title"))
   use handle <- result.try(required_string_field(source, "handle"))
@@ -185,15 +221,24 @@ fn make_seed_product(source: JsonValue) -> Result(ProductRecord, Nil) {
     |> option.then(make_seed_product_category)
   Ok(ProductRecord(
     id: id,
+    legacy_resource_id: read_string_field(source, "legacyResourceId"),
     title: title,
     handle: handle,
     status: status,
+    vendor: read_string_field(source, "vendor"),
+    product_type: read_string_field(source, "productType"),
+    tags: read_string_array_field(source, "tags"),
+    total_inventory: read_int_field(source, "totalInventory"),
+    tracks_inventory: read_bool_field(source, "tracksInventory"),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
     description_html: read_string_field(source, "descriptionHtml")
       |> option.unwrap(""),
     online_store_preview_url: read_string_field(source, "onlineStorePreviewUrl"),
     template_suffix: read_string_field(source, "templateSuffix"),
     seo: seo,
     category: category,
+    cursor: cursor,
   ))
 }
 

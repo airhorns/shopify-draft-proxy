@@ -37,6 +37,7 @@ pub type BaseState {
     products: Dict(String, ProductRecord),
     product_order: List(String),
     deleted_product_ids: Dict(String, Bool),
+    product_count: Option(Int),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -111,6 +112,7 @@ pub type StagedState {
     products: Dict(String, ProductRecord),
     product_order: List(String),
     deleted_product_ids: Dict(String, Bool),
+    product_count: Option(Int),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -250,6 +252,7 @@ pub fn empty_base_state() -> BaseState {
     products: dict.new(),
     product_order: [],
     deleted_product_ids: dict.new(),
+    product_count: None,
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -317,6 +320,7 @@ pub fn empty_staged_state() -> StagedState {
     products: dict.new(),
     product_order: [],
     deleted_product_ids: dict.new(),
+    product_count: None,
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -424,6 +428,20 @@ pub fn upsert_base_products(
   })
 }
 
+pub fn set_base_product_count(store: Store, count: Int) -> Store {
+  Store(
+    ..store,
+    base_state: BaseState(..store.base_state, product_count: Some(count)),
+  )
+}
+
+pub fn set_staged_product_count(store: Store, count: Int) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(..store.staged_state, product_count: Some(count)),
+  )
+}
+
 pub fn upsert_staged_product(
   store: Store,
   record: ProductRecord,
@@ -508,6 +526,17 @@ pub fn list_effective_products(store: Store) -> List(ProductRecord) {
       }
     })
   list.append(ordered_records, unordered_records)
+}
+
+pub fn get_effective_product_count(store: Store) -> Int {
+  case store.staged_state.product_count {
+    Some(count) -> count
+    None ->
+      case store.base_state.product_count {
+        Some(count) -> count
+        None -> list.length(list_effective_products(store))
+      }
+  }
 }
 
 // ---------------------------------------------------------------------------

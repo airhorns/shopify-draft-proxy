@@ -27,14 +27,23 @@ pub type ProductCategoryRecord {
 pub type ProductRecord {
   ProductRecord(
     id: String,
+    legacy_resource_id: Option(String),
     title: String,
     handle: String,
     status: String,
+    vendor: Option(String),
+    product_type: Option(String),
+    tags: List(String),
+    total_inventory: Option(Int),
+    tracks_inventory: Option(Bool),
+    created_at: Option(String),
+    updated_at: Option(String),
     description_html: String,
     online_store_preview_url: Option(String),
     template_suffix: Option(String),
     seo: ProductSeoRecord,
     category: Option(ProductCategoryRecord),
+    cursor: Option(String),
   )
 }
 
