@@ -187,6 +187,13 @@ If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
 path syntax instead of narrowing or rewriting the checked-in spec.
 
+### Porting notes
+
+- Events is a read-only, no-data domain. Once its parity spec is enabled
+  and dispatcher-level Gleam tests cover `event`, `events`, and `eventsCount`,
+  delete the TS handler and point operation-registry runtime coverage at the
+  Gleam tests; do not keep a TS empty-response stub beside the Gleam port.
+
 ## Workflow for a new pass
 
 1. Pick a candidate from the most recent log entry's "Pass N candidates"
