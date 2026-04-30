@@ -1242,81 +1242,87 @@ fn capability_to_mutation_domain(
 }
 
 fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
-  case name {
-    "event" | "events" | "eventsCount" -> Ok(EventsDomain)
-    "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
-    "shop" -> Ok(StorePropertiesDomain)
-    _ ->
-      case saved_searches.is_saved_search_query_root(name) {
-        True -> Ok(SavedSearchesDomain)
-        False ->
-          case webhooks.is_webhook_subscription_query_root(name) {
-            True -> Ok(WebhooksDomain)
+  case events.is_events_query_root(name) {
+    True -> Ok(EventsDomain)
+    False ->
+      case name {
+        "deliverySettings" | "deliveryPromiseSettings" ->
+          Ok(DeliverySettingsDomain)
+        "shop" -> Ok(StorePropertiesDomain)
+        _ ->
+          case saved_searches.is_saved_search_query_root(name) {
+            True -> Ok(SavedSearchesDomain)
             False ->
-              case apps.is_app_query_root(name) {
-                True -> Ok(AppsDomain)
+              case webhooks.is_webhook_subscription_query_root(name) {
+                True -> Ok(WebhooksDomain)
                 False ->
-                  case functions.is_function_query_root(name) {
-                    True -> Ok(FunctionsDomain)
+                  case apps.is_app_query_root(name) {
+                    True -> Ok(AppsDomain)
                     False ->
-                      case gift_cards.is_gift_card_query_root(name) {
-                        True -> Ok(GiftCardsDomain)
+                      case functions.is_function_query_root(name) {
+                        True -> Ok(FunctionsDomain)
                         False ->
-                          case segments.is_segment_query_root(name) {
-                            True -> Ok(SegmentsDomain)
+                          case gift_cards.is_gift_card_query_root(name) {
+                            True -> Ok(GiftCardsDomain)
                             False ->
-                              case
-                                metafield_definitions.is_metafield_definitions_query_root(
-                                  name,
-                                )
-                              {
-                                True -> Ok(MetafieldDefinitionsDomain)
+                              case segments.is_segment_query_root(name) {
+                                True -> Ok(SegmentsDomain)
                                 False ->
                                   case
-                                    localization.is_localization_query_root(
+                                    metafield_definitions.is_metafield_definitions_query_root(
                                       name,
                                     )
                                   {
-                                    True -> Ok(LocalizationDomain)
+                                    True -> Ok(MetafieldDefinitionsDomain)
                                     False ->
                                       case
-                                        metaobject_definitions.is_metaobject_definitions_query_root(
+                                        localization.is_localization_query_root(
                                           name,
                                         )
                                       {
-                                        True -> Ok(MetaobjectDefinitionsDomain)
+                                        True -> Ok(LocalizationDomain)
                                         False ->
                                           case
-                                            marketing.is_marketing_query_root(
+                                            metaobject_definitions.is_metaobject_definitions_query_root(
                                               name,
                                             )
                                           {
-                                            True -> Ok(MarketingDomain)
+                                            True ->
+                                              Ok(MetaobjectDefinitionsDomain)
                                             False ->
                                               case
-                                                bulk_operations.is_bulk_operations_query_root(
+                                                marketing.is_marketing_query_root(
                                                   name,
                                                 )
                                               {
-                                                True -> Ok(BulkOperationsDomain)
+                                                True -> Ok(MarketingDomain)
                                                 False ->
                                                   case
-                                                    media.is_media_query_root(
+                                                    bulk_operations.is_bulk_operations_query_root(
                                                       name,
                                                     )
                                                   {
-                                                    True -> Ok(MediaDomain)
+                                                    True ->
+                                                      Ok(BulkOperationsDomain)
                                                     False ->
                                                       case
-                                                        admin_platform.is_admin_platform_query_root(
+                                                        media.is_media_query_root(
                                                           name,
                                                         )
                                                       {
-                                                        True ->
-                                                          Ok(
-                                                            AdminPlatformDomain,
-                                                          )
-                                                        False -> Error(Nil)
+                                                        True -> Ok(MediaDomain)
+                                                        False ->
+                                                          case
+                                                            admin_platform.is_admin_platform_query_root(
+                                                              name,
+                                                            )
+                                                          {
+                                                            True ->
+                                                              Ok(
+                                                                AdminPlatformDomain,
+                                                              )
+                                                            False -> Error(Nil)
+                                                          }
                                                       }
                                                   }
                                               }

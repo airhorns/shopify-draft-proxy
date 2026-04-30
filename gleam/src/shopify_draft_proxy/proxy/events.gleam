@@ -1,9 +1,7 @@
-//// Mirrors `src/proxy/events.ts`.
-////
 //// The Shopify events API is read-only and the proxy never replays
 //// upstream — it just returns empty connections and zero counts. This
-//// matches the TS handler exactly: every recognised root field maps to
-//// `null`, an empty connection, or a zero-count payload.
+//// keeps the captured no-data contract explicit: every recognised root
+//// field maps to `null`, an empty connection, or a zero-count payload.
 
 import gleam/json.{type Json}
 import gleam/list
@@ -22,9 +20,12 @@ pub type EventsError {
   ParseFailed(root_field.RootFieldError)
 }
 
+pub fn is_events_query_root(name: String) -> Bool {
+  name == "event" || name == "events" || name == "eventsCount"
+}
+
 /// Handle a `query` operation against the events surface. Returns a
 /// JSON object suitable for embedding into a `{ data: … }` envelope.
-/// Mirrors `handleEventsQuery` in TS.
 pub fn handle_events_query(document: String) -> Result(Json, EventsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
@@ -38,15 +39,19 @@ fn serialize_root_fields(fields: List(Selection)) -> Json {
       let key = get_field_response_key(field)
       let value = case field {
         Field(name: name, ..) ->
-          case name.value {
-            "event" -> json.null()
-            "events" ->
-              serialize_empty_connection(
-                field,
-                default_selected_field_options(),
-              )
-            "eventsCount" -> serialize_exact_zero_count(field)
-            _ -> json.null()
+          case is_events_query_root(name.value) {
+            True ->
+              case name.value {
+                "event" -> json.null()
+                "events" ->
+                  serialize_empty_connection(
+                    field,
+                    default_selected_field_options(),
+                  )
+                "eventsCount" -> serialize_exact_zero_count(field)
+                _ -> json.null()
+              }
+            False -> json.null()
           }
         _ -> json.null()
       }
