@@ -9,6 +9,70 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 33: Elixir embedder wrapper smoke
+
+Makes the BEAM embedder path usable from Elixir without application code
+manipulating raw Gleam tuple shapes. The smoke project now includes a thin
+`ShopifyDraftProxy` Elixir wrapper that keeps proxy state opaque, returns the
+next proxy explicitly from GraphQL/meta helpers, exposes JSON response bodies as
+strings, and surfaces deterministic commit reports through an injected transport
+seam. A narrow Products smoke foundation was added in Gleam for the
+productCreate -> product(id:) lifecycle required by the wrapper smoke; this is
+not a full Products-domain parity port.
+
+| Module                                                    | Change                                                                                                                                               |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/elixir_smoke/lib/shopify_draft_proxy.ex`           | Adds Elixir structs and wrapper helpers for config, GraphQL, meta state/log/reset/commit, dump/restore, and injected commit reports.                 |
+| `gleam/elixir_smoke/test/interop_test.exs`                | Adds an end-to-end Elixir wrapper smoke covering config, productCreate, product read-after-write, state/log, dump/restore, reset, and commit report. |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`      | Adds narrow staged `productCreate` and `product(id:)` read support for the BEAM smoke lifecycle only.                                                |
+| `gleam/src/shopify_draft_proxy/state/{types,store}.gleam` | Adds minimal Product/ProductVariant records and effective staged-state helpers.                                                                      |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`   | Routes the narrow Products smoke roots and includes staged products in meta state snapshots.                                                         |
+| `scripts/elixir-smoke.ts` / `package.json`                | Keeps `corepack pnpm elixir:smoke` as the canonical command, with a Docker fallback when host `escript`/`mix` are unavailable.                       |
+| `gleam/README.md`                                         | Documents the Elixir wrapper calling conventions and Erlang shipment path.                                                                           |
+
+Validation: `corepack pnpm elixir:smoke` is green at 18 ExUnit tests through
+the container fallback on the current host. `gleam test --target erlang` is
+green at 667 tests via the `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`
+container because the host lacks `escript`. `gleam test --target javascript`
+is green at 671 tests on the host Node runtime.
+
+### Findings
+
+- The existing BEAM smoke already loaded the Erlang shipment but still exposed
+  raw `{:request, ...}` / `{:response, ...}` / `{:config, ...}` tuple shapes to
+  Elixir callers; wrapping those shapes in Elixir structs keeps explicit state
+  threading while matching how application tests will consume the embedder.
+- The host workspace has Gleam and Docker but lacks native `escript`/`mix`, so
+  the required smoke command needed the same container-based BEAM fallback used
+  by recent port validation.
+- Product roots are not broadly ported in Gleam; the added Product slice is
+  deliberately limited to the lifecycle required for BEAM wrapper smoke.
+
+### Risks / open items
+
+- Full Products-domain parity remains unported in Gleam. Future Products work
+  still needs the normal state, read, mutation, parity-runner, and TypeScript
+  deletion bar before the domain can be considered ported.
+- The Elixir wrapper currently lives in the smoke consumer project while Hex
+  packaging is still deferred; publishing should decide whether to ship it as a
+  companion Elixir source module or replace it with a generated BEAM-friendly
+  facade.
+- State dump/restore in the Gleam substrate still restores mutation log and
+  synthetic identity only; product staged state appears in meta state but is not
+  yet round-tripped through dumps.
+
+### Pass 34 candidates
+
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the new shop slice where those reads nest under shop
+  state.
+- Port the full Products read substrate needed by product smoke follow-up,
+  product parity enablement, and bulk-operation product JSONL export.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain

@@ -4,6 +4,94 @@ defmodule ShopifyDraftProxy.InteropTest do
   alias :shopify_draft_proxy@proxy@draft_proxy, as: DraftProxy
   alias :shopify_draft_proxy@proxy@commit, as: Commit
 
+  test "Elixir wrapper exposes config, GraphQL product lifecycle, meta, reset, dump/restore, and commit reports" do
+    proxy = ShopifyDraftProxy.new()
+
+    config = ShopifyDraftProxy.config(proxy)
+    assert %ShopifyDraftProxy.Response{status: 200, body: config_body} = config
+    assert config_body =~ ~s("readMode":"snapshot")
+
+    create =
+      ShopifyDraftProxy.graphql(proxy, ~s|
+        mutation {
+          productCreate(product: { title: "Elixir Wrapper Hat" }) {
+            product {
+              id
+              title
+              handle
+              status
+              variants(first: 1) {
+                nodes {
+                  id
+                  title
+                  inventoryItem { id tracked requiresShipping }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+      |)
+
+    assert %ShopifyDraftProxy.Response{status: 200, body: create_body, proxy: created_proxy} =
+             create
+
+    assert create_body =~ ~s("productCreate")
+    assert create_body =~ ~s("title":"Elixir Wrapper Hat")
+    assert create_body =~ ~s("handle":"elixir-wrapper-hat")
+    assert create_body =~ ~s("userErrors":[])
+    [_, product_id] = Regex.run(~r/"id":"(gid:\/\/shopify\/Product\/\d+)"/, create_body)
+
+    read =
+      ShopifyDraftProxy.graphql(
+        created_proxy,
+        ~s|query { product(id: "#{product_id}") { id title handle status variants(first: 1) { nodes { id title } } } }|
+      )
+
+    assert %ShopifyDraftProxy.Response{status: 200, body: read_body} = read
+    assert read_body =~ ~s("product":{"id":"#{product_id}")
+    assert read_body =~ ~s("title":"Elixir Wrapper Hat")
+
+    state = ShopifyDraftProxy.state(created_proxy)
+    assert state.body =~ "Elixir Wrapper Hat"
+
+    log = ShopifyDraftProxy.log(created_proxy)
+    assert log.body =~ "productCreate"
+
+    dump = ShopifyDraftProxy.dump_state(created_proxy, "2026-04-30T00:00:00.000Z")
+    assert dump =~ ~s("schema":"shopify-draft-proxy/state-dump")
+    assert {:ok, restored_proxy} = ShopifyDraftProxy.restore_state(ShopifyDraftProxy.new(), dump)
+    assert ShopifyDraftProxy.log(restored_proxy).body =~ "productCreate"
+
+    fake_send = fn _request ->
+      {:ok,
+       {:http_outcome, 200,
+        ~s({"data":{"productCreate":{"product":{"id":"gid://shopify/Product/999"},"userErrors":[]}}})}}
+    end
+
+    commit =
+      ShopifyDraftProxy.commit_with(
+        created_proxy,
+        "https://shop.example",
+        %{},
+        fake_send
+      )
+
+    assert %ShopifyDraftProxy.CommitReport{ok: true, stop_index: nil, attempt_count: 1} =
+             commit
+
+    reset = ShopifyDraftProxy.reset(created_proxy)
+    assert reset.status == 200
+    assert ShopifyDraftProxy.log(reset.proxy).body == ~s({"entries":[]})
+
+    empty_commit = ShopifyDraftProxy.commit(ShopifyDraftProxy.new())
+    assert empty_commit.status == 200
+    assert empty_commit.body =~ ~s("attempts":[])
+
+    assert {:error, reason} = ShopifyDraftProxy.restore_state(proxy, "not json")
+    assert is_tuple(reason)
+  end
+
   test "phase 0 hello/0 is callable from elixir and returns the expected marker" do
     assert :shopify_draft_proxy.hello() ==
              "shopify_draft_proxy gleam port: phase 0"

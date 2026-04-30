@@ -112,9 +112,12 @@ let proxy =
 ## Using from Elixir
 
 The Gleam package compiles to BEAM and is publishable to Hex, so Elixir
-consumes it as an ordinary mix dependency. Gleam modules become Erlang
-modules with `@`-separated path segments, so `shopify_draft_proxy/proxy/draft_proxy`
-is callable as `:shopify_draft_proxy@proxy@draft_proxy`.
+consumes it as an ordinary mix dependency. The low-level Gleam modules remain
+available as Erlang modules with `@`-separated path segments, but Elixir
+application code should prefer the thin `ShopifyDraftProxy` wrapper exercised by
+`elixir_smoke/`. The wrapper keeps the Gleam proxy value opaque, returns the
+next proxy state explicitly, and exposes response bodies as JSON strings that
+can be decoded with `Jason.decode/1` or another Elixir JSON library.
 
 > TODO: installation. Once published:
 >
@@ -133,15 +136,16 @@ is callable as `:shopify_draft_proxy@proxy@draft_proxy`.
 
 ### Calling conventions
 
-- Gleam custom types compile to Erlang records, which on the wire are
-  positional tuples tagged with the constructor name. `Config(...)` becomes
-  `{:config, read_mode, port, origin, snapshot_path}`.
-- Gleam variants (no payload) are bare atoms. `Snapshot` ⇒ `:snapshot`,
-  `LiveHybrid` ⇒ `:live_hybrid`, `Live` ⇒ `:live`.
-- `Option(a)` is `{:some, a} | :none` — there is no Elixir-style `nil`.
-- `Result(a, b)` is `{:ok, a} | {:error, b}` — works directly with `with`/`case`.
-- Strings are UTF-8 binaries on both sides ✓.
-- Dicts (`gleam/dict`) are Erlang maps under the hood ✓.
+- `ShopifyDraftProxy.new/0` returns an opaque `%ShopifyDraftProxy{}` value.
+- `ShopifyDraftProxy.graphql/3` and meta helpers return
+  `%ShopifyDraftProxy.Response{status:, body:, headers:, proxy:}`; thread the
+  returned `proxy` into the next call to preserve isolated staged state.
+- `body` is a JSON string converted from the Gleam JSON tree.
+- `ShopifyDraftProxy.dump_state/2` returns the state-dump JSON string;
+  `ShopifyDraftProxy.restore_state/2` returns `{:ok, proxy}` or
+  `{:error, reason}`.
+- `ShopifyDraftProxy.commit_with/4` is the BEAM embedder seam for tests that
+  need deterministic commit reports without real Shopify HTTP.
 
 ### Example
 
@@ -151,33 +155,28 @@ defmodule MyApp.DraftProxyDemo do
   Minimal end-to-end use of the Gleam-compiled draft proxy from Elixir.
   """
 
-  alias :shopify_draft_proxy@proxy@draft_proxy, as: DraftProxy
+  def product_lifecycle do
+    create =
+      ShopifyDraftProxy.graphql(ShopifyDraftProxy.new(), ~s|
+        mutation {
+          productCreate(product: { title: "Wrapper Hat" }) {
+            product { id title handle status }
+            userErrors { field message }
+          }
+        }
+      |)
 
-  def health_check do
-    proxy = DraftProxy.new()
+    %ShopifyDraftProxy.Response{status: 200, body: body, proxy: proxy} = create
+    {:ok, %{"data" => %{"productCreate" => %{"product" => product}}}} =
+      Jason.decode(body)
 
-    request =
-      {:request, "GET", "/__meta/health", %{}, ""}
+    read =
+      ShopifyDraftProxy.graphql(
+        proxy,
+        ~s|query { product(id: "#{product["id"]}") { id title handle status } }|
+      )
 
-    {response, _next_proxy} = DraftProxy.process_request(proxy, request)
-    {:response, status, body, _headers} = response
-
-    {status, body}
-  end
-
-  def graphql_request(query, variables \\ %{}) do
-    proxy = DraftProxy.new()
-
-    body = Jason.encode!(%{"query" => query, "variables" => variables})
-
-    request =
-      {:request, "POST", "/admin/api/2025-01/graphql.json", %{}, body}
-
-    {response, next_proxy} = DraftProxy.process_request(proxy, request)
-    {:response, status, json_tree, _headers} = response
-
-    # `json_tree` is a `gleam/json` value — convert with `gleam@json:to_string/1`.
-    {status, :gleam@json.to_string(json_tree), next_proxy}
+    {product, read}
   end
 end
 ```
@@ -185,21 +184,17 @@ end
 A custom config:
 
 ```elixir
-config =
-  {:config,
-   :live_hybrid,                           # read_mode
-   4000,                                   # port
-   "https://my-shop.myshopify.com",        # shopify_admin_origin
-   :none                                   # snapshot_path :: Option(String)
-  }
-
-proxy = :shopify_draft_proxy@proxy@draft_proxy.with_config(config)
+proxy =
+  ShopifyDraftProxy.with_config(
+    read_mode: :live_hybrid,
+    port: 4000,
+    shopify_admin_origin: "https://my-shop.myshopify.com"
+  )
 ```
 
-> TODO: ship a thin Elixir wrapper module (`ShopifyDraftProxy`) that hides
-> the tuple shapes behind structs and `Jason.decode/1`-friendly responses.
-> The current shape is fine for adapter code but is unfriendly to call from
-> application code directly.
+The raw Gleam module remains callable as
+`:shopify_draft_proxy@proxy@draft_proxy` for adapter-level code that really
+needs the compiled tuple ABI. Application tests should use the wrapper instead.
 
 ## Using from TypeScript / JavaScript
 
@@ -293,6 +288,11 @@ gleam export erlang-shipment
 # then, from gleam/elixir_smoke/
 mix test
 ```
+
+From the repository root, `corepack pnpm elixir:smoke` runs the same flow. On
+hosts without native `escript`/`mix`, the script falls back to the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container and installs Elixir
+inside the disposable container before running the smoke project.
 
 This is the local equivalent of `mix deps.get && mix compile` against a
 published Hex release; running it before `gleam publish` catches BEAM-side

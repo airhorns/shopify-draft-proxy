@@ -30,7 +30,7 @@
     "gleam:format": "cd gleam && gleam format",
     "gleam:format:check": "cd gleam && gleam format --check",
     "gleam:smoke:js": "vitest run tests/integration/gleam-interop.test.ts",
-    "elixir:smoke": "cd gleam && gleam export erlang-shipment && cd elixir_smoke && mix test",
+    "elixir:smoke": "tsx scripts/elixir-smoke.ts",
     "perf:smoke": "vitest run tests/integration/performance-smoke.test.ts",
     "conformance:check": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts",
     "conformance:status": "tsx ./scripts/conformance-status-report.ts",
