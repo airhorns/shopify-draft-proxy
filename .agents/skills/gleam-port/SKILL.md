@@ -334,6 +334,13 @@ synthetic-id/timestamp expected differences.
   `field: null`, missing combined-listing parents return code
   `PARENT_PRODUCT_NOT_FOUND`, and missing ProductVariant relationship IDs use a
   compact JSON string list in the `PRODUCT_VARIANTS_NOT_FOUND` message.
+- Product variant bulk validation/atomicity captures need their setup Product
+  options and default variant hydrated from `seed.setupOptionsResponse` before
+  replay. Validate the full create/update/delete batch before staging any
+  variant, option, inventory item, inventory quantity, or Product summary
+  changes. Bulk update validation returns `productVariants: null`; bulk create
+  validation returns `productVariants: []`; nullable `userErrors.field` appears
+  on the empty update branch.
 - Product media async plan fixtures depend on timing-sensitive lifecycle state:
   create returns `UPLOADED` in the mutation payload, the immediate downstream
   Product media read is null-url `PROCESSING`, and later successful media

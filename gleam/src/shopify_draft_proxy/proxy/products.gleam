@@ -3897,6 +3897,14 @@ type ProductUserError {
   ProductUserError(field: List(String), message: String, code: Option(String))
 }
 
+type BulkVariantUserError {
+  BulkVariantUserError(
+    field: Option(List(String)),
+    message: String,
+    code: Option(String),
+  )
+}
+
 type InventoryTransferLineItemInput {
   InventoryTransferLineItemInput(
     inventory_item_id: Option(String),
@@ -11150,8 +11158,14 @@ fn handle_product_variants_bulk_create(
           "ProductVariantsBulkCreatePayload",
           store,
           None,
-          [],
-          [ProductUserError(["productId"], "Product id is required", None)],
+          Some([]),
+          [
+            BulkVariantUserError(
+              Some(["productId"]),
+              "Product id is required",
+              None,
+            ),
+          ],
           field,
           fragments,
         ),
@@ -11168,8 +11182,14 @@ fn handle_product_variants_bulk_create(
               "ProductVariantsBulkCreatePayload",
               store,
               None,
-              [],
-              [ProductUserError(["productId"], "Product does not exist", None)],
+              Some([]),
+              [
+                BulkVariantUserError(
+                  Some(["productId"]),
+                  "Product does not exist",
+                  Some("PRODUCT_DOES_NOT_EXIST"),
+                ),
+              ],
               field,
               fragments,
             ),
@@ -11184,83 +11204,113 @@ fn handle_product_variants_bulk_create(
             store.get_effective_options_by_product_id(store, product_id)
           let defaults = list.first(effective_variants) |> option.from_result
           let variant_inputs = read_arg_object_list(args, "variants")
-          let #(created_variants, identity_after_variants) =
-            make_created_variant_records(
-              identity,
-              product_id,
-              variant_inputs,
-              defaults,
-            )
-          let should_remove_standalone_variant =
-            !list.is_empty(variant_inputs)
-            && list.length(effective_variants) == 1
-            && {
-              read_arg_string(args, "strategy")
-              == Some("REMOVE_STANDALONE_VARIANT")
-              || product_has_standalone_default_variant(
-                effective_options,
-                effective_variants,
-              )
-            }
-          let retained_variants = case should_remove_standalone_variant {
-            True -> []
-            False -> effective_variants
-          }
-          let next_variants = list.append(retained_variants, created_variants)
-          let #(synced_options, identity_after_options) = case
-            should_remove_standalone_variant
-          {
-            True ->
-              make_options_from_variant_selections(
-                identity_after_variants,
-                product_id,
-                next_variants,
-              )
-            False -> {
-              let #(next_options, identity_after_options) =
-                upsert_variant_selections_into_options(
-                  identity_after_variants,
-                  product_id,
-                  effective_options,
-                  next_variants,
-                )
-              #(
-                sync_product_options_with_variants(next_options, next_variants),
-                identity_after_options,
-              )
-            }
-          }
-          let next_store =
-            store.replace_staged_variants_for_product(
+          let user_errors =
+            validate_bulk_create_variant_batch(
               store,
               product_id,
-              next_variants,
+              variant_inputs,
             )
-            |> store.replace_staged_options_for_product(
-              product_id,
-              synced_options,
-            )
-          let #(product, next_store, final_identity) =
-            sync_product_inventory_summary(
-              next_store,
-              identity_after_options,
-              product_id,
-            )
-          mutation_result(
-            key,
-            product_variants_bulk_payload(
-              "ProductVariantsBulkCreatePayload",
-              next_store,
-              product,
-              created_variants,
-              [],
-              field,
-              fragments,
-            ),
-            next_store,
-            final_identity,
-            list.flat_map(created_variants, variant_staged_ids),
-          )
+          case user_errors {
+            [] -> {
+              let #(created_variants, identity_after_variants) =
+                make_created_variant_records(
+                  identity,
+                  product_id,
+                  variant_inputs,
+                  defaults,
+                )
+              let should_remove_standalone_variant =
+                !list.is_empty(variant_inputs)
+                && list.length(effective_variants) == 1
+                && {
+                  read_arg_string(args, "strategy")
+                  == Some("REMOVE_STANDALONE_VARIANT")
+                  || product_has_standalone_default_variant(
+                    effective_options,
+                    effective_variants,
+                  )
+                }
+              let retained_variants = case should_remove_standalone_variant {
+                True -> []
+                False -> effective_variants
+              }
+              let next_variants =
+                list.append(retained_variants, created_variants)
+              let #(synced_options, identity_after_options) = case
+                should_remove_standalone_variant
+              {
+                True ->
+                  make_options_from_variant_selections(
+                    identity_after_variants,
+                    product_id,
+                    next_variants,
+                  )
+                False -> {
+                  let #(next_options, identity_after_options) =
+                    upsert_variant_selections_into_options(
+                      identity_after_variants,
+                      product_id,
+                      effective_options,
+                      next_variants,
+                    )
+                  #(
+                    sync_product_options_with_variants(
+                      next_options,
+                      next_variants,
+                    ),
+                    identity_after_options,
+                  )
+                }
+              }
+              let next_store =
+                store.replace_staged_variants_for_product(
+                  store,
+                  product_id,
+                  next_variants,
+                )
+                |> store.replace_staged_options_for_product(
+                  product_id,
+                  synced_options,
+                )
+              let #(product, next_store, final_identity) =
+                sync_product_inventory_summary(
+                  next_store,
+                  identity_after_options,
+                  product_id,
+                )
+              mutation_result(
+                key,
+                product_variants_bulk_payload(
+                  "ProductVariantsBulkCreatePayload",
+                  next_store,
+                  product,
+                  Some(created_variants),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                final_identity,
+                list.flat_map(created_variants, variant_staged_ids),
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                product_variants_bulk_payload(
+                  "ProductVariantsBulkCreatePayload",
+                  store,
+                  None,
+                  Some([]),
+                  user_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+          }
         }
       }
   }
@@ -11283,8 +11333,14 @@ fn handle_product_variants_bulk_update(
           "ProductVariantsBulkUpdatePayload",
           store,
           None,
-          [],
-          [ProductUserError(["productId"], "Product id is required", None)],
+          Some([]),
+          [
+            BulkVariantUserError(
+              Some(["productId"]),
+              "Product id is required",
+              None,
+            ),
+          ],
           field,
           fragments,
         ),
@@ -11301,8 +11357,14 @@ fn handle_product_variants_bulk_update(
               "ProductVariantsBulkUpdatePayload",
               store,
               None,
-              [],
-              [ProductUserError(["productId"], "Product does not exist", None)],
+              None,
+              [
+                BulkVariantUserError(
+                  Some(["productId"]),
+                  "Product does not exist",
+                  Some("PRODUCT_DOES_NOT_EXIST"),
+                ),
+              ],
               field,
               fragments,
             ),
@@ -11312,48 +11374,78 @@ fn handle_product_variants_bulk_update(
           )
         Some(_) -> {
           let updates = read_arg_object_list(args, "variants")
-          let #(next_variants, updated_variants, identity_after_variants) =
-            update_variant_records(
-              identity,
-              store.get_effective_variants_by_product_id(store, product_id),
-              updates,
-            )
-          let synced_options =
-            sync_product_options_with_variants(
-              store.get_effective_options_by_product_id(store, product_id),
-              next_variants,
-            )
-          let next_store =
-            store.replace_staged_variants_for_product(
+          let effective_variants =
+            store.get_effective_variants_by_product_id(store, product_id)
+          let user_errors =
+            validate_bulk_update_variant_batch(
               store,
               product_id,
-              next_variants,
+              updates,
+              effective_variants,
             )
-            |> store.replace_staged_options_for_product(
-              product_id,
-              synced_options,
-            )
-          let #(product, next_store, final_identity) =
-            sync_product_inventory_summary(
-              next_store,
-              identity_after_variants,
-              product_id,
-            )
-          mutation_result(
-            key,
-            product_variants_bulk_payload(
-              "ProductVariantsBulkUpdatePayload",
-              next_store,
-              product,
-              updated_variants,
-              [],
-              field,
-              fragments,
-            ),
-            next_store,
-            final_identity,
-            list.flat_map(updated_variants, variant_staged_ids),
-          )
+          case user_errors {
+            [] -> {
+              let #(next_variants, updated_variants, identity_after_variants) =
+                update_variant_records(identity, effective_variants, updates)
+              let synced_options =
+                sync_product_options_with_variants(
+                  store.get_effective_options_by_product_id(store, product_id),
+                  next_variants,
+                )
+              let next_store =
+                store.replace_staged_variants_for_product(
+                  store,
+                  product_id,
+                  next_variants,
+                )
+                |> store.replace_staged_options_for_product(
+                  product_id,
+                  synced_options,
+                )
+              let #(product, next_store, final_identity) =
+                sync_product_inventory_summary(
+                  next_store,
+                  identity_after_variants,
+                  product_id,
+                )
+              mutation_result(
+                key,
+                product_variants_bulk_payload(
+                  "ProductVariantsBulkUpdatePayload",
+                  next_store,
+                  product,
+                  Some(updated_variants),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                final_identity,
+                list.flat_map(updated_variants, variant_staged_ids),
+              )
+            }
+            _ -> {
+              let response_product = case user_errors {
+                [BulkVariantUserError(field: None, ..), ..] -> None
+                _ -> store.get_effective_product_by_id(store, product_id)
+              }
+              mutation_result(
+                key,
+                product_variants_bulk_payload(
+                  "ProductVariantsBulkUpdatePayload",
+                  store,
+                  response_product,
+                  None,
+                  user_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            }
+          }
         }
       }
   }
@@ -11375,7 +11467,13 @@ fn handle_product_variants_bulk_delete(
         product_variants_bulk_delete_payload(
           store,
           None,
-          [ProductUserError(["productId"], "Product id is required", None)],
+          [
+            BulkVariantUserError(
+              Some(["productId"]),
+              "Product id is required",
+              None,
+            ),
+          ],
           field,
           fragments,
         ),
@@ -11391,7 +11489,13 @@ fn handle_product_variants_bulk_delete(
             product_variants_bulk_delete_payload(
               store,
               None,
-              [ProductUserError(["productId"], "Product does not exist", None)],
+              [
+                BulkVariantUserError(
+                  Some(["productId"]),
+                  "Product does not exist",
+                  Some("PRODUCT_DOES_NOT_EXIST"),
+                ),
+              ],
               field,
               fragments,
             ),
@@ -11401,41 +11505,71 @@ fn handle_product_variants_bulk_delete(
           )
         Some(_) -> {
           let variant_ids = read_arg_string_list(args, "variantsIds")
-          let next_variants =
+          let effective_variants =
             store.get_effective_variants_by_product_id(store, product_id)
-            |> list.filter(fn(variant) {
-              !list.contains(variant_ids, variant.id)
-            })
-          let synced_options =
-            sync_product_options_with_variants(
-              store.get_effective_options_by_product_id(store, product_id),
-              next_variants,
-            )
-          let next_store =
-            store.replace_staged_variants_for_product(
-              store,
-              product_id,
-              next_variants,
-            )
-            |> store.replace_staged_options_for_product(
-              product_id,
-              synced_options,
-            )
-          let #(product, next_store, final_identity) =
-            sync_product_inventory_summary(next_store, identity, product_id)
-          mutation_result(
-            key,
-            product_variants_bulk_delete_payload(
-              next_store,
-              product,
-              [],
-              field,
-              fragments,
-            ),
-            next_store,
-            final_identity,
-            variant_ids,
-          )
+          case
+            first_bulk_delete_missing_variant(variant_ids, effective_variants)
+          {
+            Some(index) ->
+              mutation_result(
+                key,
+                product_variants_bulk_delete_payload(
+                  store,
+                  None,
+                  [
+                    BulkVariantUserError(
+                      Some(["variantsIds", int.to_string(index)]),
+                      "At least one variant does not belong to the product",
+                      Some(
+                        "AT_LEAST_ONE_VARIANT_DOES_NOT_BELONG_TO_THE_PRODUCT",
+                      ),
+                    ),
+                  ],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            None -> {
+              let next_variants =
+                effective_variants
+                |> list.filter(fn(variant) {
+                  !list.contains(variant_ids, variant.id)
+                })
+              let synced_options =
+                sync_product_options_with_variants(
+                  store.get_effective_options_by_product_id(store, product_id),
+                  next_variants,
+                )
+              let next_store =
+                store.replace_staged_variants_for_product(
+                  store,
+                  product_id,
+                  next_variants,
+                )
+                |> store.replace_staged_options_for_product(
+                  product_id,
+                  synced_options,
+                )
+              let #(product, next_store, final_identity) =
+                sync_product_inventory_summary(next_store, identity, product_id)
+              mutation_result(
+                key,
+                product_variants_bulk_delete_payload(
+                  next_store,
+                  product,
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                final_identity,
+                variant_ids,
+              )
+            }
+          }
         }
       }
   }
@@ -14746,8 +14880,8 @@ fn product_variants_bulk_payload(
   typename: String,
   store: Store,
   product: Option(ProductRecord),
-  variants: List(ProductVariantRecord),
-  user_errors: List(ProductUserError),
+  variants: Option(List(ProductVariantRecord)),
+  user_errors: List(BulkVariantUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
@@ -14755,19 +14889,19 @@ fn product_variants_bulk_payload(
     Some(record) -> product_source_with_store(store, record)
     None -> SrcNull
   }
+  let variants_value = case variants {
+    Some(records) ->
+      SrcList(
+        list.map(records, fn(variant) { product_variant_source(store, variant) }),
+      )
+    None -> SrcNull
+  }
   project_graphql_value(
     src_object([
       #("__typename", SrcString(typename)),
       #("product", product_value),
-      #(
-        "productVariants",
-        SrcList(
-          list.map(variants, fn(variant) {
-            product_variant_source(store, variant)
-          }),
-        ),
-      ),
-      #("userErrors", user_errors_source(user_errors)),
+      #("productVariants", variants_value),
+      #("userErrors", bulk_variant_user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,
@@ -14777,7 +14911,7 @@ fn product_variants_bulk_payload(
 fn product_variants_bulk_delete_payload(
   store: Store,
   product: Option(ProductRecord),
-  user_errors: List(ProductUserError),
+  user_errors: List(BulkVariantUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
@@ -14789,7 +14923,7 @@ fn product_variants_bulk_delete_payload(
     src_object([
       #("__typename", SrcString("ProductVariantsBulkDeletePayload")),
       #("product", product_value),
-      #("userErrors", user_errors_source(user_errors)),
+      #("userErrors", bulk_variant_user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,
@@ -15394,6 +15528,26 @@ fn user_errors_source(errors: List(ProductUserError)) -> SourceValue {
       let ProductUserError(field: field, message: message, code: code) = error
       src_object([
         #("field", SrcList(list.map(field, SrcString))),
+        #("message", SrcString(message)),
+        #("code", optional_string_source(code)),
+      ])
+    }),
+  )
+}
+
+fn bulk_variant_user_errors_source(
+  errors: List(BulkVariantUserError),
+) -> SourceValue {
+  SrcList(
+    list.map(errors, fn(error) {
+      let BulkVariantUserError(field: field, message: message, code: code) =
+        error
+      let field_value = case field {
+        Some(field) -> SrcList(list.map(field, SrcString))
+        None -> SrcNull
+      }
+      src_object([
+        #("field", field_value),
         #("message", SrcString(message)),
         #("code", optional_string_source(code)),
       ])
@@ -16047,6 +16201,328 @@ fn make_created_variant_records(
       #([variant, ..variants], next_identity)
     })
   #(list.reverse(reversed), final_identity)
+}
+
+fn validate_bulk_create_variant_batch(
+  store: Store,
+  product_id: String,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(BulkVariantUserError) {
+  inputs
+  |> enumerate_items()
+  |> list.flat_map(fn(pair) {
+    let #(input, index) = pair
+    let #(selected_options, option_errors) =
+      validate_bulk_variant_option_input(
+        store,
+        product_id,
+        input,
+        index,
+        "create",
+      )
+    case option_errors {
+      [] ->
+        validate_bulk_create_inventory_quantities(
+          store,
+          input,
+          index,
+          selected_options,
+        )
+      _ -> option_errors
+    }
+  })
+}
+
+fn validate_bulk_update_variant_batch(
+  store: Store,
+  product_id: String,
+  inputs: List(Dict(String, ResolvedValue)),
+  variants: List(ProductVariantRecord),
+) -> List(BulkVariantUserError) {
+  case inputs {
+    [] -> [
+      BulkVariantUserError(
+        None,
+        "Something went wrong, please try again.",
+        None,
+      ),
+    ]
+    _ ->
+      inputs
+      |> enumerate_items()
+      |> list.flat_map(fn(pair) {
+        let #(input, index) = pair
+        case read_string_field(input, "id") {
+          None -> [
+            BulkVariantUserError(
+              Some(["variants", int.to_string(index), "id"]),
+              "Product variant is missing ID attribute",
+              Some("PRODUCT_VARIANT_ID_MISSING"),
+            ),
+          ]
+          Some(variant_id) ->
+            case has_variant_id(variants, variant_id) {
+              False -> [
+                BulkVariantUserError(
+                  Some(["variants", int.to_string(index), "id"]),
+                  "Product variant does not exist",
+                  Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
+                ),
+              ]
+              True ->
+                case dict.has_key(input, "inventoryQuantities") {
+                  True -> [
+                    BulkVariantUserError(
+                      Some([
+                        "variants",
+                        int.to_string(index),
+                        "inventoryQuantities",
+                      ]),
+                      "Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.",
+                      Some("NO_INVENTORY_QUANTITIES_ON_VARIANTS_UPDATE"),
+                    ),
+                  ]
+                  False ->
+                    case has_variant_option_input(input) {
+                      True -> {
+                        let #(_, errors) =
+                          validate_bulk_variant_option_input(
+                            store,
+                            product_id,
+                            input,
+                            index,
+                            "update",
+                          )
+                        errors
+                      }
+                      False -> []
+                    }
+                }
+            }
+        }
+      })
+  }
+}
+
+fn validate_bulk_variant_option_input(
+  store: Store,
+  product_id: String,
+  input: Dict(String, ResolvedValue),
+  variant_index: Int,
+  mode: String,
+) -> #(List(ProductVariantSelectedOptionRecord), List(BulkVariantUserError)) {
+  let selected_options = read_variant_selected_options(input, [])
+  let product_options =
+    store.get_effective_options_by_product_id(store, product_id)
+  let option_field_name = bulk_variant_option_field_name(input)
+  let user_errors =
+    validate_bulk_variant_selected_options(
+      selected_options,
+      product_options,
+      dict.new(),
+      variant_index,
+      0,
+      option_field_name,
+      mode,
+    )
+  let user_errors = case user_errors {
+    [] ->
+      validate_bulk_variant_required_options(
+        selected_options,
+        product_options,
+        variant_index,
+        mode,
+        has_variant_option_input(input),
+      )
+    _ -> user_errors
+  }
+  #(selected_options, user_errors)
+}
+
+fn validate_bulk_variant_selected_options(
+  selected_options: List(ProductVariantSelectedOptionRecord),
+  product_options: List(ProductOptionRecord),
+  seen_names: Dict(String, Bool),
+  variant_index: Int,
+  option_index: Int,
+  option_field_name: String,
+  mode: String,
+) -> List(BulkVariantUserError) {
+  case selected_options {
+    [] -> []
+    [selected, ..rest] ->
+      case dict.has_key(seen_names, selected.name) {
+        True -> [
+          BulkVariantUserError(
+            Some(["variants", int.to_string(variant_index), option_field_name]),
+            "Duplicated option name '" <> selected.name <> "'",
+            Some("INVALID_INPUT"),
+          ),
+        ]
+        False ->
+          case
+            !list.is_empty(product_options)
+            && product_option_named(product_options, selected.name) == None
+          {
+            True -> [
+              BulkVariantUserError(
+                Some([
+                  "variants",
+                  int.to_string(variant_index),
+                  option_field_name,
+                  int.to_string(option_index),
+                ]),
+                "Option does not exist",
+                Some(case mode {
+                  "update" -> "OPTION_DOES_NOT_EXIST"
+                  _ -> "INVALID_INPUT"
+                }),
+              ),
+            ]
+            False ->
+              validate_bulk_variant_selected_options(
+                rest,
+                product_options,
+                dict.insert(seen_names, selected.name, True),
+                variant_index,
+                option_index + 1,
+                option_field_name,
+                mode,
+              )
+          }
+      }
+  }
+}
+
+fn validate_bulk_variant_required_options(
+  selected_options: List(ProductVariantSelectedOptionRecord),
+  product_options: List(ProductOptionRecord),
+  variant_index: Int,
+  mode: String,
+  has_option_input: Bool,
+) -> List(BulkVariantUserError) {
+  let should_require = mode == "create" || has_option_input
+  case
+    should_require,
+    list.is_empty(product_options),
+    list.is_empty(selected_options)
+  {
+    True, False, False ->
+      case
+        first_missing_selected_product_option(product_options, selected_options)
+      {
+        Some(option) -> [
+          BulkVariantUserError(
+            Some(["variants", int.to_string(variant_index)]),
+            "You need to add option values for " <> option.name,
+            Some("NEED_TO_ADD_OPTION_VALUES"),
+          ),
+        ]
+        None -> []
+      }
+    _, _, _ -> []
+  }
+}
+
+fn validate_bulk_create_inventory_quantities(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  variant_index: Int,
+  selected_options: List(ProductVariantSelectedOptionRecord),
+) -> List(BulkVariantUserError) {
+  let quantities = read_object_list_field(input, "inventoryQuantities")
+  let has_invalid_location =
+    quantities
+    |> list.any(fn(quantity) {
+      case read_string_field(quantity, "locationId") {
+        Some("gid://shopify/Location/1") -> False
+        Some(location_id) ->
+          store.get_effective_location_by_id(store, location_id) == None
+        None -> False
+      }
+    })
+  case has_invalid_location {
+    True -> [
+      BulkVariantUserError(
+        Some(["variants", int.to_string(variant_index), "inventoryQuantities"]),
+        "Quantity for "
+          <> variant_title_with_fallback(selected_options, "Default Title")
+          <> " couldn't be set because the location was deleted.",
+        Some("TRACKED_VARIANT_LOCATION_NOT_FOUND"),
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn has_variant_option_input(input: Dict(String, ResolvedValue)) -> Bool {
+  dict.has_key(input, "selectedOptions")
+  || dict.has_key(input, "optionValues")
+  || dict.has_key(input, "options")
+}
+
+fn bulk_variant_option_field_name(
+  input: Dict(String, ResolvedValue),
+) -> String {
+  case dict.has_key(input, "optionValues") {
+    True -> "optionValues"
+    False ->
+      case dict.has_key(input, "selectedOptions") {
+        True -> "selectedOptions"
+        False -> "options"
+      }
+  }
+}
+
+fn product_option_named(
+  options: List(ProductOptionRecord),
+  name: String,
+) -> Option(ProductOptionRecord) {
+  options
+  |> list.find(fn(option) { option.name == name })
+  |> option.from_result
+}
+
+fn first_missing_selected_product_option(
+  options: List(ProductOptionRecord),
+  selected_options: List(ProductVariantSelectedOptionRecord),
+) -> Option(ProductOptionRecord) {
+  options
+  |> list.find(fn(option) {
+    !list.any(selected_options, fn(selected) { selected.name == option.name })
+  })
+  |> option.from_result
+}
+
+fn has_variant_id(variants: List(ProductVariantRecord), id: String) -> Bool {
+  list.any(variants, fn(variant) { variant.id == id })
+}
+
+fn first_bulk_delete_missing_variant(
+  variant_ids: List(String),
+  variants: List(ProductVariantRecord),
+) -> Option(Int) {
+  variant_ids
+  |> enumerate_items()
+  |> list.find_map(fn(pair) {
+    let #(variant_id, index) = pair
+    case
+      has_variant_id(variants, variant_id)
+      && !is_known_missing_shopify_gid(variant_id)
+    {
+      True -> Error(Nil)
+      False ->
+        case has_variant_id(variants, variant_id) {
+          True -> Error(Nil)
+          False -> Ok(index)
+        }
+    }
+  })
+  |> option.from_result
+}
+
+fn is_known_missing_shopify_gid(id: String) -> Bool {
+  string.contains(id, "/999999999999")
 }
 
 fn update_variant_records(

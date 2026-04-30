@@ -9,6 +9,58 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 104: product variant bulk validation atomicity parity
+
+Promotes the captured Product variant bulk validation/atomicity fixture into
+the Gleam parity suite. Bulk create/update/delete now validate the full
+submitted batch before staging local ProductVariant, option, inventory-item, or
+inventory-summary writes, preserve the captured ProductVariantsBulkUserError
+`code` and nullable-field shapes, and keep mixed valid/invalid batches atomic.
+
+| Module                                               | Change                                                                                                           |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds batch validation for bulk create/update/delete and nullable `productVariants` / user-error payload support. |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured atomicity Product options/default variant preconditions from the live fixture.                |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing bulk validation atomicity parity spec.                                                 |
+
+Validation:
+Focused JavaScript parity is green for
+`product-variants-bulk-validation-atomicity.json`. Full JavaScript is green at
+716 tests. Host Erlang still fails with the known local `Undef` runner class;
+the Docker Erlang fallback is green at 712 tests. `corepack pnpm
+elixir:smoke` is green at 16 ExUnit tests. `corepack pnpm
+gleam:port:coverage` is green with 379 specs and 189 expected failures.
+`corepack pnpm lint` and whitespace checks are green. Product parity inventory
+remains 115 checked-in specs, with 103 product specs executable in the Gleam
+parity suite and 12 product specs still expected-failing.
+
+### Findings
+
+- Shopify rejects bulk create/update/delete batches atomically: if any submitted
+  variant row is invalid, no earlier valid row is staged.
+- Bulk update validation uses `productVariants: null`, while bulk create
+  validation keeps `productVariants: []`; unknown products return
+  `PRODUCT_DOES_NOT_EXIST` codes.
+- Empty bulk update returns a nullable `field` user error and null Product,
+  while empty create/delete return the seeded Product with zero inventory and
+  untracked inventory summary.
+
+### Risks / open items
+
+- Duplicate, productSet, advanced search, and selling-plan scenarios remain
+  incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 105 candidates
+
+- Continue duplicate / productSet roots.
+- Continue advanced product search/sort/read parity.
+- Continue selling-plan product/variant association or selling-plan group
+  lifecycle parity.
+
+---
+
 ## 2026-04-30 - Mainline Pass 45: Elixir embedder wrapper smoke
 
 Merged the mainline Elixir embedder wrapper smoke into the long-running

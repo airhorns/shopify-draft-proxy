@@ -307,6 +307,11 @@ fn seed_capture_preconditions(
     "product-variants-bulk-create-live-parity"
     | "product-variants-bulk-create-inventory-read-live-parity" ->
       seed_product_variants_bulk_create_preconditions(capture, proxy)
+    "product-variants-bulk-validation-atomicity" ->
+      seed_product_variants_bulk_validation_atomicity_preconditions(
+        capture,
+        proxy,
+      )
     "product-variant-update-compatibility-evidence" ->
       seed_product_variant_update_preconditions(capture, proxy)
     "product-variants-bulk-update-live-parity" ->
@@ -3547,6 +3552,123 @@ fn seed_product_variants_bulk_create_preconditions(
       seed_product_and_base_variants(proxy, product, variants)
     }
     None -> proxy
+  }
+}
+
+fn seed_product_variants_bulk_validation_atomicity_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.seed.setupOptionsResponse.data.productOptionsCreate.product",
+    ),
+    jsonpath.lookup(capture, "$.seed.defaultVariantId")
+  {
+    Some(product_json), Some(JString(default_variant_id)) -> {
+      let products = case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [
+          ProductRecord(
+            ..product,
+            total_inventory: Some(0),
+            tracks_inventory: Some(False),
+          ),
+        ]
+        Error(_) -> []
+      }
+      let variants = case required_string_field(product_json, "id") {
+        Ok(product_id) -> [
+          ProductVariantRecord(
+            id: default_variant_id,
+            product_id: product_id,
+            title: variant_title_with_fallback(
+              default_selected_options_from_seed_options(product_json),
+              "Default Title",
+            ),
+            sku: None,
+            barcode: None,
+            price: None,
+            compare_at_price: None,
+            taxable: None,
+            inventory_policy: None,
+            inventory_quantity: Some(0),
+            selected_options: default_selected_options_from_seed_options(
+              product_json,
+            ),
+            media_ids: [],
+            inventory_item: Some(
+              InventoryItemRecord(
+                id: "gid://shopify/InventoryItem/0",
+                tracked: Some(False),
+                requires_shipping: Some(True),
+                measurement: None,
+                country_code_of_origin: None,
+                province_code_of_origin: None,
+                harmonized_system_code: None,
+                inventory_levels: [],
+              ),
+            ),
+            contextual_pricing: None,
+            cursor: None,
+          ),
+        ]
+        Error(_) -> []
+      }
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_variants(variants)
+        |> seed_options_for_product(product_json)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    _, _ -> proxy
+  }
+}
+
+fn default_selected_options_from_seed_options(
+  product_json: JsonValue,
+) -> List(ProductVariantSelectedOptionRecord) {
+  case read_array_field(product_json, "options") {
+    Some(options) ->
+      list.filter_map(options, fn(option_json) {
+        use name <- result.try(required_string_field(option_json, "name"))
+        use value <- result.try(default_option_value_name(option_json))
+        Ok(ProductVariantSelectedOptionRecord(name: name, value: value))
+      })
+    None -> []
+  }
+}
+
+fn default_option_value_name(option_json: JsonValue) -> Result(String, Nil) {
+  let values =
+    read_array_field(option_json, "optionValues") |> option.unwrap([])
+  case
+    values
+    |> list.find(fn(value) {
+      read_bool_field(value, "hasVariants") == Some(True)
+    })
+    |> option.from_result
+  {
+    Some(value) -> required_string_field(value, "name")
+    None ->
+      case values {
+        [first, ..] -> required_string_field(first, "name")
+        [] -> Error(Nil)
+      }
+  }
+}
+
+fn variant_title_with_fallback(
+  selected_options: List(ProductVariantSelectedOptionRecord),
+  fallback: String,
+) -> String {
+  case selected_options {
+    [] -> fallback
+    _ ->
+      selected_options
+      |> list.map(fn(option) { option.value })
+      |> string.join(" / ")
   }
 }
 
