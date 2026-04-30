@@ -278,6 +278,12 @@ pub fn product_variants_bulk_create_strategy_remove_custom_standalone_test() {
   )
 }
 
+pub fn product_variants_bulk_create_inventory_read_parity_test() {
+  check(
+    "config/parity-specs/products/productVariantsBulkCreate-inventory-read-parity.json",
+  )
+}
+
 pub fn product_variants_bulk_update_parity_plan_test() {
   check(
     "config/parity-specs/products/productVariantsBulkUpdate-parity-plan.json",

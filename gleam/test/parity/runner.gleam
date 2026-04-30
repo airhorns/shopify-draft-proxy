@@ -188,7 +188,8 @@ fn seed_capture_preconditions(
     "tags-remove-live-parity" -> seed_tags_remove_preconditions(capture, proxy)
     "product-variant-create-compatibility-evidence" ->
       seed_product_variant_create_preconditions(capture, proxy)
-    "product-variants-bulk-create-live-parity" ->
+    "product-variants-bulk-create-live-parity"
+    | "product-variants-bulk-create-inventory-read-live-parity" ->
       seed_product_variants_bulk_create_preconditions(capture, proxy)
     "product-variant-update-compatibility-evidence" ->
       seed_product_variant_update_preconditions(capture, proxy)

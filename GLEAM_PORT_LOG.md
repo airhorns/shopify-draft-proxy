@@ -9,6 +9,65 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 70: product variant bulk create inventory reads
+
+Enables strict Gleam parity coverage for the captured
+`productVariantsBulkCreate` inventory downstream-read scenario. The scenario
+adds a variant with a staged InventoryItem, then immediately reads the Product,
+created ProductVariant, and created InventoryItem roots. The existing Gleam
+Products handler already staged the created variant and inventory item with
+consistent synthetic IDs; this pass promotes the fixture-backed scenario by
+seeding the captured pre-mutation Product baseline through the bulk-create
+precondition path.
+
+The pass promotes `productVariantsBulkCreate-inventory-read-parity` into the
+Gleam parity suite. The checked-in fixture, request document, variables, and
+comparison contract stay unchanged.
+
+| Module                           | Change                                                              |
+| -------------------------------- | ------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam` | Seeds the captured bulk-create inventory-read Product precondition. |
+| `gleam/test/parity_test.gleam`   | Enables the strict bulk-create inventory downstream-read spec.      |
+
+Validation:
+`gleam test --target javascript product_variants_bulk_create_inventory_read_parity_test`
+is green at 768 tests, and full `gleam test --target javascript` is green at
+768 tests on the host Node runtime. Host `gleam test --target erlang` still
+fails before tests execute on the local Erlang install with the known `undef`
+runner issue; after clearing host-built Erlang artifacts, the Docker Erlang
+fallback is green at 764 tests. Product parity inventory remains 115 checked-in
+specs, with 54 product specs executable in the Gleam parity suite plus the
+admin-platform ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay failing
+  because `$.data.productVariantsBulkCreate.product.id` could not be resolved
+  before seeding the captured product baseline.
+- After reusing the existing bulk-create precondition seeder, the scenario
+  passed without additional runtime changes. The staged created ProductVariant
+  and InventoryItem IDs already flow consistently through mutation payload,
+  Product read, ProductVariant read, and InventoryItem read.
+
+### Risks / open items
+
+- Collections, publication, product feeds/feedback, selling plans, product
+  metafields, inventory shipment/transfer, media, advanced search, and broader
+  validation atomicity parity remain incomplete in Gleam.
+- Only 54 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 71 candidates
+
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+- Port product metafield behavior now that several Product and Product Option
+  mutation families are locally staged.
+- Tackle product media local staging if the media fixtures can be represented
+  without weakening the recorded Shopify request shapes.
+
+---
+
 ## 2026-04-30 — Pass 69: product variant bulk create remove custom edge
 
 Enables strict Gleam parity coverage for the captured
