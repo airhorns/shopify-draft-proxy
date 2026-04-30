@@ -1,0 +1,241 @@
+{
+  "expectedParitySpecCount": 379,
+  "gleamParityRunnerSpecPaths": [
+    "config/parity-specs/webhooks/webhook-subscription-catalog-read.json",
+    "config/parity-specs/webhooks/webhook-subscription-required-argument-validation.json",
+    "config/parity-specs/webhooks/webhook-subscription-conformance.json",
+    "config/parity-specs/saved-searches/saved-search-local-staging.json",
+    "config/parity-specs/saved-searches/saved-search-query-grammar.json",
+    "config/parity-specs/saved-searches/saved-search-resource-roots.json",
+    "config/parity-specs/gift-cards/gift-card-search-filters.json",
+    "config/parity-specs/store-properties/shop-baseline-read.json",
+    "config/parity-specs/store-properties/shopPolicyUpdate-parity.json",
+    "config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json",
+    "config/parity-specs/functions/functions-owner-metadata-local-staging.json",
+    "config/parity-specs/apps/delegate-access-token-current-input-local-staging.json",
+    "config/parity-specs/segments/segment-create-invalid-query-validation.json",
+    "config/parity-specs/segments/segment-query-grammar-not-contains.json",
+    "config/parity-specs/segments/segment-update-unknown-id-validation.json",
+    "config/parity-specs/segments/segment-delete-unknown-id-validation.json",
+    "config/parity-specs/segments/customer-segment-members-query-lifecycle.json",
+    "config/parity-specs/events/event-empty-read.json",
+    "config/parity-specs/metafields/metafield-definitions-product-empty-read.json",
+    "config/parity-specs/metafields/standard-metafield-definition-enable-validation.json"
+  ],
+  "requiredWorkflowCommands": [
+    "corepack pnpm lint",
+    "corepack pnpm typecheck",
+    "corepack pnpm gleam:registry:check",
+    "corepack pnpm conformance:check",
+    "corepack pnpm conformance:parity",
+    "corepack pnpm conformance:capture:check",
+    "corepack pnpm conformance:status",
+    "corepack pnpm gleam:port:coverage",
+    "corepack pnpm build",
+    "corepack pnpm gleam:format:check",
+    "corepack pnpm gleam:test:js",
+    "corepack pnpm gleam:test:erlang",
+    "corepack pnpm gleam:smoke:js",
+    "corepack pnpm elixir:smoke"
+  ],
+  "captureToolingChecks": [
+    "tests/unit/conformance-capture-index.test.ts",
+    "tests/unit/conformance-script-config.test.ts",
+    "tests/unit/no-mjs-files.test.ts"
+  ],
+  "domainGates": [
+    {
+      "domain": "admin-platform",
+      "integrationTests": ["tests/integration/admin-platform-query-shapes.test.ts"]
+    },
+    {
+      "domain": "apps",
+      "integrationTests": ["tests/integration/app-billing-access-flow.test.ts"]
+    },
+    {
+      "domain": "b2b",
+      "integrationTests": [
+        "tests/integration/b2b-company-lifecycle-flow.test.ts",
+        "tests/integration/b2b-company-query-shapes.test.ts"
+      ]
+    },
+    {
+      "domain": "bulk-operations",
+      "integrationTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"]
+    },
+    {
+      "domain": "customers",
+      "integrationTests": [
+        "tests/integration/customer-draft-flow.test.ts",
+        "tests/integration/customer-query-shapes.test.ts",
+        "tests/integration/store-credit-flow.test.ts"
+      ]
+    },
+    {
+      "domain": "discounts",
+      "integrationTests": [
+        "tests/integration/discount-app-bulk-flow.test.ts",
+        "tests/integration/discount-automatic-basic-flow.test.ts",
+        "tests/integration/discount-bxgy-flow.test.ts",
+        "tests/integration/discount-code-basic-lifecycle-flow.test.ts",
+        "tests/integration/discount-free-shipping-lifecycle-flow.test.ts",
+        "tests/integration/discount-mutation-validation.test.ts",
+        "tests/integration/discount-query-shapes.test.ts",
+        "tests/integration/discount-redeem-code-bulk-flow.test.ts",
+        "tests/integration/proxy-capability-classification.test.ts"
+      ]
+    },
+    {
+      "domain": "events",
+      "integrationTests": ["tests/integration/event-query-shapes.test.ts"]
+    },
+    {
+      "domain": "functions",
+      "integrationTests": ["tests/integration/functions-flow.test.ts"]
+    },
+    {
+      "domain": "gift-cards",
+      "integrationTests": ["tests/integration/gift-card-flow.test.ts"]
+    },
+    {
+      "domain": "localization",
+      "integrationTests": ["tests/integration/localization-flow.test.ts"]
+    },
+    {
+      "domain": "marketing",
+      "integrationTests": [
+        "tests/integration/marketing-activity-lifecycle-flow.test.ts",
+        "tests/integration/marketing-engagement-flow.test.ts",
+        "tests/integration/marketing-query-shapes.test.ts"
+      ]
+    },
+    {
+      "domain": "markets",
+      "integrationTests": [
+        "tests/integration/markets-lifecycle-flow.test.ts",
+        "tests/integration/markets-localization-flow.test.ts",
+        "tests/integration/markets-query-shapes.test.ts"
+      ]
+    },
+    {
+      "domain": "media",
+      "integrationTests": ["tests/integration/media-draft-flow.test.ts"]
+    },
+    {
+      "domain": "metafields",
+      "integrationTests": [
+        "tests/integration/metafield-definition-draft-flow.test.ts",
+        "tests/integration/metafield-definition-query-shapes.test.ts"
+      ]
+    },
+    {
+      "domain": "metaobjects",
+      "integrationTests": [
+        "tests/integration/metaobject-definition-draft-flow.test.ts",
+        "tests/integration/metaobject-definition-query-shapes.test.ts",
+        "tests/integration/metaobject-draft-flow.test.ts",
+        "tests/integration/metaobject-query-shapes.test.ts"
+      ]
+    },
+    {
+      "domain": "online-store",
+      "integrationTests": [
+        "tests/integration/online-store-content-flow.test.ts",
+        "tests/integration/online-store-integrations-flow.test.ts"
+      ]
+    },
+    {
+      "domain": "orders",
+      "integrationTests": [
+        "tests/integration/abandoned-checkout-query-shapes.test.ts",
+        "tests/integration/draft-order-mutation-family-flow.test.ts",
+        "tests/integration/order-creation-flow.test.ts",
+        "tests/integration/order-draft-flow.test.ts",
+        "tests/integration/order-edit-flow.test.ts",
+        "tests/integration/order-fulfillment-flow.test.ts",
+        "tests/integration/order-lifecycle-payment-customer-flow.test.ts",
+        "tests/integration/order-payment-transaction-flow.test.ts",
+        "tests/integration/order-query-shapes.test.ts",
+        "tests/integration/order-refund-flow.test.ts",
+        "tests/integration/order-return-flow.test.ts"
+      ]
+    },
+    {
+      "domain": "payments",
+      "integrationTests": [
+        "tests/integration/business-entity-query-shapes.test.ts",
+        "tests/integration/customer-payment-method-flow.test.ts",
+        "tests/integration/order-payment-transaction-flow.test.ts",
+        "tests/integration/payment-customization-query-shapes.test.ts",
+        "tests/integration/payment-terms-lifecycle-flow.test.ts",
+        "tests/integration/payment-terms-query-shapes.test.ts"
+      ]
+    },
+    {
+      "domain": "privacy",
+      "integrationTests": ["tests/integration/customer-draft-flow.test.ts"]
+    },
+    {
+      "domain": "products",
+      "integrationTests": [
+        "tests/integration/collection-draft-flow.test.ts",
+        "tests/integration/collection-query-shapes.test.ts",
+        "tests/integration/inventory-quantity-roots.test.ts",
+        "tests/integration/inventory-shipment-flow.test.ts",
+        "tests/integration/inventory-transfer-flow.test.ts",
+        "tests/integration/location-query-shapes.test.ts",
+        "tests/integration/product-draft-flow.test.ts",
+        "tests/integration/product-merchandising-feedback-flow.test.ts",
+        "tests/integration/product-query-shapes.test.ts",
+        "tests/integration/proxy-capability-classification.test.ts",
+        "tests/integration/publication-query-shapes.test.ts",
+        "tests/integration/selling-plan-group-flow.test.ts"
+      ]
+    },
+    {
+      "domain": "saved-searches",
+      "integrationTests": ["tests/integration/saved-search-flow.test.ts"]
+    },
+    {
+      "domain": "segments",
+      "integrationTests": [
+        "tests/integration/customer-segment-member-flow.test.ts",
+        "tests/integration/segment-lifecycle-flow.test.ts",
+        "tests/integration/segment-query-shapes.test.ts"
+      ]
+    },
+    {
+      "domain": "shipping-fulfillments",
+      "integrationTests": [
+        "tests/integration/carrier-service-flow.test.ts",
+        "tests/integration/delivery-profile-lifecycle-flow.test.ts",
+        "tests/integration/delivery-profile-query-shapes.test.ts",
+        "tests/integration/delivery-settings-query-shapes.test.ts",
+        "tests/integration/fulfillment-service-flow.test.ts",
+        "tests/integration/order-edit-flow.test.ts",
+        "tests/integration/order-fulfillment-flow.test.ts",
+        "tests/integration/order-query-shapes.test.ts",
+        "tests/integration/order-return-flow.test.ts",
+        "tests/integration/shipping-settings-flow.test.ts"
+      ]
+    },
+    {
+      "domain": "store-properties",
+      "integrationTests": [
+        "tests/integration/business-entity-query-shapes.test.ts",
+        "tests/integration/collection-draft-flow.test.ts",
+        "tests/integration/location-query-shapes.test.ts",
+        "tests/integration/product-draft-flow.test.ts",
+        "tests/integration/shop-policy-update-flow.test.ts",
+        "tests/integration/shop-query-shapes.test.ts"
+      ]
+    },
+    {
+      "domain": "webhooks",
+      "integrationTests": [
+        "tests/integration/webhook-subscription-mutation-flow.test.ts",
+        "tests/integration/webhook-subscription-query-shapes.test.ts"
+      ]
+    }
+  ]
+}
