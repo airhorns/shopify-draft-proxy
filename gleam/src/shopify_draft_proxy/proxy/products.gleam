@@ -165,6 +165,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productCreateMedia"
     | "productUpdateMedia"
     | "productDeleteMedia"
+    | "productReorderMedia"
     | "bulkProductResourceFeedbackCreate"
     | "inventoryShipmentCreateInTransit"
     | "inventoryShipmentReceive"
@@ -2985,6 +2986,7 @@ fn product_source_with_relationships(
     #("resourcePublicationsCount", count_source(visible_publication_count)),
     #("collections", collections),
     #("media", media),
+    #("images", empty_connection_source()),
     #("options", options),
     #("variants", variants),
   ])
@@ -5235,7 +5237,8 @@ fn handle_mutation_fields(
             }
             "productCreateMedia"
             | "productUpdateMedia"
-            | "productDeleteMedia" -> {
+            | "productDeleteMedia"
+            | "productReorderMedia" -> {
               let result =
                 handle_product_media_mutation(
                   current_store,
@@ -6805,6 +6808,8 @@ fn handle_product_media_mutation(
         fragments,
         variables,
       )
+    "productReorderMedia" ->
+      handle_product_reorder_media(store, identity, field, fragments, variables)
     _ ->
       mutation_result(
         get_field_response_key(field),
@@ -7245,6 +7250,165 @@ fn stage_product_delete_media(
   }
 }
 
+fn handle_product_reorder_media(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "id") {
+    None ->
+      mutation_result(
+        key,
+        product_reorder_media_payload(
+          None,
+          [ProductUserError(["id"], "Product id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            product_reorder_media_payload(
+              None,
+              [ProductUserError(["id"], "Product not found", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(_) -> {
+          let #(next_store, user_errors) =
+            reorder_product_media(
+              store,
+              product_id,
+              read_arg_object_list(args, "moves"),
+            )
+          case user_errors {
+            [] -> {
+              let #(job_id, next_identity) =
+                synthetic_identity.make_synthetic_gid(identity, "Job")
+              mutation_result(
+                key,
+                product_reorder_media_payload(
+                  Some(job_id),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                next_identity,
+                [product_id],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                product_reorder_media_payload(
+                  None,
+                  user_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+          }
+        }
+      }
+  }
+}
+
+fn reorder_product_media(
+  store: Store,
+  product_id: String,
+  raw_moves: List(Dict(String, ResolvedValue)),
+) -> #(Store, List(ProductUserError)) {
+  let #(moves, user_errors) = read_collection_product_moves(raw_moves)
+  let effective_media =
+    store.get_effective_media_by_product_id(store, product_id)
+  let media_ids =
+    effective_media
+    |> list.filter_map(media_record_id_result)
+  let user_errors =
+    list.fold(enumerate_items(moves), user_errors, fn(errors, entry) {
+      let #(move, index) = entry
+      let CollectionProductMove(id: media_id, new_position: _) = move
+      case list.contains(media_ids, media_id) {
+        True -> errors
+        False ->
+          list.append(errors, [
+            ProductUserError(
+              ["moves", int.to_string(index), "id"],
+              "Media does not exist",
+              None,
+            ),
+          ])
+      }
+    })
+  case user_errors {
+    [] -> {
+      let reordered_media =
+        apply_product_media_moves(effective_media, moves)
+        |> enumerate_items()
+        |> list.map(fn(entry) {
+          let #(media, position) = entry
+          ProductMediaRecord(..media, position: position)
+        })
+      #(
+        store.replace_staged_media_for_product(
+          store,
+          product_id,
+          reordered_media,
+        ),
+        [],
+      )
+    }
+    _ -> #(store, user_errors)
+  }
+}
+
+fn apply_product_media_moves(
+  media: List(ProductMediaRecord),
+  moves: List(CollectionProductMove),
+) -> List(ProductMediaRecord) {
+  list.fold(moves, media, fn(current_media, move) {
+    let CollectionProductMove(id: media_id, new_position: new_position) = move
+    case find_media_by_id(current_media, media_id) {
+      None -> current_media
+      Some(record) -> {
+        let without_record =
+          current_media
+          |> list.filter(fn(candidate) { candidate.id != Some(media_id) })
+        insert_product_media_at_position(without_record, record, new_position)
+      }
+    }
+  })
+}
+
+fn insert_product_media_at_position(
+  media: List(ProductMediaRecord),
+  record: ProductMediaRecord,
+  position: Int,
+) -> List(ProductMediaRecord) {
+  let insertion_index = int.min(position, list.length(media))
+  let before = list.take(media, insertion_index)
+  let after = list.drop(media, insertion_index)
+  list.append(before, [record, ..after])
+}
+
 fn invalid_create_media_content_type(
   args: Dict(String, ResolvedValue),
   document: String,
@@ -7558,6 +7722,27 @@ fn product_delete_media_payload(
       #("deletedProductImageIds", deleted_product_image_ids),
       #("mediaUserErrors", user_errors_source(user_errors)),
       #("product", SrcNull),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_reorder_media_payload(
+  job_id: Option(String),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let job_value = case job_id {
+    Some(id) -> job_source(id, False)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductReorderMediaPayload")),
+      #("job", job_value),
+      #("mediaUserErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,

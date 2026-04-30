@@ -311,6 +311,13 @@ synthetic-id/timestamp expected differences.
   atomic when any requested media ID is unknown. Empty product IDs and invalid
   `CreateMediaInput.mediaContentType` are top-level `INVALID_VARIABLE` GraphQL
   errors, not payload user errors.
+- Product `productReorderMedia` captures need setup media seeded from the
+  captured `productCreateMedia.product.media.nodes` response, not just the
+  product row. Reuse the collection-style `MoveInput` parsing and sequential
+  zero-based reorder semantics, but serialize failures through
+  `mediaUserErrors` without collection reorder codes. Downstream Product reads
+  may select both `media` and `images`; media-only captures should expose
+  Shopify's empty Product `images` connection rather than omitting the field.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.

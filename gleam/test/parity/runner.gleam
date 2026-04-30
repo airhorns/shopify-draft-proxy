@@ -330,6 +330,8 @@ fn seed_capture_preconditions(
       seed_inventory_item_update_preconditions(capture, proxy)
     "product-variants-bulk-reorder-live-parity" ->
       seed_product_variants_bulk_reorder_preconditions(capture, proxy)
+    "product-reorder-media-live-parity" ->
+      seed_product_reorder_media_preconditions(capture, proxy)
     "productPublish-parity-plan"
     | "productPublish-aggregate-parity"
     | "productUnpublish-parity-plan"
@@ -3487,6 +3489,77 @@ fn seed_product_variants_bulk_reorder_preconditions(
     }
     None -> proxy
   }
+}
+
+fn seed_product_reorder_media_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(capture, "$.setup.productCreate.data.productCreate.product"),
+    jsonpath.lookup(
+      capture,
+      "$.setup.productCreateMedia.response.data.productCreateMedia.product",
+    )
+  {
+    Some(product_json), Some(media_product_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let proxy = seed_product_and_base_variants(proxy, product, [])
+      case required_string_field(media_product_json, "id") {
+        Ok(product_id) -> {
+          let media = seed_media_for_product(media_product_json, product_id)
+          let store =
+            store_mod.replace_base_media_for_product(
+              proxy.store,
+              product_id,
+              media,
+            )
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    }
+    _, _ -> proxy
+  }
+}
+
+fn seed_media_for_product(
+  product_json: JsonValue,
+  product_id: String,
+) -> List(ProductMediaRecord) {
+  case jsonpath.lookup(product_json, "$.media.nodes") {
+    Some(JArray(nodes)) ->
+      nodes
+      |> enumerate_json_values()
+      |> list.filter_map(fn(entry) {
+        let #(node, index) = entry
+        make_seed_product_media_from_node(product_id, node, index)
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_product_media_from_node(
+  product_id: String,
+  source: JsonValue,
+  index: Int,
+) -> Result(ProductMediaRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  Ok(ProductMediaRecord(
+    key: product_id <> ":media:" <> int.to_string(index) <> ":" <> id,
+    product_id: product_id,
+    position: index,
+    id: Some(id),
+    media_content_type: read_string_field(source, "mediaContentType"),
+    alt: read_string_field(source, "alt"),
+    status: read_string_field(source, "status"),
+    product_image_id: None,
+    image_url: None,
+    image_width: None,
+    image_height: None,
+    preview_image_url: None,
+    source_url: None,
+  ))
 }
 
 fn seed_inventory_quantity_roots_preconditions(

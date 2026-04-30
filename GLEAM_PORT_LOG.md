@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 100: product media reorder parity
+
+Promotes the captured `productReorderMedia` fixture into the Gleam parity
+suite. Product media records can now be reordered locally with Shopify-like
+zero-based `MoveInput.newPosition` semantics, the mutation returns an async
+Job-shaped payload, and downstream Product media/image reads reflect the staged
+order without runtime Shopify writes.
+
+| Module                                               | Change                                                                          |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Handles `productReorderMedia`, stages media ordering, and exposes empty images. |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured product/media setup rows for reorder replay.                 |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing reorder-media parity spec.                            |
+| `.agents/skills/gleam-port/SKILL.md`                 | Records the Product media reorder parity trap.                                  |
+
+Validation:
+Focused JavaScript parity is green for `productReorderMedia-parity.json`.
+Full JavaScript is green at 711 tests. Host Erlang still fails with the known
+local `Undef` runner class; the Docker Erlang fallback is green at 707 tests.
+`corepack pnpm gleam:port:coverage` is green with 379 specs and 196 expected
+failures. Product parity inventory remains 115 checked-in specs, with 97
+product specs executable in the Gleam parity suite and 18 product specs still
+expected-failing.
+
+### Findings
+
+- `productReorderMedia` reuses Shopify's collection-style `MoveInput`
+  contract: empty moves, over-limit moves, missing IDs, and invalid
+  `newPosition` values are rejected before any staging, but media-specific
+  payloads surface the failures through `mediaUserErrors`.
+- Successful reorder returns an async Job with `done: false`; only the Job ID
+  is volatile compared with the live capture, so the parity spec keeps the
+  existing strict payload/read comparisons.
+- The downstream read fixture selects both `media` and `images`. For the
+  captured media-only setup, Shopify returns an empty Product `images`
+  connection, so the Gleam Product projection now exposes that same empty
+  no-data shape.
+
+### Risks / open items
+
+- Product media relationship roots, broader asynchronous media lifecycle,
+  duplicate, productSet, advanced search, selling plans, and remaining product
+  parity expected failures remain incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 101 candidates
+
+- Continue product relationship media roots (`productVariantAppendMedia`,
+  `productVariantDetachMedia`) now that base/staged Product media exists.
+- Continue duplicate / productSet roots and validation atomicity.
+- Continue advanced product search/sort/read parity or selling-plan group
+  lifecycle behavior.
+
+---
+
 ## 2026-04-30 - Pass 99: product media validation branches
 
 Promotes the captured product media validation fixture into the Gleam parity

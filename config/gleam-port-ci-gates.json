@@ -699,10 +699,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/products/productReorderMedia-parity.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/products/products-advanced-search-read.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
