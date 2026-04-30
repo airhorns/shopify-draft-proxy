@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 38: strict runtime state restore guards
+## 2026-04-30 — Pass 40: strict runtime state restore guards
 
 Tightens the runtime state dump/restore substrate added in Pass 36. The Gleam
 restore path now treats the current store field dump as a required structural
@@ -25,16 +25,17 @@ The earlier TypeScript-only strict-restore patch was reverted on the PR branch;
 the shipping TypeScript runtime remains unchanged while the Gleam port gains
 the missing guard.
 
-| Module                                                        | Change                                                                                                                                              |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Requires `baseState`, `stagedState`, and `mutationLog` when restoring a store field dump instead of applying empty defaults for omitted fields.     |
+| Module                                                        | Change                                                                                                                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Requires `baseState`, `stagedState`, and `mutationLog` when restoring a store field dump instead of applying empty defaults for omitted fields.        |
 | `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | Builds negative restore fixtures from a real default dump and adds coverage that each required store field returns `MalformedDumpJson(_)` when absent. |
 
-Validation: `gleam test --target javascript` is green at 692 tests on the host
-Node runtime. `gleam test --target erlang` is green at 689 tests via
-`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` with OTP 28 because the host
-Erlang runtime is OTP 25 and `gleam_json` requires OTP 27+. `corepack pnpm
-gleam:format:check` and `git diff --check` are green.
+Validation after merging `origin/main@bbc51e6e`: `corepack pnpm lint`,
+`corepack pnpm typecheck`, `corepack pnpm conformance:check`, and
+`git diff --check` are green. `gleam test --target javascript` is green at 720
+tests on the host Node runtime. `gleam test --target erlang` is green at 716
+tests via `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` with OTP 28 because
+the host Erlang runtime is OTP 25 and `gleam_json` requires OTP 27+.
 
 ### Findings
 
@@ -55,7 +56,7 @@ gleam:format:check` and `git diff --check` are green.
   host. The local workspace needed ownership repaired before rerunning the JS
   target after the Erlang container pass.
 
-### Pass 39 candidates
+### Pass 41 candidates
 
 - Port product-owned `metafieldDelete` / `metafieldsDelete` and their
   hydrated/downstream deletion flows into Gleam.
@@ -63,6 +64,142 @@ gleam:format:check` and `git diff --check` are green.
   captured template-catalog fixture exists.
 - Continue Store Properties locations and fulfillment/carrier-service lifecycle
   roots, reusing the existing shop state slice.
+
+---
+
+## 2026-04-30 — Pass 39: operation registry and dispatcher support guards
+
+Locks the Gleam operation registry mirror and dispatcher classification around
+the TypeScript registry without overclaiming roots that the Gleam port cannot
+handle locally yet. Capability lookup still mirrors the TS registry for every
+implemented match name, while local dispatch is now gated by explicit
+Gleam-local query and mutation dispatch tables. In live-hybrid mode, an
+implemented TS root whose domain or specific root is not ported to Gleam falls
+through to upstream passthrough rather than returning a local "no dispatcher"
+error or claiming stage/overlay support.
+
+| Module                                                               | Change                                                                                                                                          |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | Separates TS capability classification from Gleam-local dispatch support and gates registry-driven routing with explicit local dispatch tables. |
+| `gleam/test/shopify_draft_proxy/proxy/operation_registry_test.gleam` | Adds generated-registry semantic coverage for every implemented match name, unimplemented fallback behavior, and local-dispatch support guards. |
+| `gleam/test/shopify_draft_proxy/proxy/passthrough_test.gleam`        | Proves an implemented-but-unported TS root uses the live-hybrid passthrough branch on JS instead of claiming local dispatch.                    |
+| `gleam/scripts/sync-operation-registry.sh`                           | Adds deterministic `--check` mode and formats generated output before comparing/writing.                                                        |
+| `tests/unit/operation-registry.test.ts`                              | Wires the sync `--check` into `conformance:check`, which already runs in CI.                                                                    |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Documents the registry mirror, drift check command, and capability-vs-local-dispatch split for future porting agents.                           |
+
+Validation after merging `origin/main@cb46f01`: `corepack pnpm
+conformance:check` is green at 1402 tests, `gleam test --target javascript` is
+green at 719 tests, and `gleam test --target erlang` is green at 715 tests via
+the established `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container.
+
+### Findings
+
+- The registry currently mirrors 601 implemented TS roots across all 25
+  implemented TS domains, but Gleam-local support is narrower and sometimes
+  root-specific inside a partially ported domain.
+- Domain-level capability mapping was too coarse for the port: roots such as
+  `orders` and `productCreate` classify correctly as TS-supported, but Gleam
+  has no local dispatcher for those roots yet. Live-hybrid now treats those as
+  passthrough until the owning domain is ported.
+- A broad capability-to-domain helper layer made the guard harder to review
+  than a direct dispatch table, so the final dispatcher uses flat local root
+  routing and lets unknown implemented roots fall through conservatively.
+- Formatting the generated registry is part of determinism; raw generator
+  output alone did not match the checked-in formatted file.
+
+### Risks / open items
+
+- This pass does not port any new endpoint family. Products, customers, orders,
+  B2B, discounts, markets, online-store, payments, privacy, and other unported
+  or partially ported roots still need their own domain passes.
+- The public `registry_entry_has_local_dispatch` helper is intentionally
+  conservative and should be kept aligned with root predicates as new domains
+  land.
+- The host still lacks a local Erlang `escript`; Erlang validation uses the
+  container fallback until the host toolchain is repaired.
+
+### Pass 40 candidates
+
+- Start Product read/mutation substrate work so the highest-volume implemented
+  TS roots can stop using live-hybrid passthrough in Gleam.
+- Start Shipping/Fulfillments substrate so fulfillment-service,
+  carrier-service, delivery-profile, and shipping-settings roots can consume
+  ported Location state without reaching back into the TypeScript module.
+- Add a small CI helper script for containerized Erlang validation in
+  workspaces that do not have `escript` installed locally.
+
+---
+
+## 2026-04-30 — Pass 38: store-properties locations, business entities, and publishables
+
+Completes the parity-backed Store Properties root batch in the Gleam dispatcher.
+The port now covers the 15 implemented Store Properties registry roots: shop
+and shop-policy behavior from Pass 32, business-entity reads, location
+catalog/detail/identifier reads, local location lifecycle guardrails, and
+publishable publish/unpublish staging for the captured Product and Collection
+publication projections. The parity runner seeds captured Store Properties
+baselines and publishable mutation payloads so all 20 checked-in
+`config/parity-specs/store-properties/*.json` scenarios execute on both
+targets.
+
+The TypeScript Store Properties runtime remains in place. This pass ports the
+implemented registry roots and parity-backed projections, but the TS module
+still owns broader cross-domain helpers for unported Products, Markets,
+Shipping/Fulfillments, and Online Store flows until those Gleam domains exist.
+
+| Module                                                             | Change                                                                                                                                                   |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                  | Adds JSON-shaped Store Properties records and mutation-payload records for captured Location, BusinessEntity, Product, and Collection projections.       |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                  | Adds base/staged locations, business entities, publishables, payload fixtures, deletion markers, ordered listing, and effective lookup helpers.          |
+| `gleam/src/shopify_draft_proxy/proxy/store_properties.gleam`       | Adds Store Properties read roots, local location lifecycle validation/staging, publishable mutation staging, generic projection, and mutation logging.   |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`            | Routes legacy Store Properties query roots and serializes the new slices through `__meta/state` for local observability.                                 |
+| `gleam/test/parity/runner.gleam`                                   | Seeds remaining Store Properties capture fixtures for business entities, locations, publishable payloads, and collection publication readback.           |
+| `gleam/test/parity_test.gleam`                                     | Enables all 20 Store Properties parity specs as executable Gleam parity evidence.                                                                        |
+| `gleam/test/shopify_draft_proxy/proxy/store_properties_test.gleam` | Adds direct coverage for location read/edit/log/meta-state behavior, business-entity reads, and publishable collection staging/read-after-write effects. |
+
+Validation: `gleam test --target javascript` is green at 702 tests on the host
+Node runtime. `gleam test --target erlang` is green at 698 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container with the repository
+root mounted because the host still lacks `escript`. The Store Properties parity
+report shows 20 spec files and 20 Gleam parity registrations, with no missing or
+extra registrations.
+
+### Findings
+
+- The implemented Store Properties registry batch is smaller than the TypeScript
+  module boundary: the TS file also contains helper behavior used by domains not
+  yet present in the Gleam port.
+- Publishable parity can be modeled from captured payload fixtures without
+  claiming the full Products domain; staged Product/Collection records are
+  limited to the selected publication projections needed by Store Properties
+  scenarios.
+- Location validation branches that fail Shopify guardrails do not create
+  mutation-log entries; successful local lifecycle mutations preserve the
+  original mutation document and staged resource IDs.
+
+### Risks / open items
+
+- Deleting `src/proxy/store-properties.ts` remains deferred until the dependent
+  Products, Markets, Shipping/Fulfillments, and Online Store Gleam slices that
+  rely on its helper behavior have their own ported equivalents.
+- The new Store Properties records intentionally preserve captured JSON-shaped
+  projections. Stronger typed records should be introduced only when an owning
+  domain needs local lifecycle logic beyond these parity-backed fields.
+- Location lifecycle support covers the captured validation/success behavior in
+  the Store Properties parity suite; fulfillment-service, carrier-service, and
+  delivery-profile location interactions still belong to the future
+  Shipping/Fulfillments port.
+
+### Pass 39 candidates
+
+- Start Shipping/Fulfillments substrate so fulfillment-service, carrier-service,
+  delivery-profile, and shipping-settings roots can consume ported Location
+  state without reaching back into the TypeScript module.
+- Start Products publication substrate so Product and Collection publishable
+  projections can move from captured Store Properties rows into typed product
+  and collection records.
+- Continue Markets or Online Store ports where Store Properties shop/location
+  read effects are now available as local Gleam state.
 
 ---
 
@@ -300,6 +437,60 @@ conformance:parity -- --testNamePattern event-empty-read` is green, and
   backup-region/no-data behavior.
 - Continue Marketing upstream hydration and parity-runner seeding so captured
   Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
+## 2026-04-30 — Pass 33: functions parity closure
+
+Closes the remaining executable Functions parity gaps in the Gleam port. The
+previously disabled `functions-metadata-local-staging` scenario now runs
+against Gleam with strict JSON comparison and no new expected-difference
+allowances. The runner now mirrors the TypeScript conformance harness's
+local-runtime seed step so the existing `functions-metadata-local-staging`
+fixture remains byte-identical and executable. The live owner-metadata read
+scenario also runs by reusing the existing `seedShopifyFunctions` capture
+seeding path.
+
+| Module                           | Change                                                                                                                     |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam` | Seeds Functions parity preconditions for metadata staging, owner-metadata staging, and live owner-metadata read scenarios. |
+| `gleam/test/parity_test.gleam`   | Enables all three checked-in Functions parity specs as executable Gleam parity evidence.                                   |
+
+Validation: `gleam test --target javascript` is green at 683 tests on the host
+Node runtime. Direct `gleam test --target erlang` still cannot start locally
+because the host lacks `escript`, but the BEAM target is green at 679 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`. Touched-file
+`gleam format --check`, `git diff --check`, `corepack pnpm conformance:parity`,
+and `corepack pnpm vitest run tests/integration/functions-flow.test.ts tests/unit/conformance-parity-scenarios.test.ts`
+are green.
+
+### Findings
+
+- The divergent `functions-metadata-local-staging` signal was a runner seeding
+  gap, not a Functions port bug or a reason to weaken the fixture. Mirroring the
+  TypeScript parity harness's seed step keeps the checked-in local-runtime
+  capture unchanged and the strict comparison strong.
+- The live Functions owner-metadata read capture already carries complete
+  `seedShopifyFunctions` rows, so the same seeding helper can exercise
+  `shopifyFunction` and `shopifyFunctions` reads without runtime Shopify access.
+- Functions mutation logging was already complete from Pass 28; enabling the
+  stale fixture confirms the staged multi-root mutation and follow-up update /
+  delete requests keep the mutation-log-driven synthetic sequence aligned.
+
+### Risks / open items
+
+- The TypeScript Functions runtime remains in place because the current
+  TypeScript Koa/runtime dispatcher, Admin Platform Node resolver, and bulk
+  operation import executor still import `src/proxy/functions.ts`. Deleting it
+  before a package/runtime cutover would regress the shipping TypeScript proxy.
+
+### Pass 34 candidates
+
+- Add a focused TS-to-Gleam package cutover plan for domains whose Gleam parity
+  is complete but whose TypeScript runtime modules are still imported by the
+  legacy dispatcher.
+- Continue Store Properties or Admin Platform utility parity seeding from the
+  Pass 32 candidate list.
 
 ---
 

@@ -7,11 +7,14 @@ import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type ShopPolicyRecord, type ShopRecord, PaymentSettingsRecord,
-  ShopAddressRecord, ShopBundlesFeatureRecord,
-  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
-  ShopRecord, ShopResourceLimitsRecord,
+  type ShopPolicyRecord, type ShopRecord, type StorePropertyRecord,
+  type StorePropertyValue, PaymentSettingsRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
+  StorePropertyBool, StorePropertyInt, StorePropertyList,
+  StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
+  StorePropertyRecord, StorePropertyString,
 }
 
 fn graphql_request(body: String) -> draft_proxy.Request {
@@ -21,6 +24,10 @@ fn graphql_request(body: String) -> draft_proxy.Request {
     headers: dict.new(),
     body: body,
   )
+}
+
+fn meta_get(path: String) -> draft_proxy.Request {
+  draft_proxy.Request(method: "GET", path: path, headers: dict.new(), body: "")
 }
 
 fn seeded_proxy() -> draft_proxy.DraftProxy {
@@ -126,6 +133,22 @@ fn make_policy(body: String) -> ShopPolicyRecord {
     url: "https://checkout.shopify.com/63755419881/policies/42438689001.html?locale=en",
     created_at: "2026-04-25T11:52:28Z",
     updated_at: "2026-04-25T11:52:29Z",
+  )
+}
+
+fn make_raw_record(
+  id: String,
+  typename: String,
+  fields: List(#(String, StorePropertyValue)),
+) -> StorePropertyRecord {
+  StorePropertyRecord(
+    id: id,
+    cursor: None,
+    data: dict.from_list([
+      #("__typename", StorePropertyString(typename)),
+      #("id", StorePropertyString(id)),
+      ..fields
+    ]),
   )
 }
 
@@ -280,4 +303,173 @@ pub fn admin_platform_node_resolves_store_property_records_test() {
   assert string.contains(serialized, "\"__typename\":\"ShopPolicy\"")
   assert string.contains(serialized, "\"body\":\"<p>Relay contact policy</p>\"")
   assert string.contains(serialized, "null]}")
+}
+
+pub fn location_reads_and_local_mutations_use_store_state_test() {
+  let location =
+    make_raw_record("gid://shopify/Location/1", "Location", [
+      #("name", StorePropertyString("Main")),
+      #("isActive", StorePropertyBool(True)),
+      #("legacyResourceId", StorePropertyString("1")),
+      #(
+        "metafields",
+        StorePropertyObject(
+          dict.from_list([
+            #("nodes", StorePropertyList([])),
+            #(
+              "pageInfo",
+              StorePropertyObject(
+                dict.from_list([
+                  #("hasNextPage", StorePropertyBool(False)),
+                  #("hasPreviousPage", StorePropertyBool(False)),
+                  #("startCursor", StorePropertyNull),
+                  #("endCursor", StorePropertyNull),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let proxy = draft_proxy.new()
+  let proxy =
+    draft_proxy.DraftProxy(
+      ..proxy,
+      store: store.upsert_base_location(proxy.store, location),
+    )
+  let read_body =
+    "{\"query\":\"query($id: ID!) { location(id: $id) { id name legacyResourceId metafields(first: 1) { nodes { id } pageInfo { hasNextPage startCursor } } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\"}}"
+  let #(draft_proxy.Response(status: read_status, body: read_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  assert read_status == 200
+  assert string.contains(json.to_string(read_json), "\"name\":\"Main\"")
+
+  let edit_body =
+    "{\"query\":\"mutation($id: ID!, $input: LocationEditInput!) { locationEdit(id: $id, input: $input) { location { id name } userErrors { field message } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\",\"input\":{\"name\":\"Annex\"}}}"
+  let #(draft_proxy.Response(status: edit_status, body: edit_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(edit_body))
+  assert edit_status == 200
+  assert string.contains(json.to_string(edit_json), "\"name\":\"Annex\"")
+  assert string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "\"rootFields\":[\"locationEdit\"]",
+  )
+  let #(draft_proxy.Response(status: state_status, body: state_json, ..), _) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/state"))
+  let serialized_state = json.to_string(state_json)
+  assert state_status == 200
+  assert string.contains(serialized_state, "\"stagedState\":{")
+  assert string.contains(serialized_state, "\"locations\":{")
+  assert string.contains(serialized_state, "\"name\":\"Annex\"")
+}
+
+pub fn business_entity_reads_use_primary_and_known_ids_test() {
+  let entity =
+    make_raw_record("gid://shopify/BusinessEntity/1", "BusinessEntity", [
+      #("displayName", StorePropertyString("Primary business")),
+      #("companyName", StorePropertyNull),
+      #("primary", StorePropertyBool(True)),
+      #("archived", StorePropertyBool(False)),
+    ])
+  let proxy = draft_proxy.new()
+  let proxy =
+    draft_proxy.DraftProxy(
+      ..proxy,
+      store: store.upsert_base_business_entity(proxy.store, entity),
+    )
+  let body =
+    "{\"query\":\"query($id: ID!) { primary: businessEntity { id displayName primary } known: businessEntity(id: $id) { id displayName primary } businessEntities { id displayName } }\",\"variables\":{\"id\":\"gid://shopify/BusinessEntity/1\"}}"
+  let #(draft_proxy.Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"primary\":{\"")
+  assert string.contains(serialized, "\"known\":{\"")
+  assert string.contains(serialized, "\"businessEntities\":[{")
+  assert string.contains(serialized, "\"displayName\":\"Primary business\"")
+}
+
+pub fn publishable_publish_stages_collection_projection_test() {
+  let collection =
+    make_raw_record("gid://shopify/Collection/1", "Collection", [
+      #("title", StorePropertyString("Draft collection")),
+      #("handle", StorePropertyString("draft-collection")),
+      #("publishedOnCurrentPublication", StorePropertyBool(False)),
+      #(
+        "availablePublicationsCount",
+        StorePropertyObject(
+          dict.from_list([
+            #("count", StorePropertyInt(1)),
+            #("precision", StorePropertyString("EXACT")),
+          ]),
+        ),
+      ),
+      #(
+        "resourcePublicationsCount",
+        StorePropertyObject(
+          dict.from_list([
+            #("count", StorePropertyInt(0)),
+            #("precision", StorePropertyString("EXACT")),
+          ]),
+        ),
+      ),
+    ])
+  let published =
+    make_raw_record("gid://shopify/Collection/1", "Collection", [
+      #("title", StorePropertyString("Draft collection")),
+      #("handle", StorePropertyString("draft-collection")),
+      #("publishedOnCurrentPublication", StorePropertyBool(True)),
+      #(
+        "availablePublicationsCount",
+        StorePropertyObject(
+          dict.from_list([
+            #("count", StorePropertyInt(1)),
+            #("precision", StorePropertyString("EXACT")),
+          ]),
+        ),
+      ),
+      #(
+        "resourcePublicationsCount",
+        StorePropertyObject(
+          dict.from_list([
+            #("count", StorePropertyInt(1)),
+            #("precision", StorePropertyString("EXACT")),
+          ]),
+        ),
+      ),
+    ])
+  let payload =
+    StorePropertyMutationPayloadRecord(
+      key: "publishablePublish:gid://shopify/Collection/1",
+      data: dict.from_list([
+        #("publishable", StorePropertyObject(published.data)),
+        #("userErrors", StorePropertyList([])),
+      ]),
+    )
+  let proxy = draft_proxy.new()
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_publishable(collection)
+    |> store.upsert_base_store_property_mutation_payload(payload)
+  let proxy = draft_proxy.DraftProxy(..proxy, store: seeded_store)
+  let body =
+    "{\"query\":\"mutation($id: ID!, $input: [PublicationInput!]!) { publishablePublish(id: $id, input: $input) { publishable { ... on Collection { id title publishedOnCurrentPublication resourcePublicationsCount { count precision } } } userErrors { field message } } }\",\"variables\":{\"id\":\"gid://shopify/Collection/1\",\"input\":[{\"publicationId\":\"gid://shopify/Publication/1\"}]}}"
+  let #(draft_proxy.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"publishedOnCurrentPublication\":true")
+  assert string.contains(serialized, "\"count\":1")
+
+  let read_body =
+    "{\"query\":\"query($id: ID!) { collection(id: $id) { id publishedOnCurrentPublication resourcePublicationsCount { count } } }\",\"variables\":{\"id\":\"gid://shopify/Collection/1\"}}"
+  let #(draft_proxy.Response(status: read_status, body: read_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_json),
+    "\"publishedOnCurrentPublication\":true",
+  )
 }
