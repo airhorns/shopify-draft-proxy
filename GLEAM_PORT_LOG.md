@@ -9,6 +9,66 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 54: productUpdate lifecycle
+
+Adds local `productUpdate` staging to the Gleam Products mutation handler. The
+handler now routes the root locally, stages selected merchandising/detail fields
+onto the in-memory Product record, preserves raw mutation logging through the
+centralized log-draft path, and returns updated downstream `product(id:)` reads
+without runtime Shopify writes.
+
+The handler also covers the captured payload-level validation branches for
+missing Product ID, unknown Product ID, blank title, and over-length handle.
+The parity runner seeds the successful and blank-title captures from
+`productUpdate.product` response data so strict replay can compare the mutation
+payloads without changing checked-in captures or request shapes.
+
+| Module                                                              | Change                                                                                    |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds `productUpdate` routing, validation payloads, field staging, and payload projection. |
+| `gleam/test/parity/runner.gleam`                                    | Seeds captured product update success/blank-title Product preconditions.                  |
+| `gleam/test/parity_test.gleam`                                      | Enables five strict `productUpdate` parity scenarios.                                     |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct product update success and blank-title validation coverage.                   |
+
+Validation: `gleam test --target javascript` is green at 742 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails before tests execute
+on the local Erlang install; after clearing host-built Erlang artifacts, the
+Docker Erlang fallback is green at 738 tests. Product parity inventory remains
+115 checked-in specs, with 31 product specs executable in the Gleam parity suite
+plus the admin-platform ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  request returning HTTP 400 for `productUpdate` because the root was not
+  routed by the Gleam Products mutation dispatcher.
+- The currently enabled productUpdate captures exercise the core Product
+  detail fields and validation payloads, but not the broader handle
+  normalization branches from the source capture.
+- Seeding the success capture from the captured response is sufficient for the
+  strict payload contract because Shopify preserves handle/status/preview URL
+  while updating the selected mutable fields.
+
+### Risks / open items
+
+- Product handle normalization beyond the captured over-length rejection is not
+  fully modeled by this pass.
+- Product create, variants, collections, inventory mutation families,
+  publications, product metafields, selling plans, feeds, and feedback remain
+  incomplete in Gleam.
+- Only 31 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 55 candidates
+
+- Add `productCreate` local lifecycle slices with captured validation branches.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Port collection membership and product variant media relationship roots so
+  the full `product-relationship-roots-live-parity` scenario can run.
+
+---
+
 ## 2026-04-30 — Pass 53: tagsAdd/tagsRemove lifecycle
 
 Adds local `tagsAdd` and `tagsRemove` staging to the Gleam Products mutation

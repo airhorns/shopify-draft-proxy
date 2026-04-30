@@ -178,6 +178,8 @@ fn seed_capture_preconditions(
       seed_pre_mutation_product_preconditions(capture, proxy)
     "product-delete-live-parity" ->
       seed_product_delete_preconditions(capture, proxy)
+    "product-update-live-parity" | "productUpdate-blank-title-parity" ->
+      seed_product_update_preconditions(capture, proxy)
     "tags-remove-live-parity" -> seed_tags_remove_preconditions(capture, proxy)
     _ -> proxy
   }
@@ -430,6 +432,18 @@ fn seed_product_delete_preconditions(
       seed_product_json(product_json, proxy)
     }
     _ -> proxy
+  }
+}
+
+fn seed_product_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(capture, "$.mutation.response.data.productUpdate.product")
+  {
+    Some(product_json) -> seed_product_json(product_json, proxy)
+    None -> proxy
   }
 }
 

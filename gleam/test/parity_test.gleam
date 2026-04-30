@@ -192,6 +192,28 @@ pub fn product_delete_variable_missing_id_parity_test() {
   )
 }
 
+pub fn product_update_parity_plan_test() {
+  check("config/parity-specs/products/productUpdate-parity-plan.json")
+}
+
+pub fn product_update_missing_id_parity_test() {
+  check("config/parity-specs/products/productUpdate-missing-id-parity.json")
+}
+
+pub fn product_update_unknown_id_parity_test() {
+  check("config/parity-specs/products/productUpdate-unknown-id-parity.json")
+}
+
+pub fn product_update_blank_title_parity_test() {
+  check("config/parity-specs/products/productUpdate-blank-title-parity.json")
+}
+
+pub fn product_update_too_long_handle_parity_test() {
+  check(
+    "config/parity-specs/products/productUpdate-too-long-handle-parity.json",
+  )
+}
+
 pub fn tags_add_parity_plan_test() {
   check("config/parity-specs/products/tagsAdd-parity-plan.json")
 }

@@ -247,6 +247,51 @@ pub fn tags_remove_stages_tags_and_keeps_removed_tag_searchable_test() {
     == 1
 }
 
+pub fn product_update_stages_fields_and_downstream_reads_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", title: \\\"Updated Board\\\", vendor: \\\"HERMES\\\", productType: \\\"BOARDS\\\", tags: [\\\"beta\\\", \\\"alpha\\\"], descriptionHtml: \\\"<p>Updated</p>\\\", templateSuffix: \\\"custom\\\", seo: { title: \\\"SEO title\\\", description: \\\"SEO description\\\" } }) { product { id title vendor productType tags descriptionHtml templateSuffix seo { title description } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Updated Board\",\"vendor\":\"HERMES\",\"productType\":\"BOARDS\",\"tags\":[\"alpha\",\"beta\"],\"descriptionHtml\":\"<p>Updated</p>\",\"templateSuffix\":\"custom\",\"seo\":{\"title\":\"SEO title\",\"description\":\"SEO description\"}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id title vendor productType tags descriptionHtml templateSuffix seo { title description } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Updated Board\",\"vendor\":\"HERMES\",\"productType\":\"BOARDS\",\"tags\":[\"alpha\",\"beta\"],\"descriptionHtml\":\"<p>Updated</p>\",\"templateSuffix\":\"custom\",\"seo\":{\"title\":\"SEO title\",\"description\":\"SEO description\"}}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_update_blank_title_returns_existing_product_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", title: \\\"\\\" }) { product { id title handle } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"handle\":\"optioned-board\"},\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\"}]}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
 fn default_option_store() -> store.Store {
   store.new()
   |> store.upsert_base_products([default_product()])

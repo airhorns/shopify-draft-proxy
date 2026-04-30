@@ -53,8 +53,8 @@ import shopify_draft_proxy/state/types.{
   type ProductSeoRecord, type ProductVariantRecord,
   type ProductVariantSelectedOptionRecord, InventoryItemRecord,
   InventoryWeightFloat, InventoryWeightInt, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord,
 }
 
 pub type ProductsError {
@@ -98,6 +98,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productOptionsReorder"
     | "productChangeStatus"
     | "productDelete"
+    | "productUpdate"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -1770,6 +1771,33 @@ fn handle_mutation_fields(
                 next_drafts,
               )
             }
+            "productUpdate" -> {
+              let result =
+                handle_product_update(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productUpdate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "tagsAdd" -> {
               let result =
                 handle_tags_update(
@@ -2181,6 +2209,136 @@ fn handle_product_delete(
           }
       }
     }
+  }
+}
+
+fn handle_product_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "product")
+  let id = case input {
+    Some(input) -> read_arg_string(input, "id")
+    None -> None
+  }
+  case id {
+    None ->
+      mutation_result(
+        key,
+        product_update_payload(
+          store,
+          None,
+          [ProductUserError(["id"], "Product does not exist", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id), input {
+        None, _ ->
+          mutation_result(
+            key,
+            product_update_payload(
+              store,
+              None,
+              [ProductUserError(["id"], "Product does not exist", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(product), Some(input) ->
+          case product_update_validation_error(input) {
+            Some(error) ->
+              mutation_result(
+                key,
+                product_update_payload(
+                  store,
+                  Some(product),
+                  [error],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            None -> {
+              let #(next_product, next_identity) =
+                updated_product_record(identity, product, input)
+              let #(_, next_store) =
+                store.upsert_staged_product(store, next_product)
+              mutation_result(
+                key,
+                product_update_payload(
+                  next_store,
+                  Some(next_product),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                next_identity,
+                [next_product.id],
+              )
+            }
+          }
+        Some(_), None ->
+          mutation_result(
+            key,
+            product_update_payload(
+              store,
+              None,
+              [ProductUserError(["id"], "Product does not exist", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+      }
+  }
+}
+
+fn product_update_validation_error(
+  input: Dict(String, ResolvedValue),
+) -> Option(ProductUserError) {
+  case read_string_field(input, "title") {
+    Some(title) ->
+      case string.length(string.trim(title)) == 0 {
+        True -> Some(ProductUserError(["title"], "Title can't be blank", None))
+        False -> product_update_handle_validation_error(input)
+      }
+    None -> product_update_handle_validation_error(input)
+  }
+}
+
+fn product_update_handle_validation_error(
+  input: Dict(String, ResolvedValue),
+) -> Option(ProductUserError) {
+  case read_string_field(input, "handle") {
+    Some(handle) ->
+      case string.length(handle) > 255 {
+        True ->
+          Some(ProductUserError(
+            ["handle"],
+            "Handle is too long (maximum is 255 characters)",
+            None,
+          ))
+        False -> None
+      }
+    None -> None
   }
 }
 
@@ -3023,6 +3181,28 @@ fn product_delete_payload(
   )
 }
 
+fn product_update_payload(
+  store: Store,
+  product: Option(ProductRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductUpdatePayload")),
+      #("product", product_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn tags_update_payload(
   store: Store,
   is_add: Bool,
@@ -3288,6 +3468,96 @@ fn dedupe_preserving_order(values: List(String)) -> List(String) {
       }
     })
   list.reverse(reversed)
+}
+
+fn updated_product_record(
+  identity: SyntheticIdentityRegistry,
+  product: ProductRecord,
+  input: Dict(String, ResolvedValue),
+) -> #(ProductRecord, SyntheticIdentityRegistry) {
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  #(
+    ProductRecord(
+      ..product,
+      title: read_non_empty_string_field(input, "title")
+        |> option.unwrap(product.title),
+      handle: read_non_empty_string_field(input, "handle")
+        |> option.unwrap(product.handle),
+      status: read_product_status_field(input) |> option.unwrap(product.status),
+      vendor: read_string_field(input, "vendor") |> option.or(product.vendor),
+      product_type: read_string_field(input, "productType")
+        |> option.or(product.product_type),
+      tags: read_string_list_field(input, "tags")
+        |> option.map(normalize_product_tags)
+        |> option.unwrap(product.tags),
+      description_html: read_string_field(input, "descriptionHtml")
+        |> option.unwrap(product.description_html),
+      template_suffix: read_string_field(input, "templateSuffix")
+        |> option.or(product.template_suffix),
+      seo: updated_product_seo(product.seo, input),
+      updated_at: Some(updated_at),
+    ),
+    next_identity,
+  )
+}
+
+fn read_non_empty_string_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case read_string_field(input, name) {
+    Some(value) ->
+      case string.length(string.trim(value)) > 0 {
+        True -> Some(value)
+        False -> None
+      }
+    None -> None
+  }
+}
+
+fn read_product_status_field(
+  input: Dict(String, ResolvedValue),
+) -> Option(String) {
+  case read_string_field(input, "status") {
+    Some("ACTIVE") -> Some("ACTIVE")
+    Some("ARCHIVED") -> Some("ARCHIVED")
+    Some("DRAFT") -> Some("DRAFT")
+    _ -> None
+  }
+}
+
+fn read_string_list_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(List(String)) {
+  case dict.get(input, name) {
+    Ok(ListVal(values)) ->
+      Some(
+        list.filter_map(values, fn(value) {
+          case value {
+            StringVal(item) -> Ok(item)
+            _ -> Error(Nil)
+          }
+        }),
+      )
+    _ -> None
+  }
+}
+
+fn updated_product_seo(
+  current: ProductSeoRecord,
+  input: Dict(String, ResolvedValue),
+) -> ProductSeoRecord {
+  case dict.get(input, "seo") {
+    Ok(ObjectVal(seo)) ->
+      ProductSeoRecord(
+        title: read_string_field(seo, "title") |> option.or(current.title),
+        description: read_string_field(seo, "description")
+          |> option.or(current.description),
+      )
+    _ -> current
+  }
 }
 
 fn read_option_create_inputs(
