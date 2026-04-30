@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 49: productOptionsDelete lifecycle
+
+Adds local `productOptionsDelete` staging to the Gleam Products mutation
+handler. The handler now validates requested option IDs, returns
+`deletedOptionsIds`, removes staged option records, restores Shopify's default
+Title option when all custom options are deleted, remaps the remaining variant
+to `Default Title`, and records the raw mutation through the centralized
+mutation-log path.
+
+The parity runner now seeds the delete lifecycle capture from
+`preMutationRead.data.product`, and the strict
+`productOptionsDelete-parity-plan` scenario runs unchanged against the Gleam
+proxy.
+
+| Module                                                              | Change                                                                                    |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds `productOptionsDelete` routing, deletion payloads, user errors, and default restore. |
+| `gleam/test/parity/runner.gleam`                                    | Seeds the captured delete lifecycle fixture from its pre-mutation product read.           |
+| `gleam/test/parity_test.gleam`                                      | Enables the strict `productOptionsDelete-parity-plan` scenario.                           |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct mutation/read-after-write/log coverage for all-options delete restoration.    |
+
+Validation: `gleam test --target javascript` is green at 719 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 715 tests. Product parity
+inventory remains 115 checked-in specs, with 16 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  test returning HTTP 400 for `productOptionsDelete` because the root was not
+  routed by the Gleam Products mutation dispatcher.
+- The delete capture confirms Shopify restores a fresh default `Title` option
+  and `Default Title` option value when the last custom option is removed.
+- Restored default option and option value IDs are volatile; the existing
+  parity spec already records those as expected Shopify/local ID differences.
+
+### Risks / open items
+
+- `productOptionsReorder` remains unported.
+- Partial option deletion beyond the captured all-options-delete/default-restore
+  path remains lightly covered.
+- Only 16 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 50 candidates
+
+- Port `productOptionsReorder` so the admin-platform product option node parity
+  scenario can replay its lifecycle setup.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Continue product metafield or collection lifecycle slices with captured
+  parity specs.
+
+---
+
 ## 2026-04-30 — Pass 48: productOptionUpdate lifecycle
 
 Extends the Products mutation slice with local `productOptionUpdate` staging.

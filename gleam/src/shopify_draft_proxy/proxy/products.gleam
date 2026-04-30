@@ -84,7 +84,8 @@ pub fn is_products_query_root(name: String) -> Bool {
 
 pub fn is_products_mutation_root(name: String) -> Bool {
   case name {
-    "productOptionsCreate" | "productOptionUpdate" -> True
+    "productOptionsCreate" | "productOptionUpdate" | "productOptionsDelete" ->
+      True
     _ -> False
   }
 }
@@ -1549,6 +1550,32 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "productOptionsDelete" -> {
+              let result =
+                handle_product_options_delete(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productOptionsDelete locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             _ -> acc
           }
         _ -> acc
@@ -1617,6 +1644,133 @@ fn handle_product_options_create(
             fragments,
           )
       }
+  }
+}
+
+fn handle_product_options_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "productId") {
+    None ->
+      mutation_result(
+        key,
+        product_options_delete_payload(
+          store,
+          [],
+          None,
+          [ProductUserError(["productId"], "Product id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            product_options_delete_payload(
+              store,
+              [],
+              None,
+              [ProductUserError(["productId"], "Product not found", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(product) ->
+          stage_product_options_delete(
+            store,
+            identity,
+            key,
+            product,
+            read_arg_string_list(args, "options"),
+            field,
+            fragments,
+          )
+      }
+  }
+}
+
+fn stage_product_options_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  product: ProductRecord,
+  option_ids: List(String),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  let product_id = product.id
+  let existing_options =
+    store.get_effective_options_by_product_id(store, product_id)
+  let existing_variants =
+    store.get_effective_variants_by_product_id(store, product_id)
+  let existing_ids = list.map(existing_options, fn(option) { option.id })
+  let unknown_errors = unknown_option_errors(option_ids, existing_ids)
+  case unknown_errors {
+    [_, ..] ->
+      mutation_result(
+        key,
+        product_options_delete_payload(
+          store,
+          [],
+          Some(product),
+          unknown_errors,
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    [] -> {
+      let deleted_ids =
+        existing_options
+        |> list.filter(fn(option) { list.contains(option_ids, option.id) })
+        |> list.map(fn(option) { option.id })
+      let remaining_options =
+        existing_options
+        |> list.filter(fn(option) { !list.contains(option_ids, option.id) })
+        |> position_options(1, [])
+      let #(next_options, next_variants, final_identity, restored_ids) = case
+        remaining_options
+      {
+        [] -> restore_default_option_state(identity, product, existing_variants)
+        [_, ..] -> #(remaining_options, existing_variants, identity, [])
+      }
+      let synced_options =
+        sync_product_options_with_variants(next_options, next_variants)
+      let next_store =
+        store
+        |> store.replace_staged_variants_for_product(product_id, next_variants)
+        |> store.replace_staged_options_for_product(product_id, synced_options)
+      mutation_result(
+        key,
+        product_options_delete_payload(
+          next_store,
+          deleted_ids,
+          store.get_effective_product_by_id(next_store, product_id),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        final_identity,
+        list.append(deleted_ids, restored_ids),
+      )
+    }
   }
 }
 
@@ -1888,6 +2042,30 @@ fn mutation_result(
     store: store,
     identity: identity,
     staged_resource_ids: staged_resource_ids,
+  )
+}
+
+fn product_options_delete_payload(
+  store: Store,
+  deleted_option_ids: List(String),
+  product: Option(ProductRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductOptionsDeletePayload")),
+      #("deletedOptionsIds", SrcList(list.map(deleted_option_ids, SrcString))),
+      #("product", product_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
   )
 }
 
@@ -2204,6 +2382,80 @@ fn find_selected_option(
 ) -> Result(ProductVariantSelectedOptionRecord, Nil) {
   selected_options
   |> list.find(fn(selected) { selected.name == name })
+}
+
+fn unknown_option_errors(
+  option_ids: List(String),
+  existing_ids: List(String),
+) -> List(ProductUserError) {
+  option_ids
+  |> list.index_map(fn(option_id, index) {
+    case list.contains(existing_ids, option_id) {
+      True -> None
+      False ->
+        Some(ProductUserError(
+          ["options", int.to_string(index)],
+          "Option does not exist",
+          None,
+        ))
+    }
+  })
+  |> list.filter_map(fn(error) {
+    case error {
+      Some(error) -> Ok(error)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn restore_default_option_state(
+  identity: SyntheticIdentityRegistry,
+  product: ProductRecord,
+  variants: List(ProductVariantRecord),
+) -> #(
+  List(ProductOptionRecord),
+  List(ProductVariantRecord),
+  SyntheticIdentityRegistry,
+  List(String),
+) {
+  let #(option_id, identity_after_option) =
+    synthetic_identity.make_synthetic_gid(identity, "ProductOption")
+  let #(value_id, final_identity) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_option,
+      "ProductOptionValue",
+    )
+  let default_option =
+    ProductOptionRecord(
+      id: option_id,
+      product_id: product.id,
+      name: "Title",
+      position: 1,
+      option_values: [
+        ProductOptionValueRecord(
+          id: value_id,
+          name: "Default Title",
+          has_variants: True,
+        ),
+      ],
+    )
+  let next_variants = case variants {
+    [variant, ..] -> [
+      ProductVariantRecord(
+        ..variant,
+        product_id: product.id,
+        title: "Default Title",
+        selected_options: [
+          ProductVariantSelectedOptionRecord(
+            name: "Title",
+            value: "Default Title",
+          ),
+        ],
+      ),
+    ]
+    [] -> []
+  }
+  #([default_option], next_variants, final_identity, [option_id, value_id])
 }
 
 fn make_created_option_records(
