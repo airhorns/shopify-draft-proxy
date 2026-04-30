@@ -16,16 +16,16 @@
 //// from the `gleam/` subdirectory; the runner resolves paths via `..`
 //// (configurable via `RunnerConfig.repo_root`).
 
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import parity/diff.{type Mismatch}
+import parity/diff.{type Mismatch, Mismatch}
 import parity/json_value.{
-  type JsonValue, JArray, JBool, JFloat, JInt, JObject, JString,
+  type JsonValue, JArray, JBool, JFloat, JInt, JNull, JObject, JString,
 }
 import parity/jsonpath
 import parity/spec.{
@@ -39,13 +39,16 @@ import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord, type Money,
-  type PaymentSettingsRecord, type ShopAddressRecord, type ShopDomainRecord,
-  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
+  type GiftCardRecord, type GiftCardTransactionRecord, type MarketingRecord,
+  type MarketingValue, type Money, type PaymentSettingsRecord,
+  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
+  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
+  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  Money, PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
+  MarketingBool, MarketingFloat, MarketingInt, MarketingList, MarketingNull,
+  MarketingObject, MarketingRecord, MarketingString, Money,
+  PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
   ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
   ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
@@ -89,6 +92,13 @@ pub type Report {
 
 pub type RunnerConfig {
   RunnerConfig(repo_root: String)
+}
+
+type SeedMarketingRecords {
+  SeedMarketingRecords(
+    activities: List(MarketingRecord),
+    events: List(MarketingRecord),
+  )
 }
 
 pub fn default_config() -> RunnerConfig {
@@ -149,7 +159,137 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
+    "marketing-baseline-read" ->
+      seed_marketing_baseline_preconditions(capture, proxy)
     _ -> proxy
+  }
+}
+
+fn seed_marketing_baseline_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.data") {
+    Some(data) -> {
+      let SeedMarketingRecords(activities: activities, events: events) =
+        collect_seed_marketing_records(data, None, empty_seed_marketing())
+      let seeded_store =
+        proxy.store
+        |> store_mod.upsert_base_marketing_activities(activities)
+        |> store_mod.upsert_base_marketing_events(events)
+      draft_proxy.DraftProxy(..proxy, store: seeded_store)
+    }
+    None -> proxy
+  }
+}
+
+fn empty_seed_marketing() -> SeedMarketingRecords {
+  SeedMarketingRecords(activities: [], events: [])
+}
+
+fn collect_seed_marketing_records(
+  value: JsonValue,
+  cursor: Option(String),
+  collected: SeedMarketingRecords,
+) -> SeedMarketingRecords {
+  case value {
+    JArray(items) ->
+      list.fold(items, collected, fn(acc, item) {
+        collect_seed_marketing_records(item, cursor, acc)
+      })
+    JObject(fields) -> collect_seed_marketing_object(fields, cursor, collected)
+    _ -> collected
+  }
+}
+
+fn collect_seed_marketing_object(
+  fields: List(#(String, JsonValue)),
+  cursor: Option(String),
+  collected: SeedMarketingRecords,
+) -> SeedMarketingRecords {
+  let edge_cursor = read_string_from_fields(fields, "cursor")
+  let collected = case read_value_from_fields(fields, "node"), edge_cursor {
+    Some(node), Some(node_cursor) ->
+      collect_seed_marketing_records(node, Some(node_cursor), collected)
+    _, _ -> collected
+  }
+  let collected = case read_string_from_fields(fields, "id") {
+    Some(id) ->
+      case string.starts_with(id, "gid://shopify/MarketingActivity/") {
+        True ->
+          SeedMarketingRecords(..collected, activities: [
+            MarketingRecord(
+              id: id,
+              cursor: cursor,
+              data: seed_marketing_data(fields),
+            ),
+            ..collected.activities
+          ])
+        False ->
+          case string.starts_with(id, "gid://shopify/MarketingEvent/") {
+            True ->
+              SeedMarketingRecords(..collected, events: [
+                MarketingRecord(
+                  id: id,
+                  cursor: cursor,
+                  data: seed_marketing_data(fields),
+                ),
+                ..collected.events
+              ])
+            False -> collected
+          }
+      }
+    None -> collected
+  }
+  list.fold(fields, collected, fn(acc, pair) {
+    let #(name, child) = pair
+    case name {
+      "node" -> acc
+      _ -> collect_seed_marketing_records(child, None, acc)
+    }
+  })
+}
+
+fn seed_marketing_data(
+  fields: List(#(String, JsonValue)),
+) -> Dict(String, MarketingValue) {
+  fields
+  |> list.map(fn(pair) {
+    let #(key, value) = pair
+    #(key, seed_marketing_value(value))
+  })
+  |> dict.from_list
+}
+
+fn seed_marketing_value(value: JsonValue) -> MarketingValue {
+  case value {
+    JNull -> MarketingNull
+    JString(value) -> MarketingString(value)
+    JBool(value) -> MarketingBool(value)
+    JInt(value) -> MarketingInt(value)
+    JFloat(value) -> MarketingFloat(value)
+    JArray(items) -> MarketingList(list.map(items, seed_marketing_value))
+    JObject(fields) -> MarketingObject(seed_marketing_data(fields))
+  }
+}
+
+fn read_value_from_fields(
+  fields: List(#(String, JsonValue)),
+  name: String,
+) -> Option(JsonValue) {
+  fields
+  |> list.find(fn(pair) { pair.0 == name })
+  |> result.map(fn(pair) { pair.1 })
+  |> option.from_result
+}
+
+fn read_string_from_fields(
+  fields: List(#(String, JsonValue)),
+  name: String,
+) -> Option(String) {
+  case read_value_from_fields(fields, name) {
+    Some(JString(value)) -> Some(value)
+    _ -> None
   }
 }
 
@@ -833,13 +973,23 @@ fn run_target(
   let expected_opt = jsonpath.lookup(capture, target.capture_path)
   let actual_opt = jsonpath.lookup(actual_response, target.proxy_path)
   case expected_opt, actual_opt {
+    None, None ->
+      Ok(#(
+        next_proxy,
+        TargetReport(
+          name: target.name,
+          capture_path: target.capture_path,
+          proxy_path: target.proxy_path,
+          mismatches: [],
+        ),
+      ))
     None, _ ->
       Error(CaptureUnresolved(target: target.name, path: target.capture_path))
     _, None ->
       Error(ProxyUnresolved(target: target.name, path: target.proxy_path))
     Some(expected), Some(actual) -> {
       let rules = spec.rules_for(parsed, target)
-      let mismatches = diff.diff_with_expected(expected, actual, rules)
+      let mismatches = diff_target(target, expected, actual, rules)
       Ok(#(
         next_proxy,
         TargetReport(
@@ -850,6 +1000,52 @@ fn run_target(
         ),
       ))
     }
+  }
+}
+
+fn diff_target(
+  target: Target,
+  expected: JsonValue,
+  actual: JsonValue,
+  rules: List(diff.ExpectedDifference),
+) -> List(Mismatch) {
+  case target.selected_paths {
+    [] -> diff.diff_with_expected(expected, actual, rules)
+    selected_paths ->
+      selected_paths
+      |> list.flat_map(fn(path) {
+        diff_selected_path(path, expected, actual, rules)
+      })
+  }
+}
+
+fn diff_selected_path(
+  path: String,
+  expected: JsonValue,
+  actual: JsonValue,
+  rules: List(diff.ExpectedDifference),
+) -> List(Mismatch) {
+  case jsonpath.lookup(expected, path), jsonpath.lookup(actual, path) {
+    None, None -> []
+    None, Some(actual_value) -> [
+      Mismatch(
+        path: path,
+        expected: "<missing>",
+        actual: json_value.to_string(actual_value),
+      ),
+    ]
+    Some(expected_value), None -> [
+      Mismatch(
+        path: path,
+        expected: json_value.to_string(expected_value),
+        actual: "<missing>",
+      ),
+    ]
+    Some(expected_value), Some(actual_value) ->
+      diff.diff_with_expected(expected_value, actual_value, rules)
+      |> list.map(fn(mismatch) {
+        Mismatch(..mismatch, path: path <> string.drop_start(mismatch.path, 1))
+      })
   }
 }
 

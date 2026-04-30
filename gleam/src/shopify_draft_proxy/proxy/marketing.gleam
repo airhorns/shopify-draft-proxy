@@ -46,6 +46,17 @@ type MarketingKind {
   EventKind
 }
 
+const activity_id_prefix: String = "gid://shopify/MarketingActivity/"
+
+const event_id_prefix: String = "gid://shopify/MarketingEvent/"
+
+type CollectedMarketingRecords {
+  CollectedMarketingRecords(
+    activities: List(MarketingRecord),
+    events: List(MarketingRecord),
+  )
+}
+
 type MarketingConnectionItem {
   MarketingConnectionItem(
     record: MarketingRecord,
@@ -104,6 +115,127 @@ pub fn process(
 ) -> Result(Json, MarketingError) {
   use data <- result.try(handle_marketing_query(store, document, variables))
   Ok(wrap_data(data))
+}
+
+pub fn hydrate_marketing_from_upstream_payload(
+  store: Store,
+  payload: SourceValue,
+) -> Store {
+  let CollectedMarketingRecords(activities: activities, events: events) =
+    collect_marketing_records(payload, None, empty_collected_records())
+  store
+  |> store.upsert_base_marketing_activities(activities)
+  |> store.upsert_base_marketing_events(events)
+}
+
+fn empty_collected_records() -> CollectedMarketingRecords {
+  CollectedMarketingRecords(activities: [], events: [])
+}
+
+fn collect_marketing_records(
+  value: SourceValue,
+  cursor: Option(String),
+  collected: CollectedMarketingRecords,
+) -> CollectedMarketingRecords {
+  case value {
+    SrcList(items) ->
+      list.fold(items, collected, fn(acc, item) {
+        collect_marketing_records(item, cursor, acc)
+      })
+    SrcObject(fields) -> collect_marketing_object(fields, cursor, collected)
+    _ -> collected
+  }
+}
+
+fn collect_marketing_object(
+  fields: Dict(String, SourceValue),
+  cursor: Option(String),
+  collected: CollectedMarketingRecords,
+) -> CollectedMarketingRecords {
+  let edge_cursor = source_field_string(fields, "cursor")
+  let collected = case source_field(fields, "node"), edge_cursor {
+    Some(node), Some(node_cursor) ->
+      collect_marketing_records(node, Some(node_cursor), collected)
+    _, _ -> collected
+  }
+  let collected = case source_field_string(fields, "id") {
+    Some(id) ->
+      case string.starts_with(id, activity_id_prefix) {
+        True ->
+          CollectedMarketingRecords(..collected, activities: [
+            MarketingRecord(
+              id: id,
+              cursor: cursor,
+              data: source_object_to_marketing_data(fields),
+            ),
+            ..collected.activities
+          ])
+        False ->
+          case string.starts_with(id, event_id_prefix) {
+            True ->
+              CollectedMarketingRecords(..collected, events: [
+                MarketingRecord(
+                  id: id,
+                  cursor: cursor,
+                  data: source_object_to_marketing_data(fields),
+                ),
+                ..collected.events
+              ])
+            False -> collected
+          }
+      }
+    _ -> collected
+  }
+  dict.to_list(fields)
+  |> list.fold(collected, fn(acc, pair) {
+    let #(name, child) = pair
+    case name {
+      "node" -> acc
+      _ -> collect_marketing_records(child, None, acc)
+    }
+  })
+}
+
+fn source_object_to_marketing_data(
+  fields: Dict(String, SourceValue),
+) -> Dict(String, MarketingValue) {
+  dict.to_list(fields)
+  |> list.map(fn(pair) {
+    let #(key, value) = pair
+    #(key, source_to_marketing_value(value))
+  })
+  |> dict.from_list
+}
+
+fn source_to_marketing_value(value: SourceValue) -> MarketingValue {
+  case value {
+    SrcNull -> MarketingNull
+    SrcString(value) -> MarketingString(value)
+    SrcBool(value) -> MarketingBool(value)
+    SrcInt(value) -> MarketingInt(value)
+    SrcFloat(value) -> MarketingFloat(value)
+    SrcList(items) -> MarketingList(list.map(items, source_to_marketing_value))
+    SrcObject(fields) ->
+      MarketingObject(source_object_to_marketing_data(fields))
+  }
+}
+
+fn source_field(
+  fields: Dict(String, SourceValue),
+  name: String,
+) -> Option(SourceValue) {
+  dict.get(fields, name)
+  |> option.from_result
+}
+
+fn source_field_string(
+  fields: Dict(String, SourceValue),
+  name: String,
+) -> Option(String) {
+  case source_field(fields, name) {
+    Some(SrcString(value)) -> Some(value)
+    _ -> None
+  }
 }
 
 fn serialize_root_fields(
@@ -547,13 +679,7 @@ pub fn process_mutation(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
-        store,
-        identity,
-        fields,
-        fragments,
-        variables,
-      ))
+      Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
     }
   }
 }
@@ -2329,4 +2455,3 @@ fn mutation_root_names(fields: List(Selection)) -> List(String) {
     }
   })
 }
-

@@ -76,6 +76,26 @@ pub fn admin_platform_store_property_node_reads_test() {
   )
 }
 
+// ----------- marketing -----------
+
+pub fn marketing_baseline_read_test() {
+  check("config/parity-specs/marketing/marketing-baseline-read.json")
+}
+
+pub fn marketing_activity_lifecycle_test() {
+  check("config/parity-specs/marketing/marketing-activity-lifecycle.json")
+}
+
+pub fn marketing_engagement_lifecycle_test() {
+  check("config/parity-specs/marketing/marketing-engagement-lifecycle.json")
+}
+
+pub fn marketing_native_activity_lifecycle_test() {
+  check(
+    "config/parity-specs/marketing/marketing-native-activity-lifecycle.json",
+  )
+}
+
 // NOTE: functions-metadata-local-staging fails because the capture
 // fixture (`fixtures/.../functions-metadata-flow.json`) is hand-
 // written and aspirational — it claims `Validation/2` + T+1s, but

@@ -20,6 +20,7 @@
 ////           "name": "...",
 ////           "capturePath": "$....",
 ////           "proxyPath": "$....",
+////           "selectedPaths": ["$.field"],
 ////           "expectedDifferences": [...],
 ////           "proxyRequest": { … per-target override, same shape as
 ////                             primary, may use fromPrimaryProxyPath
@@ -70,6 +71,7 @@ pub type Target {
     name: String,
     capture_path: String,
     proxy_path: String,
+    selected_paths: List(String),
     expected_differences: List(ExpectedDifference),
     request: TargetRequest,
   )
@@ -184,6 +186,11 @@ fn target_decoder() -> Decoder(Target) {
   use name <- decode.field("name", decode.string)
   use capture_path <- decode.field("capturePath", decode.string)
   use proxy_path <- decode.field("proxyPath", decode.string)
+  use selected_paths <- decode.optional_field(
+    "selectedPaths",
+    [],
+    decode.list(decode.string),
+  )
   use expected_differences <- decode.optional_field(
     "expectedDifferences",
     [],
@@ -198,6 +205,7 @@ fn target_decoder() -> Decoder(Target) {
     name: name,
     capture_path: capture_path,
     proxy_path: proxy_path,
+    selected_paths: selected_paths,
     expected_differences: expected_differences,
     request: request,
   ))

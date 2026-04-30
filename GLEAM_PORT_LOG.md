@@ -9,6 +9,82 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 33: marketing parity seeding and hydration
+
+Finishes the Marketing Gleam parity path that Pass 30 left open. The port now
+executes all checked-in Marketing parity specs, including activity lifecycle,
+engagement lifecycle, native/deprecated activity validation, and baseline read
+coverage. The parity runner understands target-level `selectedPaths`, seeds
+Marketing captures into the base store for read parity, and preserves absent
+capture/proxy paths when both sides omit optional response sections. Marketing
+also has an upstream-payload hydration helper that collects activity/event
+records from Shopify-shaped payloads while preserving edge cursors only for the
+records that actually appeared on those edges.
+
+The TypeScript Marketing implementation still exists in `src/proxy/marketing.ts`
+because the public Node/Koa runtime is still TypeScript-backed and has no
+domain bridge that can swap only Marketing to the Gleam store/log/identity
+runtime without breaking the current package surface. Deleting that module
+mechanically would either break the TypeScript build or turn registered
+Marketing roots into unsupported/passthrough runtime behavior, which violates
+the project non-negotiables. Treat the deletion as blocked on the broader
+TypeScript-to-Gleam runtime handoff, not on Marketing parity evidence.
+
+| Module                                                          | Change                                                                                                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/marketing.gleam`           | Adds upstream MarketingActivity/MarketingEvent hydration from Shopify-shaped `SourceValue` payloads, including edge cursor preservation.         |
+| `gleam/test/parity/spec.gleam`                                  | Decodes optional target-level `selectedPaths` from parity specs.                                                                                 |
+| `gleam/test/parity/runner.gleam`                                | Seeds Marketing baseline captures into base state and compares only requested selected paths when specs ask for that narrower target comparison. |
+| `gleam/test/parity_test.gleam`                                  | Enables all four checked-in Marketing parity specs as executable Gleam evidence.                                                                 |
+| `gleam/test/shopify_draft_proxy/proxy/marketing_test.gleam`     | Adds direct upstream hydration coverage for activity/event payloads, nested event reads, and cursor behavior.                                    |
+| `gleam/src/shopify_draft_proxy/proxy/{admin_platform,apps,...}` | Applies Gleam 1.16 formatting required by the repo-wide CI format gate.                                                                          |
+
+Validation: `gleam test --target javascript` is green at 686 tests on the host
+Node runtime. `gleam test --target erlang` is green at 682 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` with a clean OTP 28 container
+build. `corepack pnpm lint`, `corepack pnpm typecheck`,
+`corepack pnpm conformance:check`, `corepack pnpm build`,
+`corepack pnpm gleam:smoke:js`, `git diff --check`, and
+`corepack pnpm conformance:status -- --baseline .conformance/main/conformance-status-report.json --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
+are green. The Elixir smoke is green in an Elixir 1.18 / OTP 28.5 container
+after exporting the Erlang shipment from the OTP 28 Gleam container; the host
+cannot run `corepack pnpm elixir:smoke` directly because `mix` is not installed.
+
+### Findings
+
+- Existing Marketing parity specs already relied on `selectedPaths`; the Gleam
+  runner needed to honor that checked-in contract instead of comparing the full
+  temporary local payload for those targets.
+- Hydration should apply a connection edge cursor only to that edge's direct
+  node. Nested Marketing events inside activity nodes should keep synthetic
+  connection cursors unless they are also captured through their own event edge.
+- The Marketing parity surface is now executable without adding or rewriting
+  parity specs; the checked-in captures remain the oracle.
+
+### Risks / open items
+
+- TypeScript Marketing deletion is still blocked by the public TypeScript
+  runtime handoff. HAR-518 tracks the focused follow-up to either route the
+  public TS `DraftProxy` through the Gleam runtime for ported domains or defer
+  deletion until the package-level Gleam promotion is ready.
+- Live-hybrid overlay dispatch in the Gleam substrate still only fetches
+  upstream for passthrough roots. The Marketing hydration helper and parity
+  seeding are in place, but a broader overlay-read substrate pass is needed
+  before Gleam can exactly mirror the TypeScript live-hybrid Marketing route.
+
+### Pass 34 candidates
+
+- Implement the TypeScript-to-Gleam runtime handoff for completed domains so
+  ported domain modules can be removed from `src/proxy/*` without losing the
+  public Node/Koa `DraftProxy` surface.
+- Add live-hybrid overlay-read dispatch to the Gleam substrate and thread
+  domain hydration hooks for Marketing and the other domains that already have
+  upstream payload collectors.
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the existing shop slice for nested store reads.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain
