@@ -1,21 +1,40 @@
 {
   "name": "shopify-draft-proxy",
   "version": "0.1.0",
-  "private": true,
   "description": "High-fidelity Shopify Admin GraphQL draft proxy for test environments",
+  "files": [
+    "README.md",
+    "GLEAM_PORT_INTENT.md",
+    "gleam/README.md",
+    "gleam/gleam.toml",
+    "gleam/manifest.toml",
+    "gleam/js/dist/**/*",
+    "gleam/build/dev/javascript/**/*",
+    "scripts/**/*.ts",
+    "scripts/**/*.mts",
+    "config/operation-registry.json",
+    "config/parity-requests/**/*",
+    "config/parity-specs/**/*",
+    "fixtures/conformance/**/*"
+  ],
   "type": "module",
-  "main": "./dist/src/index.js",
-  "types": "./dist/src/index.d.ts",
+  "main": "./gleam/js/dist/index.js",
+  "types": "./gleam/js/dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/src/index.d.ts",
-      "import": "./dist/src/index.js"
+      "types": "./gleam/js/dist/index.d.ts",
+      "import": "./gleam/js/dist/index.js"
     }
   },
   "scripts": {
     "dev": "NODE_ENV=development tsx watch --no-experimental-require-module src/server.ts",
     "start": "node dist/src/server.js",
     "build": "tsc -p tsconfig.json",
+    "package:build": "corepack pnpm gleam:build:js && corepack pnpm exec tsc -p gleam/js/tsconfig.json",
+    "prepack": "corepack pnpm package:build",
+    "release:pack:dry-run": "corepack pnpm package:build && tsx scripts/package-content-check.ts",
+    "smoke:js-package": "corepack pnpm package:build && tsx scripts/smoke-js-package.ts",
+    "smoke:elixir-shipment": "tsx scripts/smoke-elixir-shipment.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -30,7 +49,7 @@
     "gleam:format": "cd gleam && gleam format",
     "gleam:format:check": "cd gleam && gleam format --check",
     "gleam:smoke:js": "vitest run tests/integration/gleam-interop.test.ts",
-    "elixir:smoke": "cd gleam && gleam export erlang-shipment && cd elixir_smoke && mix test",
+    "elixir:smoke": "tsx scripts/smoke-elixir-shipment.ts",
     "perf:smoke": "vitest run tests/integration/performance-smoke.test.ts",
     "conformance:check": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts",
     "conformance:status": "tsx ./scripts/conformance-status-report.ts",

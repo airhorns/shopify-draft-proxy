@@ -58,6 +58,43 @@ describe('createDraftProxy', () => {
     // After restore, getState should serialize without throwing.
     expect(fresh.getState()).toBeDefined();
   });
+
+  it('accepts an initial state dump through DraftProxyOptions', () => {
+    const proxy = createDraftProxy(baseConfig);
+    const dump = proxy.dumpState('2026-04-29T12:00:00.000Z');
+
+    const restored = createDraftProxy(baseConfig, { state: dump });
+    expect(restored.getState()).toBeDefined();
+  });
+
+  it('processGraphQLRequest dispatches through the Admin GraphQL route', async () => {
+    const proxy = createDraftProxy(baseConfig);
+    const response = await proxy.processGraphQLRequest({
+      query:
+        'mutation { savedSearchCreate(input: { name: "Smoke", query: "tag:vip", resourceType: ORDER }) { savedSearch { id name } userErrors { field message } } }',
+    });
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      data: {
+        savedSearchCreate: {
+          savedSearch: {
+            id: expect.stringContaining('gid://shopify/SavedSearch/'),
+            name: 'Smoke',
+          },
+          userErrors: [],
+        },
+      },
+    });
+  });
+
+  it('commit exposes the empty-log commit envelope', async () => {
+    const proxy = createDraftProxy(baseConfig);
+    const result = await proxy.commit();
+    expect(result).toEqual({
+      stopIndex: null,
+      attempts: [],
+    });
+  });
 });
 
 describe('public API stubs', () => {

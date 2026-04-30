@@ -12,8 +12,9 @@ and `../docs/architecture.md` for the runtime design.
 
 > **Status:** Port in progress. The substrate (request routing, mutation log,
 > snapshot/restore) is wired end-to-end; per-domain coverage is partial. The
-> public API documented below is what the Gleam package will ship — gaps are
-> called out inline as `TODO`.
+> npm package now ships the Gleam-backed JavaScript shim, while the legacy
+> TypeScript runtime remains in the repository only for domains not yet ported
+> and for conformance capture/tooling work.
 
 ## Public API
 
@@ -64,8 +65,20 @@ domains. Anything else returns 404.
 
 ## Using from Gleam
 
-> TODO: installation. The package is not yet on Hex; once it is, depend on
-> `shopify_draft_proxy = ">= 0.1 and < 1.0"` in your `gleam.toml`.
+Until the package is published to Hex, consume it as a path dependency from a
+Gleam project:
+
+```toml
+[dependencies]
+shopify_draft_proxy = { path = "../shopify-draft-proxy/gleam" }
+```
+
+Once published, depend on the Hex package instead:
+
+```toml
+[dependencies]
+shopify_draft_proxy = ">= 0.1.0 and < 1.0.0"
+```
 
 ```gleam
 import gleam/dict
@@ -112,24 +125,23 @@ let proxy =
 ## Using from Elixir
 
 The Gleam package compiles to BEAM and is publishable to Hex, so Elixir
-consumes it as an ordinary mix dependency. Gleam modules become Erlang
-modules with `@`-separated path segments, so `shopify_draft_proxy/proxy/draft_proxy`
-is callable as `:shopify_draft_proxy@proxy@draft_proxy`.
+consumes a published release as an ordinary mix dependency:
 
-> TODO: installation. Once published:
->
-> ```elixir
-> # mix.exs
-> defp deps do
->   [
->     {:shopify_draft_proxy, "~> 0.1"}
->   ]
-> end
-> ```
->
-> Until then, the canonical way to consume the package locally is the
-> `gleam export erlang-shipment` artefact loaded by the smoke project in
-> `./elixir_smoke/` — see [Building a release artefact](#building-a-release-artefact).
+```elixir
+# mix.exs
+defp deps do
+  [
+    {:shopify_draft_proxy, "~> 0.1"}
+  ]
+end
+```
+
+Until the Hex release exists, the canonical local consumer flow is the
+`gleam export erlang-shipment` artefact loaded by the smoke project in
+`./elixir_smoke/` — see [Building a release artefact](#building-a-release-artefact).
+Gleam modules become Erlang modules with `@`-separated path segments, so
+`shopify_draft_proxy/proxy/draft_proxy` is callable as
+`:shopify_draft_proxy@proxy@draft_proxy`.
 
 ### Calling conventions
 
@@ -203,28 +215,25 @@ proxy = :shopify_draft_proxy@proxy@draft_proxy.with_config(config)
 
 ## Using from TypeScript / JavaScript
 
-The Gleam package emits ESM as a build target, and that emitted ESM **will
-become the only TypeScript implementation** once the port lands. The legacy
-`../src` will be deleted; consumers will continue to import the same
-`createDraftProxy(config)` / `processRequest(...)` names from a thin TS shim
-that re-exports the Gleam-emitted modules with stable types.
+The npm package name remains `shopify-draft-proxy`, but its package entry point
+now resolves to the Gleam-backed ESM shim in `gleam/js/dist`. The tarball bundles
+the compiled Gleam JavaScript output plus TypeScript declarations; it does not
+ship the legacy TypeScript runtime under `../src`.
 
-> TODO: delete `../src/**` once Gleam domain coverage matches the legacy
-> proxy. See `../GLEAM_PORT_INTENT.md` "Domain coverage acceptance criteria".
+```sh
+npm install shopify-draft-proxy
+```
 
-> TODO: installation. `shopify-draft-proxy` will continue to be the npm
-> package name; the published tarball will bundle the Gleam-emitted ESM
-> plus a `dist/index.{js,d.ts}` shim. Until the cutover, `../src` ships the
-> legacy implementation under that name.
-
-### Planned public surface
+### Public surface
 
 The TS shim re-exports the same names the legacy `../src/index.ts` exports
 today. Notable items:
 
 - `createDraftProxy(config?: AppConfig): DraftProxy`
 - `DraftProxy#processRequest(request: DraftProxyRequest): DraftProxyHttpResponse`
+- `DraftProxy#processGraphQLRequest(body, options)`
 - `DraftProxy#dumpState(): DraftProxyStateDump` / `restoreState(dump)`
+- `DraftProxy#commit(headers)`
 - `DraftProxyCommitError`, `DRAFT_PROXY_STATE_DUMP_SCHEMA`
 - Types: `AppConfig`, `ReadMode`, `DraftProxyRequest`,
   `DraftProxyHttpResponse`, `DraftProxyStateDump`, etc.
@@ -245,12 +254,16 @@ today. Notable items:
   imperative TS callers and exposes a `safe`-prefixed variant for callers
   that want to handle the error tuple directly.
 
-### Example (planned shim shape)
+### Example
 
 ```ts
 import { createDraftProxy } from 'shopify-draft-proxy';
 
-const proxy = createDraftProxy();
+const proxy = createDraftProxy({
+  readMode: 'snapshot',
+  port: 4000,
+  shopifyAdminOrigin: 'https://shopify.com',
+});
 
 const response = proxy.processRequest({
   method: 'POST',
@@ -262,10 +275,13 @@ const response = proxy.processRequest({
 console.log(response.status, response.body);
 ```
 
-> TODO: ship the TS shim (`gleam/ts/`) and wire `package.json#exports` to
-> point at it. Until then, the smoke test in
-> `../tests/integration/gleam-interop.test.ts` imports the raw Gleam ESM
-> directly and exercises `hello()`.
+The package smoke validates this exact boundary by packing the npm tarball,
+installing it into a temporary Node project, and importing
+`shopify-draft-proxy` from the installed package:
+
+```sh
+corepack pnpm smoke:js-package
+```
 
 ## Development
 
@@ -297,6 +313,20 @@ mix test
 This is the local equivalent of `mix deps.get && mix compile` against a
 published Hex release; running it before `gleam publish` catches BEAM-side
 regressions that the JavaScript test target would miss.
+
+The repository-level smoke command exports the shipment and runs the Elixir
+project. On hosts without `escript` or `mix`, it falls back to Docker images so
+the release artefact can still be tested locally:
+
+```sh
+corepack pnpm smoke:elixir-shipment
+```
+
+For npm release contents, run:
+
+```sh
+corepack pnpm release:pack:dry-run
+```
 
 ## Layout
 

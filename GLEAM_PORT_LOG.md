@@ -9,6 +9,63 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Packaging cutover: npm and BEAM release smoke
+
+Cuts the release-consumer packaging path over to the Gleam-backed runtime
+artifacts. The npm package now exports the compiled `gleam/js` shim instead of
+the legacy TypeScript `src/` runtime, keeps TypeScript conformance capture
+tooling in the tarball, and validates package contents with an executable dry
+run check. JS consumer smoke now installs the packed tarball into a temporary
+Node project and imports `shopify-draft-proxy` from that installed package.
+BEAM consumer smoke now runs through the exported Erlang shipment consumed by
+`gleam/elixir_smoke/`, with Docker fallbacks for hosts that lack `escript` or
+`mix`.
+
+| Module / file                      | Change                                                                                                                                          |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `package.json`                     | Points npm exports/types at `gleam/js/dist`, defines release package files, and adds package dry-run, JS package smoke, and BEAM smoke scripts. |
+| `gleam/js/src/runtime.ts`          | Broadens the shim surface with `processGraphQLRequest`, `commit`, and state restoration through `DraftProxyOptions`.                            |
+| `scripts/package-content-check.ts` | Verifies npm dry-run contents include Gleam JS artifacts and conformance tooling while excluding legacy TS runtime files.                       |
+| `scripts/smoke-js-package.ts`      | Packs the package, installs it in a temporary consumer, and exercises health plus dump/restore through the installed package export.            |
+| `scripts/smoke-elixir-shipment.ts` | Exports the Erlang shipment and runs the Elixir smoke project, using Docker when the host lacks BEAM/Elixir tools.                              |
+| `README.md`, `gleam/README.md`     | Documents npm package contents, JS install smoke, Hex/path-dependency guidance, and the BEAM shipment smoke flow.                               |
+
+Validation: `corepack pnpm release:pack:dry-run` is green and reports a tarball
+with 2402 files, legacy `src/` runtime excluded. `corepack pnpm smoke:js-package`
+is green from an installed npm tarball. `corepack pnpm smoke:elixir-shipment`
+is green at 17 Elixir tests using Docker fallbacks on this host. Full target
+validation for this pass also includes `corepack pnpm gleam:test:js`,
+`corepack pnpm gleam:test:erlang`, `corepack pnpm typecheck`,
+`corepack pnpm lint`, and `git diff --check` before handoff.
+
+### Findings
+
+- The npm package can cut over before deleting the legacy TypeScript source
+  from the repository by using `files` to ship only the compiled Gleam shim,
+  Gleam JS build, shared conformance assets, and capture scripts.
+- Installed-package smoke caught the important distinction between source-tree
+  imports and real consumer imports; the prior interop test remains useful but
+  is no longer sufficient release evidence by itself.
+- The host lacks `escript` and `mix`, so the release smoke script needs Docker
+  fallbacks to keep unattended local validation executable.
+
+### Risks / open items
+
+- Domain coverage is still partial; the package cutover proves artifact
+  boundaries, not whole-port domain parity.
+- The JS shim still exposes clear `createApp` / `loadConfig` not-implemented
+  stubs until the HTTP adapter/config loader are ported.
+
+### Pass 34 candidates
+
+- Port the HTTP adapter/config loader so package consumers can use the server
+  entry points without the legacy Koa runtime.
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots.
+- Continue Marketing upstream hydration and parity-runner seeding.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain
