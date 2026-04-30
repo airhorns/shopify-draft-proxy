@@ -22,10 +22,11 @@ import shopify_draft_proxy/state/types.{
   type CartTransformRecord, type CollectionRecord,
   type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
   type GiftCardConfigurationRecord, type GiftCardRecord,
-  type InventoryLevelRecord, type InventoryShipmentRecord, type LocaleRecord,
-  type LocationRecord, type MarketingEngagementRecord, type MarketingRecord,
-  type MarketingValue, type ProductCollectionRecord, type ProductFeedRecord,
-  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
+  type InventoryLevelRecord, type InventoryShipmentRecord,
+  type InventoryTransferRecord, type LocaleRecord, type LocationRecord,
+  type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
+  type ProductCollectionRecord, type ProductFeedRecord, type ProductOptionRecord,
+  type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductVariantRecord,
   type PublicationRecord, type SavedSearchRecord, type SegmentRecord,
   type ShopLocaleRecord, type ShopRecord, type ShopResourceFeedbackRecord,
@@ -61,6 +62,9 @@ pub type BaseState {
     deleted_product_feed_ids: Dict(String, Bool),
     product_resource_feedback: Dict(String, ProductResourceFeedbackRecord),
     shop_resource_feedback: Dict(String, ShopResourceFeedbackRecord),
+    inventory_transfers: Dict(String, InventoryTransferRecord),
+    inventory_transfer_order: List(String),
+    deleted_inventory_transfer_ids: Dict(String, Bool),
     inventory_shipments: Dict(String, InventoryShipmentRecord),
     inventory_shipment_order: List(String),
     deleted_inventory_shipment_ids: Dict(String, Bool),
@@ -153,6 +157,9 @@ pub type StagedState {
     deleted_product_feed_ids: Dict(String, Bool),
     product_resource_feedback: Dict(String, ProductResourceFeedbackRecord),
     shop_resource_feedback: Dict(String, ShopResourceFeedbackRecord),
+    inventory_transfers: Dict(String, InventoryTransferRecord),
+    inventory_transfer_order: List(String),
+    deleted_inventory_transfer_ids: Dict(String, Bool),
     inventory_shipments: Dict(String, InventoryShipmentRecord),
     inventory_shipment_order: List(String),
     deleted_inventory_shipment_ids: Dict(String, Bool),
@@ -313,6 +320,9 @@ pub fn empty_base_state() -> BaseState {
     deleted_product_feed_ids: dict.new(),
     product_resource_feedback: dict.new(),
     shop_resource_feedback: dict.new(),
+    inventory_transfers: dict.new(),
+    inventory_transfer_order: [],
+    deleted_inventory_transfer_ids: dict.new(),
     inventory_shipments: dict.new(),
     inventory_shipment_order: [],
     deleted_inventory_shipment_ids: dict.new(),
@@ -398,6 +408,9 @@ pub fn empty_staged_state() -> StagedState {
     deleted_product_feed_ids: dict.new(),
     product_resource_feedback: dict.new(),
     shop_resource_feedback: dict.new(),
+    inventory_transfers: dict.new(),
+    inventory_transfer_order: [],
+    deleted_inventory_transfer_ids: dict.new(),
     inventory_shipments: dict.new(),
     inventory_shipment_order: [],
     deleted_inventory_shipment_ids: dict.new(),
@@ -1014,6 +1027,151 @@ pub fn upsert_staged_shop_resource_feedback(
       ),
     )
   #(record, Store(..store, staged_state: next_staged))
+}
+
+pub fn upsert_base_inventory_transfers(
+  store: Store,
+  transfers: List(InventoryTransferRecord),
+) -> Store {
+  list.fold(transfers, store, fn(acc, transfer) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    let next_order = case
+      list.contains(base.inventory_transfer_order, transfer.id)
+    {
+      True -> base.inventory_transfer_order
+      False -> list.append(base.inventory_transfer_order, [transfer.id])
+    }
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        inventory_transfers: dict.insert(
+          base.inventory_transfers,
+          transfer.id,
+          transfer,
+        ),
+        inventory_transfer_order: next_order,
+        deleted_inventory_transfer_ids: dict.delete(
+          base.deleted_inventory_transfer_ids,
+          transfer.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_inventory_transfer_ids: dict.delete(
+          staged.deleted_inventory_transfer_ids,
+          transfer.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_staged_inventory_transfer(
+  store: Store,
+  transfer: InventoryTransferRecord,
+) -> #(InventoryTransferRecord, Store) {
+  let staged = store.staged_state
+  let next_order = case
+    list.contains(store.base_state.inventory_transfer_order, transfer.id)
+    || list.contains(staged.inventory_transfer_order, transfer.id)
+  {
+    True -> staged.inventory_transfer_order
+    False -> list.append(staged.inventory_transfer_order, [transfer.id])
+  }
+  let next_staged =
+    StagedState(
+      ..staged,
+      inventory_transfers: dict.insert(
+        staged.inventory_transfers,
+        transfer.id,
+        transfer,
+      ),
+      inventory_transfer_order: next_order,
+      deleted_inventory_transfer_ids: dict.delete(
+        staged.deleted_inventory_transfer_ids,
+        transfer.id,
+      ),
+    )
+  #(transfer, Store(..store, staged_state: next_staged))
+}
+
+pub fn delete_staged_inventory_transfer(
+  store: Store,
+  transfer_id: String,
+) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      inventory_transfers: dict.delete(staged.inventory_transfers, transfer_id),
+      inventory_transfer_order: list.filter(
+        staged.inventory_transfer_order,
+        fn(id) { id != transfer_id },
+      ),
+      deleted_inventory_transfer_ids: dict.insert(
+        staged.deleted_inventory_transfer_ids,
+        transfer_id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_inventory_transfer_by_id(
+  store: Store,
+  transfer_id: String,
+) -> Option(InventoryTransferRecord) {
+  case
+    dict.has_key(store.staged_state.deleted_inventory_transfer_ids, transfer_id)
+    || dict.has_key(
+      store.base_state.deleted_inventory_transfer_ids,
+      transfer_id,
+    )
+  {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.inventory_transfers, transfer_id) {
+        Ok(transfer) -> Some(transfer)
+        Error(_) ->
+          case dict.get(store.base_state.inventory_transfers, transfer_id) {
+            Ok(transfer) -> Some(transfer)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_inventory_transfers(
+  store: Store,
+) -> List(InventoryTransferRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.inventory_transfer_order,
+      store.staged_state.inventory_transfer_order,
+    )
+    |> dedupe_strings
+  let ordered_transfers =
+    ordered_ids
+    |> list.filter_map(fn(id) {
+      get_effective_inventory_transfer_by_id(store, id)
+      |> option.to_result(Nil)
+    })
+  let unordered_ids =
+    dict.keys(store.base_state.inventory_transfers)
+    |> list.append(dict.keys(store.staged_state.inventory_transfers))
+    |> dedupe_strings
+    |> list.filter(fn(id) { !list.contains(ordered_ids, id) })
+    |> list.sort(string_compare)
+  let unordered_transfers =
+    unordered_ids
+    |> list.filter_map(fn(id) {
+      get_effective_inventory_transfer_by_id(store, id)
+      |> option.to_result(Nil)
+    })
+  list.append(ordered_transfers, unordered_transfers)
 }
 
 pub fn upsert_base_inventory_shipments(

@@ -11,14 +11,15 @@
 //// further endpoint groups are ported.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Definition, type Selection, Field, FragmentDefinition, FragmentSpread,
-  InlineFragment, NamedType, SelectionSet,
+  type Definition, type Selection, Argument, Field, FragmentDefinition,
+  FragmentSpread, InlineFragment, IntValue, NamedType, SelectionSet,
 }
 import shopify_draft_proxy/graphql/parser
 import shopify_draft_proxy/graphql/root_field.{
@@ -324,6 +325,7 @@ fn project_field(
         "__typename" -> #(key, lookup_typename(source))
         field_name -> {
           let raw = lookup_or_synthesise(source, field_name)
+          let raw = apply_literal_first_window(raw, field)
           case ss {
             Some(SelectionSet(selections: selections, ..)) -> #(
               key,
@@ -334,6 +336,53 @@ fn project_field(
         }
       }
     _ -> #(key, json.null())
+  }
+}
+
+fn apply_literal_first_window(
+  value: SourceValue,
+  field: Selection,
+) -> SourceValue {
+  case value, literal_first_arg(field) {
+    SrcObject(source), Some(first) -> {
+      let source = limit_source_list(source, "nodes", first)
+      let source = limit_source_list(source, "edges", first)
+      SrcObject(source)
+    }
+    _, _ -> value
+  }
+}
+
+fn literal_first_arg(field: Selection) -> Option(Int) {
+  case field {
+    Field(arguments: arguments, ..) ->
+      arguments
+      |> list.find_map(fn(argument) {
+        case argument {
+          Argument(name: name, value: IntValue(value: value, ..), ..)
+            if name.value == "first"
+          ->
+            case int.parse(value) {
+              Ok(parsed) -> Ok(parsed)
+              Error(_) -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn limit_source_list(
+  source: Dict(String, SourceValue),
+  key: String,
+  first: Int,
+) -> Dict(String, SourceValue) {
+  case dict.get(source, key) {
+    Ok(SrcList(items)) ->
+      dict.insert(source, key, SrcList(list.take(items, int.max(0, first))))
+    _ -> source
   }
 }
 

@@ -73,6 +73,7 @@ pub type Target {
     proxy_path: String,
     upstream_capture_path: Option(String),
     expected_differences: List(ExpectedDifference),
+    excluded_paths: List(String),
     request: TargetRequest,
   )
 }
@@ -196,6 +197,11 @@ fn target_decoder() -> Decoder(Target) {
     [],
     decode.list(expected_difference_decoder()),
   )
+  use excluded_paths <- decode.optional_field(
+    "excludedPaths",
+    [],
+    decode.list(decode.string),
+  )
   use request <- decode.optional_field(
     "proxyRequest",
     ReusePrimary,
@@ -207,6 +213,7 @@ fn target_decoder() -> Decoder(Target) {
     proxy_path: proxy_path,
     upstream_capture_path: upstream_capture_path,
     expected_differences: expected_differences,
+    excluded_paths: excluded_paths,
     request: request,
   ))
 }
@@ -223,5 +230,7 @@ fn expected_difference_decoder() -> Decoder(ExpectedDifference) {
 
 /// Combine spec-level and target-level expected differences.
 pub fn rules_for(spec: Spec, target: Target) -> List(ExpectedDifference) {
+  let excluded = list.map(target.excluded_paths, diff.expected_ignore)
   list.append(spec.expected_differences, target.expected_differences)
+  |> list.append(excluded)
 }

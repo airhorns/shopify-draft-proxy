@@ -9,6 +9,79 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 86: inventory transfer local staging
+
+Completes the two captured inventory transfer local-staging parity scenarios in
+the Gleam Products handler. The pass adds normalized transfer state, routes
+`inventoryTransfer` / `inventoryTransfers` reads through the local Products
+dispatcher, and stages `inventoryTransferCreate`,
+`inventoryTransferCreateAsReadyToShip`, `inventoryTransferMarkAsReadyToShip`,
+`inventoryTransferSetItems`, `inventoryTransferRemoveItems`,
+`inventoryTransferCancel`, and `inventoryTransferDelete` locally. Ready-transfer
+staging reserves origin inventory by moving quantities between `available` and
+`reserved`, and cancel/remove/set flows release or adjust those reservations
+without runtime Shopify writes.
+
+The pass promotes `inventory-transfer-lifecycle-local-staging` and
+`inventory-transfer-ready-item-adjustments-local-staging` into the Gleam parity
+suite. The checked-in fixtures, request documents, variables capture paths, and
+strict comparison contracts stay unchanged; the Gleam parity runner now honors
+the existing per-target `excludedPaths` contract and literal `first:` windows
+when projecting source-backed nested connections.
+
+| Module                                                      | Change                                                             |
+| ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`           | Adds transfer, line-item, and location-snapshot record shapes.     |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`           | Adds base/staged transfer storage, ordering, deletion, and lookup. |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`        | Stages transfer lifecycle mutations and serializes transfer reads. |
+| `gleam/src/shopify_draft_proxy/proxy/graphql_helpers.gleam` | Applies literal `first:` windows to source-backed connections.     |
+| `gleam/test/parity/spec.gleam`                              | Decodes target-level `excludedPaths` as ignore rules.              |
+| `gleam/test/parity/runner.gleam`                            | Seeds captured transfer product/variant preconditions for replay.  |
+| `gleam/test/parity_test.gleam`                              | Enables the two strict inventory transfer local-staging specs.     |
+
+Validation:
+Focused JavaScript parity for the two inventory transfer tests is green at 790
+tests, and full `gleam test --target javascript` is green at 790 tests on the
+host Node runtime. Host `gleam test --target erlang` still fails before tests
+execute on the local Erlang install with the known `undef` runner issue; after
+clearing host-built Erlang artifacts, the Docker Erlang fallback is green at
+786 tests. `corepack pnpm lint` and `git diff --check` are green. Product
+parity inventory remains 115 checked-in specs, with 76 product specs executable
+in the Gleam parity suite plus the admin-platform ProductOption node scenario
+after this pass.
+
+### Findings
+
+- The pre-implementation signal was strict parity replay returning HTTP 400 for
+  `inventoryTransferCreate` and `inventoryTransferCreateAsReadyToShip`: no
+  mutation dispatcher was implemented for either root.
+- The transfer fixtures exercise target-level `excludedPaths`; the Gleam parity
+  spec decoder now maps that existing contract to ignore rules instead of
+  treating excluded fields as mismatches.
+- Transfer downstream inventory reads select `inventoryLevels(first: 1)`.
+  Source-backed nested connection projection now applies literal `first:`
+  windows so seeded origin/destination levels do not over-serialize.
+
+### Risks / open items
+
+- Broader publication roots, selling plans, product metafields, media,
+  advanced search, duplicate/productSet/media roots, and broader validation
+  atomicity parity remain incomplete in Gleam.
+- Only 76 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 87 candidates
+
+- Continue broader publication roots local-runtime now that top-level
+  publications and product publish/unpublish are represented.
+- Port selling-plan or product metafield behavior now that core Product,
+  Variant, Inventory, Collection, Location, Publication, feed, feedback,
+  shipment, and transfer read/write slices are locally staged or seeded.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 85: inventory shipment local staging
 
 Completes the two captured inventory shipment local-staging parity scenarios in

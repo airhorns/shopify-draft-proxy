@@ -248,6 +248,9 @@ fn seed_capture_preconditions(
     "inventory-shipment-lifecycle-local-staging"
     | "inventory-shipment-partial-receive-update-delete-local-staging" ->
       seed_inventory_shipment_preconditions(capture, proxy)
+    "inventory-transfer-lifecycle-local-staging"
+    | "inventory-transfer-ready-item-adjustments-local-staging" ->
+      seed_inventory_transfer_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -366,6 +369,23 @@ fn seed_product_feedback_preconditions(
 }
 
 fn seed_inventory_shipment_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_nodes = case read_array_field(capture, "seedProducts") {
+    Some(product_nodes) -> product_nodes
+    None -> []
+  }
+  let products = list.filter_map(product_nodes, make_seed_product_relaxed)
+  let variants = list.flat_map(product_nodes, seed_variants_for_product)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_product_variants(variants)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_inventory_transfer_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {

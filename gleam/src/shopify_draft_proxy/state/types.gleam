@@ -164,6 +164,40 @@ pub type InventoryItemRecord {
   )
 }
 
+pub type InventoryTransferLocationSnapshotRecord {
+  InventoryTransferLocationSnapshotRecord(
+    id: Option(String),
+    name: String,
+    snapshotted_at: String,
+  )
+}
+
+pub type InventoryTransferLineItemRecord {
+  InventoryTransferLineItemRecord(
+    id: String,
+    inventory_item_id: String,
+    title: Option(String),
+    total_quantity: Int,
+    shipped_quantity: Int,
+    picked_for_shipment_quantity: Int,
+  )
+}
+
+pub type InventoryTransferRecord {
+  InventoryTransferRecord(
+    id: String,
+    name: String,
+    reference_name: Option(String),
+    status: String,
+    note: Option(String),
+    tags: List(String),
+    date_created: String,
+    origin: Option(InventoryTransferLocationSnapshotRecord),
+    destination: Option(InventoryTransferLocationSnapshotRecord),
+    line_items: List(InventoryTransferLineItemRecord),
+  )
+}
+
 pub type InventoryShipmentTrackingRecord {
   InventoryShipmentTrackingRecord(
     tracking_number: Option(String),

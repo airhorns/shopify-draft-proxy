@@ -51,9 +51,11 @@ import shopify_draft_proxy/state/types.{
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
   type InventoryShipmentLineItemRecord, type InventoryShipmentRecord,
-  type InventoryShipmentTrackingRecord, type InventoryWeightRecord,
-  type InventoryWeightValue, type LocationRecord, type ProductCategoryRecord,
-  type ProductCollectionRecord, type ProductFeedRecord, type ProductOptionRecord,
+  type InventoryShipmentTrackingRecord, type InventoryTransferLineItemRecord,
+  type InventoryTransferLocationSnapshotRecord, type InventoryTransferRecord,
+  type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
+  type ProductCategoryRecord, type ProductCollectionRecord,
+  type ProductFeedRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
@@ -61,11 +63,13 @@ import shopify_draft_proxy/state/types.{
   InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
   InventoryMeasurementRecord, InventoryQuantityRecord,
   InventoryShipmentLineItemRecord, InventoryShipmentRecord,
-  InventoryShipmentTrackingRecord, InventoryWeightFloat, InventoryWeightInt,
-  InventoryWeightRecord, ProductCollectionRecord, ProductFeedRecord,
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord,
-  ProductResourceFeedbackRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord, ShopResourceFeedbackRecord,
+  InventoryShipmentTrackingRecord, InventoryTransferLineItemRecord,
+  InventoryTransferLocationSnapshotRecord, InventoryTransferRecord,
+  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
+  ProductCollectionRecord, ProductFeedRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductResourceFeedbackRecord,
+  ProductSeoRecord, ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  ShopResourceFeedbackRecord,
 }
 
 pub type ProductsError {
@@ -88,6 +92,8 @@ pub fn is_products_query_root(name: String) -> Bool {
     | "productVariantByIdentifier"
     | "productVariants"
     | "productVariantsCount"
+    | "inventoryTransfer"
+    | "inventoryTransfers"
     | "inventoryShipment"
     | "inventoryItem"
     | "inventoryItems"
@@ -146,6 +152,13 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "inventoryShipmentReceive"
     | "inventoryShipmentUpdateItemQuantities"
     | "inventoryShipmentDelete"
+    | "inventoryTransferCreate"
+    | "inventoryTransferCreateAsReadyToShip"
+    | "inventoryTransferSetItems"
+    | "inventoryTransferRemoveItems"
+    | "inventoryTransferMarkAsReadyToShip"
+    | "inventoryTransferCancel"
+    | "inventoryTransferDelete"
     | "shopResourceFeedbackCreate"
     | "tagsAdd"
     | "tagsRemove" -> True
@@ -217,6 +230,20 @@ fn serialize_root_fields(
                 fragments,
               )
             "productOperation" -> json.null()
+            "inventoryTransfer" ->
+              serialize_inventory_transfer_root(
+                store,
+                field,
+                variables,
+                fragments,
+              )
+            "inventoryTransfers" ->
+              serialize_inventory_transfers_connection(
+                store,
+                field,
+                variables,
+                fragments,
+              )
             "inventoryShipment" ->
               serialize_inventory_shipment_root(
                 store,
@@ -997,6 +1024,219 @@ fn shop_resource_feedback_source(
     #("app", SrcNull),
     #("link", SrcNull),
   ])
+}
+
+fn serialize_inventory_transfer_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.get_effective_inventory_transfer_by_id(store, id) {
+        Some(transfer) ->
+          project_graphql_value(
+            inventory_transfer_source(store, transfer),
+            get_selected_child_fields(field, default_selected_field_options()),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn serialize_inventory_transfers_connection(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let transfers = store.list_effective_inventory_transfers(store)
+  let window =
+    paginate_connection_items(
+      transfers,
+      field,
+      variables,
+      inventory_transfer_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: inventory_transfer_cursor,
+      serialize_node: fn(transfer, node_field, _index) {
+        project_graphql_value(
+          inventory_transfer_source(store, transfer),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: False,
+        prefix_cursors: False,
+        include_cursors: True,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn inventory_transfer_cursor(
+  transfer: InventoryTransferRecord,
+  _index: Int,
+) -> String {
+  "cursor:" <> transfer.id
+}
+
+fn inventory_transfer_source(
+  store: Store,
+  transfer: InventoryTransferRecord,
+) -> SourceValue {
+  let total_quantity = inventory_transfer_total_quantity(transfer)
+  src_object([
+    #("__typename", SrcString("InventoryTransfer")),
+    #("id", SrcString(transfer.id)),
+    #("name", SrcString(transfer.name)),
+    #("referenceName", optional_string_source(transfer.reference_name)),
+    #("status", SrcString(transfer.status)),
+    #("note", optional_string_source(transfer.note)),
+    #("tags", SrcList(list.map(transfer.tags, SrcString))),
+    #("dateCreated", SrcString(transfer.date_created)),
+    #("totalQuantity", SrcInt(total_quantity)),
+    #("receivedQuantity", SrcInt(0)),
+    #("origin", inventory_transfer_location_source(store, transfer.origin)),
+    #(
+      "destination",
+      inventory_transfer_location_source(store, transfer.destination),
+    ),
+    #("lineItems", inventory_transfer_line_items_source(store, transfer)),
+    #("lineItemsCount", count_source(total_quantity)),
+    #("events", empty_connection_source()),
+    #("shipments", empty_connection_source()),
+    #("metafields", empty_connection_source()),
+    #("metafield", SrcNull),
+    #("hasTimelineComment", SrcBool(False)),
+  ])
+}
+
+fn inventory_transfer_location_source(
+  store: Store,
+  snapshot: Option(InventoryTransferLocationSnapshotRecord),
+) -> SourceValue {
+  case snapshot {
+    Some(snapshot) -> {
+      let location = case snapshot.id {
+        Some(id) -> {
+          case store.get_effective_location_by_id(store, id) {
+            Some(location) -> location_source(location)
+            None -> SrcNull
+          }
+        }
+        None -> SrcNull
+      }
+      src_object([
+        #("__typename", SrcString("InventoryTransferLocationSnapshot")),
+        #("name", SrcString(snapshot.name)),
+        #("snapshottedAt", SrcString(snapshot.snapshotted_at)),
+        #("location", location),
+        #("address", src_object([])),
+      ])
+    }
+    None -> SrcNull
+  }
+}
+
+fn inventory_transfer_line_items_source(
+  store: Store,
+  transfer: InventoryTransferRecord,
+) -> SourceValue {
+  let edges =
+    transfer.line_items
+    |> enumerate_items()
+    |> list.map(fn(pair) {
+      let #(line_item, _) = pair
+      src_object([
+        #("cursor", SrcString("cursor:" <> line_item.id)),
+        #(
+          "node",
+          inventory_transfer_line_item_source(store, transfer, line_item),
+        ),
+      ])
+    })
+  src_object([
+    #("edges", SrcList(edges)),
+    #(
+      "nodes",
+      SrcList(
+        list.map(transfer.line_items, fn(line_item) {
+          inventory_transfer_line_item_source(store, transfer, line_item)
+        }),
+      ),
+    ),
+    #(
+      "pageInfo",
+      connection_page_info_source(transfer.line_items, fn(line_item, _index) {
+        "cursor:" <> line_item.id
+      }),
+    ),
+  ])
+}
+
+fn inventory_transfer_line_item_source(
+  store: Store,
+  transfer: InventoryTransferRecord,
+  line_item: InventoryTransferLineItemRecord,
+) -> SourceValue {
+  let is_ready =
+    transfer.status == "READY_TO_SHIP" || transfer.status == "IN_PROGRESS"
+  let inventory_item = case
+    store.find_effective_variant_by_inventory_item_id(
+      store,
+      line_item.inventory_item_id,
+    )
+  {
+    Some(variant) -> shipment_inventory_item_source(store, variant)
+    None -> SrcNull
+  }
+  src_object([
+    #("__typename", SrcString("InventoryTransferLineItem")),
+    #("id", SrcString(line_item.id)),
+    #("title", optional_string_source(line_item.title)),
+    #("totalQuantity", SrcInt(line_item.total_quantity)),
+    #("shippedQuantity", SrcInt(line_item.shipped_quantity)),
+    #(
+      "pickedForShipmentQuantity",
+      SrcInt(line_item.picked_for_shipment_quantity),
+    ),
+    #(
+      "processableQuantity",
+      SrcInt(line_item.total_quantity - line_item.shipped_quantity),
+    ),
+    #(
+      "shippableQuantity",
+      SrcInt(case is_ready {
+        True -> line_item.total_quantity - line_item.shipped_quantity
+        False -> 0
+      }),
+    ),
+    #("inventoryItem", inventory_item),
+  ])
+}
+
+fn inventory_transfer_total_quantity(transfer: InventoryTransferRecord) -> Int {
+  list.fold(transfer.line_items, 0, fn(total, line_item) {
+    total + line_item.total_quantity
+  })
 }
 
 fn serialize_inventory_shipment_root(
@@ -2765,6 +3005,21 @@ type ProductUserError {
   ProductUserError(field: List(String), message: String, code: Option(String))
 }
 
+type InventoryTransferLineItemInput {
+  InventoryTransferLineItemInput(
+    inventory_item_id: Option(String),
+    quantity: Option(Int),
+  )
+}
+
+type InventoryTransferLineItemUpdate {
+  InventoryTransferLineItemUpdate(
+    inventory_item_id: String,
+    new_quantity: Int,
+    delta_quantity: Int,
+  )
+}
+
 type CollectionProductMove {
   CollectionProductMove(id: String, new_position: Int)
 }
@@ -3977,6 +4232,40 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "inventoryTransferCreate"
+            | "inventoryTransferCreateAsReadyToShip"
+            | "inventoryTransferSetItems"
+            | "inventoryTransferRemoveItems"
+            | "inventoryTransferMarkAsReadyToShip"
+            | "inventoryTransferCancel"
+            | "inventoryTransferDelete" -> {
+              let result =
+                handle_inventory_transfer_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged " <> name.value <> " locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "shopResourceFeedbackCreate" -> {
               let result =
                 handle_shop_resource_feedback_create(
@@ -5016,6 +5305,1126 @@ fn feedback_generated_at(
 
 fn is_valid_feedback_state(state: String) -> Bool {
   state == "ACCEPTED" || state == "REQUIRES_ACTION"
+}
+
+fn handle_inventory_transfer_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  case root_name {
+    "inventoryTransferCreate" ->
+      handle_inventory_transfer_create(
+        store,
+        identity,
+        root_name,
+        "InventoryTransferCreatePayload",
+        "DRAFT",
+        field,
+        fragments,
+        variables,
+      )
+    "inventoryTransferCreateAsReadyToShip" ->
+      handle_inventory_transfer_create(
+        store,
+        identity,
+        root_name,
+        "InventoryTransferCreateAsReadyToShipPayload",
+        "READY_TO_SHIP",
+        field,
+        fragments,
+        variables,
+      )
+    "inventoryTransferSetItems" ->
+      handle_inventory_transfer_set_items(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      )
+    "inventoryTransferRemoveItems" ->
+      handle_inventory_transfer_remove_items(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      )
+    "inventoryTransferMarkAsReadyToShip" ->
+      handle_inventory_transfer_mark_ready(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      )
+    "inventoryTransferCancel" ->
+      handle_inventory_transfer_cancel(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      )
+    "inventoryTransferDelete" ->
+      handle_inventory_transfer_delete(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      )
+    _ ->
+      mutation_error_result(
+        field |> get_field_response_key,
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_inventory_transfer_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  _root_name: String,
+  payload_typename: String,
+  status: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let #(transfer, user_errors, identity_after_transfer) =
+    make_inventory_transfer_record(store, identity, input, status)
+  case transfer, user_errors {
+    Some(transfer), [] -> {
+      let #(next_store, next_identity, reserve_errors) = case status {
+        "READY_TO_SHIP" ->
+          apply_inventory_transfer_reservation(
+            store,
+            identity_after_transfer,
+            transfer,
+            "reserve",
+          )
+        _ -> #(store, identity_after_transfer, [])
+      }
+      case reserve_errors {
+        [] -> {
+          let #(_, next_store) =
+            store.upsert_staged_inventory_transfer(next_store, transfer)
+          mutation_result(
+            key,
+            inventory_transfer_payload(
+              next_store,
+              payload_typename,
+              "inventoryTransfer",
+              Some(transfer),
+              [],
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            next_identity,
+            inventory_transfer_staged_ids(transfer),
+          )
+        }
+        errors ->
+          mutation_result(
+            key,
+            inventory_transfer_payload(
+              store,
+              payload_typename,
+              "inventoryTransfer",
+              None,
+              [],
+              errors,
+              field,
+              fragments,
+            ),
+            store,
+            identity_after_transfer,
+            [],
+          )
+      }
+    }
+    _, errors ->
+      mutation_result(
+        key,
+        inventory_transfer_payload(
+          store,
+          payload_typename,
+          "inventoryTransfer",
+          None,
+          [],
+          errors,
+          field,
+          fragments,
+        ),
+        store,
+        identity_after_transfer,
+        [],
+      )
+  }
+}
+
+fn handle_inventory_transfer_set_items(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let transfer_id = read_string_field(input, "id")
+  case get_inventory_transfer_by_optional_id(store, transfer_id) {
+    None ->
+      mutation_result(
+        key,
+        inventory_transfer_payload(
+          store,
+          "InventoryTransferSetItemsPayload",
+          "inventoryTransfer",
+          None,
+          [],
+          [inventory_transfer_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(transfer) -> {
+      let line_item_inputs = read_inventory_transfer_line_item_inputs(input)
+      let user_errors =
+        validate_inventory_transfer_line_items(store, line_item_inputs)
+      let prior_items = transfer.line_items
+      let #(updated_line_items, identity_after_items) =
+        make_inventory_transfer_line_items_reusing_ids(
+          store,
+          identity,
+          line_item_inputs,
+          prior_items,
+        )
+      let updates =
+        list.map(updated_line_items, fn(line_item) {
+          let prior_quantity =
+            find_inventory_transfer_line_item_by_item_id(
+              prior_items,
+              line_item.inventory_item_id,
+            )
+            |> option.map(fn(prior) { prior.total_quantity })
+            |> option.unwrap(0)
+          InventoryTransferLineItemUpdate(
+            inventory_item_id: line_item.inventory_item_id,
+            new_quantity: line_item.total_quantity,
+            delta_quantity: line_item.total_quantity - prior_quantity,
+          )
+        })
+      let deltas =
+        inventory_transfer_set_item_deltas(prior_items, updated_line_items)
+      let next_transfer =
+        InventoryTransferRecord(..transfer, line_items: updated_line_items)
+      case user_errors {
+        [] -> {
+          let #(next_store, next_identity, reserve_errors) = case
+            inventory_transfer_has_reserved_origin_inventory(transfer)
+          {
+            True ->
+              apply_inventory_transfer_reservation_deltas(
+                store,
+                identity_after_items,
+                transfer,
+                deltas,
+              )
+            False -> #(store, identity_after_items, [])
+          }
+          case reserve_errors {
+            [] -> {
+              let #(_, next_store) =
+                store.upsert_staged_inventory_transfer(
+                  next_store,
+                  next_transfer,
+                )
+              mutation_result(
+                key,
+                inventory_transfer_payload(
+                  next_store,
+                  "InventoryTransferSetItemsPayload",
+                  "inventoryTransfer",
+                  Some(next_transfer),
+                  updates,
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                next_identity,
+                inventory_transfer_staged_ids(next_transfer),
+              )
+            }
+            errors ->
+              mutation_result(
+                key,
+                inventory_transfer_payload(
+                  store,
+                  "InventoryTransferSetItemsPayload",
+                  "inventoryTransfer",
+                  Some(transfer),
+                  [],
+                  errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity_after_items,
+                [],
+              )
+          }
+        }
+        errors ->
+          mutation_result(
+            key,
+            inventory_transfer_payload(
+              store,
+              "InventoryTransferSetItemsPayload",
+              "inventoryTransfer",
+              Some(transfer),
+              [],
+              errors,
+              field,
+              fragments,
+            ),
+            store,
+            identity_after_items,
+            [],
+          )
+      }
+    }
+  }
+}
+
+fn handle_inventory_transfer_remove_items(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let transfer_id = read_string_field(input, "id")
+  case get_inventory_transfer_by_optional_id(store, transfer_id) {
+    None ->
+      mutation_result(
+        key,
+        inventory_transfer_payload(
+          store,
+          "InventoryTransferRemoveItemsPayload",
+          "inventoryTransfer",
+          None,
+          [],
+          [inventory_transfer_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(transfer) -> {
+      let remove_ids =
+        read_string_list_field(input, "transferLineItemIds")
+        |> option.unwrap([])
+      let unknown =
+        list.any(remove_ids, fn(id) {
+          find_inventory_transfer_line_item(transfer.line_items, id) == None
+        })
+      let user_errors = case unknown {
+        True -> [
+          ProductUserError(
+            ["input", "transferLineItemIds"],
+            "The inventory transfer line item can't be found.",
+            Some("LINE_ITEM_NOT_FOUND"),
+          ),
+        ]
+        False -> []
+      }
+      let removed_items =
+        list.filter(transfer.line_items, fn(line_item) {
+          list.contains(remove_ids, line_item.id)
+        })
+      let next_items =
+        list.filter(transfer.line_items, fn(line_item) {
+          !list.contains(remove_ids, line_item.id)
+        })
+      let updates =
+        list.map(removed_items, fn(line_item) {
+          InventoryTransferLineItemUpdate(
+            inventory_item_id: line_item.inventory_item_id,
+            new_quantity: 0,
+            delta_quantity: 0 - line_item.total_quantity,
+          )
+        })
+      let next_transfer =
+        InventoryTransferRecord(..transfer, line_items: next_items)
+      case user_errors {
+        [] -> {
+          let #(next_store, next_identity, reserve_errors) = case
+            inventory_transfer_has_reserved_origin_inventory(transfer)
+          {
+            True ->
+              apply_inventory_transfer_reservation_deltas(
+                store,
+                identity,
+                transfer,
+                list.map(removed_items, fn(line_item) {
+                  #(line_item, 0 - line_item.total_quantity)
+                }),
+              )
+            False -> #(store, identity, [])
+          }
+          case reserve_errors {
+            [] -> {
+              let #(_, next_store) =
+                store.upsert_staged_inventory_transfer(
+                  next_store,
+                  next_transfer,
+                )
+              mutation_result(
+                key,
+                inventory_transfer_payload(
+                  next_store,
+                  "InventoryTransferRemoveItemsPayload",
+                  "inventoryTransfer",
+                  Some(next_transfer),
+                  updates,
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                next_identity,
+                inventory_transfer_staged_ids(next_transfer),
+              )
+            }
+            errors ->
+              mutation_result(
+                key,
+                inventory_transfer_payload(
+                  store,
+                  "InventoryTransferRemoveItemsPayload",
+                  "inventoryTransfer",
+                  Some(transfer),
+                  [],
+                  errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                next_identity,
+                [],
+              )
+          }
+        }
+        errors ->
+          mutation_result(
+            key,
+            inventory_transfer_payload(
+              store,
+              "InventoryTransferRemoveItemsPayload",
+              "inventoryTransfer",
+              Some(transfer),
+              [],
+              errors,
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+      }
+    }
+  }
+}
+
+fn handle_inventory_transfer_mark_ready(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let transfer_id = read_arg_string(field_args(field, variables), "id")
+  case get_inventory_transfer_by_optional_id(store, transfer_id) {
+    None ->
+      mutation_result(
+        key,
+        inventory_transfer_payload(
+          store,
+          "InventoryTransferMarkAsReadyToShipPayload",
+          "inventoryTransfer",
+          None,
+          [],
+          [inventory_transfer_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(transfer) -> {
+      let #(next_store, next_identity, user_errors) = case
+        transfer.status == "DRAFT"
+      {
+        True ->
+          apply_inventory_transfer_reservation(
+            store,
+            identity,
+            transfer,
+            "reserve",
+          )
+        False -> #(store, identity, [])
+      }
+      case user_errors {
+        [] -> {
+          let next_transfer =
+            InventoryTransferRecord(..transfer, status: "READY_TO_SHIP")
+          let #(_, next_store) =
+            store.upsert_staged_inventory_transfer(next_store, next_transfer)
+          mutation_result(
+            key,
+            inventory_transfer_payload(
+              next_store,
+              "InventoryTransferMarkAsReadyToShipPayload",
+              "inventoryTransfer",
+              Some(next_transfer),
+              [],
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            next_identity,
+            inventory_transfer_staged_ids(next_transfer),
+          )
+        }
+        errors ->
+          mutation_result(
+            key,
+            inventory_transfer_payload(
+              store,
+              "InventoryTransferMarkAsReadyToShipPayload",
+              "inventoryTransfer",
+              None,
+              [],
+              errors,
+              field,
+              fragments,
+            ),
+            store,
+            next_identity,
+            [],
+          )
+      }
+    }
+  }
+}
+
+fn handle_inventory_transfer_cancel(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let transfer_id = read_arg_string(field_args(field, variables), "id")
+  case get_inventory_transfer_by_optional_id(store, transfer_id) {
+    None ->
+      mutation_result(
+        key,
+        inventory_transfer_payload(
+          store,
+          "InventoryTransferCancelPayload",
+          "inventoryTransfer",
+          None,
+          [],
+          [inventory_transfer_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(transfer) -> {
+      let #(next_store, next_identity, _) = case
+        transfer.status == "READY_TO_SHIP"
+      {
+        True ->
+          apply_inventory_transfer_reservation(
+            store,
+            identity,
+            transfer,
+            "release",
+          )
+        False -> #(store, identity, [])
+      }
+      let next_transfer =
+        InventoryTransferRecord(..transfer, status: "CANCELED")
+      let #(_, next_store) =
+        store.upsert_staged_inventory_transfer(next_store, next_transfer)
+      mutation_result(
+        key,
+        inventory_transfer_payload(
+          next_store,
+          "InventoryTransferCancelPayload",
+          "inventoryTransfer",
+          Some(next_transfer),
+          [],
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        next_identity,
+        inventory_transfer_staged_ids(next_transfer),
+      )
+    }
+  }
+}
+
+fn handle_inventory_transfer_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let transfer_id = read_arg_string(field_args(field, variables), "id")
+  case get_inventory_transfer_by_optional_id(store, transfer_id) {
+    None ->
+      mutation_result(
+        key,
+        inventory_transfer_delete_payload(
+          None,
+          [inventory_transfer_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(transfer) ->
+      case transfer.status == "DRAFT" {
+        False ->
+          mutation_result(
+            key,
+            inventory_transfer_delete_payload(
+              None,
+              [
+                ProductUserError(
+                  ["id"],
+                  "Can't delete the transfer if it's not in the draft status.",
+                  None,
+                ),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        True -> {
+          let next_store =
+            store.delete_staged_inventory_transfer(store, transfer.id)
+          mutation_result(
+            key,
+            inventory_transfer_delete_payload(
+              Some(transfer.id),
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            identity,
+            [transfer.id],
+          )
+        }
+      }
+  }
+}
+
+fn read_inventory_transfer_line_item_inputs(
+  input: Dict(String, ResolvedValue),
+) -> List(InventoryTransferLineItemInput) {
+  read_object_list_field(input, "lineItems")
+  |> list.map(fn(fields) {
+    InventoryTransferLineItemInput(
+      inventory_item_id: read_string_field(fields, "inventoryItemId"),
+      quantity: read_int_field(fields, "quantity"),
+    )
+  })
+}
+
+fn validate_inventory_transfer_line_items(
+  store: Store,
+  inputs: List(InventoryTransferLineItemInput),
+) -> List(ProductUserError) {
+  inputs
+  |> enumerate_items()
+  |> list.flat_map(fn(pair) {
+    let #(input, index) = pair
+    let path = ["input", "lineItems", int.to_string(index)]
+    let item_errors = case input.inventory_item_id {
+      Some(inventory_item_id) ->
+        case
+          store.find_effective_variant_by_inventory_item_id(
+            store,
+            inventory_item_id,
+          )
+        {
+          Some(variant) -> {
+            let tracked = case variant.inventory_item {
+              Some(item) -> item.tracked == Some(True)
+              None -> False
+            }
+            case tracked {
+              True -> []
+              False -> [
+                ProductUserError(
+                  list.append(path, ["inventoryItemId"]),
+                  "The inventory item does not track inventory.",
+                  Some("UNTRACKED_ITEM"),
+                ),
+              ]
+            }
+          }
+          None -> [
+            ProductUserError(
+              list.append(path, ["inventoryItemId"]),
+              "The inventory item can't be found.",
+              Some("ITEM_NOT_FOUND"),
+            ),
+          ]
+        }
+      None -> [
+        ProductUserError(
+          list.append(path, ["inventoryItemId"]),
+          "The inventory item can't be found.",
+          Some("ITEM_NOT_FOUND"),
+        ),
+      ]
+    }
+    let quantity_errors = case input.quantity {
+      Some(quantity) if quantity > 0 -> []
+      _ -> [
+        ProductUserError(
+          list.append(path, ["quantity"]),
+          "Quantity must be greater than 0.",
+          Some("INVALID_QUANTITY"),
+        ),
+      ]
+    }
+    list.append(item_errors, quantity_errors)
+  })
+}
+
+fn make_inventory_transfer_record(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, ResolvedValue),
+  status: String,
+) -> #(
+  Option(InventoryTransferRecord),
+  List(ProductUserError),
+  SyntheticIdentityRegistry,
+) {
+  let line_item_inputs = read_inventory_transfer_line_item_inputs(input)
+  let user_errors =
+    validate_inventory_transfer_line_items(store, line_item_inputs)
+  case user_errors {
+    [] -> {
+      let #(id, identity_after_id) =
+        synthetic_identity.make_synthetic_gid(identity, "InventoryTransfer")
+      let #(line_items, identity_after_items) =
+        make_inventory_transfer_line_items(
+          store,
+          identity_after_id,
+          line_item_inputs,
+        )
+      let #(date_created, next_identity) = case
+        read_string_field(input, "dateCreated")
+      {
+        Some(value) -> #(value, identity_after_items)
+        None ->
+          synthetic_identity.make_synthetic_timestamp(identity_after_items)
+      }
+      let transfer_index =
+        list.length(store.list_effective_inventory_transfers(store)) + 1
+      let transfer =
+        InventoryTransferRecord(
+          id: id,
+          name: "#T" <> pad_start_zero(int.to_string(transfer_index), 4),
+          reference_name: read_string_field(input, "referenceName"),
+          status: status,
+          note: read_string_field(input, "note"),
+          tags: read_string_list_field(input, "tags") |> option.unwrap([]),
+          date_created: date_created,
+          origin: make_inventory_transfer_location_snapshot(
+            store,
+            read_string_field(input, "originLocationId"),
+            next_identity,
+          ),
+          destination: make_inventory_transfer_location_snapshot(
+            store,
+            read_string_field(input, "destinationLocationId"),
+            next_identity,
+          ),
+          line_items: line_items,
+        )
+      #(Some(transfer), [], next_identity)
+    }
+    errors -> #(None, errors, identity)
+  }
+}
+
+fn make_inventory_transfer_location_snapshot(
+  store: Store,
+  location_id: Option(String),
+  identity: SyntheticIdentityRegistry,
+) -> Option(InventoryTransferLocationSnapshotRecord) {
+  case location_id {
+    Some(id) -> {
+      let name = case store.get_effective_location_by_id(store, id) {
+        Some(location) -> location.name
+        None -> id
+      }
+      let #(snapshotted_at, _) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      Some(InventoryTransferLocationSnapshotRecord(
+        id: Some(id),
+        name: name,
+        snapshotted_at: snapshotted_at,
+      ))
+    }
+    None -> None
+  }
+}
+
+fn make_inventory_transfer_line_items(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  inputs: List(InventoryTransferLineItemInput),
+) -> #(List(InventoryTransferLineItemRecord), SyntheticIdentityRegistry) {
+  let #(reversed, final_identity) =
+    list.fold(inputs, #([], identity), fn(acc, input) {
+      let #(records, current_identity) = acc
+      case make_inventory_transfer_line_item(store, current_identity, input) {
+        #(Some(record), next_identity) -> #([record, ..records], next_identity)
+        #(None, next_identity) -> #(records, next_identity)
+      }
+    })
+  #(list.reverse(reversed), final_identity)
+}
+
+fn make_inventory_transfer_line_items_reusing_ids(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  inputs: List(InventoryTransferLineItemInput),
+  prior_items: List(InventoryTransferLineItemRecord),
+) -> #(List(InventoryTransferLineItemRecord), SyntheticIdentityRegistry) {
+  let #(items, next_identity) =
+    make_inventory_transfer_line_items(store, identity, inputs)
+  let items =
+    list.map(items, fn(item) {
+      case
+        find_inventory_transfer_line_item_by_item_id(
+          prior_items,
+          item.inventory_item_id,
+        )
+      {
+        Some(prior) -> InventoryTransferLineItemRecord(..item, id: prior.id)
+        None -> item
+      }
+    })
+  #(items, next_identity)
+}
+
+fn make_inventory_transfer_line_item(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: InventoryTransferLineItemInput,
+) -> #(Option(InventoryTransferLineItemRecord), SyntheticIdentityRegistry) {
+  case input.inventory_item_id, input.quantity {
+    Some(inventory_item_id), Some(quantity) -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_proxy_synthetic_gid(
+          identity,
+          "InventoryTransferLineItem",
+        )
+      let variant =
+        store.find_effective_variant_by_inventory_item_id(
+          store,
+          inventory_item_id,
+        )
+      let title = case variant {
+        Some(variant) ->
+          case store.get_effective_product_by_id(store, variant.product_id) {
+            Some(product) -> Some(product.title)
+            None -> Some(variant.title)
+          }
+        None -> None
+      }
+      #(
+        Some(InventoryTransferLineItemRecord(
+          id: id,
+          inventory_item_id: inventory_item_id,
+          title: title,
+          total_quantity: quantity,
+          shipped_quantity: 0,
+          picked_for_shipment_quantity: 0,
+        )),
+        next_identity,
+      )
+    }
+    _, _ -> #(None, identity)
+  }
+}
+
+fn inventory_transfer_set_item_deltas(
+  prior_items: List(InventoryTransferLineItemRecord),
+  updated_items: List(InventoryTransferLineItemRecord),
+) -> List(#(InventoryTransferLineItemRecord, Int)) {
+  let updated_deltas =
+    list.map(updated_items, fn(line_item) {
+      let prior_quantity =
+        find_inventory_transfer_line_item_by_item_id(
+          prior_items,
+          line_item.inventory_item_id,
+        )
+        |> option.map(fn(prior) { prior.total_quantity })
+        |> option.unwrap(0)
+      #(line_item, line_item.total_quantity - prior_quantity)
+    })
+  let removed_deltas =
+    prior_items
+    |> list.filter(fn(line_item) {
+      find_inventory_transfer_line_item_by_item_id(
+        updated_items,
+        line_item.inventory_item_id,
+      )
+      == None
+    })
+    |> list.map(fn(line_item) { #(line_item, 0 - line_item.total_quantity) })
+  list.append(updated_deltas, removed_deltas)
+}
+
+fn find_inventory_transfer_line_item(
+  line_items: List(InventoryTransferLineItemRecord),
+  id: String,
+) -> Option(InventoryTransferLineItemRecord) {
+  line_items
+  |> list.find(fn(line_item) { line_item.id == id })
+  |> option.from_result
+}
+
+fn get_inventory_transfer_by_optional_id(
+  store: Store,
+  transfer_id: Option(String),
+) -> Option(InventoryTransferRecord) {
+  case transfer_id {
+    Some(id) -> store.get_effective_inventory_transfer_by_id(store, id)
+    None -> None
+  }
+}
+
+fn find_inventory_transfer_line_item_by_item_id(
+  line_items: List(InventoryTransferLineItemRecord),
+  inventory_item_id: String,
+) -> Option(InventoryTransferLineItemRecord) {
+  line_items
+  |> list.find(fn(line_item) {
+    line_item.inventory_item_id == inventory_item_id
+  })
+  |> option.from_result
+}
+
+fn inventory_transfer_has_reserved_origin_inventory(
+  transfer: InventoryTransferRecord,
+) -> Bool {
+  transfer.status == "READY_TO_SHIP" || transfer.status == "IN_PROGRESS"
+}
+
+fn apply_inventory_transfer_reservation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  transfer: InventoryTransferRecord,
+  direction: String,
+) -> #(Store, SyntheticIdentityRegistry, List(ProductUserError)) {
+  let deltas =
+    list.map(transfer.line_items, fn(line_item) {
+      let quantity = case direction {
+        "release" -> 0 - line_item.total_quantity
+        _ -> line_item.total_quantity
+      }
+      #(line_item, quantity)
+    })
+  apply_inventory_transfer_reservation_deltas(store, identity, transfer, deltas)
+}
+
+fn apply_inventory_transfer_reservation_deltas(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  transfer: InventoryTransferRecord,
+  deltas: List(#(InventoryTransferLineItemRecord, Int)),
+) -> #(Store, SyntheticIdentityRegistry, List(ProductUserError)) {
+  let result =
+    list.fold(deltas, Ok(#(store, identity)), fn(acc, delta) {
+      case acc {
+        Error(errors) -> Error(errors)
+        Ok(state) -> {
+          let #(current_store, current_identity) = state
+          let #(line_item, delta_quantity) = delta
+          case delta_quantity {
+            0 -> Ok(#(current_store, current_identity))
+            _ ->
+              apply_inventory_transfer_reservation_delta(
+                current_store,
+                current_identity,
+                transfer,
+                line_item,
+                delta_quantity,
+              )
+          }
+        }
+      }
+    })
+  case result {
+    Ok(state) -> {
+      let #(next_store, next_identity) = state
+      #(next_store, next_identity, [])
+    }
+    Error(errors) -> #(store, identity, errors)
+  }
+}
+
+fn apply_inventory_transfer_reservation_delta(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  transfer: InventoryTransferRecord,
+  line_item: InventoryTransferLineItemRecord,
+  delta_quantity: Int,
+) -> Result(#(Store, SyntheticIdentityRegistry), List(ProductUserError)) {
+  case find_inventory_transfer_origin_level(store, transfer, line_item) {
+    None -> Error([inventory_transfer_origin_state_error()])
+    Some(target) -> {
+      let #(variant, level) = target
+      let available = inventory_quantity_amount(level.quantities, "available")
+      let reserved = inventory_quantity_amount(level.quantities, "reserved")
+      case delta_quantity > 0 && available < delta_quantity {
+        True -> Error([inventory_transfer_origin_state_error()])
+        False -> {
+          let quantities =
+            level.quantities
+            |> write_inventory_quantity_amount(
+              "available",
+              available - delta_quantity,
+            )
+            |> write_inventory_quantity_amount(
+              "reserved",
+              int.max(0, reserved + delta_quantity),
+            )
+          let next_level = InventoryLevelRecord(..level, quantities: quantities)
+          let next_levels =
+            replace_inventory_level(
+              variant_inventory_levels(variant),
+              level.location.id,
+              next_level,
+            )
+          Ok(#(
+            stage_variant_inventory_levels(store, variant, next_levels),
+            identity,
+          ))
+        }
+      }
+    }
+  }
+}
+
+fn find_inventory_transfer_origin_level(
+  store: Store,
+  transfer: InventoryTransferRecord,
+  line_item: InventoryTransferLineItemRecord,
+) -> Option(#(ProductVariantRecord, InventoryLevelRecord)) {
+  case
+    store.find_effective_variant_by_inventory_item_id(
+      store,
+      line_item.inventory_item_id,
+    ),
+    transfer.origin
+  {
+    Some(variant), Some(origin) ->
+      case origin.id {
+        Some(location_id) ->
+          case
+            find_inventory_level(variant_inventory_levels(variant), location_id)
+          {
+            Some(level) -> Some(#(variant, level))
+            None -> None
+          }
+        None -> None
+      }
+    _, _ -> None
+  }
+}
+
+fn inventory_transfer_origin_state_error() -> ProductUserError {
+  ProductUserError(
+    ["id"],
+    "Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.",
+    Some("INVENTORY_STATE_NOT_ACTIVE"),
+  )
+}
+
+fn inventory_transfer_not_found_error() -> ProductUserError {
+  ProductUserError(
+    ["id"],
+    "The inventory transfer can't be found.",
+    Some("TRANSFER_NOT_FOUND"),
+  )
+}
+
+fn inventory_transfer_staged_ids(
+  transfer: InventoryTransferRecord,
+) -> List(String) {
+  [transfer.id, ..list.map(transfer.line_items, fn(line_item) { line_item.id })]
+}
+
+fn pad_start_zero(value: String, width: Int) -> String {
+  let length = string.length(value)
+  case length >= width {
+    True -> value
+    False -> string.repeat("0", width - length) <> value
+  }
 }
 
 fn handle_inventory_shipment_create_in_transit(
@@ -9325,6 +10734,65 @@ fn inventory_shipment_create_in_transit_payload(
     src_object([
       #("__typename", SrcString("InventoryShipmentCreateInTransitPayload")),
       #("inventoryShipment", shipment_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn inventory_transfer_payload(
+  store: Store,
+  typename: String,
+  transfer_field: String,
+  transfer: Option(InventoryTransferRecord),
+  line_item_updates: List(InventoryTransferLineItemUpdate),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let transfer_value = case transfer {
+    Some(record) -> inventory_transfer_source(store, record)
+    None -> SrcNull
+  }
+  let updates =
+    SrcList(list.map(
+      line_item_updates,
+      inventory_transfer_line_item_update_source,
+    ))
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString(typename)),
+      #(transfer_field, transfer_value),
+      #("updatedLineItems", updates),
+      #("removedQuantities", updates),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn inventory_transfer_line_item_update_source(
+  update: InventoryTransferLineItemUpdate,
+) -> SourceValue {
+  src_object([
+    #("inventoryItemId", SrcString(update.inventory_item_id)),
+    #("newQuantity", SrcInt(update.new_quantity)),
+    #("deltaQuantity", SrcInt(update.delta_quantity)),
+  ])
+}
+
+fn inventory_transfer_delete_payload(
+  deleted_id: Option(String),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("InventoryTransferDeletePayload")),
+      #("deletedId", optional_string_source(deleted_id)),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
