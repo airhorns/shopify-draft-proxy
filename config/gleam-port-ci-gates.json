@@ -261,14 +261,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/functions/functions-live-owner-metadata-read.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/functions/functions-metadata-local-staging.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/gift-cards/gift-card-lifecycle.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },

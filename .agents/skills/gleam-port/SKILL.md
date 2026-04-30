@@ -7,8 +7,9 @@ description: Project-specific guidance for the in-progress Gleam port of `shopif
 
 The port re-implements the TypeScript draft proxy in Gleam, targeting both
 Erlang (BEAM) and JavaScript (Node ESM). It is **incremental** — passes land
-domain-by-domain, with the TS implementation kept until each domain reaches
-parity. Each pass appends an entry to `GLEAM_PORT_LOG.md`; the immutable
+domain-by-domain, with the original TypeScript implementation and tests kept
+intact until the whole port reaches verified 100% parity across the repository.
+Each pass appends an entry to `GLEAM_PORT_LOG.md`; the immutable
 acceptance bar lives in `GLEAM_PORT_INTENT.md`.
 
 This skill captures the patterns that have stabilized across passes 1–20 so
@@ -54,6 +55,33 @@ CI runs both; do not push without local confirmation. If you add FFI, you
 must add both `.erl` and `.mjs` shims at the same path-stem under
 `src/shopify_draft_proxy/`. See `crypto.gleam` + `crypto_ffi.{erl,mjs}` for
 the canonical example.
+
+## TypeScript preservation rule
+
+Leave the original TypeScript implementation and TypeScript tests alone during
+incremental Gleam port work. A domain reaching local Gleam parity is not enough
+to delete, rewrite, or weaken its TypeScript runtime, its TypeScript tests, TS
+dispatcher wiring, or TS conformance/parity runner support. Those files remain
+the shipping Node/Koa implementation and the reference harness until the final
+all-port cutover proves 100% parity across domains, integration coverage, CI,
+packaging, and docs.
+
+Allowed during normal port passes:
+
+- Add or update Gleam source and Gleam tests.
+- Add bridge or shim code needed for interop while preserving existing TS
+  behavior.
+- Add parity-runner support that consumes existing fixtures without weakening
+  the TypeScript runner.
+
+Not allowed during normal port passes:
+
+- Deleting `src/proxy/*` domain modules, TypeScript store slices, dispatcher
+  entries, TypeScript integration tests, or TypeScript conformance/parity
+  runner coverage because the corresponding Gleam domain now passes locally.
+- Rewriting TypeScript tests into weaker assertions or removing TypeScript
+  coverage to make the port appear complete.
+- Treating per-domain parity as authority to retire TypeScript runtime code.
 
 ## Stable patterns
 
@@ -187,12 +215,19 @@ If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
 path syntax instead of narrowing or rewriting the checked-in spec.
 
+Functions parity note: captures with `seedShopifyFunctions` can share one
+runner seeding helper for local staging and live read-only scenarios. When a
+local-runtime Functions fixture appears one synthetic id/timestamp step ahead,
+check whether the TypeScript conformance harness seeds the synthetic registry
+before the primary request; mirror that seed in the Gleam runner rather than
+adding broad synthetic-id/timestamp expected differences.
+
 ### Porting notes
 
-- Events is a read-only, no-data domain. Once its parity spec is enabled
-  and dispatcher-level Gleam tests cover `event`, `events`, and `eventsCount`,
-  delete the TS handler and point operation-registry runtime coverage at the
-  Gleam tests; do not keep a TS empty-response stub beside the Gleam port.
+- Events is a read-only, no-data domain. Gleam coverage for `event`, `events`,
+  and `eventsCount` should still include parity and dispatcher-level tests, but
+  the TS handler and TS runtime coverage stay in place until the final all-port
+  cutover.
 
 ## Workflow for a new pass
 
@@ -219,8 +254,9 @@ See `references/domain-port-template.md` for the concrete checklist.
   from `AGENTS.md`).
 - Do not rewrite parity specs or conformance fixtures — they are bytes the
   port must match.
-- Do not maintain TS and Gleam side-by-side after a domain reaches parity.
-  Delete the TS once the Gleam version passes.
+- Do not delete, rewrite, or weaken the original TypeScript implementation or
+  TypeScript tests during incremental domain/substrate passes. Keep TS and
+  Gleam side-by-side until final all-port parity is proven.
 - Do not "improve" Shopify's behaviour; match the recorded fixtures.
 - Do not pull in `gleam_regexp` for one-off predicate sets — hand-roll
   string predicates (Pass 20 finding). The dependency footprint matters
