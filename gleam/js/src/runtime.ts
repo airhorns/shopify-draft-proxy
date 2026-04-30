@@ -9,11 +9,29 @@
 // the relative import re-pointed) without changing this file's
 // public surface.
 
-import * as gleam from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/draft_proxy.mjs';
-import * as gleamOption from '../../build/dev/javascript/gleam_stdlib/gleam/option.mjs';
-import * as gleamJson from '../../build/dev/javascript/gleam_json/gleam/json.mjs';
-import * as gleamDict from '../../build/dev/javascript/gleam_stdlib/gleam/dict.mjs';
-import { List as GleamList } from '../../build/dev/javascript/prelude.mjs';
+import {
+  Config,
+  type DraftProxy as GleamDraftProxy,
+  Live,
+  LiveHybrid,
+  Request as GleamRequest,
+  type Response as GleamResponse,
+  Snapshot,
+  dump_state,
+  dump_state_now,
+  get_config_snapshot,
+  get_log_snapshot,
+  get_state_snapshot,
+  process_request_async,
+  reset as gleamReset,
+  restore_state,
+  with_config,
+  with_default_registry,
+} from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/draft_proxy.mjs';
+import { None, Some } from '../../build/dev/javascript/gleam_stdlib/gleam/option.mjs';
+import { to_string as jsonToString } from '../../build/dev/javascript/gleam_json/gleam/json.mjs';
+import { insert as dictInsert, new$ as dictNew } from '../../build/dev/javascript/gleam_stdlib/gleam/dict.mjs';
+import { Result$Error$0, Result$isOk, Result$Ok$0, type List } from '../../build/dev/javascript/prelude.mjs';
 
 import type {
   AppConfig,
@@ -27,39 +45,28 @@ import type {
   ReadMode,
 } from './types.js';
 
-type GleamProxy = unknown;
-
-function readModeToGleam(mode: ReadMode): unknown {
+function readModeToGleam(mode: ReadMode): Snapshot | LiveHybrid | Live {
   switch (mode) {
     case 'snapshot':
-      return new (gleam as any).Snapshot();
+      return new Snapshot();
     case 'live-hybrid':
-      return new (gleam as any).LiveHybrid();
+      return new LiveHybrid();
     case 'live':
-      return new (gleam as any).Live();
+      return new Live();
   }
 }
 
-function snapshotPathOption(path: string | undefined): unknown {
-  return path === undefined ? new (gleamOption as any).None() : new (gleamOption as any).Some(path);
+function configToGleam(config: AppConfig): Config {
+  const snapshotPath = config.snapshotPath === undefined ? new None() : new Some(config.snapshotPath);
+  return new Config(readModeToGleam(config.readMode), config.port, config.shopifyAdminOrigin, snapshotPath);
 }
 
-function configToGleam(config: AppConfig): unknown {
-  return new (gleam as any).Config(
-    readModeToGleam(config.readMode),
-    config.port,
-    config.shopifyAdminOrigin,
-    snapshotPathOption(config.snapshotPath),
-  );
-}
-
-function headersToDict(headers: Record<string, DraftProxyHeaderValue> | undefined): unknown {
-  let dict = (gleamDict as any).new$();
+function headersToDict(headers: Record<string, DraftProxyHeaderValue> | undefined) {
+  let dict = dictNew();
   if (!headers) return dict;
   for (const [key, value] of Object.entries(headers)) {
     if (value === undefined) continue;
-    const flat = Array.isArray(value) ? value.join(',') : value;
-    dict = (gleamDict as any).insert(dict, key, flat);
+    dict = dictInsert(dict, key, Array.isArray(value) ? value.join(',') : value);
   }
   return dict;
 }
@@ -70,94 +77,72 @@ function bodyToString(body: unknown): string {
   return JSON.stringify(body);
 }
 
-function requestToGleam(request: DraftProxyRequest): unknown {
-  return new (gleam as any).Request(
-    request.method,
-    request.path,
-    headersToDict(request.headers),
-    bodyToString(request.body),
-  );
+function requestToGleam(request: DraftProxyRequest): GleamRequest {
+  return new GleamRequest(request.method, request.path, headersToDict(request.headers), bodyToString(request.body));
 }
 
-function responseFromGleam(resp: any): DraftProxyHttpResponse {
-  const headers = gleamHeaderListToObject(resp.headers);
+function headerListToObject(headers: List<[string, string]>): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  for (const [k, v] of headers.toArray()) out[k] = v;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function responseFromGleam(resp: GleamResponse): DraftProxyHttpResponse {
+  const headers = headerListToObject(resp.headers);
   const out: DraftProxyHttpResponse = {
     status: resp.status,
-    body: JSON.parse((gleamJson as any).to_string(resp.body)),
+    body: JSON.parse(jsonToString(resp.body)),
   };
   if (headers !== undefined) out.headers = headers;
   return out;
 }
 
-function gleamHeaderListToObject(headers: GleamList<[string, string]> | undefined): Record<string, string> | undefined {
-  if (!headers) return undefined;
-  const out: Record<string, string> = {};
-  // Gleam Lists are linked; walk via toArray for simplicity.
-  const arr = (headers as any).toArray() as Array<[string, string]>;
-  for (const [k, v] of arr) {
-    out[k] = v;
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
-function unwrapPair(pair: any): [unknown, GleamProxy] {
-  // Gleam tuples emit as JS arrays.
-  return [pair[0], pair[1]];
-}
-
 export class DraftProxy {
-  #inner: GleamProxy;
+  #inner: GleamDraftProxy;
 
   constructor(config: AppConfig) {
-    let proxy = (gleam as any).with_config(configToGleam(config));
-    proxy = (gleam as any).with_default_registry(proxy);
-    this.#inner = proxy;
-  }
-
-  static fromExisting(inner: GleamProxy): DraftProxy {
-    const proxy = Object.create(DraftProxy.prototype) as DraftProxy;
-    (proxy as any).constructor = DraftProxy;
-    (proxy as any)['#inner'] = inner;
-    return proxy;
+    this.#inner = with_default_registry(with_config(configToGleam(config)));
   }
 
   async processRequest(request: DraftProxyRequest): Promise<DraftProxyHttpResponse> {
-    const result = await Promise.resolve((gleam as any).process_request_async(this.#inner, requestToGleam(request)));
-    const [resp, next] = unwrapPair(result);
+    const [resp, next] = await process_request_async(this.#inner, requestToGleam(request));
     this.#inner = next;
     return responseFromGleam(resp);
   }
 
   reset(): void {
-    this.#inner = (gleam as any).reset(this.#inner);
+    this.#inner = gleamReset(this.#inner);
   }
 
   getConfig(): DraftProxyConfigSnapshot {
-    return JSON.parse((gleamJson as any).to_string((gleam as any).get_config_snapshot(this.#inner)));
+    return JSON.parse(jsonToString(get_config_snapshot(this.#inner)));
   }
 
   getLog(): DraftProxyLogSnapshot {
-    return JSON.parse((gleamJson as any).to_string((gleam as any).get_log_snapshot(this.#inner)));
+    return JSON.parse(jsonToString(get_log_snapshot(this.#inner)));
   }
 
   getState(): DraftProxyStateSnapshot {
-    return JSON.parse((gleamJson as any).to_string((gleam as any).get_state_snapshot(this.#inner)));
+    return JSON.parse(jsonToString(get_state_snapshot(this.#inner)));
   }
 
   dumpState(createdAt?: string): DraftProxyStateDump {
-    const tree =
-      createdAt === undefined
-        ? (gleam as any).dump_state_now(this.#inner)
-        : (gleam as any).dump_state(this.#inner, createdAt);
-    return JSON.parse((gleamJson as any).to_string(tree));
+    const tree = createdAt === undefined ? dump_state_now(this.#inner) : dump_state(this.#inner, createdAt);
+    return JSON.parse(jsonToString(tree));
   }
 
   restoreState(dump: DraftProxyStateDump): void {
-    const result = (gleam as any).restore_state(this.#inner, JSON.stringify(dump));
-    if (result.constructor.name === 'Error') {
-      throw new Error(`DraftProxy.restoreState failed: ${result[0]?.message ?? 'malformed dump'}`);
+    const result = restore_state(this.#inner, JSON.stringify(dump));
+    if (Result$isOk(result)) {
+      this.#inner = Result$Ok$0(result) as GleamDraftProxy;
+      return;
     }
-    this.#inner = result[0];
+    const err = Result$Error$0(result);
+    const message =
+      err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : 'malformed dump';
+    throw new Error(`DraftProxy.restoreState failed: ${message}`);
   }
 }
 
