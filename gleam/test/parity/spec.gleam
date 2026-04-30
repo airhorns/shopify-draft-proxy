@@ -38,6 +38,12 @@ import gleam/result
 import parity/diff.{type ExpectedDifference}
 import parity/json_value.{type JsonValue}
 
+pub type OutputPath {
+  ProxyPath(path: String)
+  ProxyStatePath(path: String)
+  ProxyLogPath(path: String)
+}
+
 pub type ParityVariables {
   /// Resolve variables by following a JSONPath into the primary capture.
   VariablesFromCapture(path: String)
@@ -52,7 +58,12 @@ pub type ParityVariables {
 }
 
 pub type ProxyRequest {
-  ProxyRequest(document_path: String, variables: ParityVariables)
+  ProxyRequest(
+    document_path: String,
+    variables: ParityVariables,
+    api_version: Option(String),
+    wait_before_ms: Int,
+  )
 }
 
 pub type TargetRequest {
@@ -69,7 +80,9 @@ pub type Target {
   Target(
     name: String,
     capture_path: String,
-    proxy_path: String,
+    output_path: OutputPath,
+    selected_paths: List(String),
+    excluded_paths: List(String),
     expected_differences: List(ExpectedDifference),
     request: TargetRequest,
   )
@@ -118,7 +131,12 @@ fn empty_spec() -> Spec {
   Spec(
     scenario_id: "",
     capture_file: "",
-    proxy_request: ProxyRequest(document_path: "", variables: NoVariables),
+    proxy_request: ProxyRequest(
+      document_path: "",
+      variables: NoVariables,
+      api_version: None,
+      wait_before_ms: 0,
+    ),
     targets: [],
     expected_differences: [],
   )
@@ -126,6 +144,12 @@ fn empty_spec() -> Spec {
 
 fn proxy_request_decoder() -> Decoder(ProxyRequest) {
   use document_path <- decode.field("documentPath", decode.string)
+  use api_version <- decode.optional_field(
+    "apiVersion",
+    None,
+    decode.optional(decode.string),
+  )
+  use wait_before_ms <- decode.optional_field("waitBeforeMs", 0, decode.int)
   use variables_capture_path <- decode.optional_field(
     "variablesCapturePath",
     None,
@@ -150,6 +174,8 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
   decode.success(ProxyRequest(
     document_path: document_path,
     variables: variables,
+    api_version: api_version,
+    wait_before_ms: wait_before_ms,
   ))
 }
 
@@ -183,7 +209,31 @@ fn comparison_decoder() -> Decoder(#(List(Target), List(ExpectedDifference))) {
 fn target_decoder() -> Decoder(Target) {
   use name <- decode.field("name", decode.string)
   use capture_path <- decode.field("capturePath", decode.string)
-  use proxy_path <- decode.field("proxyPath", decode.string)
+  use proxy_path <- decode.optional_field(
+    "proxyPath",
+    None,
+    decode.optional(decode.string),
+  )
+  use proxy_state_path <- decode.optional_field(
+    "proxyStatePath",
+    None,
+    decode.optional(decode.string),
+  )
+  use proxy_log_path <- decode.optional_field(
+    "proxyLogPath",
+    None,
+    decode.optional(decode.string),
+  )
+  use selected_paths <- decode.optional_field(
+    "selectedPaths",
+    [],
+    decode.list(decode.string),
+  )
+  use excluded_paths <- decode.optional_field(
+    "excludedPaths",
+    [],
+    decode.list(decode.string),
+  )
   use expected_differences <- decode.optional_field(
     "expectedDifferences",
     [],
@@ -194,10 +244,18 @@ fn target_decoder() -> Decoder(Target) {
     ReusePrimary,
     decode.map(proxy_request_decoder(), OverrideRequest),
   )
+  let output_path = case proxy_path, proxy_state_path, proxy_log_path {
+    Some(path), _, _ -> ProxyPath(path)
+    _, Some(path), _ -> ProxyStatePath(path)
+    _, _, Some(path) -> ProxyLogPath(path)
+    None, None, None -> ProxyPath("")
+  }
   decode.success(Target(
     name: name,
     capture_path: capture_path,
-    proxy_path: proxy_path,
+    output_path: output_path,
+    selected_paths: selected_paths,
+    excluded_paths: excluded_paths,
     expected_differences: expected_differences,
     request: request,
   ))

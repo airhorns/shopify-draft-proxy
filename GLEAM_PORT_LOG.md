@@ -9,6 +9,69 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 33: full parity corpus execution harness
+
+HAR-480 moves the Gleam parity suite from a small hand-listed subset to a
+corpus-driven harness. The runner now decodes the broader TS comparison
+contract shape, executes every checked-in `config/parity-specs/**/*.json`
+scenario, applies selected/excluded comparison paths, supports proxy
+state/log targets, threads primary/previous/named proxy response variables, and
+loads the default operation registry before dispatch. Specs blocked by
+unported Gleam domains are still executed and counted as reviewed skips; the
+test fails if any blocked spec starts passing, preventing stale blockers from
+hiding runnable coverage.
+
+| Module                                | Change                                                                                                                                                                              |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/spec.gleam`        | Decodes API versions, wait fields, proxy state/log targets, selected/excluded paths, and richer proxy request metadata.                                                             |
+| `gleam/test/parity/runner.gleam`      | Loads the default registry, supports state/log comparison sources, selected/excluded path filtering, API-versioned requests, and all inline variable reference forms used by specs. |
+| `gleam/test/parity/jsonpath.gleam`    | Adds quoted object-key and wildcard-step parsing needed by state/log selected paths and excluded-path rules.                                                                        |
+| `gleam/test/parity/blockers.gleam`    | Records explicit reviewed blockers for specs that execute but cannot pass until their owning Gleam domains/substrate are ported.                                                    |
+| `gleam/test/parity_test.gleam`        | Replaces hand-listed scenario tests with a discovered full-corpus execution test and stale-blocker guard.                                                                           |
+| `gleam/test/parity_corpus_test.gleam` | Runs corpus discovery/classification checks on both Erlang and JavaScript targets now that `simplifile` supports the JS test harness.                                               |
+
+Validation: `corepack pnpm conformance:parity` is green at 384 Vitest tests
+and establishes the TypeScript reference partition as 379 runnable/passing
+specs with 0 skips. `gleam test --target javascript` is green at 654 tests and
+the full-corpus test executes 379 specs with a reviewed Gleam partition of 25
+passing and 354 skipped for explicit blockers. `gleam test --target erlang` is
+green at 647 tests via the `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`
+container because the host still lacks `escript`.
+
+### Findings
+
+- The JS target can use `simplifile.get_files`, so corpus discovery no longer
+  needs to be Erlang-only.
+- Existing parity specs already exercise the full TS runner surface:
+  selected/excluded paths, proxy state/log paths, named/previous proxy response
+  substitutions, API-version overrides, and broad target-level proxy requests.
+- Runner substrate can execute the entire corpus quickly, but most specs remain
+  blocked by unported resource domains rather than by discovery or decoding.
+
+### Risks / open items
+
+- The Gleam passing partition is intentionally smaller than TypeScript's until
+  product, customer, order, discount, market, media, B2B, payments, and other
+  owning domains are ported.
+- Blocker reasons are domain/substrate-level. They are guarded against going
+  stale by executing blocked specs and failing when any blocked spec starts
+  passing, but future domain passes should narrow or remove blockers as soon as
+  specs become runnable.
+- Snapshot file loading for the full TypeScript state dump shape remains
+  unported; corpus execution currently relies on per-scenario capture seeding
+  and reviewed blockers for scenarios that need broader state hydration.
+
+### Pass 34 candidates
+
+- Port product read/state substrate so the largest blocked partition can start
+  moving from reviewed skip to passing parity evidence.
+- Add captured taxonomy and Admin Platform node seeding now that the full
+  corpus harness reports stale blockers.
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, removing corresponding blockers as specs pass.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain

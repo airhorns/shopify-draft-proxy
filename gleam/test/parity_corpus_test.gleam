@@ -4,22 +4,14 @@
 //// is what we expect. Per-scenario execution is still
 //// `parity_test.gleam`'s job (hand-listed for now).
 ////
-//// Erlang-only: simplifile's `get_files` walks the FS, which the JS
-//// test harness can't do.
 
-@target(erlang)
 import gleam/list
-@target(erlang)
 import parity/classify
-@target(erlang)
 import parity/discover
-@target(erlang)
 import simplifile
 
-@target(erlang)
 const parity_root: String = "../config/parity-specs"
 
-@target(erlang)
 pub fn corpus_discovers_all_specs_test() {
   let assert Ok(files) = discover.discover(parity_root)
   // The TS side ships 379 specs today; assert a generous lower bound
@@ -28,7 +20,6 @@ pub fn corpus_discovers_all_specs_test() {
   assert list.length(files) >= 379
 }
 
-@target(erlang)
 pub fn corpus_partition_is_all_ready_for_comparison_test() {
   let assert Ok(files) = discover.discover(parity_root)
   let states = classify_all(files)
@@ -46,7 +37,6 @@ pub fn corpus_partition_is_all_ready_for_comparison_test() {
   assert not_implemented == []
 }
 
-@target(erlang)
 pub fn corpus_every_spec_decodes_test() {
   let assert Ok(files) = discover.discover(parity_root)
   let failures =
@@ -69,7 +59,6 @@ pub fn corpus_every_spec_decodes_test() {
   }
 }
 
-@target(erlang)
 fn classify_all(files: List(String)) -> List(classify.ScenarioState) {
   list.filter_map(files, fn(path) {
     case simplifile.read(path) {
@@ -83,7 +72,6 @@ fn classify_all(files: List(String)) -> List(classify.ScenarioState) {
   })
 }
 
-@target(erlang)
 fn int_to_string(n: Int) -> String {
   case n {
     0 -> "0"
@@ -91,7 +79,6 @@ fn int_to_string(n: Int) -> String {
   }
 }
 
-@target(erlang)
 fn int_to_string_loop(n: Int, acc: String) -> String {
   case n {
     0 -> acc
@@ -103,7 +90,6 @@ fn int_to_string_loop(n: Int, acc: String) -> String {
   }
 }
 
-@target(erlang)
 fn digit_char(d: Int) -> String {
   case d {
     0 -> "0"

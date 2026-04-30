@@ -5,11 +5,11 @@
 ////   $.foo               – object key
 ////   $.foo.bar           – nested key
 ////   $[3]                – array index
+////   $["odd.key"]        – object key
+////   $.foo[*]            – wildcard step, for delete/exclude traversal
 ////   $.foo[3].bar        – mixed
 ////
-//// This is *all* the parity specs use today. We deliberately do not
-//// implement filters, recursive descent, or wildcards — if a spec ever
-//// needs them we add them then.
+//// We deliberately do not implement filters or recursive descent.
 
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -19,6 +19,7 @@ import parity/json_value.{type JsonValue}
 pub type Step {
   FieldStep(name: String)
   IndexStep(index: Int)
+  WildcardStep
 }
 
 pub type ParseError {
@@ -77,14 +78,47 @@ fn parse_index(
   rest: String,
   acc: List(Step),
 ) -> Result(List(Step), ParseError) {
-  let #(digits, after_digits) = take_digits(rest, "")
-  case digits, after_digits {
-    "", _ -> Error(ParseError(message: "Empty index in JSONPath"))
-    _, "]" <> tail -> {
-      let assert Ok(n) = parse_int(digits)
-      parse_steps(tail, [IndexStep(index: n), ..acc])
+  case rest {
+    "*]" <> tail -> parse_steps(tail, [WildcardStep, ..acc])
+    "\"" <> quoted -> parse_quoted_field(quoted, acc)
+    _ -> {
+      let #(digits, after_digits) = take_digits(rest, "")
+      case digits, after_digits {
+        "", _ -> Error(ParseError(message: "Empty index in JSONPath"))
+        _, "]" <> tail -> {
+          let assert Ok(n) = parse_int(digits)
+          parse_steps(tail, [IndexStep(index: n), ..acc])
+        }
+        _, _ -> Error(ParseError(message: "Unterminated index in JSONPath"))
+      }
     }
-    _, _ -> Error(ParseError(message: "Unterminated index in JSONPath"))
+  }
+}
+
+fn parse_quoted_field(
+  rest: String,
+  acc: List(Step),
+) -> Result(List(Step), ParseError) {
+  let #(name, tail) = take_quoted(rest, "")
+  case tail {
+    "\"]" <> after -> parse_steps(after, [FieldStep(name: name), ..acc])
+    _ -> Error(ParseError(message: "Unterminated quoted field in JSONPath"))
+  }
+}
+
+fn take_quoted(input: String, acc: String) -> #(String, String) {
+  case string.pop_grapheme(input) {
+    Error(_) -> #(acc, "")
+    Ok(#(grapheme, rest)) ->
+      case grapheme {
+        "\"" -> #(acc, grapheme <> rest)
+        "\\" ->
+          case string.pop_grapheme(rest) {
+            Ok(#(escaped, tail)) -> take_quoted(tail, acc <> escaped)
+            Error(_) -> #(acc, rest)
+          }
+        _ -> take_quoted(rest, acc <> grapheme)
+      }
   }
 }
 
@@ -151,6 +185,7 @@ fn step_into(value: JsonValue, step: Step) -> Option(JsonValue) {
   case step {
     FieldStep(name: name) -> json_value.field(value, name)
     IndexStep(index: idx) -> json_value.index(value, idx)
+    WildcardStep -> None
   }
 }
 
