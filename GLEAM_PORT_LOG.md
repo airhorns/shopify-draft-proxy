@@ -9,6 +9,63 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 38: strict runtime state restore guards
+
+Tightens the runtime state dump/restore substrate added in Pass 36. The Gleam
+restore path now treats the current store field dump as a required structural
+contract: `baseState`, `stagedState`, and `mutationLog` must all be present in
+the versioned store envelope instead of silently defaulting missing fields to an
+empty store. This keeps incomplete dumps from erasing modeled state during
+restore and makes newly modeled store buckets safer because the top-level store
+dump shape cannot drift without a decoder failure.
+
+This pass is also the rework for HAR-522 after reviewer feedback clarified that
+the ticket belongs to the Gleam port, not the legacy TypeScript implementation.
+The earlier TypeScript-only strict-restore patch was reverted on the PR branch;
+the shipping TypeScript runtime remains unchanged while the Gleam port gains
+the missing guard.
+
+| Module                                                        | Change                                                                                                                                              |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Requires `baseState`, `stagedState`, and `mutationLog` when restoring a store field dump instead of applying empty defaults for omitted fields.     |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | Builds negative restore fixtures from a real default dump and adds coverage that each required store field returns `MalformedDumpJson(_)` when absent. |
+
+Validation: `gleam test --target javascript` is green at 692 tests on the host
+Node runtime. `gleam test --target erlang` is green at 689 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` with OTP 28 because the host
+Erlang runtime is OTP 25 and `gleam_json` requires OTP 27+. `corepack pnpm
+gleam:format:check` and `git diff --check` are green.
+
+### Findings
+
+- The existing Gleam decoder used optional store fields as backwards-compatible
+  defaults, but the current state-dump schema is the active runtime contract;
+  defaulting missing `baseState`, `stagedState`, or `mutationLog` would erase
+  internal state without surfacing a malformed dump.
+- Older malformed-dump tests used hand-written store fragments that omitted the
+  current required fields. Building those fixtures from `dump_state` keeps each
+  test focused on the intended invalid field.
+
+### Risks / open items
+
+- This pass guards the current store envelope shape; per-bucket omission inside
+  `baseState` and `stagedState` remains governed by the incremental snapshot
+  and state serializer decoders from Pass 36.
+- Root-owned Docker validation can leave `gleam/build` owned by root on the
+  host. The local workspace needed ownership repaired before rerunning the JS
+  target after the Erlang container pass.
+
+### Pass 39 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
+
+---
+
 ## 2026-04-30 — Pass 37: metafield definitions and owner-scoped metafields
 
 Ports the Metafields definition lifecycle and owner-scoped metafield staging

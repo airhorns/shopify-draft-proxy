@@ -1019,6 +1019,21 @@ pub fn meta_commit_get_returns_405_test() {
 
 const fixed_created_at: String = "2026-04-29T12:00:00.000Z"
 
+fn default_dump_string() -> String {
+  draft_proxy.new()
+  |> draft_proxy.dump_state(fixed_created_at)
+  |> json.to_string
+}
+
+fn expect_malformed_dump(dump_string: String) {
+  let assert Error(err) =
+    draft_proxy.restore_state(draft_proxy.new(), dump_string)
+  case err {
+    draft_proxy.MalformedDumpJson(_) -> Nil
+    _ -> panic as "expected MalformedDumpJson error"
+  }
+}
+
 pub fn dump_state_default_proxy_test() {
   let proxy = draft_proxy.new()
   let dumped = json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
@@ -1141,7 +1156,11 @@ pub fn restore_snapshot_installs_base_state_and_ignores_unknown_buckets_test() {
 pub fn restore_state_rejects_unsupported_schema_test() {
   let proxy = draft_proxy.new()
   let dump_with_bad_schema =
-    "{\"schema\":\"some/other/schema\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+    default_dump_string()
+    |> string.replace(
+      "\"schema\":\"shopify-draft-proxy/state-dump\"",
+      "\"schema\":\"some/other/schema\"",
+    )
   let assert Error(err) = draft_proxy.restore_state(proxy, dump_with_bad_schema)
   case err {
     draft_proxy.UnsupportedSchema(found: "some/other/schema") -> Nil
@@ -1152,7 +1171,11 @@ pub fn restore_state_rejects_unsupported_schema_test() {
 pub fn restore_state_rejects_unsupported_version_test() {
   let proxy = draft_proxy.new()
   let dump_with_bad_version =
-    "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":99,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+    default_dump_string()
+    |> string.replace(
+      "\"version\":1,\"createdAt\"",
+      "\"version\":99,\"createdAt\"",
+    )
   let assert Error(err) =
     draft_proxy.restore_state(proxy, dump_with_bad_version)
   case err {
@@ -1164,7 +1187,8 @@ pub fn restore_state_rejects_unsupported_version_test() {
 pub fn restore_state_rejects_unsupported_store_version_test() {
   let proxy = draft_proxy.new()
   let dump_with_bad_store_version =
-    "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":7,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+    default_dump_string()
+    |> string.replace("\"store\":{\"version\":1", "\"store\":{\"version\":7")
   let assert Error(err) =
     draft_proxy.restore_state(proxy, dump_with_bad_store_version)
   case err {
@@ -1176,7 +1200,8 @@ pub fn restore_state_rejects_unsupported_store_version_test() {
 pub fn restore_state_rejects_invalid_synthetic_id_test() {
   let proxy = draft_proxy.new()
   let dump_with_zero_id =
-    "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":0,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+    default_dump_string()
+    |> string.replace("\"nextSyntheticId\":1", "\"nextSyntheticId\":0")
   let assert Error(err) = draft_proxy.restore_state(proxy, dump_with_zero_id)
   case err {
     draft_proxy.InvalidSyntheticIdentity(_) -> Nil
@@ -1203,6 +1228,21 @@ pub fn restore_state_rejects_missing_fields_test() {
     draft_proxy.MalformedDumpJson(_) -> Nil
     _ -> panic as "expected MalformedDumpJson error"
   }
+}
+
+pub fn restore_state_rejects_missing_store_fields_test() {
+  let default_dump = default_dump_string()
+  expect_malformed_dump(
+    default_dump |> string.replace("\"baseState\":", "\"missingBaseState\":"),
+  )
+  expect_malformed_dump(
+    default_dump
+    |> string.replace("\"stagedState\":", "\"missingStagedState\":"),
+  )
+  expect_malformed_dump(
+    default_dump
+    |> string.replace("\"mutationLog\":", "\"missingMutationLog\":"),
+  )
 }
 
 pub fn dump_state_constants_are_stable_test() {
