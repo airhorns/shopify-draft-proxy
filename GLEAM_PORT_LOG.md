@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 103: product merchandising guardrail parity
+
+Promotes the captured Product merchandising mutation guardrail fixture into the
+Gleam parity suite. The port now routes the bundle, combined-listing, and
+ProductVariant relationship validation roots locally, preserves raw mutation
+logging, and returns the captured Shopify user-error/null payload shapes for the
+guardrail branches without runtime Shopify writes.
+
+| Module                                               | Change                                                                                |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds captured guardrail handlers for bundle, combined-listing, and variant relations. |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing merchandising guardrail parity spec.                        |
+| `docs/endpoints/products.md`                         | Links the executable merchandising guardrail parity spec in the Product docs.         |
+| `.agents/skills/gleam-port/SKILL.md`                 | Records validation priority and JSON-string error-message traps.                      |
+
+Validation:
+Focused JavaScript parity is green for
+`product-merchandising-mutation-guardrails.json`. Full JavaScript is green at
+716 tests. Host Erlang still fails with the known local `Undef` runner class;
+the Docker Erlang fallback is green at 712 tests. `corepack pnpm
+gleam:port:coverage` is green with 379 specs and 190 expected failures.
+`corepack pnpm lint` and whitespace checks are green. Product parity inventory
+remains 115 checked-in specs, with 102 product specs executable in the Gleam
+parity suite and 13 product specs still expected-failing.
+
+### Findings
+
+- Shopify returns nullable `field` values for Product bundle guardrail errors:
+  empty bundle create components and unknown bundle update products both use
+  `field: null`.
+- `productBundleUpdate` validates the submitted Product before component
+  validation, so the captured unknown-product branch returns only the `Product
+does not exist` user error even when `components: []` is also present.
+- ProductVariant relationship missing-ID errors include a compact JSON string
+  list in the message, including both the missing parent variant and missing
+  component variants.
+
+### Risks / open items
+
+- This pass covers captured validation branches only. Full Product bundle,
+  ProductVariant component, and combined-listing success lifecycle parity
+  remains incomplete in Gleam.
+- Duplicate, productSet, advanced search, selling-plan scenarios, and remaining
+  bulk validation atomicity parity remain incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 104 candidates
+
+- Continue duplicate / productSet roots and validation atomicity.
+- Continue advanced product search/sort/read parity.
+- Continue selling-plan product/variant association or selling-plan group
+  lifecycle parity.
+
+---
+
 ## 2026-04-30 - Pass 102: product media async plan parity
 
 Promotes the three captured Product media async plan fixtures into the Gleam

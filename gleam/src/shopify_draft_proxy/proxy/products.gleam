@@ -163,6 +163,10 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productFeedCreate"
     | "productFeedDelete"
     | "productFullSync"
+    | "productBundleCreate"
+    | "productBundleUpdate"
+    | "combinedListingUpdate"
+    | "productVariantRelationshipBulkUpdate"
     | "productCreateMedia"
     | "productUpdateMedia"
     | "productDeleteMedia"
@@ -5313,6 +5317,94 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "productBundleCreate" | "productBundleUpdate" -> {
+              let result =
+                handle_product_bundle_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some(
+                    "Gleam staged captured Product bundle guardrails locally.",
+                  ),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "combinedListingUpdate" -> {
+              let result =
+                handle_combined_listing_update(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some(
+                    "Gleam staged captured combinedListingUpdate guardrails locally.",
+                  ),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "productVariantRelationshipBulkUpdate" -> {
+              let result =
+                handle_product_variant_relationship_bulk_update(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some(
+                    "Gleam staged captured ProductVariant relationship guardrails locally.",
+                  ),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "productCreateMedia"
             | "productUpdateMedia"
             | "productDeleteMedia"
@@ -6874,6 +6966,186 @@ fn handle_product_full_sync(
         [],
       )
   }
+}
+
+fn handle_product_bundle_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let product_id = read_string_field(input, "productId")
+  let existing_product = case product_id {
+    Some(id) -> store.get_effective_product_by_id(store, id)
+    None -> None
+  }
+  let user_errors = case root_name, product_id, existing_product {
+    "productBundleUpdate", _, None -> [
+      NullableFieldUserError(None, "Product does not exist"),
+    ]
+    _, _, _ -> {
+      case read_object_list_field(input, "components") {
+        [] -> [
+          NullableFieldUserError(None, "At least one component is required."),
+        ]
+        _ -> []
+      }
+    }
+  }
+  mutation_result(
+    key,
+    product_bundle_mutation_payload(root_name, user_errors, field, fragments),
+    store,
+    identity,
+    [],
+  )
+}
+
+fn handle_combined_listing_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let parent_product_id = read_arg_string(args, "parentProductId")
+  let parent_product = case parent_product_id {
+    Some(id) -> store.get_effective_product_by_id(store, id)
+    None -> None
+  }
+  case parent_product {
+    None ->
+      mutation_result(
+        key,
+        combined_listing_update_payload(
+          SrcNull,
+          [
+            ProductUserError(
+              ["parentProductId"],
+              "Product does not exist",
+              Some("PARENT_PRODUCT_NOT_FOUND"),
+            ),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product) ->
+      mutation_result(
+        key,
+        combined_listing_update_payload(
+          product_source_with_store(store, product),
+          [],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [product.id],
+      )
+  }
+}
+
+fn handle_product_variant_relationship_bulk_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let inputs = read_arg_object_list(args, "input")
+  let missing_ids =
+    inputs
+    |> list.flat_map(missing_variant_relationship_ids(store))
+  let user_errors = case missing_ids {
+    [] -> []
+    _ -> [
+      ProductUserError(
+        ["input"],
+        "The product variants with ID(s) "
+          <> json_string_array_literal(missing_ids)
+          <> " could not be found.",
+        Some("PRODUCT_VARIANTS_NOT_FOUND"),
+      ),
+    ]
+  }
+  mutation_result(
+    key,
+    product_variant_relationship_bulk_update_payload(
+      user_errors,
+      field,
+      fragments,
+    ),
+    store,
+    identity,
+    [],
+  )
+}
+
+fn missing_variant_relationship_ids(
+  store: Store,
+) -> fn(Dict(String, ResolvedValue)) -> List(String) {
+  fn(input) {
+    let parent_variant_id = case
+      read_string_field(input, "parentProductVariantId")
+    {
+      Some(id) -> Some(id)
+      None ->
+        case read_string_field(input, "parentProductId") {
+          Some(product_id) ->
+            store.get_effective_variants_by_product_id(store, product_id)
+            |> list.first
+            |> option.from_result
+            |> option.map(fn(variant) { variant.id })
+          None -> None
+        }
+    }
+    let parent_missing = case parent_variant_id {
+      Some(id) ->
+        case store.get_effective_variant_by_id(store, id) {
+          Some(_) -> []
+          None -> [id]
+        }
+      None -> []
+    }
+    let relationship_ids =
+      list.append(
+        read_object_list_field(input, "productVariantRelationshipsToCreate"),
+        read_object_list_field(input, "productVariantRelationshipsToUpdate"),
+      )
+      |> list.filter_map(fn(relationship) {
+        read_string_field(relationship, "id") |> option_to_result
+      })
+    let relationship_missing =
+      relationship_ids
+      |> list.filter(fn(id) {
+        case store.get_effective_variant_by_id(store, id) {
+          Some(_) -> False
+          None -> True
+        }
+      })
+    list.append(parent_missing, relationship_missing)
+  }
+}
+
+fn json_string_array_literal(values: List(String)) -> String {
+  let content =
+    values
+    |> list.map(fn(value) { "\"" <> value <> "\"" })
+    |> string.join(",")
+  "[" <> content <> "]"
 }
 
 fn handle_product_media_mutation(
@@ -14164,6 +14436,64 @@ fn product_full_sync_payload(
     src_object([
       #("__typename", SrcString("ProductFullSyncPayload")),
       #("id", optional_string_source(id)),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_bundle_mutation_payload(
+  root_name: String,
+  user_errors: List(NullableFieldUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let typename = case root_name {
+    "productBundleUpdate" -> "ProductBundleUpdatePayload"
+    _ -> "ProductBundleCreatePayload"
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString(typename)),
+      #("productBundleOperation", SrcNull),
+      #("userErrors", nullable_field_user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn combined_listing_update_payload(
+  product: SourceValue,
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("CombinedListingUpdatePayload")),
+      #("product", product),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_variant_relationship_bulk_update_payload(
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let parent_product_variants = case user_errors {
+    [] -> SrcList([])
+    _ -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductVariantRelationshipBulkUpdatePayload")),
+      #("parentProductVariants", parent_product_variants),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),

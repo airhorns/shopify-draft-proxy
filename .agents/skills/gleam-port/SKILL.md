@@ -326,6 +326,14 @@ synthetic-id/timestamp expected differences.
   media records; do not duplicate media rows per variant. Relationship captures
   may need `seedCollections` hydrated in addition to generic `seedProducts` and
   `seedProductMedia`.
+- Product merchandising guardrail captures route bundle, combined-listing, and
+  ProductVariant relationship roots locally even when no success lifecycle is
+  ported yet. Preserve the captured validation priority: unknown
+  `productBundleUpdate.input.productId` returns `field: null` before checking
+  empty components, empty `productBundleCreate.input.components` returns
+  `field: null`, missing combined-listing parents return code
+  `PARENT_PRODUCT_NOT_FOUND`, and missing ProductVariant relationship IDs use a
+  compact JSON string list in the `PRODUCT_VARIANTS_NOT_FOUND` message.
 - Product media async plan fixtures depend on timing-sensitive lifecycle state:
   create returns `UPLOADED` in the mutation payload, the immediate downstream
   Product media read is null-url `PROCESSING`, and later successful media
