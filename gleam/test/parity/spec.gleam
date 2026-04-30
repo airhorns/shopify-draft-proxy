@@ -72,6 +72,7 @@ pub type Target {
     capture_path: String,
     proxy_path: String,
     upstream_capture_path: Option(String),
+    selected_paths: List(String),
     expected_differences: List(ExpectedDifference),
     excluded_paths: List(String),
     request: TargetRequest,
@@ -197,6 +198,11 @@ fn target_decoder() -> Decoder(Target) {
     [],
     decode.list(expected_difference_decoder()),
   )
+  use selected_paths <- decode.optional_field(
+    "selectedPaths",
+    [],
+    decode.list(decode.string),
+  )
   use excluded_paths <- decode.optional_field(
     "excludedPaths",
     [],
@@ -217,6 +223,7 @@ fn target_decoder() -> Decoder(Target) {
     capture_path: capture_path,
     proxy_path: proxy_path,
     upstream_capture_path: upstream_capture_path,
+    selected_paths: selected_paths,
     expected_differences: expected_differences,
     excluded_paths: excluded_paths,
     request: request,
