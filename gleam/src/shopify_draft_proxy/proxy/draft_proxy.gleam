@@ -48,10 +48,11 @@ import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/operation_registry.{
   type RegistryEntry, AdminPlatform, Apps, BulkOperations, Events, Functions,
-  GiftCards, Localization, Marketing, Media, Metafields, Metaobjects,
+  GiftCards, Localization, Marketing, Media, Metafields, Metaobjects, Products,
   SavedSearches, Segments, ShippingFulfillments, StoreProperties, Webhooks,
 }
 import shopify_draft_proxy/proxy/operation_registry_data
+import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/store_properties
@@ -404,11 +405,18 @@ fn optional_string(value: Option(String)) -> Json {
 }
 
 fn serialize_base_state(state: store.BaseState) -> Json {
-  let entries = case state.shop {
-    Some(shop) -> [
-      #("shop", source_to_json(store_properties.shop_source(shop))),
+  let entries = case dict.is_empty(state.products) {
+    True -> []
+    False -> [
+      #("products", serialize_product_dict(state.products)),
     ]
-    None -> []
+  }
+  let entries = case state.shop {
+    Some(shop) ->
+      list.append(entries, [
+        #("shop", source_to_json(store_properties.shop_source(shop))),
+      ])
+    None -> entries
   }
   let entries = case dict.is_empty(state.saved_searches) {
     True -> entries
@@ -416,16 +424,52 @@ fn serialize_base_state(state: store.BaseState) -> Json {
       list.append(entries, [
         #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
       ])
+  }
+  let entries = case dict.is_empty(state.deleted_product_ids) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "deletedProductIds",
+          json.array(dict.keys(state.deleted_product_ids), json.string),
+        ),
+      ])
+  }
+  let entries = case state.product_count {
+    Some(count) -> list.append(entries, [#("productCount", json.int(count))])
+    None -> entries
+  }
+  let entries = case dict.is_empty(state.product_variants) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "productVariants",
+          serialize_product_variant_dict(state.product_variants),
+        ),
+      ])
+  }
+  let entries = case state.product_variant_count {
+    Some(count) ->
+      list.append(entries, [#("productVariantCount", json.int(count))])
+    None -> entries
   }
   json.object(entries)
 }
 
 fn serialize_staged_state(state: store.StagedState) -> Json {
-  let entries = case state.shop {
-    Some(shop) -> [
-      #("shop", source_to_json(store_properties.shop_source(shop))),
+  let entries = case dict.is_empty(state.products) {
+    True -> []
+    False -> [
+      #("products", serialize_product_dict(state.products)),
     ]
-    None -> []
+  }
+  let entries = case state.shop {
+    Some(shop) ->
+      list.append(entries, [
+        #("shop", source_to_json(store_properties.shop_source(shop))),
+      ])
+    None -> entries
   }
   let entries = case dict.is_empty(state.saved_searches) {
     True -> entries
@@ -433,6 +477,35 @@ fn serialize_staged_state(state: store.StagedState) -> Json {
       list.append(entries, [
         #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
       ])
+  }
+  let entries = case dict.is_empty(state.deleted_product_ids) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "deletedProductIds",
+          json.array(dict.keys(state.deleted_product_ids), json.string),
+        ),
+      ])
+  }
+  let entries = case state.product_count {
+    Some(count) -> list.append(entries, [#("productCount", json.int(count))])
+    None -> entries
+  }
+  let entries = case dict.is_empty(state.product_variants) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "productVariants",
+          serialize_product_variant_dict(state.product_variants),
+        ),
+      ])
+  }
+  let entries = case state.product_variant_count {
+    Some(count) ->
+      list.append(entries, [#("productVariantCount", json.int(count))])
+    None -> entries
   }
   let entries = case dict.is_empty(state.deleted_saved_search_ids) {
     True -> entries
@@ -445,6 +518,33 @@ fn serialize_staged_state(state: store.StagedState) -> Json {
       ])
   }
   json.object(entries)
+}
+
+fn serialize_product_dict(
+  records: dict.Dict(String, types.ProductRecord),
+) -> Json {
+  json.object(
+    dict.to_list(records)
+    |> list.map(fn(pair) {
+      let #(id, record) = pair
+      #(id, source_to_json(products.product_source(record)))
+    }),
+  )
+}
+
+fn serialize_product_variant_dict(
+  records: dict.Dict(String, types.ProductVariantRecord),
+) -> Json {
+  json.object(
+    dict.to_list(records)
+    |> list.map(fn(pair) {
+      let #(id, record) = pair
+      #(
+        id,
+        source_to_json(products.product_variant_source(store.new(), record)),
+      )
+    }),
+  )
 }
 
 fn serialize_saved_search_dict(
@@ -1022,6 +1122,28 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(ProductsDomain) ->
+      case
+        products.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle products mutation"), proxy)
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -1116,6 +1238,12 @@ fn route_query(
       )
     Ok(MediaDomain) ->
       respond(proxy, media.process(query), "Failed to handle media query")
+    Ok(ProductsDomain) ->
+      respond(
+        proxy,
+        products.process(proxy.store, query, variables),
+        "Failed to handle products query",
+      )
     Ok(AdminPlatformDomain) ->
       respond(
         proxy,
@@ -1153,6 +1281,7 @@ type Domain {
   MarketingDomain
   BulkOperationsDomain
   MediaDomain
+  ProductsDomain
   AdminPlatformDomain
   StorePropertiesDomain
 }
@@ -1206,6 +1335,7 @@ fn capability_to_query_domain(
         Marketing -> Ok(MarketingDomain)
         BulkOperations -> Ok(BulkOperationsDomain)
         Media -> Ok(MediaDomain)
+        Products -> Ok(ProductsDomain)
         AdminPlatform -> Ok(AdminPlatformDomain)
         StoreProperties -> Ok(StorePropertiesDomain)
         _ -> Error(Nil)
@@ -1308,15 +1438,24 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
                                                     True -> Ok(MediaDomain)
                                                     False ->
                                                       case
-                                                        admin_platform.is_admin_platform_query_root(
+                                                        products.is_products_query_root(
                                                           name,
                                                         )
                                                       {
                                                         True ->
-                                                          Ok(
-                                                            AdminPlatformDomain,
-                                                          )
-                                                        False -> Error(Nil)
+                                                          Ok(ProductsDomain)
+                                                        False ->
+                                                          case
+                                                            admin_platform.is_admin_platform_query_root(
+                                                              name,
+                                                            )
+                                                          {
+                                                            True ->
+                                                              Ok(
+                                                                AdminPlatformDomain,
+                                                              )
+                                                            False -> Error(Nil)
+                                                          }
                                                       }
                                                   }
                                               }
@@ -1389,7 +1528,15 @@ fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
                                                 )
                                               {
                                                 True -> Ok(AdminPlatformDomain)
-                                                False -> Error(Nil)
+                                                False ->
+                                                  case
+                                                    products.is_products_mutation_root(
+                                                      name,
+                                                    )
+                                                  {
+                                                    True -> Ok(ProductsDomain)
+                                                    False -> Error(Nil)
+                                                  }
                                               }
                                           }
                                       }

@@ -767,8 +767,14 @@ fn handle_mutation_fields(
     all_drafts,
   ) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, errors, current_store, current_identity, staged_ids, drafts) =
-        acc
+      let #(
+        entries,
+        errors,
+        current_store,
+        current_identity,
+        staged_ids,
+        drafts,
+      ) = acc
       case field {
         Field(name: name, ..) -> {
           let dispatch = case name.value {
@@ -1340,4 +1346,3 @@ fn user_error_to_source(error: UserError) -> graphql_helpers.SourceValue {
     #("message", SrcString(error.message)),
   ])
 }
-

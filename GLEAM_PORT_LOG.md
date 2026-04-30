@@ -9,6 +9,981 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 49: productOptionsDelete lifecycle
+
+Adds local `productOptionsDelete` staging to the Gleam Products mutation
+handler. The handler now validates requested option IDs, returns
+`deletedOptionsIds`, removes staged option records, restores Shopify's default
+Title option when all custom options are deleted, remaps the remaining variant
+to `Default Title`, and records the raw mutation through the centralized
+mutation-log path.
+
+The parity runner now seeds the delete lifecycle capture from
+`preMutationRead.data.product`, and the strict
+`productOptionsDelete-parity-plan` scenario runs unchanged against the Gleam
+proxy.
+
+| Module                                                              | Change                                                                                    |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds `productOptionsDelete` routing, deletion payloads, user errors, and default restore. |
+| `gleam/test/parity/runner.gleam`                                    | Seeds the captured delete lifecycle fixture from its pre-mutation product read.           |
+| `gleam/test/parity_test.gleam`                                      | Enables the strict `productOptionsDelete-parity-plan` scenario.                           |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct mutation/read-after-write/log coverage for all-options delete restoration.    |
+
+Validation: `gleam test --target javascript` is green at 719 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 715 tests. Product parity
+inventory remains 115 checked-in specs, with 16 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  test returning HTTP 400 for `productOptionsDelete` because the root was not
+  routed by the Gleam Products mutation dispatcher.
+- The delete capture confirms Shopify restores a fresh default `Title` option
+  and `Default Title` option value when the last custom option is removed.
+- Restored default option and option value IDs are volatile; the existing
+  parity spec already records those as expected Shopify/local ID differences.
+
+### Risks / open items
+
+- `productOptionsReorder` remains unported.
+- Partial option deletion beyond the captured all-options-delete/default-restore
+  path remains lightly covered.
+- Only 16 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 50 candidates
+
+- Port `productOptionsReorder` so the admin-platform product option node parity
+  scenario can replay its lifecycle setup.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Continue product metafield or collection lifecycle slices with captured
+  parity specs.
+
+---
+
+## 2026-04-30 — Pass 48: productOptionUpdate lifecycle
+
+Extends the Products mutation slice with local `productOptionUpdate` staging.
+The Gleam handler now renames and repositions an existing ProductOption, adds
+new option values, updates/deletes existing option values, remaps variant
+`selectedOptions`, reorders variant selections to match the new option order,
+and records the raw mutation through the centralized mutation-log path. Product
+reads immediately observe the staged option and variant graph without a runtime
+Shopify write.
+
+The parity runner now seeds the captured update scenario from
+`preMutationRead.data.product`, and the strict
+`productOptionUpdate-parity-plan` scenario runs unchanged against the Gleam
+proxy.
+
+| Module                                                              | Change                                                                                          |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds `productOptionUpdate` routing, staging, option value updates, and variant selection remap. |
+| `gleam/test/parity/runner.gleam`                                    | Seeds the captured update lifecycle fixture from its pre-mutation product read.                 |
+| `gleam/test/parity_test.gleam`                                      | Enables the strict `productOptionUpdate-parity-plan` scenario.                                  |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct mutation/read-after-write/log coverage for option update lifecycle behavior.        |
+
+Validation: `gleam test --target javascript` is green at 717 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 713 tests. Product parity
+inventory remains 115 checked-in specs, with 15 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  test returning HTTP 400 for `productOptionUpdate` because the root was not
+  routed by the Gleam Products mutation dispatcher.
+- The captured update lifecycle confirms Shopify reorders variants'
+  `selectedOptions` after an option position change and derives the variant
+  title from that new selected-option order.
+- The update capture uses the same `preMutationRead.data.product` seeding shape
+  as the productOptionsCreate lifecycle captures.
+
+### Risks / open items
+
+- `productOptionsDelete` and `productOptionsReorder` remain unported.
+- Validation branches beyond the captured missing/unknown option behavior remain
+  future work.
+- Only 15 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 49 candidates
+
+- Port `productOptionsDelete` default-option restoration and enable the strict
+  delete parity plan.
+- Port `productOptionsReorder` so the admin-platform product option node parity
+  scenario can replay its lifecycle setup.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+
+---
+
+## 2026-04-30 — Pass 47: productOptionsCreate lifecycle
+
+Ports the first Products mutation slice to Gleam: `productOptionsCreate` now
+stages locally, records the raw mutation through the centralized mutation-log
+path, replaces Shopify's default Title option state, remaps the existing
+default variant for `LEAVE_AS_IS` / explicit `null`, and fans out variants for
+`variantStrategy: CREATE`. Downstream product reads observe the staged option
+and variant graph without a runtime Shopify write.
+
+The parity runner now seeds these scenarios from the captured
+`preMutationRead.data.product` payloads before replaying the primary mutation.
+It also handles expected-difference paths with two array wildcards, which the
+over-default-limit fixture uses for nested option value IDs.
+
+| Module                                                              | Change                                                                                     |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds Products mutation processing, `productOptionsCreate`, option sync, and CREATE fanout. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`             | Routes locally supported Products mutations to the Products mutation handler.              |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                   | Adds staged ProductVariant family replacement for read-after-write variant graphs.         |
+| `gleam/test/parity/runner.gleam`                                    | Seeds productOptionsCreate captures from pre-mutation product reads.                       |
+| `gleam/test/parity/diff.gleam`                                      | Supports two-wildcard expected-difference paths for nested array payloads.                 |
+| `gleam/test/parity_test.gleam`                                      | Enables four strict `productOptionsCreate` parity scenarios.                               |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct mutation/read-after-write/log coverage for the default-option create path.     |
+
+Validation: `gleam test --target javascript` is green at 715 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 711 tests. Product parity
+inventory remains 115 checked-in specs, with 14 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  test returning HTTP 400 for `productOptionsCreate` because Products
+  mutations had no Gleam dispatcher.
+- Shopify's CREATE fanout for an existing variant family preserves the first
+  new option value across existing variants first, then creates remaining
+  value combinations per existing variant. The over-default-limit capture made
+  that ordering visible.
+- Existing productOptionsCreate captures do not use `seedProducts`; they carry
+  the required baseline under `preMutationRead.data.product`.
+
+### Risks / open items
+
+- `productOptionUpdate`, `productOptionsDelete`, and `productOptionsReorder`
+  remain unported.
+- CREATE fanout is covered for the captured single-new-option scenarios; bulk
+  variant strategy behavior outside this productOptionsCreate slice remains
+  future work.
+- Only 14 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 48 candidates
+
+- Port `productOptionUpdate` over the captured option lifecycle fixture.
+- Port `productOptionsDelete` default-option restoration.
+- Port `productOptionsReorder` so the admin-platform product option node parity
+  scenario can replay its lifecycle setup instead of relying only on direct
+  seeded node coverage.
+
+---
+
+## 2026-04-30 — Pass 46: product option node reads
+
+Adds generic Relay node resolution for ProductOption and ProductOptionValue
+records backed by the product option state added in Pass 45. The Admin
+Platform `node`/`nodes` dispatcher now routes `gid://shopify/ProductOption/*`
+and `gid://shopify/ProductOptionValue/*` IDs to the Products serializer, while
+missing option IDs preserve Shopify-like `null` entries in `nodes(ids:)`.
+
+This remains a read-only node resolution slice. It does not implement product
+option mutations, option reorder lifecycle, variant strategy behavior, or the
+full admin-platform product option node parity scenario, which depends on the
+unported product option lifecycle roots.
+
+| Module                                                           | Change                                                                           |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                | Adds effective ProductOption/ProductOptionValue lookup by GID.                   |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`             | Exports ProductOption/ProductOptionValue node serializers.                       |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`       | Dispatches ProductOption/ProductOptionValue GIDs through `node` / `nodes`.       |
+| `gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam` | Adds direct generic node read coverage for option, option value, and missing ID. |
+
+Validation: `gleam test --target javascript` is green at 710 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 706 tests. Product parity
+inventory remains 115 checked-in specs, with 10 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was the Admin Platform dispatcher returning
+  `null` for ProductOption/ProductOptionValue GIDs because only store-property
+  node families were routed in Gleam.
+- The ProductOption source added in Pass 45 could be reused directly for node
+  selection projection, so no second option serializer was needed.
+
+### Risks / open items
+
+- The checked-in `admin-platform-product-option-node-reads` parity scenario is
+  still unenabled because it replays product option reorder lifecycle first.
+- Product option mutations and read-after-write lifecycle behavior remain
+  unported.
+- Only 10 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 47 candidates
+
+- Start product option create/update/delete/reorder local lifecycle behavior.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Add product search sort-key ordering once per-connection product cursors and
+  `publishedAt` state are modeled.
+
+---
+
+## 2026-04-30 — Pass 45: product option read projection
+
+Adds ProductOption/ProductOptionValue records to the Gleam store and projects
+store-backed product `options` from Product reads. The serializer now covers
+`ProductOption.__typename`, `id`, `name`, `position`, `values`, and nested
+`optionValues { __typename id name hasVariants }`, matching the captured
+Shopify shape used by product relationship and option lifecycle scenarios.
+Variant `selectedOptions` remains backed by ProductVariant state.
+
+This is a read/projection slice only. It does not implement product option
+create/update/delete/reorder mutations, variant strategy behavior, default
+option restoration, or full product option lifecycle parity.
+
+| Module                                                     | Change                                                                              |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | Adds ProductOption/ProductOptionValue record shapes.                                |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds base/staged option slices, replace helpers, and effective option lookup.       |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Projects product `options`, `values`, and nested `optionValues` from store state.   |
+| `gleam/test/parity/runner.gleam`                           | Seeds ProductOption records from captured `seedProducts` and product read payloads. |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct option/value projection coverage alongside variant selected options.    |
+
+Validation: `gleam test --target javascript` is green at 709 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`erl`, and the Docker Erlang fallback is green at 705 tests. Product parity
+inventory remains 115 checked-in specs, with 10 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct read failure: after seeding
+  product options into store, `product { options { ... } }` returned
+  `options: null` while the same product's variant `selectedOptions` already
+  serialized correctly.
+- Product relationship captures already include option records under
+  `seedProducts`; teaching the parity runner to ingest those records prepares
+  future strict option lifecycle scenarios without editing capture files.
+
+### Risks / open items
+
+- Product option mutations and read-after-write lifecycle behavior remain
+  unported.
+- `ProductOption` / `ProductOptionValue` node resolution remains unported.
+- Variant parent-product backreferences still use the existing shallow product
+  source and do not hydrate product option relationships from that nested path.
+- Only 10 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 46 candidates
+
+- Add `ProductOption` / `ProductOptionValue` node resolution for admin-platform
+  product option node reads.
+- Start product option create/update/delete/reorder local lifecycle behavior.
+- Add product search sort-key ordering once per-connection product cursors and
+  `publishedAt` state are modeled.
+
+---
+
+## 2026-04-30 — Pass 44: inventory item catalog reads
+
+Adds the first top-level InventoryItem catalog/search read slice to the Gleam
+Products handler. `inventoryItems(first:, query:, reverse:)` now resolves from
+effective variant-backed InventoryItem records, sorts by inventory item id,
+serializes the existing InventoryItem -> ProductVariant -> Product
+backreferences, and supports simple `id:`, `sku:`, `tracked:`, and unfielded
+text filtering through the shared search parser. This pass also adds the static
+`inventoryProperties.quantityNames` projection that Shopify exposes alongside
+inventory quantity roots.
+
+This is read-only progress over already-seeded variant inventory state. It does
+not implement inventory quantity mutations, inventory adjustment groups,
+inactive-level lifecycle behavior, shipments, transfers, or the full
+`inventory-quantity-roots-parity` scenario.
+
+| Module                                                     | Change                                                                            |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Adds `inventoryItems` connection reads/search and `inventoryProperties` output.   |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct inventory item catalog/search and inventory properties read coverage. |
+
+Validation: `gleam test --target javascript` is green at 708 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 704 tests. Product parity
+inventory remains 115 checked-in specs, with 10 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct test failure: even with
+  variant-backed InventoryItem records in store, every top-level
+  `inventoryItems` query returned an empty connection.
+- The existing nested InventoryItem serializer was reusable for top-level
+  connection nodes once the connection iterated ProductVariant records and
+  supplied the variant backreference.
+
+### Risks / open items
+
+- `inventory-quantity-roots-parity` remains unenabled because it also requires
+  local `inventorySetQuantities` / `inventoryMoveQuantities` mutation handling
+  and downstream quantity lifecycle behavior.
+- Inventory item search remains limited to the captured/TS-compatible basic
+  fields covered by direct tests: text, `id`, `sku`, and `tracked`.
+- Only 10 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 45 candidates
+
+- Add ProductOption state and product `options`/option value projection from
+  captured fixtures.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Add product search sort-key ordering once per-connection product cursors and
+  `publishedAt` state are modeled.
+
+---
+
+## 2026-04-30 — Pass 43: product scalar search parity
+
+Enables the captured `products-search-read` parity scenario in the Gleam suite.
+Product `query:` filtering now covers the scalar/read predicates exercised by
+that capture: unfielded product text, `vendor:`, `product_type:`, `tag:`,
+`status:`, `id:`, `sku:`, and numeric `inventory_total:` comparisons. The
+parity runner seeds the captured vendor-filtered and low-inventory product
+rows plus the captured total count, preserving the first-page `hasNextPage`
+signal without changing the checked-in spec or request.
+
+This remains a narrow read slice. Advanced product search grammar, sort-key
+ordering, saved-search connection hydration, timestamp/publication filters,
+relationship-backed filters, and search lag semantics remain unported.
+
+| Module                                                     | Change                                                                            |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Adds shared-parser-backed product scalar/text/id/inventory search predicates.     |
+| `gleam/test/parity/runner.gleam`                           | Seeds the captured products search result rows and total count for strict replay. |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct multi-product coverage for scalar search filtering/count behavior.    |
+| `gleam/test/parity_test.gleam`                             | Enables `products-search-read` in the pure-Gleam parity suite.                    |
+
+Validation: `gleam test --target javascript` is green at 706 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 702 tests. Product parity
+inventory remains 115 checked-in specs, with 10 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- Enabling `products-search-read` before implementation produced the expected
+  strict mismatch: the proxy returned no search result rows and total count
+  `0` instead of the captured Shopify product rows and count.
+- The capture selects only the first two `vendor:NIKE` rows while Shopify
+  reports `hasNextPage: true`; the runner adds an internal sentinel row after
+  the captured rows so pagination truthiness is preserved without weakening the
+  comparison contract or serializing non-captured data.
+
+### Risks / open items
+
+- Product search fields beyond this scalar slice remain unported, including
+  timestamp/publication filters and relationship-backed filters.
+- Product search sort keys and relevance ordering remain unported.
+- Only 10 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 44 candidates
+
+- Add ProductOption state and product `options`/option value projection from
+  captured fixtures.
+- Add product search sort-key ordering for the captured `products-sort-keys-read`
+  or advanced-search slices.
+- Start inventory item/level catalog/search reads over effective
+  variant-backed inventory items.
+
+---
+
+## 2026-04-30 — Pass 42: variant SKU product search
+
+Enables the captured `products-variant-search-read` parity scenario in the
+Gleam suite. Product `query:` filtering now uses the shared Gleam search query
+parser for a narrow `sku:` term slice, matching products when any effective
+variant for the product has the requested SKU. `productsCount(query:)` now uses
+the same filtered product list so count and connection reads agree.
+
+This pass intentionally limits search support to variant SKU terms. Broader
+product search fields, OR/advanced product search semantics beyond the shared
+parser mechanics, sort-key parity, and variant catalog search remain unported.
+
+| Module                                                     | Change                                                                        |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Applies shared search parsing to Products reads for `sku:` variant matching.  |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct two-product coverage proving `sku:` filters product reads/counts. |
+| `gleam/test/parity_test.gleam`                             | Enables `products-variant-search-read` in the pure-Gleam parity suite.        |
+
+Validation: `gleam test --target javascript` is green at 704 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 9
+product specs executable in the Gleam parity suite after this pass.
+
+### Findings
+
+- The captured parity fixture seeds only the matching product, so the parity
+  scenario alone would pass even if the query were ignored. A direct two-product
+  test was added so this pass proves actual `sku:` filtering behavior.
+- The existing `seedProducts` convention already carries the variant SKU needed
+  by the parity scenario; no fixture/request changes were required.
+
+### Risks / open items
+
+- Product query fields beyond `sku:` are still unported in Gleam.
+- Product sort-key parity, advanced search grammar captures, and variant search
+  over top-level ProductVariant catalogs remain unported.
+- Only 9 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 43 candidates
+
+- Add ProductOption state and product `options`/option value projection from
+  captured fixtures.
+- Add simple Product search fields for `vendor`, `product_type`, `tag`, `id`,
+  and `status` using the shared search parser.
+- Start inventory item/level catalog/search reads over effective variant-backed
+  inventory items.
+
+---
+
+## 2026-04-30 — Pass 41: top-level inventory level reads
+
+Enables the captured `inventory-level-read` parity scenario in the Gleam suite.
+The Products handler now resolves top-level `inventoryLevel(id:)` from the
+effective variant-backed InventoryItem graph seeded by the product variants
+matrix fixture, reusing the same InventoryLevel serializer that backs nested
+`inventoryItem.inventoryLevels`.
+
+This remains a narrow read slice over captured fixture state. It does not
+implement inventory level mutation/lifecycle behavior, inactive-level handling,
+inventory activation/deactivation, quantity adjustments, or inventory catalog
+reads.
+
+| Module                                               | Change                                                                           |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds effective InventoryLevel lookup by id across variant-backed inventory data. |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Resolves top-level `inventoryLevel(id:)` through the local inventory graph.      |
+| `gleam/test/parity/runner.gleam`                     | Reuses product variants matrix seeding for `inventory-level-read`.               |
+| `gleam/test/parity_test.gleam`                       | Enables `inventory-level-read` in the pure-Gleam parity suite.                   |
+
+Validation: `gleam test --target javascript` is green at 702 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 8
+product specs executable in the Gleam parity suite after this pass.
+
+### Findings
+
+- Enabling `inventory-level-read` before implementation produced the expected
+  strict parity mismatch: the capture contained the selected InventoryLevel
+  object, while the proxy returned `null` from the top-level root.
+- The scenario can share Pass 40's product variants matrix seeding; no capture,
+  request, or comparison contract changes were needed.
+
+### Risks / open items
+
+- Inventory level lifecycle behavior, inactive-level semantics, quantity
+  adjustments, activation/deactivation, and inventory item/level catalog reads
+  remain unported.
+- Only 8 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 42 candidates
+
+- Add ProductOption state and product `options`/option value projection from
+  captured fixtures.
+- Start inventory item/level catalog/search reads over effective variant-backed
+  inventory items.
+- Add ProductVariant query filtering for simple `vendor`, `product_type`, `tag`,
+  `sku`, and `id` terms.
+
+---
+
+## 2026-04-30 — Pass 40: product variant inventory reads
+
+Enables the captured `product-variants-read` parity scenario in the Gleam
+suite. ProductVariant records now carry the captured InventoryItem subset used
+by the product variants matrix fixture: tracked/shipping flags, measurement
+weight, origin fields, inventory level connections, quantities, and the
+InventoryItem -> ProductVariant backreference. Product detail projection can
+also expose a product-scoped `variants` connection from effective variant state,
+which lets the same seeded record serve `product(id:)`, top-level
+`productVariant(id:)`, and top-level `inventoryItem(id:)` reads.
+
+This is still a read slice over captured fixture state. It does not implement
+inventory item mutations, inventory level lifecycle behavior, inventory quantity
+roots, variant query filtering, or broader inventory projections beyond the
+fields selected by the parity request.
+
+| Module                                                     | Change                                                                                                       |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | Adds InventoryItem, InventoryLevel, quantity, location, measurement, and weight records.                     |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds effective variant lookup by inventory item id for `inventoryItem(id:)` reads.                           |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Serializes product-scoped variant connections, nested inventory items, inventory levels, and backreferences. |
+| `gleam/test/parity/runner.gleam`                           | Seeds the product variants matrix capture, including edge cursors and nested inventory item data.            |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Updates the direct ProductVariant record helper for the new inventory item field.                            |
+| `gleam/test/parity_test.gleam`                             | Enables `product-variants-read` in the pure-Gleam parity suite.                                              |
+
+Validation: `gleam test --target javascript` is green at 701 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 7
+product specs executable in the Gleam parity suite after this pass.
+
+### Findings
+
+- The product variants matrix capture stores the seed product as
+  `$.data.product` rather than top-level `seedProducts`, and the product payload
+  omits catalog-only fields such as `handle` and `status`. The runner seeds a
+  relaxed Product baseline for this scenario while preserving the captured
+  selected fields.
+- The static SourceValue projector is sufficient for the selected product-scoped
+  `variants(first:)` connection because the parity fixture has one captured
+  variant. Broader paginated product-scoped variants remain a later behavior
+  slice.
+
+### Risks / open items
+
+- Inventory mutations, inventory quantity roots, inventory item search/catalog
+  reads, and inventory level lifecycle behavior remain unported.
+- Product variant query filtering and non-ID sort keys remain unported.
+- Only 7 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 41 candidates
+
+- Add ProductOption state and product `options`/option value projection from
+  captured fixtures.
+- Start inventory item/level top-level catalog/search reads over effective
+  variant-backed inventory items.
+- Add ProductVariant query filtering for simple `vendor`, `product_type`, `tag`,
+  `sku`, and `id` terms.
+
+---
+
+## 2026-04-30 — Pass 39: product helper-root parity
+
+Enables the captured `product-helper-roots-read` parity scenario in the Gleam
+suite. The runner now seeds top-level `seedProducts` fixtures, including their
+captured variants and selected options, so helper roots can read Product and
+ProductVariant records from the same checked-in conformance preconditions as
+the TypeScript parity harness. The parity target decoder also honors
+`upstreamCapturePath` for override targets; this preserves the spec's
+live-hybrid full-payload target without weakening the capture or request shape.
+
+This pass closes the helper-root read scenario only. ProductVariant search
+filters, non-ID sorting, variant inventory projection, product options,
+inventory item/level reads, collections, publications, selling plans, and
+product mutations remain unported.
+
+| Module                           | Change                                                                                                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/spec.gleam`   | Decodes target-level `upstreamCapturePath` so live-hybrid capture targets keep their checked-in comparison contract.                                       |
+| `gleam/test/parity/runner.gleam` | Seeds `seedProducts` and captured variants/options needed by product helper roots; reuses captured upstream payloads for upstream-backed override targets. |
+| `gleam/test/parity_test.gleam`   | Enables `product-helper-roots-read` in the pure-Gleam parity suite.                                                                                        |
+
+Validation: `gleam test --target javascript` is green at 700 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails because `escript`
+is missing; the Docker Erlang fallback is green at 696 tests. Product parity
+inventory remains 115 checked-in specs, with 6 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The TypeScript parity harness already treats top-level `seedProducts` as
+  reusable preconditions across scenarios; lifting that convention into Gleam
+  unblocks helper roots without adding scenario-specific fixture rewrites.
+- The helper-root spec's final target is intentionally live-hybrid evidence:
+  `upstreamCapturePath` points at the full captured Shopify payload, while the
+  earlier targets exercise local snapshot reads over seeded product records.
+
+### Risks / open items
+
+- The Gleam runner does not yet have a general injectable upstream transport.
+  For upstream-backed override targets it compares against the captured upstream
+  payload directly, matching the current no-staged-state helper scenario but
+  not yet modeling live-hybrid overlay mutations.
+- Product options, inventory item/level/quantity, collections, publications,
+  selling plans, product feeds/feedback, metafields, variant query filtering,
+  and all product mutations remain unported in Gleam.
+- Only 6 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 40 candidates
+
+- Add ProductVariant query filtering for simple `vendor`, `product_type`, `tag`,
+  `sku`, and `id` terms before enabling variant-search parity specs.
+- Start ProductOption state and reads from seeded product fixtures.
+- Add inventory item/level projection for variant-backed helper reads.
+
+---
+
+## 2026-04-30 — Pass 38: product variant helper reads
+
+Adds the first ProductVariant state and read slice to the Gleam Products port.
+The store now tracks base/staged product variants with Shopify-like family
+overlay behavior: staged variants for a product replace that product's base
+variant family, and deleted products hide their variants. The Products handler
+resolves `productVariant(id:)`, `productVariantByIdentifier(identifier: { id })`,
+`productVariants(first:, sortKey: ID)`, and `productVariantsCount` from effective
+local variant state.
+
+This remains a narrow read slice. Variant query filtering, non-ID sort keys,
+inventory item/level projection, selected-option parity fixtures, variant
+mutations, and full `product-helper-roots-read` parity remain deferred.
+
+| Module                                                     | Change                                                                                                               |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | Adds minimal ProductVariant and selected-option records.                                                             |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds base/staged ProductVariant buckets, effective family overlay helpers, lookups, list reads, and count.           |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Serializes top-level and helper ProductVariant reads plus ProductVariant connections/counts.                         |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`    | Includes ProductVariant buckets/counts in the current meta state dump shape.                                         |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct coverage for variant ID/helper reads, missing variants, product projection, connection order, and count. |
+
+Validation: `gleam test --target javascript` is green at 699 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 5
+product specs executable in the Gleam parity suite after this pass.
+
+### Findings
+
+- The TS store treats a staged variant family as replacing the corresponding
+  base product's variant family, rather than merging variant-by-variant. The
+  Gleam helper mirrors that behavior from the start.
+- Top-level `productVariants` lists variants through effective Product order,
+  then sorts by Shopify resource ID for the helper scenario's `sortKey: ID`.
+
+### Risks / open items
+
+- `product-helper-roots-read` remains disabled because the captured strict
+  scenario also needs captured Shopify variant count, saved-search helper fields,
+  product operation, product duplicate job shape, and product feedback branches.
+- Product options, inventory item/level/quantity, collections, publications,
+  selling plans, feeds/feedback, metafields, and all product mutations remain
+  unported in Gleam.
+- Only 5 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 39 candidates
+
+- Seed the captured `product-helper-roots-read` product and variant records and
+  narrow the remaining mismatches toward enabling that full parity spec.
+- Add product operation/feedback no-data/helper branches needed by
+  `product-helper-roots-read`.
+- Begin ProductVariant query filtering for simple `vendor`, `product_type`,
+  `tag`, `sku`, and `id` terms before enabling variant-search parity specs.
+
+---
+
+## 2026-04-30 — Pass 37: product string helper catalogs
+
+Extends the Product helper read slice to Product-backed string catalog roots:
+`productTags`, `productTypes`, and `productVendors` now derive their values from
+effective local Product state. The implementation filters blank strings,
+deduplicates values, sorts them lexicographically, supports `reverse`, and uses
+the shared connection serializer so selected `nodes`, `edges`, and `pageInfo`
+follow the same synthetic cursor behavior as the TypeScript runtime.
+
+This still does not enable the broad `product-helper-roots-read` parity spec.
+That scenario continues to require ProductVariant state, product variant helper
+roots/counts, saved-search helper payloads, and the remaining operation/feedback
+branches before it can run strictly without weakening the capture.
+
+| Module                                                     | Change                                                                                                        |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Adds Product-backed string connection serialization for tags, product types, and vendors.                     |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct coverage for sorted/deduped string catalogs, edge cursors, pageInfo, reverse ordering, and limit. |
+
+Validation: `gleam test --target javascript` is green at 697 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 5
+product specs executable in the Gleam parity suite after this pass.
+
+### Findings
+
+- The existing shared connection helper is sufficient for scalar string
+  connections; no Products-specific pagination loop is needed.
+- The TS runtime builds these helper catalogs directly from effective products,
+  so this pass can increase local read fidelity without adding a new state
+  bucket.
+
+### Risks / open items
+
+- `product-helper-roots-read` remains disabled because variant helper roots,
+  variant counts, saved-search helper fields, product operation, and feedback
+  branches are not fully ported.
+- Product variants, collections, options, inventory, publications, selling
+  plans, feeds/feedback, metafields, and all product mutations remain unported
+  in Gleam.
+- Only 5 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 38 candidates
+
+- Add ProductVariant state and seed the helper-root first variant scenario.
+- Port `productVariantsCount` and simple variant ID helper reads over effective
+  variant state.
+- Begin products search grammar support using shared search-query parser
+  patterns before enabling search-specific parity specs.
+
+---
+
+## 2026-04-30 — Pass 36: product identifier helper reads
+
+Extends the seeded Product read slice to the simplest product helper root:
+`productByIdentifier(identifier:)` now resolves effective local Product records
+by `id` first and then by `handle`, matching the TypeScript branch precedence.
+Missing IDs, missing handles, omitted identifiers, and unported `customId`
+lookups continue to return `null`.
+
+This is still deliberately narrower than the captured
+`product-helper-roots-read` scenario. That parity spec also exercises product
+variants, helper catalogs, saved searches, duplicate jobs, operations, feedback,
+and live-hybrid payloads, so it remains disabled until those sibling paths are
+ported instead of weakening the captured request or comparison contract.
+
+| Module                                                     | Change                                                                                                          |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Adds `productByIdentifier` ID/handle projection over effective Product state while leaving custom IDs deferred. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds an effective Product lookup by handle that respects staged/base ordering and deletion markers.             |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct ID, handle, and missing identifier branch coverage for seeded Product helper reads.                 |
+
+Validation: `gleam test --target javascript` is green at 695 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails because `escript`
+is missing; the Docker Erlang fallback is green at 691 tests. Product parity
+inventory remains 115 checked-in specs, with 5 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The existing Product record slice already contains the handle needed for the
+  helper lookup; no new fixture seeding is required for direct coverage.
+- `productByIdentifier` custom IDs depend on product metafield-definition and
+  product-metafield state that has not landed in the Gleam port yet, so this
+  pass keeps that branch explicitly unclaimed.
+
+### Risks / open items
+
+- `product-helper-roots-read` remains disabled because variant helper roots and
+  broad helper catalogs are not ported.
+- Product variants, collections, options, inventory, publications, selling
+  plans, feeds/feedback, tags, metafields, and all product mutations remain
+  unported in Gleam.
+- Only 5 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 37 candidates
+
+- Add ProductVariant state and seed the helper-root first variant scenario.
+- Start product tag/type/vendor helper catalogs from seeded Product state.
+- Begin products search grammar support using shared search-query parser
+  patterns before enabling search-specific parity specs.
+
+---
+
+## 2026-04-30 — Pass 35: seeded products catalog reads
+
+Extends the Product read foundation from by-ID detail reads to the first
+catalog connection. The product record now carries catalog-selected fields and
+captured cursors, the store tracks a seeded product count, and the Products
+handler serializes `products(first:)` over effective product state with
+Shopify-shaped edges, pageInfo, and `productsCount` precision. The parity runner
+seeds the captured `products-catalog-read` page from checked-in edge nodes
+without changing the GraphQL request, variables, or capture.
+
+This remains read-only progress. Product lifecycle mutations, search grammar,
+variant/collection/inventory/publication/selling-plan/metafield resources, and
+most product helper roots are still deferred, so the TypeScript Products runtime
+remains in place.
+
+| Module                                                     | Change                                                                                                                      |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | Expands the Product record with catalog fields, inventory summary fields, timestamps, and captured cursors.                 |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds effective product-count state and keeps product list order/cursor data available for catalog connection reads.         |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Serializes `products(first:)` connections and `productsCount` from seeded state while preserving empty behavior when unset. |
+| `gleam/test/parity/runner.gleam`                           | Seeds the captured `products-catalog-read` count and edge node rows into the Products base state.                           |
+| `gleam/test/parity_test.gleam`                             | Enables `products-catalog-read` as executable strict Gleam parity evidence.                                                 |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct coverage for seeded product catalog edges, captured cursors, pageInfo, and count precision.                     |
+
+Validation: `gleam test --target javascript` is green at 681 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 5
+product specs now executable in the Gleam parity suite:
+`product-empty-state-read`, `product-related-by-id-not-found-read`,
+`product-feeds-empty-read`, `product-detail-read`, and
+`products-catalog-read`.
+
+### Findings
+
+- The catalog capture records Shopify opaque cursors; the Gleam connection
+  serializer can preserve them by disabling synthetic cursor prefixes for this
+  seeded path.
+- A captured product count is necessary for strict `productsCount` and
+  `hasNextPage` parity because the checked-in catalog page only includes the
+  first three product rows from a much larger store.
+- The product record remains intentionally partial, but now includes the fields
+  needed by the first catalog page and can be widened as search/helper scenarios
+  require more of the TS product model.
+
+### Risks / open items
+
+- Product search/filter/sort semantics are not ported yet; this pass preserves
+  the seeded catalog ordering rather than claiming general Shopify search
+  behavior.
+- Product variants, collections, options, inventory, publications, selling
+  plans, feeds/feedback, tags, metafields, and all product mutations remain
+  unported in Gleam.
+- Only 5 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 36 candidates
+
+- Port simple product helper identifier roots over the Product state slice,
+  including `productByIdentifier` by ID/handle.
+- Add ProductVariant state and seed the helper-root first variant scenario.
+- Begin products search grammar support using the shared search-query parser
+  patterns before enabling search-specific parity specs.
+
+---
+
+## 2026-04-30 — Pass 34: seeded product detail reads
+
+Extends the Products foundation from no-data reads to the first store-backed
+product read. The Gleam state now has a normalized `ProductRecord` slice, the
+Products query handler resolves `product(id:)` from effective base/staged
+product state, and the parity runner seeds the captured `product-detail-read`
+fixture into base state before replaying the strict proxy request. Nested
+collections and media intentionally remain empty connection shapes until their
+own product graph slices land.
+
+This pass still does not claim product lifecycle support. Product mutations,
+variants, collections, inventory, publications, selling plans, product
+metafields, and broad connection/search behavior remain deferred, so the
+TypeScript Products runtime stays in place.
+
+| Module                                                     | Change                                                                                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | Adds Product, Product SEO, and Product category record types for the seeded read slice.                                               |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds base/staged product buckets, product order/deleted markers, and effective product upsert/list/delete helpers.                    |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Resolves `product(id:)` from store-backed state and projects selected product detail fields with empty collection/media connections.  |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`    | Threads store into the Products query dispatcher, routes registry Products capabilities, and serializes the product state bucket.     |
+| `gleam/test/parity/runner.gleam`                           | Seeds the captured `product-detail-read` product row into base state without rewriting the checked-in parity request or capture.      |
+| `gleam/test/parity_test.gleam`                             | Enables `product-detail-read` as executable strict Gleam parity evidence.                                                             |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct coverage for seeded product detail projection and preserves no-data Products tests through the store-backed handler path. |
+
+Validation: `gleam test --target javascript` is green at 679 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 4
+product specs now executable in the Gleam parity suite:
+`product-empty-state-read`, `product-related-by-id-not-found-read`,
+`product-feeds-empty-read`, and `product-detail-read`.
+
+### Findings
+
+- The existing captured `product-detail-read` fixture is enough to seed a narrow
+  normalized product row and prove selected scalar/SEO/category fields without
+  weakening the strict comparison contract.
+- Product detail captures currently exercise empty `collections` and `media`
+  connections only; those can remain Shopify-shaped empty connections while the
+  real collection/media graph lands separately.
+- Registry-driven Products query routing was still missing even after the
+  legacy fallback was wired, so this pass adds the Products capability arm.
+
+### Risks / open items
+
+- Product variants, collections, options, inventory, publications, selling
+  plans, feeds/feedback, tags, metafields, and all product mutations remain
+  unported in Gleam.
+- The product state shape is intentionally minimal and will need expansion as
+  lifecycle mutations, search/filter connections, node helpers, and nested
+  resource reads land.
+- Only 4 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 35 candidates
+
+- Port `products(first:, query:)` over the new product state slice, including
+  Shopify-like search filtering for the captured catalog/helper scenarios.
+- Add ProductVariant and Collection state slices so helper roots and nested
+  product variant/catalog reads can resolve captured records.
+- Start `productCreate` / `productUpdate` / `productDelete` local staging once
+  the read model can expose downstream read-after-write effects.
+
+---
+
+## 2026-04-30 — Pass 33: products no-data read foundation
+
+Starts the Products domain in the Gleam dispatcher with a deliberately narrow
+read-only foundation. The new module handles Shopify-like null/empty behavior
+for product and product-adjacent query roots when no local product graph is
+seeded: missing product, collection, variant, inventory item/level, feed,
+operation, and feedback roots return `null`; product, variant, feed, helper,
+tag/type/vendor, inventory-item, and collection connections return selected
+empty connection shapes; count roots return `0` with `EXACT` precision; and
+unknown `productDuplicateJob` preserves the current Shopify-observed
+`done: true` helper shape.
+
+This pass does not claim product lifecycle support. The TypeScript Products
+runtime remains in place because mutations, downstream read-after-write effects,
+stateful product/variant/collection/inventory records, publications, selling
+plans, product metafields, and the rest of the 115 product parity specs are not
+ported yet.
+
+| Module                                                        | Change                                                                                                                                  |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`          | Adds Products query-root detection and selected no-data/null/empty serializers for product-adjacent reads.                              |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Routes Products query capabilities and legacy product root detection to the new Products dispatcher.                                    |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam`    | Adds direct coverage for product empty-state reads, missing related by-id roots, product feeds empty reads, and unknown duplicate jobs. |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | Updates the previous product-unimplemented dispatcher test to assert the new empty read route returns a GraphQL envelope.               |
+| `gleam/test/parity_test.gleam`                                | Enables the three strict no-data product parity scenarios that this pass supports without fixture weakening or capture rewrites.        |
+
+Validation: `gleam test --target javascript` is green at 677 tests on the host
+Node runtime. Host `gleam test --target erlang` is blocked by missing `escript`,
+so the established fallback
+`docker run --rm -v "$PWD/..:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`
+is green at 673 tests. Product parity inventory remains 115 checked-in specs,
+with 3 product specs now executable in the Gleam parity suite:
+`product-empty-state-read`, `product-related-by-id-not-found-read`, and
+`product-feeds-empty-read`.
+
+### Findings
+
+- The current product parity corpus already has a useful no-data subset that
+  can run before the normalized product graph exists, giving the Products domain
+  an executable starting point without weakening any captures.
+- `productDuplicateJob` is not a null no-data root in the TS handler; unknown
+  IDs serialize as an object with the requested ID and `done: true`, so the
+  Gleam no-data foundation preserves that helper quirk.
+- Product helper roots are mixed: empty/null helper shapes can be handled now,
+  but seeded identifier, variant, catalog, and live-hybrid helper comparisons
+  still need product/variant state seeding before the full helper parity spec can
+  be enabled.
+
+### Risks / open items
+
+- No product mutations are ported in this pass, so supported Products mutations
+  still cannot stage locally in Gleam.
+- No normalized product, variant, collection, inventory, publication, selling
+  plan, or product-metafield state slice exists in Gleam yet.
+- The TypeScript Products runtime cannot be deleted until all product lifecycle
+  parity and downstream read-after-write behavior are ported and proven.
+- Only 3 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 34 candidates
+
+- Add the normalized Product/ProductVariant/Collection state foundation and seed
+  captured product detail/catalog reads in the parity runner.
+- Port `productCreate` / `productUpdate` / `productDelete` local staging as the
+  first mutation lifecycle slice, including raw mutation log preservation.
+- Expand product helper roots once product and variant state can resolve
+  identifier, variant, tag/type/vendor, count, and saved-search projections.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain

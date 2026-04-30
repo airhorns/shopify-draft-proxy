@@ -13,6 +13,124 @@ import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 
 // ---------------------------------------------------------------------------
+// Products domain
+// ---------------------------------------------------------------------------
+
+pub type ProductSeoRecord {
+  ProductSeoRecord(title: Option(String), description: Option(String))
+}
+
+pub type ProductCategoryRecord {
+  ProductCategoryRecord(id: String, full_name: String)
+}
+
+pub type ProductVariantSelectedOptionRecord {
+  ProductVariantSelectedOptionRecord(name: String, value: String)
+}
+
+pub type InventoryWeightValue {
+  InventoryWeightInt(Int)
+  InventoryWeightFloat(Float)
+}
+
+pub type InventoryWeightRecord {
+  InventoryWeightRecord(unit: String, value: InventoryWeightValue)
+}
+
+pub type InventoryMeasurementRecord {
+  InventoryMeasurementRecord(weight: Option(InventoryWeightRecord))
+}
+
+pub type InventoryLocationRecord {
+  InventoryLocationRecord(id: String, name: String)
+}
+
+pub type InventoryQuantityRecord {
+  InventoryQuantityRecord(
+    name: String,
+    quantity: Int,
+    updated_at: Option(String),
+  )
+}
+
+pub type InventoryLevelRecord {
+  InventoryLevelRecord(
+    id: String,
+    location: InventoryLocationRecord,
+    quantities: List(InventoryQuantityRecord),
+    cursor: Option(String),
+  )
+}
+
+pub type InventoryItemRecord {
+  InventoryItemRecord(
+    id: String,
+    tracked: Option(Bool),
+    requires_shipping: Option(Bool),
+    measurement: Option(InventoryMeasurementRecord),
+    country_code_of_origin: Option(String),
+    province_code_of_origin: Option(String),
+    harmonized_system_code: Option(String),
+    inventory_levels: List(InventoryLevelRecord),
+  )
+}
+
+pub type ProductVariantRecord {
+  ProductVariantRecord(
+    id: String,
+    product_id: String,
+    title: String,
+    sku: Option(String),
+    barcode: Option(String),
+    price: Option(String),
+    compare_at_price: Option(String),
+    taxable: Option(Bool),
+    inventory_policy: Option(String),
+    inventory_quantity: Option(Int),
+    selected_options: List(ProductVariantSelectedOptionRecord),
+    inventory_item: Option(InventoryItemRecord),
+    cursor: Option(String),
+  )
+}
+
+pub type ProductOptionValueRecord {
+  ProductOptionValueRecord(id: String, name: String, has_variants: Bool)
+}
+
+pub type ProductOptionRecord {
+  ProductOptionRecord(
+    id: String,
+    product_id: String,
+    name: String,
+    position: Int,
+    option_values: List(ProductOptionValueRecord),
+  )
+}
+
+pub type ProductRecord {
+  ProductRecord(
+    id: String,
+    legacy_resource_id: Option(String),
+    title: String,
+    handle: String,
+    status: String,
+    vendor: Option(String),
+    product_type: Option(String),
+    tags: List(String),
+    total_inventory: Option(Int),
+    tracks_inventory: Option(Bool),
+    created_at: Option(String),
+    updated_at: Option(String),
+    description_html: String,
+    online_store_preview_url: Option(String),
+    template_suffix: Option(String),
+    seo: ProductSeoRecord,
+    category: Option(ProductCategoryRecord),
+    cursor: Option(String),
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Admin Platform utility domain
 // ---------------------------------------------------------------------------
 

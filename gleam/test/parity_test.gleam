@@ -76,6 +76,82 @@ pub fn admin_platform_store_property_node_reads_test() {
   )
 }
 
+// ----------- products -----------
+
+pub fn product_empty_state_read_test() {
+  check("config/parity-specs/products/product-empty-state-read.json")
+}
+
+pub fn product_related_by_id_not_found_read_test() {
+  check(
+    "config/parity-specs/products/product-related-by-id-not-found-read.json",
+  )
+}
+
+pub fn product_feeds_empty_read_test() {
+  check("config/parity-specs/products/product-feeds-empty-read.json")
+}
+
+pub fn product_detail_read_test() {
+  check("config/parity-specs/products/product-detail-read.json")
+}
+
+pub fn products_catalog_read_test() {
+  check("config/parity-specs/products/products-catalog-read.json")
+}
+
+pub fn product_helper_roots_read_test() {
+  check("config/parity-specs/products/product-helper-roots-read.json")
+}
+
+pub fn product_variants_read_test() {
+  check("config/parity-specs/products/product-variants-read.json")
+}
+
+pub fn inventory_level_read_test() {
+  check("config/parity-specs/products/inventory-level-read.json")
+}
+
+pub fn products_variant_search_read_test() {
+  check("config/parity-specs/products/products-variant-search-read.json")
+}
+
+pub fn products_search_read_test() {
+  check("config/parity-specs/products/products-search-read.json")
+}
+
+pub fn product_options_create_variant_strategy_create_test() {
+  check(
+    "config/parity-specs/products/productOptionsCreate-variant-strategy-create.json",
+  )
+}
+
+pub fn product_options_create_variant_strategy_create_over_default_limit_test() {
+  check(
+    "config/parity-specs/products/productOptionsCreate-variant-strategy-create-over-default-limit.json",
+  )
+}
+
+pub fn product_options_create_variant_strategy_leave_as_is_test() {
+  check(
+    "config/parity-specs/products/productOptionsCreate-variant-strategy-leave-as-is.json",
+  )
+}
+
+pub fn product_options_create_variant_strategy_null_test() {
+  check(
+    "config/parity-specs/products/productOptionsCreate-variant-strategy-null.json",
+  )
+}
+
+pub fn product_option_update_parity_plan_test() {
+  check("config/parity-specs/products/productOptionUpdate-parity-plan.json")
+}
+
+pub fn product_options_delete_parity_plan_test() {
+  check("config/parity-specs/products/productOptionsDelete-parity-plan.json")
+}
+
 // NOTE: functions-metadata-local-staging fails because the capture
 // fixture (`fixtures/.../functions-metadata-flow.json`) is hand-
 // written and aspirational — it claims `Validation/2` + T+1s, but

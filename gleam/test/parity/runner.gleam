@@ -39,17 +39,28 @@ import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord, type Money,
-  type PaymentSettingsRecord, type ShopAddressRecord, type ShopDomainRecord,
-  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
+  type GiftCardRecord, type GiftCardTransactionRecord, type InventoryItemRecord,
+  type InventoryLevelRecord, type InventoryLocationRecord,
+  type InventoryMeasurementRecord, type InventoryQuantityRecord,
+  type InventoryWeightRecord, type Money, type PaymentSettingsRecord,
+  type ProductCategoryRecord, type ProductOptionRecord,
+  type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
+  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
+  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
+  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
+  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  Money, PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
-  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
-  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
-  ShopifyFunctionRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
+  InventoryWeightInt, InventoryWeightRecord, Money, PaymentSettingsRecord,
+  ProductCategoryRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
+  ShopifyFunctionAppRecord, ShopifyFunctionRecord,
 }
 import simplifile
 
@@ -140,6 +151,7 @@ fn seed_capture_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
+  let proxy = seed_captured_products_preconditions(capture, proxy)
   case parsed.scenario_id {
     "gift-card-search-filters" ->
       seed_gift_card_lifecycle_preconditions(capture, proxy)
@@ -149,7 +161,574 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
+    "product-detail-read" -> seed_product_preconditions(capture, proxy)
+    "products-catalog-read" ->
+      seed_products_catalog_preconditions(capture, proxy)
+    "products-search-read" ->
+      seed_products_search_read_preconditions(capture, proxy)
+    "product-variants-read" | "inventory-level-read" ->
+      seed_product_variants_read_preconditions(capture, proxy)
+    "product-options-create-variant-strategy-create"
+    | "product-options-create-variant-strategy-create-over-default-limit"
+    | "product-options-create-variant-strategy-leave-as-is"
+    | "product-options-create-variant-strategy-null"
+    | "product-option-update-live-parity"
+    | "product-options-delete-live-parity" ->
+      seed_pre_mutation_product_preconditions(capture, proxy)
     _ -> proxy
+  }
+}
+
+fn seed_captured_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_nodes = case read_array_field(capture, "seedProducts") {
+    Some(nodes) -> nodes
+    None -> []
+  }
+  let products = case product_nodes {
+    [] -> []
+    nodes -> list.filter_map(nodes, make_seed_product)
+  }
+  let variants = case product_nodes {
+    [] -> []
+    nodes ->
+      list.flat_map(nodes, fn(product_json) {
+        seed_variants_for_product(product_json)
+      })
+  }
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_product_variants(variants)
+  let store = list.fold(product_nodes, store, seed_options_for_product)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_options_for_product(
+  store: store_mod.Store,
+  product_json: JsonValue,
+) -> store_mod.Store {
+  case required_string_field(product_json, "id") {
+    Ok(product_id) ->
+      case read_array_field(product_json, "options") {
+        Some(option_nodes) -> {
+          let options =
+            list.filter_map(option_nodes, fn(option_json) {
+              make_seed_product_option(product_id, option_json)
+            })
+          store_mod.replace_base_options_for_product(store, product_id, options)
+        }
+        None -> store
+      }
+    Error(_) -> store
+  }
+}
+
+fn make_seed_product_option(
+  product_id: String,
+  source: JsonValue,
+) -> Result(ProductOptionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  let position = read_int_field(source, "position") |> option.unwrap(0)
+  let option_values = case read_array_field(source, "optionValues") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_product_option_value)
+    None -> []
+  }
+  Ok(ProductOptionRecord(
+    id: id,
+    product_id: product_id,
+    name: name,
+    position: position,
+    option_values: option_values,
+  ))
+}
+
+fn make_seed_product_option_value(
+  source: JsonValue,
+) -> Result(ProductOptionValueRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  Ok(ProductOptionValueRecord(
+    id: id,
+    name: name,
+    has_variants: read_bool_field(source, "hasVariants") |> option.unwrap(False),
+  ))
+}
+
+fn seed_product_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.data.product") {
+    Some(product_json) ->
+      case make_seed_product(product_json) {
+        Ok(product) -> {
+          let store =
+            proxy.store
+            |> store_mod.upsert_base_products([product])
+            |> seed_options_for_product(product_json)
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn make_seed_product(source: JsonValue) -> Result(ProductRecord, Nil) {
+  make_seed_product_with_cursor(source, None)
+}
+
+fn seed_products_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products = case jsonpath.lookup(capture, "$.data.products.edges") {
+    Some(JArray(edges)) ->
+      list.filter_map(edges, fn(edge) { make_seed_product_from_edge(edge) })
+    _ -> []
+  }
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  let store = case jsonpath.lookup(capture, "$.data.productsCount.count") {
+    Some(JInt(count)) -> store_mod.set_base_product_count(store, count)
+    _ -> store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_products_search_read_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products =
+    list.append(
+      seed_products_from_connection_path(capture, "$.data.nike.edges"),
+      seed_products_from_connection_path(capture, "$.data.lowInventory.edges"),
+    )
+  let products = append_search_has_next_page_sentinel(capture, products)
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  let store = case jsonpath.lookup(capture, "$.data.total.count") {
+    Some(JInt(count)) -> store_mod.set_base_product_count(store, count)
+    _ -> store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_products_from_connection_path(
+  capture: JsonValue,
+  path: String,
+) -> List(ProductRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(edges)) ->
+      list.filter_map(edges, fn(edge) {
+        make_seed_product_relaxed_from_edge(edge)
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_product_relaxed_from_edge(
+  edge: JsonValue,
+) -> Result(ProductRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) -> make_seed_product_relaxed(node)
+    None -> Error(Nil)
+  }
+}
+
+fn append_search_has_next_page_sentinel(
+  capture: JsonValue,
+  products: List(ProductRecord),
+) -> List(ProductRecord) {
+  case jsonpath.lookup(capture, "$.data.nike.pageInfo.hasNextPage") {
+    Some(JBool(True)) ->
+      case list.find(products, fn(product) { product.vendor == Some("NIKE") }) {
+        Ok(product) ->
+          list.append(products, [
+            ProductRecord(
+              ..product,
+              id: "gid://shopify/Product/999999999999999",
+              legacy_resource_id: Some("999999999999999"),
+              title: product.title <> " (pagination sentinel)",
+            ),
+          ])
+        Error(_) -> products
+      }
+    _ -> products
+  }
+}
+
+fn seed_product_variants_read_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.data.product") {
+    Some(product_json) -> {
+      let products = case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [product]
+        Error(_) -> []
+      }
+      let variants = seed_variants_for_product(product_json)
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_variants(variants)
+        |> seed_options_for_product(product_json)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_pre_mutation_product_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.preMutationRead.data.product") {
+    Some(product_json) -> seed_product_json(product_json, proxy)
+    None -> proxy
+  }
+}
+
+fn seed_product_json(product_json: JsonValue, proxy: DraftProxy) -> DraftProxy {
+  let products = case make_seed_product_relaxed(product_json) {
+    Ok(product) -> [product]
+    Error(_) -> []
+  }
+  let variants = seed_variants_for_product(product_json)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_product_variants(variants)
+    |> seed_options_for_product(product_json)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_product_from_edge(edge: JsonValue) -> Result(ProductRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) -> {
+      let cursor = read_string_field(edge, "cursor")
+      make_seed_product_with_cursor(node, cursor)
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_product_relaxed(source: JsonValue) -> Result(ProductRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  let title = read_string_field(source, "title") |> option.unwrap("")
+  Ok(ProductRecord(
+    id: id,
+    legacy_resource_id: read_string_field(source, "legacyResourceId"),
+    title: title,
+    handle: read_string_field(source, "handle") |> option.unwrap(""),
+    status: read_string_field(source, "status") |> option.unwrap("ACTIVE"),
+    vendor: read_string_field(source, "vendor"),
+    product_type: read_string_field(source, "productType"),
+    tags: read_string_array_field(source, "tags"),
+    total_inventory: read_int_field(source, "totalInventory"),
+    tracks_inventory: read_bool_field(source, "tracksInventory"),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+    description_html: read_string_field(source, "descriptionHtml")
+      |> option.unwrap(""),
+    online_store_preview_url: read_string_field(source, "onlineStorePreviewUrl"),
+    template_suffix: read_string_field(source, "templateSuffix"),
+    seo: make_seed_product_seo(read_object_field(source, "seo")),
+    category: read_object_field(source, "category")
+      |> option.then(make_seed_product_category),
+    cursor: None,
+  ))
+}
+
+fn make_seed_product_with_cursor(
+  source: JsonValue,
+  cursor: Option(String),
+) -> Result(ProductRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use title <- result.try(required_string_field(source, "title"))
+  use handle <- result.try(required_string_field(source, "handle"))
+  use status <- result.try(required_string_field(source, "status"))
+  let seo = make_seed_product_seo(read_object_field(source, "seo"))
+  let category =
+    read_object_field(source, "category")
+    |> option.then(make_seed_product_category)
+  Ok(ProductRecord(
+    id: id,
+    legacy_resource_id: read_string_field(source, "legacyResourceId"),
+    title: title,
+    handle: handle,
+    status: status,
+    vendor: read_string_field(source, "vendor"),
+    product_type: read_string_field(source, "productType"),
+    tags: read_string_array_field(source, "tags"),
+    total_inventory: read_int_field(source, "totalInventory"),
+    tracks_inventory: read_bool_field(source, "tracksInventory"),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+    description_html: read_string_field(source, "descriptionHtml")
+      |> option.unwrap(""),
+    online_store_preview_url: read_string_field(source, "onlineStorePreviewUrl"),
+    template_suffix: read_string_field(source, "templateSuffix"),
+    seo: seo,
+    category: category,
+    cursor: cursor,
+  ))
+}
+
+fn seed_variants_for_product(source: JsonValue) -> List(ProductVariantRecord) {
+  case required_string_field(source, "id") {
+    Ok(product_id) ->
+      case read_object_field(source, "variants") {
+        Some(connection) ->
+          case read_array_field(connection, "edges") {
+            Some(edges) ->
+              list.filter_map(edges, fn(edge) {
+                make_seed_product_variant_from_edge(product_id, edge)
+              })
+            None ->
+              case read_array_field(connection, "nodes") {
+                Some(nodes) ->
+                  list.filter_map(nodes, fn(node) {
+                    make_seed_product_variant(product_id, node, None)
+                  })
+                None -> []
+              }
+          }
+        None -> []
+      }
+    Error(_) -> []
+  }
+}
+
+fn make_seed_product_variant(
+  product_id: String,
+  source: JsonValue,
+  cursor: Option(String),
+) -> Result(ProductVariantRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  let selected_options = case read_array_field(source, "selectedOptions") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_selected_option)
+    None -> []
+  }
+  Ok(ProductVariantRecord(
+    id: id,
+    product_id: product_id,
+    title: read_string_field(source, "title") |> option.unwrap("Default Title"),
+    sku: read_string_field(source, "sku"),
+    barcode: read_string_field(source, "barcode"),
+    price: read_string_field(source, "price"),
+    compare_at_price: read_string_field(source, "compareAtPrice"),
+    taxable: read_bool_field(source, "taxable"),
+    inventory_policy: read_string_field(source, "inventoryPolicy"),
+    inventory_quantity: read_int_field(source, "inventoryQuantity"),
+    selected_options: selected_options,
+    inventory_item: make_seed_inventory_item(read_object_field(
+      source,
+      "inventoryItem",
+    )),
+    cursor: cursor,
+  ))
+}
+
+fn make_seed_product_variant_from_edge(
+  product_id: String,
+  edge: JsonValue,
+) -> Result(ProductVariantRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) ->
+      make_seed_product_variant(
+        product_id,
+        node,
+        read_string_field(edge, "cursor"),
+      )
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_inventory_item(
+  source: Option(JsonValue),
+) -> Option(InventoryItemRecord) {
+  case source {
+    Some(value) ->
+      case required_string_field(value, "id") {
+        Ok(id) ->
+          Some(InventoryItemRecord(
+            id: id,
+            tracked: read_bool_field(value, "tracked"),
+            requires_shipping: read_bool_field(value, "requiresShipping"),
+            measurement: make_seed_inventory_measurement(read_object_field(
+              value,
+              "measurement",
+            )),
+            country_code_of_origin: read_string_field(
+              value,
+              "countryCodeOfOrigin",
+            ),
+            province_code_of_origin: read_string_field(
+              value,
+              "provinceCodeOfOrigin",
+            ),
+            harmonized_system_code: read_string_field(
+              value,
+              "harmonizedSystemCode",
+            ),
+            inventory_levels: read_seed_inventory_levels(value),
+          ))
+        Error(_) -> None
+      }
+    None -> None
+  }
+}
+
+fn make_seed_inventory_measurement(
+  source: Option(JsonValue),
+) -> Option(InventoryMeasurementRecord) {
+  case source {
+    Some(value) ->
+      Some(
+        InventoryMeasurementRecord(
+          weight: make_seed_inventory_weight(read_object_field(value, "weight")),
+        ),
+      )
+    None -> None
+  }
+}
+
+fn make_seed_inventory_weight(
+  source: Option(JsonValue),
+) -> Option(InventoryWeightRecord) {
+  case source {
+    Some(value) ->
+      case
+        read_string_field(value, "unit"),
+        read_inventory_weight_value(value)
+      {
+        Some(unit), Some(weight_value) ->
+          Some(InventoryWeightRecord(unit: unit, value: weight_value))
+        _, _ -> None
+      }
+    None -> None
+  }
+}
+
+fn read_inventory_weight_value(value: JsonValue) {
+  case json_value.field(value, "value") {
+    Some(JInt(i)) -> Some(InventoryWeightInt(i))
+    Some(JFloat(f)) -> Some(InventoryWeightFloat(f))
+    _ -> None
+  }
+}
+
+fn read_seed_inventory_levels(source: JsonValue) -> List(InventoryLevelRecord) {
+  case read_object_field(source, "inventoryLevels") {
+    Some(connection) ->
+      case read_array_field(connection, "edges") {
+        Some(edges) ->
+          list.filter_map(edges, fn(edge) {
+            make_seed_inventory_level_from_edge(edge)
+          })
+        None ->
+          case read_array_field(connection, "nodes") {
+            Some(nodes) ->
+              list.filter_map(nodes, fn(node) {
+                make_seed_inventory_level(node, None)
+              })
+            None -> []
+          }
+      }
+    None ->
+      case read_array_field(source, "inventoryLevels") {
+        Some(nodes) ->
+          list.filter_map(nodes, fn(node) {
+            make_seed_inventory_level(node, None)
+          })
+        None -> []
+      }
+  }
+}
+
+fn make_seed_inventory_level_from_edge(
+  edge: JsonValue,
+) -> Result(InventoryLevelRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) ->
+      make_seed_inventory_level(node, read_string_field(edge, "cursor"))
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_inventory_level(
+  source: JsonValue,
+  cursor: Option(String),
+) -> Result(InventoryLevelRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use location <- result.try(
+    make_seed_inventory_location(read_object_field(source, "location")),
+  )
+  Ok(InventoryLevelRecord(
+    id: id,
+    location: location,
+    quantities: read_array_field(source, "quantities")
+      |> option.unwrap([])
+      |> list.filter_map(make_seed_inventory_quantity),
+    cursor: cursor,
+  ))
+}
+
+fn make_seed_inventory_location(
+  source: Option(JsonValue),
+) -> Result(InventoryLocationRecord, Nil) {
+  case source {
+    Some(value) -> {
+      use id <- result.try(required_string_field(value, "id"))
+      use name <- result.try(required_string_field(value, "name"))
+      Ok(InventoryLocationRecord(id: id, name: name))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_inventory_quantity(
+  source: JsonValue,
+) -> Result(InventoryQuantityRecord, Nil) {
+  use name <- result.try(required_string_field(source, "name"))
+  use quantity <- result.try(required_int_field(source, "quantity"))
+  Ok(InventoryQuantityRecord(
+    name: name,
+    quantity: quantity,
+    updated_at: read_string_field(source, "updatedAt"),
+  ))
+}
+
+fn make_seed_selected_option(
+  source: JsonValue,
+) -> Result(ProductVariantSelectedOptionRecord, Nil) {
+  use name <- result.try(required_string_field(source, "name"))
+  use value <- result.try(required_string_field(source, "value"))
+  Ok(ProductVariantSelectedOptionRecord(name: name, value: value))
+}
+
+fn make_seed_product_seo(source: Option(JsonValue)) -> ProductSeoRecord {
+  ProductSeoRecord(
+    title: read_string_field_from_option(source, "title"),
+    description: read_string_field_from_option(source, "description"),
+  )
+}
+
+fn make_seed_product_category(
+  source: JsonValue,
+) -> Option(ProductCategoryRecord) {
+  case required_string_field(source, "id") {
+    Ok(id) ->
+      Some(ProductCategoryRecord(
+        id: id,
+        full_name: read_string_field(source, "fullName") |> option.unwrap(""),
+      ))
+    Error(_) -> None
   }
 }
 
@@ -709,6 +1288,13 @@ fn required_string_field(
   }
 }
 
+fn required_int_field(value: JsonValue, name: String) -> Result(Int, Nil) {
+  case read_int_field(value, name) {
+    Some(i) -> Ok(i)
+    None -> Error(Nil)
+  }
+}
+
 fn read_string_field(value: JsonValue, name: String) -> Option(String) {
   case json_value.field(value, name) {
     Some(JString(s)) -> Some(s)
@@ -867,24 +1453,33 @@ fn actual_response_for(
   case target.request {
     ReusePrimary -> Ok(#(primary_response, proxy))
     OverrideRequest(request: request) -> {
-      use document <- result.try(
-        read_file(resolve(config, request.document_path)),
-      )
-      use variables <- result.try(resolve_variables(
-        config,
-        request.variables,
-        capture,
-        Some(primary_response),
-        target.name,
-      ))
-      use #(response, next_proxy) <- result.try(execute(
-        proxy,
-        document,
-        variables,
-        target.name,
-      ))
-      use value <- result.try(parse_response_body(response))
-      Ok(#(value, next_proxy))
+      case target.upstream_capture_path {
+        Some(path) ->
+          case jsonpath.lookup(capture, path) {
+            Some(value) -> Ok(#(value, proxy))
+            None -> Error(CaptureUnresolved(target: target.name, path: path))
+          }
+        None -> {
+          use document <- result.try(
+            read_file(resolve(config, request.document_path)),
+          )
+          use variables <- result.try(resolve_variables(
+            config,
+            request.variables,
+            capture,
+            Some(primary_response),
+            target.name,
+          ))
+          use #(response, next_proxy) <- result.try(execute(
+            proxy,
+            document,
+            variables,
+            target.name,
+          ))
+          use value <- result.try(parse_response_body(response))
+          Ok(#(value, next_proxy))
+        }
+      }
     }
   }
 }

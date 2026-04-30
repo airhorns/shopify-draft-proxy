@@ -24,6 +24,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -272,6 +273,20 @@ fn serialize_node_by_id(
         selections,
         fragments,
       )
+    "ProductOption" ->
+      products.serialize_product_option_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
+    "ProductOptionValue" ->
+      products.serialize_product_option_value_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
     _ -> json.null()
   }
 }
@@ -399,13 +414,7 @@ pub fn process_mutation(
     |> result.map_error(ParseFailed),
   )
   let fragments = get_document_fragments(document)
-  Ok(handle_mutation_fields(
-    store,
-    identity,
-    fields,
-    fragments,
-    variables,
-  ))
+  Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
 }
 
 fn handle_mutation_fields(

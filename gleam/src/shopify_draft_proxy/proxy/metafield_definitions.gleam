@@ -177,15 +177,17 @@ fn handle_mutation_fields(
         Field(name: name, ..) -> {
           let dispatch = case name.value {
             "standardMetafieldDefinitionEnable" ->
-              Some(#(
-                get_field_response_key(field),
-                handle_standard_metafield_definition_enable(
-                  field,
-                  fragments,
-                  variables,
+              Some(
+                #(
+                  get_field_response_key(field),
+                  handle_standard_metafield_definition_enable(
+                    field,
+                    fragments,
+                    variables,
+                  ),
+                  [],
                 ),
-                [],
-              ))
+              )
             _ -> None
           }
           case dispatch {
