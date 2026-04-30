@@ -9,6 +9,7 @@
 //// and the domain handler needs to read them back; both depend on this
 //// module.
 
+import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 
 /// A single saved-search record. Mirrors `SavedSearchRecord` in
@@ -260,6 +261,45 @@ pub type BulkOperationRecord {
     query: Option(String),
     cursor: Option(String),
     result_jsonl: Option(String),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Marketing domain
+// ---------------------------------------------------------------------------
+
+/// JSON-shaped value carried by upstream-hydrated or locally staged marketing
+/// activity/event/engagement records. The TypeScript store keeps these as
+/// `Record<string, jsonValue>`; this ADT gives the Gleam port the same shape
+/// without coupling state types back to the GraphQL projector module.
+pub type MarketingValue {
+  MarketingNull
+  MarketingString(String)
+  MarketingBool(Bool)
+  MarketingInt(Int)
+  MarketingFloat(Float)
+  MarketingList(List(MarketingValue))
+  MarketingObject(Dict(String, MarketingValue))
+}
+
+/// Mirrors `MarketingRecord`.
+pub type MarketingRecord {
+  MarketingRecord(
+    id: String,
+    cursor: Option(String),
+    data: Dict(String, MarketingValue),
+  )
+}
+
+/// Mirrors `MarketingEngagementRecord`.
+pub type MarketingEngagementRecord {
+  MarketingEngagementRecord(
+    id: String,
+    marketing_activity_id: Option(String),
+    remote_id: Option(String),
+    channel_handle: Option(String),
+    occurred_on: String,
+    data: Dict(String, MarketingValue),
   )
 }
 

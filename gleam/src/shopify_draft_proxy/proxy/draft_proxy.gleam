@@ -707,6 +707,26 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(MarketingDomain) ->
+      case
+        marketing.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(bad_request("Failed to handle marketing mutation"), proxy)
+      }
     Ok(BulkOperationsDomain) ->
       case
         bulk_operations.process_mutation(
@@ -813,7 +833,7 @@ fn route_query(
     Ok(MarketingDomain) ->
       respond(
         proxy,
-        marketing.process(query),
+        marketing.process(proxy.store, query, variables),
         "Failed to handle marketing query",
       )
     Ok(BulkOperationsDomain) ->
@@ -923,6 +943,7 @@ fn capability_to_mutation_domain(
         Segments -> Ok(SegmentsDomain)
         Metafields -> Ok(MetafieldDefinitionsDomain)
         Localization -> Ok(LocalizationDomain)
+        Marketing -> Ok(MarketingDomain)
         BulkOperations -> Ok(BulkOperationsDomain)
         _ -> Error(Nil)
       }
@@ -1042,12 +1063,18 @@ fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
                                 True -> Ok(LocalizationDomain)
                                 False ->
                                   case
-                                    bulk_operations.is_bulk_operations_mutation_root(
-                                      name,
-                                    )
+                                    marketing.is_marketing_mutation_root(name)
                                   {
-                                    True -> Ok(BulkOperationsDomain)
-                                    False -> Error(Nil)
+                                    True -> Ok(MarketingDomain)
+                                    False ->
+                                      case
+                                        bulk_operations.is_bulk_operations_mutation_root(
+                                          name,
+                                        )
+                                      {
+                                        True -> Ok(BulkOperationsDomain)
+                                        False -> Error(Nil)
+                                      }
                                   }
                               }
                           }
