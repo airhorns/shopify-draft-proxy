@@ -9,6 +9,72 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 40: CI gate hardening for port completion
+
+Adds CI gates for the Gleam port without making the current partial parity
+runner list an allowlist. The gate keeps the vendored Gleam operation registry
+synchronized with `config/operation-registry.json`, requires checked-in parity
+specs to remain strict executable evidence, and verifies the Gleam parity suite
+still attempts every convention-discovered parity spec while tracking only the
+expected failures that remain unported.
+
+This pass does not port a new endpoint domain and does not delete any TypeScript
+runtime code. It makes port/conformance coverage harder to reduce silently while
+preserving the normal workflow where agents add Gleam parity support and remove
+expected-failure entries as domain work lands.
+
+| Module                                | Change                                                                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config/gleam-port-ci-gates.json`     | Adds the reviewed CI gate manifest for expected Gleam parity failures, required workflow commands, and remaining capture-tooling checks.             |
+| `scripts/gleam-port-coverage-gate.ts` | Adds the CI gate checker for parity inventory, expected-failure drift, workflow commands, package scripts, and capture-tooling checks.               |
+| `package.json`                        | Adds `gleam:registry:check`, `gleam:port:coverage`, and `conformance:capture:check` scripts.                                                         |
+| `.github/workflows/ci.yml`            | Runs registry drift, conformance parity, remaining TypeScript capture tooling, conformance status, the new port gate, both targets, and smoke tests. |
+
+Validation: `corepack pnpm gleam:port:coverage`, `corepack pnpm
+gleam:registry:check`, `corepack pnpm lint`, `corepack pnpm typecheck`,
+`corepack pnpm conformance:check`, `corepack pnpm conformance:parity`,
+`corepack pnpm conformance:capture:check`, `corepack pnpm conformance:status
+-- --output-json .conformance/current/conformance-status-report.json
+--output-markdown .conformance/current/conformance-status-comment.md`,
+`corepack pnpm build`, `corepack pnpm gleam:format:check`, `corepack pnpm
+gleam:test:js`, and `corepack pnpm gleam:smoke:js` are green. The host lacks
+`escript`, so Erlang target and Elixir smoke were validated with the matching
+Gleam 1.16 containers:
+`docker run --rm -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`
+and
+`docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-elixir-alpine sh -lc 'cd gleam && gleam export erlang-shipment && cd elixir_smoke && mix test'`.
+
+### Findings
+
+- `gleam/scripts/sync-operation-registry.sh` emits unformatted Gleam; the drift
+  check regenerates, formats, then diffs the generated registry module.
+- Review clarified that the Gleam parity gate must run every parity spec and
+  maintain an expected-failure list, not freeze the current runner list or a
+  discovered-spec count.
+- The current JS target has 323 expected parity failures; the Erlang target has
+  those plus two target-specific metaobject parity failures recorded with
+  `targets: ["erlang"]`.
+- CI checks TypeScript conformance capture tooling as remaining tooling,
+  separate from the Gleam runtime authority.
+
+### Risks / open items
+
+- The gate proves the current coverage surface cannot shrink silently; it does
+  not claim the remaining endpoint domains are fully ported.
+- Host-local Erlang/Elixir package scripts still require a BEAM installation;
+  CI installs BEAM directly, while this workspace uses containers for local
+  equivalent validation.
+
+### Pass 41 candidates
+
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots.
+- Continue Admin Platform parity seeding for utility roots that now have
+  owning-domain serializers in Gleam.
+- Continue Marketing upstream hydration and parity-runner seeding.
+
+---
+
 ## 2026-04-30 — Pass 39: operation registry and dispatcher support guards
 
 Locks the Gleam operation registry mirror and dispatcher classification around
