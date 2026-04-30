@@ -232,6 +232,18 @@ pub fn product_create_inventory_read_parity_test() {
   check("config/parity-specs/products/productCreate-inventory-read-parity.json")
 }
 
+pub fn product_variant_create_parity_plan_test() {
+  check("config/parity-specs/products/productVariantCreate-parity-plan.json")
+}
+
+pub fn product_variant_update_parity_plan_test() {
+  check("config/parity-specs/products/productVariantUpdate-parity-plan.json")
+}
+
+pub fn product_variant_delete_parity_plan_test() {
+  check("config/parity-specs/products/productVariantDelete-parity-plan.json")
+}
+
 pub fn tags_add_parity_plan_test() {
   check("config/parity-specs/products/tagsAdd-parity-plan.json")
 }

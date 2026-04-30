@@ -181,6 +181,12 @@ fn seed_capture_preconditions(
     "product-update-live-parity" | "productUpdate-blank-title-parity" ->
       seed_product_update_preconditions(capture, proxy)
     "tags-remove-live-parity" -> seed_tags_remove_preconditions(capture, proxy)
+    "product-variant-create-compatibility-evidence" ->
+      seed_product_variant_create_preconditions(capture, proxy)
+    "product-variant-update-compatibility-evidence" ->
+      seed_product_variant_update_preconditions(capture, proxy)
+    "product-variant-delete-compatibility-evidence" ->
+      seed_product_variant_delete_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -582,6 +588,145 @@ fn dedupe_strings_preserving_order(values: List(String)) -> List(String) {
       }
     })
   list.reverse(reversed)
+}
+
+fn seed_product_variant_create_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.productVariantsBulkCreate.product",
+    )
+  {
+    Some(product_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let variants = seed_variants_for_product(product_json) |> take_first(1)
+      seed_product_and_base_variants(proxy, product, variants)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_variant_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.productVariantsBulkUpdate.product",
+    ),
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.productVariantsBulkUpdate.productVariants[0]",
+    )
+  {
+    Some(product_json), Some(variant_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let variants = case
+        make_seed_product_variant_from_product_json(product_json, variant_json)
+      {
+        Ok(variant) -> [
+          ProductVariantRecord(..variant, sku: None, selected_options: []),
+        ]
+        Error(_) -> []
+      }
+      seed_product_and_base_variants(proxy, product, variants)
+    }
+    _, _ -> proxy
+  }
+}
+
+fn seed_product_variant_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamRead.data.product") {
+    Some(product_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let base_variants = seed_variants_for_product(product_json)
+      let delete_variant = case
+        jsonpath.lookup(capture, "$.mutation.variables.variantsIds[0]"),
+        jsonpath.lookup(capture, "$.mutation.variables.productId")
+      {
+        Some(JString(variant_id)), Some(JString(product_id)) -> [
+          minimal_seed_variant(product_id, variant_id),
+        ]
+        _, _ -> []
+      }
+      let proxy = seed_product_and_base_variants(proxy, product, base_variants)
+      let staged_variants = list.append(delete_variant, base_variants)
+      case product {
+        Ok(product) -> {
+          let store =
+            store_mod.replace_staged_variants_for_product(
+              proxy.store,
+              product.id,
+              staged_variants,
+            )
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_and_base_variants(
+  proxy: DraftProxy,
+  product: Result(ProductRecord, Nil),
+  variants: List(ProductVariantRecord),
+) -> DraftProxy {
+  case product {
+    Ok(product) -> {
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products([product])
+        |> store_mod.upsert_base_product_variants(variants)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    Error(_) -> proxy
+  }
+}
+
+fn make_seed_product_variant_from_product_json(
+  product_json: JsonValue,
+  variant_json: JsonValue,
+) -> Result(ProductVariantRecord, Nil) {
+  use product_id <- result.try(required_string_field(product_json, "id"))
+  make_seed_product_variant(product_id, variant_json, None)
+}
+
+fn minimal_seed_variant(
+  product_id: String,
+  variant_id: String,
+) -> ProductVariantRecord {
+  ProductVariantRecord(
+    id: variant_id,
+    product_id: product_id,
+    title: "Deleted variant seed",
+    sku: None,
+    barcode: None,
+    price: None,
+    compare_at_price: None,
+    taxable: None,
+    inventory_policy: None,
+    inventory_quantity: Some(0),
+    selected_options: [],
+    inventory_item: None,
+    cursor: None,
+  )
+}
+
+fn take_first(items: List(a), count: Int) -> List(a) {
+  case items, count <= 0 {
+    _, True -> []
+    [], False -> []
+    [first, ..rest], False -> [first, ..take_first(rest, count - 1)]
+  }
 }
 
 fn make_seed_product_from_edge(edge: JsonValue) -> Result(ProductRecord, Nil) {

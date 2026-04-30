@@ -350,6 +350,49 @@ pub fn product_create_validation_branches_return_user_errors_test() {
     == 1
 }
 
+pub fn product_variant_create_update_delete_stages_lifecycle_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: option_update_store())
+  let create_query =
+    "mutation { productVariantCreate(input: { productId: \\\"gid://shopify/Product/optioned\\\", title: \\\"Blue\\\", sku: \\\"BLUE-1\\\", barcode: \\\"2222222222222\\\", price: \\\"12.00\\\", inventoryQuantity: 5, selectedOptions: [{ name: \\\"Color\\\", value: \\\"Blue\\\" }], inventoryItem: { tracked: true, requiresShipping: false } }) { product { id totalInventory tracksInventory } productVariant { id title sku barcode price inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } userErrors { field message } } }"
+
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productVariantCreate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"totalInventory\":5,\"tracksInventory\":true},\"productVariant\":{\"id\":\"gid://shopify/ProductVariant/1\",\"title\":\"Blue\",\"sku\":\"BLUE-1\",\"barcode\":\"2222222222222\",\"price\":\"12.00\",\"inventoryQuantity\":5,\"selectedOptions\":[{\"name\":\"Color\",\"value\":\"Blue\"}],\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/2\",\"tracked\":true,\"requiresShipping\":false}},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { productVariantUpdate(input: { id: \\\"gid://shopify/ProductVariant/1\\\", title: \\\"Blue Deluxe\\\", sku: \\\"BLUE-2\\\", inventoryQuantity: 7, inventoryItem: { tracked: false, requiresShipping: true } }) { product { id totalInventory tracksInventory } productVariant { id title sku inventoryQuantity inventoryItem { id tracked requiresShipping } } userErrors { field message } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"productVariantUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"totalInventory\":7,\"tracksInventory\":false},\"productVariant\":{\"id\":\"gid://shopify/ProductVariant/1\",\"title\":\"Blue Deluxe\",\"sku\":\"BLUE-2\",\"inventoryQuantity\":7,\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/2\",\"tracked\":false,\"requiresShipping\":true}},\"userErrors\":[]}}}"
+
+  let delete_query =
+    "mutation { productVariantDelete(id: \\\"gid://shopify/ProductVariant/1\\\") { deletedProductVariantId userErrors { field message } } }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(delete_query))
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"productVariantDelete\":{\"deletedProductVariantId\":\"gid://shopify/ProductVariant/1\",\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id totalInventory tracksInventory variants(first: 10) { nodes { id title sku inventoryQuantity } } } productVariant(id: \\\"gid://shopify/ProductVariant/1\\\") { id } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"totalInventory\":0,\"tracksInventory\":false,\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/optioned\",\"title\":\"Red / Small\",\"sku\":null,\"inventoryQuantity\":0}]}},\"productVariant\":null}}"
+  assert store.get_log(proxy.store)
+    |> list.length
+    == 3
+}
+
 fn default_option_store() -> store.Store {
   store.new()
   |> store.upsert_base_products([default_product()])

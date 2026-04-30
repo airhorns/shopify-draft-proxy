@@ -100,6 +100,9 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productChangeStatus"
     | "productDelete"
     | "productUpdate"
+    | "productVariantCreate"
+    | "productVariantUpdate"
+    | "productVariantDelete"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -504,7 +507,7 @@ fn product_matches_positive_query_term(
         product_string_match_options(),
       )
     Some("sku") ->
-      store.get_effective_variants_by_product_id(store, product.id)
+      product_searchable_variants(store, product.id)
       |> list.any(fn(variant) {
         search_query_parser.matches_search_query_string(
           variant.sku,
@@ -520,6 +523,35 @@ fn product_matches_positive_query_term(
       )
     _ -> True
   }
+}
+
+fn product_searchable_variants(
+  store: Store,
+  product_id: String,
+) -> List(ProductVariantRecord) {
+  let base_variants = store.get_base_variants_by_product_id(store, product_id)
+  let effective_variants =
+    store.get_effective_variants_by_product_id(store, product_id)
+  case base_variants {
+    [] -> effective_variants
+    _ ->
+      case variants_search_equal(base_variants, effective_variants) {
+        True -> effective_variants
+        False -> base_variants
+      }
+  }
+}
+
+fn variants_search_equal(
+  left: List(ProductVariantRecord),
+  right: List(ProductVariantRecord),
+) -> Bool {
+  list.length(left) == list.length(right)
+  && list.all(left, fn(variant) {
+    list.any(right, fn(other) {
+      variant.id == other.id && variant.sku == other.sku
+    })
+  })
 }
 
 fn product_searchable_status(store: Store, product: ProductRecord) -> String {
@@ -1826,6 +1858,87 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "productVariantCreate" -> {
+              let result =
+                handle_product_variant_create(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productVariantCreate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "productVariantUpdate" -> {
+              let result =
+                handle_product_variant_update(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productVariantUpdate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "productVariantDelete" -> {
+              let result =
+                handle_product_variant_delete(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productVariantDelete locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "tagsAdd" -> {
               let result =
                 handle_tags_update(
@@ -2415,6 +2528,305 @@ fn handle_product_update(
             identity,
             [],
           )
+      }
+  }
+}
+
+fn handle_product_variant_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input")
+  let product_id = case input {
+    Some(input) -> read_arg_string(input, "productId")
+    None -> None
+  }
+  case product_id, input {
+    None, _ ->
+      mutation_result(
+        key,
+        product_variant_payload(
+          store,
+          None,
+          None,
+          [
+            ProductUserError(
+              ["input", "productId"],
+              "Product id is required",
+              None,
+            ),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id), Some(input) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            product_variant_payload(
+              store,
+              None,
+              None,
+              [
+                ProductUserError(
+                  ["input", "productId"],
+                  "Product not found",
+                  None,
+                ),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(_) -> {
+          let effective_variants =
+            store.get_effective_variants_by_product_id(store, product_id)
+          let defaults = list.first(effective_variants) |> option.from_result
+          let #(created_variant, identity_after_variant) =
+            make_created_variant_record(identity, product_id, input, defaults)
+          let next_variants = list.append(effective_variants, [created_variant])
+          let next_store =
+            store.replace_staged_variants_for_product(
+              store,
+              product_id,
+              next_variants,
+            )
+          let #(product, next_store, final_identity) =
+            sync_product_inventory_summary(
+              next_store,
+              identity_after_variant,
+              product_id,
+            )
+          mutation_result(
+            key,
+            product_variant_payload(
+              next_store,
+              product,
+              Some(created_variant),
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            final_identity,
+            variant_staged_ids(created_variant),
+          )
+        }
+      }
+    Some(_), None ->
+      mutation_result(
+        key,
+        product_variant_payload(
+          store,
+          None,
+          None,
+          [
+            ProductUserError(
+              ["input", "productId"],
+              "Product id is required",
+              None,
+            ),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_product_variant_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input")
+  let variant_id = case input {
+    Some(input) -> read_arg_string(input, "id")
+    None -> None
+  }
+  case variant_id, input {
+    None, _ ->
+      mutation_result(
+        key,
+        product_variant_payload(
+          store,
+          None,
+          None,
+          [ProductUserError(["input", "id"], "Variant id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(variant_id), Some(input) ->
+      case store.get_effective_variant_by_id(store, variant_id) {
+        None ->
+          mutation_result(
+            key,
+            product_variant_payload(
+              store,
+              None,
+              None,
+              [ProductUserError(["input", "id"], "Variant not found", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(existing_variant) -> {
+          let #(updated_variant, identity_after_variant) =
+            update_variant_record(identity, existing_variant, input)
+          let next_variants =
+            store.get_effective_variants_by_product_id(
+              store,
+              existing_variant.product_id,
+            )
+            |> list.map(fn(variant) {
+              case variant.id == variant_id {
+                True -> updated_variant
+                False -> variant
+              }
+            })
+          let next_store =
+            store.replace_staged_variants_for_product(
+              store,
+              existing_variant.product_id,
+              next_variants,
+            )
+          let #(product, next_store, final_identity) =
+            sync_product_inventory_summary(
+              next_store,
+              identity_after_variant,
+              existing_variant.product_id,
+            )
+          mutation_result(
+            key,
+            product_variant_payload(
+              next_store,
+              product,
+              Some(updated_variant),
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            final_identity,
+            variant_staged_ids(updated_variant),
+          )
+        }
+      }
+    Some(_), None ->
+      mutation_result(
+        key,
+        product_variant_payload(
+          store,
+          None,
+          None,
+          [ProductUserError(["input", "id"], "Variant id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_product_variant_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "id") {
+    None ->
+      mutation_result(
+        key,
+        product_variant_delete_payload(
+          None,
+          [ProductUserError(["id"], "Variant id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(variant_id) ->
+      case store.get_effective_variant_by_id(store, variant_id) {
+        None ->
+          mutation_result(
+            key,
+            product_variant_delete_payload(
+              None,
+              [ProductUserError(["id"], "Variant not found", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(existing_variant) -> {
+          let next_variants =
+            store.get_effective_variants_by_product_id(
+              store,
+              existing_variant.product_id,
+            )
+            |> list.filter(fn(variant) { variant.id != variant_id })
+          let next_store =
+            store.replace_staged_variants_for_product(
+              store,
+              existing_variant.product_id,
+              next_variants,
+            )
+          let #(_, next_store, final_identity) =
+            sync_product_inventory_summary(
+              next_store,
+              identity,
+              existing_variant.product_id,
+            )
+          mutation_result(
+            key,
+            product_variant_delete_payload(
+              Some(variant_id),
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            final_identity,
+            [variant_id],
+          )
+        }
       }
   }
 }
@@ -3364,6 +3776,55 @@ fn product_create_payload(
   )
 }
 
+fn product_variant_payload(
+  store: Store,
+  product: Option(ProductRecord),
+  variant: Option(ProductVariantRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  let variant_value = case variant {
+    Some(record) -> product_variant_source(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductVariantPayload")),
+      #("product", product_value),
+      #("productVariant", variant_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_variant_delete_payload(
+  deleted_product_variant_id: Option(String),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let deleted_value = case deleted_product_variant_id {
+    Some(id) -> SrcString(id)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductVariantDeletePayload")),
+      #("deletedProductVariantId", deleted_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn tags_update_payload(
   store: Store,
   is_add: Bool,
@@ -3864,6 +4325,303 @@ fn make_default_variant_record(
     next_identity,
     [variant_id, inventory_item_id],
   )
+}
+
+fn make_created_variant_record(
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  input: Dict(String, ResolvedValue),
+  defaults: Option(ProductVariantRecord),
+) -> #(ProductVariantRecord, SyntheticIdentityRegistry) {
+  let selected_options = read_variant_selected_options(input, [])
+  let #(variant_id, identity_after_variant) =
+    synthetic_identity.make_synthetic_gid(identity, "ProductVariant")
+  let #(inventory_item, final_identity) =
+    read_variant_inventory_item(
+      identity_after_variant,
+      read_object_field(input, "inventoryItem"),
+      None,
+    )
+  #(
+    ProductVariantRecord(
+      id: variant_id,
+      product_id: product_id,
+      title: read_non_empty_string_field(input, "title")
+        |> option.unwrap(variant_title_with_fallback(
+          selected_options,
+          "Default Title",
+        )),
+      sku: read_variant_sku(input, None),
+      barcode: read_string_field(input, "barcode"),
+      price: read_string_field(input, "price")
+        |> option.or(option.then(defaults, fn(variant) { variant.price })),
+      compare_at_price: read_string_field(input, "compareAtPrice")
+        |> option.or(
+          option.then(defaults, fn(variant) { variant.compare_at_price }),
+        ),
+      taxable: read_bool_field(input, "taxable")
+        |> option.or(option.then(defaults, fn(variant) { variant.taxable })),
+      inventory_policy: read_string_field(input, "inventoryPolicy")
+        |> option.or(
+          option.then(defaults, fn(variant) { variant.inventory_policy }),
+        ),
+      inventory_quantity: read_int_field(input, "inventoryQuantity")
+        |> option.or(
+          option.then(defaults, fn(variant) { variant.inventory_quantity }),
+        )
+        |> option.or(Some(0)),
+      selected_options: selected_options,
+      inventory_item: inventory_item,
+      cursor: None,
+    ),
+    final_identity,
+  )
+}
+
+fn update_variant_record(
+  identity: SyntheticIdentityRegistry,
+  existing: ProductVariantRecord,
+  input: Dict(String, ResolvedValue),
+) -> #(ProductVariantRecord, SyntheticIdentityRegistry) {
+  let selected_options =
+    read_variant_selected_options(input, existing.selected_options)
+  let #(inventory_item, next_identity) =
+    read_variant_inventory_item(
+      identity,
+      read_object_field(input, "inventoryItem"),
+      existing.inventory_item,
+    )
+  #(
+    ProductVariantRecord(
+      ..existing,
+      title: read_non_empty_string_field(input, "title")
+        |> option.unwrap(variant_title_with_fallback(
+          selected_options,
+          existing.title,
+        )),
+      sku: read_variant_sku(input, existing.sku),
+      barcode: read_string_field(input, "barcode")
+        |> option.or(existing.barcode),
+      price: read_string_field(input, "price") |> option.or(existing.price),
+      compare_at_price: read_string_field(input, "compareAtPrice")
+        |> option.or(existing.compare_at_price),
+      taxable: read_bool_field(input, "taxable") |> option.or(existing.taxable),
+      inventory_policy: read_string_field(input, "inventoryPolicy")
+        |> option.or(existing.inventory_policy),
+      inventory_quantity: read_int_field(input, "inventoryQuantity")
+        |> option.or(existing.inventory_quantity),
+      selected_options: selected_options,
+      inventory_item: inventory_item,
+    ),
+    next_identity,
+  )
+}
+
+fn read_variant_sku(
+  input: Dict(String, ResolvedValue),
+  fallback: Option(String),
+) -> Option(String) {
+  case read_string_field(input, "sku") {
+    Some(sku) -> Some(sku)
+    None ->
+      case read_object_field(input, "inventoryItem") {
+        Some(item) -> read_string_field(item, "sku") |> option.or(fallback)
+        None -> fallback
+      }
+  }
+}
+
+fn read_variant_selected_options(
+  input: Dict(String, ResolvedValue),
+  fallback: List(ProductVariantSelectedOptionRecord),
+) -> List(ProductVariantSelectedOptionRecord) {
+  case dict.get(input, "selectedOptions") {
+    Ok(ListVal(values)) -> {
+      let selected =
+        list.filter_map(values, fn(value) {
+          case value {
+            ObjectVal(fields) -> read_variant_selected_option(fields)
+            _ -> Error(Nil)
+          }
+        })
+      case selected {
+        [] -> fallback
+        _ -> selected
+      }
+    }
+    _ -> fallback
+  }
+}
+
+fn read_variant_selected_option(
+  fields: Dict(String, ResolvedValue),
+) -> Result(ProductVariantSelectedOptionRecord, Nil) {
+  case
+    read_non_empty_string_field(fields, "name"),
+    read_non_empty_string_field(fields, "value")
+  {
+    Some(name), Some(value) ->
+      Ok(ProductVariantSelectedOptionRecord(name: name, value: value))
+    _, _ -> Error(Nil)
+  }
+}
+
+fn read_variant_inventory_item(
+  identity: SyntheticIdentityRegistry,
+  input: Option(Dict(String, ResolvedValue)),
+  existing: Option(InventoryItemRecord),
+) -> #(Option(InventoryItemRecord), SyntheticIdentityRegistry) {
+  case input {
+    None -> #(existing, identity)
+    Some(input) -> {
+      let #(id, next_identity) = case existing {
+        Some(item) -> #(item.id, identity)
+        None -> synthetic_identity.make_synthetic_gid(identity, "InventoryItem")
+      }
+      let current_levels = case existing {
+        Some(item) -> item.inventory_levels
+        None -> []
+      }
+      #(
+        Some(InventoryItemRecord(
+          id: id,
+          tracked: read_bool_field(input, "tracked")
+            |> option.or(option.then(existing, fn(item) { item.tracked })),
+          requires_shipping: read_bool_field(input, "requiresShipping")
+            |> option.or(
+              option.then(existing, fn(item) { item.requires_shipping }),
+            ),
+          measurement: option.then(existing, fn(item) { item.measurement }),
+          country_code_of_origin: read_string_field(
+            input,
+            "countryCodeOfOrigin",
+          )
+            |> option.or(
+              option.then(existing, fn(item) { item.country_code_of_origin }),
+            ),
+          province_code_of_origin: read_string_field(
+            input,
+            "provinceCodeOfOrigin",
+          )
+            |> option.or(
+              option.then(existing, fn(item) { item.province_code_of_origin }),
+            ),
+          harmonized_system_code: read_string_field(
+            input,
+            "harmonizedSystemCode",
+          )
+            |> option.or(
+              option.then(existing, fn(item) { item.harmonized_system_code }),
+            ),
+          inventory_levels: current_levels,
+        )),
+        next_identity,
+      )
+    }
+  }
+}
+
+fn read_object_field(
+  fields: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Dict(String, ResolvedValue)) {
+  case dict.get(fields, name) {
+    Ok(ObjectVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn read_bool_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case dict.get(input, name) {
+    Ok(BoolVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn variant_title_with_fallback(
+  selected_options: List(ProductVariantSelectedOptionRecord),
+  fallback: String,
+) -> String {
+  case selected_options {
+    [] -> fallback
+    _ -> variant_title(selected_options)
+  }
+}
+
+fn variant_staged_ids(variant: ProductVariantRecord) -> List(String) {
+  case variant.inventory_item {
+    Some(item) -> [variant.id, item.id]
+    None -> [variant.id]
+  }
+}
+
+fn sync_product_inventory_summary(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+) -> #(Option(ProductRecord), Store, SyntheticIdentityRegistry) {
+  case store.get_effective_product_by_id(store, product_id) {
+    None -> #(None, store, identity)
+    Some(product) -> {
+      let #(updated_at, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      let variants =
+        store.get_effective_variants_by_product_id(store, product_id)
+      let next_product =
+        ProductRecord(
+          ..product,
+          total_inventory: sum_variant_inventory(variants),
+          tracks_inventory: derive_tracks_inventory(variants),
+          updated_at: Some(updated_at),
+        )
+      let #(_, next_store) = store.upsert_staged_product(store, next_product)
+      #(Some(next_product), next_store, next_identity)
+    }
+  }
+}
+
+fn sum_variant_inventory(variants: List(ProductVariantRecord)) -> Option(Int) {
+  let quantities =
+    list.filter_map(variants, fn(variant) {
+      case variant.inventory_quantity {
+        Some(quantity) -> Ok(quantity)
+        None -> Error(Nil)
+      }
+    })
+  case quantities {
+    [] -> None
+    _ ->
+      Some(list.fold(quantities, 0, fn(total, quantity) { total + quantity }))
+  }
+}
+
+fn derive_tracks_inventory(
+  variants: List(ProductVariantRecord),
+) -> Option(Bool) {
+  let tracked_values =
+    list.filter_map(variants, fn(variant) {
+      case variant.inventory_item {
+        Some(item) ->
+          case item.tracked {
+            Some(tracked) -> Ok(tracked)
+            None -> Error(Nil)
+          }
+        None -> Error(Nil)
+      }
+    })
+  case tracked_values {
+    [] ->
+      case
+        list.any(variants, fn(variant) { variant.inventory_quantity != None })
+      {
+        True -> Some(True)
+        False -> None
+      }
+    _ -> Some(list.any(tracked_values, fn(tracked) { tracked }))
+  }
 }
 
 fn read_non_empty_string_field(

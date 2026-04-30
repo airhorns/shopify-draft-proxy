@@ -9,6 +9,71 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 56: product variant compatibility lifecycle
+
+Adds local staging for the legacy single-variant compatibility roots:
+`productVariantCreate`, `productVariantUpdate`, and `productVariantDelete`.
+The Gleam Products mutation handler now routes these roots locally, preserves
+raw mutation logging through the centralized log-draft path, updates Product
+inventory summaries from staged variants, and exposes immediate downstream
+Product/ProductVariant reads without runtime Shopify writes.
+
+The pass also adds captured SKU search-lag behavior for staged variant family
+changes: direct Product variant reads see the staged variant list immediately,
+while immediate `products(query: "sku:...")` / `productsCount(query:
+"sku:...")` checks keep matching against the base variant SKU set when staged
+variant state differs. The parity runner seeds the single-root compatibility
+specs from the existing captured bulk-variant fixtures without changing any
+captures or request shapes.
+
+| Module                                                              | Change                                                                                          |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds single-variant create/update/delete routing, staging, payloads, inventory summary sync.    |
+| `gleam/test/parity/runner.gleam`                                    | Seeds the compatibility roots from captured bulk create/update/delete variant fixture evidence. |
+| `gleam/test/parity_test.gleam`                                      | Enables three strict single-variant compatibility parity scenarios.                             |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct variant create/update/delete lifecycle and mutation-log coverage.                   |
+
+Validation: `gleam test --target javascript` is green at 752 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails before tests execute
+on the local Erlang install with the known `undef` runner issue; after clearing
+host-built Erlang artifacts, the Docker Erlang fallback is green at 748 tests.
+Product parity inventory remains 115 checked-in specs, with 38 product specs
+executable in the Gleam parity suite plus the admin-platform ProductOption node
+scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was direct `draft_proxy.process_request`
+  requests returning HTTP 400 for `productVariantCreate`,
+  `productVariantUpdate`, and `productVariantDelete` because the roots were not
+  routed by the Gleam Products mutation dispatcher.
+- The single-root compatibility parity specs intentionally compare against
+  captured bulk-variant Shopify evidence; runner seeding must reconstruct the
+  pre-mutation Product/variant state from those captures.
+- Product variant update/delete captures rely on immediate SKU search lag, so
+  direct reads use staged variants while SKU-filtered Product searches consult
+  the base variant family when staged variants differ.
+
+### Risks / open items
+
+- This pass covers the legacy single-variant compatibility roots, not the full
+  bulk variant strategy matrix or validation atomicity scenarios.
+- Collections, inventory quantity/shipment/transfer, publications, product
+  metafields, selling plans, feeds, and feedback remain incomplete in Gleam.
+- Only 38 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 57 candidates
+
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Port product variant bulk create/update/delete/reorder scenarios now that
+  the single-root variant record helpers are in place.
+- Port collection membership and product variant media relationship roots so
+  the full `product-relationship-roots-live-parity` scenario can run.
+
+---
+
 ## 2026-04-30 — Pass 55: productCreate lifecycle
 
 Adds local `productCreate` staging to the Gleam Products mutation handler. The
