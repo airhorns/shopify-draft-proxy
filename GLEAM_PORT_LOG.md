@@ -9,6 +9,55 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 42: variant SKU product search
+
+Enables the captured `products-variant-search-read` parity scenario in the
+Gleam suite. Product `query:` filtering now uses the shared Gleam search query
+parser for a narrow `sku:` term slice, matching products when any effective
+variant for the product has the requested SKU. `productsCount(query:)` now uses
+the same filtered product list so count and connection reads agree.
+
+This pass intentionally limits search support to variant SKU terms. Broader
+product search fields, OR/advanced product search semantics beyond the shared
+parser mechanics, sort-key parity, and variant catalog search remain unported.
+
+| Module                                                     | Change                                                                        |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Applies shared search parsing to Products reads for `sku:` variant matching.  |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct two-product coverage proving `sku:` filters product reads/counts. |
+| `gleam/test/parity_test.gleam`                             | Enables `products-variant-search-read` in the pure-Gleam parity suite.        |
+
+Validation: `gleam test --target javascript` is green at 704 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 9
+product specs executable in the Gleam parity suite after this pass.
+
+### Findings
+
+- The captured parity fixture seeds only the matching product, so the parity
+  scenario alone would pass even if the query were ignored. A direct two-product
+  test was added so this pass proves actual `sku:` filtering behavior.
+- The existing `seedProducts` convention already carries the variant SKU needed
+  by the parity scenario; no fixture/request changes were required.
+
+### Risks / open items
+
+- Product query fields beyond `sku:` are still unported in Gleam.
+- Product sort-key parity, advanced search grammar captures, and variant search
+  over top-level ProductVariant catalogs remain unported.
+- Only 9 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 43 candidates
+
+- Add ProductOption state and product `options`/option value projection from
+  captured fixtures.
+- Add simple Product search fields for `vendor`, `product_type`, `tag`, `id`,
+  and `status` using the shared search parser.
+- Start inventory item/level catalog/search reads over effective variant-backed
+  inventory items.
+
+---
+
 ## 2026-04-30 — Pass 41: top-level inventory level reads
 
 Enables the captured `inventory-level-read` parity scenario in the Gleam suite.

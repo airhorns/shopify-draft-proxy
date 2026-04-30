@@ -26,6 +26,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, project_graphql_value, serialize_connection,
   serialize_empty_connection, src_object,
 }
+import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
@@ -157,7 +158,8 @@ fn serialize_root_fields(
               )
             "productsCount" | "productVariantsCount" ->
               serialize_exact_count(field, case name.value {
-                "productsCount" -> store.get_effective_product_count(store)
+                "productsCount" ->
+                  product_count_for_field(store, field, variables)
                 _ -> store.get_effective_product_variant_count(store)
               })
             "productDuplicateJob" ->
@@ -324,7 +326,7 @@ fn serialize_products_connection(
   variables: Dict(String, ResolvedValue),
   fragments: FragmentMap,
 ) -> Json {
-  let products = store.list_effective_products(store)
+  let products = filtered_products(store, field, variables)
   case products {
     [] -> serialize_empty_connection(field, default_selected_field_options())
     _ -> {
@@ -336,7 +338,7 @@ fn serialize_products_connection(
           product_cursor,
           default_connection_window_options(),
         )
-      let count = store.get_effective_product_count(store)
+      let count = product_count_for_field(store, field, variables)
       let has_next_page =
         window.has_next_page || count > list.length(window.items)
       serialize_connection(
@@ -367,6 +369,52 @@ fn serialize_products_connection(
         ),
       )
     }
+  }
+}
+
+fn filtered_products(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> List(ProductRecord) {
+  search_query_parser.apply_search_query(
+    store.list_effective_products(store),
+    read_string_argument(field, variables, "query"),
+    search_query_parser.default_parse_options(),
+    fn(product, term) {
+      product_matches_positive_query_term(store, product, term)
+    },
+  )
+}
+
+fn product_count_for_field(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Int {
+  case read_string_argument(field, variables, "query") {
+    Some(_) -> list.length(filtered_products(store, field, variables))
+    None -> store.get_effective_product_count(store)
+  }
+}
+
+fn product_matches_positive_query_term(
+  store: Store,
+  product: ProductRecord,
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  case option.map(term.field, string.lowercase) {
+    Some("sku") ->
+      store.get_effective_variants_by_product_id(store, product.id)
+      |> list.any(fn(variant) {
+        search_query_parser.matches_search_query_string(
+          variant.sku,
+          term.value,
+          search_query_parser.ExactMatch,
+          search_query_parser.default_string_match_options(),
+        )
+      })
+    _ -> False
   }
 }
 

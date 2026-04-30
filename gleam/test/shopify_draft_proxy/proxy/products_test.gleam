@@ -317,6 +317,24 @@ pub fn seeded_product_variants_connection_read_test() {
     == "{\"data\":{\"productVariantsCount\":{\"count\":3,\"precision\":\"EXACT\"},\"productVariants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/2\",\"title\":\"Default Title\",\"sku\":\"sku-untracked-1\",\"product\":{\"id\":\"gid://shopify/Product/1\"}},{\"id\":\"gid://shopify/ProductVariant/10\",\"title\":\"Blue\",\"sku\":null,\"product\":{\"id\":\"gid://shopify/Product/1\"}}],\"pageInfo\":{\"hasNextPage\":true,\"hasPreviousPage\":false,\"startCursor\":\"cursor:gid://shopify/ProductVariant/2\",\"endCursor\":\"cursor:gid://shopify/ProductVariant/10\"}}}}"
 }
 
+pub fn seeded_products_variant_sku_search_read_test() {
+  let variables = dict.from_list([#("query", StringVal("sku:sku-untracked-1"))])
+  let assert Ok(result) =
+    products.process(
+      seeded_variant_store(),
+      "query ProductsVariantSkuSearch($query: String!) {
+        matches: productsCount(query: $query) { count precision }
+        products(first: 5, query: $query) {
+          edges { node { id title handle } }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }",
+      variables,
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"matches\":{\"count\":1,\"precision\":\"EXACT\"},\"products\":{\"edges\":[{\"node\":{\"id\":\"gid://shopify/Product/1\",\"title\":\"Helper Hat\",\"handle\":\"helper-hat\"}}],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":\"gid://shopify/Product/1\",\"endCursor\":\"gid://shopify/Product/1\"}}}}"
+}
+
 pub fn seeded_products_catalog_read_test() {
   let product =
     ProductRecord(
