@@ -47,6 +47,7 @@ import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/proxy/products
+import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/store_properties
@@ -993,6 +994,28 @@ fn route_mutation(
           )
         Error(_) -> #(bad_request("Failed to handle products mutation"), proxy)
       }
+    Ok(PrivacyDomain) ->
+      case
+        privacy.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle privacy mutation"), proxy)
+      }
     Ok(CustomersDomain) ->
       case
         customers.process_mutation(
@@ -1131,6 +1154,13 @@ fn route_query(
         customers.process(proxy.store, query, variables),
         "Failed to handle customers query",
       )
+    Ok(PrivacyDomain) -> #(
+      bad_request(
+        "No domain dispatcher implemented for root field: "
+        <> primary_root_field,
+      ),
+      proxy,
+    )
     Error(_) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -1159,6 +1189,7 @@ type Domain {
   ProductsDomain
   AdminPlatformDomain
   StorePropertiesDomain
+  PrivacyDomain
   CustomersDomain
 }
 
@@ -1521,15 +1552,25 @@ fn local_non_store_publishable_mutation_dispatch_domain(
                                                           )
                                                         False ->
                                                           case
-                                                            customers.is_customer_mutation_root(
+                                                            privacy.is_privacy_mutation_root(
                                                               name,
                                                             )
                                                           {
                                                             True ->
-                                                              Ok(
-                                                                CustomersDomain,
-                                                              )
-                                                            False -> Error(Nil)
+                                                              Ok(PrivacyDomain)
+                                                            False ->
+                                                              case
+                                                                customers.is_customer_mutation_root(
+                                                                  name,
+                                                                )
+                                                              {
+                                                                True ->
+                                                                  Ok(
+                                                                    CustomersDomain,
+                                                                  )
+                                                                False ->
+                                                                  Error(Nil)
+                                                              }
                                                           }
                                                       }
                                                   }
@@ -1695,6 +1736,29 @@ pub fn process_graphql_request(
       ))
   }
   process_request(
+    proxy,
+    Request(method: "POST", path: path, headers: options.headers, body: body),
+  )
+}
+
+@target(javascript)
+/// Async JavaScript-target variant of `process_graphql_request`.
+/// Keeps the default GraphQL route construction in Gleam while still
+/// allowing live-hybrid passthrough requests to await upstream `fetch`.
+pub fn process_graphql_request_async(
+  proxy: DraftProxy,
+  body: String,
+  options: GraphQLRequestOptions,
+) -> Promise(#(Response, DraftProxy)) {
+  let path = case options.path {
+    Some(p) -> p
+    None ->
+      default_graphql_path(option.unwrap(
+        options.api_version,
+        default_admin_api_version,
+      ))
+  }
+  process_request_async(
     proxy,
     Request(method: "POST", path: path, headers: options.headers, body: body),
   )

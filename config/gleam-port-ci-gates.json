@@ -291,12 +291,16 @@
     {
       "specPath": "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json",
       "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
-      "targets": ["erlang"]
+      "targets": [
+        "erlang"
+      ]
     },
     {
       "specPath": "config/parity-specs/metaobjects/metaobject-definitions-read.json",
       "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
-      "targets": ["erlang"]
+      "targets": [
+        "erlang"
+      ]
     },
     {
       "specPath": "config/parity-specs/online-store-article-media-navigation-follow-through.json",
@@ -660,10 +664,6 @@
     },
     {
       "specPath": "config/parity-specs/payments/shopify-payments-account-read.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/privacy/dataSaleOptOut-parity.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
