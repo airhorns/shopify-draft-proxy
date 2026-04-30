@@ -9,6 +9,7 @@
 //// `SyntheticIdentityRegistry`).
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order
@@ -18,12 +19,19 @@ import shopify_draft_proxy/state/types.{
   type AppInstallationRecord, type AppOneTimePurchaseRecord, type AppRecord,
   type AppSubscriptionLineItemRecord, type AppSubscriptionRecord,
   type AppUsageRecord, type BackupRegionRecord, type BulkOperationRecord,
-  type CartTransformRecord, type CustomerSegmentMembersQueryRecord,
+  type CartTransformRecord, type CustomerAccountPageRecord,
+  type CustomerAddressRecord, type CustomerCatalogConnectionRecord,
+  type CustomerCatalogPageInfoRecord, type CustomerDataErasureRequestRecord,
+  type CustomerEventSummaryRecord, type CustomerMergeRequestRecord,
+  type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
+  type CustomerPaymentMethodRecord, type CustomerPaymentMethodUpdateUrlRecord,
+  type CustomerRecord, type CustomerSegmentMembersQueryRecord,
   type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
   type GiftCardRecord, type LocaleRecord, type MarketingEngagementRecord,
   type MarketingRecord, type MarketingValue, type SavedSearchRecord,
   type SegmentRecord, type ShopLocaleRecord, type ShopRecord,
-  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
+  type ShopifyFunctionRecord, type StoreCreditAccountRecord,
+  type StoreCreditAccountTransactionRecord, type TaxAppConfigurationRecord,
   type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
   BulkOperationRecord, MarketingObject, MarketingString,
 } as types_mod
@@ -87,6 +95,44 @@ pub type BaseState {
     gift_cards: Dict(String, GiftCardRecord),
     gift_card_order: List(String),
     gift_card_configuration: Option(GiftCardConfigurationRecord),
+    customers: Dict(String, CustomerRecord),
+    customer_order: List(String),
+    customer_catalog_connections: Dict(String, CustomerCatalogConnectionRecord),
+    deleted_customer_ids: Dict(String, Bool),
+    customer_addresses: Dict(String, CustomerAddressRecord),
+    customer_address_order: List(String),
+    deleted_customer_address_ids: Dict(String, Bool),
+    customer_order_summaries: Dict(String, CustomerOrderSummaryRecord),
+    customer_order_connection_page_infos: Dict(
+      String,
+      CustomerCatalogPageInfoRecord,
+    ),
+    customer_event_summaries: Dict(String, CustomerEventSummaryRecord),
+    customer_event_connection_page_infos: Dict(
+      String,
+      CustomerCatalogPageInfoRecord,
+    ),
+    customer_last_orders: Dict(String, CustomerOrderSummaryRecord),
+    customer_metafields: Dict(String, CustomerMetafieldRecord),
+    customer_payment_methods: Dict(String, CustomerPaymentMethodRecord),
+    customer_payment_method_update_urls: Dict(
+      String,
+      CustomerPaymentMethodUpdateUrlRecord,
+    ),
+    deleted_customer_payment_method_ids: Dict(String, Bool),
+    store_credit_accounts: Dict(String, StoreCreditAccountRecord),
+    store_credit_account_transactions: Dict(
+      String,
+      StoreCreditAccountTransactionRecord,
+    ),
+    customer_account_pages: Dict(String, CustomerAccountPageRecord),
+    customer_account_page_order: List(String),
+    customer_data_erasure_requests: Dict(
+      String,
+      CustomerDataErasureRequestRecord,
+    ),
+    merged_customer_ids: Dict(String, String),
+    customer_merge_requests: Dict(String, CustomerMergeRequestRecord),
     segments: Dict(String, SegmentRecord),
     segment_order: List(String),
     deleted_segment_ids: Dict(String, Bool),
@@ -158,6 +204,43 @@ pub type StagedState {
     gift_cards: Dict(String, GiftCardRecord),
     gift_card_order: List(String),
     gift_card_configuration: Option(GiftCardConfigurationRecord),
+    customers: Dict(String, CustomerRecord),
+    customer_order: List(String),
+    deleted_customer_ids: Dict(String, Bool),
+    customer_addresses: Dict(String, CustomerAddressRecord),
+    customer_address_order: List(String),
+    deleted_customer_address_ids: Dict(String, Bool),
+    customer_order_summaries: Dict(String, CustomerOrderSummaryRecord),
+    customer_order_connection_page_infos: Dict(
+      String,
+      CustomerCatalogPageInfoRecord,
+    ),
+    customer_event_summaries: Dict(String, CustomerEventSummaryRecord),
+    customer_event_connection_page_infos: Dict(
+      String,
+      CustomerCatalogPageInfoRecord,
+    ),
+    customer_last_orders: Dict(String, CustomerOrderSummaryRecord),
+    customer_metafields: Dict(String, CustomerMetafieldRecord),
+    customer_payment_methods: Dict(String, CustomerPaymentMethodRecord),
+    customer_payment_method_update_urls: Dict(
+      String,
+      CustomerPaymentMethodUpdateUrlRecord,
+    ),
+    deleted_customer_payment_method_ids: Dict(String, Bool),
+    store_credit_accounts: Dict(String, StoreCreditAccountRecord),
+    store_credit_account_transactions: Dict(
+      String,
+      StoreCreditAccountTransactionRecord,
+    ),
+    customer_account_pages: Dict(String, CustomerAccountPageRecord),
+    customer_account_page_order: List(String),
+    customer_data_erasure_requests: Dict(
+      String,
+      CustomerDataErasureRequestRecord,
+    ),
+    merged_customer_ids: Dict(String, String),
+    customer_merge_requests: Dict(String, CustomerMergeRequestRecord),
     segments: Dict(String, SegmentRecord),
     segment_order: List(String),
     deleted_segment_ids: Dict(String, Bool),
@@ -291,6 +374,29 @@ pub fn empty_base_state() -> BaseState {
     gift_cards: dict.new(),
     gift_card_order: [],
     gift_card_configuration: None,
+    customers: dict.new(),
+    customer_order: [],
+    customer_catalog_connections: dict.new(),
+    deleted_customer_ids: dict.new(),
+    customer_addresses: dict.new(),
+    customer_address_order: [],
+    deleted_customer_address_ids: dict.new(),
+    customer_order_summaries: dict.new(),
+    customer_order_connection_page_infos: dict.new(),
+    customer_event_summaries: dict.new(),
+    customer_event_connection_page_infos: dict.new(),
+    customer_last_orders: dict.new(),
+    customer_metafields: dict.new(),
+    customer_payment_methods: dict.new(),
+    customer_payment_method_update_urls: dict.new(),
+    deleted_customer_payment_method_ids: dict.new(),
+    store_credit_accounts: dict.new(),
+    store_credit_account_transactions: dict.new(),
+    customer_account_pages: dict.new(),
+    customer_account_page_order: [],
+    customer_data_erasure_requests: dict.new(),
+    merged_customer_ids: dict.new(),
+    customer_merge_requests: dict.new(),
     segments: dict.new(),
     segment_order: [],
     deleted_segment_ids: dict.new(),
@@ -355,6 +461,28 @@ pub fn empty_staged_state() -> StagedState {
     gift_cards: dict.new(),
     gift_card_order: [],
     gift_card_configuration: None,
+    customers: dict.new(),
+    customer_order: [],
+    deleted_customer_ids: dict.new(),
+    customer_addresses: dict.new(),
+    customer_address_order: [],
+    deleted_customer_address_ids: dict.new(),
+    customer_order_summaries: dict.new(),
+    customer_order_connection_page_infos: dict.new(),
+    customer_event_summaries: dict.new(),
+    customer_event_connection_page_infos: dict.new(),
+    customer_last_orders: dict.new(),
+    customer_metafields: dict.new(),
+    customer_payment_methods: dict.new(),
+    customer_payment_method_update_urls: dict.new(),
+    deleted_customer_payment_method_ids: dict.new(),
+    store_credit_accounts: dict.new(),
+    store_credit_account_transactions: dict.new(),
+    customer_account_pages: dict.new(),
+    customer_account_page_order: [],
+    customer_data_erasure_requests: dict.new(),
+    merged_customer_ids: dict.new(),
+    customer_merge_requests: dict.new(),
     segments: dict.new(),
     segment_order: [],
     deleted_segment_ids: dict.new(),
@@ -2369,6 +2497,901 @@ fn default_gift_card_configuration() -> GiftCardConfigurationRecord {
     issue_limit: types_mod.Money(amount: "0.0", currency_code: "CAD"),
     purchase_limit: types_mod.Money(amount: "0.0", currency_code: "CAD"),
   )
+}
+
+// ---------------------------------------------------------------------------
+// Customers slice
+// ---------------------------------------------------------------------------
+
+pub fn upsert_base_customers(
+  store: Store,
+  records: List(CustomerRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        customers: dict.insert(base.customers, record.id, record),
+        customer_order: append_unique_id(base.customer_order, record.id),
+        deleted_customer_ids: dict.delete(base.deleted_customer_ids, record.id),
+        merged_customer_ids: dict.delete(base.merged_customer_ids, record.id),
+      ),
+    )
+  })
+}
+
+pub fn set_base_customer_catalog_connection(
+  store: Store,
+  key: String,
+  connection: CustomerCatalogConnectionRecord,
+) -> Store {
+  let base = store.base_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      customer_catalog_connections: dict.insert(
+        base.customer_catalog_connections,
+        key,
+        connection,
+      ),
+    ),
+  )
+}
+
+pub fn get_base_customer_catalog_connection(
+  store: Store,
+  key: String,
+) -> Option(CustomerCatalogConnectionRecord) {
+  case dict.get(store.base_state.customer_catalog_connections, key) {
+    Ok(connection) -> Some(connection)
+    Error(_) -> None
+  }
+}
+
+pub fn stage_create_customer(
+  store: Store,
+  record: CustomerRecord,
+) -> #(CustomerRecord, Store) {
+  let staged = store.staged_state
+  let already_known =
+    list.contains(store.base_state.customer_order, record.id)
+    || list.contains(staged.customer_order, record.id)
+  let new_order = case already_known {
+    True -> staged.customer_order
+    False -> list.append(staged.customer_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      customers: dict.insert(staged.customers, record.id, record),
+      customer_order: new_order,
+      deleted_customer_ids: dict.delete(staged.deleted_customer_ids, record.id),
+      merged_customer_ids: dict.delete(staged.merged_customer_ids, record.id),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn stage_update_customer(
+  store: Store,
+  record: CustomerRecord,
+) -> #(CustomerRecord, Store) {
+  stage_create_customer(store, record)
+}
+
+pub fn stage_delete_customer(store: Store, customer_id: String) -> Store {
+  let staged = store.staged_state
+  let staged_addresses =
+    dict.filter(staged.customer_addresses, fn(_id, address) {
+      address.customer_id != customer_id
+    })
+  let deleted_address_ids =
+    dict.to_list(store.base_state.customer_addresses)
+    |> list.fold(staged.deleted_customer_address_ids, fn(acc, pair) {
+      let #(id, address) = pair
+      case address.customer_id == customer_id {
+        True -> dict.insert(acc, id, True)
+        False -> acc
+      }
+    })
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      customers: dict.delete(staged.customers, customer_id),
+      customer_addresses: staged_addresses,
+      deleted_customer_address_ids: deleted_address_ids,
+      deleted_customer_ids: dict.insert(
+        staged.deleted_customer_ids,
+        customer_id,
+        True,
+      ),
+      merged_customer_ids: dict.delete(staged.merged_customer_ids, customer_id),
+    ),
+  )
+}
+
+pub fn get_effective_customer_by_id(
+  store: Store,
+  customer_id: String,
+) -> Option(CustomerRecord) {
+  case dict.get(store.staged_state.deleted_customer_ids, customer_id) {
+    Ok(True) -> None
+    _ ->
+      case dict.get(store.staged_state.customers, customer_id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.customers, customer_id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_customers(store: Store) -> List(CustomerRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.customer_order,
+      store.staged_state.customer_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_customer_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(store.base_state.customers, store.staged_state.customers)
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_customer_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+pub fn upsert_base_customer_addresses(
+  store: Store,
+  records: List(CustomerAddressRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        customer_addresses: dict.insert(
+          base.customer_addresses,
+          record.id,
+          record,
+        ),
+        customer_address_order: append_unique_id(
+          base.customer_address_order,
+          record.id,
+        ),
+        deleted_customer_address_ids: dict.delete(
+          base.deleted_customer_address_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn stage_upsert_customer_address(
+  store: Store,
+  record: CustomerAddressRecord,
+) -> #(CustomerAddressRecord, Store) {
+  let staged = store.staged_state
+  let already_known =
+    list.contains(store.base_state.customer_address_order, record.id)
+    || list.contains(staged.customer_address_order, record.id)
+  let new_order = case already_known {
+    True -> staged.customer_address_order
+    False -> list.append(staged.customer_address_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      customer_addresses: dict.insert(
+        staged.customer_addresses,
+        record.id,
+        record,
+      ),
+      customer_address_order: new_order,
+      deleted_customer_address_ids: dict.delete(
+        staged.deleted_customer_address_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn stage_delete_customer_address(
+  store: Store,
+  address_id: String,
+) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      customer_addresses: dict.delete(staged.customer_addresses, address_id),
+      deleted_customer_address_ids: dict.insert(
+        staged.deleted_customer_address_ids,
+        address_id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_customer_address_by_id(
+  store: Store,
+  address_id: String,
+) -> Option(CustomerAddressRecord) {
+  case dict.get(store.staged_state.deleted_customer_address_ids, address_id) {
+    Ok(True) -> None
+    _ ->
+      case dict.get(store.staged_state.customer_addresses, address_id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.customer_addresses, address_id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_customer_addresses(
+  store: Store,
+  customer_id: String,
+) -> List(CustomerAddressRecord) {
+  case dict.get(store.staged_state.deleted_customer_ids, customer_id) {
+    Ok(True) -> []
+    _ -> {
+      let ids =
+        list.append(
+          store.base_state.customer_address_order,
+          store.staged_state.customer_address_order,
+        )
+        |> dedupe_strings()
+      let from_order =
+        list.filter_map(ids, fn(id) {
+          case get_effective_customer_address_by_id(store, id) {
+            Some(address) ->
+              case address.customer_id == customer_id {
+                True -> Ok(address)
+                False -> Error(Nil)
+              }
+            None -> Error(Nil)
+          }
+        })
+      let ordered_set = list_to_set(ids)
+      let merged =
+        dict.merge(
+          store.base_state.customer_addresses,
+          store.staged_state.customer_addresses,
+        )
+      let unordered =
+        dict.keys(merged)
+        |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+        |> list.sort(string_compare)
+        |> list.filter_map(fn(id) {
+          case get_effective_customer_address_by_id(store, id) {
+            Some(address) ->
+              case address.customer_id == customer_id {
+                True -> Ok(address)
+                False -> Error(Nil)
+              }
+            None -> Error(Nil)
+          }
+        })
+      let effective = list.append(from_order, unordered)
+      case list.any(effective, fn(address) { address.position < 0 }) {
+        True ->
+          list.sort(effective, fn(a, b) {
+            case a.position < 0, b.position < 0 {
+              True, True -> int.compare(a.position, b.position)
+              True, False -> order.Lt
+              False, True -> order.Gt
+              False, False -> order.Eq
+            }
+          })
+        False -> effective
+      }
+    }
+  }
+}
+
+pub fn upsert_base_customer_order_summaries(
+  store: Store,
+  records: List(CustomerOrderSummaryRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        customer_order_summaries: dict.insert(
+          base.customer_order_summaries,
+          record.id,
+          record,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn stage_customer_order_summary(
+  store: Store,
+  record: CustomerOrderSummaryRecord,
+) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      customer_order_summaries: dict.insert(
+        staged.customer_order_summaries,
+        record.id,
+        record,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_customer_order_summary_by_id(
+  store: Store,
+  order_id: String,
+) -> Option(CustomerOrderSummaryRecord) {
+  case dict.get(store.staged_state.customer_order_summaries, order_id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.customer_order_summaries, order_id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn list_effective_customer_order_summaries(
+  store: Store,
+  customer_id: String,
+) -> List(CustomerOrderSummaryRecord) {
+  dict.keys(dict.merge(
+    store.base_state.customer_order_summaries,
+    store.staged_state.customer_order_summaries,
+  ))
+  |> list.sort(string_compare)
+  |> list.filter_map(fn(id) {
+    case get_effective_customer_order_summary_by_id(store, id) {
+      Some(record) ->
+        case record.customer_id == Some(customer_id) {
+          True -> Ok(record)
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+pub fn set_base_customer_order_connection_page_info(
+  store: Store,
+  customer_id: String,
+  page_info: CustomerCatalogPageInfoRecord,
+) -> Store {
+  let base = store.base_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      customer_order_connection_page_infos: dict.insert(
+        base.customer_order_connection_page_infos,
+        customer_id,
+        page_info,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_customer_order_connection_page_info(
+  store: Store,
+  customer_id: String,
+) -> Option(CustomerCatalogPageInfoRecord) {
+  case
+    dict.get(
+      store.staged_state.customer_order_connection_page_infos,
+      customer_id,
+    )
+  {
+    Ok(info) -> Some(info)
+    Error(_) ->
+      case
+        dict.get(
+          store.base_state.customer_order_connection_page_infos,
+          customer_id,
+        )
+      {
+        Ok(info) -> Some(info)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn upsert_base_customer_event_summaries(
+  store: Store,
+  records: List(CustomerEventSummaryRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        customer_event_summaries: dict.insert(
+          base.customer_event_summaries,
+          record.id,
+          record,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn list_effective_customer_event_summaries(
+  store: Store,
+  customer_id: String,
+) -> List(CustomerEventSummaryRecord) {
+  dict.values(dict.merge(
+    store.base_state.customer_event_summaries,
+    store.staged_state.customer_event_summaries,
+  ))
+  |> list.filter(fn(event) { event.customer_id == customer_id })
+  |> list.sort(fn(a, b) { string.compare(a.id, b.id) })
+}
+
+pub fn set_base_customer_event_connection_page_info(
+  store: Store,
+  customer_id: String,
+  page_info: CustomerCatalogPageInfoRecord,
+) -> Store {
+  let base = store.base_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      customer_event_connection_page_infos: dict.insert(
+        base.customer_event_connection_page_infos,
+        customer_id,
+        page_info,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_customer_event_connection_page_info(
+  store: Store,
+  customer_id: String,
+) -> Option(CustomerCatalogPageInfoRecord) {
+  case
+    dict.get(
+      store.staged_state.customer_event_connection_page_infos,
+      customer_id,
+    )
+  {
+    Ok(info) -> Some(info)
+    Error(_) ->
+      case
+        dict.get(
+          store.base_state.customer_event_connection_page_infos,
+          customer_id,
+        )
+      {
+        Ok(info) -> Some(info)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn upsert_base_customer_last_orders(
+  store: Store,
+  records: List(#(String, CustomerOrderSummaryRecord)),
+) -> Store {
+  list.fold(records, store, fn(acc, pair) {
+    let #(customer_id, record) = pair
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        customer_last_orders: dict.insert(
+          base.customer_last_orders,
+          customer_id,
+          record,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_customer_last_order(
+  store: Store,
+  customer_id: String,
+) -> Option(CustomerOrderSummaryRecord) {
+  case dict.get(store.staged_state.customer_last_orders, customer_id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.customer_last_orders, customer_id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn stage_customer_metafields(
+  store: Store,
+  customer_id: String,
+  records: List(CustomerMetafieldRecord),
+) -> Store {
+  let staged_without_customer =
+    dict.filter(store.staged_state.customer_metafields, fn(_id, metafield) {
+      metafield.customer_id != customer_id
+    })
+  let new_metafields =
+    list.fold(records, staged_without_customer, fn(acc, metafield) {
+      dict.insert(acc, metafield.id, metafield)
+    })
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      customer_metafields: new_metafields,
+    ),
+  )
+}
+
+pub fn get_effective_metafields_by_customer_id(
+  store: Store,
+  customer_id: String,
+) -> List(CustomerMetafieldRecord) {
+  let staged =
+    dict.values(store.staged_state.customer_metafields)
+    |> list.filter(fn(m) { m.customer_id == customer_id })
+    |> list.sort(fn(a, b) { string.compare(a.id, b.id) })
+  case staged {
+    [] ->
+      dict.values(store.base_state.customer_metafields)
+      |> list.filter(fn(m) { m.customer_id == customer_id })
+      |> list.sort(fn(a, b) { string.compare(a.id, b.id) })
+    _ -> staged
+  }
+}
+
+pub fn stage_customer_payment_method(
+  store: Store,
+  record: CustomerPaymentMethodRecord,
+) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      customer_payment_methods: dict.insert(
+        store.staged_state.customer_payment_methods,
+        record.id,
+        record,
+      ),
+      deleted_customer_payment_method_ids: dict.delete(
+        store.staged_state.deleted_customer_payment_method_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_customer_payment_method_by_id(
+  store: Store,
+  payment_method_id: String,
+  show_revoked: Bool,
+) -> Option(CustomerPaymentMethodRecord) {
+  case
+    dict.get(
+      store.staged_state.deleted_customer_payment_method_ids,
+      payment_method_id,
+    )
+  {
+    Ok(True) -> None
+    _ -> {
+      let found = case
+        dict.get(store.staged_state.customer_payment_methods, payment_method_id)
+      {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case
+            dict.get(
+              store.base_state.customer_payment_methods,
+              payment_method_id,
+            )
+          {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+      case found {
+        Some(record) ->
+          case
+            get_effective_customer_by_id(store, record.customer_id),
+            record.revoked_at
+          {
+            None, _ -> None
+            _, Some(_) if !show_revoked -> None
+            _, _ -> Some(record)
+          }
+        None -> None
+      }
+    }
+  }
+}
+
+pub fn list_effective_customer_payment_methods(
+  store: Store,
+  customer_id: String,
+  show_revoked: Bool,
+) -> List(CustomerPaymentMethodRecord) {
+  let ids =
+    dict.keys(dict.merge(
+      store.base_state.customer_payment_methods,
+      store.staged_state.customer_payment_methods,
+    ))
+    |> list.sort(string_compare)
+  list.filter_map(ids, fn(id) {
+    case get_effective_customer_payment_method_by_id(store, id, show_revoked) {
+      Some(record) ->
+        case record.customer_id == customer_id {
+          True -> Ok(record)
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+pub fn stage_store_credit_account(
+  store: Store,
+  record: StoreCreditAccountRecord,
+) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      store_credit_accounts: dict.insert(
+        store.staged_state.store_credit_accounts,
+        record.id,
+        record,
+      ),
+    ),
+  )
+}
+
+pub fn stage_store_credit_account_transaction(
+  store: Store,
+  record: StoreCreditAccountTransactionRecord,
+) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      store_credit_account_transactions: dict.insert(
+        store.staged_state.store_credit_account_transactions,
+        record.id,
+        record,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_store_credit_account_by_id(
+  store: Store,
+  account_id: String,
+) -> Option(StoreCreditAccountRecord) {
+  let found = case
+    dict.get(store.staged_state.store_credit_accounts, account_id)
+  {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.store_credit_accounts, account_id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+  case found {
+    Some(account) ->
+      case get_effective_customer_by_id(store, account.customer_id) {
+        Some(_) -> Some(account)
+        None -> None
+      }
+    None -> None
+  }
+}
+
+pub fn list_effective_store_credit_accounts_for_customer(
+  store: Store,
+  customer_id: String,
+) -> List(StoreCreditAccountRecord) {
+  dict.keys(dict.merge(
+    store.base_state.store_credit_accounts,
+    store.staged_state.store_credit_accounts,
+  ))
+  |> list.sort(string_compare)
+  |> list.filter_map(fn(id) {
+    case get_effective_store_credit_account_by_id(store, id) {
+      Some(account) ->
+        case account.customer_id == customer_id {
+          True -> Ok(account)
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+pub fn list_effective_store_credit_account_transactions(
+  store: Store,
+  account_id: String,
+) -> List(StoreCreditAccountTransactionRecord) {
+  dict.values(dict.merge(
+    store.base_state.store_credit_account_transactions,
+    store.staged_state.store_credit_account_transactions,
+  ))
+  |> list.filter(fn(txn) { txn.account_id == account_id })
+  |> list.sort(fn(a, b) {
+    case string.compare(b.created_at, a.created_at) {
+      order.Eq -> string.compare(b.id, a.id)
+      other -> other
+    }
+  })
+}
+
+pub fn upsert_base_customer_account_pages(
+  store: Store,
+  records: List(CustomerAccountPageRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        customer_account_pages: dict.insert(
+          base.customer_account_pages,
+          record.id,
+          record,
+        ),
+        customer_account_page_order: append_unique_id(
+          base.customer_account_page_order,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_customer_account_page_by_id(
+  store: Store,
+  page_id: String,
+) -> Option(CustomerAccountPageRecord) {
+  case dict.get(store.base_state.customer_account_pages, page_id) {
+    Ok(record) -> Some(record)
+    Error(_) -> None
+  }
+}
+
+pub fn list_effective_customer_account_pages(
+  store: Store,
+) -> List(CustomerAccountPageRecord) {
+  let ids =
+    list.append(
+      store.base_state.customer_account_page_order,
+      store.staged_state.customer_account_page_order,
+    )
+    |> dedupe_strings()
+  list.filter_map(ids, fn(id) {
+    case get_effective_customer_account_page_by_id(store, id) {
+      Some(record) -> Ok(record)
+      None -> Error(Nil)
+    }
+  })
+}
+
+pub fn stage_customer_data_erasure_request(
+  store: Store,
+  request: CustomerDataErasureRequestRecord,
+) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      customer_data_erasure_requests: dict.insert(
+        store.staged_state.customer_data_erasure_requests,
+        request.customer_id,
+        request,
+      ),
+    ),
+  )
+}
+
+pub fn get_customer_data_erasure_request(
+  store: Store,
+  customer_id: String,
+) -> Option(CustomerDataErasureRequestRecord) {
+  case
+    dict.get(store.staged_state.customer_data_erasure_requests, customer_id)
+  {
+    Ok(request) -> Some(request)
+    Error(_) ->
+      case
+        dict.get(store.base_state.customer_data_erasure_requests, customer_id)
+      {
+        Ok(request) -> Some(request)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn stage_merge_customers(
+  store: Store,
+  source_customer_id: String,
+  resulting_customer: CustomerRecord,
+  merge_request: CustomerMergeRequestRecord,
+) -> Store {
+  let after_delete = stage_delete_customer(store, source_customer_id)
+  let #(stored, after_update) =
+    stage_update_customer(after_delete, resulting_customer)
+  let _ = stored
+  Store(
+    ..after_update,
+    staged_state: StagedState(
+      ..after_update.staged_state,
+      merged_customer_ids: dict.insert(
+        after_update.staged_state.merged_customer_ids,
+        source_customer_id,
+        resulting_customer.id,
+      ),
+      customer_merge_requests: dict.insert(
+        after_update.staged_state.customer_merge_requests,
+        merge_request.job_id,
+        merge_request,
+      ),
+    ),
+  )
+}
+
+pub fn get_customer_merge_request(
+  store: Store,
+  job_id: String,
+) -> Option(CustomerMergeRequestRecord) {
+  case dict.get(store.staged_state.customer_merge_requests, job_id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.customer_merge_requests, job_id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
 }
 
 // ---------------------------------------------------------------------------

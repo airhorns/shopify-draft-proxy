@@ -9,6 +9,77 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 33: customer domain foundation and parity coverage
+
+Ports the Customer domain into the Gleam dispatcher. The new module models
+customer create/update/delete/set, address lifecycle, consent updates, tax
+exemptions, merge/merge status, account-page reads, identifier reads,
+customer metafields, customer-owned order/event summaries, outbound side-effect
+validation, payment-method update-email intent, data-sale opt-out, and store
+credit credit/debit/read behavior. Customer state is normalized in the Gleam
+store, merge redirects and attached-resource transfer stay local, and supported
+customer mutations stage without runtime Shopify writes.
+
+The TypeScript Customer runtime remains in place for this pass. The Gleam
+parity path is green for the checked-in customer fixtures, but the repository
+still has TypeScript integration surfaces outside this port that need a final
+domain-removal pass before deleting `src/proxy/customers.ts`.
+
+| Module                                                          | Change                                                                                                                                                                     |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`           | Adds Customer query/mutation handling, local validation, projection, merge staging, store-credit staging, and customer-owned subresource reads.                            |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`         | Routes Customer capabilities and legacy customer roots through the new domain.                                                                                             |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`               | Adds customer, address, metafield, payment-method, store-credit, account-page, merge, order-summary, and event-summary records.                                            |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`               | Adds normalized Customer-domain base/staged state, effective reads, merge redirects, address ordering, nested subresource helpers, and state buckets.                      |
+| `gleam/test/parity/runner.gleam`                                | Seeds customer captures, customer connection pages, selected-path comparison inputs, variable substitutions, store-credit/account/order fixtures, and nested subresources. |
+| `gleam/test/parity/diff.gleam` / `gleam/test/parity/spec.gleam` | Extends parity comparison support for selected paths and ignored expected-difference subtrees used by customer specs.                                                      |
+| `gleam/test/parity_test.gleam`                                  | Enables all 28 checked-in Customer parity specs as executable Gleam parity evidence.                                                                                       |
+| `gleam/test/shopify_draft_proxy/proxy/customers_test.gleam`     | Adds direct coverage for customer lifecycle, address lifecycle, and store-credit local staging.                                                                            |
+
+Validation: `gleam test --target javascript` is green at 701 tests on the host
+Node runtime. `gleam test --target erlang` is green at 697 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container because the host
+lacks `escript`. The Customer parity inventory has 28 specs under
+`config/parity-specs/customers/`, and all are now enabled in
+`gleam/test/parity_test.gleam`.
+
+### Findings
+
+- Customer capture seeding must be deterministic across JavaScript and Erlang:
+  captured JSON object traversal order can differ by target, so sparse/rich
+  duplicate seed records need commutative merge rules rather than last-write
+  wins.
+- Merge attached-resource parity depends on transferring source customer
+  addresses, metafields, and customer-owned order summaries before the source
+  tombstone suppresses reads.
+- Some customer parity captures compare Shopify connection pages that expose
+  only captured window data. The runner now seeds captured customer connection
+  cursors/pageInfo and the customer projector preserves those windows without
+  inventing unrelated local rows.
+
+### Risks / open items
+
+- The TypeScript Customer runtime has not been deleted in this pass; keep it
+  until the remaining TypeScript integration handoff and any non-parity callers
+  have been audited against the Gleam dispatcher.
+- Customer-owned order/event summaries are intentionally minimal and scoped to
+  the fields present in the customer parity captures. Full order-domain
+  behavior remains owned by future order passes.
+- Advanced customer search is fixture-backed for captured complex queries; a
+  general Shopify search grammar port remains a future broadening task.
+
+### Pass 34 candidates
+
+- Run the final Customer removal pass: audit TypeScript integration callers,
+  remove `src/proxy/customers.ts` only after equivalent Gleam runtime paths are
+  the sole supported implementation, and keep customer parity green.
+- Continue the Orders Gleam port so `orderCustomerSet` / `orderCustomerRemove`
+  can move from the Customer bridge into a broader normalized order graph.
+- Expand shared search-query parsing in Gleam before claiming general advanced
+  Customer search semantics beyond the captured fixtures.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain

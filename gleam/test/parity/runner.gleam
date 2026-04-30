@@ -16,7 +16,8 @@
 //// from the `gleam/` subdirectory; the runner resolves paths via `..`
 //// (configurable via `RunnerConfig.repo_root`).
 
-import gleam/dict
+import gleam/dict.{type Dict}
+import gleam/float
 import gleam/int
 import gleam/json
 import gleam/list
@@ -38,18 +39,31 @@ import shopify_draft_proxy/proxy/draft_proxy.{
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
+  type CustomerAccountPageRecord, type CustomerAddressRecord,
+  type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
+  type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
+  type CustomerDefaultPhoneNumberRecord,
+  type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
+  type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
+  type CustomerRecord, type CustomerSmsMarketingConsentRecord,
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
   type GiftCardRecord, type GiftCardTransactionRecord, type Money,
   type PaymentSettingsRecord, type ShopAddressRecord, type ShopDomainRecord,
   type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
   type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
-  type ShopifyFunctionRecord, GiftCardConfigurationRecord,
-  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  Money, PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
-  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
-  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
-  ShopifyFunctionRecord,
+  type ShopifyFunctionRecord, type StoreCreditAccountRecord,
+  CustomerAccountPageRecord, CustomerAddressRecord,
+  CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
+  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
+  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
+  CustomerEventSummaryRecord, CustomerMetafieldRecord,
+  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
+  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
+  GiftCardTransactionRecord, Money, PaymentSettingsRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
+  ShopifyFunctionAppRecord, ShopifyFunctionRecord, StoreCreditAccountRecord,
 }
 import simplifile
 
@@ -114,8 +128,10 @@ pub fn run_with_config(
     parsed.proxy_request.variables,
     capture,
     None,
+    dict.new(),
     "<primary>",
   ))
+  let primary_vars = replace_customer_one_variables(capture, primary_vars)
   let proxy = draft_proxy.new()
   let proxy = seed_capture_preconditions(parsed, capture, proxy)
   use #(primary_response, proxy) <- result.try(execute(
@@ -149,7 +165,1442 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
-    _ -> proxy
+    "store-credit-account-local-staging" ->
+      seed_store_credit_preconditions(capture, proxy)
+    "customer-create-live-parity" ->
+      seed_customer_count_baseline(capture, proxy)
+    "customer-delete-live-parity" ->
+      seed_customer_delete_preconditions(capture, proxy)
+    "customer-input-validation-parity" ->
+      seed_customer_input_validation_preconditions(capture, proxy)
+    "customer-email-marketing-consent-update-parity"
+    | "customer-sms-marketing-consent-update-parity" ->
+      seed_customer_consent_preconditions(capture, proxy)
+    "customer-merge-live-parity"
+    | "customer-merge-attached-resources-live-parity" ->
+      seed_customer_merge_preconditions(capture, proxy)
+    "customer-order-summary-read-effects" ->
+      seed_customer_order_summary_preconditions(capture, proxy)
+    _ ->
+      case is_customer_seeded_scenario(parsed.scenario_id) {
+        True -> seed_customer_preconditions(capture, proxy)
+        False -> proxy
+      }
+  }
+}
+
+fn is_customer_seeded_scenario(scenario_id: String) -> Bool {
+  case scenario_id {
+    "customer-create-live-parity"
+    | "customer-set-live-parity"
+    | "customer-address-lifecycle-parity"
+    | "customer-input-addresses-parity"
+    | "customer-input-inline-consent-parity"
+    | "customer-input-validation-parity"
+    | "customer-order-summary-read-effects" -> False
+    _ ->
+      string.starts_with(scenario_id, "customer")
+      || string.starts_with(scenario_id, "customers")
+  }
+}
+
+fn seed_customer_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let customers = collect_seed_customers(capture)
+  let customer_count_baseline = max_customer_count_baseline(capture)
+  let placeholder_customers = case customer_count_baseline {
+    Some(count) ->
+      make_placeholder_customers(int.max(0, count - list.length(customers)), 1)
+    None -> []
+  }
+  let addresses = collect_seed_customer_addresses(capture)
+  let order_summaries = collect_seed_customer_order_summaries(capture)
+  let order_page_infos = collect_seed_customer_order_page_infos(capture)
+  let event_summaries = collect_seed_customer_event_summaries(capture)
+  let event_page_infos = collect_seed_customer_event_page_infos(capture)
+  let last_orders = collect_seed_customer_last_orders(capture)
+  let metafields = collect_seed_customer_metafields(capture)
+  let pages = collect_seed_customer_account_pages(capture)
+  let connections = collect_seed_customer_connections(capture)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_customers(list.append(
+      customers,
+      placeholder_customers,
+    ))
+    |> store_mod.upsert_base_customer_addresses(addresses)
+    |> store_mod.upsert_base_customer_order_summaries(order_summaries)
+    |> seed_customer_order_page_infos(order_page_infos)
+    |> store_mod.upsert_base_customer_event_summaries(event_summaries)
+    |> seed_customer_event_page_infos(event_page_infos)
+    |> store_mod.upsert_base_customer_last_orders(last_orders)
+    |> seed_customer_metafields(metafields)
+    |> store_mod.upsert_base_customer_account_pages(pages)
+    |> seed_customer_connections(connections)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_customer_connections(
+  store: store_mod.Store,
+  connections: List(#(String, CustomerCatalogConnectionRecord)),
+) -> store_mod.Store {
+  list.fold(connections, store, fn(acc, pair) {
+    let #(key, connection) = pair
+    store_mod.set_base_customer_catalog_connection(acc, key, connection)
+  })
+}
+
+fn seed_customer_order_page_infos(
+  store: store_mod.Store,
+  page_infos: List(#(String, CustomerCatalogPageInfoRecord)),
+) -> store_mod.Store {
+  list.fold(page_infos, store, fn(acc, pair) {
+    let #(customer_id, page_info) = pair
+    store_mod.set_base_customer_order_connection_page_info(
+      acc,
+      customer_id,
+      page_info,
+    )
+  })
+}
+
+fn seed_customer_event_page_infos(
+  store: store_mod.Store,
+  page_infos: List(#(String, CustomerCatalogPageInfoRecord)),
+) -> store_mod.Store {
+  list.fold(page_infos, store, fn(acc, pair) {
+    let #(customer_id, page_info) = pair
+    store_mod.set_base_customer_event_connection_page_info(
+      acc,
+      customer_id,
+      page_info,
+    )
+  })
+}
+
+fn max_customer_count_baseline(capture: JsonValue) -> Option(Int) {
+  collect_objects(capture)
+  |> list.filter_map(fn(object) {
+    case
+      read_string_field(object, "precision"),
+      json_value.field(object, "count")
+    {
+      Some(_), Some(JInt(count)) -> Ok(count)
+      _, _ -> Error(Nil)
+    }
+  })
+  |> list.fold(None, fn(acc, count) {
+    case acc {
+      Some(existing) -> Some(int.max(existing, count))
+      None -> Some(count)
+    }
+  })
+}
+
+fn seed_store_credit_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let proxy = seed_customer_preconditions(capture, proxy)
+  let account =
+    jsonpath.lookup(
+      capture,
+      "$.setup.createAccountCredit.response.data.storeCreditAccountCredit.storeCreditAccountTransaction.account",
+    )
+  let store = case account {
+    Some(source) ->
+      case make_seed_store_credit_account(source) {
+        Ok(record) -> store_mod.stage_store_credit_account(proxy.store, record)
+        Error(_) -> proxy.store
+      }
+    None -> proxy.store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_customer_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let seeded = seed_customer_preconditions(capture, proxy)
+  let delete_customer =
+    jsonpath.lookup(capture, "$.mutation.variables.input.id")
+    |> option.then(json_string_value)
+    |> option.map(fn(id) {
+      CustomerRecord(..make_placeholder_customer(0), id: id)
+    })
+  let store = case delete_customer {
+    Some(customer) -> store_mod.upsert_base_customers(seeded.store, [customer])
+    None -> seeded.store
+  }
+  draft_proxy.DraftProxy(..seeded, store: store)
+}
+
+fn seed_customer_input_validation_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  [
+    "$.preconditions",
+    "$.updateScenarios",
+    "$.deletedCustomerUpdate",
+    "$.mergedCustomerUpdate",
+  ]
+  |> list.fold(proxy, fn(acc, path) {
+    case jsonpath.lookup(capture, path) {
+      Some(value) -> seed_customer_preconditions(value, acc)
+      None -> acc
+    }
+  })
+}
+
+fn seed_customer_consent_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.precondition") {
+    Some(value) -> seed_customer_preconditions(value, proxy)
+    None -> seed_customer_preconditions(capture, proxy)
+  }
+}
+
+fn seed_customer_merge_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let seeded = seed_customer_preconditions(capture, proxy)
+  let extra = make_placeholder_customer(999_001)
+  draft_proxy.DraftProxy(
+    ..seeded,
+    store: store_mod.upsert_base_customers(seeded.store, [extra]),
+  )
+}
+
+fn seed_customer_order_summary_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let orders = collect_seed_customer_order_summaries(capture)
+  draft_proxy.DraftProxy(
+    ..proxy,
+    store: store_mod.upsert_base_customer_order_summaries(proxy.store, orders),
+  )
+}
+
+fn seed_customer_metafields(
+  store: store_mod.Store,
+  records: List(CustomerMetafieldRecord),
+) -> store_mod.Store {
+  records
+  |> group_metafields_by_customer
+  |> list.fold(store, fn(acc, pair) {
+    let #(customer_id, customer_metafields) = pair
+    store_mod.stage_customer_metafields(acc, customer_id, customer_metafields)
+  })
+}
+
+fn group_metafields_by_customer(
+  records: List(CustomerMetafieldRecord),
+) -> List(#(String, List(CustomerMetafieldRecord))) {
+  records
+  |> list.fold(dict.new(), fn(acc, record) {
+    let existing = dict.get(acc, record.customer_id) |> result.unwrap([])
+    dict.insert(acc, record.customer_id, [record, ..existing])
+  })
+  |> dict.to_list
+  |> list.map(fn(pair) {
+    let #(customer_id, items) = pair
+    #(customer_id, list.reverse(items))
+  })
+}
+
+fn collect_seed_customers(value: JsonValue) -> List(CustomerRecord) {
+  collect_objects(value)
+  |> list.filter_map(make_seed_customer)
+  |> list.fold(dict.new(), fn(acc, customer) {
+    case dict.get(acc, customer.id) {
+      Ok(existing) ->
+        dict.insert(acc, customer.id, merge_seed_customer(existing, customer))
+      Error(_) -> dict.insert(acc, customer.id, customer)
+    }
+  })
+  |> dict.values
+}
+
+fn merge_seed_customer(
+  existing: CustomerRecord,
+  candidate: CustomerRecord,
+) -> CustomerRecord {
+  CustomerRecord(
+    ..existing,
+    first_name: candidate.first_name |> option.or(existing.first_name),
+    last_name: candidate.last_name |> option.or(existing.last_name),
+    display_name: candidate.display_name |> option.or(existing.display_name),
+    email: candidate.email |> option.or(existing.email),
+    legacy_resource_id: candidate.legacy_resource_id
+      |> option.or(existing.legacy_resource_id),
+    locale: candidate.locale |> option.or(existing.locale),
+    note: candidate.note |> option.or(existing.note),
+    can_delete: candidate.can_delete |> option.or(existing.can_delete),
+    verified_email: candidate.verified_email
+      |> option.or(existing.verified_email),
+    tax_exempt: candidate.tax_exempt |> option.or(existing.tax_exempt),
+    tax_exemptions: case candidate.tax_exemptions {
+      [] -> existing.tax_exemptions
+      values -> values
+    },
+    state: candidate.state |> option.or(existing.state),
+    tags: normalize_seed_string_list(list.append(existing.tags, candidate.tags)),
+    number_of_orders: candidate.number_of_orders
+      |> option.or(existing.number_of_orders),
+    amount_spent: candidate.amount_spent |> option.or(existing.amount_spent),
+    default_email_address: candidate.default_email_address
+      |> option.or(existing.default_email_address),
+    default_phone_number: candidate.default_phone_number
+      |> option.or(existing.default_phone_number),
+    email_marketing_consent: candidate.email_marketing_consent
+      |> option.or(existing.email_marketing_consent),
+    sms_marketing_consent: candidate.sms_marketing_consent
+      |> option.or(existing.sms_marketing_consent),
+    default_address: merge_seed_default_address(
+      existing.default_address,
+      candidate.default_address,
+    ),
+    created_at: candidate.created_at |> option.or(existing.created_at),
+    updated_at: candidate.updated_at |> option.or(existing.updated_at),
+  )
+}
+
+fn merge_seed_default_address(
+  existing: Option(CustomerDefaultAddressRecord),
+  candidate: Option(CustomerDefaultAddressRecord),
+) -> Option(CustomerDefaultAddressRecord) {
+  case existing, candidate {
+    Some(left), Some(right) ->
+      Some(CustomerDefaultAddressRecord(
+        id: right.id |> option.or(left.id),
+        first_name: right.first_name |> option.or(left.first_name),
+        last_name: right.last_name |> option.or(left.last_name),
+        address1: right.address1 |> option.or(left.address1),
+        address2: right.address2 |> option.or(left.address2),
+        city: right.city |> option.or(left.city),
+        company: right.company |> option.or(left.company),
+        province: right.province |> option.or(left.province),
+        province_code: right.province_code |> option.or(left.province_code),
+        country: right.country |> option.or(left.country),
+        country_code_v2: right.country_code_v2
+          |> option.or(left.country_code_v2),
+        zip: right.zip |> option.or(left.zip),
+        phone: right.phone |> option.or(left.phone),
+        name: right.name |> option.or(left.name),
+        formatted_area: right.formatted_area |> option.or(left.formatted_area),
+      ))
+    None, Some(value) -> Some(value)
+    Some(value), None -> Some(value)
+    None, None -> None
+  }
+}
+
+fn normalize_seed_string_list(values: List(String)) -> List(String) {
+  values
+  |> list.fold([], fn(acc, value) {
+    case list.contains(acc, value) {
+      True -> acc
+      False -> list.append(acc, [value])
+    }
+  })
+}
+
+fn collect_seed_customer_addresses(
+  value: JsonValue,
+) -> List(CustomerAddressRecord) {
+  collect_objects(value)
+  |> list.flat_map(seed_addresses_from_customer_object)
+  |> dedupe_addresses([])
+}
+
+fn collect_seed_customer_order_summaries(
+  value: JsonValue,
+) -> List(CustomerOrderSummaryRecord) {
+  list.append(
+    collect_objects(value) |> list.flat_map(seed_orders_from_customer_object),
+    collect_objects(value) |> list.filter_map(make_seed_unowned_order_summary),
+  )
+  |> dedupe_order_summaries([])
+}
+
+fn collect_seed_customer_order_page_infos(
+  value: JsonValue,
+) -> List(#(String, CustomerCatalogPageInfoRecord)) {
+  collect_objects(value)
+  |> list.filter_map(fn(object) {
+    use customer <- result.try(make_seed_customer(object))
+    use orders <- result.try(
+      read_object_field(object, "orders") |> option_to_result(),
+    )
+    Ok(#(
+      customer.id,
+      make_seed_customer_page_info(read_object_field(orders, "pageInfo")),
+    ))
+  })
+}
+
+fn collect_seed_customer_event_summaries(
+  value: JsonValue,
+) -> List(CustomerEventSummaryRecord) {
+  collect_objects(value)
+  |> list.flat_map(seed_events_from_customer_object)
+  |> dedupe_event_summaries([])
+}
+
+fn collect_seed_customer_event_page_infos(
+  value: JsonValue,
+) -> List(#(String, CustomerCatalogPageInfoRecord)) {
+  collect_objects(value)
+  |> list.filter_map(fn(object) {
+    use customer <- result.try(make_seed_customer(object))
+    use events <- result.try(
+      read_object_field(object, "events") |> option_to_result(),
+    )
+    Ok(#(
+      customer.id,
+      make_seed_customer_page_info(read_object_field(events, "pageInfo")),
+    ))
+  })
+}
+
+fn collect_seed_customer_last_orders(
+  value: JsonValue,
+) -> List(#(String, CustomerOrderSummaryRecord)) {
+  collect_objects(value)
+  |> list.filter_map(fn(object) {
+    use customer <- result.try(make_seed_customer(object))
+    use last_order <- result.try(
+      read_object_field(object, "lastOrder") |> option_to_result(),
+    )
+    use order <- result.try(make_seed_order_summary(
+      last_order,
+      Some(customer.id),
+      None,
+    ))
+    Ok(#(customer.id, order))
+  })
+}
+
+fn collect_seed_customer_metafields(
+  value: JsonValue,
+) -> List(CustomerMetafieldRecord) {
+  collect_objects(value)
+  |> list.flat_map(seed_metafields_from_customer_object)
+  |> list.reverse
+  |> dedupe_metafields([])
+  |> list.reverse
+}
+
+fn collect_seed_customer_account_pages(
+  value: JsonValue,
+) -> List(CustomerAccountPageRecord) {
+  list.append(
+    collect_account_pages_from_connections(value),
+    collect_objects(value)
+      |> list.filter_map(make_seed_customer_account_page),
+  )
+  |> dedupe_account_pages([])
+}
+
+fn collect_seed_customer_connections(
+  value: JsonValue,
+) -> List(#(String, CustomerCatalogConnectionRecord)) {
+  collect_objects(value)
+  |> list.flat_map(customer_connections_from_object)
+}
+
+fn customer_connections_from_object(
+  value: JsonValue,
+) -> List(#(String, CustomerCatalogConnectionRecord)) {
+  case value {
+    JObject(entries) ->
+      entries
+      |> list.filter_map(fn(pair) {
+        let #(key, candidate) = pair
+        use connection <- result.try(make_seed_customer_connection(candidate))
+        Ok(#(key, connection))
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_customer_connection(
+  value: JsonValue,
+) -> Result(CustomerCatalogConnectionRecord, Nil) {
+  let edges = read_array_field(value, "edges") |> option.unwrap([])
+  let edge_records =
+    edges
+    |> list.filter_map(fn(edge) {
+      use node <- result.try(
+        read_object_field(edge, "node") |> option_to_result(),
+      )
+      use customer <- result.try(make_seed_customer(node))
+      let cursor = read_string_field(edge, "cursor")
+      Ok(#(customer.id, cursor))
+    })
+  let node_records = case edge_records {
+    [] ->
+      read_array_field(value, "nodes")
+      |> option.unwrap([])
+      |> list.index_map(fn(node, index) {
+        use customer <- result.try(make_seed_customer(node))
+        Ok(#(
+          customer.id,
+          read_object_field(value, "pageInfo")
+            |> option.then(fn(info) { page_info_cursor_for_index(info, index) }),
+        ))
+      })
+      |> list.filter_map(fn(item) { item })
+    _ -> []
+  }
+  let records = list.append(edge_records, node_records)
+  case records {
+    [] -> Error(Nil)
+    _ -> {
+      let cursor_by_customer_id =
+        records
+        |> list.fold(dict.new(), fn(acc, pair) {
+          let #(customer_id, cursor) = pair
+          case cursor {
+            Some(value) -> dict.insert(acc, customer_id, value)
+            None -> acc
+          }
+        })
+      Ok(CustomerCatalogConnectionRecord(
+        ordered_customer_ids: list.map(records, fn(pair) { pair.0 }),
+        cursor_by_customer_id: cursor_by_customer_id,
+        page_info: make_seed_customer_page_info(read_object_field(
+          value,
+          "pageInfo",
+        )),
+      ))
+    }
+  }
+}
+
+fn make_seed_customer_page_info(
+  value: Option(JsonValue),
+) -> CustomerCatalogPageInfoRecord {
+  case value {
+    Some(info) ->
+      CustomerCatalogPageInfoRecord(
+        has_next_page: read_bool_field(info, "hasNextPage")
+          |> option.unwrap(False),
+        has_previous_page: read_bool_field(info, "hasPreviousPage")
+          |> option.unwrap(False),
+        start_cursor: read_string_field(info, "startCursor"),
+        end_cursor: read_string_field(info, "endCursor"),
+      )
+    None ->
+      CustomerCatalogPageInfoRecord(
+        has_next_page: False,
+        has_previous_page: False,
+        start_cursor: None,
+        end_cursor: None,
+      )
+  }
+}
+
+fn collect_account_pages_from_connections(
+  value: JsonValue,
+) -> List(CustomerAccountPageRecord) {
+  collect_objects(value)
+  |> list.flat_map(account_pages_from_connection)
+}
+
+fn account_pages_from_connection(
+  value: JsonValue,
+) -> List(CustomerAccountPageRecord) {
+  let edge_pages =
+    read_array_field(value, "edges")
+    |> option.unwrap([])
+    |> list.filter_map(fn(edge) {
+      let cursor = read_string_field(edge, "cursor")
+      use node <- result.try(
+        read_object_field(edge, "node") |> option_to_result(),
+      )
+      use page <- result.try(make_seed_customer_account_page(node))
+      Ok(CustomerAccountPageRecord(..page, cursor: cursor))
+    })
+  case edge_pages {
+    [_, ..] -> edge_pages
+    [] -> {
+      let nodes = read_array_field(value, "nodes") |> option.unwrap([])
+      let page_info = read_object_field(value, "pageInfo")
+      nodes
+      |> list.index_map(fn(node, index) {
+        let cursor =
+          account_page_node_cursor(page_info, index, list.length(nodes))
+        case make_seed_customer_account_page(node) {
+          Ok(page) -> Ok(CustomerAccountPageRecord(..page, cursor: cursor))
+          Error(_) -> Error(Nil)
+        }
+      })
+      |> list.filter_map(fn(item) { item })
+    }
+  }
+}
+
+fn account_page_node_cursor(
+  page_info: Option(JsonValue),
+  index: Int,
+  length: Int,
+) -> Option(String) {
+  case page_info {
+    Some(info) ->
+      case index == 0, index == length - 1 {
+        True, _ -> read_string_field(info, "startCursor")
+        _, True -> read_string_field(info, "endCursor")
+        _, _ -> None
+      }
+    None -> None
+  }
+}
+
+fn option_to_result(value: Option(a)) -> Result(a, Nil) {
+  case value {
+    Some(v) -> Ok(v)
+    None -> Error(Nil)
+  }
+}
+
+fn seed_customer_count_baseline(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let target_count =
+    jsonpath.lookup(capture, "$.downstreamRead.data.customersCount.count")
+    |> option.then(json_int_value)
+    |> option.unwrap(0)
+  let records = make_placeholder_customers(int.max(0, target_count - 1), 1)
+  draft_proxy.DraftProxy(
+    ..proxy,
+    store: store_mod.upsert_base_customers(proxy.store, records),
+  )
+}
+
+fn make_placeholder_customers(count: Int, next: Int) -> List(CustomerRecord) {
+  case count <= 0 {
+    True -> []
+    False -> [
+      make_placeholder_customer(next),
+      ..make_placeholder_customers(count - 1, next + 1)
+    ]
+  }
+}
+
+fn make_placeholder_customer(index: Int) -> CustomerRecord {
+  let id =
+    "gid://shopify/Customer/customer-parity-baseline-" <> int.to_string(index)
+  CustomerRecord(
+    id: id,
+    first_name: None,
+    last_name: None,
+    display_name: Some("Customer parity baseline " <> int.to_string(index)),
+    email: Some(
+      "customer-parity-baseline-" <> int.to_string(index) <> "@example.test",
+    ),
+    legacy_resource_id: Some(
+      "customer-parity-baseline-" <> int.to_string(index),
+    ),
+    locale: None,
+    note: None,
+    can_delete: Some(False),
+    verified_email: Some(False),
+    data_sale_opt_out: False,
+    tax_exempt: Some(False),
+    tax_exemptions: [],
+    state: Some("DISABLED"),
+    tags: ["customer-parity-baseline"],
+    number_of_orders: Some("0"),
+    amount_spent: Some(Money(amount: "0.0", currency_code: "CAD")),
+    default_email_address: None,
+    default_phone_number: None,
+    email_marketing_consent: None,
+    sms_marketing_consent: None,
+    default_address: None,
+    created_at: None,
+    updated_at: None,
+  )
+}
+
+fn json_int_value(value: JsonValue) -> Option(Int) {
+  case value {
+    JInt(i) -> Some(i)
+    _ -> None
+  }
+}
+
+fn json_string_value(value: JsonValue) -> Option(String) {
+  case value {
+    JString(s) -> Some(s)
+    _ -> None
+  }
+}
+
+fn collect_objects(value: JsonValue) -> List(JsonValue) {
+  case value {
+    JObject(entries) -> [
+      value,
+      ..list.flat_map(entries, fn(pair) { collect_objects(pair.1) })
+    ]
+    JArray(items) -> list.flat_map(items, collect_objects)
+    _ -> []
+  }
+}
+
+fn replace_customer_one_variables(
+  capture: JsonValue,
+  variables: JsonValue,
+) -> JsonValue {
+  case first_customer_gid(capture) {
+    Some(customer_id) -> replace_customer_one_value(variables, customer_id)
+    None -> variables
+  }
+}
+
+fn first_customer_gid(value: JsonValue) -> Option(String) {
+  let found =
+    collect_objects(value)
+    |> list.find_map(fn(object) {
+      case read_string_field(object, "id") {
+        Some(id) ->
+          case string.contains(id, "gid://shopify/Customer/") {
+            True -> Ok(id)
+            False -> Error(Nil)
+          }
+        None -> Error(Nil)
+      }
+    })
+  case found {
+    Ok(id) -> Some(id)
+    Error(_) -> None
+  }
+}
+
+fn replace_customer_one_value(
+  value: JsonValue,
+  customer_id: String,
+) -> JsonValue {
+  case value {
+    JString("gid://shopify/Customer/1") -> JString(customer_id)
+    JObject(entries) ->
+      JObject(
+        list.map(entries, fn(pair) {
+          #(pair.0, replace_customer_one_value(pair.1, customer_id))
+        }),
+      )
+    JArray(items) ->
+      JArray(
+        list.map(items, fn(item) {
+          replace_customer_one_value(item, customer_id)
+        }),
+      )
+    other -> other
+  }
+}
+
+fn make_seed_customer(source: JsonValue) -> Result(CustomerRecord, Nil) {
+  use id <- result.try(required_gid(source, "id", "Customer"))
+  use _ <- result.try(require_customer_seed_payload(source))
+  let email =
+    read_string_field(source, "email")
+    |> option.or(read_string_field_from_option(
+      read_object_field(source, "defaultEmailAddress"),
+      "emailAddress",
+    ))
+  let first_name = read_string_field(source, "firstName")
+  let last_name = read_string_field(source, "lastName")
+  let display_name = read_string_field(source, "displayName")
+  let default_email =
+    make_seed_default_email(
+      read_object_field(source, "defaultEmailAddress"),
+      email,
+    )
+  let default_phone =
+    make_seed_default_phone(read_object_field(source, "defaultPhoneNumber"))
+  Ok(CustomerRecord(
+    id: id,
+    first_name: first_name,
+    last_name: last_name,
+    display_name: display_name,
+    email: email,
+    legacy_resource_id: read_string_field(source, "legacyResourceId")
+      |> option.or(Some(generic_gid_tail(id))),
+    locale: read_string_field(source, "locale"),
+    note: read_string_field(source, "note"),
+    can_delete: read_bool_field(source, "canDelete"),
+    verified_email: read_bool_field(source, "verifiedEmail"),
+    data_sale_opt_out: read_bool_field(source, "dataSaleOptOut")
+      |> option.unwrap(False),
+    tax_exempt: read_bool_field(source, "taxExempt"),
+    tax_exemptions: read_string_array_field(source, "taxExemptions"),
+    state: read_string_field(source, "state"),
+    tags: read_string_array_field(source, "tags"),
+    number_of_orders: read_scalar_string_field(source, "numberOfOrders"),
+    amount_spent: make_seed_money(read_object_field(source, "amountSpent")),
+    default_email_address: default_email,
+    default_phone_number: default_phone,
+    email_marketing_consent: make_seed_email_consent(read_object_field(
+      source,
+      "emailMarketingConsent",
+    )),
+    sms_marketing_consent: make_seed_sms_consent(read_object_field(
+      source,
+      "smsMarketingConsent",
+    )),
+    default_address: make_seed_default_address(read_object_field(
+      source,
+      "defaultAddress",
+    )),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+  ))
+}
+
+fn require_customer_seed_payload(source: JsonValue) -> Result(Nil, Nil) {
+  let has_payload =
+    has_field(source, "email")
+    || has_field(source, "displayName")
+    || has_field(source, "legacyResourceId")
+    || has_field(source, "defaultEmailAddress")
+    || has_field(source, "defaultPhoneNumber")
+    || has_field(source, "defaultAddress")
+    || has_field(source, "addresses")
+    || has_field(source, "addressesV2")
+    || has_field(source, "metafield")
+    || has_field(source, "metafields")
+    || has_field(source, "orders")
+    || has_field(source, "events")
+    || has_field(source, "lastOrder")
+    || has_field(source, "tags")
+    || has_field(source, "state")
+    || has_field(source, "createdAt")
+    || has_field(source, "updatedAt")
+  case has_payload {
+    True -> Ok(Nil)
+    False -> Error(Nil)
+  }
+}
+
+fn has_field(source: JsonValue, name: String) -> Bool {
+  case json_value.field(source, name) {
+    Some(_) -> True
+    None -> False
+  }
+}
+
+fn required_gid(
+  source: JsonValue,
+  field: String,
+  type_name: String,
+) -> Result(String, Nil) {
+  case read_string_field(source, field) {
+    Some(id) ->
+      case string.contains(id, "gid://shopify/" <> type_name <> "/") {
+        True -> Ok(id)
+        False -> Error(Nil)
+      }
+    _ -> Error(Nil)
+  }
+}
+
+fn make_seed_default_email(
+  source: Option(JsonValue),
+  fallback_email: Option(String),
+) -> Option(CustomerDefaultEmailAddressRecord) {
+  case source, fallback_email {
+    Some(value), _ ->
+      Some(CustomerDefaultEmailAddressRecord(
+        email_address: read_string_field(value, "emailAddress")
+          |> option.or(fallback_email),
+        marketing_state: read_string_field(value, "marketingState"),
+        marketing_opt_in_level: read_string_field(value, "marketingOptInLevel"),
+        marketing_updated_at: read_string_field(value, "marketingUpdatedAt"),
+      ))
+    None, Some(email) ->
+      Some(CustomerDefaultEmailAddressRecord(
+        email_address: Some(email),
+        marketing_state: None,
+        marketing_opt_in_level: None,
+        marketing_updated_at: None,
+      ))
+    None, None -> None
+  }
+}
+
+fn make_seed_default_phone(
+  source: Option(JsonValue),
+) -> Option(CustomerDefaultPhoneNumberRecord) {
+  case source {
+    Some(value) ->
+      Some(CustomerDefaultPhoneNumberRecord(
+        phone_number: read_string_field(value, "phoneNumber"),
+        marketing_state: read_string_field(value, "marketingState"),
+        marketing_opt_in_level: read_string_field(value, "marketingOptInLevel"),
+        marketing_updated_at: read_string_field(value, "marketingUpdatedAt"),
+        marketing_collected_from: read_string_field(
+          value,
+          "marketingCollectedFrom",
+        ),
+      ))
+    None -> None
+  }
+}
+
+fn make_seed_email_consent(
+  source: Option(JsonValue),
+) -> Option(CustomerEmailMarketingConsentRecord) {
+  case source {
+    Some(value) ->
+      Some(CustomerEmailMarketingConsentRecord(
+        marketing_state: read_string_field(value, "marketingState"),
+        marketing_opt_in_level: read_string_field(value, "marketingOptInLevel"),
+        consent_updated_at: read_string_field(value, "consentUpdatedAt")
+          |> option.or(read_string_field(value, "marketingUpdatedAt")),
+      ))
+    None -> None
+  }
+}
+
+fn make_seed_sms_consent(
+  source: Option(JsonValue),
+) -> Option(CustomerSmsMarketingConsentRecord) {
+  case source {
+    Some(value) ->
+      Some(CustomerSmsMarketingConsentRecord(
+        marketing_state: read_string_field(value, "marketingState"),
+        marketing_opt_in_level: read_string_field(value, "marketingOptInLevel"),
+        consent_updated_at: read_string_field(value, "consentUpdatedAt")
+          |> option.or(read_string_field(value, "marketingUpdatedAt")),
+        consent_collected_from: read_string_field(value, "consentCollectedFrom")
+          |> option.or(read_string_field(value, "marketingCollectedFrom")),
+      ))
+    None -> None
+  }
+}
+
+fn make_seed_default_address(
+  source: Option(JsonValue),
+) -> Option(CustomerDefaultAddressRecord) {
+  case source {
+    Some(value) ->
+      Some(CustomerDefaultAddressRecord(
+        id: read_string_field(value, "id"),
+        first_name: read_string_field(value, "firstName"),
+        last_name: read_string_field(value, "lastName"),
+        address1: read_string_field(value, "address1"),
+        address2: read_string_field(value, "address2"),
+        city: read_string_field(value, "city"),
+        company: read_string_field(value, "company"),
+        province: read_string_field(value, "province"),
+        province_code: read_string_field(value, "provinceCode"),
+        country: read_string_field(value, "country"),
+        country_code_v2: read_string_field(value, "countryCodeV2"),
+        zip: read_string_field(value, "zip"),
+        phone: read_string_field(value, "phone"),
+        name: read_string_field(value, "name"),
+        formatted_area: read_string_field(value, "formattedArea"),
+      ))
+    None -> None
+  }
+}
+
+fn seed_addresses_from_customer_object(
+  source: JsonValue,
+) -> List(CustomerAddressRecord) {
+  case make_seed_customer(source) {
+    Ok(customer) -> {
+      let addresses_v2_edges =
+        read_object_field(source, "addressesV2")
+        |> option.then(fn(connection) { read_array_field(connection, "edges") })
+        |> option.unwrap([])
+      let default_address = case read_object_field(source, "defaultAddress") {
+        Some(address) -> [
+          make_seed_customer_address(address, customer.id, 0, "default", None),
+        ]
+        None -> []
+      }
+      let addresses =
+        read_array_field(source, "addresses")
+        |> option.unwrap([])
+        |> list.index_map(fn(address, index) {
+          make_seed_customer_address(
+            address,
+            customer.id,
+            index + 1,
+            "address",
+            cursor_at(addresses_v2_edges, index),
+          )
+        })
+      let addresses_v2 = case addresses {
+        [] ->
+          addresses_v2_edges
+          |> list.index_map(fn(edge, index) {
+            case read_object_field(edge, "node") {
+              Some(address) ->
+                make_seed_customer_address(
+                  address,
+                  customer.id,
+                  index + 100,
+                  "node",
+                  read_string_field(edge, "cursor"),
+                )
+              None -> Error(Nil)
+            }
+          })
+        _ -> []
+      }
+      list.append(default_address, list.append(addresses, addresses_v2))
+      |> list.filter_map(fn(item) { item })
+    }
+    Error(_) -> []
+  }
+}
+
+fn make_seed_customer_address(
+  source: JsonValue,
+  customer_id: String,
+  position: Int,
+  fallback_key: String,
+  cursor: Option(String),
+) -> Result(CustomerAddressRecord, Nil) {
+  let fallback_id =
+    customer_id
+    <> "/MailingAddress/"
+    <> fallback_key
+    <> "-"
+    <> int.to_string(position)
+  let id =
+    read_string_field(source, "id")
+    |> option.unwrap(fallback_id)
+  Ok(CustomerAddressRecord(
+    id: id,
+    customer_id: customer_id,
+    cursor: cursor,
+    position: position,
+    first_name: read_string_field(source, "firstName"),
+    last_name: read_string_field(source, "lastName"),
+    address1: read_string_field(source, "address1"),
+    address2: read_string_field(source, "address2"),
+    city: read_string_field(source, "city"),
+    company: read_string_field(source, "company"),
+    province: read_string_field(source, "province"),
+    province_code: read_string_field(source, "provinceCode"),
+    country: read_string_field(source, "country"),
+    country_code_v2: read_string_field(source, "countryCodeV2"),
+    zip: read_string_field(source, "zip"),
+    phone: read_string_field(source, "phone"),
+    name: read_string_field(source, "name"),
+    formatted_area: read_string_field(source, "formattedArea"),
+  ))
+}
+
+fn cursor_at(edges: List(JsonValue), index: Int) -> Option(String) {
+  case list.drop(edges, index) {
+    [edge, ..] -> read_string_field(edge, "cursor")
+    [] -> None
+  }
+}
+
+fn seed_orders_from_customer_object(
+  source: JsonValue,
+) -> List(CustomerOrderSummaryRecord) {
+  case make_seed_customer(source) {
+    Ok(customer) -> {
+      let connection = read_object_field(source, "orders")
+      let edge_orders =
+        connection
+        |> option.then(fn(c) { read_array_field(c, "edges") })
+        |> option.unwrap([])
+        |> list.filter_map(fn(edge) {
+          let cursor = read_string_field(edge, "cursor")
+          use node <- result.try(
+            read_object_field(edge, "node") |> option_to_result(),
+          )
+          make_seed_order_summary(node, Some(customer.id), cursor)
+        })
+      let node_orders = case edge_orders {
+        [] ->
+          connection
+          |> option.then(fn(c) { read_array_field(c, "nodes") })
+          |> option.unwrap([])
+          |> list.index_map(fn(node, index) {
+            make_seed_order_summary(
+              node,
+              Some(customer.id),
+              connection
+                |> option.then(fn(c) { read_object_field(c, "pageInfo") })
+                |> option.then(fn(info) {
+                  page_info_cursor_for_index(info, index)
+                }),
+            )
+          })
+          |> list.filter_map(fn(item) { item })
+        _ -> []
+      }
+      list.append(edge_orders, node_orders)
+    }
+    Error(_) -> []
+  }
+}
+
+fn page_info_cursor_for_index(
+  page_info: JsonValue,
+  index: Int,
+) -> Option(String) {
+  case index {
+    0 -> read_string_field(page_info, "startCursor")
+    _ -> read_string_field(page_info, "endCursor")
+  }
+}
+
+fn make_seed_unowned_order_summary(
+  source: JsonValue,
+) -> Result(CustomerOrderSummaryRecord, Nil) {
+  use id <- result.try(required_gid(source, "id", "Order"))
+  let customer_id =
+    read_object_field(source, "customer")
+    |> option.then(fn(customer) { read_string_field(customer, "id") })
+  Ok(CustomerOrderSummaryRecord(
+    id: id,
+    customer_id: customer_id,
+    cursor: None,
+    name: read_string_field(source, "name"),
+    email: read_string_field(source, "email"),
+    created_at: read_string_field(source, "createdAt"),
+    current_total_price: read_object_field(source, "currentTotalPriceSet")
+      |> option.then(fn(set) {
+        make_seed_money(read_object_field(set, "shopMoney"))
+      }),
+  ))
+}
+
+fn make_seed_order_summary(
+  source: JsonValue,
+  customer_id: Option(String),
+  cursor: Option(String),
+) -> Result(CustomerOrderSummaryRecord, Nil) {
+  use id <- result.try(required_gid(source, "id", "Order"))
+  Ok(CustomerOrderSummaryRecord(
+    id: id,
+    customer_id: customer_id,
+    cursor: cursor,
+    name: read_string_field(source, "name"),
+    email: read_string_field(source, "email"),
+    created_at: read_string_field(source, "createdAt"),
+    current_total_price: read_object_field(source, "currentTotalPriceSet")
+      |> option.then(fn(set) {
+        make_seed_money(read_object_field(set, "shopMoney"))
+      }),
+  ))
+}
+
+fn seed_events_from_customer_object(
+  source: JsonValue,
+) -> List(CustomerEventSummaryRecord) {
+  case make_seed_customer(source) {
+    Ok(customer) -> {
+      read_object_field(source, "events")
+      |> option.then(fn(connection) { read_array_field(connection, "edges") })
+      |> option.unwrap([])
+      |> list.filter_map(fn(edge) {
+        let cursor = read_string_field(edge, "cursor")
+        use node <- result.try(
+          read_object_field(edge, "node") |> option_to_result(),
+        )
+        use id <- result.try(required_gid(node, "id", "BasicEvent"))
+        Ok(CustomerEventSummaryRecord(
+          id: id,
+          customer_id: customer.id,
+          cursor: cursor,
+        ))
+      })
+    }
+    Error(_) -> []
+  }
+}
+
+fn seed_metafields_from_customer_object(
+  source: JsonValue,
+) -> List(CustomerMetafieldRecord) {
+  case make_seed_customer(source) {
+    Ok(customer) -> {
+      let direct = case read_object_field(source, "metafield") {
+        Some(value) -> [value]
+        None -> []
+      }
+      let nodes =
+        read_object_field(source, "metafields")
+        |> option.then(fn(connection) { read_array_field(connection, "nodes") })
+        |> option.unwrap([])
+      list.append(direct, nodes)
+      |> list.index_map(fn(value, index) {
+        make_seed_customer_metafield(value, customer.id, index)
+      })
+      |> list.filter_map(fn(item) { item })
+    }
+    Error(_) -> []
+  }
+}
+
+fn make_seed_customer_metafield(
+  source: JsonValue,
+  customer_id: String,
+  index: Int,
+) -> Result(CustomerMetafieldRecord, Nil) {
+  use namespace <- result.try(required_string_field(source, "namespace"))
+  use key <- result.try(required_string_field(source, "key"))
+  use value <- result.try(required_string_field(source, "value"))
+  let id =
+    read_string_field(source, "id")
+    |> option.unwrap(
+      "gid://shopify/Metafield/"
+      <> generic_gid_tail(customer_id)
+      <> "-"
+      <> int.to_string(index + 1),
+    )
+  Ok(CustomerMetafieldRecord(
+    id: id,
+    customer_id: customer_id,
+    namespace: namespace,
+    key: key,
+    type_: read_string_field(source, "type")
+      |> option.unwrap("single_line_text_field"),
+    value: value,
+    compare_digest: read_string_field(source, "compareDigest"),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+  ))
+}
+
+fn make_seed_customer_account_page(
+  source: JsonValue,
+) -> Result(CustomerAccountPageRecord, Nil) {
+  use id <- result.try(required_gid(source, "id", "CustomerAccountPage"))
+  use title <- result.try(required_string_field(source, "title"))
+  use handle <- result.try(required_string_field(source, "handle"))
+  use default_cursor <- result.try(required_string_field(
+    source,
+    "defaultCursor",
+  ))
+  Ok(CustomerAccountPageRecord(
+    id: id,
+    title: title,
+    handle: handle,
+    default_cursor: default_cursor,
+    cursor: None,
+  ))
+}
+
+fn make_seed_store_credit_account(
+  source: JsonValue,
+) -> Result(StoreCreditAccountRecord, Nil) {
+  use id <- result.try(required_gid(source, "id", "StoreCreditAccount"))
+  case make_seed_money(read_object_field(source, "balance")) {
+    Some(balance) -> {
+      use customer_id <- result.try(required_string_field(
+        read_object_field(source, "owner") |> option.unwrap(JObject([])),
+        "id",
+      ))
+      Ok(StoreCreditAccountRecord(
+        id: id,
+        customer_id: customer_id,
+        cursor: None,
+        balance: balance,
+      ))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_money(source: Option(JsonValue)) -> Option(Money) {
+  case source {
+    Some(value) -> {
+      let amount = read_scalar_string_field(value, "amount")
+      let currency = read_string_field(value, "currencyCode")
+      case amount, currency {
+        Some(a), Some(c) -> Some(Money(amount: a, currency_code: c))
+        _, _ -> None
+      }
+    }
+    None -> None
+  }
+}
+
+fn read_scalar_string_field(value: JsonValue, name: String) -> Option(String) {
+  case json_value.field(value, name) {
+    Some(JString(s)) -> Some(s)
+    Some(JInt(i)) -> Some(int.to_string(i))
+    Some(JFloat(f)) -> Some(float.to_string(f))
+    _ -> None
+  }
+}
+
+fn dedupe_addresses(
+  items: List(CustomerAddressRecord),
+  _seen: List(String),
+) -> List(CustomerAddressRecord) {
+  items
+  |> list.fold([], fn(acc, item) { upsert_seed_address(acc, item) })
+}
+
+fn upsert_seed_address(
+  items: List(CustomerAddressRecord),
+  item: CustomerAddressRecord,
+) -> List(CustomerAddressRecord) {
+  case items {
+    [] -> [item]
+    [existing, ..rest] ->
+      case existing.id == item.id {
+        True -> [merge_seed_address(existing, item), ..rest]
+        False -> [existing, ..upsert_seed_address(rest, item)]
+      }
+  }
+}
+
+fn merge_seed_address(
+  existing: CustomerAddressRecord,
+  candidate: CustomerAddressRecord,
+) -> CustomerAddressRecord {
+  CustomerAddressRecord(
+    ..existing,
+    cursor: candidate.cursor |> option.or(existing.cursor),
+    first_name: candidate.first_name |> option.or(existing.first_name),
+    last_name: candidate.last_name |> option.or(existing.last_name),
+    address1: candidate.address1 |> option.or(existing.address1),
+    address2: candidate.address2 |> option.or(existing.address2),
+    city: candidate.city |> option.or(existing.city),
+    company: candidate.company |> option.or(existing.company),
+    province: candidate.province |> option.or(existing.province),
+    province_code: candidate.province_code |> option.or(existing.province_code),
+    country: candidate.country |> option.or(existing.country),
+    country_code_v2: candidate.country_code_v2
+      |> option.or(existing.country_code_v2),
+    zip: candidate.zip |> option.or(existing.zip),
+    phone: candidate.phone |> option.or(existing.phone),
+    name: candidate.name |> option.or(existing.name),
+    formatted_area: candidate.formatted_area
+      |> option.or(existing.formatted_area),
+  )
+}
+
+fn dedupe_order_summaries(
+  items: List(CustomerOrderSummaryRecord),
+  _seen: List(String),
+) -> List(CustomerOrderSummaryRecord) {
+  items
+  |> list.fold([], fn(acc, item) { upsert_seed_order_summary(acc, item) })
+  |> list.reverse
+}
+
+fn upsert_seed_order_summary(
+  items: List(CustomerOrderSummaryRecord),
+  item: CustomerOrderSummaryRecord,
+) -> List(CustomerOrderSummaryRecord) {
+  case items {
+    [] -> [item]
+    [existing, ..rest] ->
+      case existing.id == item.id {
+        True -> [merge_seed_order_summary(existing, item), ..rest]
+        False -> [existing, ..upsert_seed_order_summary(rest, item)]
+      }
+  }
+}
+
+fn merge_seed_order_summary(
+  existing: CustomerOrderSummaryRecord,
+  candidate: CustomerOrderSummaryRecord,
+) -> CustomerOrderSummaryRecord {
+  CustomerOrderSummaryRecord(
+    ..existing,
+    customer_id: candidate.customer_id |> option.or(existing.customer_id),
+    cursor: candidate.cursor |> option.or(existing.cursor),
+    name: candidate.name |> option.or(existing.name),
+    email: candidate.email |> option.or(existing.email),
+    created_at: candidate.created_at |> option.or(existing.created_at),
+    current_total_price: candidate.current_total_price
+      |> option.or(existing.current_total_price),
+  )
+}
+
+fn dedupe_event_summaries(
+  items: List(CustomerEventSummaryRecord),
+  seen: List(String),
+) -> List(CustomerEventSummaryRecord) {
+  case items {
+    [] -> []
+    [item, ..rest] ->
+      case list.contains(seen, item.id) {
+        True -> dedupe_event_summaries(rest, seen)
+        False -> [item, ..dedupe_event_summaries(rest, [item.id, ..seen])]
+      }
+  }
+}
+
+fn dedupe_metafields(
+  items: List(CustomerMetafieldRecord),
+  _seen: List(String),
+) -> List(CustomerMetafieldRecord) {
+  items
+  |> list.fold([], fn(acc, item) { upsert_seed_metafield(acc, item) })
+  |> list.reverse
+}
+
+fn upsert_seed_metafield(
+  items: List(CustomerMetafieldRecord),
+  item: CustomerMetafieldRecord,
+) -> List(CustomerMetafieldRecord) {
+  let key = customer_metafield_seed_key(item)
+  case items {
+    [] -> [item]
+    [existing, ..rest] ->
+      case customer_metafield_seed_key(existing) == key {
+        True ->
+          case metafield_seed_score(item) >= metafield_seed_score(existing) {
+            True -> [item, ..rest]
+            False -> items
+          }
+        False -> [existing, ..upsert_seed_metafield(rest, item)]
+      }
+  }
+}
+
+fn customer_metafield_seed_key(metafield: CustomerMetafieldRecord) -> String {
+  metafield.customer_id <> "::" <> metafield.namespace <> "::" <> metafield.key
+}
+
+fn metafield_seed_score(metafield: CustomerMetafieldRecord) -> Int {
+  case
+    string.contains(
+      metafield.id,
+      generic_gid_tail(metafield.customer_id) <> "-",
+    )
+  {
+    True -> 0
+    False -> 1
+  }
+}
+
+fn dedupe_account_pages(
+  items: List(CustomerAccountPageRecord),
+  seen: List(String),
+) -> List(CustomerAccountPageRecord) {
+  case items {
+    [] -> []
+    [item, ..rest] ->
+      case list.contains(seen, item.id) {
+        True -> dedupe_account_pages(rest, seen)
+        False -> [item, ..dedupe_account_pages(rest, [item.id, ..seen])]
+      }
   }
 }
 
@@ -786,6 +2237,17 @@ fn gift_card_tail(id: String) -> String {
   }
 }
 
+fn generic_gid_tail(id: String) -> String {
+  case string.split(id, on: "/") |> list.last {
+    Ok(tail_with_query) ->
+      case string.split(tail_with_query, on: "?") {
+        [tail, ..] -> tail
+        [] -> id
+      }
+    Error(_) -> id
+  }
+}
+
 fn masked_code(last_characters: String) -> String {
   "•••• •••• •••• " <> last_characters
 }
@@ -797,20 +2259,25 @@ fn run_targets(
   primary_response: JsonValue,
   proxy: DraftProxy,
 ) -> Result(#(DraftProxy, List(TargetReport)), RunError) {
-  list.try_fold(parsed.targets, #(proxy, []), fn(state, target) {
-    let #(current_proxy, acc_reports) = state
-    use #(next_proxy, report) <- result.try(run_target(
+  list.try_fold(parsed.targets, #(proxy, [], dict.new()), fn(state, target) {
+    let #(current_proxy, acc_reports, prior_responses) = state
+    use #(next_proxy, report, response_value) <- result.try(run_target(
       config,
       parsed,
       target,
       capture,
       primary_response,
       current_proxy,
+      prior_responses,
     ))
-    Ok(#(next_proxy, [report, ..acc_reports]))
+    Ok(#(
+      next_proxy,
+      [report, ..acc_reports],
+      dict.insert(prior_responses, target.name, response_value),
+    ))
   })
   |> result.map(fn(state) {
-    let #(final_proxy, reports) = state
+    let #(final_proxy, reports, _) = state
     #(final_proxy, list.reverse(reports))
   })
 }
@@ -822,13 +2289,15 @@ fn run_target(
   capture: JsonValue,
   primary_response: JsonValue,
   proxy: DraftProxy,
-) -> Result(#(DraftProxy, TargetReport), RunError) {
+  prior_responses: Dict(String, JsonValue),
+) -> Result(#(DraftProxy, TargetReport, JsonValue), RunError) {
   use #(actual_response, next_proxy) <- result.try(actual_response_for(
     config,
     target,
     capture,
     primary_response,
     proxy,
+    prior_responses,
   ))
   let expected_opt = jsonpath.lookup(capture, target.capture_path)
   let actual_opt = jsonpath.lookup(actual_response, target.proxy_path)
@@ -838,6 +2307,8 @@ fn run_target(
     _, None ->
       Error(ProxyUnresolved(target: target.name, path: target.proxy_path))
     Some(expected), Some(actual) -> {
+      let #(expected, actual) =
+        apply_selected_paths(expected, actual, target.selected_paths)
       let rules = spec.rules_for(parsed, target)
       let mismatches = diff.diff_with_expected(expected, actual, rules)
       Ok(#(
@@ -848,9 +2319,39 @@ fn run_target(
           proxy_path: target.proxy_path,
           mismatches: mismatches,
         ),
+        actual_response,
       ))
     }
   }
+}
+
+fn apply_selected_paths(
+  expected: JsonValue,
+  actual: JsonValue,
+  selected_paths: List(String),
+) -> #(JsonValue, JsonValue) {
+  case selected_paths {
+    [] -> #(expected, actual)
+    _ -> #(
+      select_json_paths(expected, selected_paths),
+      select_json_paths(actual, selected_paths),
+    )
+  }
+}
+
+fn select_json_paths(
+  value: JsonValue,
+  selected_paths: List(String),
+) -> JsonValue {
+  JObject(
+    selected_paths
+    |> list.filter_map(fn(path) {
+      case jsonpath.lookup(value, path) {
+        Some(found) -> Ok(#(path, found))
+        None -> Error(Nil)
+      }
+    }),
+  )
 }
 
 /// Resolve which JsonValue tree to use as the proxy-side response for
@@ -863,6 +2364,7 @@ fn actual_response_for(
   capture: JsonValue,
   primary_response: JsonValue,
   proxy: DraftProxy,
+  prior_responses: Dict(String, JsonValue),
 ) -> Result(#(JsonValue, DraftProxy), RunError) {
   case target.request {
     ReusePrimary -> Ok(#(primary_response, proxy))
@@ -875,6 +2377,7 @@ fn actual_response_for(
         request.variables,
         capture,
         Some(primary_response),
+        prior_responses,
         target.name,
       ))
       use #(response, next_proxy) <- result.try(execute(
@@ -910,13 +2413,15 @@ fn resolve_variables(
   variables: spec.ParityVariables,
   capture: JsonValue,
   primary_response: Option(JsonValue),
+  prior_responses: Dict(String, JsonValue),
   context: String,
 ) -> Result(JsonValue, RunError) {
   case variables {
     NoVariables -> Ok(JObject([]))
     VariablesFromCapture(path: path) ->
       case jsonpath.lookup(capture, path) {
-        Some(value) -> Ok(value)
+        Some(value) ->
+          substitute(value, primary_response, capture, prior_responses)
         None -> Error(VariablesUnresolved(path: path))
       }
     VariablesFromFile(path: path) -> {
@@ -926,7 +2431,7 @@ fn resolve_variables(
     }
     VariablesInline(template: template) -> {
       let _ = context
-      substitute(template, primary_response, capture)
+      substitute(template, primary_response, capture, prior_responses)
     }
   }
 }
@@ -938,6 +2443,7 @@ fn substitute(
   template: JsonValue,
   primary: Option(JsonValue),
   capture: JsonValue,
+  prior_responses: Dict(String, JsonValue),
 ) -> Result(JsonValue, RunError) {
   case as_primary_ref(template) {
     Some(path) ->
@@ -950,29 +2456,45 @@ fn substitute(
           }
       }
     None ->
-      case as_capture_ref(template) {
-        Some(path) ->
-          case jsonpath.lookup(capture, path) {
-            Some(value) -> Ok(value)
-            None -> Error(CaptureRefUnresolved(path: path))
+      case as_response_ref(template) {
+        Some(ref) -> {
+          let #(name, path) = ref
+          case dict.get(prior_responses, name) {
+            Ok(root) ->
+              case jsonpath.lookup(root, path) {
+                Some(value) -> Ok(value)
+                None -> Error(PrimaryRefUnresolved(path: path))
+              }
+            Error(_) -> Error(PrimaryRefUnresolved(path: name))
           }
+        }
         None ->
-          case template {
-            JObject(entries) ->
-              entries
-              |> list.try_map(fn(pair) {
-                let #(k, v) = pair
-                case substitute(v, primary, capture) {
-                  Ok(v2) -> Ok(#(k, v2))
-                  Error(e) -> Error(e)
-                }
-              })
-              |> result.map(JObject)
-            JArray(items) ->
-              items
-              |> list.try_map(fn(item) { substitute(item, primary, capture) })
-              |> result.map(JArray)
-            leaf -> Ok(leaf)
+          case as_capture_ref(template) {
+            Some(path) ->
+              case jsonpath.lookup(capture, path) {
+                Some(value) -> Ok(value)
+                None -> Error(CaptureRefUnresolved(path: path))
+              }
+            None ->
+              case template {
+                JObject(entries) ->
+                  entries
+                  |> list.try_map(fn(pair) {
+                    let #(k, v) = pair
+                    case substitute(v, primary, capture, prior_responses) {
+                      Ok(v2) -> Ok(#(k, v2))
+                      Error(e) -> Error(e)
+                    }
+                  })
+                  |> result.map(JObject)
+                JArray(items) ->
+                  items
+                  |> list.try_map(fn(item) {
+                    substitute(item, primary, capture, prior_responses)
+                  })
+                  |> result.map(JArray)
+                leaf -> Ok(leaf)
+              }
           }
       }
   }
@@ -992,6 +2514,30 @@ fn as_primary_ref(value: JsonValue) -> Option(String) {
 fn as_capture_ref(value: JsonValue) -> Option(String) {
   case value {
     JObject([#("fromCapturePath", json_value.JString(path))]) -> Some(path)
+    _ -> None
+  }
+}
+
+fn as_response_ref(value: JsonValue) -> Option(#(String, String)) {
+  case value {
+    JObject(entries) -> {
+      let name = entries |> object_string_value("fromProxyResponse")
+      let path = entries |> object_string_value("path")
+      case name, path {
+        Some(n), Some(p) -> Some(#(n, p))
+        _, _ -> None
+      }
+    }
+    _ -> None
+  }
+}
+
+fn object_string_value(
+  entries: List(#(String, JsonValue)),
+  name: String,
+) -> Option(String) {
+  case list.find(entries, fn(pair) { pair.0 == name }) {
+    Ok(#(_, JString(value))) -> Some(value)
     _ -> None
   }
 }
