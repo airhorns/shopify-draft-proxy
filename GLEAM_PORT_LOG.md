@@ -9,6 +9,74 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 68: product variant bulk create default custom edge
+
+Adds strict Gleam parity coverage for the captured
+`productVariantsBulkCreate(strategy: DEFAULT)` custom standalone-variant edge.
+Shopify keeps the existing custom standalone variant, appends the submitted
+variant, and extends the existing Product option with the new selected option
+value. The Gleam Products handler now mirrors that retained-variant path by
+upserting selected option values from the full post-mutation variant set before
+recomputing `hasVariants`, while preserving existing option and option-value
+IDs.
+
+The pass promotes
+`productVariantsBulkCreate-strategy-default-custom-standalone` into the Gleam
+parity suite. Runner seeding reuses the captured `preMutationRead` Product,
+option, and variant baseline; the checked-in fixture, request document, and
+comparison contract stay unchanged.
+
+| Module                                               | Change                                                                  |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Appends selected option values for retained bulk-create variants.       |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured custom standalone-variant precondition graph.        |
+| `gleam/test/parity_test.gleam`                       | Enables the strict default/custom standalone bulk-create strategy spec. |
+
+Validation:
+`gleam test --target javascript product_variants_bulk_create_strategy_default_custom_standalone_test`
+is green at 766 tests, and full `gleam test --target javascript` is green at
+766 tests on the host Node runtime. Host `gleam test --target erlang` still
+fails before tests execute on the local Erlang install with the known `undef`
+runner issue; after clearing host-built Erlang artifacts, the Docker Erlang
+fallback is green at 762 tests. Product parity inventory remains 115 checked-in
+specs, with 52 product specs executable in the Gleam parity suite plus the
+admin-platform ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal first failed because
+  `$.data.productVariantsBulkCreate.product.id` could not be resolved before
+  seeding the captured product baseline.
+- After seeding, the real fidelity gap was the retained DEFAULT/custom path:
+  Shopify appended the new selected option value (`Default Blue`) to the
+  existing `Color` option, while Gleam only recomputed `hasVariants` for values
+  that already existed.
+- The standalone removal path already rebuilt options from variant selections;
+  this pass reuses the same upsert helper for retained variants without
+  changing existing option IDs.
+
+### Risks / open items
+
+- The sibling REMOVE/custom standalone strategy edge remains to be enabled.
+- Collections, publication, product feeds/feedback, selling plans, product
+  metafields, inventory shipment/transfer, media, and advanced search parity
+  remain incomplete in Gleam.
+- Only 52 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 69 candidates
+
+- Enable the remaining
+  `productVariantsBulkCreate-strategy-remove-custom-standalone` spec now that
+  retained and removal option/value sync paths share the selection upsert
+  helper.
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+- Port product metafield behavior now that several Product and Product Option
+  mutation families are locally staged.
+
+---
+
 ## 2026-04-30 — Pass 67: product variant bulk create remove strategy edge
 
 Enables strict Gleam parity coverage for the captured

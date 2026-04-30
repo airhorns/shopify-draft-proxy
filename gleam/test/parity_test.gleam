@@ -266,6 +266,12 @@ pub fn product_variants_bulk_create_strategy_remove_default_standalone_test() {
   )
 }
 
+pub fn product_variants_bulk_create_strategy_default_custom_standalone_test() {
+  check(
+    "config/parity-specs/products/productVariantsBulkCreate-strategy-default-custom-standalone.json",
+  )
+}
+
 pub fn product_variants_bulk_update_parity_plan_test() {
   check(
     "config/parity-specs/products/productVariantsBulkUpdate-parity-plan.json",

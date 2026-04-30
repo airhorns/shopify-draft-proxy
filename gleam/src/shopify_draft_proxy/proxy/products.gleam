@@ -3311,13 +3311,19 @@ fn handle_product_variants_bulk_create(
                 product_id,
                 next_variants,
               )
-            False -> #(
-              sync_product_options_with_variants(
-                effective_options,
-                next_variants,
-              ),
-              identity_after_variants,
-            )
+            False -> {
+              let #(next_options, identity_after_options) =
+                upsert_variant_selections_into_options(
+                  identity_after_variants,
+                  product_id,
+                  effective_options,
+                  next_variants,
+                )
+              #(
+                sync_product_options_with_variants(next_options, next_variants),
+                identity_after_options,
+              )
+            }
           }
           let next_store =
             store.replace_staged_variants_for_product(
@@ -8465,18 +8471,27 @@ fn make_options_from_variant_selections(
   variants: List(ProductVariantRecord),
 ) -> #(List(ProductOptionRecord), SyntheticIdentityRegistry) {
   let #(options, next_identity) =
-    variants
-    |> list.flat_map(fn(variant) { variant.selected_options })
-    |> list.fold(#([], identity), fn(acc, selected) {
-      let #(current_options, current_identity) = acc
-      upsert_option_selection(
-        current_options,
-        current_identity,
-        product_id,
-        selected,
-      )
-    })
+    upsert_variant_selections_into_options(identity, product_id, [], variants)
   #(sync_product_options_with_variants(options, variants), next_identity)
+}
+
+fn upsert_variant_selections_into_options(
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  options: List(ProductOptionRecord),
+  variants: List(ProductVariantRecord),
+) -> #(List(ProductOptionRecord), SyntheticIdentityRegistry) {
+  variants
+  |> list.flat_map(fn(variant) { variant.selected_options })
+  |> list.fold(#(options, identity), fn(acc, selected) {
+    let #(current_options, current_identity) = acc
+    upsert_option_selection(
+      current_options,
+      current_identity,
+      product_id,
+      selected,
+    )
+  })
 }
 
 fn upsert_option_selection(
