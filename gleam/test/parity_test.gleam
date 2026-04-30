@@ -70,6 +70,112 @@ pub fn shop_policy_update_parity_test() {
   check("config/parity-specs/store-properties/shopPolicyUpdate-parity.json")
 }
 
+pub fn business_entities_catalog_read_test() {
+  check(
+    "config/parity-specs/store-properties/business-entities-catalog-read.json",
+  )
+}
+
+pub fn business_entity_fallbacks_read_test() {
+  check(
+    "config/parity-specs/store-properties/business-entity-fallbacks-read.json",
+  )
+}
+
+pub fn location_detail_read_test() {
+  check("config/parity-specs/store-properties/location-detail-read.json")
+}
+
+pub fn location_custom_id_miss_read_test() {
+  check(
+    "config/parity-specs/store-properties/location-custom-id-miss-read.json",
+  )
+}
+
+pub fn location_add_blank_name_validation_test() {
+  check(
+    "config/parity-specs/store-properties/location-add-blank-name-validation.json",
+  )
+}
+
+pub fn location_edit_unknown_id_validation_test() {
+  check(
+    "config/parity-specs/store-properties/location-edit-unknown-id-validation.json",
+  )
+}
+
+pub fn location_activate_missing_idempotency_validation_test() {
+  check(
+    "config/parity-specs/store-properties/location-activate-missing-idempotency-validation.json",
+  )
+}
+
+pub fn location_deactivate_missing_idempotency_validation_test() {
+  check(
+    "config/parity-specs/store-properties/location-deactivate-missing-idempotency-validation.json",
+  )
+}
+
+pub fn location_delete_active_location_validation_test() {
+  check(
+    "config/parity-specs/store-properties/location-delete-active-location-validation.json",
+  )
+}
+
+pub fn publishable_publish_product_parity_test() {
+  check(
+    "config/parity-specs/store-properties/publishablePublish-product-parity.json",
+  )
+}
+
+pub fn publishable_publish_shop_count_parity_test() {
+  check(
+    "config/parity-specs/store-properties/publishablePublish-shop-count-parity.json",
+  )
+}
+
+pub fn publishable_publish_to_current_channel_product_parity_test() {
+  check(
+    "config/parity-specs/store-properties/publishablePublishToCurrentChannel-product-parity.json",
+  )
+}
+
+pub fn publishable_publish_to_current_channel_shop_count_parity_test() {
+  check(
+    "config/parity-specs/store-properties/publishablePublishToCurrentChannel-shop-count-parity.json",
+  )
+}
+
+pub fn publishable_unpublish_product_parity_test() {
+  check(
+    "config/parity-specs/store-properties/publishableUnpublish-product-parity.json",
+  )
+}
+
+pub fn publishable_unpublish_shop_count_parity_test() {
+  check(
+    "config/parity-specs/store-properties/publishableUnpublish-shop-count-parity.json",
+  )
+}
+
+pub fn publishable_unpublish_to_current_channel_product_parity_test() {
+  check(
+    "config/parity-specs/store-properties/publishableUnpublishToCurrentChannel-product-parity.json",
+  )
+}
+
+pub fn publishable_unpublish_to_current_channel_shop_count_parity_test() {
+  check(
+    "config/parity-specs/store-properties/publishableUnpublishToCurrentChannel-shop-count-parity.json",
+  )
+}
+
+pub fn collection_publishable_publication_parity_test() {
+  check(
+    "config/parity-specs/store-properties/collectionPublishablePublication-parity.json",
+  )
+}
+
 pub fn admin_platform_store_property_node_reads_test() {
   check(
     "config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json",
