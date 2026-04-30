@@ -81,7 +81,10 @@ fn is_expected(
 fn path_matches(pattern: String, path: String) -> Bool {
   case pattern == path {
     True -> True
-    False -> wildcard_path_matches(pattern, path)
+    False ->
+      string.starts_with(path, pattern <> ".")
+      || string.starts_with(path, pattern <> "[")
+      || wildcard_path_matches(pattern, path)
   }
 }
 
@@ -313,19 +316,38 @@ fn diff_at(
     JNull, JNull -> acc
     JBool(a), JBool(b) if a == b -> acc
     JInt(a), JInt(b) if a == b -> acc
+    JInt(a), JFloat(b) ->
+      case int.to_float(a) == b {
+        True -> acc
+        False -> value_mismatch(expected, actual, path, acc)
+      }
+    JFloat(a), JInt(b) ->
+      case a == int.to_float(b) {
+        True -> acc
+        False -> value_mismatch(expected, actual, path, acc)
+      }
     JFloat(a), JFloat(b) if a == b -> acc
     JString(a), JString(b) if a == b -> acc
     JArray(a), JArray(b) -> diff_arrays(a, b, path, 0, acc)
     JObject(a), JObject(b) -> diff_objects(a, b, path, acc)
-    _, _ -> [
-      Mismatch(
-        path: path,
-        expected: json_value.to_string(expected),
-        actual: json_value.to_string(actual),
-      ),
-      ..acc
-    ]
+    _, _ -> value_mismatch(expected, actual, path, acc)
   }
+}
+
+fn value_mismatch(
+  expected: JsonValue,
+  actual: JsonValue,
+  path: String,
+  acc: List(Mismatch),
+) -> List(Mismatch) {
+  [
+    Mismatch(
+      path: path,
+      expected: json_value.to_string(expected),
+      actual: json_value.to_string(actual),
+    ),
+    ..acc
+  ]
 }
 
 fn diff_arrays(

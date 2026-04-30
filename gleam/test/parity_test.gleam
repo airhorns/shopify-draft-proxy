@@ -41,7 +41,7 @@ pub fn all_ts_ready_specs_execute_with_reviewed_gleam_partition_test() {
   }
 
   assert count_passed(outcomes) == list.length(blockers.known_passing_paths())
-  assert count_skipped(outcomes) == 354
+  assert count_skipped(outcomes) == 346
   assert list.length(outcomes) == 379
 }
 

@@ -20,6 +20,14 @@ pub fn known_passing_paths() -> List(String) {
     "config/parity-specs/marketing/marketing-native-activity-lifecycle.json",
     "config/parity-specs/metafields/metafield-definitions-product-empty-read.json",
     "config/parity-specs/metafields/standard-metafield-definition-enable-validation.json",
+    "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json",
+    "config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json",
+    "config/parity-specs/metaobjects/metaobject-definition-lifecycle-local-staging.json",
+    "config/parity-specs/metaobjects/metaobject-definitions-read.json",
+    "config/parity-specs/metaobjects/metaobject-entry-lifecycle-local-staging.json",
+    "config/parity-specs/metaobjects/metaobject-reference-lifecycle.json",
+    "config/parity-specs/metaobjects/metaobject-schema-change-lifecycle.json",
+    "config/parity-specs/metaobjects/metaobjects-read.json",
     "config/parity-specs/saved-searches/saved-search-local-staging.json",
     "config/parity-specs/saved-searches/saved-search-query-grammar.json",
     "config/parity-specs/saved-searches/saved-search-resource-roots.json",
@@ -97,10 +105,6 @@ fn blocker_reason(path: String) -> Option(String) {
     #(
       "config/parity-specs/metafields/",
       "Metafield definition/metafield lifecycle parity needs owner-resource seeding and unported mutation support.",
-    ),
-    #(
-      "config/parity-specs/metaobjects/",
-      "Metaobject and metaobject-definition state/mutation parity is not ported to Gleam.",
     ),
     #(
       "config/parity-specs/online-store/",

@@ -17,6 +17,7 @@
 //// (configurable via `RunnerConfig.repo_root`).
 
 import gleam/dict.{type Dict}
+import gleam/float
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
@@ -40,13 +41,29 @@ import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord, type Money,
-  type PaymentSettingsRecord, type ShopAddressRecord, type ShopDomainRecord,
-  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
+  type GiftCardRecord, type GiftCardTransactionRecord,
+  type MetaobjectCapabilitiesRecord, type MetaobjectDefinitionCapabilitiesRecord,
+  type MetaobjectDefinitionCapabilityRecord, type MetaobjectDefinitionRecord,
+  type MetaobjectDefinitionTypeRecord, type MetaobjectFieldDefinitionRecord,
+  type MetaobjectFieldDefinitionReferenceRecord,
+  type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
+  type MetaobjectJsonValue, type MetaobjectRecord,
+  type MetaobjectStandardTemplateRecord, type Money, type PaymentSettingsRecord,
+  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
+  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
+  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  Money, PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
+  MetaobjectBool, MetaobjectCapabilitiesRecord,
+  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
+  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
+  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
+  MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
+  MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
+  MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
+  MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
+  MetaobjectStandardTemplateRecord, MetaobjectString, Money,
+  PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
   ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
   ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
@@ -158,7 +175,434 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
+    "metaobject-definitions-read"
+    | "metaobjects-read"
+    | "metaobject-entry-lifecycle-local-staging"
+    | "metaobject-reference-lifecycle"
+    | "metaobject-bulk-delete-type-lifecycle"
+    | "custom-data-metaobject-field-type-matrix" ->
+      seed_metaobject_preconditions(parsed.scenario_id, capture, proxy)
     _ -> proxy
+  }
+}
+
+fn seed_metaobject_preconditions(
+  scenario_id: String,
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let definitions =
+    collect_metaobject_definitions(capture)
+    |> merge_metaobject_definitions
+  let metaobjects =
+    collect_metaobjects(capture)
+    |> filter_seed_metaobjects(scenario_id)
+  let seeded_store =
+    proxy.store
+    |> store_mod.upsert_base_metaobject_definitions(definitions)
+    |> store_mod.upsert_base_metaobjects(metaobjects)
+  draft_proxy.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn filter_seed_metaobjects(
+  metaobjects: List(MetaobjectRecord),
+  scenario_id: String,
+) -> List(MetaobjectRecord) {
+  case scenario_id {
+    "custom-data-metaobject-field-type-matrix" ->
+      list.filter(metaobjects, fn(metaobject) {
+        !string.starts_with(metaobject.type_, "codex_har294_type_matrix_")
+      })
+    _ -> metaobjects
+  }
+}
+
+fn collect_metaobject_definitions(
+  value: JsonValue,
+) -> List(MetaobjectDefinitionRecord) {
+  let current = case make_seed_metaobject_definition(value) {
+    Ok(record) -> [record]
+    Error(_) -> []
+  }
+  list.append(current, collect_metaobject_definitions_nested(value))
+}
+
+fn merge_metaobject_definitions(
+  definitions: List(MetaobjectDefinitionRecord),
+) -> List(MetaobjectDefinitionRecord) {
+  definitions
+  |> list.fold([], fn(acc, definition) {
+    upsert_seed_metaobject_definition(acc, definition)
+  })
+  |> list.reverse
+}
+
+fn upsert_seed_metaobject_definition(
+  definitions: List(MetaobjectDefinitionRecord),
+  definition: MetaobjectDefinitionRecord,
+) -> List(MetaobjectDefinitionRecord) {
+  case definitions {
+    [] -> [definition]
+    [first, ..rest] if first.id == definition.id -> [
+      merge_seed_metaobject_definition(first, definition),
+      ..rest
+    ]
+    [first, ..rest] -> [
+      first,
+      ..upsert_seed_metaobject_definition(rest, definition)
+    ]
+  }
+}
+
+fn merge_seed_metaobject_definition(
+  existing: MetaobjectDefinitionRecord,
+  incoming: MetaobjectDefinitionRecord,
+) -> MetaobjectDefinitionRecord {
+  MetaobjectDefinitionRecord(
+    ..existing,
+    name: existing.name |> option.or(incoming.name),
+    description: existing.description |> option.or(incoming.description),
+    display_name_key: existing.display_name_key
+      |> option.or(incoming.display_name_key),
+    field_definitions: case list.is_empty(existing.field_definitions) {
+      True -> incoming.field_definitions
+      False -> existing.field_definitions
+    },
+    has_thumbnail_field: existing.has_thumbnail_field
+      |> option.or(incoming.has_thumbnail_field),
+    metaobjects_count: max_optional_int(
+      existing.metaobjects_count,
+      incoming.metaobjects_count,
+    ),
+    standard_template: existing.standard_template
+      |> option.or(incoming.standard_template),
+    created_at: existing.created_at |> option.or(incoming.created_at),
+    updated_at: existing.updated_at |> option.or(incoming.updated_at),
+  )
+}
+
+fn max_optional_int(left: Option(Int), right: Option(Int)) -> Option(Int) {
+  case left, right {
+    None, None -> None
+    Some(value), None | None, Some(value) -> Some(value)
+    Some(a), Some(b) ->
+      case a > b {
+        True -> Some(a)
+        False -> Some(b)
+      }
+  }
+}
+
+fn collect_metaobject_definitions_nested(
+  value: JsonValue,
+) -> List(MetaobjectDefinitionRecord) {
+  case value {
+    JObject(fields) ->
+      list.flat_map(fields, fn(pair) { collect_metaobject_definitions(pair.1) })
+    JArray(items) -> list.flat_map(items, collect_metaobject_definitions)
+    _ -> []
+  }
+}
+
+fn collect_metaobjects(value: JsonValue) -> List(MetaobjectRecord) {
+  let current = case make_seed_metaobject(value) {
+    Ok(record) -> [record]
+    Error(_) -> []
+  }
+  list.append(current, collect_metaobjects_nested(value))
+}
+
+fn collect_metaobjects_nested(value: JsonValue) -> List(MetaobjectRecord) {
+  case value {
+    JObject(fields) ->
+      list.flat_map(fields, fn(pair) { collect_metaobjects(pair.1) })
+    JArray(items) -> list.flat_map(items, collect_metaobjects)
+    _ -> []
+  }
+}
+
+fn make_seed_metaobject_definition(
+  source: JsonValue,
+) -> Result(MetaobjectDefinitionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  case string.starts_with(id, "gid://shopify/MetaobjectDefinition/") {
+    False -> Error(Nil)
+    True -> {
+      use type_ <- result.try(required_string_field(source, "type"))
+      Ok(MetaobjectDefinitionRecord(
+        id: id,
+        type_: type_,
+        name: read_string_field(source, "name"),
+        description: read_string_field(source, "description"),
+        display_name_key: read_string_field(source, "displayNameKey"),
+        access: read_metaobject_access(read_object_field(source, "access")),
+        capabilities: read_metaobject_definition_capabilities(read_object_field(
+          source,
+          "capabilities",
+        )),
+        field_definitions: read_metaobject_field_definitions(
+          read_array_field(source, "fieldDefinitions") |> option.unwrap([]),
+        ),
+        has_thumbnail_field: read_bool_field(source, "hasThumbnailField"),
+        metaobjects_count: read_int_field(source, "metaobjectsCount"),
+        standard_template: read_metaobject_standard_template(read_object_field(
+          source,
+          "standardTemplate",
+        )),
+        created_at: read_string_field(source, "createdAt"),
+        updated_at: read_string_field(source, "updatedAt"),
+      ))
+    }
+  }
+}
+
+fn make_seed_metaobject(source: JsonValue) -> Result(MetaobjectRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  case string.starts_with(id, "gid://shopify/Metaobject/") {
+    False -> Error(Nil)
+    True -> {
+      use handle <- result.try(required_string_field(source, "handle"))
+      use type_ <- result.try(required_string_field(source, "type"))
+      Ok(MetaobjectRecord(
+        id: id,
+        handle: handle,
+        type_: type_,
+        display_name: read_string_field(source, "displayName"),
+        fields: read_metaobject_fields(
+          read_array_field(source, "fields") |> option.unwrap([]),
+        ),
+        capabilities: read_metaobject_capabilities(read_object_field(
+          source,
+          "capabilities",
+        )),
+        created_at: read_string_field(source, "createdAt"),
+        updated_at: read_string_field(source, "updatedAt"),
+      ))
+    }
+  }
+}
+
+fn read_metaobject_access(
+  source: Option(JsonValue),
+) -> dict.Dict(String, Option(String)) {
+  let base =
+    dict.from_list([
+      #("admin", Some("PUBLIC_READ_WRITE")),
+      #("storefront", Some("NONE")),
+    ])
+  case source {
+    Some(JObject(fields)) ->
+      list.fold(fields, base, fn(acc, pair) {
+        case pair.1 {
+          JString(value) -> dict.insert(acc, pair.0, Some(value))
+          JNull -> dict.insert(acc, pair.0, None)
+          _ -> acc
+        }
+      })
+    _ -> base
+  }
+}
+
+fn read_metaobject_definition_capabilities(
+  source: Option(JsonValue),
+) -> MetaobjectDefinitionCapabilitiesRecord {
+  MetaobjectDefinitionCapabilitiesRecord(
+    publishable: read_metaobject_definition_capability(source, "publishable"),
+    translatable: read_metaobject_definition_capability(source, "translatable"),
+    renderable: read_metaobject_definition_capability(source, "renderable"),
+    online_store: read_metaobject_definition_capability(source, "onlineStore"),
+  )
+}
+
+fn read_metaobject_definition_capability(
+  source: Option(JsonValue),
+  key: String,
+) -> Option(MetaobjectDefinitionCapabilityRecord) {
+  case source {
+    Some(value) ->
+      case read_object_field(value, key) {
+        Some(capability) ->
+          Some(MetaobjectDefinitionCapabilityRecord(
+            read_bool_field(capability, "enabled") |> option.unwrap(False),
+          ))
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn read_metaobject_field_definitions(
+  values: List(JsonValue),
+) -> List(MetaobjectFieldDefinitionRecord) {
+  list.filter_map(values, fn(value) {
+    case make_seed_metaobject_field_definition(value) {
+      Ok(record) -> Ok(record)
+      Error(_) -> Error(Nil)
+    }
+  })
+}
+
+fn make_seed_metaobject_field_definition(
+  source: JsonValue,
+) -> Result(MetaobjectFieldDefinitionRecord, Nil) {
+  use key <- result.try(required_string_field(source, "key"))
+  use type_ <- result.try(
+    read_metaobject_type(read_object_field(source, "type")),
+  )
+  Ok(MetaobjectFieldDefinitionRecord(
+    key: key,
+    name: read_string_field(source, "name"),
+    description: read_string_field(source, "description"),
+    required: read_bool_field(source, "required"),
+    type_: type_,
+    validations: read_metaobject_validations(
+      read_array_field(source, "validations") |> option.unwrap([]),
+    ),
+  ))
+}
+
+fn read_metaobject_type(
+  source: Option(JsonValue),
+) -> Result(MetaobjectDefinitionTypeRecord, Nil) {
+  case source {
+    Some(value) -> {
+      use name <- result.try(required_string_field(value, "name"))
+      Ok(MetaobjectDefinitionTypeRecord(
+        name: name,
+        category: read_string_field(value, "category"),
+      ))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn read_metaobject_validations(
+  values: List(JsonValue),
+) -> List(MetaobjectFieldDefinitionValidationRecord) {
+  list.filter_map(values, fn(value) {
+    case read_string_field(value, "name") {
+      Some(name) ->
+        Ok(MetaobjectFieldDefinitionValidationRecord(
+          name,
+          read_string_field(value, "value"),
+        ))
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn read_metaobject_standard_template(
+  source: Option(JsonValue),
+) -> Option(MetaobjectStandardTemplateRecord) {
+  case source {
+    Some(value) ->
+      Some(MetaobjectStandardTemplateRecord(
+        read_string_field(value, "type"),
+        read_string_field(value, "name"),
+      ))
+    None -> None
+  }
+}
+
+fn read_metaobject_fields(
+  values: List(JsonValue),
+) -> List(MetaobjectFieldRecord) {
+  list.filter_map(values, fn(value) {
+    case make_seed_metaobject_field(value) {
+      Ok(record) -> Ok(record)
+      Error(_) -> Error(Nil)
+    }
+  })
+}
+
+fn make_seed_metaobject_field(
+  source: JsonValue,
+) -> Result(MetaobjectFieldRecord, Nil) {
+  use key <- result.try(required_string_field(source, "key"))
+  Ok(MetaobjectFieldRecord(
+    key: key,
+    type_: read_string_field(source, "type"),
+    value: read_string_field(source, "value"),
+    json_value: case json_value.field(source, "jsonValue") {
+      Some(value) -> json_to_metaobject_value(value)
+      None -> MetaobjectNull
+    },
+    definition: read_metaobject_field_reference(read_object_field(
+      source,
+      "definition",
+    )),
+  ))
+}
+
+fn read_metaobject_field_reference(
+  source: Option(JsonValue),
+) -> Option(MetaobjectFieldDefinitionReferenceRecord) {
+  case source {
+    Some(value) -> {
+      case
+        required_string_field(value, "key"),
+        read_metaobject_type(read_object_field(value, "type"))
+      {
+        Ok(key), Ok(type_) ->
+          Some(MetaobjectFieldDefinitionReferenceRecord(
+            key: key,
+            name: read_string_field(value, "name"),
+            required: read_bool_field(value, "required"),
+            type_: type_,
+          ))
+        _, _ -> None
+      }
+    }
+    None -> None
+  }
+}
+
+fn read_metaobject_capabilities(
+  source: Option(JsonValue),
+) -> MetaobjectCapabilitiesRecord {
+  let publishable = case source {
+    Some(value) ->
+      case read_object_field(value, "publishable") {
+        Some(p) ->
+          Some(
+            MetaobjectPublishableCapabilityRecord(read_string_field(p, "status")),
+          )
+        None -> None
+      }
+    None -> None
+  }
+  let online_store = case source {
+    Some(value) ->
+      case read_object_field(value, "onlineStore") {
+        Some(online) ->
+          Some(
+            MetaobjectOnlineStoreCapabilityRecord(read_string_field(
+              online,
+              "templateSuffix",
+            )),
+          )
+        None -> None
+      }
+    None -> None
+  }
+  MetaobjectCapabilitiesRecord(publishable, online_store)
+}
+
+fn json_to_metaobject_value(value: JsonValue) -> MetaobjectJsonValue {
+  case value {
+    JNull -> MetaobjectNull
+    JBool(value) -> MetaobjectBool(value)
+    JInt(value) -> MetaobjectInt(value)
+    JFloat(value) -> MetaobjectFloat(value)
+    JString(value) -> MetaobjectString(value)
+    JArray(items) -> MetaobjectList(list.map(items, json_to_metaobject_value))
+    JObject(fields) ->
+      MetaobjectObject(
+        list.map(fields, fn(pair) {
+          #(pair.0, json_to_metaobject_value(pair.1))
+        })
+        |> dict.from_list,
+      )
   }
 }
 
@@ -745,6 +1189,13 @@ fn read_bool_field(value: JsonValue, name: String) -> Option(Bool) {
 fn read_int_field(value: JsonValue, name: String) -> Option(Int) {
   case json_value.field(value, name) {
     Some(JInt(i)) -> Some(i)
+    Some(JFloat(f)) -> {
+      let rounded = float.round(f)
+      case int.to_float(rounded) == f {
+        True -> Some(rounded)
+        False -> None
+      }
+    }
     _ -> None
   }
 }
