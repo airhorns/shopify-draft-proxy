@@ -70,12 +70,18 @@ fn is_expected(
 ) -> Bool {
   list.any(rules, fn(rule) {
     case rule {
-      IgnoreDifference(path: path) -> path_matches(path, m.path)
+      IgnoreDifference(path: path) ->
+        path_matches(path, m.path) || path_is_child_of(path, m.path)
       MatcherDifference(path: path, matcher: matcher) ->
         path_matches(path, m.path)
         && satisfies_matcher(actual_root, m.path, matcher)
     }
   })
+}
+
+fn path_is_child_of(parent: String, child: String) -> Bool {
+  string.starts_with(child, parent <> ".")
+  || string.starts_with(child, parent <> "[")
 }
 
 fn path_matches(pattern: String, path: String) -> Bool {

@@ -70,6 +70,7 @@ pub type Target {
     name: String,
     capture_path: String,
     proxy_path: String,
+    selected_paths: List(String),
     expected_differences: List(ExpectedDifference),
     request: TargetRequest,
   )
@@ -189,6 +190,11 @@ fn target_decoder() -> Decoder(Target) {
     [],
     decode.list(expected_difference_decoder()),
   )
+  use selected_paths <- decode.optional_field(
+    "selectedPaths",
+    [],
+    decode.list(decode.string),
+  )
   use request <- decode.optional_field(
     "proxyRequest",
     ReusePrimary,
@@ -198,6 +204,7 @@ fn target_decoder() -> Decoder(Target) {
     name: name,
     capture_path: capture_path,
     proxy_path: proxy_path,
+    selected_paths: selected_paths,
     expected_differences: expected_differences,
     request: request,
   ))

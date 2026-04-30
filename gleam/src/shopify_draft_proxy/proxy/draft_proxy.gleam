@@ -35,6 +35,7 @@ import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/bulk_operations
 import shopify_draft_proxy/proxy/capabilities
 import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/proxy/customers
 import shopify_draft_proxy/proxy/delivery_settings
 import shopify_draft_proxy/proxy/events
 import shopify_draft_proxy/proxy/functions
@@ -46,8 +47,8 @@ import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/operation_registry.{
-  type RegistryEntry, AdminPlatform, Apps, BulkOperations, Events, Functions,
-  GiftCards, Localization, Marketing, Media, Metafields, Metaobjects,
+  type RegistryEntry, AdminPlatform, Apps, BulkOperations, Customers, Events,
+  Functions, GiftCards, Localization, Marketing, Media, Metafields, Metaobjects,
   SavedSearches, Segments, ShippingFulfillments, StoreProperties, Webhooks,
 }
 import shopify_draft_proxy/proxy/operation_registry_data
@@ -966,6 +967,26 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(CustomersDomain) ->
+      case
+        customers.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(bad_request("Failed to handle customers mutation"), proxy)
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -1072,6 +1093,12 @@ fn route_query(
         store_properties.process(proxy.store, query, variables),
         "Failed to handle store properties query",
       )
+    Ok(CustomersDomain) ->
+      respond(
+        proxy,
+        customers.process(proxy.store, query, variables),
+        "Failed to handle customers query",
+      )
     Error(_) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -1099,6 +1126,7 @@ type Domain {
   MediaDomain
   AdminPlatformDomain
   StorePropertiesDomain
+  CustomersDomain
 }
 
 /// Resolve a query operation's domain. With a registry loaded, the
@@ -1152,6 +1180,7 @@ fn capability_to_query_domain(
         Media -> Ok(MediaDomain)
         AdminPlatform -> Ok(AdminPlatformDomain)
         StoreProperties -> Ok(StorePropertiesDomain)
+        Customers -> Ok(CustomersDomain)
         _ -> Error(Nil)
       }
     }
@@ -1179,6 +1208,7 @@ fn capability_to_mutation_domain(
         BulkOperations -> Ok(BulkOperationsDomain)
         AdminPlatform -> Ok(AdminPlatformDomain)
         StoreProperties -> Ok(StorePropertiesDomain)
+        Customers -> Ok(CustomersDomain)
         _ -> Error(Nil)
       }
     }
@@ -1260,7 +1290,18 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
                                                           Ok(
                                                             AdminPlatformDomain,
                                                           )
-                                                        False -> Error(Nil)
+                                                        False ->
+                                                          case
+                                                            customers.is_customer_query_root(
+                                                              name,
+                                                            )
+                                                          {
+                                                            True ->
+                                                              Ok(
+                                                                CustomersDomain,
+                                                              )
+                                                            False -> Error(Nil)
+                                                          }
                                                       }
                                                   }
                                               }
@@ -1333,7 +1374,15 @@ fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
                                                 )
                                               {
                                                 True -> Ok(AdminPlatformDomain)
-                                                False -> Error(Nil)
+                                                False ->
+                                                  case
+                                                    customers.is_customer_mutation_root(
+                                                      name,
+                                                    )
+                                                  {
+                                                    True -> Ok(CustomersDomain)
+                                                    False -> Error(Nil)
+                                                  }
                                               }
                                           }
                                       }

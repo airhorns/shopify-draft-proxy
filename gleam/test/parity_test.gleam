@@ -60,6 +60,132 @@ pub fn gift_card_search_filters_test() {
   check("config/parity-specs/gift-cards/gift-card-search-filters.json")
 }
 
+// ----------- customers -----------
+
+pub fn customer_by_identifier_read_test() {
+  check("config/parity-specs/customers/customer-by-identifier-read.json")
+}
+
+pub fn customer_account_page_data_erasure_test() {
+  check("config/parity-specs/customers/customer-account-page-data-erasure.json")
+}
+
+pub fn customer_detail_parity_plan_test() {
+  check("config/parity-specs/customers/customer-detail-parity-plan.json")
+}
+
+pub fn customer_nested_subresources_read_test() {
+  check("config/parity-specs/customers/customer-nested-subresources-read.json")
+}
+
+pub fn customer_order_summary_read_effects_test() {
+  check(
+    "config/parity-specs/customers/customer-order-summary-read-effects.json",
+  )
+}
+
+pub fn customer_outbound_side_effect_validation_test() {
+  check(
+    "config/parity-specs/customers/customer-outbound-side-effect-validation.json",
+  )
+}
+
+pub fn customer_add_tax_exemptions_parity_test() {
+  check("config/parity-specs/customers/customerAddTaxExemptions-parity.json")
+}
+
+pub fn customer_address_lifecycle_parity_test() {
+  check("config/parity-specs/customers/customerAddressLifecycle-parity.json")
+}
+
+pub fn customer_create_live_parity_test() {
+  check("config/parity-specs/customers/customerCreate-parity-plan.json")
+}
+
+pub fn customer_delete_parity_plan_test() {
+  check("config/parity-specs/customers/customerDelete-parity-plan.json")
+}
+
+pub fn customer_email_marketing_consent_update_parity_test() {
+  check(
+    "config/parity-specs/customers/customerEmailMarketingConsentUpdate-parity.json",
+  )
+}
+
+pub fn customer_input_addresses_parity_test() {
+  check("config/parity-specs/customers/customerInputAddresses-parity.json")
+}
+
+pub fn customer_input_inline_consent_parity_test() {
+  check("config/parity-specs/customers/customerInputInlineConsent-parity.json")
+}
+
+pub fn customer_input_validation_parity_test() {
+  check("config/parity-specs/customers/customerInputValidation-parity.json")
+}
+
+pub fn customer_merge_attached_resources_parity_test() {
+  check(
+    "config/parity-specs/customers/customerMerge-attached-resources-parity.json",
+  )
+}
+
+pub fn customer_merge_parity_test() {
+  check("config/parity-specs/customers/customerMerge-parity.json")
+}
+
+pub fn customer_remove_tax_exemptions_parity_test() {
+  check("config/parity-specs/customers/customerRemoveTaxExemptions-parity.json")
+}
+
+pub fn customer_replace_tax_exemptions_parity_test() {
+  check(
+    "config/parity-specs/customers/customerReplaceTaxExemptions-parity.json",
+  )
+}
+
+pub fn customer_set_parity_test() {
+  check("config/parity-specs/customers/customerSet-parity.json")
+}
+
+pub fn customer_sms_marketing_consent_update_parity_test() {
+  check(
+    "config/parity-specs/customers/customerSmsMarketingConsentUpdate-parity.json",
+  )
+}
+
+pub fn customer_update_parity_plan_test() {
+  check("config/parity-specs/customers/customerUpdate-parity-plan.json")
+}
+
+pub fn customers_advanced_search_read_test() {
+  check("config/parity-specs/customers/customers-advanced-search-read.json")
+}
+
+pub fn customers_catalog_parity_plan_test() {
+  check("config/parity-specs/customers/customers-catalog-parity-plan.json")
+}
+
+pub fn customers_count_read_test() {
+  check("config/parity-specs/customers/customers-count-read.json")
+}
+
+pub fn customers_relevance_search_read_test() {
+  check("config/parity-specs/customers/customers-relevance-search-read.json")
+}
+
+pub fn customers_search_read_test() {
+  check("config/parity-specs/customers/customers-search-read.json")
+}
+
+pub fn customers_sort_keys_read_test() {
+  check("config/parity-specs/customers/customers-sort-keys-read.json")
+}
+
+pub fn store_credit_account_local_staging_test() {
+  check("config/parity-specs/customers/store-credit-account-local-staging.json")
+}
+
 // ----------- store properties -----------
 
 pub fn shop_baseline_read_test() {
