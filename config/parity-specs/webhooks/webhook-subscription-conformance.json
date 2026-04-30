@@ -16,7 +16,10 @@
   "runtimeTestFiles": [
     "tests/unit/webhook-subscription-conformance-fixture.test.ts",
     "tests/integration/webhook-subscription-query-shapes.test.ts",
-    "tests/integration/webhook-subscription-mutation-flow.test.ts"
+    "tests/integration/webhook-subscription-mutation-flow.test.ts",
+    "gleam/test/parity_test.gleam",
+    "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+    "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
