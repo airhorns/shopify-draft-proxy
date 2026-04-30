@@ -171,7 +171,8 @@ fn seed_capture_preconditions(
     "product-options-create-variant-strategy-create"
     | "product-options-create-variant-strategy-create-over-default-limit"
     | "product-options-create-variant-strategy-leave-as-is"
-    | "product-options-create-variant-strategy-null" ->
+    | "product-options-create-variant-strategy-null"
+    | "product-option-update-live-parity" ->
       seed_pre_mutation_product_preconditions(capture, proxy)
     _ -> proxy
   }

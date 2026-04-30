@@ -84,7 +84,7 @@ pub fn is_products_query_root(name: String) -> Bool {
 
 pub fn is_products_mutation_root(name: String) -> Bool {
   case name {
-    "productOptionsCreate" -> True
+    "productOptionsCreate" | "productOptionUpdate" -> True
     _ -> False
   }
 }
@@ -1523,6 +1523,32 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "productOptionUpdate" -> {
+              let result =
+                handle_product_option_update(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productOptionUpdate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             _ -> acc
           }
         _ -> acc
@@ -1590,6 +1616,187 @@ fn handle_product_options_create(
             field,
             fragments,
           )
+      }
+  }
+}
+
+fn handle_product_option_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "productId") {
+    None ->
+      mutation_result(
+        key,
+        product_option_update_payload(
+          store,
+          None,
+          [ProductUserError(["productId"], "Product id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            product_option_update_payload(
+              store,
+              None,
+              [ProductUserError(["productId"], "Product not found", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(product) ->
+          case read_arg_object(args, "option") {
+            None ->
+              mutation_result(
+                key,
+                product_option_update_payload(
+                  store,
+                  None,
+                  [
+                    ProductUserError(
+                      ["option", "id"],
+                      "Option id is required",
+                      None,
+                    ),
+                  ],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            Some(option_input) ->
+              stage_product_option_update(
+                store,
+                identity,
+                key,
+                product,
+                option_input,
+                args,
+                field,
+                fragments,
+              )
+          }
+      }
+  }
+}
+
+fn stage_product_option_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  product: ProductRecord,
+  option_input: Dict(String, ResolvedValue),
+  args: Dict(String, ResolvedValue),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  let product_id = product.id
+  let existing_options =
+    store.get_effective_options_by_product_id(store, product_id)
+  let existing_variants =
+    store.get_effective_variants_by_product_id(store, product_id)
+  case read_string_field(option_input, "id") {
+    None ->
+      mutation_result(
+        key,
+        product_option_update_payload(
+          store,
+          None,
+          [
+            ProductUserError(["option", "id"], "Option id is required", None),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(option_id) ->
+      case find_product_option(existing_options, product_id, option_id) {
+        None ->
+          mutation_result(
+            key,
+            product_option_update_payload(
+              store,
+              Some(product),
+              [ProductUserError(["option"], "Option does not exist", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(target_option) -> {
+          let #(updated_option, renamed_values, identity_after_values, new_ids) =
+            update_product_option_record(
+              identity,
+              target_option,
+              option_input,
+              read_arg_object_list(args, "optionValuesToAdd"),
+              read_arg_object_list(args, "optionValuesToUpdate"),
+              read_arg_string_list(args, "optionValuesToDelete"),
+            )
+          let next_options =
+            existing_options
+            |> list.filter(fn(option) { option.id != option_id })
+            |> insert_option_at_position(
+              updated_option,
+              read_int_field(option_input, "position"),
+            )
+          let next_variants =
+            existing_variants
+            |> remap_variant_selections_for_option_update(
+              target_option.name,
+              updated_option.name,
+              renamed_values,
+            )
+            |> reorder_variant_selections_for_options(next_options)
+          let synced_options =
+            sync_product_options_with_variants(next_options, next_variants)
+          let next_store =
+            store
+            |> store.replace_staged_variants_for_product(
+              product_id,
+              next_variants,
+            )
+            |> store.replace_staged_options_for_product(
+              product_id,
+              synced_options,
+            )
+          mutation_result(
+            key,
+            product_option_update_payload(
+              next_store,
+              store.get_effective_product_by_id(next_store, product_id),
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            identity_after_values,
+            list.append([option_id], new_ids),
+          )
+        }
       }
   }
 }
@@ -1684,6 +1891,28 @@ fn mutation_result(
   )
 }
 
+fn product_option_update_payload(
+  store: Store,
+  product: Option(ProductRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductOptionUpdatePayload")),
+      #("product", product_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn product_options_create_payload(
   store: Store,
   product: Option(ProductRecord),
@@ -1740,6 +1969,48 @@ fn read_arg_string(
   }
 }
 
+fn read_arg_object(
+  args: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Dict(String, ResolvedValue)) {
+  case dict.get(args, name) {
+    Ok(ObjectVal(input)) -> Some(input)
+    _ -> None
+  }
+}
+
+fn read_arg_object_list(
+  args: Dict(String, ResolvedValue),
+  name: String,
+) -> List(Dict(String, ResolvedValue)) {
+  case dict.get(args, name) {
+    Ok(ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          ObjectVal(input) -> Ok(input)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn read_arg_string_list(
+  args: Dict(String, ResolvedValue),
+  name: String,
+) -> List(String) {
+  case dict.get(args, name) {
+    Ok(ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          StringVal(input) -> Ok(input)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
 fn read_option_create_inputs(
   args: Dict(String, ResolvedValue),
 ) -> List(Dict(String, ResolvedValue)) {
@@ -1753,6 +2024,186 @@ fn read_option_create_inputs(
       })
     _ -> []
   }
+}
+
+fn find_product_option(
+  options: List(ProductOptionRecord),
+  product_id: String,
+  option_id: String,
+) -> Option(ProductOptionRecord) {
+  options
+  |> list.find(fn(option) {
+    option.id == option_id && option.product_id == product_id
+  })
+  |> option.from_result
+}
+
+type RenamedOptionValue =
+  #(String, String)
+
+fn update_product_option_record(
+  identity: SyntheticIdentityRegistry,
+  option: ProductOptionRecord,
+  input: Dict(String, ResolvedValue),
+  values_to_add: List(Dict(String, ResolvedValue)),
+  values_to_update: List(Dict(String, ResolvedValue)),
+  value_ids_to_delete: List(String),
+) -> #(
+  ProductOptionRecord,
+  List(RenamedOptionValue),
+  SyntheticIdentityRegistry,
+  List(String),
+) {
+  let next_name =
+    read_string_field(input, "name")
+    |> option.unwrap(option.name)
+  let #(updated_values, renamed_values) =
+    option.option_values
+    |> list.filter(fn(value) { !list.contains(value_ids_to_delete, value.id) })
+    |> update_option_values(values_to_update)
+  let #(created_values, final_identity) =
+    make_created_option_value_records(
+      identity,
+      read_option_value_create_names(values_to_add),
+    )
+  let next_option =
+    ProductOptionRecord(
+      ..option,
+      name: next_name,
+      option_values: list.append(updated_values, created_values),
+    )
+  #(
+    next_option,
+    renamed_values,
+    final_identity,
+    list.map(created_values, fn(value) { value.id }),
+  )
+}
+
+fn update_option_values(
+  values: List(ProductOptionValueRecord),
+  updates: List(Dict(String, ResolvedValue)),
+) -> #(List(ProductOptionValueRecord), List(RenamedOptionValue)) {
+  let #(reversed_values, reversed_renames) =
+    list.fold(values, #([], []), fn(acc, value) {
+      let #(next_values, renames) = acc
+      case find_option_value_update(updates, value.id) {
+        Some(name) -> #(
+          [ProductOptionValueRecord(..value, name: name), ..next_values],
+          [#(value.name, name), ..renames],
+        )
+        None -> #([value, ..next_values], renames)
+      }
+    })
+  #(list.reverse(reversed_values), list.reverse(reversed_renames))
+}
+
+fn find_option_value_update(
+  updates: List(Dict(String, ResolvedValue)),
+  value_id: String,
+) -> Option(String) {
+  updates
+  |> list.find_map(fn(update) {
+    case read_string_field(update, "id"), read_string_field(update, "name") {
+      Some(id), Some(name) if id == value_id -> Ok(name)
+      _, _ -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn read_option_value_create_names(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(String) {
+  inputs
+  |> list.filter_map(fn(input) {
+    case read_string_field(input, "name") {
+      Some(name) -> Ok(name)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn insert_option_at_position(
+  options: List(ProductOptionRecord),
+  option: ProductOptionRecord,
+  position: Option(Int),
+) -> List(ProductOptionRecord) {
+  let insertion_index = case position {
+    Some(position) if position > 0 ->
+      int.min(position, list.length(options) + 1) - 1
+    _ -> list.length(options)
+  }
+  let before = list.take(options, insertion_index)
+  let after = list.drop(options, insertion_index)
+  list.append(before, [option, ..after])
+  |> position_options(1, [])
+}
+
+fn remap_variant_selections_for_option_update(
+  variants: List(ProductVariantRecord),
+  previous_option_name: String,
+  next_option_name: String,
+  renamed_values: List(RenamedOptionValue),
+) -> List(ProductVariantRecord) {
+  list.map(variants, fn(variant) {
+    let selected_options =
+      list.map(variant.selected_options, fn(selected) {
+        case selected.name == previous_option_name {
+          True ->
+            ProductVariantSelectedOptionRecord(
+              name: next_option_name,
+              value: renamed_value_name(renamed_values, selected.value),
+            )
+          False -> selected
+        }
+      })
+    ProductVariantRecord(
+      ..variant,
+      title: variant_title(selected_options),
+      selected_options: selected_options,
+    )
+  })
+}
+
+fn renamed_value_name(
+  renamed_values: List(RenamedOptionValue),
+  current_name: String,
+) -> String {
+  case renamed_values {
+    [] -> current_name
+    [#(from, to), ..rest] ->
+      case from == current_name {
+        True -> to
+        False -> renamed_value_name(rest, current_name)
+      }
+  }
+}
+
+fn reorder_variant_selections_for_options(
+  variants: List(ProductVariantRecord),
+  options: List(ProductOptionRecord),
+) -> List(ProductVariantRecord) {
+  list.map(variants, fn(variant) {
+    let selected_options =
+      options
+      |> list.filter_map(fn(option) {
+        find_selected_option(variant.selected_options, option.name)
+      })
+    ProductVariantRecord(
+      ..variant,
+      title: variant_title(selected_options),
+      selected_options: selected_options,
+    )
+  })
+}
+
+fn find_selected_option(
+  selected_options: List(ProductVariantSelectedOptionRecord),
+  name: String,
+) -> Result(ProductVariantSelectedOptionRecord, Nil) {
+  selected_options
+  |> list.find(fn(selected) { selected.name == name })
 }
 
 fn make_created_option_records(

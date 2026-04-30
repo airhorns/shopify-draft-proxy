@@ -9,6 +9,64 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 48: productOptionUpdate lifecycle
+
+Extends the Products mutation slice with local `productOptionUpdate` staging.
+The Gleam handler now renames and repositions an existing ProductOption, adds
+new option values, updates/deletes existing option values, remaps variant
+`selectedOptions`, reorders variant selections to match the new option order,
+and records the raw mutation through the centralized mutation-log path. Product
+reads immediately observe the staged option and variant graph without a runtime
+Shopify write.
+
+The parity runner now seeds the captured update scenario from
+`preMutationRead.data.product`, and the strict
+`productOptionUpdate-parity-plan` scenario runs unchanged against the Gleam
+proxy.
+
+| Module                                                              | Change                                                                                          |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds `productOptionUpdate` routing, staging, option value updates, and variant selection remap. |
+| `gleam/test/parity/runner.gleam`                                    | Seeds the captured update lifecycle fixture from its pre-mutation product read.                 |
+| `gleam/test/parity_test.gleam`                                      | Enables the strict `productOptionUpdate-parity-plan` scenario.                                  |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct mutation/read-after-write/log coverage for option update lifecycle behavior.        |
+
+Validation: `gleam test --target javascript` is green at 717 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 713 tests. Product parity
+inventory remains 115 checked-in specs, with 15 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  test returning HTTP 400 for `productOptionUpdate` because the root was not
+  routed by the Gleam Products mutation dispatcher.
+- The captured update lifecycle confirms Shopify reorders variants'
+  `selectedOptions` after an option position change and derives the variant
+  title from that new selected-option order.
+- The update capture uses the same `preMutationRead.data.product` seeding shape
+  as the productOptionsCreate lifecycle captures.
+
+### Risks / open items
+
+- `productOptionsDelete` and `productOptionsReorder` remain unported.
+- Validation branches beyond the captured missing/unknown option behavior remain
+  future work.
+- Only 15 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 49 candidates
+
+- Port `productOptionsDelete` default-option restoration and enable the strict
+  delete parity plan.
+- Port `productOptionsReorder` so the admin-platform product option node parity
+  scenario can replay its lifecycle setup.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+
+---
+
 ## 2026-04-30 — Pass 47: productOptionsCreate lifecycle
 
 Ports the first Products mutation slice to Gleam: `productOptionsCreate` now
