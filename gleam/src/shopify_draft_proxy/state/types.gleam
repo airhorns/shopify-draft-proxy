@@ -800,6 +800,277 @@ pub type GiftCardConfigurationRecord {
   GiftCardConfigurationRecord(issue_limit: Money, purchase_limit: Money)
 }
 
+// ---------------------------------------------------------------------------
+// Customers domain
+// ---------------------------------------------------------------------------
+
+/// Mirrors `CustomerDefaultEmailAddressRecord`.
+pub type CustomerDefaultEmailAddressRecord {
+  CustomerDefaultEmailAddressRecord(
+    email_address: Option(String),
+    marketing_state: Option(String),
+    marketing_opt_in_level: Option(String),
+    marketing_updated_at: Option(String),
+  )
+}
+
+/// Mirrors `CustomerDefaultPhoneNumberRecord`.
+pub type CustomerDefaultPhoneNumberRecord {
+  CustomerDefaultPhoneNumberRecord(
+    phone_number: Option(String),
+    marketing_state: Option(String),
+    marketing_opt_in_level: Option(String),
+    marketing_updated_at: Option(String),
+    marketing_collected_from: Option(String),
+  )
+}
+
+/// Mirrors `CustomerEmailMarketingConsentRecord`.
+pub type CustomerEmailMarketingConsentRecord {
+  CustomerEmailMarketingConsentRecord(
+    marketing_state: Option(String),
+    marketing_opt_in_level: Option(String),
+    consent_updated_at: Option(String),
+  )
+}
+
+/// Mirrors `CustomerSmsMarketingConsentRecord`.
+pub type CustomerSmsMarketingConsentRecord {
+  CustomerSmsMarketingConsentRecord(
+    marketing_state: Option(String),
+    marketing_opt_in_level: Option(String),
+    consent_updated_at: Option(String),
+    consent_collected_from: Option(String),
+  )
+}
+
+/// Mirrors `CustomerDefaultAddressRecord`.
+pub type CustomerDefaultAddressRecord {
+  CustomerDefaultAddressRecord(
+    id: Option(String),
+    first_name: Option(String),
+    last_name: Option(String),
+    address1: Option(String),
+    address2: Option(String),
+    city: Option(String),
+    company: Option(String),
+    province: Option(String),
+    province_code: Option(String),
+    country: Option(String),
+    country_code_v2: Option(String),
+    zip: Option(String),
+    phone: Option(String),
+    name: Option(String),
+    formatted_area: Option(String),
+  )
+}
+
+/// Mirrors `CustomerAddressRecord`.
+pub type CustomerAddressRecord {
+  CustomerAddressRecord(
+    id: String,
+    customer_id: String,
+    cursor: Option(String),
+    position: Int,
+    first_name: Option(String),
+    last_name: Option(String),
+    address1: Option(String),
+    address2: Option(String),
+    city: Option(String),
+    company: Option(String),
+    province: Option(String),
+    province_code: Option(String),
+    country: Option(String),
+    country_code_v2: Option(String),
+    zip: Option(String),
+    phone: Option(String),
+    name: Option(String),
+    formatted_area: Option(String),
+  )
+}
+
+/// Mirrors `CustomerRecord`.
+pub type CustomerRecord {
+  CustomerRecord(
+    id: String,
+    first_name: Option(String),
+    last_name: Option(String),
+    display_name: Option(String),
+    email: Option(String),
+    legacy_resource_id: Option(String),
+    locale: Option(String),
+    note: Option(String),
+    can_delete: Option(Bool),
+    verified_email: Option(Bool),
+    data_sale_opt_out: Bool,
+    tax_exempt: Option(Bool),
+    tax_exemptions: List(String),
+    state: Option(String),
+    tags: List(String),
+    number_of_orders: Option(String),
+    amount_spent: Option(Money),
+    default_email_address: Option(CustomerDefaultEmailAddressRecord),
+    default_phone_number: Option(CustomerDefaultPhoneNumberRecord),
+    email_marketing_consent: Option(CustomerEmailMarketingConsentRecord),
+    sms_marketing_consent: Option(CustomerSmsMarketingConsentRecord),
+    default_address: Option(CustomerDefaultAddressRecord),
+    created_at: Option(String),
+    updated_at: Option(String),
+  )
+}
+
+pub type CustomerCatalogPageInfoRecord {
+  CustomerCatalogPageInfoRecord(
+    has_next_page: Bool,
+    has_previous_page: Bool,
+    start_cursor: Option(String),
+    end_cursor: Option(String),
+  )
+}
+
+pub type CustomerCatalogConnectionRecord {
+  CustomerCatalogConnectionRecord(
+    ordered_customer_ids: List(String),
+    cursor_by_customer_id: Dict(String, String),
+    page_info: CustomerCatalogPageInfoRecord,
+  )
+}
+
+/// Minimal customer-owned order summary used by Customer.orders/lastOrder.
+pub type CustomerOrderSummaryRecord {
+  CustomerOrderSummaryRecord(
+    id: String,
+    customer_id: Option(String),
+    cursor: Option(String),
+    name: Option(String),
+    email: Option(String),
+    created_at: Option(String),
+    current_total_price: Option(Money),
+  )
+}
+
+/// Minimal customer-owned event summary used by Customer.events.
+pub type CustomerEventSummaryRecord {
+  CustomerEventSummaryRecord(
+    id: String,
+    customer_id: String,
+    cursor: Option(String),
+  )
+}
+
+/// Customer-owned metafield record.
+pub type CustomerMetafieldRecord {
+  CustomerMetafieldRecord(
+    id: String,
+    customer_id: String,
+    namespace: String,
+    key: String,
+    type_: String,
+    value: String,
+    compare_digest: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+  )
+}
+
+/// Mirrors `CustomerPaymentMethodInstrumentRecord` as a JSON-ish string map.
+pub type CustomerPaymentMethodInstrumentRecord {
+  CustomerPaymentMethodInstrumentRecord(
+    type_name: String,
+    data: Dict(String, String),
+  )
+}
+
+/// Mirrors `CustomerPaymentMethodSubscriptionContractRecord`.
+pub type CustomerPaymentMethodSubscriptionContractRecord {
+  CustomerPaymentMethodSubscriptionContractRecord(
+    id: String,
+    cursor: Option(String),
+    data: Dict(String, String),
+  )
+}
+
+/// Mirrors `CustomerPaymentMethodRecord`.
+pub type CustomerPaymentMethodRecord {
+  CustomerPaymentMethodRecord(
+    id: String,
+    customer_id: String,
+    cursor: Option(String),
+    instrument: Option(CustomerPaymentMethodInstrumentRecord),
+    revoked_at: Option(String),
+    revoked_reason: Option(String),
+    subscription_contracts: List(
+      CustomerPaymentMethodSubscriptionContractRecord,
+    ),
+  )
+}
+
+/// Mirrors `CustomerPaymentMethodUpdateUrlRecord`.
+pub type CustomerPaymentMethodUpdateUrlRecord {
+  CustomerPaymentMethodUpdateUrlRecord(
+    id: String,
+    customer_payment_method_id: String,
+    update_payment_method_url: String,
+    created_at: String,
+  )
+}
+
+/// Mirrors `StoreCreditAccountTransactionRecord`.
+pub type StoreCreditAccountTransactionRecord {
+  StoreCreditAccountTransactionRecord(
+    id: String,
+    account_id: String,
+    amount: Money,
+    balance_after_transaction: Money,
+    created_at: String,
+    event: String,
+  )
+}
+
+/// Mirrors `StoreCreditAccountRecord`.
+pub type StoreCreditAccountRecord {
+  StoreCreditAccountRecord(
+    id: String,
+    customer_id: String,
+    cursor: Option(String),
+    balance: Money,
+  )
+}
+
+/// Mirrors `CustomerAccountPageRecord`.
+pub type CustomerAccountPageRecord {
+  CustomerAccountPageRecord(
+    id: String,
+    title: String,
+    handle: String,
+    default_cursor: String,
+    cursor: Option(String),
+  )
+}
+
+/// Mirrors `CustomerDataErasureRequestRecord`.
+pub type CustomerDataErasureRequestRecord {
+  CustomerDataErasureRequestRecord(
+    customer_id: String,
+    requested_at: String,
+    canceled_at: Option(String),
+  )
+}
+
+/// Mirrors `CustomerMergeRequestRecord`.
+pub type CustomerMergeErrorRecord {
+  CustomerMergeErrorRecord(error_fields: List(String), message: String)
+}
+
+pub type CustomerMergeRequestRecord {
+  CustomerMergeRequestRecord(
+    job_id: String,
+    resulting_customer_id: String,
+    status: String,
+    customer_merge_errors: List(CustomerMergeErrorRecord),
+  )
+}
+
 /// Mirrors `SegmentRecord`. Customer segments are upstream resources the
 /// proxy mirrors locally so create/update/delete mutations can be staged
 /// without contacting Admin. Every field except `id` is nullable to match
