@@ -40,7 +40,6 @@ import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstre
 import { handleDeliverySettingsQuery } from './delivery-settings.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
-import { handleEventsQuery } from './events.js';
 import { handleInventoryShipmentMutation, handleInventoryShipmentQuery } from './inventory-shipments.js';
 import {
   FUNCTION_MUTATION_ROOTS,
@@ -2425,18 +2424,6 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       });
       setGraphQLResponse(request, 200, responseBody);
       return true;
-    },
-  },
-  {
-    name: 'events',
-    canHandle: (request) => request.capability.domain === 'events',
-    handleQuery(request) {
-      if (request.capability.execution === 'overlay-read' && request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleEventsQuery(request.body.query));
-        return true;
-      }
-
-      return false;
     },
   },
   {

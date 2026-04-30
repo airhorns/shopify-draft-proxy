@@ -34,9 +34,10 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   SrcObject, SrcString, default_connection_page_info_options,
   default_connection_window_options, default_selected_field_options,
   get_document_fragments, get_field_response_key, get_selected_child_fields,
-  paginate_connection_items, project_graphql_value, serialize_connection,
-  serialize_empty_connection, src_object,
+  paginate_connection_items, project_graphql_field_value, project_graphql_value,
+  serialize_connection, serialize_empty_connection, src_object,
 }
+import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, build_null_argument_error, find_argument, single_root_log_draft,
 }
@@ -57,7 +58,7 @@ import shopify_draft_proxy/state/types.{
   type InventoryTransferLocationSnapshotRecord, type InventoryTransferRecord,
   type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
   type ProductCategoryRecord, type ProductCollectionRecord,
-  type ProductFeedRecord, type ProductOptionRecord,
+  type ProductFeedRecord, type ProductMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
@@ -378,19 +379,14 @@ fn serialize_product_root(
   case read_string_argument(field, variables, "id") {
     Some(id) ->
       case store.get_effective_product_by_id(store, id) {
-        Some(product) -> {
-          let selections =
-            get_selected_child_fields(field, default_selected_field_options())
-          project_graphql_value(
-            product_source_with_store_and_publication(
-              store,
-              product,
-              selected_publication_id(selections, variables),
-            ),
-            selections,
+        Some(product) ->
+          serialize_product_selection(
+            store,
+            product,
+            field,
+            variables,
             fragments,
           )
-        }
         None -> json.null()
       }
     None -> json.null()
@@ -406,19 +402,14 @@ fn serialize_product_by_identifier_root(
   case read_identifier_argument(field, variables) {
     Some(identifier) ->
       case product_by_identifier(store, identifier) {
-        Some(product) -> {
-          let selections =
-            get_selected_child_fields(field, default_selected_field_options())
-          project_graphql_value(
-            product_source_with_store_and_publication(
-              store,
-              product,
-              selected_publication_id(selections, variables),
-            ),
-            selections,
+        Some(product) ->
+          serialize_product_selection(
+            store,
+            product,
+            field,
+            variables,
             fragments,
           )
-        }
         None -> json.null()
       }
     None -> json.null()
@@ -437,6 +428,118 @@ fn product_by_identifier(
         None -> None
       }
   }
+}
+
+fn serialize_product_selection(
+  store: Store,
+  product: ProductRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let selections =
+    get_selected_child_fields(field, default_selected_field_options())
+  let source =
+    product_source_with_store_and_publication(
+      store,
+      product,
+      selected_publication_id(selections, variables),
+    )
+  let entries =
+    list.map(selections, fn(selection) {
+      let key = get_field_response_key(selection)
+      case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "metafield" -> #(
+              key,
+              serialize_product_metafield(store, product, selection, variables),
+            )
+            "metafields" -> #(
+              key,
+              serialize_product_metafields_connection(
+                store,
+                product,
+                selection,
+                variables,
+              ),
+            )
+            _ -> #(
+              key,
+              project_graphql_field_value(source, selection, fragments),
+            )
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_product_metafield(
+  store: Store,
+  product: ProductRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Json {
+  let namespace = read_string_argument(field, variables, "namespace")
+  let key = read_string_argument(field, variables, "key")
+  let found =
+    store.get_effective_metafields_by_owner_id(store, product.id)
+    |> list.find(fn(metafield) {
+      metafield.namespace == option.unwrap(namespace, "")
+      && metafield.key == option.unwrap(key, "")
+    })
+    |> option.from_result
+  case found {
+    Some(metafield) ->
+      metafields.serialize_metafield_selection(
+        product_metafield_to_core(metafield),
+        field,
+        default_selected_field_options(),
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_product_metafields_connection(
+  store: Store,
+  product: ProductRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Json {
+  let namespace = read_string_argument(field, variables, "namespace")
+  let records =
+    store.get_effective_metafields_by_owner_id(store, product.id)
+    |> list.filter(fn(metafield) {
+      case namespace {
+        Some(ns) -> metafield.namespace == ns
+        None -> True
+      }
+    })
+    |> list.map(product_metafield_to_core)
+  metafields.serialize_metafields_connection(
+    records,
+    field,
+    variables,
+    default_selected_field_options(),
+  )
+}
+
+fn product_metafield_to_core(
+  record: ProductMetafieldRecord,
+) -> metafields.MetafieldRecordCore {
+  metafields.MetafieldRecordCore(
+    id: record.id,
+    namespace: record.namespace,
+    key: record.key,
+    type_: record.type_,
+    value: record.value,
+    compare_digest: record.compare_digest,
+    json_value: record.json_value,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    owner_type: record.owner_type,
+  )
 }
 
 fn serialize_collection_root(

@@ -207,6 +207,11 @@ fn target_decoder() -> Decoder(Target) {
     ReusePrimary,
     decode.map(proxy_request_decoder(), OverrideRequest),
   )
+  let expected_differences =
+    list.append(
+      expected_differences,
+      list.map(excluded_paths, diff.expected_ignore),
+    )
   decode.success(Target(
     name: name,
     capture_path: capture_path,

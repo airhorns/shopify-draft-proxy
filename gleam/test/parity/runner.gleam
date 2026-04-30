@@ -16,7 +16,7 @@
 //// from the `gleam/` subdirectory; the runner resolves paths via `..`
 //// (configurable via `RunnerConfig.repo_root`).
 
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/int
 import gleam/json
 import gleam/list
@@ -25,7 +25,7 @@ import gleam/result
 import gleam/string
 import parity/diff.{type Mismatch}
 import parity/json_value.{
-  type JsonValue, JArray, JBool, JFloat, JInt, JObject, JString,
+  type JsonValue, JArray, JBool, JFloat, JInt, JNull, JObject, JString,
 }
 import parity/jsonpath
 import parity/spec.{
@@ -44,9 +44,20 @@ import shopify_draft_proxy/state/types.{
   type GiftCardTransactionRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
-  type InventoryWeightRecord, type LocationRecord, type Money,
-  type PaymentSettingsRecord, type ProductCategoryRecord,
-  type ProductCollectionRecord, type ProductOptionRecord,
+  type InventoryWeightRecord, type LocationRecord,
+  type MetafieldDefinitionCapabilitiesRecord,
+  type MetafieldDefinitionCapabilityRecord,
+  type MetafieldDefinitionConstraintsRecord, type MetafieldDefinitionRecord,
+  type MetafieldDefinitionValidationRecord, type MetaobjectCapabilitiesRecord,
+  type MetaobjectDefinitionCapabilitiesRecord,
+  type MetaobjectDefinitionCapabilityRecord, type MetaobjectDefinitionRecord,
+  type MetaobjectDefinitionTypeRecord, type MetaobjectFieldDefinitionRecord,
+  type MetaobjectFieldDefinitionReferenceRecord,
+  type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
+  type MetaobjectJsonValue, type MetaobjectRecord,
+  type MetaobjectStandardTemplateRecord, type Money, type PaymentSettingsRecord,
+  type ProductCategoryRecord, type ProductCollectionRecord,
+  type ProductMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
   type PublicationRecord, type ShopAddressRecord, type ShopDomainRecord,
@@ -57,15 +68,28 @@ import shopify_draft_proxy/state/types.{
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
   InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
   InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
-  InventoryWeightInt, InventoryWeightRecord, LocationRecord, Money,
+  InventoryWeightInt, InventoryWeightRecord, LocationRecord,
+  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
+  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
+  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
+  MetafieldDefinitionValidationRecord, MetaobjectBool,
+  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
+  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
+  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
+  MetaobjectFieldDefinitionReferenceRecord,
+  MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
+  MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
+  MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
+  MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
+  MetaobjectStandardTemplateRecord, MetaobjectString, Money,
   PaymentSettingsRecord, ProductCategoryRecord, ProductCollectionRecord,
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
-  ShopAddressRecord, ShopBundlesFeatureRecord,
-  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
-  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
-  ShopifyFunctionRecord,
+  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord, PublicationRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
+  ShopifyFunctionAppRecord, ShopifyFunctionRecord,
 }
 import simplifile
 
@@ -80,6 +104,10 @@ pub type RunError {
   VariablesUnresolved(path: String)
   /// `fromPrimaryProxyPath` substitution path didn't resolve.
   PrimaryRefUnresolved(path: String)
+  /// `fromPreviousProxyPath` substitution path didn't resolve.
+  PreviousRefUnresolved(path: String)
+  /// `fromProxyResponse` substitution target/path didn't resolve.
+  ProxyResponseRefUnresolved(target: String, path: String)
   /// `fromCapturePath` substitution path didn't resolve.
   CaptureRefUnresolved(path: String)
   /// Capture JSONPath did not resolve for a target.
@@ -130,6 +158,8 @@ pub fn run_with_config(
     parsed.proxy_request.variables,
     capture,
     None,
+    None,
+    dict.new(),
     "<primary>",
   ))
   let proxy = draft_proxy.new()
@@ -247,12 +277,24 @@ fn seed_capture_preconditions(
       seed_product_publication_preconditions(capture, proxy)
     "product-feedback-lifecycle-local-runtime" ->
       seed_product_feedback_preconditions(capture, proxy)
+    "product-metafields-read" | "admin-platform-metafield-node-reads" ->
+      seed_product_metafields_preconditions(capture, proxy)
     "inventory-shipment-lifecycle-local-staging"
     | "inventory-shipment-partial-receive-update-delete-local-staging" ->
       seed_inventory_shipment_preconditions(capture, proxy)
     "inventory-transfer-lifecycle-local-staging"
     | "inventory-transfer-ready-item-adjustments-local-staging" ->
       seed_inventory_transfer_preconditions(capture, proxy)
+    "metafield-definitions-product-read"
+    | "metafield-definition-pinning-parity" ->
+      seed_metafield_definition_preconditions(capture, proxy)
+    "metaobject-definitions-read"
+    | "metaobjects-read"
+    | "metaobject-entry-lifecycle-local-staging"
+    | "metaobject-reference-lifecycle"
+    | "metaobject-bulk-delete-type-lifecycle"
+    | "custom-data-metaobject-field-type-matrix" ->
+      seed_metaobject_preconditions(parsed.scenario_id, capture, proxy)
     _ -> proxy
   }
 }
@@ -269,10 +311,15 @@ fn seed_captured_products_preconditions(
     Some(nodes) -> nodes
     None -> []
   }
-  let product_nodes = list.append(single_product_nodes, product_nodes)
+  let seed_id_nodes = case jsonpath.lookup(capture, "$.seed.productId") {
+    Some(JString(id)) -> [JObject([#("id", JString(id))])]
+    _ -> []
+  }
+  let product_nodes =
+    list.append(single_product_nodes, list.append(product_nodes, seed_id_nodes))
   let products = case product_nodes {
     [] -> []
-    nodes -> list.filter_map(nodes, make_seed_product)
+    nodes -> list.filter_map(nodes, make_seed_product_relaxed)
   }
   let variants = case product_nodes {
     [] -> []
@@ -368,6 +415,57 @@ fn seed_product_feedback_preconditions(
   }
   let store = store_mod.upsert_base_products(proxy.store, products)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_product_metafields_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.response.data.product") {
+    Some(product_json) -> {
+      let product_id = read_string_field(product_json, "id")
+      let store = case make_seed_product_relaxed(product_json) {
+        Ok(product) -> store_mod.upsert_base_products(proxy.store, [product])
+        Error(_) -> proxy.store
+      }
+      let store = case product_id {
+        Some(owner_id) -> {
+          let metafields =
+            collect_product_metafield_sources(product_json)
+            |> list.filter_map(fn(source) {
+              make_seed_product_metafield_for_owner(source, owner_id)
+            })
+            |> dedupe_product_metafields
+          store_mod.replace_base_metafields_for_owner(
+            store,
+            owner_id,
+            metafields,
+          )
+        }
+        None -> store
+      }
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn collect_product_metafield_sources(
+  product_json: JsonValue,
+) -> List(JsonValue) {
+  let primary = case read_object_field(product_json, "primarySpec") {
+    Some(source) -> [source]
+    None -> []
+  }
+  let first_page =
+    read_object_field(product_json, "metafields")
+    |> option.then(read_array_field(_, "nodes"))
+    |> option.unwrap([])
+  let next_page =
+    read_object_field(product_json, "nextMetafields")
+    |> option.then(read_array_field(_, "nodes"))
+    |> option.unwrap([])
+  list.append(primary, list.append(first_page, next_page))
 }
 
 fn seed_inventory_shipment_preconditions(
@@ -2492,6 +2590,612 @@ fn make_seed_product_category(
   }
 }
 
+fn seed_metafield_definition_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let candidates = [
+    jsonpath.lookup(capture, "$.response.data.byIdentifier"),
+    jsonpath.lookup(capture, "$.response.data.seedCatalog.nodes"),
+    jsonpath.lookup(capture, "$.response.data.metafieldDefinitions.nodes"),
+  ]
+  let definition_sources =
+    list.flat_map(candidates, fn(candidate) {
+      case candidate {
+        Some(JArray(items)) -> items
+        Some(JObject(_)) -> [candidate |> option.unwrap(JNull)]
+        _ -> []
+      }
+    })
+  let definitions =
+    list.filter_map(definition_sources, make_seed_metafield_definition)
+    |> dedupe_metafield_definitions
+  let metafields =
+    list.flat_map(definition_sources, fn(source) {
+      case make_seed_metafield_definition(source) {
+        Ok(definition) ->
+          seed_metafields_for_definition_source(source, definition)
+        Error(_) -> []
+      }
+    })
+  let seeded_store =
+    proxy.store
+    |> store_mod.upsert_base_metafield_definitions(definitions)
+  let seeded_store =
+    list.fold(metafields, seeded_store, fn(current, metafield) {
+      let existing =
+        store_mod.get_effective_metafields_by_owner_id(
+          current,
+          metafield.owner_id,
+        )
+      store_mod.replace_base_metafields_for_owner(
+        current,
+        metafield.owner_id,
+        list.append(existing, [metafield]),
+      )
+    })
+  draft_proxy.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn dedupe_metafield_definitions(
+  definitions: List(MetafieldDefinitionRecord),
+) -> List(MetafieldDefinitionRecord) {
+  let #(_, kept) =
+    list.fold(definitions, #(dict.new(), []), fn(acc, definition) {
+      let #(seen, collected) = acc
+      case dict.get(seen, definition.id) {
+        Ok(_) -> #(seen, collected)
+        Error(_) -> #(dict.insert(seen, definition.id, True), [
+          definition,
+          ..collected
+        ])
+      }
+    })
+  list.reverse(kept)
+}
+
+fn make_seed_metafield_definition(
+  source: JsonValue,
+) -> Result(MetafieldDefinitionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  use namespace <- result.try(required_string_field(source, "namespace"))
+  use key <- result.try(required_string_field(source, "key"))
+  use owner_type <- result.try(required_string_field(source, "ownerType"))
+  let type_source = read_object_field(source, "type")
+  use type_name <- result.try(required_string_field_from_option(
+    type_source,
+    "name",
+  ))
+  Ok(MetafieldDefinitionRecord(
+    id: id,
+    name: name,
+    namespace: namespace,
+    key: key,
+    owner_type: owner_type,
+    type_: MetafieldDefinitionTypeRecord(
+      name: type_name,
+      category: read_string_field_from_option(type_source, "category"),
+    ),
+    description: read_string_field(source, "description"),
+    validations: read_array_field(source, "validations")
+      |> option.unwrap([])
+      |> list.filter_map(make_seed_metafield_validation),
+    access: read_object_field(source, "access")
+      |> json_object_to_runtime_dict,
+    capabilities: make_seed_metafield_capabilities(read_object_field(
+      source,
+      "capabilities",
+    )),
+    constraints: Some(
+      make_seed_metafield_constraints(read_object_field(source, "constraints")),
+    ),
+    pinned_position: read_int_field(source, "pinnedPosition"),
+    validation_status: read_string_field(source, "validationStatus")
+      |> option.unwrap("ALL_VALID"),
+  ))
+}
+
+fn required_string_field_from_option(
+  value: Option(JsonValue),
+  name: String,
+) -> Result(String, Nil) {
+  case read_string_field_from_option(value, name) {
+    Some(s) -> Ok(s)
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_metafield_validation(
+  source: JsonValue,
+) -> Result(MetafieldDefinitionValidationRecord, Nil) {
+  use name <- result.try(required_string_field(source, "name"))
+  Ok(MetafieldDefinitionValidationRecord(
+    name: name,
+    value: read_string_field(source, "value"),
+  ))
+}
+
+fn make_seed_metafield_capabilities(
+  source: Option(JsonValue),
+) -> MetafieldDefinitionCapabilitiesRecord {
+  MetafieldDefinitionCapabilitiesRecord(
+    admin_filterable: make_seed_metafield_capability(
+      source |> option.then(read_object_field(_, "adminFilterable")),
+    ),
+    smart_collection_condition: make_seed_metafield_capability(
+      source
+      |> option.then(read_object_field(_, "smartCollectionCondition")),
+    ),
+    unique_values: make_seed_metafield_capability(
+      source |> option.then(read_object_field(_, "uniqueValues")),
+    ),
+  )
+}
+
+fn make_seed_metafield_capability(
+  source: Option(JsonValue),
+) -> MetafieldDefinitionCapabilityRecord {
+  MetafieldDefinitionCapabilityRecord(
+    enabled: read_bool_field_from_option(source, "enabled")
+      |> option.unwrap(False),
+    eligible: read_bool_field_from_option(source, "eligible")
+      |> option.unwrap(True),
+    status: read_string_field_from_option(source, "status"),
+  )
+}
+
+fn make_seed_metafield_constraints(
+  source: Option(JsonValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  MetafieldDefinitionConstraintsRecord(
+    key: read_string_field_from_option(source, "key"),
+    values: source
+      |> option.then(read_object_field(_, "values"))
+      |> option.then(read_array_field(_, "nodes"))
+      |> option.unwrap([])
+      |> list.filter_map(fn(value) {
+        case read_string_field(value, "value") {
+          Some(v) -> Ok(MetafieldDefinitionConstraintValueRecord(value: v))
+          None -> Error(Nil)
+        }
+      }),
+  )
+}
+
+fn seed_metafields_for_definition_source(
+  source: JsonValue,
+  definition: MetafieldDefinitionRecord,
+) -> List(ProductMetafieldRecord) {
+  let nodes =
+    read_object_field(source, "metafields")
+    |> option.then(read_array_field(_, "nodes"))
+    |> option.unwrap([])
+  list.filter_map(nodes, fn(node) {
+    make_seed_product_metafield(node, definition)
+  })
+}
+
+fn make_seed_product_metafield(
+  source: JsonValue,
+  definition: MetafieldDefinitionRecord,
+) -> Result(ProductMetafieldRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  let owner_id =
+    read_object_field(source, "owner")
+    |> option.then(read_string_field(_, "id"))
+    |> option.unwrap("seed-owner:" <> definition.id)
+  Ok(ProductMetafieldRecord(
+    id: id,
+    owner_id: owner_id,
+    namespace: read_string_field(source, "namespace")
+      |> option.unwrap(definition.namespace),
+    key: read_string_field(source, "key") |> option.unwrap(definition.key),
+    type_: read_string_field(source, "type"),
+    value: read_string_field(source, "value"),
+    compare_digest: read_string_field(source, "compareDigest"),
+    json_value: json_value.field(source, "jsonValue")
+      |> option.map(runtime_json_from_json_value),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+    owner_type: read_string_field(source, "ownerType")
+      |> option.or(Some(definition.owner_type)),
+  ))
+}
+
+fn make_seed_product_metafield_for_owner(
+  source: JsonValue,
+  owner_id: String,
+) -> Result(ProductMetafieldRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use namespace <- result.try(required_string_field(source, "namespace"))
+  use key <- result.try(required_string_field(source, "key"))
+  Ok(ProductMetafieldRecord(
+    id: id,
+    owner_id: owner_id,
+    namespace: namespace,
+    key: key,
+    type_: read_string_field(source, "type"),
+    value: read_string_field(source, "value"),
+    compare_digest: read_string_field(source, "compareDigest"),
+    json_value: json_value.field(source, "jsonValue")
+      |> option.map(runtime_json_from_json_value),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+    owner_type: read_string_field(source, "ownerType")
+      |> option.or(Some("PRODUCT")),
+  ))
+}
+
+fn dedupe_product_metafields(
+  metafields: List(ProductMetafieldRecord),
+) -> List(ProductMetafieldRecord) {
+  let #(_, kept) =
+    list.fold(metafields, #(dict.new(), []), fn(acc, metafield) {
+      let #(seen, collected) = acc
+      case dict.get(seen, metafield.id) {
+        Ok(_) -> #(seen, collected)
+        Error(_) -> #(dict.insert(seen, metafield.id, True), [
+          metafield,
+          ..collected
+        ])
+      }
+    })
+  list.reverse(kept)
+}
+
+fn seed_metaobject_preconditions(
+  scenario_id: String,
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let definitions = collect_metaobject_definitions(capture)
+  let metaobjects =
+    collect_metaobjects(capture)
+    |> filter_seed_metaobjects(scenario_id)
+  let seeded_store =
+    proxy.store
+    |> store_mod.upsert_base_metaobject_definitions(definitions)
+    |> store_mod.upsert_base_metaobjects(metaobjects)
+  draft_proxy.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn filter_seed_metaobjects(
+  metaobjects: List(MetaobjectRecord),
+  scenario_id: String,
+) -> List(MetaobjectRecord) {
+  case scenario_id {
+    "custom-data-metaobject-field-type-matrix" ->
+      list.filter(metaobjects, fn(metaobject) {
+        !string.starts_with(metaobject.type_, "codex_har294_type_matrix_")
+      })
+    _ -> metaobjects
+  }
+}
+
+fn collect_metaobject_definitions(
+  value: JsonValue,
+) -> List(MetaobjectDefinitionRecord) {
+  let current = case make_seed_metaobject_definition(value) {
+    Ok(record) -> [record]
+    Error(_) -> []
+  }
+  list.append(current, collect_metaobject_definitions_nested(value))
+}
+
+fn collect_metaobject_definitions_nested(
+  value: JsonValue,
+) -> List(MetaobjectDefinitionRecord) {
+  case value {
+    JObject(fields) ->
+      list.flat_map(fields, fn(pair) { collect_metaobject_definitions(pair.1) })
+    JArray(items) -> list.flat_map(items, collect_metaobject_definitions)
+    _ -> []
+  }
+}
+
+fn collect_metaobjects(value: JsonValue) -> List(MetaobjectRecord) {
+  let current = case make_seed_metaobject(value) {
+    Ok(record) -> [record]
+    Error(_) -> []
+  }
+  list.append(current, collect_metaobjects_nested(value))
+}
+
+fn collect_metaobjects_nested(value: JsonValue) -> List(MetaobjectRecord) {
+  case value {
+    JObject(fields) ->
+      list.flat_map(fields, fn(pair) { collect_metaobjects(pair.1) })
+    JArray(items) -> list.flat_map(items, collect_metaobjects)
+    _ -> []
+  }
+}
+
+fn make_seed_metaobject_definition(
+  source: JsonValue,
+) -> Result(MetaobjectDefinitionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  case string.starts_with(id, "gid://shopify/MetaobjectDefinition/") {
+    False -> Error(Nil)
+    True -> {
+      use type_ <- result.try(required_string_field(source, "type"))
+      Ok(MetaobjectDefinitionRecord(
+        id: id,
+        type_: type_,
+        name: read_string_field(source, "name"),
+        description: read_string_field(source, "description"),
+        display_name_key: read_string_field(source, "displayNameKey"),
+        access: read_metaobject_access(read_object_field(source, "access")),
+        capabilities: read_metaobject_definition_capabilities(read_object_field(
+          source,
+          "capabilities",
+        )),
+        field_definitions: read_metaobject_field_definitions(
+          read_array_field(source, "fieldDefinitions") |> option.unwrap([]),
+        ),
+        has_thumbnail_field: read_bool_field(source, "hasThumbnailField"),
+        metaobjects_count: read_int_field(source, "metaobjectsCount"),
+        standard_template: read_metaobject_standard_template(read_object_field(
+          source,
+          "standardTemplate",
+        )),
+        created_at: read_string_field(source, "createdAt"),
+        updated_at: read_string_field(source, "updatedAt"),
+      ))
+    }
+  }
+}
+
+fn make_seed_metaobject(source: JsonValue) -> Result(MetaobjectRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  case string.starts_with(id, "gid://shopify/Metaobject/") {
+    False -> Error(Nil)
+    True -> {
+      use handle <- result.try(required_string_field(source, "handle"))
+      use type_ <- result.try(required_string_field(source, "type"))
+      Ok(MetaobjectRecord(
+        id: id,
+        handle: handle,
+        type_: type_,
+        display_name: read_string_field(source, "displayName"),
+        fields: read_metaobject_fields(
+          read_array_field(source, "fields") |> option.unwrap([]),
+        ),
+        capabilities: read_metaobject_capabilities(read_object_field(
+          source,
+          "capabilities",
+        )),
+        created_at: read_string_field(source, "createdAt"),
+        updated_at: read_string_field(source, "updatedAt"),
+      ))
+    }
+  }
+}
+
+fn read_metaobject_access(
+  source: Option(JsonValue),
+) -> dict.Dict(String, Option(String)) {
+  let base =
+    dict.from_list([
+      #("admin", Some("PUBLIC_READ_WRITE")),
+      #("storefront", Some("NONE")),
+    ])
+  case source {
+    Some(JObject(fields)) ->
+      list.fold(fields, base, fn(acc, pair) {
+        case pair.1 {
+          JString(value) -> dict.insert(acc, pair.0, Some(value))
+          JNull -> dict.insert(acc, pair.0, None)
+          _ -> acc
+        }
+      })
+    _ -> base
+  }
+}
+
+fn read_metaobject_definition_capabilities(
+  source: Option(JsonValue),
+) -> MetaobjectDefinitionCapabilitiesRecord {
+  MetaobjectDefinitionCapabilitiesRecord(
+    publishable: read_metaobject_definition_capability(source, "publishable"),
+    translatable: read_metaobject_definition_capability(source, "translatable"),
+    renderable: read_metaobject_definition_capability(source, "renderable"),
+    online_store: read_metaobject_definition_capability(source, "onlineStore"),
+  )
+}
+
+fn read_metaobject_definition_capability(
+  source: Option(JsonValue),
+  key: String,
+) -> Option(MetaobjectDefinitionCapabilityRecord) {
+  case source {
+    Some(value) ->
+      case read_object_field(value, key) {
+        Some(capability) ->
+          Some(MetaobjectDefinitionCapabilityRecord(
+            read_bool_field(capability, "enabled") |> option.unwrap(False),
+          ))
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn read_metaobject_field_definitions(
+  values: List(JsonValue),
+) -> List(MetaobjectFieldDefinitionRecord) {
+  list.filter_map(values, fn(value) {
+    case make_seed_metaobject_field_definition(value) {
+      Ok(record) -> Ok(record)
+      Error(_) -> Error(Nil)
+    }
+  })
+}
+
+fn make_seed_metaobject_field_definition(
+  source: JsonValue,
+) -> Result(MetaobjectFieldDefinitionRecord, Nil) {
+  use key <- result.try(required_string_field(source, "key"))
+  use type_ <- result.try(
+    read_metaobject_type(read_object_field(source, "type")),
+  )
+  Ok(MetaobjectFieldDefinitionRecord(
+    key: key,
+    name: read_string_field(source, "name"),
+    description: read_string_field(source, "description"),
+    required: read_bool_field(source, "required"),
+    type_: type_,
+    validations: read_metaobject_validations(
+      read_array_field(source, "validations") |> option.unwrap([]),
+    ),
+  ))
+}
+
+fn read_metaobject_type(
+  source: Option(JsonValue),
+) -> Result(MetaobjectDefinitionTypeRecord, Nil) {
+  case source {
+    Some(value) -> {
+      use name <- result.try(required_string_field(value, "name"))
+      Ok(MetaobjectDefinitionTypeRecord(
+        name: name,
+        category: read_string_field(value, "category"),
+      ))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn read_metaobject_validations(
+  values: List(JsonValue),
+) -> List(MetaobjectFieldDefinitionValidationRecord) {
+  list.filter_map(values, fn(value) {
+    case read_string_field(value, "name") {
+      Some(name) ->
+        Ok(MetaobjectFieldDefinitionValidationRecord(
+          name,
+          read_string_field(value, "value"),
+        ))
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn read_metaobject_standard_template(
+  source: Option(JsonValue),
+) -> Option(MetaobjectStandardTemplateRecord) {
+  case source {
+    Some(value) ->
+      Some(MetaobjectStandardTemplateRecord(
+        read_string_field(value, "type"),
+        read_string_field(value, "name"),
+      ))
+    None -> None
+  }
+}
+
+fn read_metaobject_fields(
+  values: List(JsonValue),
+) -> List(MetaobjectFieldRecord) {
+  list.filter_map(values, fn(value) {
+    case make_seed_metaobject_field(value) {
+      Ok(record) -> Ok(record)
+      Error(_) -> Error(Nil)
+    }
+  })
+}
+
+fn make_seed_metaobject_field(
+  source: JsonValue,
+) -> Result(MetaobjectFieldRecord, Nil) {
+  use key <- result.try(required_string_field(source, "key"))
+  Ok(MetaobjectFieldRecord(
+    key: key,
+    type_: read_string_field(source, "type"),
+    value: read_string_field(source, "value"),
+    json_value: case json_value.field(source, "jsonValue") {
+      Some(value) -> json_to_metaobject_value(value)
+      None -> MetaobjectNull
+    },
+    definition: read_metaobject_field_reference(read_object_field(
+      source,
+      "definition",
+    )),
+  ))
+}
+
+fn read_metaobject_field_reference(
+  source: Option(JsonValue),
+) -> Option(MetaobjectFieldDefinitionReferenceRecord) {
+  case source {
+    Some(value) -> {
+      case
+        required_string_field(value, "key"),
+        read_metaobject_type(read_object_field(value, "type"))
+      {
+        Ok(key), Ok(type_) ->
+          Some(MetaobjectFieldDefinitionReferenceRecord(
+            key: key,
+            name: read_string_field(value, "name"),
+            required: read_bool_field(value, "required"),
+            type_: type_,
+          ))
+        _, _ -> None
+      }
+    }
+    None -> None
+  }
+}
+
+fn read_metaobject_capabilities(
+  source: Option(JsonValue),
+) -> MetaobjectCapabilitiesRecord {
+  let publishable = case source {
+    Some(value) ->
+      case read_object_field(value, "publishable") {
+        Some(p) ->
+          Some(
+            MetaobjectPublishableCapabilityRecord(read_string_field(p, "status")),
+          )
+        None -> None
+      }
+    None -> None
+  }
+  let online_store = case source {
+    Some(value) ->
+      case read_object_field(value, "onlineStore") {
+        Some(online) ->
+          Some(
+            MetaobjectOnlineStoreCapabilityRecord(read_string_field(
+              online,
+              "templateSuffix",
+            )),
+          )
+        None -> None
+      }
+    None -> None
+  }
+  MetaobjectCapabilitiesRecord(publishable, online_store)
+}
+
+fn json_to_metaobject_value(value: JsonValue) -> MetaobjectJsonValue {
+  case value {
+    JNull -> MetaobjectNull
+    JBool(value) -> MetaobjectBool(value)
+    JInt(value) -> MetaobjectInt(value)
+    JFloat(value) -> MetaobjectFloat(value)
+    JString(value) -> MetaobjectString(value)
+    JArray(items) -> MetaobjectList(list.map(items, json_to_metaobject_value))
+    JObject(fields) ->
+      MetaobjectObject(
+        list.map(fields, fn(pair) {
+          #(pair.0, json_to_metaobject_value(pair.1))
+        })
+        |> dict.from_list,
+      )
+  }
+}
+
 fn seed_shop_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -3096,6 +3800,16 @@ fn read_bool_field(value: JsonValue, name: String) -> Option(Bool) {
   }
 }
 
+fn read_bool_field_from_option(
+  value: Option(JsonValue),
+  name: String,
+) -> Option(Bool) {
+  case value {
+    Some(v) -> read_bool_field(v, name)
+    None -> None
+  }
+}
+
 fn read_int_field(value: JsonValue, name: String) -> Option(Int) {
   case json_value.field(value, name) {
     Some(JInt(i)) -> Some(i)
@@ -3191,6 +3905,39 @@ fn enumerate_json_values_loop(
   }
 }
 
+fn json_object_to_runtime_dict(
+  value: Option(JsonValue),
+) -> dict.Dict(String, json.Json) {
+  case value {
+    Some(JObject(entries)) ->
+      entries
+      |> list.map(fn(pair) {
+        let #(key, item) = pair
+        #(key, runtime_json_from_json_value(item))
+      })
+      |> dict.from_list
+    _ -> dict.new()
+  }
+}
+
+fn runtime_json_from_json_value(value: JsonValue) -> json.Json {
+  case value {
+    JNull -> json.null()
+    JBool(b) -> json.bool(b)
+    JInt(i) -> json.int(i)
+    JFloat(f) -> json.float(f)
+    JString(s) -> json.string(s)
+    JArray(items) -> json.array(items, runtime_json_from_json_value)
+    JObject(entries) ->
+      json.object(
+        list.map(entries, fn(pair) {
+          let #(key, item) = pair
+          #(key, runtime_json_from_json_value(item))
+        }),
+      )
+  }
+}
+
 fn gift_card_tail(id: String) -> String {
   case string.split(id, on: "/") |> list.last {
     Ok(tail_with_query) ->
@@ -3213,20 +3960,32 @@ fn run_targets(
   primary_response: JsonValue,
   proxy: DraftProxy,
 ) -> Result(#(DraftProxy, List(TargetReport)), RunError) {
-  list.try_fold(parsed.targets, #(proxy, []), fn(state, target) {
-    let #(current_proxy, acc_reports) = state
-    use #(next_proxy, report) <- result.try(run_target(
-      config,
-      parsed,
-      target,
-      capture,
-      primary_response,
-      current_proxy,
-    ))
-    Ok(#(next_proxy, [report, ..acc_reports]))
-  })
+  list.try_fold(
+    parsed.targets,
+    #(proxy, [], None, dict.new()),
+    fn(state, target) {
+      let #(current_proxy, acc_reports, previous_response, named_responses) =
+        state
+      use #(next_proxy, report) <- result.try(run_target(
+        config,
+        parsed,
+        target,
+        capture,
+        primary_response,
+        previous_response,
+        named_responses,
+        current_proxy,
+      ))
+      Ok(#(
+        next_proxy,
+        [report.0, ..acc_reports],
+        Some(report.1),
+        dict.insert(named_responses, target.name, report.1),
+      ))
+    },
+  )
   |> result.map(fn(state) {
-    let #(final_proxy, reports) = state
+    let #(final_proxy, reports, _, _) = state
     #(final_proxy, list.reverse(reports))
   })
 }
@@ -3237,13 +3996,17 @@ fn run_target(
   target: Target,
   capture: JsonValue,
   primary_response: JsonValue,
+  previous_response: Option(JsonValue),
+  named_responses: Dict(String, JsonValue),
   proxy: DraftProxy,
-) -> Result(#(DraftProxy, TargetReport), RunError) {
+) -> Result(#(DraftProxy, #(TargetReport, JsonValue)), RunError) {
   use #(actual_response, next_proxy) <- result.try(actual_response_for(
     config,
     target,
     capture,
     primary_response,
+    previous_response,
+    named_responses,
     proxy,
   ))
   let expected_opt = jsonpath.lookup(capture, target.capture_path)
@@ -3258,11 +4021,14 @@ fn run_target(
       let mismatches = diff.diff_with_expected(expected, actual, rules)
       Ok(#(
         next_proxy,
-        TargetReport(
-          name: target.name,
-          capture_path: target.capture_path,
-          proxy_path: target.proxy_path,
-          mismatches: mismatches,
+        #(
+          TargetReport(
+            name: target.name,
+            capture_path: target.capture_path,
+            proxy_path: target.proxy_path,
+            mismatches: mismatches,
+          ),
+          actual_response,
         ),
       ))
     }
@@ -3278,6 +4044,8 @@ fn actual_response_for(
   target: Target,
   capture: JsonValue,
   primary_response: JsonValue,
+  previous_response: Option(JsonValue),
+  named_responses: Dict(String, JsonValue),
   proxy: DraftProxy,
 ) -> Result(#(JsonValue, DraftProxy), RunError) {
   case target.request {
@@ -3298,6 +4066,8 @@ fn actual_response_for(
             request.variables,
             capture,
             Some(primary_response),
+            previous_response,
+            named_responses,
             target.name,
           ))
           use #(response, next_proxy) <- result.try(execute(
@@ -3335,6 +4105,8 @@ fn resolve_variables(
   variables: spec.ParityVariables,
   capture: JsonValue,
   primary_response: Option(JsonValue),
+  previous_response: Option(JsonValue),
+  named_responses: Dict(String, JsonValue),
   context: String,
 ) -> Result(JsonValue, RunError) {
   case variables {
@@ -3351,7 +4123,13 @@ fn resolve_variables(
     }
     VariablesInline(template: template) -> {
       let _ = context
-      substitute(template, primary_response, capture)
+      substitute(
+        template,
+        primary_response,
+        previous_response,
+        named_responses,
+        capture,
+      )
     }
   }
 }
@@ -3362,6 +4140,8 @@ fn resolve_variables(
 fn substitute(
   template: JsonValue,
   primary: Option(JsonValue),
+  previous: Option(JsonValue),
+  named: Dict(String, JsonValue),
   capture: JsonValue,
 ) -> Result(JsonValue, RunError) {
   case as_primary_ref(template) {
@@ -3375,31 +4155,101 @@ fn substitute(
           }
       }
     None ->
-      case as_capture_ref(template) {
+      case as_previous_ref(template) {
         Some(path) ->
-          case jsonpath.lookup(capture, path) {
-            Some(value) -> Ok(value)
-            None -> Error(CaptureRefUnresolved(path: path))
+          case previous {
+            None -> Error(PreviousRefUnresolved(path: path))
+            Some(root) ->
+              case jsonpath.lookup(root, path) {
+                Some(value) -> Ok(value)
+                None -> Error(PreviousRefUnresolved(path: path))
+              }
           }
         None ->
-          case template {
-            JObject(entries) ->
-              entries
-              |> list.try_map(fn(pair) {
-                let #(k, v) = pair
-                case substitute(v, primary, capture) {
-                  Ok(v2) -> Ok(#(k, v2))
-                  Error(e) -> Error(e)
-                }
-              })
-              |> result.map(JObject)
-            JArray(items) ->
-              items
-              |> list.try_map(fn(item) { substitute(item, primary, capture) })
-              |> result.map(JArray)
-            leaf -> Ok(leaf)
+          case as_named_response_ref(template) {
+            Some(ref) -> {
+              let #(target, path) = ref
+              case dict.get(named, target) {
+                Ok(root) ->
+                  case jsonpath.lookup(root, path) {
+                    Some(value) -> Ok(value)
+                    None -> Error(ProxyResponseRefUnresolved(target, path))
+                  }
+                Error(_) -> Error(ProxyResponseRefUnresolved(target, path))
+              }
+            }
+            None ->
+              substitute_capture_or_children(
+                template,
+                primary,
+                previous,
+                named,
+                capture,
+              )
           }
       }
+  }
+}
+
+fn substitute_capture_or_children(
+  template: JsonValue,
+  primary: Option(JsonValue),
+  previous: Option(JsonValue),
+  named: Dict(String, JsonValue),
+  capture: JsonValue,
+) -> Result(JsonValue, RunError) {
+  case as_capture_ref(template) {
+    Some(path) ->
+      case jsonpath.lookup(capture, path) {
+        Some(value) -> Ok(value)
+        None -> Error(CaptureRefUnresolved(path: path))
+      }
+    None ->
+      case template {
+        JObject(entries) ->
+          entries
+          |> list.try_map(fn(pair) {
+            let #(k, v) = pair
+            case substitute(v, primary, previous, named, capture) {
+              Ok(v2) -> Ok(#(k, v2))
+              Error(e) -> Error(e)
+            }
+          })
+          |> result.map(JObject)
+        JArray(items) ->
+          items
+          |> list.try_map(fn(item) {
+            substitute(item, primary, previous, named, capture)
+          })
+          |> result.map(JArray)
+        leaf -> Ok(leaf)
+      }
+  }
+}
+
+/// If `value` is exactly `{"fromPreviousProxyPath": "..."}` (one
+/// entry with a string value), return the path. Otherwise None.
+fn as_previous_ref(value: JsonValue) -> Option(String) {
+  case value {
+    JObject([#("fromPreviousProxyPath", json_value.JString(path))]) ->
+      Some(path)
+    _ -> None
+  }
+}
+
+/// If `value` is exactly `{"fromProxyResponse": "...", "path": "..."}`
+/// or the same entries in the opposite order, return target/path.
+fn as_named_response_ref(value: JsonValue) -> Option(#(String, String)) {
+  case value {
+    JObject([
+      #("fromProxyResponse", json_value.JString(target)),
+      #("path", json_value.JString(path)),
+    ]) -> Some(#(target, path))
+    JObject([
+      #("path", json_value.JString(path)),
+      #("fromProxyResponse", json_value.JString(target)),
+    ]) -> Some(#(target, path))
+    _ -> None
   }
 }
 
@@ -3522,6 +4372,14 @@ pub fn render_error(error: RunError) -> String {
     VariablesUnresolved(path) -> "variables jsonpath did not resolve: " <> path
     PrimaryRefUnresolved(path) ->
       "fromPrimaryProxyPath did not resolve in primary response: " <> path
+    PreviousRefUnresolved(path) ->
+      "fromPreviousProxyPath did not resolve in previous proxy response: "
+      <> path
+    ProxyResponseRefUnresolved(target, path) ->
+      "fromProxyResponse did not resolve for target '"
+      <> target
+      <> "' at "
+      <> path
     CaptureRefUnresolved(path) ->
       "fromCapturePath did not resolve in capture: " <> path
     CaptureUnresolved(target, path) ->
