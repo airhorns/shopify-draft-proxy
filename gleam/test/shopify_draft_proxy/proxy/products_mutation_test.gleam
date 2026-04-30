@@ -474,6 +474,7 @@ fn default_product() -> ProductRecord {
     tracks_inventory: Some(False),
     created_at: None,
     updated_at: None,
+    published_at: None,
     description_html: "",
     online_store_preview_url: None,
     template_suffix: None,

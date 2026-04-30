@@ -6,6 +6,7 @@
 //// publications, selling plans, and metafields land in later passes before the
 //// TS product runtime can be removed.
 
+import gleam/bit_array
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/json.{type Json}
@@ -43,6 +44,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 }
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -2199,7 +2201,9 @@ fn serialize_products_connection(
   variables: Dict(String, ResolvedValue),
   fragments: FragmentMap,
 ) -> Json {
-  let products = filtered_products(store, field, variables)
+  let products =
+    filtered_products(store, field, variables)
+    |> sort_products(field, variables)
   case products {
     [] -> serialize_empty_connection(field, default_selected_field_options())
     _ -> {
@@ -2220,7 +2224,9 @@ fn serialize_products_connection(
           items: window.items,
           has_next_page: has_next_page,
           has_previous_page: window.has_previous_page,
-          get_cursor_value: product_cursor,
+          get_cursor_value: fn(product, index) {
+            product_cursor_for_field(product, index, field, variables)
+          },
           serialize_node: fn(product, node_field, _index) {
             project_graphql_value(
               product_source_with_store(store, product),
@@ -2258,6 +2264,75 @@ fn filtered_products(
       product_matches_positive_query_term(store, product, term)
     },
   )
+}
+
+fn sort_products(
+  products: List(ProductRecord),
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> List(ProductRecord) {
+  case read_string_argument(field, variables, "sortKey") {
+    None -> products
+    Some(sort_key) -> {
+      let sorted =
+        list.sort(products, fn(left, right) {
+          compare_products_by_sort_key(left, right, sort_key)
+        })
+      case read_bool_argument(field, variables, "reverse") {
+        Some(True) -> list.reverse(sorted)
+        _ -> sorted
+      }
+    }
+  }
+}
+
+fn compare_products_by_sort_key(
+  left: ProductRecord,
+  right: ProductRecord,
+  sort_key: String,
+) -> order.Order {
+  case sort_key {
+    "TITLE" ->
+      case string.compare(left.title, right.title) {
+        order.Eq -> string.compare(left.id, right.id)
+        other -> other
+      }
+    "VENDOR" ->
+      case compare_optional_strings_as_empty(left.vendor, right.vendor) {
+        order.Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+        other -> other
+      }
+    "PRODUCT_TYPE" ->
+      case
+        compare_optional_strings_as_empty(left.product_type, right.product_type)
+      {
+        order.Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+        other -> other
+      }
+    "PUBLISHED_AT" ->
+      case
+        compare_optional_strings_as_empty(left.published_at, right.published_at)
+      {
+        order.Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+        other -> other
+      }
+    "UPDATED_AT" ->
+      case
+        compare_optional_strings_as_empty(left.updated_at, right.updated_at)
+      {
+        order.Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+        other -> other
+      }
+    "ID" -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+    _ -> order.Eq
+  }
+}
+
+fn compare_optional_strings_as_empty(
+  left: Option(String),
+  right: Option(String),
+) -> order.Order {
+  string.compare(option.unwrap(left, ""), option.unwrap(right, ""))
 }
 
 fn product_search_parse_options() -> search_query_parser.SearchQueryParseOptions {
@@ -2349,7 +2424,36 @@ fn product_matches_positive_query_term(
         option.map(product.total_inventory, int.to_float),
         term,
       )
+    Some("tag_not") ->
+      !list.any(product_searchable_tags(store, product), fn(tag) {
+        search_query_parser.matches_search_query_string(
+          Some(tag),
+          search_query_parser.search_query_term_value(term),
+          search_query_parser.ExactMatch,
+          product_string_match_options(),
+        )
+      })
+    Some("published_at") ->
+      matches_nullable_product_timestamp(product.published_at, term)
+    Some("updated_at") ->
+      matches_nullable_product_timestamp(product.updated_at, term)
+    Some("created_at") ->
+      matches_nullable_product_timestamp(product.created_at, term)
     _ -> True
+  }
+}
+
+fn matches_nullable_product_timestamp(
+  value: Option(String),
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  case
+    search_query_parser.strip_search_query_value_quotes(
+      search_query_parser.search_query_term_value(term),
+    )
+  {
+    "*" -> option.is_some(value)
+    _ -> search_query_parser.matches_search_query_date(value, term, 0)
   }
 }
 
@@ -2785,6 +2889,95 @@ fn product_cursor(product: ProductRecord, _index: Int) -> String {
   }
 }
 
+fn product_cursor_for_field(
+  product: ProductRecord,
+  index: Int,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> String {
+  case product.cursor {
+    Some(_) -> product_cursor(product, index)
+    None ->
+      case read_string_argument(field, variables, "sortKey") {
+        Some("TITLE") ->
+          product_sort_cursor_string(product, string.lowercase(product.title))
+        Some("VENDOR") ->
+          product_sort_cursor_string(
+            product,
+            product.vendor |> option.unwrap("") |> string.lowercase,
+          )
+        Some("PRODUCT_TYPE") ->
+          product_sort_cursor_string(
+            product,
+            product.product_type |> option.unwrap("") |> string.lowercase,
+          )
+        Some("ID") ->
+          product_sort_cursor_int(product, product_numeric_id(product))
+        Some("PUBLISHED_AT") ->
+          product_sort_cursor_timestamp(product, product.published_at)
+        Some("UPDATED_AT") ->
+          product_sort_cursor_timestamp(product, product.updated_at)
+        _ -> product_cursor(product, index)
+      }
+  }
+}
+
+fn product_sort_cursor_string(product: ProductRecord, value: String) -> String {
+  product_sort_cursor_payload(product, json.to_string(json.string(value)))
+}
+
+fn product_sort_cursor_int(product: ProductRecord, value: Int) -> String {
+  product_sort_cursor_payload(product, int.to_string(value))
+}
+
+fn product_sort_cursor_timestamp(
+  product: ProductRecord,
+  value: Option(String),
+) -> String {
+  let timestamp = case value {
+    Some(raw) -> iso_timestamp.parse_iso(raw) |> result.unwrap(0)
+    None -> 0
+  }
+  product_sort_cursor_int(product, timestamp)
+}
+
+fn product_sort_cursor_payload(
+  product: ProductRecord,
+  encoded_value: String,
+) -> String {
+  let payload =
+    "{\"last_id\":"
+    <> int.to_string(product_numeric_id(product))
+    <> ",\"last_value\":"
+    <> encoded_value
+    <> "}"
+  payload
+  |> bit_array.from_string
+  |> bit_array.base64_encode(True)
+}
+
+fn product_numeric_id(product: ProductRecord) -> Int {
+  case product.legacy_resource_id {
+    Some(value) ->
+      case int.parse(value) {
+        Ok(parsed) -> parsed
+        Error(_) -> product_numeric_id_from_gid(product.id)
+      }
+    None -> product_numeric_id_from_gid(product.id)
+  }
+}
+
+fn product_numeric_id_from_gid(id: String) -> Int {
+  case list.last(string.split(id, "/")) {
+    Ok(tail) ->
+      case int.parse(tail) {
+        Ok(parsed) -> parsed
+        Error(_) -> 0
+      }
+    Error(_) -> 0
+  }
+}
+
 fn serialize_exact_count(field: Selection, count: Int) -> Json {
   let entries =
     list.map(
@@ -3176,6 +3369,7 @@ fn product_source_with_relationships(
     #("tracksInventory", optional_bool_source(product.tracks_inventory)),
     #("createdAt", optional_string_source(product.created_at)),
     #("updatedAt", optional_string_source(product.updated_at)),
+    #("publishedAt", optional_string_source(product.published_at)),
     #("descriptionHtml", SrcString(product.description_html)),
     #(
       "onlineStorePreviewUrl",
@@ -16570,6 +16764,7 @@ fn created_product_record(
       tracks_inventory: Some(False),
       created_at: Some(created_at),
       updated_at: Some(created_at),
+      published_at: None,
       description_html: read_string_field(input, "descriptionHtml")
         |> option.unwrap(""),
       online_store_preview_url: None,

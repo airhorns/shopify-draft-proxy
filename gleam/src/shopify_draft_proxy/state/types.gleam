@@ -340,6 +340,7 @@ pub type ProductRecord {
     tracks_inventory: Option(Bool),
     created_at: Option(String),
     updated_at: Option(String),
+    published_at: Option(String),
     description_html: String,
     online_store_preview_url: Option(String),
     template_suffix: Option(String),

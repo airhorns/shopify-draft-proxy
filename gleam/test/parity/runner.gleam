@@ -282,6 +282,8 @@ fn seed_capture_preconditions(
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
       seed_products_search_read_preconditions(capture, proxy)
+    "products-sort-keys-read" ->
+      seed_products_sort_keys_preconditions(capture, proxy)
     "product-variants-read" | "inventory-level-read" ->
       seed_product_variants_read_preconditions(capture, proxy)
     "product-options-create-variant-strategy-create"
@@ -3241,6 +3243,120 @@ fn seed_products_search_read_preconditions(
   draft_proxy.DraftProxy(..proxy, store: store)
 }
 
+fn seed_products_sort_keys_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products =
+    [
+      "$.response.data.titleOrder.edges",
+      "$.response.data.vendorOrder.edges",
+      "$.response.data.productTypeOrder.edges",
+      "$.response.data.publishedAtOrder.edges",
+      "$.response.data.idOrder.edges",
+    ]
+    |> list.flat_map(fn(path) {
+      seed_products_from_connection_path(capture, path)
+    })
+    |> list.map(fn(product) {
+      ProductRecord(
+        ..product,
+        vendor: product.vendor |> option.or(infer_product_vendor(product.title)),
+        tags: append_product_tag(product.tags, "egnition-sample-data"),
+      )
+    })
+    |> merge_seed_products
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn append_product_tag(tags: List(String), tag: String) -> List(String) {
+  case list.contains(tags, tag) {
+    True -> tags
+    False -> list.append(tags, [tag])
+  }
+}
+
+fn infer_product_vendor(title: String) -> Option(String) {
+  case string.split(title, "|") {
+    [vendor, ..] -> {
+      let normalized = string.trim(vendor)
+      case normalized {
+        "" -> None
+        _ -> Some(normalized)
+      }
+    }
+    _ -> None
+  }
+}
+
+fn merge_seed_products(products: List(ProductRecord)) -> List(ProductRecord) {
+  products
+  |> list.fold(dict.new(), fn(acc, product) {
+    case dict.get(acc, product.id) {
+      Ok(existing) ->
+        dict.insert(acc, product.id, merge_seed_product(existing, product))
+      Error(_) -> dict.insert(acc, product.id, product)
+    }
+  })
+  |> dict.values
+}
+
+fn merge_seed_product(
+  existing: ProductRecord,
+  candidate: ProductRecord,
+) -> ProductRecord {
+  ProductRecord(
+    ..existing,
+    legacy_resource_id: candidate.legacy_resource_id
+      |> option.or(existing.legacy_resource_id),
+    title: non_empty_or(candidate.title, existing.title),
+    handle: non_empty_or(candidate.handle, existing.handle),
+    status: non_empty_or(candidate.status, existing.status),
+    vendor: candidate.vendor |> option.or(existing.vendor),
+    product_type: candidate.product_type |> option.or(existing.product_type),
+    tags: merge_string_lists(existing.tags, candidate.tags),
+    total_inventory: candidate.total_inventory
+      |> option.or(existing.total_inventory),
+    tracks_inventory: candidate.tracks_inventory
+      |> option.or(existing.tracks_inventory),
+    created_at: candidate.created_at |> option.or(existing.created_at),
+    updated_at: candidate.updated_at |> option.or(existing.updated_at),
+    published_at: candidate.published_at |> option.or(existing.published_at),
+    description_html: non_empty_or(
+      candidate.description_html,
+      existing.description_html,
+    ),
+    online_store_preview_url: candidate.online_store_preview_url
+      |> option.or(existing.online_store_preview_url),
+    template_suffix: candidate.template_suffix
+      |> option.or(existing.template_suffix),
+    publication_ids: merge_string_lists(
+      existing.publication_ids,
+      candidate.publication_ids,
+    ),
+    contextual_pricing: candidate.contextual_pricing
+      |> option.or(existing.contextual_pricing),
+    cursor: candidate.cursor |> option.or(existing.cursor),
+  )
+}
+
+fn non_empty_or(candidate: String, fallback: String) -> String {
+  case candidate {
+    "" -> fallback
+    _ -> candidate
+  }
+}
+
+fn merge_string_lists(left: List(String), right: List(String)) -> List(String) {
+  list.fold(right, left, fn(acc, value) {
+    case list.contains(acc, value) {
+      True -> acc
+      False -> list.append(acc, [value])
+    }
+  })
+}
+
 fn seed_products_from_connection_path(
   capture: JsonValue,
   path: String,
@@ -4019,6 +4135,7 @@ fn seed_inventory_quantity_roots_preconditions(
       tracks_inventory: Some(True),
       created_at: None,
       updated_at: None,
+      published_at: None,
       description_html: "",
       online_store_preview_url: None,
       template_suffix: None,
@@ -4188,6 +4305,7 @@ fn inventory_adjust_seed_product(id: String, handle: String) -> ProductRecord {
     tracks_inventory: Some(True),
     created_at: None,
     updated_at: None,
+    published_at: None,
     description_html: "",
     online_store_preview_url: None,
     template_suffix: None,
@@ -4337,6 +4455,7 @@ fn seed_inventory_activate_preconditions(
             |> Some,
           created_at: None,
           updated_at: None,
+          published_at: None,
           description_html: "",
           online_store_preview_url: None,
           template_suffix: None,
@@ -4574,6 +4693,7 @@ fn make_seed_product_relaxed(source: JsonValue) -> Result(ProductRecord, Nil) {
     tracks_inventory: read_bool_field(source, "tracksInventory"),
     created_at: read_string_field(source, "createdAt"),
     updated_at: read_string_field(source, "updatedAt"),
+    published_at: read_string_field(source, "publishedAt"),
     description_html: read_string_field(source, "descriptionHtml")
       |> option.unwrap(""),
     online_store_preview_url: read_string_field(source, "onlineStorePreviewUrl"),
@@ -4612,6 +4732,7 @@ fn make_seed_product_with_cursor(
     tracks_inventory: read_bool_field(source, "tracksInventory"),
     created_at: read_string_field(source, "createdAt"),
     updated_at: read_string_field(source, "updatedAt"),
+    published_at: read_string_field(source, "publishedAt"),
     description_html: read_string_field(source, "descriptionHtml")
       |> option.unwrap(""),
     online_store_preview_url: read_string_field(source, "onlineStorePreviewUrl"),

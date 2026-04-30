@@ -986,6 +986,7 @@ fn product_json(record: types.ProductRecord) -> Json {
     #("tracksInventory", optional_bool(record.tracks_inventory)),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
+    #("publishedAt", optional_string(record.published_at)),
     #("descriptionHtml", json.string(record.description_html)),
     #("onlineStorePreviewUrl", optional_string(record.online_store_preview_url)),
     #("templateSuffix", optional_string(record.template_suffix)),

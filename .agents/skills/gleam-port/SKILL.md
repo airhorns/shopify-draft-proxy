@@ -366,6 +366,14 @@ synthetic-id/timestamp expected differences.
   Shopify's Product inventory-summary quirk: create sums tracked/not-explicitly
   untracked variants, while update keeps the Product's previous
   `totalInventory` even after inventory-level quantities change.
+- Product sort-key read captures need local Product connection sorting and
+  cursor handling to stay separate: when a Product row has a stored upstream
+  cursor, keep that cursor authoritative; when the captured seed row has no
+  cursor, synthesize Shopify-style base64 JSON cursors from `last_id` plus the
+  sort-key value. The captured `VENDOR` and `PRODUCT_TYPE` tie-breaks are
+  resource-id based, and partial alias seed rows must be merged so sparse
+  selections like ID-only or publishedAt-only rows do not overwrite richer
+  Product metadata needed by other aliases.
 - Product media async plan fixtures depend on timing-sensitive lifecycle state:
   create returns `UPLOADED` in the mutation payload, the immediate downstream
   Product media read is null-url `PROCESSING`, and later successful media

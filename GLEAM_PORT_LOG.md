@@ -9,6 +9,63 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 108: product sort-key read parity
+
+Promotes the captured `products-sort-keys-read` fixture into the Gleam parity
+suite. The port now seeds the captured sort-key Product catalog slices, carries
+Product `publishedAt` through local state/projection, sorts Product connections
+by the captured Shopify sort keys, and emits Shopify-style sort cursors while
+preserving stored upstream cursors for older catalog captures.
+
+| Module                                               | Change                                                                                                                   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds Product `publishedAt` projection, Product connection sorting, sort-key cursor generation, and timestamp term reads. |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds Product `published_at` state so captured Product reads can round-trip `publishedAt`.                               |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries Product `publishedAt` through state JSON output.                                                            |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured sort-key Product aliases and fills fixture-derived searchable tags/vendor fields.                     |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing `products-sort-keys-read` parity spec.                                                        |
+
+Validation:
+Focused JavaScript parity is green for `products-sort-keys-read.json` and the
+existing `products-catalog-read.json` cursor regression guard. Full JavaScript
+is green at 716 tests. Host Erlang still fails with the known local `Undef`
+runner class; the Docker Erlang fallback is green at 712 tests. `corepack pnpm
+elixir:smoke` is green at 16 ExUnit tests. `corepack pnpm gleam:port:coverage`
+is green with 379 specs and 184 expected failures. `corepack pnpm lint` and
+whitespace checks are green. Product parity inventory remains 115 checked-in
+specs, with 108 product specs executable in the Gleam parity suite and 7
+product specs still expected-failing.
+
+### Findings
+
+- Captured Product sort cursors are base64-encoded JSON objects with
+  `last_id` and sort-specific `last_value`. Sort-key fixtures without stored
+  upstream cursors can synthesize these, but pre-existing catalog captures with
+  captured cursors must keep their stored cursor strings authoritative.
+- Shopify's captured Product `VENDOR` and `PRODUCT_TYPE` sort tie-breaks are
+  resource-id based for this fixture, not title-based. Nullable sort values
+  behave like empty strings for ordering so reverse sorts do not promote
+  partial seed rows above real values.
+- The sort-key fixture selects partial Product rows across aliases, so the
+  runner must merge duplicate Product seeds and hydrate searchable metadata
+  implied by the captured query instead of letting sparse aliases overwrite
+  richer Product records.
+
+### Risks / open items
+
+- Advanced product search grammar/pagination/relevance and selling-plan
+  scenarios remain incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 109 candidates
+
+- Continue advanced product search grammar/pagination/relevance parity.
+- Continue selling-plan product/variant association or selling-plan group
+  lifecycle parity.
+
+---
+
 ## 2026-04-30 - Pass 107: productSet graph parity
 
 Promotes the captured `productSet` create/update graph fixture into the Gleam

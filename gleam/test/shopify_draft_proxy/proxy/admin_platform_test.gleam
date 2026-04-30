@@ -150,6 +150,7 @@ fn seeded_product_option_store() {
       tracks_inventory: None,
       created_at: None,
       updated_at: None,
+      published_at: None,
       description_html: "",
       online_store_preview_url: None,
       template_suffix: None,
