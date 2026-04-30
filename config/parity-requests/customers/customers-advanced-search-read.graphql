@@ -5,6 +5,7 @@ query CustomersAdvancedSearchRead($prefixQuery: String!, $orQuery: String!, $gro
       node {
         id
         displayName
+        email
         legacyResourceId
         verifiedEmail
         state
@@ -36,6 +37,7 @@ query CustomersAdvancedSearchRead($prefixQuery: String!, $orQuery: String!, $gro
       node {
         id
         displayName
+        email
         legacyResourceId
         verifiedEmail
         state
@@ -67,6 +69,7 @@ query CustomersAdvancedSearchRead($prefixQuery: String!, $orQuery: String!, $gro
       node {
         id
         displayName
+        email
         legacyResourceId
         verifiedEmail
         state

@@ -224,6 +224,104 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
         gift_card_configuration_json,
       ),
     ),
+    #("customers", dict_to_json(state.customers, customer_json)),
+    #("customerOrder", json.array(state.customer_order, json.string)),
+    #(
+      "customerCatalogConnections",
+      dict_to_json(
+        state.customer_catalog_connections,
+        customer_catalog_connection_json,
+      ),
+    ),
+    #("deletedCustomerIds", bool_dict_to_json(state.deleted_customer_ids)),
+    #(
+      "customerAddresses",
+      dict_to_json(state.customer_addresses, customer_address_json),
+    ),
+    #(
+      "customerAddressOrder",
+      json.array(state.customer_address_order, json.string),
+    ),
+    #(
+      "deletedCustomerAddressIds",
+      bool_dict_to_json(state.deleted_customer_address_ids),
+    ),
+    #(
+      "customerOrderSummaries",
+      dict_to_json(state.customer_order_summaries, customer_order_summary_json),
+    ),
+    #(
+      "customerOrderConnectionPageInfos",
+      dict_to_json(
+        state.customer_order_connection_page_infos,
+        customer_catalog_page_info_json,
+      ),
+    ),
+    #(
+      "customerEventSummaries",
+      dict_to_json(state.customer_event_summaries, customer_event_summary_json),
+    ),
+    #(
+      "customerEventConnectionPageInfos",
+      dict_to_json(
+        state.customer_event_connection_page_infos,
+        customer_catalog_page_info_json,
+      ),
+    ),
+    #(
+      "customerLastOrders",
+      dict_to_json(state.customer_last_orders, customer_order_summary_json),
+    ),
+    #(
+      "customerMetafields",
+      dict_to_json(state.customer_metafields, customer_metafield_json),
+    ),
+    #(
+      "customerPaymentMethods",
+      dict_to_json(state.customer_payment_methods, customer_payment_method_json),
+    ),
+    #(
+      "customerPaymentMethodUpdateUrls",
+      dict_to_json(
+        state.customer_payment_method_update_urls,
+        customer_payment_method_update_url_json,
+      ),
+    ),
+    #(
+      "deletedCustomerPaymentMethodIds",
+      bool_dict_to_json(state.deleted_customer_payment_method_ids),
+    ),
+    #(
+      "storeCreditAccounts",
+      dict_to_json(state.store_credit_accounts, store_credit_account_json),
+    ),
+    #(
+      "storeCreditAccountTransactions",
+      dict_to_json(
+        state.store_credit_account_transactions,
+        store_credit_account_transaction_json,
+      ),
+    ),
+    #(
+      "customerAccountPages",
+      dict_to_json(state.customer_account_pages, customer_account_page_json),
+    ),
+    #(
+      "customerAccountPageOrder",
+      json.array(state.customer_account_page_order, json.string),
+    ),
+    #(
+      "customerDataErasureRequests",
+      dict_to_json(
+        state.customer_data_erasure_requests,
+        customer_data_erasure_request_json,
+      ),
+    ),
+    #("mergedCustomerIds", dict_to_json(state.merged_customer_ids, json.string)),
+    #(
+      "customerMergeRequests",
+      dict_to_json(state.customer_merge_requests, customer_merge_request_json),
+    ),
     #("segments", dict_to_json(state.segments, segment_json)),
     #("segmentOrder", json.array(state.segment_order, json.string)),
     #("deletedSegmentIds", bool_dict_to_json(state.deleted_segment_ids)),
@@ -461,6 +559,97 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
         state.gift_card_configuration,
         gift_card_configuration_json,
       ),
+    ),
+    #("customers", dict_to_json(state.customers, customer_json)),
+    #("customerOrder", json.array(state.customer_order, json.string)),
+    #("deletedCustomerIds", bool_dict_to_json(state.deleted_customer_ids)),
+    #(
+      "customerAddresses",
+      dict_to_json(state.customer_addresses, customer_address_json),
+    ),
+    #(
+      "customerAddressOrder",
+      json.array(state.customer_address_order, json.string),
+    ),
+    #(
+      "deletedCustomerAddressIds",
+      bool_dict_to_json(state.deleted_customer_address_ids),
+    ),
+    #(
+      "customerOrderSummaries",
+      dict_to_json(state.customer_order_summaries, customer_order_summary_json),
+    ),
+    #(
+      "customerOrderConnectionPageInfos",
+      dict_to_json(
+        state.customer_order_connection_page_infos,
+        customer_catalog_page_info_json,
+      ),
+    ),
+    #(
+      "customerEventSummaries",
+      dict_to_json(state.customer_event_summaries, customer_event_summary_json),
+    ),
+    #(
+      "customerEventConnectionPageInfos",
+      dict_to_json(
+        state.customer_event_connection_page_infos,
+        customer_catalog_page_info_json,
+      ),
+    ),
+    #(
+      "customerLastOrders",
+      dict_to_json(state.customer_last_orders, customer_order_summary_json),
+    ),
+    #(
+      "customerMetafields",
+      dict_to_json(state.customer_metafields, customer_metafield_json),
+    ),
+    #(
+      "customerPaymentMethods",
+      dict_to_json(state.customer_payment_methods, customer_payment_method_json),
+    ),
+    #(
+      "customerPaymentMethodUpdateUrls",
+      dict_to_json(
+        state.customer_payment_method_update_urls,
+        customer_payment_method_update_url_json,
+      ),
+    ),
+    #(
+      "deletedCustomerPaymentMethodIds",
+      bool_dict_to_json(state.deleted_customer_payment_method_ids),
+    ),
+    #(
+      "storeCreditAccounts",
+      dict_to_json(state.store_credit_accounts, store_credit_account_json),
+    ),
+    #(
+      "storeCreditAccountTransactions",
+      dict_to_json(
+        state.store_credit_account_transactions,
+        store_credit_account_transaction_json,
+      ),
+    ),
+    #(
+      "customerAccountPages",
+      dict_to_json(state.customer_account_pages, customer_account_page_json),
+    ),
+    #(
+      "customerAccountPageOrder",
+      json.array(state.customer_account_page_order, json.string),
+    ),
+    #(
+      "customerDataErasureRequests",
+      dict_to_json(
+        state.customer_data_erasure_requests,
+        customer_data_erasure_request_json,
+      ),
+    ),
+    #("mergedCustomerIds", dict_to_json(state.merged_customer_ids, json.string)),
+    #(
+      "customerMergeRequests",
+      dict_to_json(state.customer_merge_requests, customer_merge_request_json),
     ),
     #("segments", dict_to_json(state.segments, segment_json)),
     #("segmentOrder", json.array(state.segment_order, json.string)),
@@ -1445,6 +1634,326 @@ fn customer_segment_members_query_json(
   ])
 }
 
+fn customer_json(record: types.CustomerRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("firstName", optional_string(record.first_name)),
+    #("lastName", optional_string(record.last_name)),
+    #("displayName", optional_string(record.display_name)),
+    #("email", optional_string(record.email)),
+    #("legacyResourceId", optional_string(record.legacy_resource_id)),
+    #("locale", optional_string(record.locale)),
+    #("note", optional_string(record.note)),
+    #("canDelete", optional_bool(record.can_delete)),
+    #("verifiedEmail", optional_bool(record.verified_email)),
+    #("dataSaleOptOut", json.bool(record.data_sale_opt_out)),
+    #("taxExempt", optional_bool(record.tax_exempt)),
+    #("taxExemptions", json.array(record.tax_exemptions, json.string)),
+    #("state", optional_string(record.state)),
+    #("tags", json.array(record.tags, json.string)),
+    #("numberOfOrders", optional_string(record.number_of_orders)),
+    #("amountSpent", optional_to_json(record.amount_spent, money_json)),
+    #(
+      "defaultEmailAddress",
+      optional_to_json(
+        record.default_email_address,
+        customer_default_email_address_json,
+      ),
+    ),
+    #(
+      "defaultPhoneNumber",
+      optional_to_json(
+        record.default_phone_number,
+        customer_default_phone_number_json,
+      ),
+    ),
+    #(
+      "emailMarketingConsent",
+      optional_to_json(
+        record.email_marketing_consent,
+        customer_email_marketing_consent_json,
+      ),
+    ),
+    #(
+      "smsMarketingConsent",
+      optional_to_json(
+        record.sms_marketing_consent,
+        customer_sms_marketing_consent_json,
+      ),
+    ),
+    #(
+      "defaultAddress",
+      optional_to_json(record.default_address, customer_default_address_json),
+    ),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+  ])
+}
+
+fn customer_default_email_address_json(
+  record: types.CustomerDefaultEmailAddressRecord,
+) -> Json {
+  json.object([
+    #("emailAddress", optional_string(record.email_address)),
+    #("marketingState", optional_string(record.marketing_state)),
+    #("marketingOptInLevel", optional_string(record.marketing_opt_in_level)),
+    #("marketingUpdatedAt", optional_string(record.marketing_updated_at)),
+  ])
+}
+
+fn customer_default_phone_number_json(
+  record: types.CustomerDefaultPhoneNumberRecord,
+) -> Json {
+  json.object([
+    #("phoneNumber", optional_string(record.phone_number)),
+    #("marketingState", optional_string(record.marketing_state)),
+    #("marketingOptInLevel", optional_string(record.marketing_opt_in_level)),
+    #("marketingUpdatedAt", optional_string(record.marketing_updated_at)),
+  ])
+}
+
+fn customer_email_marketing_consent_json(
+  record: types.CustomerEmailMarketingConsentRecord,
+) -> Json {
+  json.object([
+    #("marketingState", optional_string(record.marketing_state)),
+    #("marketingOptInLevel", optional_string(record.marketing_opt_in_level)),
+    #("consentUpdatedAt", optional_string(record.consent_updated_at)),
+  ])
+}
+
+fn customer_sms_marketing_consent_json(
+  record: types.CustomerSmsMarketingConsentRecord,
+) -> Json {
+  json.object([
+    #("marketingState", optional_string(record.marketing_state)),
+    #("marketingOptInLevel", optional_string(record.marketing_opt_in_level)),
+    #("consentUpdatedAt", optional_string(record.consent_updated_at)),
+    #("consentCollectedFrom", optional_string(record.consent_collected_from)),
+  ])
+}
+
+fn customer_default_address_json(
+  record: types.CustomerDefaultAddressRecord,
+) -> Json {
+  json.object([
+    #("id", optional_string(record.id)),
+    #("address1", optional_string(record.address1)),
+    #("city", optional_string(record.city)),
+    #("country", optional_string(record.country)),
+    #("zip", optional_string(record.zip)),
+  ])
+}
+
+fn customer_address_json(record: types.CustomerAddressRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("customerId", json.string(record.customer_id)),
+    #("cursor", optional_string(record.cursor)),
+    #("firstName", optional_string(record.first_name)),
+    #("lastName", optional_string(record.last_name)),
+    #("address1", optional_string(record.address1)),
+    #("address2", optional_string(record.address2)),
+    #("city", optional_string(record.city)),
+    #("company", optional_string(record.company)),
+    #("province", optional_string(record.province)),
+    #("provinceCode", optional_string(record.province_code)),
+    #("country", optional_string(record.country)),
+    #("countryCodeV2", optional_string(record.country_code_v2)),
+    #("zip", optional_string(record.zip)),
+    #("phone", optional_string(record.phone)),
+    #("name", optional_string(record.name)),
+    #("formattedArea", optional_string(record.formatted_area)),
+  ])
+}
+
+fn customer_catalog_connection_json(
+  record: types.CustomerCatalogConnectionRecord,
+) -> Json {
+  json.object([
+    #(
+      "orderedCustomerIds",
+      json.array(record.ordered_customer_ids, json.string),
+    ),
+    #(
+      "cursorByCustomerId",
+      dict_to_json(record.cursor_by_customer_id, json.string),
+    ),
+    #("pageInfo", customer_catalog_page_info_json(record.page_info)),
+  ])
+}
+
+fn customer_catalog_page_info_json(
+  record: types.CustomerCatalogPageInfoRecord,
+) -> Json {
+  json.object([
+    #("hasNextPage", json.bool(record.has_next_page)),
+    #("hasPreviousPage", json.bool(record.has_previous_page)),
+    #("startCursor", optional_string(record.start_cursor)),
+    #("endCursor", optional_string(record.end_cursor)),
+  ])
+}
+
+fn customer_order_summary_json(
+  record: types.CustomerOrderSummaryRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("customerId", optional_string(record.customer_id)),
+    #("cursor", optional_string(record.cursor)),
+    #("name", optional_string(record.name)),
+    #("email", optional_string(record.email)),
+    #("createdAt", optional_string(record.created_at)),
+    #(
+      "currentTotalPrice",
+      optional_to_json(record.current_total_price, money_json),
+    ),
+  ])
+}
+
+fn customer_event_summary_json(
+  record: types.CustomerEventSummaryRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("customerId", json.string(record.customer_id)),
+    #("cursor", optional_string(record.cursor)),
+  ])
+}
+
+fn customer_metafield_json(record: types.CustomerMetafieldRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("customerId", json.string(record.customer_id)),
+    #("namespace", json.string(record.namespace)),
+    #("key", json.string(record.key)),
+    #("type", json.string(record.type_)),
+    #("value", json.string(record.value)),
+    #("compareDigest", optional_string(record.compare_digest)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+  ])
+}
+
+fn customer_payment_method_json(
+  record: types.CustomerPaymentMethodRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("customerId", json.string(record.customer_id)),
+    #("cursor", optional_string(record.cursor)),
+    #(
+      "instrument",
+      optional_to_json(
+        record.instrument,
+        customer_payment_method_instrument_json,
+      ),
+    ),
+    #("revokedAt", optional_string(record.revoked_at)),
+    #("revokedReason", optional_string(record.revoked_reason)),
+    #(
+      "subscriptionContracts",
+      json.array(
+        record.subscription_contracts,
+        customer_payment_method_subscription_contract_json,
+      ),
+    ),
+  ])
+}
+
+fn customer_payment_method_instrument_json(
+  record: types.CustomerPaymentMethodInstrumentRecord,
+) -> Json {
+  json.object([
+    #("__typename", json.string(record.type_name)),
+    #("data", dict_to_json(record.data, json.string)),
+  ])
+}
+
+fn customer_payment_method_subscription_contract_json(
+  record: types.CustomerPaymentMethodSubscriptionContractRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", dict_to_json(record.data, json.string)),
+  ])
+}
+
+fn customer_payment_method_update_url_json(
+  record: types.CustomerPaymentMethodUpdateUrlRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("customerPaymentMethodId", json.string(record.customer_payment_method_id)),
+    #("updatePaymentMethodUrl", json.string(record.update_payment_method_url)),
+    #("createdAt", json.string(record.created_at)),
+  ])
+}
+
+fn store_credit_account_json(record: types.StoreCreditAccountRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("customerId", json.string(record.customer_id)),
+    #("cursor", optional_string(record.cursor)),
+    #("balance", money_json(record.balance)),
+  ])
+}
+
+fn store_credit_account_transaction_json(
+  record: types.StoreCreditAccountTransactionRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("accountId", json.string(record.account_id)),
+    #("amount", money_json(record.amount)),
+    #("balanceAfterTransaction", money_json(record.balance_after_transaction)),
+    #("createdAt", json.string(record.created_at)),
+    #("event", json.string(record.event)),
+  ])
+}
+
+fn customer_account_page_json(record: types.CustomerAccountPageRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("title", json.string(record.title)),
+    #("handle", json.string(record.handle)),
+    #("defaultCursor", json.string(record.default_cursor)),
+    #("cursor", optional_string(record.cursor)),
+  ])
+}
+
+fn customer_data_erasure_request_json(
+  record: types.CustomerDataErasureRequestRecord,
+) -> Json {
+  json.object([
+    #("customerId", json.string(record.customer_id)),
+    #("requestedAt", json.string(record.requested_at)),
+    #("canceledAt", optional_string(record.canceled_at)),
+  ])
+}
+
+fn customer_merge_request_json(
+  record: types.CustomerMergeRequestRecord,
+) -> Json {
+  json.object([
+    #("jobId", json.string(record.job_id)),
+    #("resultingCustomerId", json.string(record.resulting_customer_id)),
+    #("status", json.string(record.status)),
+    #(
+      "customerMergeErrors",
+      json.array(record.customer_merge_errors, customer_merge_error_json),
+    ),
+  ])
+}
+
+fn customer_merge_error_json(record: types.CustomerMergeErrorRecord) -> Json {
+  json.object([
+    #("errorFields", json.array(record.error_fields, json.string)),
+    #("message", json.string(record.message)),
+  ])
+}
+
 fn locale_json(record: types.LocaleRecord) -> Json {
   json.object([
     #("isoCode", json.string(record.iso_code)),
@@ -1731,6 +2240,29 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     gift_cards: gift_cards,
     gift_card_order: gift_card_order,
     gift_card_configuration: gift_card_configuration,
+    customers: empty.customers,
+    customer_order: empty.customer_order,
+    customer_catalog_connections: empty.customer_catalog_connections,
+    deleted_customer_ids: empty.deleted_customer_ids,
+    customer_addresses: empty.customer_addresses,
+    customer_address_order: empty.customer_address_order,
+    deleted_customer_address_ids: empty.deleted_customer_address_ids,
+    customer_order_summaries: empty.customer_order_summaries,
+    customer_order_connection_page_infos: empty.customer_order_connection_page_infos,
+    customer_event_summaries: empty.customer_event_summaries,
+    customer_event_connection_page_infos: empty.customer_event_connection_page_infos,
+    customer_last_orders: empty.customer_last_orders,
+    customer_metafields: empty.customer_metafields,
+    customer_payment_methods: empty.customer_payment_methods,
+    customer_payment_method_update_urls: empty.customer_payment_method_update_urls,
+    deleted_customer_payment_method_ids: empty.deleted_customer_payment_method_ids,
+    store_credit_accounts: empty.store_credit_accounts,
+    store_credit_account_transactions: empty.store_credit_account_transactions,
+    customer_account_pages: empty.customer_account_pages,
+    customer_account_page_order: empty.customer_account_page_order,
+    customer_data_erasure_requests: empty.customer_data_erasure_requests,
+    merged_customer_ids: empty.merged_customer_ids,
+    customer_merge_requests: empty.customer_merge_requests,
     segments: segments,
     segment_order: segment_order,
     deleted_segment_ids: deleted_segment_ids,
@@ -1989,6 +2521,28 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     gift_cards: gift_cards,
     gift_card_order: gift_card_order,
     gift_card_configuration: gift_card_configuration,
+    customers: empty.customers,
+    customer_order: empty.customer_order,
+    deleted_customer_ids: empty.deleted_customer_ids,
+    customer_addresses: empty.customer_addresses,
+    customer_address_order: empty.customer_address_order,
+    deleted_customer_address_ids: empty.deleted_customer_address_ids,
+    customer_order_summaries: empty.customer_order_summaries,
+    customer_order_connection_page_infos: empty.customer_order_connection_page_infos,
+    customer_event_summaries: empty.customer_event_summaries,
+    customer_event_connection_page_infos: empty.customer_event_connection_page_infos,
+    customer_last_orders: empty.customer_last_orders,
+    customer_metafields: empty.customer_metafields,
+    customer_payment_methods: empty.customer_payment_methods,
+    customer_payment_method_update_urls: empty.customer_payment_method_update_urls,
+    deleted_customer_payment_method_ids: empty.deleted_customer_payment_method_ids,
+    store_credit_accounts: empty.store_credit_accounts,
+    store_credit_account_transactions: empty.store_credit_account_transactions,
+    customer_account_pages: empty.customer_account_pages,
+    customer_account_page_order: empty.customer_account_page_order,
+    customer_data_erasure_requests: empty.customer_data_erasure_requests,
+    merged_customer_ids: empty.merged_customer_ids,
+    customer_merge_requests: empty.customer_merge_requests,
     segments: segments,
     segment_order: segment_order,
     deleted_segment_ids: deleted_segment_ids,
