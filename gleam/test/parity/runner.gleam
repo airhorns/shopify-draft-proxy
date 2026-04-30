@@ -172,6 +172,8 @@ fn seed_capture_preconditions(
       seed_collections_catalog_preconditions(capture, proxy)
     "collection-add-products-live-parity" ->
       seed_collection_add_products_preconditions(capture, proxy)
+    "collection-remove-products-live-parity" ->
+      seed_collection_remove_products_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
@@ -509,6 +511,97 @@ fn seed_collection_add_products_preconditions(
       draft_proxy.DraftProxy(..proxy, store: store)
     }
     None -> proxy
+  }
+}
+
+fn seed_collection_remove_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamRead.data.collection") {
+    Some(collection_json) -> {
+      let target_collection_id =
+        read_string_field(collection_json, "id") |> option.unwrap("")
+      let target_collections = case make_seed_collection(collection_json) {
+        Ok(collection) -> [collection]
+        Error(_) -> []
+      }
+      let collection_product_nodes = case
+        jsonpath.lookup(collection_json, "$.products.nodes")
+      {
+        Some(JArray(nodes)) -> nodes
+        _ -> []
+      }
+      let target_memberships =
+        collection_product_nodes
+        |> enumerate_json_values()
+        |> list.filter_map(fn(entry) {
+          let #(product_json, position) = entry
+          case read_string_field(product_json, "id") {
+            Some(product_id) ->
+              Ok(ProductCollectionRecord(
+                collection_id: target_collection_id,
+                product_id: product_id,
+                position: position + 1,
+                cursor: None,
+              ))
+            None -> Error(Nil)
+          }
+        })
+      let removed_memberships =
+        collection_remove_product_ids(capture)
+        |> enumerate_strings()
+        |> list.map(fn(entry) {
+          let #(product_id, position) = entry
+          ProductCollectionRecord(
+            collection_id: target_collection_id,
+            product_id: product_id,
+            position: position,
+            cursor: None,
+          )
+        })
+      let existing =
+        seed_existing_product_collections(
+          capture,
+          "$.downstreamRead.data.untouched",
+          target_collection_id,
+        )
+      let existing_collections =
+        list.filter_map(existing, fn(entry) {
+          let #(collection, _) = entry
+          Ok(collection)
+        })
+      let existing_memberships =
+        list.map(existing, fn(entry) {
+          let #(_, membership) = entry
+          membership
+        })
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(list.append(
+          target_collections,
+          existing_collections,
+        ))
+        |> store_mod.upsert_base_product_collections(list.append(
+          list.append(removed_memberships, target_memberships),
+          existing_memberships,
+        ))
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn collection_remove_product_ids(capture: JsonValue) -> List(String) {
+  case jsonpath.lookup(capture, "$.mutation.variables.productIds") {
+    Some(JArray(ids)) ->
+      list.filter_map(ids, fn(id) {
+        case id {
+          JString(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
   }
 }
 
@@ -2642,6 +2735,22 @@ fn json_bool_or(value: Option(JsonValue), fallback: Bool) -> Bool {
 
 fn enumerate_json_values(items: List(JsonValue)) -> List(#(JsonValue, Int)) {
   enumerate_json_values_loop(items, 0, [])
+}
+
+fn enumerate_strings(items: List(String)) -> List(#(String, Int)) {
+  enumerate_strings_loop(items, 0, [])
+}
+
+fn enumerate_strings_loop(
+  items: List(String),
+  index: Int,
+  acc: List(#(String, Int)),
+) -> List(#(String, Int)) {
+  case items {
+    [] -> list.reverse(acc)
+    [first, ..rest] ->
+      enumerate_strings_loop(rest, index + 1, [#(first, index), ..acc])
+  }
 }
 
 fn enumerate_json_values_loop(

@@ -122,6 +122,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "inventorySetQuantities"
     | "inventoryMoveQuantities"
     | "collectionAddProducts"
+    | "collectionRemoveProducts"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -3050,6 +3051,33 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "collectionRemoveProducts" -> {
+              let result =
+                handle_collection_remove_products(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged collectionRemoveProducts locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "tagsAdd" -> {
               let result =
                 handle_tags_update(
@@ -5329,6 +5357,117 @@ fn stage_collection_product_memberships(
   }
 }
 
+fn handle_collection_remove_products(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "id") {
+    None ->
+      mutation_result(
+        key,
+        collection_remove_products_payload(
+          None,
+          [
+            ProductUserError(["id"], "Collection id is required", None),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(collection_id) ->
+      case store.get_effective_collection_by_id(store, collection_id) {
+        None ->
+          mutation_result(
+            key,
+            collection_remove_products_payload(
+              None,
+              [
+                ProductUserError(["id"], "Collection not found", None),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(collection) -> {
+          let next_store =
+            remove_products_from_collection(
+              store,
+              collection,
+              read_arg_string_list(args, "productIds"),
+            )
+          let next_count =
+            store.list_effective_products_for_collection(
+              next_store,
+              collection.id,
+            )
+            |> list.length
+          let next_collection =
+            CollectionRecord(..collection, products_count: Some(next_count))
+          let next_store =
+            store.upsert_staged_collections(next_store, [next_collection])
+          let #(job_id, next_identity) =
+            synthetic_identity.make_synthetic_gid(identity, "Job")
+          mutation_result(
+            key,
+            collection_remove_products_payload(
+              Some(job_id),
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            next_identity,
+            [collection.id],
+          )
+        }
+      }
+  }
+}
+
+fn remove_products_from_collection(
+  store: Store,
+  collection: CollectionRecord,
+  product_ids: List(String),
+) -> Store {
+  let normalized_product_ids = dedupe_preserving_order(product_ids)
+  list.fold(normalized_product_ids, store, fn(current_store, product_id) {
+    case store.get_effective_product_by_id(current_store, product_id) {
+      None -> current_store
+      Some(_) -> {
+        let next_memberships =
+          store.list_effective_collections_for_product(
+            current_store,
+            product_id,
+          )
+          |> list.filter(fn(entry) {
+            let #(existing_collection, _) = entry
+            existing_collection.id != collection.id
+          })
+          |> list.map(fn(entry) {
+            let #(_, membership) = entry
+            membership
+          })
+        store.replace_staged_collections_for_product(
+          current_store,
+          product_id,
+          next_memberships,
+        )
+      }
+    }
+  })
+}
+
 fn product_already_in_collection(
   store: Store,
   collection_id: String,
@@ -6545,6 +6684,35 @@ fn collection_add_products_payload(
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,
   )
+}
+
+fn collection_remove_products_payload(
+  job_id: Option(String),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let job_value = case job_id {
+    Some(id) -> job_source(id, False)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("CollectionRemoveProductsPayload")),
+      #("job", job_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn job_source(id: String, done: Bool) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Job")),
+    #("id", SrcString(id)),
+    #("done", SrcBool(done)),
+  ])
 }
 
 fn inventory_adjustment_group_source(

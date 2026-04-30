@@ -132,6 +132,7 @@ pub type StagedState {
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
     product_collections: Dict(String, ProductCollectionRecord),
+    staged_product_collection_families: Dict(String, Bool),
     deleted_collection_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
@@ -356,6 +357,7 @@ pub fn empty_staged_state() -> StagedState {
     collections: dict.new(),
     collection_order: [],
     product_collections: dict.new(),
+    staged_product_collection_families: dict.new(),
     deleted_collection_ids: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
@@ -697,6 +699,43 @@ pub fn upsert_staged_product_collections(
   )
 }
 
+pub fn replace_staged_collections_for_product(
+  store: Store,
+  product_id: String,
+  records: List(ProductCollectionRecord),
+) -> Store {
+  let staged = store.staged_state
+  let retained =
+    staged.product_collections
+    |> dict.keys()
+    |> list.fold(staged.product_collections, fn(acc, key) {
+      case dict.get(acc, key) {
+        Ok(record) ->
+          case record.product_id == product_id {
+            True -> dict.delete(acc, key)
+            False -> acc
+          }
+        Error(_) -> acc
+      }
+    })
+  let product_collections =
+    list.fold(records, retained, fn(acc, record) {
+      dict.insert(acc, product_collection_storage_key(record), record)
+    })
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      product_collections: product_collections,
+      staged_product_collection_families: dict.insert(
+        staged.staged_product_collection_families,
+        product_id,
+        True,
+      ),
+    ),
+  )
+}
+
 pub fn get_effective_collection_by_id(
   store: Store,
   id: String,
@@ -764,8 +803,14 @@ pub fn list_effective_products_for_collection(
   collection_id: String,
 ) -> List(#(ProductRecord, ProductCollectionRecord)) {
   let memberships =
-    dict.values(store.base_state.product_collections)
-    |> list.append(dict.values(store.staged_state.product_collections))
+    list_effective_products(store)
+    |> list.flat_map(fn(product) {
+      list_effective_collections_for_product(store, product.id)
+    })
+    |> list.map(fn(entry) {
+      let #(_, membership) = entry
+      membership
+    })
     |> list.filter(fn(record) { record.collection_id == collection_id })
     |> list.sort(compare_product_collection_records)
   list.filter_map(memberships, fn(membership) {
@@ -780,10 +825,20 @@ pub fn list_effective_collections_for_product(
   store: Store,
   product_id: String,
 ) -> List(#(CollectionRecord, ProductCollectionRecord)) {
-  let memberships =
-    dict.values(store.base_state.product_collections)
-    |> list.append(dict.values(store.staged_state.product_collections))
+  let staged_memberships =
+    dict.values(store.staged_state.product_collections)
     |> list.filter(fn(record) { record.product_id == product_id })
+  let source_memberships = case
+    dict_has(store.staged_state.staged_product_collection_families, product_id)
+  {
+    True -> staged_memberships
+    False ->
+      dict.values(store.base_state.product_collections)
+      |> list.append(staged_memberships)
+      |> list.filter(fn(record) { record.product_id == product_id })
+  }
+  let memberships =
+    source_memberships
     |> list.sort(compare_product_collection_records)
   list.filter_map(memberships, fn(membership) {
     case get_effective_collection_by_id(store, membership.collection_id) {

@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 74: collection remove-products staging
+
+Completes the second collection membership mutation in the Gleam Products
+handler. The pass wires `collectionRemoveProducts` into the local mutation
+dispatcher, stages per-product collection membership replacements without
+runtime Shopify writes, and emits the captured asynchronous Job/userErrors
+payload shape.
+
+The pass promotes `collectionRemoveProducts-parity-plan` into the Gleam parity
+suite. The checked-in fixture, request document, variables, and comparison
+contract stay unchanged.
+
+| Module                                               | Change                                                         |
+| ---------------------------------------------------- | -------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds staged product-collection family replacement semantics.   |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages `collectionRemoveProducts` and serializes Job payloads. |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured remove-products collection preconditions.       |
+| `gleam/test/parity_test.gleam`                       | Enables the strict collection remove-products parity spec.     |
+
+Validation:
+`gleam test --target javascript collection_remove_products_live_parity_test` is
+green at 773 tests, and full `gleam test --target javascript` is green at 773
+tests on the host Node runtime. Host `gleam test --target erlang` still fails
+before tests execute on the local Erlang install with the known `undef` runner
+issue; after clearing host-built Erlang artifacts, the Docker Erlang fallback is
+green at 769 tests. Product parity inventory remains 115 checked-in specs, with
+59 product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay returning
+  HTTP 400 with `No mutation dispatcher implemented for root field:
+collectionRemoveProducts`.
+- Shopify returns a `Job` with `done: false` for a successful removal, and the
+  proxy only treats the Job ID as nondeterministic under the existing strict
+  comparison contract.
+- Collection-side product reads need to derive membership through each
+  product's effective collection family so staged removals suppress base
+  memberships without hiding unrelated collection links.
+
+### Risks / open items
+
+- Remaining collection roots, inventory shipment/transfer, publication links,
+  product feeds/feedback, selling plans, product metafields, media, advanced
+  search, and broader validation atomicity parity remain incomplete in Gleam.
+- Only 59 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 75 candidates
+
+- Continue collection membership roots with `collectionReorderProducts`, using
+  the staged product-collection family substrate added here.
+- Port `collectionCreate` initial-products behavior, which should reuse the
+  collection membership seeding and projection paths.
+- Port product metafield behavior now that Product, Product Option,
+  Product Variant, Inventory, and Collection read/write slices are locally
+  staged or seeded.
+
+---
+
 ## 2026-04-30 - Pass 73: collection add-products staging
 
 Adds the first collection membership mutation to the Gleam Products handler.
