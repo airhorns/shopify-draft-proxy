@@ -18,12 +18,12 @@ access-denied responses, and downstream `order(id:)` payment reads without
 claiming broader Orders coverage. The pass keeps the TypeScript Orders and
 Payments runtimes intact for the final all-port cutover.
 
-| Module | Change |
-| ------ | ------ |
-| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds the narrow Orders payment lifecycle model for synthetic order creation, authorization/capture/void/mandate/manual-payment behavior, derived financial fields, transaction serialization, parent-transaction projection, and mutation-log timing parity. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Wires the Orders payment roots and `order(id:)` read into explicit local dispatch alongside the Payments domain. |
-| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds order payment records, staged/base store slices, effective-order lookup, transaction lookup, mandate-payment idempotency storage, and state dump serialization fields. |
-| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json` | Removes the order-payment expected failures once the existing captured parity specs pass on both targets. |
+| Module                                                                  | Change                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                      | Adds the narrow Orders payment lifecycle model for synthetic order creation, authorization/capture/void/mandate/manual-payment behavior, derived financial fields, transaction serialization, parent-transaction projection, and mutation-log timing parity. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Wires the Orders payment roots and `order(id:)` read into explicit local dispatch alongside the Payments domain.                                                                                                                                             |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds order payment records, staged/base store slices, effective-order lookup, transaction lookup, mandate-payment idempotency storage, and state dump serialization fields.                                                                                  |
+| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json`    | Removes the order-payment expected failures once the existing captured parity specs pass on both targets.                                                                                                                                                    |
 
 Validation: `gleam format --check`, `git diff --check`,
 `gleam check --target javascript`, `gleam check --target erlang`, the
@@ -86,13 +86,13 @@ customer projection now exposes staged payment-method instruments, and the
 parity runner seeds customer payment-method and payment-terms captures before
 replay.
 
-| Module | Change |
-| ------ | ------ |
-| `gleam/src/shopify_draft_proxy/proxy/payments.gleam` | Adds the Payments query/mutation domain with local staging, scrubbed customer payment-method payloads, static payment terms templates, payment terms read-after-write, and Shopify-like no-data roots. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Wires Payments into explicit local query/mutation dispatch and mutation-log finalization. |
-| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds payment customization, payment reminder, and payment terms state slices plus observable meta-state serialization. |
-| `gleam/src/shopify_draft_proxy/proxy/customers.gleam` | Projects customer payment-method instruments from staged/base state for downstream reads. |
-| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json` | Seeds captured payment preconditions and removes all checked-in Payments parity specs from expected failures. |
+| Module                                                                  | Change                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/payments.gleam`                    | Adds the Payments query/mutation domain with local staging, scrubbed customer payment-method payloads, static payment terms templates, payment terms read-after-write, and Shopify-like no-data roots. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Wires Payments into explicit local query/mutation dispatch and mutation-log finalization.                                                                                                              |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds payment customization, payment reminder, and payment terms state slices plus observable meta-state serialization.                                                                                 |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`                   | Projects customer payment-method instruments from staged/base state for downstream reads.                                                                                                              |
+| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json`    | Seeds captured payment preconditions and removes all checked-in Payments parity specs from expected failures.                                                                                          |
 
 Validation: `gleam test --target javascript -- --seed 0` is green at 679
 tests. The host Erlang runtime is OTP 25 and fails `gleam_json`'s OTP 27+
