@@ -107,6 +107,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productVariantsBulkCreate"
     | "productVariantsBulkUpdate"
     | "productVariantsBulkDelete"
+    | "productVariantsBulkReorder"
     | "inventorySetQuantities"
     | "inventoryMoveQuantities"
     | "tagsAdd"
@@ -1584,6 +1585,10 @@ type InventoryMoveQuantityInput {
   )
 }
 
+type ProductVariantPositionInput {
+  ProductVariantPositionInput(id: String, position: Int)
+}
+
 type MutationFieldResult {
   MutationFieldResult(
     key: String,
@@ -2063,6 +2068,33 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some("Gleam staged productVariantsBulkDelete locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "productVariantsBulkReorder" -> {
+              let result =
+                handle_product_variants_bulk_reorder(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productVariantsBulkReorder locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -3305,6 +3337,103 @@ fn handle_product_variants_bulk_delete(
             final_identity,
             variant_ids,
           )
+        }
+      }
+  }
+}
+
+fn handle_product_variants_bulk_reorder(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "productId") {
+    None ->
+      mutation_result(
+        key,
+        product_variants_bulk_reorder_payload(
+          store,
+          None,
+          [ProductUserError(["productId"], "Product id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            product_variants_bulk_reorder_payload(
+              store,
+              None,
+              [ProductUserError(["productId"], "Product not found", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(_) -> {
+          let #(positions, user_errors) =
+            read_product_variant_positions(read_arg_object_list(
+              args,
+              "positions",
+            ))
+          let effective_variants =
+            store.get_effective_variants_by_product_id(store, product_id)
+          let missing_errors =
+            validate_product_variant_positions(effective_variants, positions)
+          let all_errors = list.append(user_errors, missing_errors)
+          case all_errors {
+            [_, ..] ->
+              mutation_result(
+                key,
+                product_variants_bulk_reorder_payload(
+                  store,
+                  None,
+                  all_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            [] -> {
+              let next_variants =
+                apply_sequential_variant_reorder(effective_variants, positions)
+              let next_store =
+                store.replace_staged_variants_for_product(
+                  store,
+                  product_id,
+                  next_variants,
+                )
+              let #(product, next_store, final_identity) =
+                sync_product_inventory_summary(next_store, identity, product_id)
+              mutation_result(
+                key,
+                product_variants_bulk_reorder_payload(
+                  next_store,
+                  product,
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                final_identity,
+                list.map(next_variants, fn(variant) { variant.id }),
+              )
+            }
+          }
         }
       }
   }
@@ -4649,6 +4778,28 @@ fn product_variants_bulk_delete_payload(
   )
 }
 
+fn product_variants_bulk_reorder_payload(
+  store: Store,
+  product: Option(ProductRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductVariantsBulkReorderPayload")),
+      #("product", product_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn inventory_quantity_mutation_result(
   key: String,
   typename: String,
@@ -5423,6 +5574,132 @@ fn update_variant_records(
     list.reverse(reversed_updated),
     final_identity,
   )
+}
+
+fn read_product_variant_positions(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> #(List(ProductVariantPositionInput), List(ProductUserError)) {
+  case inputs {
+    [] -> #([], [
+      ProductUserError(["positions"], "At least one position is required", None),
+    ])
+    _ -> {
+      let #(reversed_positions, errors) =
+        inputs
+        |> enumerate_items()
+        |> list.fold(#([], []), fn(acc, pair) {
+          let #(positions, errors) = acc
+          let #(input, index) = pair
+          let path = ["positions", int.to_string(index)]
+          let variant_id = read_arg_string(input, "id")
+          let raw_position = read_int_field(input, "position")
+          let id_errors = case variant_id {
+            None -> [
+              ProductUserError(
+                list.append(path, ["id"]),
+                "Variant id is required",
+                None,
+              ),
+            ]
+            Some(_) -> []
+          }
+          let position_errors = case raw_position {
+            Some(position) if position >= 1 -> []
+            _ -> [
+              ProductUserError(
+                list.append(path, ["position"]),
+                "Position is invalid",
+                None,
+              ),
+            ]
+          }
+          let next_positions = case variant_id, raw_position {
+            Some(id), Some(position) if position >= 1 -> [
+              ProductVariantPositionInput(id: id, position: position - 1),
+              ..positions
+            ]
+            _, _ -> positions
+          }
+          #(
+            next_positions,
+            list.append(errors, list.append(id_errors, position_errors)),
+          )
+        })
+      #(list.reverse(reversed_positions), errors)
+    }
+  }
+}
+
+fn validate_product_variant_positions(
+  variants: List(ProductVariantRecord),
+  positions: List(ProductVariantPositionInput),
+) -> List(ProductUserError) {
+  positions
+  |> enumerate_items()
+  |> list.filter_map(fn(pair) {
+    let #(position, index) = pair
+    case list.any(variants, fn(variant) { variant.id == position.id }) {
+      True -> Error(Nil)
+      False ->
+        Ok(ProductUserError(
+          ["positions", int.to_string(index), "id"],
+          "Variant does not exist",
+          None,
+        ))
+    }
+  })
+}
+
+fn apply_sequential_variant_reorder(
+  variants: List(ProductVariantRecord),
+  positions: List(ProductVariantPositionInput),
+) -> List(ProductVariantRecord) {
+  list.fold(positions, variants, fn(current, position) {
+    move_variant_to_position(current, position.id, position.position)
+  })
+}
+
+fn move_variant_to_position(
+  variants: List(ProductVariantRecord),
+  variant_id: String,
+  position: Int,
+) -> List(ProductVariantRecord) {
+  let #(variant, remaining) = remove_variant_by_id(variants, variant_id, [])
+  case variant {
+    Some(record) -> insert_variant_at_position(remaining, record, position)
+    None -> variants
+  }
+}
+
+fn remove_variant_by_id(
+  variants: List(ProductVariantRecord),
+  variant_id: String,
+  reversed_before: List(ProductVariantRecord),
+) -> #(Option(ProductVariantRecord), List(ProductVariantRecord)) {
+  case variants {
+    [] -> #(None, list.reverse(reversed_before))
+    [first, ..rest] ->
+      case first.id == variant_id {
+        True -> #(Some(first), list.append(list.reverse(reversed_before), rest))
+        False ->
+          remove_variant_by_id(rest, variant_id, [first, ..reversed_before])
+      }
+  }
+}
+
+fn insert_variant_at_position(
+  variants: List(ProductVariantRecord),
+  variant: ProductVariantRecord,
+  position: Int,
+) -> List(ProductVariantRecord) {
+  case variants, position <= 0 {
+    _, True -> [variant, ..variants]
+    [], False -> [variant]
+    [first, ..rest], False -> [
+      first,
+      ..insert_variant_at_position(rest, variant, position - 1)
+    ]
+  }
 }
 
 fn find_variant_update(

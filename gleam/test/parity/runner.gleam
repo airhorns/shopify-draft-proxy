@@ -195,6 +195,8 @@ fn seed_capture_preconditions(
       seed_product_variant_delete_preconditions(capture, proxy)
     "inventory-quantity-roots-parity" ->
       seed_inventory_quantity_roots_preconditions(capture, proxy)
+    "product-variants-bulk-reorder-live-parity" ->
+      seed_product_variants_bulk_reorder_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -717,6 +719,25 @@ fn seed_product_variant_delete_preconditions(
         }
         Error(_) -> proxy
       }
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_variants_bulk_reorder_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.productVariantsBulkCreate.data.productVariantsBulkCreate.product",
+    )
+  {
+    Some(product_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let variants = seed_variants_for_product(product_json)
+      seed_product_and_base_variants(proxy, product, variants)
     }
     None -> proxy
   }

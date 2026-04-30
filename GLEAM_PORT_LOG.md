@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 59: product variant bulk reorder lifecycle
+
+Adds local staging for `productVariantsBulkReorder`. The Gleam Products
+mutation handler now routes the root locally, preserves the raw mutation request
+through the centralized draft-log path, applies Shopify's captured one-based
+`ProductVariantPositionInput.position` semantics, stages the reordered variant
+family, and exposes immediate downstream Product variant reads without runtime
+Shopify writes.
+
+The pass promotes `productVariantsBulkReorder-parity` into the Gleam parity
+suite. Runner seeding reconstructs the two-variant Product graph from the
+captured post-bulk-create setup payload, then replays the captured reorder
+mutation and strict downstream Product read without changing any fixture,
+request, or comparison contract.
+
+| Module                                               | Change                                                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds bulk variant reorder routing, position validation, sequential reorder staging, and payload. |
+| `gleam/test/parity/runner.gleam`                     | Seeds the two-variant reorder fixture preconditions from captured setup data.                    |
+| `gleam/test/parity_test.gleam`                       | Enables the strict product variant bulk reorder parity scenario.                                 |
+
+Validation: `gleam test --target javascript` is green at 757 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails before tests execute
+on the local Erlang install with the known `undef` runner issue; after clearing
+host-built Erlang artifacts, the Docker Erlang fallback is green at 753 tests.
+Product parity inventory remains 115 checked-in specs, with 43 product specs
+executable in the Gleam parity suite plus the admin-platform ProductOption node
+scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  request returning HTTP 400 for `productVariantsBulkReorder` because the root
+  was not routed by the Gleam Products mutation dispatcher.
+- The captured Shopify behavior treats positions as one-based; the local
+  staging converts them to zero-based list indexes only after validation.
+- The fixture's captured setup product payload is enough to seed Product and
+  ProductVariant records because the compared mutation/downstream slices select
+  only variant identity, title, and selected options.
+
+### Risks / open items
+
+- This pass covers the captured two-variant reorder success slice, not a broad
+  validation matrix for missing variants or malformed position inputs.
+- Collections, publication, product feeds/feedback, selling plans, product
+  metafields, inventory activation/shipment/transfer, and remaining variant
+  relationship/media behavior remain incomplete in Gleam.
+- Only 43 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 60 candidates
+
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+- Add product variant relationship/media update scenarios now that variant
+  family ordering and replacement helpers are in place.
+- Add inventory activation/quantity-adjacent roots that build on the staged
+  InventoryLevel helpers introduced in Pass 58.
+
+---
+
 ## 2026-04-30 — Pass 58: inventory quantity set/move lifecycle
 
 Adds local staging for the captured inventory quantity roots
