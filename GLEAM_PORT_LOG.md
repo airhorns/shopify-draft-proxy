@@ -20,14 +20,14 @@ parity-runner fixture seeding for the checked-in B2B captures. Email-delivery
 behavior remains outside local B2B support rather than inventing local side
 effects.
 
-| Module                                                               | Change                                                                                                                    |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/b2b.gleam`                      | Adds B2B query and mutation handling for company/contact/location/role lifecycle flows and relationship/tax updates.      |
-| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds B2B normalized records, effective-state helpers, delete markers, and state dump buckets with empty restore defaults. |
-| `gleam/src/shopify_draft_proxy/proxy/{draft_proxy,admin_platform}.gleam` | Wires B2B query/mutation dispatch and B2B Relay node reads without broadening unsupported roots.                           |
-| `gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam`                | Adds targeted Gleam coverage for B2B lifecycle mutations, downstream reads, and unsupported email-delivery boundaries.    |
-| `gleam/test/parity/{runner,diff,spec}.gleam`                         | Seeds B2B read fixtures and fixes nested wildcard diff matching needed by the B2B parity specs.                           |
-| `config/gleam-port-ci-gates.json`                                    | Removes the now-passing B2B specs, plus a stale passing localization spec, from expected Gleam parity failures.           |
+| Module                                                                   | Change                                                                                                                    |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/b2b.gleam`                          | Adds B2B query and mutation handling for company/contact/location/role lifecycle flows and relationship/tax updates.      |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam`  | Adds B2B normalized records, effective-state helpers, delete markers, and state dump buckets with empty restore defaults. |
+| `gleam/src/shopify_draft_proxy/proxy/{draft_proxy,admin_platform}.gleam` | Wires B2B query/mutation dispatch and B2B Relay node reads without broadening unsupported roots.                          |
+| `gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam`                    | Adds targeted Gleam coverage for B2B lifecycle mutations, downstream reads, and unsupported email-delivery boundaries.    |
+| `gleam/test/parity/{runner,diff,spec}.gleam`                             | Seeds B2B read fixtures and fixes nested wildcard diff matching needed by the B2B parity specs.                           |
+| `config/gleam-port-ci-gates.json`                                        | Removes the now-passing B2B specs, plus a stale passing localization spec, from expected Gleam parity failures.           |
 
 Validation: `gleam test --target javascript` was green at 681 tests. `gleam
 test --target erlang` was green at 677 tests via the
