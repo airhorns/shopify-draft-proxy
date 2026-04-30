@@ -176,6 +176,8 @@ fn seed_capture_preconditions(
     | "product-options-delete-live-parity"
     | "admin-platform-product-option-node-reads" ->
       seed_pre_mutation_product_preconditions(capture, proxy)
+    "product-delete-live-parity" ->
+      seed_product_delete_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -411,6 +413,23 @@ fn seed_product_json(product_json: JsonValue, proxy: DraftProxy) -> DraftProxy {
     |> store_mod.upsert_base_product_variants(variants)
     |> seed_options_for_product(product_json)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_product_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.mutation.variables.input.id") {
+    Some(JString(product_id)) -> {
+      let product_json =
+        JObject([
+          #("id", JString(product_id)),
+          #("title", JString("Product delete conformance seed")),
+        ])
+      seed_product_json(product_json, proxy)
+    }
+    _ -> proxy
+  }
 }
 
 fn make_seed_product_from_edge(edge: JsonValue) -> Result(ProductRecord, Nil) {

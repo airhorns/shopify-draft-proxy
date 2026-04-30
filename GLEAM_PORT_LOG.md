@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 52: productDelete lifecycle
+
+Adds local `productDelete` staging to the Gleam Products mutation handler. The
+handler now routes the root locally, validates the captured `ProductDeleteInput`
+branches without runtime Shopify writes, returns Shopify-like success and
+unknown-product payloads, marks deleted Product IDs in staged state, and
+preserves the raw mutation through the centralized mutation-log path.
+
+The parity runner now mirrors the TypeScript parity harness for the successful
+delete capture by seeding a minimal base Product from the captured mutation
+variables. Unknown-id validation remains unseeded so it continues to return
+Shopify's `Product does not exist` userError.
+
+| Module                                                              | Change                                                                                         |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds `productDelete` routing, staging, payload projection, and captured input error envelopes. |
+| `gleam/test/parity/runner.gleam`                                    | Seeds successful product delete parity from captured mutation variables only.                  |
+| `gleam/test/parity_test.gleam`                                      | Enables five strict `productDelete` parity scenarios.                                          |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct mutation/read-after-write/log coverage for product deletion.                       |
+
+Validation: `gleam test --target javascript` is green at 731 tests on the host
+Node runtime. Host `gleam test --target erlang` compiles but fails because the
+host Erlang runtime is OTP 25 while `gleam_json` requires OTP 27+; after
+clearing host-built Erlang artifacts, the Docker Erlang fallback is green at
+727 tests. Product parity inventory remains 115 checked-in specs, with 24
+product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  request returning HTTP 400 for `productDelete` because the root was not
+  routed by the Gleam Products mutation dispatcher.
+- The captured success fixture does not include a pre-mutation product read;
+  the TypeScript parity harness seeds the product from the captured mutation
+  ID, and the Gleam runner now does the same only for the success scenario.
+- Shopify reports inline missing/null `input.id` as top-level GraphQL errors
+  against the `ProductDeleteInput` object, while unknown Product IDs remain a
+  payload-level `userErrors` response.
+
+### Risks / open items
+
+- Product create/update, variants, collections, inventory mutation families,
+  publications, product metafields, tags, selling plans, feeds, and feedback
+  remain incomplete in Gleam.
+- Host Erlang validation needs OTP 27+ to run this repository's current
+  `gleam_json` version; Docker remains the local Erlang target proof.
+- Only 24 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 53 candidates
+
+- Add `productCreate` / `productUpdate` local lifecycle slices with their
+  captured validation branches.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Port collection membership and product variant media relationship roots so
+  the full `product-relationship-roots-live-parity` scenario can run.
+
+---
+
 ## 2026-04-30 — Pass 51: productChangeStatus lifecycle
 
 Adds local `productChangeStatus` staging to the Gleam Products mutation

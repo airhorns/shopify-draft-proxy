@@ -168,6 +168,30 @@ pub fn product_change_status_null_product_id_parity_test() {
   )
 }
 
+pub fn product_delete_parity_plan_test() {
+  check("config/parity-specs/products/productDelete-parity-plan.json")
+}
+
+pub fn product_delete_unknown_id_parity_test() {
+  check("config/parity-specs/products/productDelete-unknown-id-parity.json")
+}
+
+pub fn product_delete_inline_missing_id_parity_test() {
+  check(
+    "config/parity-specs/products/productDelete-inline-missing-id-parity.json",
+  )
+}
+
+pub fn product_delete_inline_null_id_parity_test() {
+  check("config/parity-specs/products/productDelete-inline-null-id-parity.json")
+}
+
+pub fn product_delete_variable_missing_id_parity_test() {
+  check(
+    "config/parity-specs/products/productDelete-variable-missing-id-parity.json",
+  )
+}
+
 pub fn admin_platform_product_option_node_reads_test() {
   check(
     "config/parity-specs/admin-platform/admin-platform-product-option-node-reads.json",

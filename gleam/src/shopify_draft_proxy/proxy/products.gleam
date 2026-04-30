@@ -14,12 +14,19 @@ import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, NullValue}
-import shopify_draft_proxy/graphql/parse_operation
-import shopify_draft_proxy/graphql/root_field.{
-  type ResolvedValue, type RootFieldError, BoolVal, IntVal, ListVal, NullVal,
-  ObjectVal, StringVal, get_field_arguments, get_root_fields,
+import shopify_draft_proxy/graphql/ast.{
+  type Definition, type Location, type ObjectField, type Selection,
+  type VariableDefinition, Field, NullValue, ObjectField, ObjectValue,
+  OperationDefinition, VariableDefinition, VariableValue,
 }
+import shopify_draft_proxy/graphql/location as graphql_location
+import shopify_draft_proxy/graphql/parse_operation
+import shopify_draft_proxy/graphql/parser
+import shopify_draft_proxy/graphql/root_field.{
+  type ResolvedValue, type RootFieldError, BoolVal, FloatVal, IntVal, ListVal,
+  NullVal, ObjectVal, StringVal, get_field_arguments, get_root_fields,
+}
+import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
@@ -89,7 +96,8 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productOptionUpdate"
     | "productOptionsDelete"
     | "productOptionsReorder"
-    | "productChangeStatus" -> True
+    | "productChangeStatus"
+    | "productDelete" -> True
     _ -> False
   }
 }
@@ -1705,6 +1713,47 @@ fn handle_mutation_fields(
                 next_drafts,
               )
             }
+            "productDelete" -> {
+              let result =
+                handle_product_delete(
+                  current_store,
+                  current_identity,
+                  document,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productDelete locally."),
+                )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> entries
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
+              #(
+                next_entries,
+                next_errors,
+                result.store,
+                result.identity,
+                next_staged,
+                next_drafts,
+              )
+            }
             _ -> acc
           }
         _ -> acc
@@ -2001,6 +2050,328 @@ fn handle_product_change_status(
         }
       }
     }
+  }
+}
+
+fn handle_product_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  case product_delete_input_error(document, field, variables) {
+    Some(error) -> mutation_error_result(key, store, identity, [error])
+    None -> {
+      let args = field_args(field, variables)
+      let input = read_arg_object(args, "input")
+      let id = case input {
+        Some(input) -> read_arg_string(input, "id")
+        None -> read_arg_string(args, "id")
+      }
+      case id {
+        None ->
+          mutation_error_result(key, store, identity, [
+            build_product_delete_invalid_variable_error(
+              "input",
+              json.object([]),
+              None,
+              document,
+            ),
+          ])
+        Some(product_id) ->
+          case store.get_effective_product_by_id(store, product_id) {
+            None ->
+              mutation_result(
+                key,
+                product_delete_payload(
+                  None,
+                  [ProductUserError(["id"], "Product does not exist", None)],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            Some(_) -> {
+              let next_store = store.delete_staged_product(store, product_id)
+              mutation_result(
+                key,
+                product_delete_payload(Some(product_id), [], field, fragments),
+                next_store,
+                identity,
+                [product_id],
+              )
+            }
+          }
+      }
+    }
+  }
+}
+
+fn product_delete_input_error(
+  document: String,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Option(Json) {
+  let arguments = case field {
+    Field(arguments: args, ..) -> args
+    _ -> []
+  }
+  case find_argument(arguments, "input") {
+    Some(argument) ->
+      case argument.value {
+        ObjectValue(fields: fields, loc: loc) ->
+          case find_object_field(fields, "id") {
+            None ->
+              Some(build_product_delete_missing_input_id_error(loc, document))
+            Some(ObjectField(value: NullValue(..), ..)) ->
+              Some(build_product_delete_null_input_id_error(loc, document))
+            Some(_) -> None
+          }
+        VariableValue(variable: variable) -> {
+          let args = field_args(field, variables)
+          let input = read_arg_object(args, "input")
+          let invalid = case input {
+            Some(input) ->
+              case dict.get(input, "id") {
+                Ok(StringVal(_)) -> False
+                _ -> True
+              }
+            None -> True
+          }
+          case invalid {
+            False -> None
+            True ->
+              Some(build_product_delete_invalid_variable_error(
+                variable.name.value,
+                resolved_input_to_json(input),
+                find_variable_definition_location(document, variable.name.value),
+                document,
+              ))
+          }
+        }
+        _ -> None
+      }
+    None -> None
+  }
+}
+
+fn find_object_field(
+  fields: List(ObjectField),
+  name: String,
+) -> Option(ObjectField) {
+  case fields {
+    [] -> None
+    [first, ..rest] -> {
+      let ObjectField(name: field_name, ..) = first
+      case field_name.value == name {
+        True -> Some(first)
+        False -> find_object_field(rest, name)
+      }
+    }
+  }
+}
+
+fn build_product_delete_missing_input_id_error(
+  loc: Option(Location),
+  document: String,
+) -> Json {
+  product_delete_input_object_error(
+    "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+    loc,
+    document,
+    [
+      #("code", json.string("missingRequiredInputObjectAttribute")),
+      #("argumentName", json.string("id")),
+      #("argumentType", json.string("ID!")),
+      #("inputObjectType", json.string("ProductDeleteInput")),
+    ],
+  )
+}
+
+fn build_product_delete_null_input_id_error(
+  loc: Option(Location),
+  document: String,
+) -> Json {
+  product_delete_input_object_error(
+    "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+    loc,
+    document,
+    [
+      #("code", json.string("argumentLiteralsIncompatible")),
+      #("typeName", json.string("InputObject")),
+      #("argumentName", json.string("id")),
+    ],
+  )
+}
+
+fn product_delete_input_object_error(
+  message: String,
+  loc: Option(Location),
+  document: String,
+  extensions: List(#(String, Json)),
+) -> Json {
+  let base = [#("message", json.string(message))]
+  let with_locations = case locations_payload(loc, document) {
+    Some(locations) -> list.append(base, [#("locations", locations)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(["mutation", "productDelete", "input", "id"], json.string),
+      ),
+      #("extensions", json.object(extensions)),
+    ]),
+  )
+}
+
+fn build_product_delete_invalid_variable_error(
+  variable_name: String,
+  value: Json,
+  loc: Option(Location),
+  document: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Variable $"
+        <> variable_name
+        <> " of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)",
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(loc, document) {
+    Some(locations) -> list.append(base, [#("locations", locations)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("INVALID_VARIABLE")),
+          #("value", value),
+          #(
+            "problems",
+            json.preprocessed_array([
+              json.object([
+                #("path", json.array(["id"], json.string)),
+                #("explanation", json.string("Expected value to not be null")),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn find_variable_definition_location(
+  document: String,
+  variable_name: String,
+) -> Option(Location) {
+  case parser.parse(graphql_source.new(document)) {
+    Ok(parsed) ->
+      find_variable_definition_location_in_definitions(
+        parsed.definitions,
+        variable_name,
+      )
+    Error(_) -> None
+  }
+}
+
+fn find_variable_definition_location_in_definitions(
+  definitions: List(Definition),
+  variable_name: String,
+) -> Option(Location) {
+  case definitions {
+    [] -> None
+    [definition, ..rest] ->
+      case definition {
+        OperationDefinition(variable_definitions: definitions, ..) ->
+          case find_variable_definition(definitions, variable_name) {
+            Some(location) -> Some(location)
+            None ->
+              find_variable_definition_location_in_definitions(
+                rest,
+                variable_name,
+              )
+          }
+        _ ->
+          find_variable_definition_location_in_definitions(rest, variable_name)
+      }
+  }
+}
+
+fn find_variable_definition(
+  definitions: List(VariableDefinition),
+  variable_name: String,
+) -> Option(Location) {
+  case definitions {
+    [] -> None
+    [definition, ..rest] -> {
+      let VariableDefinition(variable: variable, loc: loc, ..) = definition
+      case variable.name.value == variable_name {
+        True -> loc
+        False -> find_variable_definition(rest, variable_name)
+      }
+    }
+  }
+}
+
+fn locations_payload(loc: Option(Location), document: String) -> Option(Json) {
+  case loc {
+    None -> None
+    Some(loc) -> {
+      let source = graphql_source.new(document)
+      let computed = graphql_location.get_location(source, position: loc.start)
+      Some(
+        json.preprocessed_array([
+          json.object([
+            #("line", json.int(computed.line)),
+            #("column", json.int(computed.column)),
+          ]),
+        ]),
+      )
+    }
+  }
+}
+
+fn resolved_input_to_json(input: Option(Dict(String, ResolvedValue))) -> Json {
+  case input {
+    Some(fields) ->
+      json.object(
+        list.map(dict.to_list(fields), fn(entry) {
+          let #(key, value) = entry
+          #(key, resolved_value_to_json(value))
+        }),
+      )
+    None -> json.null()
+  }
+}
+
+fn resolved_value_to_json(value: ResolvedValue) -> Json {
+  case value {
+    StringVal(value) -> json.string(value)
+    IntVal(value) -> json.int(value)
+    FloatVal(value) -> json.float(value)
+    BoolVal(value) -> json.bool(value)
+    NullVal -> json.null()
+    ListVal(values) -> json.array(values, resolved_value_to_json)
+    ObjectVal(fields) ->
+      json.object(
+        list.map(dict.to_list(fields), fn(entry) {
+          let #(key, value) = entry
+          #(key, resolved_value_to_json(value))
+        }),
+      )
   }
 }
 
@@ -2455,6 +2826,27 @@ fn mutation_error_result(
     identity: identity,
     staged_resource_ids: [],
     top_level_errors: errors,
+  )
+}
+
+fn product_delete_payload(
+  deleted_product_id: Option(String),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let deleted_value = case deleted_product_id {
+    Some(id) -> SrcString(id)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductDeletePayload")),
+      #("deletedProductId", deleted_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
   )
 }
 
