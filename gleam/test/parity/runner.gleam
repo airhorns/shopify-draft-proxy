@@ -300,7 +300,11 @@ fn seed_capture_preconditions(
       seed_product_feedback_preconditions(capture, proxy)
     "product-metafields-read" | "admin-platform-metafield-node-reads" ->
       seed_product_metafields_preconditions(capture, proxy)
-    "metafields-set-live-parity" ->
+    "metafields-set-live-parity"
+    | "metafields-set-duplicate-input"
+    | "metafields-set-cas-success"
+    | "metafields-set-stale-digest"
+    | "metafields-set-null-create" ->
       seed_metafields_set_preconditions(capture, proxy)
     "inventory-shipment-lifecycle-local-staging"
     | "inventory-shipment-partial-receive-update-delete-local-staging" ->
@@ -445,32 +449,34 @@ fn seed_product_metafields_preconditions(
   proxy: DraftProxy,
 ) -> DraftProxy {
   case jsonpath.lookup(capture, "$.response.data.product") {
-    Some(product_json) -> {
-      let product_id = read_string_field(product_json, "id")
-      let store = case make_seed_product_relaxed(product_json) {
-        Ok(product) -> store_mod.upsert_base_products(proxy.store, [product])
-        Error(_) -> proxy.store
-      }
-      let store = case product_id {
-        Some(owner_id) -> {
-          let metafields =
-            collect_product_metafield_sources(product_json)
-            |> list.filter_map(fn(source) {
-              make_seed_product_metafield_for_owner(source, owner_id)
-            })
-            |> dedupe_product_metafields
-          store_mod.replace_base_metafields_for_owner(
-            store,
-            owner_id,
-            metafields,
-          )
-        }
-        None -> store
-      }
-      draft_proxy.DraftProxy(..proxy, store: store)
-    }
+    Some(product_json) ->
+      seed_product_metafield_product_json(product_json, proxy)
     None -> proxy
   }
+}
+
+fn seed_product_metafield_product_json(
+  product_json: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_id = read_string_field(product_json, "id")
+  let store = case make_seed_product_relaxed(product_json) {
+    Ok(product) -> store_mod.upsert_base_products(proxy.store, [product])
+    Error(_) -> proxy.store
+  }
+  let store = case product_id {
+    Some(owner_id) -> {
+      let metafields =
+        collect_product_metafield_sources(product_json)
+        |> list.filter_map(fn(source) {
+          make_seed_product_metafield_for_owner(source, owner_id)
+        })
+        |> dedupe_product_metafields
+      store_mod.replace_base_metafields_for_owner(store, owner_id, metafields)
+    }
+    None -> store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
 }
 
 fn collect_product_metafield_sources(
@@ -495,58 +501,72 @@ fn seed_metafields_set_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
+  let #(proxy, seeded_from_precondition) = case
+    jsonpath.lookup(capture, "$.preconditionRead.data.product")
+  {
+    Some(product_json) -> #(
+      seed_product_metafield_product_json(product_json, proxy),
+      True,
+    )
+    None -> #(proxy, False)
+  }
   let inputs = case
     jsonpath.lookup(capture, "$.mutation.variables.metafields")
   {
     Some(JArray(items)) -> items
     _ -> []
   }
-  let owner_ids =
-    inputs
-    |> list.filter_map(fn(input) {
-      case read_string_field(input, "ownerId") {
-        Some(owner_id) -> Ok(owner_id)
-        None -> Error(Nil)
+  case seeded_from_precondition {
+    True -> proxy
+    False -> {
+      let owner_ids =
+        inputs
+        |> list.filter_map(fn(input) {
+          case read_string_field(input, "ownerId") {
+            Some(owner_id) -> Ok(owner_id)
+            None -> Error(Nil)
+          }
+        })
+        |> dedupe_strings_preserving_order
+      let products =
+        owner_ids
+        |> list.filter_map(fn(owner_id) {
+          make_seed_product_relaxed(JObject([#("id", JString(owner_id))]))
+        })
+      let metafield_sources = case
+        jsonpath.lookup(
+          capture,
+          "$.mutation.response.data.metafieldsSet.metafields",
+        )
+      {
+        Some(JArray(items)) -> items
+        _ -> []
       }
-    })
-    |> dedupe_strings_preserving_order
-  let products =
-    owner_ids
-    |> list.filter_map(fn(owner_id) {
-      make_seed_product_relaxed(JObject([#("id", JString(owner_id))]))
-    })
-  let metafield_sources = case
-    jsonpath.lookup(
-      capture,
-      "$.mutation.response.data.metafieldsSet.metafields",
-    )
-  {
-    Some(JArray(items)) -> items
-    _ -> []
+      let metafields =
+        metafield_sources
+        |> list.filter_map(fn(source) {
+          case owner_id_for_metafields_set_source(source, inputs) {
+            Some(owner_id) ->
+              make_seed_product_metafield_for_owner(source, owner_id)
+            None -> Error(Nil)
+          }
+        })
+        |> dedupe_product_metafields
+      let store = store_mod.upsert_base_products(proxy.store, products)
+      let store =
+        list.fold(owner_ids, store, fn(current, owner_id) {
+          let owner_metafields =
+            metafields
+            |> list.filter(fn(metafield) { metafield.owner_id == owner_id })
+          store_mod.replace_base_metafields_for_owner(
+            current,
+            owner_id,
+            owner_metafields,
+          )
+        })
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
   }
-  let metafields =
-    metafield_sources
-    |> list.filter_map(fn(source) {
-      case owner_id_for_metafields_set_source(source, inputs) {
-        Some(owner_id) ->
-          make_seed_product_metafield_for_owner(source, owner_id)
-        None -> Error(Nil)
-      }
-    })
-    |> dedupe_product_metafields
-  let store = store_mod.upsert_base_products(proxy.store, products)
-  let store =
-    list.fold(owner_ids, store, fn(current, owner_id) {
-      let owner_metafields =
-        metafields
-        |> list.filter(fn(metafield) { metafield.owner_id == owner_id })
-      store_mod.replace_base_metafields_for_owner(
-        current,
-        owner_id,
-        owner_metafields,
-      )
-    })
-  draft_proxy.DraftProxy(..proxy, store: store)
 }
 
 fn owner_id_for_metafields_set_source(

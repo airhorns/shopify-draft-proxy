@@ -250,6 +250,12 @@ adding broad synthetic-id/timestamp expected differences.
   and `eventsCount` should still include parity and dispatcher-level tests, but
   the TS handler and TS runtime coverage stay in place until the final all-port
   cutover.
+- Product-owned metafield creates replayed from captured upstream owners can
+  mint low local synthetic IDs such as `gid://shopify/Metafield/1`, while
+  Shopify would allocate a later upstream ID. Keep owner metafield connection
+  ordering Shopify-like by placing those low draft-digest local IDs after
+  captured upstream IDs; do not broaden parity expected differences just to
+  hide ordering drift.
 
 ## Workflow for a new pass
 

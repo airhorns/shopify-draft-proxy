@@ -9,6 +9,64 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 91: product metafieldsSet captured branches
+
+Promotes four captured Product `metafieldsSet` branches into the Gleam parity
+suite: duplicate inputs, CAS success, stale digest, and null-create downstream
+readback. The pass reuses captured precondition Product reads to seed existing
+product-owned metafields before mutation replay, preserving upstream metafield
+IDs and compare digests for update/CAS branches without changing the checked-in
+fixtures or request shapes.
+
+For null-create, the local runtime still mints a synthetic Metafield ID, but
+owner metafield ordering now treats low draft-digest local IDs as later than
+captured upstream IDs. That mirrors Shopify's observed connection order where a
+newly allocated metafield appears after the existing product metafields.
+
+| Module                                            | Change                                                                   |
+| ------------------------------------------------- | ------------------------------------------------------------------------ |
+| `gleam/test/parity/runner.gleam`                  | Seeds captured precondition Product metafields for more `metafieldsSet`. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam` | Keeps low local draft metafield IDs after captured upstream IDs.         |
+| `config/gleam-port-ci-gates.json`                 | Removes four passing Product `metafieldsSet` specs from expected fails.  |
+| `.agents/skills/gleam-port/SKILL.md`              | Records the Product metafield ordering trap for future passes.           |
+
+Validation:
+Focused JavaScript parity is green for `metafieldsSet-duplicate-input`,
+`metafieldsSet-cas-success`, `metafieldsSet-stale-digest`, and
+`metafieldsSet-null-create`. The all-discovered JavaScript parity gate is green
+at 708 tests after manifest alignment. Product parity inventory remains 115
+checked-in specs, with 83 product specs executable in the Gleam parity suite and
+32 product specs still expected-failing.
+
+### Findings
+
+- Captured CAS and duplicate-input branches need the precondition read, not the
+  mutation response, as the seed source; otherwise local replay mints new IDs or
+  treats captured compare digests as stale.
+- The precondition seed must not be followed by sparse owner replacement, or the
+  runner erases the captured sibling metafields it just inserted.
+- Local synthetic Metafield IDs can be numerically lower than captured upstream
+  IDs even though Shopify would allocate the new metafield later.
+
+### Risks / open items
+
+- GraphQL variable validation branches for malformed `metafieldsSet` inputs,
+  metafield delete roots, selling plans, media, advanced search,
+  duplicate/productSet/media roots, and broader validation atomicity parity
+  remain incomplete in Gleam.
+- Only 83 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 92 candidates
+
+- Continue product metafield mutation parity with `metafieldsDelete`,
+  `metafieldDelete`, or GraphQL validation branches.
+- Port selling-plan group behavior with strict captured lifecycle evidence.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 90: CI parity gate merge alignment
 
 Merges the mainline Gleam port CI coverage gate into the HAR-487 product branch

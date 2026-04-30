@@ -811,14 +811,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/products/metafieldsSet-cas-success.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/products/metafieldsSet-duplicate-input.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/products/metafieldsSet-missing-key.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
@@ -839,19 +831,11 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/products/metafieldsSet-null-create.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/products/metafieldsSet-over-limit.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
       "specPath": "config/parity-specs/products/metafieldsSet-owner-expansion.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/products/metafieldsSet-stale-digest.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {

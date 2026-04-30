@@ -2726,10 +2726,43 @@ pub fn get_effective_metafields_by_owner_id(
         string.starts_with(right.namespace, "app--"),
       )
     {
-      order.Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+      order.Eq -> compare_product_metafield_ids(left, right)
       other -> other
     }
   })
+}
+
+fn compare_product_metafield_ids(
+  left: ProductMetafieldRecord,
+  right: ProductMetafieldRecord,
+) -> order.Order {
+  case is_low_local_metafield_id(left), is_low_local_metafield_id(right) {
+    True, False -> order.Gt
+    False, True -> order.Lt
+    _, _ -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+  }
+}
+
+fn is_low_local_metafield_id(record: ProductMetafieldRecord) -> Bool {
+  let has_draft_digest = case record.compare_digest {
+    Some(digest) -> string.starts_with(digest, "draft:")
+    None -> False
+  }
+  case has_draft_digest, metafield_id_tail(record.id) {
+    True, Some(id) -> id < 1_000_000
+    _, _ -> False
+  }
+}
+
+fn metafield_id_tail(id: String) -> Option(Int) {
+  case list.last(string.split(id, "/")) {
+    Ok(tail) ->
+      case int.parse(tail) {
+        Ok(value) -> Some(value)
+        Error(_) -> None
+      }
+    Error(_) -> None
+  }
 }
 
 pub fn find_effective_metafield_by_id(
