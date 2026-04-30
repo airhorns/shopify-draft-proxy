@@ -32,6 +32,7 @@ import {
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
 import { handleAdminPlatformMutation, handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
+import { handleAppMutation, handleAppQuery, hydrateAppsFromUpstreamResponse } from '../src/proxy/apps.js';
 import { handleB2BMutation, handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
@@ -1016,6 +1017,30 @@ async function executeGraphQLAgainstLocalProxy(
     }
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'apps') {
+    const responseBody = handleAppMutation(runtime, document, variables, 'https://conformance.local');
+    if (!responseBody) {
+      throw new Error(`App parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: `/admin/api/${apiVersion}/graphql.json`,
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity app billing/access proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: responseBody,
+    };
+  }
+
   if (
     capability.execution === 'stage-locally' &&
     (capability.domain === 'products' ||
@@ -1970,6 +1995,20 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleBulkOperationQuery(runtime, document, variables),
+    };
+  }
+
+  if (
+    (capability.execution === 'overlay-read' && capability.domain === 'apps') ||
+    (registeredCapability.execution === 'overlay-read' && registeredCapability.domain === 'apps')
+  ) {
+    if (upstreamPayload !== undefined) {
+      hydrateAppsFromUpstreamResponse(runtime, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleAppQuery(runtime, document, variables),
     };
   }
 
