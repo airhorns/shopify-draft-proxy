@@ -13,6 +13,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/string
+import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/types.{
   type AdminPlatformFlowSignatureRecord, type AdminPlatformFlowTriggerRecord,
   type AppInstallationRecord, type AppOneTimePurchaseRecord, type AppRecord,
@@ -21,11 +22,12 @@ import shopify_draft_proxy/state/types.{
   type CartTransformRecord, type CustomerSegmentMembersQueryRecord,
   type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
   type GiftCardRecord, type LocaleRecord, type MarketingEngagementRecord,
-  type MarketingRecord, type MarketingValue, type SavedSearchRecord,
-  type SegmentRecord, type ShopLocaleRecord, type ShopRecord,
-  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
-  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
-  BulkOperationRecord, MarketingObject, MarketingString,
+  type MarketingRecord, type MarketingValue, type MetafieldDefinitionRecord,
+  type ProductMetafieldRecord, type SavedSearchRecord, type SegmentRecord,
+  type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
+  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
+  type WebhookSubscriptionRecord, BulkOperationRecord, MarketingObject,
+  MarketingString,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -43,6 +45,9 @@ pub type BaseState {
     admin_platform_flow_triggers: Dict(String, AdminPlatformFlowTriggerRecord),
     admin_platform_flow_trigger_order: List(String),
     shop: Option(ShopRecord),
+    product_metafields: Dict(String, ProductMetafieldRecord),
+    metafield_definitions: Dict(String, MetafieldDefinitionRecord),
+    deleted_metafield_definition_ids: Dict(String, Bool),
     saved_searches: Dict(String, SavedSearchRecord),
     saved_search_order: List(String),
     deleted_saved_search_ids: Dict(String, Bool),
@@ -114,6 +119,9 @@ pub type StagedState {
     admin_platform_flow_triggers: Dict(String, AdminPlatformFlowTriggerRecord),
     admin_platform_flow_trigger_order: List(String),
     shop: Option(ShopRecord),
+    product_metafields: Dict(String, ProductMetafieldRecord),
+    metafield_definitions: Dict(String, MetafieldDefinitionRecord),
+    deleted_metafield_definition_ids: Dict(String, Bool),
     saved_searches: Dict(String, SavedSearchRecord),
     saved_search_order: List(String),
     deleted_saved_search_ids: Dict(String, Bool),
@@ -247,6 +255,9 @@ pub fn empty_base_state() -> BaseState {
     admin_platform_flow_triggers: dict.new(),
     admin_platform_flow_trigger_order: [],
     shop: None,
+    product_metafields: dict.new(),
+    metafield_definitions: dict.new(),
+    deleted_metafield_definition_ids: dict.new(),
     saved_searches: dict.new(),
     saved_search_order: [],
     deleted_saved_search_ids: dict.new(),
@@ -311,6 +322,9 @@ pub fn empty_staged_state() -> StagedState {
     admin_platform_flow_triggers: dict.new(),
     admin_platform_flow_trigger_order: [],
     shop: None,
+    product_metafields: dict.new(),
+    metafield_definitions: dict.new(),
+    deleted_metafield_definition_ids: dict.new(),
     saved_searches: dict.new(),
     saved_search_order: [],
     deleted_saved_search_ids: dict.new(),
@@ -447,6 +461,280 @@ pub fn get_effective_shop(store: Store) -> Option(ShopRecord) {
     Some(shop) -> Some(shop)
     None -> store.base_state.shop
   }
+}
+
+// ---------------------------------------------------------------------------
+// Metafields slice
+// ---------------------------------------------------------------------------
+
+pub fn replace_base_metafields_for_owner(
+  store: Store,
+  owner_id: String,
+  metafields: List(ProductMetafieldRecord),
+) -> Store {
+  let base = store.base_state
+  let retained =
+    base.product_metafields
+    |> dict.to_list
+    |> list.filter(fn(pair) {
+      let #(_, metafield) = pair
+      metafield.owner_id != owner_id
+    })
+    |> dict.from_list
+  let next_bucket =
+    list.fold(metafields, retained, fn(acc, metafield) {
+      dict.insert(acc, metafield.id, metafield)
+    })
+  Store(..store, base_state: BaseState(..base, product_metafields: next_bucket))
+}
+
+pub fn replace_staged_metafields_for_owner(
+  store: Store,
+  owner_id: String,
+  metafields: List(ProductMetafieldRecord),
+) -> Store {
+  let staged = store.staged_state
+  let retained =
+    staged.product_metafields
+    |> dict.to_list
+    |> list.filter(fn(pair) {
+      let #(_, metafield) = pair
+      metafield.owner_id != owner_id
+    })
+    |> dict.from_list
+  let next_bucket =
+    list.fold(metafields, retained, fn(acc, metafield) {
+      dict.insert(acc, metafield.id, metafield)
+    })
+  Store(
+    ..store,
+    staged_state: StagedState(..staged, product_metafields: next_bucket),
+  )
+}
+
+pub fn upsert_base_metafield_definitions(
+  store: Store,
+  definitions: List(MetafieldDefinitionRecord),
+) -> Store {
+  list.fold(definitions, store, fn(acc, definition) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        metafield_definitions: dict.insert(
+          base.metafield_definitions,
+          definition.id,
+          definition,
+        ),
+        deleted_metafield_definition_ids: dict.delete(
+          base.deleted_metafield_definition_ids,
+          definition.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_metafield_definition_ids: dict.delete(
+          staged.deleted_metafield_definition_ids,
+          definition.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_staged_metafield_definitions(
+  store: Store,
+  definitions: List(MetafieldDefinitionRecord),
+) -> Store {
+  list.fold(definitions, store, fn(acc, definition) {
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      staged_state: StagedState(
+        ..staged,
+        metafield_definitions: dict.insert(
+          staged.metafield_definitions,
+          definition.id,
+          definition,
+        ),
+        deleted_metafield_definition_ids: dict.delete(
+          staged.deleted_metafield_definition_ids,
+          definition.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn stage_delete_metafield_definition(
+  store: Store,
+  definition_id: String,
+) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      metafield_definitions: dict.delete(
+        staged.metafield_definitions,
+        definition_id,
+      ),
+      deleted_metafield_definition_ids: dict.insert(
+        staged.deleted_metafield_definition_ids,
+        definition_id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn delete_product_metafields_for_definition(
+  store: Store,
+  definition: MetafieldDefinitionRecord,
+) -> Store {
+  case definition.owner_type {
+    "PRODUCT" -> {
+      let keep = fn(metafield: ProductMetafieldRecord) {
+        !{
+          metafield.owner_type == Some("PRODUCT")
+          && metafield.namespace == definition.namespace
+          && metafield.key == definition.key
+        }
+      }
+      let base = store.base_state
+      let staged = store.staged_state
+      let base_bucket =
+        base.product_metafields
+        |> dict.to_list
+        |> list.filter(fn(pair) {
+          let #(_, metafield) = pair
+          keep(metafield)
+        })
+        |> dict.from_list
+      let staged_bucket =
+        staged.product_metafields
+        |> dict.to_list
+        |> list.filter(fn(pair) {
+          let #(_, metafield) = pair
+          keep(metafield)
+        })
+        |> dict.from_list
+      Store(
+        ..store,
+        base_state: BaseState(..base, product_metafields: base_bucket),
+        staged_state: StagedState(..staged, product_metafields: staged_bucket),
+      )
+    }
+    _ -> store
+  }
+}
+
+pub fn get_effective_metafields_by_owner_id(
+  store: Store,
+  owner_id: String,
+) -> List(ProductMetafieldRecord) {
+  let staged =
+    dict.values(store.staged_state.product_metafields)
+    |> list.filter(fn(metafield) { metafield.owner_id == owner_id })
+  let source = case staged {
+    [] ->
+      dict.values(store.base_state.product_metafields)
+      |> list.filter(fn(metafield) { metafield.owner_id == owner_id })
+    _ -> staged
+  }
+  source
+  |> list.sort(fn(left, right) {
+    case
+      bool_compare(
+        string.starts_with(left.namespace, "app--"),
+        string.starts_with(right.namespace, "app--"),
+      )
+    {
+      order.Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+      other -> other
+    }
+  })
+}
+
+pub fn find_effective_metafield_by_id(
+  store: Store,
+  metafield_id: String,
+) -> Option(ProductMetafieldRecord) {
+  case dict.get(store.staged_state.product_metafields, metafield_id) {
+    Ok(metafield) -> Some(metafield)
+    Error(_) ->
+      case dict.get(store.base_state.product_metafields, metafield_id) {
+        Ok(metafield) -> Some(metafield)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn list_effective_metafield_definitions(
+  store: Store,
+) -> List(MetafieldDefinitionRecord) {
+  let merged =
+    dict.merge(
+      store.base_state.metafield_definitions,
+      store.staged_state.metafield_definitions,
+    )
+  dict.values(merged)
+  |> list.filter(fn(definition) {
+    !dict_has(
+      store.staged_state.deleted_metafield_definition_ids,
+      definition.id,
+    )
+  })
+  |> list.sort(fn(left, right) {
+    case string_compare(left.owner_type, right.owner_type) {
+      order.Eq ->
+        case string_compare(left.namespace, right.namespace) {
+          order.Eq ->
+            case string_compare(left.key, right.key) {
+              order.Eq -> string_compare(left.id, right.id)
+              other -> other
+            }
+          other -> other
+        }
+      other -> other
+    }
+  })
+}
+
+pub fn get_effective_metafield_definition_by_id(
+  store: Store,
+  definition_id: String,
+) -> Option(MetafieldDefinitionRecord) {
+  case
+    dict_has(store.staged_state.deleted_metafield_definition_ids, definition_id)
+  {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.metafield_definitions, definition_id) {
+        Ok(definition) -> Some(definition)
+        Error(_) ->
+          case dict.get(store.base_state.metafield_definitions, definition_id) {
+            Ok(definition) -> Some(definition)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn find_effective_metafield_definition(
+  store: Store,
+  owner_type: String,
+  namespace: String,
+  key: String,
+) -> Option(MetafieldDefinitionRecord) {
+  list.find(list_effective_metafield_definitions(store), fn(definition) {
+    definition.owner_type == owner_type
+    && definition.namespace == namespace
+    && definition.key == key
+  })
+  |> option.from_result
 }
 
 /// Stage a local Flow signature audit record.
@@ -2966,6 +3254,14 @@ fn list_to_set(items: List(String)) -> Dict(String, Bool) {
 
 fn string_compare(a: String, b: String) -> order.Order {
   string.compare(a, b)
+}
+
+fn bool_compare(a: Bool, b: Bool) -> order.Order {
+  case a, b {
+    True, False -> order.Gt
+    False, True -> order.Lt
+    _, _ -> order.Eq
+  }
 }
 
 fn find_app_in_dict(

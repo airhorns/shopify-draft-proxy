@@ -25,7 +25,7 @@ import gleam/result
 import gleam/string
 import parity/diff.{type Mismatch}
 import parity/json_value.{
-  type JsonValue, JArray, JBool, JFloat, JInt, JObject, JString,
+  type JsonValue, JArray, JBool, JFloat, JInt, JNull, JObject, JString,
 }
 import parity/jsonpath
 import parity/spec.{
@@ -39,13 +39,22 @@ import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord, type Money,
-  type PaymentSettingsRecord, type ShopAddressRecord, type ShopDomainRecord,
-  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
+  type GiftCardRecord, type GiftCardTransactionRecord,
+  type MetafieldDefinitionCapabilitiesRecord,
+  type MetafieldDefinitionCapabilityRecord,
+  type MetafieldDefinitionConstraintsRecord, type MetafieldDefinitionRecord,
+  type MetafieldDefinitionValidationRecord, type Money,
+  type PaymentSettingsRecord, type ProductMetafieldRecord,
+  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
+  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
+  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  Money, PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
+  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
+  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
+  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
+  MetafieldDefinitionValidationRecord, Money, PaymentSettingsRecord,
+  ProductMetafieldRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
   ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
   ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
@@ -149,8 +158,224 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
+    "metafield-definitions-product-read"
+    | "metafield-definition-pinning-parity" ->
+      seed_metafield_definition_preconditions(capture, proxy)
     _ -> proxy
   }
+}
+
+fn seed_metafield_definition_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let candidates = [
+    jsonpath.lookup(capture, "$.response.data.byIdentifier"),
+    jsonpath.lookup(capture, "$.response.data.seedCatalog.nodes"),
+    jsonpath.lookup(capture, "$.response.data.metafieldDefinitions.nodes"),
+  ]
+  let definition_sources =
+    list.flat_map(candidates, fn(candidate) {
+      case candidate {
+        Some(JArray(items)) -> items
+        Some(JObject(_)) -> [candidate |> option.unwrap(JNull)]
+        _ -> []
+      }
+    })
+  let definitions =
+    list.filter_map(definition_sources, make_seed_metafield_definition)
+    |> dedupe_metafield_definitions
+  let metafields =
+    list.flat_map(definition_sources, fn(source) {
+      case make_seed_metafield_definition(source) {
+        Ok(definition) ->
+          seed_metafields_for_definition_source(source, definition)
+        Error(_) -> []
+      }
+    })
+  let seeded_store =
+    proxy.store
+    |> store_mod.upsert_base_metafield_definitions(definitions)
+  let seeded_store =
+    list.fold(metafields, seeded_store, fn(current, metafield) {
+      let existing =
+        store_mod.get_effective_metafields_by_owner_id(
+          current,
+          metafield.owner_id,
+        )
+      store_mod.replace_base_metafields_for_owner(
+        current,
+        metafield.owner_id,
+        list.append(existing, [metafield]),
+      )
+    })
+  draft_proxy.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn dedupe_metafield_definitions(
+  definitions: List(MetafieldDefinitionRecord),
+) -> List(MetafieldDefinitionRecord) {
+  let #(_, kept) =
+    list.fold(definitions, #(dict.new(), []), fn(acc, definition) {
+      let #(seen, collected) = acc
+      case dict.get(seen, definition.id) {
+        Ok(_) -> #(seen, collected)
+        Error(_) -> #(dict.insert(seen, definition.id, True), [
+          definition,
+          ..collected
+        ])
+      }
+    })
+  list.reverse(kept)
+}
+
+fn make_seed_metafield_definition(
+  source: JsonValue,
+) -> Result(MetafieldDefinitionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  use namespace <- result.try(required_string_field(source, "namespace"))
+  use key <- result.try(required_string_field(source, "key"))
+  use owner_type <- result.try(required_string_field(source, "ownerType"))
+  let type_source = read_object_field(source, "type")
+  use type_name <- result.try(required_string_field_from_option(
+    type_source,
+    "name",
+  ))
+  Ok(MetafieldDefinitionRecord(
+    id: id,
+    name: name,
+    namespace: namespace,
+    key: key,
+    owner_type: owner_type,
+    type_: MetafieldDefinitionTypeRecord(
+      name: type_name,
+      category: read_string_field_from_option(type_source, "category"),
+    ),
+    description: read_string_field(source, "description"),
+    validations: read_array_field(source, "validations")
+      |> option.unwrap([])
+      |> list.filter_map(make_seed_metafield_validation),
+    access: read_object_field(source, "access")
+      |> json_object_to_runtime_dict,
+    capabilities: make_seed_metafield_capabilities(read_object_field(
+      source,
+      "capabilities",
+    )),
+    constraints: Some(
+      make_seed_metafield_constraints(read_object_field(source, "constraints")),
+    ),
+    pinned_position: read_int_field(source, "pinnedPosition"),
+    validation_status: read_string_field(source, "validationStatus")
+      |> option.unwrap("ALL_VALID"),
+  ))
+}
+
+fn required_string_field_from_option(
+  value: Option(JsonValue),
+  name: String,
+) -> Result(String, Nil) {
+  case read_string_field_from_option(value, name) {
+    Some(s) -> Ok(s)
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_metafield_validation(
+  source: JsonValue,
+) -> Result(MetafieldDefinitionValidationRecord, Nil) {
+  use name <- result.try(required_string_field(source, "name"))
+  Ok(MetafieldDefinitionValidationRecord(
+    name: name,
+    value: read_string_field(source, "value"),
+  ))
+}
+
+fn make_seed_metafield_capabilities(
+  source: Option(JsonValue),
+) -> MetafieldDefinitionCapabilitiesRecord {
+  MetafieldDefinitionCapabilitiesRecord(
+    admin_filterable: make_seed_metafield_capability(
+      source |> option.then(read_object_field(_, "adminFilterable")),
+    ),
+    smart_collection_condition: make_seed_metafield_capability(
+      source
+      |> option.then(read_object_field(_, "smartCollectionCondition")),
+    ),
+    unique_values: make_seed_metafield_capability(
+      source |> option.then(read_object_field(_, "uniqueValues")),
+    ),
+  )
+}
+
+fn make_seed_metafield_capability(
+  source: Option(JsonValue),
+) -> MetafieldDefinitionCapabilityRecord {
+  MetafieldDefinitionCapabilityRecord(
+    enabled: read_bool_field_from_option(source, "enabled")
+      |> option.unwrap(False),
+    eligible: read_bool_field_from_option(source, "eligible")
+      |> option.unwrap(True),
+    status: read_string_field_from_option(source, "status"),
+  )
+}
+
+fn make_seed_metafield_constraints(
+  source: Option(JsonValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  MetafieldDefinitionConstraintsRecord(
+    key: read_string_field_from_option(source, "key"),
+    values: source
+      |> option.then(read_object_field(_, "values"))
+      |> option.then(read_array_field(_, "nodes"))
+      |> option.unwrap([])
+      |> list.filter_map(fn(value) {
+        case read_string_field(value, "value") {
+          Some(v) -> Ok(MetafieldDefinitionConstraintValueRecord(value: v))
+          None -> Error(Nil)
+        }
+      }),
+  )
+}
+
+fn seed_metafields_for_definition_source(
+  source: JsonValue,
+  definition: MetafieldDefinitionRecord,
+) -> List(ProductMetafieldRecord) {
+  let nodes =
+    read_object_field(source, "metafields")
+    |> option.then(read_array_field(_, "nodes"))
+    |> option.unwrap([])
+  list.filter_map(nodes, fn(node) {
+    make_seed_product_metafield(node, definition)
+  })
+}
+
+fn make_seed_product_metafield(
+  source: JsonValue,
+  definition: MetafieldDefinitionRecord,
+) -> Result(ProductMetafieldRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  let owner_id =
+    read_object_field(source, "owner")
+    |> option.then(read_string_field(_, "id"))
+    |> option.unwrap("seed-owner:" <> definition.id)
+  Ok(ProductMetafieldRecord(
+    id: id,
+    owner_id: owner_id,
+    namespace: read_string_field(source, "namespace")
+      |> option.unwrap(definition.namespace),
+    key: read_string_field(source, "key") |> option.unwrap(definition.key),
+    type_: read_string_field(source, "type"),
+    value: read_string_field(source, "value"),
+    compare_digest: read_string_field(source, "compareDigest"),
+    json_value: json_value.field(source, "jsonValue")
+      |> option.map(runtime_json_from_json_value),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+    owner_type: read_string_field(source, "ownerType")
+      |> option.or(Some(definition.owner_type)),
+  ))
 }
 
 fn seed_shop_preconditions(
@@ -733,6 +958,16 @@ fn read_bool_field(value: JsonValue, name: String) -> Option(Bool) {
   }
 }
 
+fn read_bool_field_from_option(
+  value: Option(JsonValue),
+  name: String,
+) -> Option(Bool) {
+  case value {
+    Some(v) -> read_bool_field(v, name)
+    None -> None
+  }
+}
+
 fn read_int_field(value: JsonValue, name: String) -> Option(Int) {
   case json_value.field(value, name) {
     Some(JInt(i)) -> Some(i)
@@ -772,6 +1007,39 @@ fn read_array_field(value: JsonValue, name: String) -> Option(List(JsonValue)) {
   case json_value.field(value, name) {
     Some(JArray(items)) -> Some(items)
     _ -> None
+  }
+}
+
+fn json_object_to_runtime_dict(
+  value: Option(JsonValue),
+) -> dict.Dict(String, json.Json) {
+  case value {
+    Some(JObject(entries)) ->
+      entries
+      |> list.map(fn(pair) {
+        let #(key, item) = pair
+        #(key, runtime_json_from_json_value(item))
+      })
+      |> dict.from_list
+    _ -> dict.new()
+  }
+}
+
+fn runtime_json_from_json_value(value: JsonValue) -> json.Json {
+  case value {
+    JNull -> json.null()
+    JBool(b) -> json.bool(b)
+    JInt(i) -> json.int(i)
+    JFloat(f) -> json.float(f)
+    JString(s) -> json.string(s)
+    JArray(items) -> json.array(items, runtime_json_from_json_value)
+    JObject(entries) ->
+      json.object(
+        list.map(entries, fn(pair) {
+          let #(key, item) = pair
+          #(key, runtime_json_from_json_value(item))
+        }),
+      )
   }
 }
 
