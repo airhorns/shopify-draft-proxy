@@ -58,6 +58,7 @@ pub fn is_products_query_root(name: String) -> Bool {
     | "inventoryItem"
     | "inventoryItems"
     | "inventoryLevel"
+    | "inventoryProperties"
     | "productFeed"
     | "productFeeds"
     | "productTags"
@@ -135,6 +136,15 @@ fn serialize_root_fields(
                 variables,
                 fragments,
               )
+            "inventoryItems" ->
+              serialize_inventory_items_connection(
+                store,
+                field,
+                variables,
+                fragments,
+              )
+            "inventoryProperties" ->
+              serialize_inventory_properties(field, fragments)
             "productTags" ->
               serialize_string_connection(product_tags(store), field, variables)
             "productTypes" ->
@@ -149,10 +159,7 @@ fn serialize_root_fields(
                 field,
                 variables,
               )
-            "collections"
-            | "inventoryItems"
-            | "productFeeds"
-            | "productSavedSearches" ->
+            "collections" | "productFeeds" | "productSavedSearches" ->
               serialize_empty_connection(
                 field,
                 default_selected_field_options(),
@@ -502,16 +509,24 @@ fn product_matches_search_text(
 }
 
 fn product_id_matches(product: ProductRecord, raw_value: String) -> Bool {
+  resource_id_matches(product.id, product.legacy_resource_id, raw_value)
+}
+
+fn resource_id_matches(
+  resource_id: String,
+  legacy_resource_id: Option(String),
+  raw_value: String,
+) -> Bool {
   let normalized =
     search_query_parser.strip_search_query_value_quotes(raw_value)
     |> string.trim
   case normalized {
     "" -> True
     _ -> {
-      product.id == normalized
-      || option.unwrap(product.legacy_resource_id, "") == normalized
-      || resource_tail(product.id) == normalized
-      || resource_tail(normalized) == resource_tail(product.id)
+      resource_id == normalized
+      || option.unwrap(legacy_resource_id, "") == normalized
+      || resource_tail(resource_id) == normalized
+      || resource_tail(normalized) == resource_tail(resource_id)
     }
   }
 }
@@ -520,6 +535,141 @@ fn resource_tail(id: String) -> String {
   case list.last(string.split(id, "/")) {
     Ok(tail) -> tail
     Error(_) -> id
+  }
+}
+
+fn serialize_inventory_items_connection(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let variants =
+    filtered_inventory_item_variants(store, field, variables)
+    |> reverse_inventory_item_variants(field, variables)
+  let window =
+    paginate_connection_items(
+      variants,
+      field,
+      variables,
+      inventory_item_variant_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: inventory_item_variant_cursor,
+      serialize_node: fn(variant, node_field, _index) {
+        project_graphql_value(
+          inventory_item_source(store, variant),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn filtered_inventory_item_variants(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> List(ProductVariantRecord) {
+  search_query_parser.apply_search_query(
+    inventory_item_variants(store),
+    read_string_argument(field, variables, "query"),
+    product_search_parse_options(),
+    inventory_item_variant_matches_positive_query_term,
+  )
+}
+
+fn inventory_item_variants(store: Store) -> List(ProductVariantRecord) {
+  store.list_effective_product_variants(store)
+  |> list.filter(fn(variant) {
+    case variant.inventory_item {
+      Some(_) -> True
+      None -> False
+    }
+  })
+  |> list.sort(fn(left, right) {
+    string.compare(
+      inventory_item_variant_cursor(left, 0),
+      inventory_item_variant_cursor(right, 0),
+    )
+  })
+}
+
+fn reverse_inventory_item_variants(
+  variants: List(ProductVariantRecord),
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> List(ProductVariantRecord) {
+  case read_bool_argument(field, variables, "reverse") {
+    Some(True) -> list.reverse(variants)
+    _ -> variants
+  }
+}
+
+fn inventory_item_variant_matches_positive_query_term(
+  variant: ProductVariantRecord,
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  case variant.inventory_item {
+    Some(item) -> {
+      let value = search_query_parser.search_query_term_value(term)
+      case option.map(term.field, string.lowercase) {
+        None ->
+          list.any(
+            [item.id, option.unwrap(variant.sku, ""), variant.id],
+            fn(candidate) {
+              search_query_parser.matches_search_query_string(
+                Some(candidate),
+                value,
+                search_query_parser.IncludesMatch,
+                product_string_match_options(),
+              )
+            },
+          )
+        Some("id") -> resource_id_matches(item.id, None, value)
+        Some("sku") ->
+          search_query_parser.matches_search_query_string(
+            variant.sku,
+            value,
+            search_query_parser.ExactMatch,
+            product_string_match_options(),
+          )
+        Some("tracked") ->
+          bool_string(option.unwrap(item.tracked, False))
+          == string.lowercase(value)
+        _ -> True
+      }
+    }
+    None -> False
+  }
+}
+
+fn bool_string(value: Bool) -> String {
+  case value {
+    True -> "true"
+    False -> "false"
+  }
+}
+
+fn inventory_item_variant_cursor(
+  variant: ProductVariantRecord,
+  _index: Int,
+) -> String {
+  case variant.inventory_item {
+    Some(item) -> item.id
+    None -> variant.id
   }
 }
 
@@ -567,6 +717,64 @@ fn serialize_product_variants_connection(
       page_info_options: default_connection_page_info_options(),
     ),
   )
+}
+
+fn serialize_inventory_properties(
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    inventory_properties_source(),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn inventory_properties_source() -> SourceValue {
+  src_object([
+    #(
+      "quantityNames",
+      SrcList(list.map(
+        inventory_quantity_name_definitions(),
+        inventory_quantity_name_source,
+      )),
+    ),
+  ])
+}
+
+fn inventory_quantity_name_definitions() -> List(
+  #(String, String, Bool, List(String), List(String)),
+) {
+  [
+    #("available", "Available", True, ["on_hand"], []),
+    #("committed", "Committed", True, ["on_hand"], []),
+    #("damaged", "Damaged", False, ["on_hand"], []),
+    #("incoming", "Incoming", False, [], []),
+    #("on_hand", "On hand", True, [], [
+      "available",
+      "committed",
+      "damaged",
+      "quality_control",
+      "reserved",
+      "safety_stock",
+    ]),
+    #("quality_control", "Quality control", False, ["on_hand"], []),
+    #("reserved", "Reserved", True, ["on_hand"], []),
+    #("safety_stock", "Safety stock", False, ["on_hand"], []),
+  ]
+}
+
+fn inventory_quantity_name_source(
+  definition: #(String, String, Bool, List(String), List(String)),
+) -> SourceValue {
+  let #(name, display_name, is_in_use, belongs_to, comprises) = definition
+  src_object([
+    #("name", SrcString(name)),
+    #("displayName", SrcString(display_name)),
+    #("isInUse", SrcBool(is_in_use)),
+    #("belongsTo", SrcList(list.map(belongs_to, SrcString))),
+    #("comprises", SrcList(list.map(comprises, SrcString))),
+  ])
 }
 
 fn serialize_string_connection(

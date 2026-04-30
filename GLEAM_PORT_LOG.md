@@ -9,6 +9,63 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 44: inventory item catalog reads
+
+Adds the first top-level InventoryItem catalog/search read slice to the Gleam
+Products handler. `inventoryItems(first:, query:, reverse:)` now resolves from
+effective variant-backed InventoryItem records, sorts by inventory item id,
+serializes the existing InventoryItem -> ProductVariant -> Product
+backreferences, and supports simple `id:`, `sku:`, `tracked:`, and unfielded
+text filtering through the shared search parser. This pass also adds the static
+`inventoryProperties.quantityNames` projection that Shopify exposes alongside
+inventory quantity roots.
+
+This is read-only progress over already-seeded variant inventory state. It does
+not implement inventory quantity mutations, inventory adjustment groups,
+inactive-level lifecycle behavior, shipments, transfers, or the full
+`inventory-quantity-roots-parity` scenario.
+
+| Module                                                     | Change                                                                            |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Adds `inventoryItems` connection reads/search and `inventoryProperties` output.   |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct inventory item catalog/search and inventory properties read coverage. |
+
+Validation: `gleam test --target javascript` is green at 708 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 704 tests. Product parity
+inventory remains 115 checked-in specs, with 10 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct test failure: even with
+  variant-backed InventoryItem records in store, every top-level
+  `inventoryItems` query returned an empty connection.
+- The existing nested InventoryItem serializer was reusable for top-level
+  connection nodes once the connection iterated ProductVariant records and
+  supplied the variant backreference.
+
+### Risks / open items
+
+- `inventory-quantity-roots-parity` remains unenabled because it also requires
+  local `inventorySetQuantities` / `inventoryMoveQuantities` mutation handling
+  and downstream quantity lifecycle behavior.
+- Inventory item search remains limited to the captured/TS-compatible basic
+  fields covered by direct tests: text, `id`, `sku`, and `tracked`.
+- Only 10 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 45 candidates
+
+- Add ProductOption state and product `options`/option value projection from
+  captured fixtures.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Add product search sort-key ordering once per-connection product cursors and
+  `publishedAt` state are modeled.
+
+---
+
 ## 2026-04-30 — Pass 43: product scalar search parity
 
 Enables the captured `products-search-read` parity scenario in the Gleam suite.

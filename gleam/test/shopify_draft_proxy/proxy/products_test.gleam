@@ -7,7 +7,8 @@ import shopify_draft_proxy/graphql/root_field.{StringVal}
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  ProductCategoryRecord, ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  InventoryItemRecord, ProductCategoryRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord,
 }
 
 pub fn product_empty_state_read_test() {
@@ -374,6 +375,61 @@ pub fn seeded_products_scalar_search_read_test() {
     == "{\"data\":{\"vendor\":{\"nodes\":[{\"id\":\"gid://shopify/Product/100\",\"title\":\"Running Cap\",\"vendor\":\"NIKE\"},{\"id\":\"gid://shopify/Product/101\",\"title\":\"Trail Shoe\",\"vendor\":\"NIKE\"}]},\"lowInventory\":{\"count\":2,\"precision\":\"EXACT\"},\"accessories\":{\"count\":2,\"precision\":\"EXACT\"},\"hats\":{\"count\":1,\"precision\":\"EXACT\"},\"byId\":{\"nodes\":[{\"id\":\"gid://shopify/Product/101\",\"title\":\"Trail Shoe\"}]},\"text\":{\"count\":1,\"precision\":\"EXACT\"},\"active\":{\"count\":2,\"precision\":\"EXACT\"}}}"
 }
 
+pub fn seeded_inventory_items_connection_read_test() {
+  let assert Ok(result) =
+    products.process(
+      seeded_inventory_item_store(),
+      "query InventoryItemsRead {
+        inventoryItems(first: 5) {
+          nodes {
+            id
+            tracked
+            requiresShipping
+            variant { id sku product { id } }
+          }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+        bySku: inventoryItems(first: 5, query: \"sku:sku-low\") {
+          nodes { id variant { sku } }
+        }
+        tracked: inventoryItems(first: 5, query: \"tracked:true\") {
+          nodes { id tracked }
+        }
+        byId: inventoryItems(first: 5, query: \"id:20\") {
+          nodes { id variant { id } }
+        }
+        missing: inventoryItems(first: 1, query: \"id:0\") {
+          nodes { id }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }",
+      dict.new(),
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"inventoryItems\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryItem/20\",\"tracked\":false,\"requiresShipping\":true,\"variant\":{\"id\":\"gid://shopify/ProductVariant/20\",\"sku\":\"sku-untracked\",\"product\":{\"id\":\"gid://shopify/Product/1\"}}},{\"id\":\"gid://shopify/InventoryItem/30\",\"tracked\":true,\"requiresShipping\":true,\"variant\":{\"id\":\"gid://shopify/ProductVariant/30\",\"sku\":\"sku-low\",\"product\":{\"id\":\"gid://shopify/Product/2\"}}}],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":\"cursor:gid://shopify/InventoryItem/20\",\"endCursor\":\"cursor:gid://shopify/InventoryItem/30\"}},\"bySku\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryItem/30\",\"variant\":{\"sku\":\"sku-low\"}}]},\"tracked\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryItem/30\",\"tracked\":true}]},\"byId\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryItem/20\",\"variant\":{\"id\":\"gid://shopify/ProductVariant/20\"}}]},\"missing\":{\"nodes\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}}}}"
+}
+
+pub fn inventory_properties_quantity_names_read_test() {
+  let assert Ok(result) =
+    products.process(
+      store.new(),
+      "query InventoryPropertiesRead {
+        inventoryProperties {
+          quantityNames {
+            name
+            displayName
+            isInUse
+            belongsTo
+            comprises
+          }
+        }
+      }",
+      dict.new(),
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"inventoryProperties\":{\"quantityNames\":[{\"name\":\"available\",\"displayName\":\"Available\",\"isInUse\":true,\"belongsTo\":[\"on_hand\"],\"comprises\":[]},{\"name\":\"committed\",\"displayName\":\"Committed\",\"isInUse\":true,\"belongsTo\":[\"on_hand\"],\"comprises\":[]},{\"name\":\"damaged\",\"displayName\":\"Damaged\",\"isInUse\":false,\"belongsTo\":[\"on_hand\"],\"comprises\":[]},{\"name\":\"incoming\",\"displayName\":\"Incoming\",\"isInUse\":false,\"belongsTo\":[],\"comprises\":[]},{\"name\":\"on_hand\",\"displayName\":\"On hand\",\"isInUse\":true,\"belongsTo\":[],\"comprises\":[\"available\",\"committed\",\"damaged\",\"quality_control\",\"reserved\",\"safety_stock\"]},{\"name\":\"quality_control\",\"displayName\":\"Quality control\",\"isInUse\":false,\"belongsTo\":[\"on_hand\"],\"comprises\":[]},{\"name\":\"reserved\",\"displayName\":\"Reserved\",\"isInUse\":true,\"belongsTo\":[\"on_hand\"],\"comprises\":[]},{\"name\":\"safety_stock\",\"displayName\":\"Safety stock\",\"isInUse\":false,\"belongsTo\":[\"on_hand\"],\"comprises\":[]}]}}}"
+}
+
 pub fn seeded_products_catalog_read_test() {
   let product =
     ProductRecord(
@@ -562,6 +618,46 @@ fn seeded_variant_store() {
   ])
 }
 
+fn seeded_inventory_item_store() {
+  store.new()
+  |> store.upsert_base_products([
+    string_catalog_product(
+      "gid://shopify/Product/1",
+      "Helper Hat",
+      "helper-hat",
+      Some("Acme"),
+      Some("Accessory"),
+      ["Winter", "Hat"],
+    ),
+    string_catalog_product(
+      "gid://shopify/Product/2",
+      "Helper Board",
+      "helper-board",
+      Some("Bravo"),
+      Some("Snowboard"),
+      ["Winter", "Board"],
+    ),
+  ])
+  |> store.upsert_base_product_variants([
+    inventory_variant_record(
+      "gid://shopify/ProductVariant/30",
+      "gid://shopify/Product/2",
+      "Default Title",
+      Some("sku-low"),
+      "gid://shopify/InventoryItem/30",
+      Some(True),
+    ),
+    inventory_variant_record(
+      "gid://shopify/ProductVariant/20",
+      "gid://shopify/Product/1",
+      "Default Title",
+      Some("sku-untracked"),
+      "gid://shopify/InventoryItem/20",
+      Some(False),
+    ),
+  ])
+}
+
 fn variant_record(
   id: String,
   product_id: String,
@@ -582,6 +678,31 @@ fn variant_record(
     selected_options: [],
     inventory_item: None,
     cursor: None,
+  )
+}
+
+fn inventory_variant_record(
+  id: String,
+  product_id: String,
+  title: String,
+  sku: Option(String),
+  inventory_item_id: String,
+  tracked: Option(Bool),
+) {
+  ProductVariantRecord(
+    ..variant_record(id, product_id, title, sku),
+    inventory_item: Some(
+      InventoryItemRecord(
+        id: inventory_item_id,
+        tracked: tracked,
+        requires_shipping: Some(True),
+        measurement: None,
+        country_code_of_origin: None,
+        province_code_of_origin: None,
+        harmonized_system_code: None,
+        inventory_levels: [],
+      ),
+    ),
   )
 }
 
