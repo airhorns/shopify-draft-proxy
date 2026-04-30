@@ -20,15 +20,15 @@ generic Admin Platform `node` reads for locally staged app resources.
 The TypeScript app runtime has been removed from the legacy dispatcher and TS
 parity harness now that the app-domain parity evidence is executable in Gleam.
 
-| Module                                                        | Change                                                                                                                                               |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/apps.gleam`              | Exposes app-owned generic Node serializers for App, AppInstallation, AppPurchaseOneTime, AppSubscription, and AppUsageRecord.                        |
-| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`    | Routes app-owned GIDs through the Apps serializers so multi-step billing parity can read staged app resources through `node(id:)`.                   |
-| `gleam/src/shopify_draft_proxy/state/store.gleam`             | Suppresses uninstalled app installations from effective/current reads and hides destroyed delegated tokens from token-hash lookup.                   |
-| `gleam/test/parity/runner.gleam`                              | Adds `fromProxyResponse` variable substitution so later targets can reference earlier named target responses, not only the primary response.         |
-| `gleam/test/parity/diff.gleam`                                | Supports expected-difference paths with multiple `[*]` segments, needed for nested app subscription line item IDs.                                  |
-| `gleam/test/parity_test.gleam`                                | Enables `app-billing-access-local-staging` alongside the existing current delegate-token input scenario.                                             |
-| `src/proxy/apps.ts`, `src/proxy/routes.ts`, `src/proxy/admin-platform.ts`, `scripts/conformance-parity-lib.ts` | Removes the legacy TypeScript app runtime wiring and TS app parity harness imports. |
+| Module                                                                                                         | Change                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/apps.gleam`                                                               | Exposes app-owned generic Node serializers for App, AppInstallation, AppPurchaseOneTime, AppSubscription, and AppUsageRecord.                |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`                                                     | Routes app-owned GIDs through the Apps serializers so multi-step billing parity can read staged app resources through `node(id:)`.           |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                                                              | Suppresses uninstalled app installations from effective/current reads and hides destroyed delegated tokens from token-hash lookup.           |
+| `gleam/test/parity/runner.gleam`                                                                               | Adds `fromProxyResponse` variable substitution so later targets can reference earlier named target responses, not only the primary response. |
+| `gleam/test/parity/diff.gleam`                                                                                 | Supports expected-difference paths with multiple `[*]` segments, needed for nested app subscription line item IDs.                           |
+| `gleam/test/parity_test.gleam`                                                                                 | Enables `app-billing-access-local-staging` alongside the existing current delegate-token input scenario.                                     |
+| `src/proxy/apps.ts`, `src/proxy/routes.ts`, `src/proxy/admin-platform.ts`, `scripts/conformance-parity-lib.ts` | Removes the legacy TypeScript app runtime wiring and TS app parity harness imports.                                                          |
 
 Validation: `gleam test --target javascript` is green at 682 tests.
 `gleam test --target erlang` is green at 678 tests via the

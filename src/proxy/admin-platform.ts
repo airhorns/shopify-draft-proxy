@@ -964,7 +964,6 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     serialize: (runtime, id, selectedFields, _variables, fragments) =>
       serializeSavedSearchNodeById(runtime, id, syntheticNodeField(selectedFields), fragments),
   },
-
 };
 const DISCOUNT_NODE_RESOLVER = LOCAL_NODE_RESOLVERS['DiscountNode'];
 
