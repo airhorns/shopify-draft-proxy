@@ -6,12 +6,37 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/bulk_operations
+import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{BulkOperationRecord}
 
 fn empty_vars() {
   dict.new()
+}
+
+/// Apply the dispatcher-level `record_log_drafts` to the outcome. Tests that
+/// exercise `bulk_operations.process_mutation` directly need this so log-buffer
+/// assertions still see the drafts the module emitted; centralized recording
+/// is the dispatcher's responsibility post-refactor.
+fn record_drafts(
+  outcome: bulk_operations.MutationOutcome,
+  request_path: String,
+  document: String,
+) -> bulk_operations.MutationOutcome {
+  let #(logged_store, logged_identity) =
+    mutation_helpers.record_log_drafts(
+      outcome.store,
+      outcome.identity,
+      request_path,
+      document,
+      outcome.log_drafts,
+    )
+  bulk_operations.MutationOutcome(
+    ..outcome,
+    store: logged_store,
+    identity: logged_identity,
+  )
 }
 
 fn run(source: store.Store, query: String) -> String {
@@ -134,14 +159,18 @@ pub fn process_wraps_in_data_envelope_test() {
 }
 
 pub fn run_query_stages_completed_operation_and_log_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let document =
+    "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\") { bulkOperation { id status type objectCount rootObjectCount fileSize url partialDataUrl query } userErrors { field message code } } }"
   let assert Ok(outcome) =
     bulk_operations.process_mutation(
       store.new(),
       synthetic_identity.new(),
-      "/admin/api/2026-04/graphql.json",
-      "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\") { bulkOperation { id status type objectCount rootObjectCount fileSize url partialDataUrl query } userErrors { field message code } } }",
+      request_path,
+      document,
       empty_vars(),
     )
+  let outcome = record_drafts(outcome, request_path, document)
   let response = json.to_string(outcome.data)
   assert string.contains(
     response,

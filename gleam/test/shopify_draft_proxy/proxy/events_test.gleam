@@ -6,6 +6,13 @@ fn handle(query: String) -> String {
   json.to_string(data)
 }
 
+pub fn events_query_root_detection_test() {
+  assert events.is_events_query_root("event")
+  assert events.is_events_query_root("events")
+  assert events.is_events_query_root("eventsCount")
+  assert !events.is_events_query_root("marketingEvents")
+}
+
 pub fn empty_event_field_returns_null_test() {
   // Single-event lookups always miss in the proxy — the response is
   // just `{ event: null }`.

@@ -1300,8 +1300,11 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["event", "Event"],
-    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
-    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported."
+    "runtimeTests": [
+      "gleam/test/shopify_draft_proxy/proxy/events_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"
+    ],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Gleam snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported."
   },
   {
     "name": "events",
@@ -1310,8 +1313,11 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["events", "Events"],
-    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
-    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported."
+    "runtimeTests": [
+      "gleam/test/shopify_draft_proxy/proxy/events_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"
+    ],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Gleam snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported."
   },
   {
     "name": "eventsCount",
@@ -1320,8 +1326,11 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["eventsCount", "EventsCount"],
-    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
-    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported."
+    "runtimeTests": [
+      "gleam/test/shopify_draft_proxy/proxy/events_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"
+    ],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Gleam snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported."
   },
   {
     "name": "customers",
