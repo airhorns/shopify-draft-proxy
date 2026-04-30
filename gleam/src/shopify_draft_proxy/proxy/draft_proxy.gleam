@@ -439,6 +439,21 @@ fn serialize_base_state(state: store.BaseState) -> Json {
     Some(count) -> list.append(entries, [#("productCount", json.int(count))])
     None -> entries
   }
+  let entries = case dict.is_empty(state.product_variants) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "productVariants",
+          serialize_product_variant_dict(state.product_variants),
+        ),
+      ])
+  }
+  let entries = case state.product_variant_count {
+    Some(count) ->
+      list.append(entries, [#("productVariantCount", json.int(count))])
+    None -> entries
+  }
   json.object(entries)
 }
 
@@ -477,6 +492,21 @@ fn serialize_staged_state(state: store.StagedState) -> Json {
     Some(count) -> list.append(entries, [#("productCount", json.int(count))])
     None -> entries
   }
+  let entries = case dict.is_empty(state.product_variants) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "productVariants",
+          serialize_product_variant_dict(state.product_variants),
+        ),
+      ])
+  }
+  let entries = case state.product_variant_count {
+    Some(count) ->
+      list.append(entries, [#("productVariantCount", json.int(count))])
+    None -> entries
+  }
   let entries = case dict.is_empty(state.deleted_saved_search_ids) {
     True -> entries
     False ->
@@ -498,6 +528,21 @@ fn serialize_product_dict(
     |> list.map(fn(pair) {
       let #(id, record) = pair
       #(id, source_to_json(products.product_source(record)))
+    }),
+  )
+}
+
+fn serialize_product_variant_dict(
+  records: dict.Dict(String, types.ProductVariantRecord),
+) -> Json {
+  json.object(
+    dict.to_list(records)
+    |> list.map(fn(pair) {
+      let #(id, record) = pair
+      #(
+        id,
+        source_to_json(products.product_variant_source(store.new(), record)),
+      )
     }),
   )
 }

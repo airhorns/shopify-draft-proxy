@@ -22,10 +22,11 @@ import shopify_draft_proxy/state/types.{
   type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
   type GiftCardRecord, type LocaleRecord, type MarketingEngagementRecord,
   type MarketingRecord, type MarketingValue, type ProductRecord,
-  type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
-  type ShopRecord, type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
-  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
-  BulkOperationRecord, MarketingObject, MarketingString,
+  type ProductVariantRecord, type SavedSearchRecord, type SegmentRecord,
+  type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
+  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
+  type WebhookSubscriptionRecord, BulkOperationRecord, MarketingObject,
+  MarketingString,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -38,6 +39,9 @@ pub type BaseState {
     product_order: List(String),
     deleted_product_ids: Dict(String, Bool),
     product_count: Option(Int),
+    product_variants: Dict(String, ProductVariantRecord),
+    product_variant_order: List(String),
+    product_variant_count: Option(Int),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -113,6 +117,9 @@ pub type StagedState {
     product_order: List(String),
     deleted_product_ids: Dict(String, Bool),
     product_count: Option(Int),
+    product_variants: Dict(String, ProductVariantRecord),
+    product_variant_order: List(String),
+    product_variant_count: Option(Int),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -253,6 +260,9 @@ pub fn empty_base_state() -> BaseState {
     product_order: [],
     deleted_product_ids: dict.new(),
     product_count: None,
+    product_variants: dict.new(),
+    product_variant_order: [],
+    product_variant_count: None,
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -321,6 +331,9 @@ pub fn empty_staged_state() -> StagedState {
     product_order: [],
     deleted_product_ids: dict.new(),
     product_count: None,
+    product_variants: dict.new(),
+    product_variant_order: [],
+    product_variant_count: None,
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -551,6 +564,184 @@ pub fn get_effective_product_count(store: Store) -> Int {
         None -> list.length(list_effective_products(store))
       }
   }
+}
+
+pub fn upsert_base_product_variants(
+  store: Store,
+  records: List(ProductVariantRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let new_base =
+      BaseState(
+        ..base,
+        product_variants: dict.insert(base.product_variants, record.id, record),
+        product_variant_order: append_unique_id(
+          base.product_variant_order,
+          record.id,
+        ),
+      )
+    Store(..acc, base_state: new_base)
+  })
+}
+
+pub fn set_base_product_variant_count(store: Store, count: Int) -> Store {
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..store.base_state,
+      product_variant_count: Some(count),
+    ),
+  )
+}
+
+pub fn set_staged_product_variant_count(store: Store, count: Int) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      product_variant_count: Some(count),
+    ),
+  )
+}
+
+pub fn upsert_staged_product_variant(
+  store: Store,
+  record: ProductVariantRecord,
+) -> #(ProductVariantRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.product_variant_order, record.id)
+    || list.contains(staged.product_variant_order, record.id)
+  let new_order = case already_known {
+    True -> staged.product_variant_order
+    False -> list.append(staged.product_variant_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      product_variants: dict.insert(staged.product_variants, record.id, record),
+      product_variant_order: new_order,
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn get_base_variants_by_product_id(
+  store: Store,
+  product_id: String,
+) -> List(ProductVariantRecord) {
+  case product_is_deleted(store, product_id) {
+    True -> []
+    False ->
+      list_variant_records(
+        store.base_state.product_variants,
+        store.base_state.product_variant_order,
+      )
+      |> list.filter(fn(variant) { variant.product_id == product_id })
+  }
+}
+
+pub fn get_effective_variants_by_product_id(
+  store: Store,
+  product_id: String,
+) -> List(ProductVariantRecord) {
+  case product_is_deleted(store, product_id) {
+    True -> []
+    False -> {
+      let staged_variants =
+        list_variant_records(
+          store.staged_state.product_variants,
+          store.staged_state.product_variant_order,
+        )
+        |> list.filter(fn(variant) { variant.product_id == product_id })
+      case staged_variants {
+        [] -> get_base_variants_by_product_id(store, product_id)
+        _ -> staged_variants
+      }
+    }
+  }
+}
+
+pub fn get_effective_variant_by_id(
+  store: Store,
+  variant_id: String,
+) -> Option(ProductVariantRecord) {
+  case dict.get(store.staged_state.product_variants, variant_id) {
+    Ok(variant) ->
+      case product_is_deleted(store, variant.product_id) {
+        True -> None
+        False -> Some(variant)
+      }
+    Error(_) ->
+      case dict.get(store.base_state.product_variants, variant_id) {
+        Ok(variant) ->
+          case
+            product_is_deleted(store, variant.product_id)
+            || has_staged_variant_family(store, variant.product_id)
+          {
+            True -> None
+            False -> Some(variant)
+          }
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn list_effective_product_variants(
+  store: Store,
+) -> List(ProductVariantRecord) {
+  list_effective_products(store)
+  |> list.flat_map(fn(product) {
+    get_effective_variants_by_product_id(store, product.id)
+  })
+}
+
+pub fn get_effective_product_variant_count(store: Store) -> Int {
+  case store.staged_state.product_variant_count {
+    Some(count) -> count
+    None ->
+      case store.base_state.product_variant_count {
+        Some(count) -> count
+        None -> list.length(list_effective_product_variants(store))
+      }
+  }
+}
+
+fn product_is_deleted(store: Store, product_id: String) -> Bool {
+  dict_has(store.base_state.deleted_product_ids, product_id)
+  || dict_has(store.staged_state.deleted_product_ids, product_id)
+}
+
+fn has_staged_variant_family(store: Store, product_id: String) -> Bool {
+  store.staged_state.product_variants
+  |> dict.values()
+  |> list.any(fn(variant) { variant.product_id == product_id })
+}
+
+fn list_variant_records(
+  records: Dict(String, ProductVariantRecord),
+  order: List(String),
+) -> List(ProductVariantRecord) {
+  let ordered_records =
+    list.filter_map(order, fn(id) {
+      case dict.get(records, id) {
+        Ok(record) -> Ok(record)
+        Error(_) -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(order)
+  let unordered_records =
+    dict.keys(records)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+    |> list.filter_map(fn(id) {
+      case dict.get(records, id) {
+        Ok(record) -> Ok(record)
+        Error(_) -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
 }
 
 // ---------------------------------------------------------------------------

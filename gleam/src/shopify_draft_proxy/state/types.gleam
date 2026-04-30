@@ -24,6 +24,27 @@ pub type ProductCategoryRecord {
   ProductCategoryRecord(id: String, full_name: String)
 }
 
+pub type ProductVariantSelectedOptionRecord {
+  ProductVariantSelectedOptionRecord(name: String, value: String)
+}
+
+pub type ProductVariantRecord {
+  ProductVariantRecord(
+    id: String,
+    product_id: String,
+    title: String,
+    sku: Option(String),
+    barcode: Option(String),
+    price: Option(String),
+    compare_at_price: Option(String),
+    taxable: Option(Bool),
+    inventory_policy: Option(String),
+    inventory_quantity: Option(Int),
+    selected_options: List(ProductVariantSelectedOptionRecord),
+    cursor: Option(String),
+  )
+}
+
 pub type ProductRecord {
   ProductRecord(
     id: String,

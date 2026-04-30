@@ -25,9 +25,11 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_selected_child_fields, paginate_connection_items, project_graphql_value,
   serialize_connection, serialize_empty_connection, src_object,
 }
+import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
   type ProductCategoryRecord, type ProductRecord, type ProductSeoRecord,
+  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
 }
 
 pub type ProductsError {
@@ -101,15 +103,29 @@ fn serialize_root_fields(
                 fragments,
               )
             "collection"
-            | "productVariant"
-            | "productVariantByIdentifier"
             | "inventoryItem"
             | "inventoryLevel"
             | "productFeed"
             | "productResourceFeedback"
             | "productOperation" -> json.null()
+            "productVariant" ->
+              serialize_product_variant_root(store, field, variables, fragments)
+            "productVariantByIdentifier" ->
+              serialize_product_variant_by_identifier_root(
+                store,
+                field,
+                variables,
+                fragments,
+              )
             "products" ->
               serialize_products_connection(store, field, variables, fragments)
+            "productVariants" ->
+              serialize_product_variants_connection(
+                store,
+                field,
+                variables,
+                fragments,
+              )
             "productTags" ->
               serialize_string_connection(product_tags(store), field, variables)
             "productTypes" ->
@@ -125,7 +141,6 @@ fn serialize_root_fields(
                 variables,
               )
             "collections"
-            | "productVariants"
             | "inventoryItems"
             | "productFeeds"
             | "productSavedSearches" ->
@@ -136,7 +151,7 @@ fn serialize_root_fields(
             "productsCount" | "productVariantsCount" ->
               serialize_exact_count(field, case name.value {
                 "productsCount" -> store.get_effective_product_count(store)
-                _ -> 0
+                _ -> store.get_effective_product_variant_count(store)
               })
             "productDuplicateJob" ->
               serialize_product_duplicate_job(field, variables)
@@ -205,6 +220,55 @@ fn product_by_identifier(
   }
 }
 
+fn serialize_product_variant_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.get_effective_variant_by_id(store, id) {
+        Some(variant) ->
+          project_graphql_value(
+            product_variant_source(store, variant),
+            get_selected_child_fields(field, default_selected_field_options()),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn serialize_product_variant_by_identifier_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_identifier_argument(field, variables) {
+    Some(identifier) ->
+      case read_string_field(identifier, "id") {
+        Some(id) ->
+          case store.get_effective_variant_by_id(store, id) {
+            Some(variant) ->
+              project_graphql_value(
+                product_variant_source(store, variant),
+                get_selected_child_fields(
+                  field,
+                  default_selected_field_options(),
+                ),
+                fragments,
+              )
+            None -> json.null()
+          }
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
 fn serialize_products_connection(
   store: Store,
   field: Selection,
@@ -255,6 +319,52 @@ fn serialize_products_connection(
       )
     }
   }
+}
+
+fn serialize_product_variants_connection(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let variants =
+    store.list_effective_product_variants(store)
+    |> list.sort(fn(left, right) {
+      resource_ids.compare_shopify_resource_ids(left.id, right.id)
+    })
+  let ordered_variants = case read_bool_argument(field, variables, "reverse") {
+    Some(True) -> list.reverse(variants)
+    _ -> variants
+  }
+  let window =
+    paginate_connection_items(
+      ordered_variants,
+      field,
+      variables,
+      product_variant_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: product_variant_cursor,
+      serialize_node: fn(variant, node_field, _index) {
+        project_graphql_value(
+          product_variant_source(store, variant),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
 }
 
 fn serialize_string_connection(
@@ -324,6 +434,16 @@ fn normalize_string_catalog(values: List(String)) -> List(String) {
 
 fn string_cursor(value: String, _index: Int) -> String {
   value
+}
+
+fn product_variant_cursor(
+  variant: ProductVariantRecord,
+  _index: Int,
+) -> String {
+  case variant.cursor {
+    Some(cursor) -> cursor
+    None -> variant.id
+  }
 }
 
 fn product_cursor(product: ProductRecord, _index: Int) -> String {
@@ -464,6 +584,45 @@ pub fn product_source(product: ProductRecord) -> SourceValue {
     #("collections", empty_connection_source()),
     #("media", empty_connection_source()),
   ])
+}
+
+pub fn product_variant_source(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("ProductVariant")),
+    #("id", SrcString(variant.id)),
+    #("title", SrcString(variant.title)),
+    #("sku", optional_string_source(variant.sku)),
+    #("barcode", optional_string_source(variant.barcode)),
+    #("price", optional_string_source(variant.price)),
+    #("compareAtPrice", optional_string_source(variant.compare_at_price)),
+    #("taxable", optional_bool_source(variant.taxable)),
+    #("inventoryPolicy", optional_string_source(variant.inventory_policy)),
+    #("inventoryQuantity", optional_int_source(variant.inventory_quantity)),
+    #(
+      "selectedOptions",
+      SrcList(list.map(variant.selected_options, selected_option_source)),
+    ),
+    #("product", variant_product_source(store, variant.product_id)),
+  ])
+}
+
+fn selected_option_source(
+  selected_option: ProductVariantSelectedOptionRecord,
+) -> SourceValue {
+  src_object([
+    #("name", SrcString(selected_option.name)),
+    #("value", SrcString(selected_option.value)),
+  ])
+}
+
+fn variant_product_source(store: Store, product_id: String) -> SourceValue {
+  case store.get_effective_product_by_id(store, product_id) {
+    Some(product) -> product_source(product)
+    None -> SrcNull
+  }
 }
 
 fn product_seo_source(seo: ProductSeoRecord) -> SourceValue {

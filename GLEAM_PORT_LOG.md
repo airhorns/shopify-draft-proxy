@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 38: product variant helper reads
+
+Adds the first ProductVariant state and read slice to the Gleam Products port.
+The store now tracks base/staged product variants with Shopify-like family
+overlay behavior: staged variants for a product replace that product's base
+variant family, and deleted products hide their variants. The Products handler
+resolves `productVariant(id:)`, `productVariantByIdentifier(identifier: { id })`,
+`productVariants(first:, sortKey: ID)`, and `productVariantsCount` from effective
+local variant state.
+
+This remains a narrow read slice. Variant query filtering, non-ID sort keys,
+inventory item/level projection, selected-option parity fixtures, variant
+mutations, and full `product-helper-roots-read` parity remain deferred.
+
+| Module                                                     | Change                                                                                                               |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | Adds minimal ProductVariant and selected-option records.                                                             |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds base/staged ProductVariant buckets, effective family overlay helpers, lookups, list reads, and count.           |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Serializes top-level and helper ProductVariant reads plus ProductVariant connections/counts.                         |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`    | Includes ProductVariant buckets/counts in the current meta state dump shape.                                         |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct coverage for variant ID/helper reads, missing variants, product projection, connection order, and count. |
+
+Validation: `gleam test --target javascript` is green at 699 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 5
+product specs executable in the Gleam parity suite after this pass.
+
+### Findings
+
+- The TS store treats a staged variant family as replacing the corresponding
+  base product's variant family, rather than merging variant-by-variant. The
+  Gleam helper mirrors that behavior from the start.
+- Top-level `productVariants` lists variants through effective Product order,
+  then sorts by Shopify resource ID for the helper scenario's `sortKey: ID`.
+
+### Risks / open items
+
+- `product-helper-roots-read` remains disabled because the captured strict
+  scenario also needs captured Shopify variant count, saved-search helper fields,
+  product operation, product duplicate job shape, and product feedback branches.
+- Product options, inventory item/level/quantity, collections, publications,
+  selling plans, feeds/feedback, metafields, and all product mutations remain
+  unported in Gleam.
+- Only 5 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 39 candidates
+
+- Seed the captured `product-helper-roots-read` product and variant records and
+  narrow the remaining mismatches toward enabling that full parity spec.
+- Add product operation/feedback no-data/helper branches needed by
+  `product-helper-roots-read`.
+- Begin ProductVariant query filtering for simple `vendor`, `product_type`,
+  `tag`, `sku`, and `id` terms before enabling variant-search parity specs.
+
+---
+
 ## 2026-04-30 — Pass 37: product string helper catalogs
 
 Extends the Product helper read slice to Product-backed string catalog roots:
