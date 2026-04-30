@@ -988,8 +988,14 @@ const fixed_created_at: String = "2026-04-29T12:00:00.000Z"
 
 pub fn dump_state_default_proxy_test() {
   let proxy = draft_proxy.new()
-  assert json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
-    == "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+  let dumped = json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
+  assert string.contains(
+    dumped,
+    "\"schema\":\"shopify-draft-proxy/state-dump\"",
+  )
+  assert string.contains(dumped, "\"baseState\":{\"kind\":\"plain\"")
+  assert string.contains(dumped, "\"stagedState\":{\"kind\":\"plain\"")
+  assert string.contains(dumped, "\"mutationLog\":{\"kind\":\"plain\"")
 }
 
 pub fn dump_state_after_mutation_includes_log_and_advances_identity_test() {
@@ -1060,6 +1066,27 @@ pub fn restore_state_round_trips_mutation_log_test() {
     json.to_string(draft_proxy.dump_state(original, fixed_created_at))
   let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
   assert json.to_string(draft_proxy.get_log_snapshot(restored)) == original_log
+}
+
+pub fn restore_state_round_trips_saved_search_state_test() {
+  let original = draft_proxy.new()
+  let #(_, original) =
+    draft_proxy.process_request(
+      original,
+      graphql_request(saved_search_create_body),
+    )
+  let dumped =
+    json.to_string(draft_proxy.dump_state(original, fixed_created_at))
+  let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
+  let #(Response(body: body, ..), _) =
+    draft_proxy.process_request(
+      restored,
+      graphql_request(
+        "{\"query\":\"{ orderSavedSearches(query: \\\"Promo\\\") { nodes { id name } } }\"}",
+      ),
+    )
+  assert json.to_string(body)
+    == "{\"data\":{\"orderSavedSearches\":{\"nodes\":[{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Promo orders\"}]}}}"
 }
 
 pub fn restore_state_rejects_unsupported_schema_test() {

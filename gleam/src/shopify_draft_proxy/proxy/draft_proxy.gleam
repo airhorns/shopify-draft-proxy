@@ -1552,12 +1552,59 @@ fn dump_store_slice(store: Store) -> Json {
       "fields",
       json.object([
         #(
+          "baseState",
+          plain_state_field_dump(serialize_base_state_dump(store.base_state)),
+        ),
+        #(
+          "stagedState",
+          plain_state_field_dump(serialize_staged_state_dump(store.staged_state)),
+        ),
+        #(
           "mutationLog",
-          json.array(store.mutation_log, serialize_mutation_log_entry),
+          plain_state_field_dump(json.array(
+            store.mutation_log,
+            serialize_mutation_log_entry,
+          )),
         ),
       ]),
     ),
   ])
+}
+
+fn plain_state_field_dump(value: Json) -> Json {
+  json.object([
+    #("kind", json.string("plain")),
+    #("value", value),
+  ])
+}
+
+fn serialize_base_state_dump(state: store.BaseState) -> Json {
+  json.object([
+    #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
+    #("savedSearchOrder", json.array(state.saved_search_order, json.string)),
+    #(
+      "deletedSavedSearchIds",
+      serialize_true_dict(state.deleted_saved_search_ids),
+    ),
+  ])
+}
+
+fn serialize_staged_state_dump(state: store.StagedState) -> Json {
+  json.object([
+    #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
+    #("savedSearchOrder", json.array(state.saved_search_order, json.string)),
+    #(
+      "deletedSavedSearchIds",
+      serialize_true_dict(state.deleted_saved_search_ids),
+    ),
+  ])
+}
+
+fn serialize_true_dict(values: dict.Dict(String, Bool)) -> Json {
+  json.object(
+    dict.keys(values)
+    |> list.map(fn(id) { #(id, json.bool(True)) }),
+  )
 }
 
 fn dump_synthetic_identity(registry: SyntheticIdentityRegistry) -> Json {
@@ -1604,8 +1651,12 @@ pub fn restore_state(
     True -> Ok(Nil)
     False -> Error(UnsupportedVersion(found: version))
   })
-  let StoreSliceDump(version: store_version, mutation_log: log_entries) =
-    store_dump
+  let StoreSliceDump(
+    version: store_version,
+    base_state: base_state,
+    staged_state: staged_state,
+    mutation_log: log_entries,
+  ) = store_dump
   use _ <- result.try(case store_version == store_dump_version {
     True -> Ok(Nil)
     False -> Error(UnsupportedStoreVersion(found: store_version))
@@ -1614,7 +1665,8 @@ pub fn restore_state(
     synthetic_identity.restore_state(identity_dump)
     |> result.map_error(InvalidSyntheticIdentity),
   )
-  let restored_store = restore_store_slice(proxy.store, log_entries)
+  let restored_store =
+    restore_store_slice(proxy.store, base_state, staged_state, log_entries)
   Ok(
     DraftProxy(
       ..proxy,
@@ -1625,19 +1677,144 @@ pub fn restore_state(
 }
 
 type StoreSliceDump {
-  StoreSliceDump(version: Int, mutation_log: List(store.MutationLogEntry))
+  StoreSliceDump(
+    version: Int,
+    base_state: SavedSearchStateSlice,
+    staged_state: SavedSearchStateSlice,
+    mutation_log: List(store.MutationLogEntry),
+  )
+}
+
+type StoreFieldsDump {
+  StoreFieldsDump(
+    base_state: SavedSearchStateSlice,
+    staged_state: SavedSearchStateSlice,
+    mutation_log: List(store.MutationLogEntry),
+  )
+}
+
+type SavedSearchStateSlice {
+  SavedSearchStateSlice(
+    saved_searches: Dict(String, types.SavedSearchRecord),
+    saved_search_order: List(String),
+    deleted_saved_search_ids: Dict(String, Bool),
+  )
 }
 
 fn store_slice_decoder() -> decode.Decoder(StoreSliceDump) {
   use version <- decode.field("version", decode.int)
-  use mutation_log <- decode.subfield(
-    ["fields", "mutationLog"],
-    decode.optional(decode.list(of: mutation_log_entry_decoder())),
-  )
+  use fields <- decode.field("fields", store_fields_decoder())
+  let StoreFieldsDump(base_state, staged_state, mutation_log) = fields
   decode.success(StoreSliceDump(
     version: version,
-    mutation_log: option.unwrap(mutation_log, []),
+    base_state: base_state,
+    staged_state: staged_state,
+    mutation_log: mutation_log,
   ))
+}
+
+fn store_fields_decoder() -> decode.Decoder(StoreFieldsDump) {
+  use base_state <- decode.optional_field(
+    "baseState",
+    empty_saved_search_state_slice(),
+    state_field_decoder(saved_search_state_slice_decoder()),
+  )
+  use staged_state <- decode.optional_field(
+    "stagedState",
+    empty_saved_search_state_slice(),
+    state_field_decoder(saved_search_state_slice_decoder()),
+  )
+  use mutation_log <- decode.optional_field(
+    "mutationLog",
+    [],
+    state_field_decoder(decode.list(of: mutation_log_entry_decoder())),
+  )
+  decode.success(StoreFieldsDump(
+    base_state: base_state,
+    staged_state: staged_state,
+    mutation_log: mutation_log,
+  ))
+}
+
+fn empty_saved_search_state_slice() -> SavedSearchStateSlice {
+  SavedSearchStateSlice(
+    saved_searches: dict.new(),
+    saved_search_order: [],
+    deleted_saved_search_ids: dict.new(),
+  )
+}
+
+fn state_field_decoder(inner: decode.Decoder(a)) -> decode.Decoder(a) {
+  decode.one_of(plain_state_field_value_decoder(inner), or: [inner])
+}
+
+fn plain_state_field_value_decoder(
+  inner: decode.Decoder(a),
+) -> decode.Decoder(a) {
+  use kind <- decode.field("kind", decode.string)
+  use value <- decode.field("value", inner)
+  case kind {
+    "plain" -> decode.success(value)
+    other -> decode.failure(value, "StateFieldKind:" <> other)
+  }
+}
+
+fn saved_search_state_slice_decoder() -> decode.Decoder(SavedSearchStateSlice) {
+  use saved_searches <- decode.optional_field(
+    "savedSearches",
+    dict.new(),
+    decode.dict(decode.string, saved_search_record_decoder()),
+  )
+  use saved_search_order <- decode.optional_field(
+    "savedSearchOrder",
+    [],
+    decode.list(of: decode.string),
+  )
+  use deleted_saved_search_ids <- decode.optional_field(
+    "deletedSavedSearchIds",
+    dict.new(),
+    decode.dict(decode.string, decode.bool),
+  )
+  decode.success(SavedSearchStateSlice(
+    saved_searches: saved_searches,
+    saved_search_order: saved_search_order,
+    deleted_saved_search_ids: deleted_saved_search_ids,
+  ))
+}
+
+fn saved_search_record_decoder() -> decode.Decoder(types.SavedSearchRecord) {
+  use id <- decode.field("id", decode.string)
+  use legacy_resource_id <- decode.field("legacyResourceId", decode.string)
+  use name <- decode.field("name", decode.string)
+  use query <- decode.field("query", decode.string)
+  use resource_type <- decode.field("resourceType", decode.string)
+  use search_terms <- decode.optional_field("searchTerms", "", decode.string)
+  use filters <- decode.optional_field(
+    "filters",
+    [],
+    decode.list(of: saved_search_filter_decoder()),
+  )
+  use cursor <- decode.optional_field(
+    "cursor",
+    None,
+    decode.optional(decode.string),
+  )
+  decode.success(types.SavedSearchRecord(
+    id: id,
+    legacy_resource_id: legacy_resource_id,
+    name: name,
+    query: query,
+    resource_type: resource_type,
+    search_terms: search_terms,
+    filters: filters,
+    cursor: cursor,
+  ))
+}
+
+fn saved_search_filter_decoder() -> decode.Decoder(types.SavedSearchFilter) {
+  use key <- decode.field("key", decode.string)
+  use value <- decode.field("value", decode.string)
+  decode.success(types.SavedSearchFilter(key: key, value: value))
 }
 
 fn synthetic_identity_dump_decoder() -> decode.Decoder(
@@ -1734,9 +1911,39 @@ fn parse_operation_type(value: String) -> store.OperationType {
 
 fn restore_store_slice(
   current: Store,
+  base_saved_searches: SavedSearchStateSlice,
+  staged_saved_searches: SavedSearchStateSlice,
   mutation_log: List(store.MutationLogEntry),
 ) -> Store {
-  store.Store(..current, mutation_log: mutation_log)
+  let SavedSearchStateSlice(
+    saved_searches: base_records,
+    saved_search_order: base_order,
+    deleted_saved_search_ids: base_deleted,
+  ) = base_saved_searches
+  let SavedSearchStateSlice(
+    saved_searches: staged_records,
+    saved_search_order: staged_order,
+    deleted_saved_search_ids: staged_deleted,
+  ) = staged_saved_searches
+  let base_state =
+    store.BaseState(
+      ..current.base_state,
+      saved_searches: base_records,
+      saved_search_order: base_order,
+      deleted_saved_search_ids: base_deleted,
+    )
+  let staged_state =
+    store.StagedState(
+      ..current.staged_state,
+      saved_searches: staged_records,
+      saved_search_order: staged_order,
+      deleted_saved_search_ids: staged_deleted,
+    )
+  store.Store(
+    base_state: base_state,
+    staged_state: staged_state,
+    mutation_log: mutation_log,
+  )
 }
 
 // ---------------------------------------------------------------------------
