@@ -358,6 +358,14 @@ synthetic-id/timestamp expected differences.
   expected-difference paths may use quoted connection segments like
   `variants["nodes"][0].id`; normalize those in the diff layer rather than
   rewriting captured specs.
+- Product `productSet` captures use `input`, optional `identifier`, and
+  ProductSet-specific inventory quantity inputs (`quantity`, `name`,
+  `locationId`) rather than the older bulk-variant `availableQuantity` shape.
+  Seed captured location names in the parity runner before replay, mirror
+  `available` writes into `on_hand`, keep `incoming` present, and preserve
+  Shopify's Product inventory-summary quirk: create sums tracked/not-explicitly
+  untracked variants, while update keeps the Product's previous
+  `totalInventory` even after inventory-level quantities change.
 - Product media async plan fixtures depend on timing-sensitive lifecycle state:
   create returns `UPLOADED` in the mutation payload, the immediate downstream
   Product media read is null-url `PROCESSING`, and later successful media

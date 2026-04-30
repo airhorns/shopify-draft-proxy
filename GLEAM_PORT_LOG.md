@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 107: productSet graph parity
+
+Promotes the captured `productSet` create/update graph fixture into the Gleam
+parity suite. The port now routes `productSet` locally, stages synchronous
+Product graph create and update requests without runtime Shopify writes, and
+keeps downstream Product, ProductVariant, InventoryItem, inventory-level,
+option, and Product metafield reads coherent across the fixture's multi-step
+target flow.
+
+| Module                                               | Change                                                                                                                  |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds `productSet` mutation dispatch, payload projection, graph staging, inventory quantity/level writes, and summaries. |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured dev-store location names used by ProductSet inventory-level payloads.                                    |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing `productSet` parity spec.                                                                     |
+
+Validation:
+Focused JavaScript parity is green for `productSet-parity-plan.json`. Full
+JavaScript is green at 716 tests. Host Erlang still fails with the known local
+`Undef` runner class; the Docker Erlang fallback is green at 712 tests.
+`corepack pnpm elixir:smoke` is green at 16 ExUnit tests. `corepack pnpm
+gleam:port:coverage` is green with 379 specs and 185 expected failures.
+`corepack pnpm lint` and whitespace checks are green. Product parity inventory
+remains 115 checked-in specs, with 107 product specs executable in the Gleam
+parity suite and 8 product specs still expected-failing.
+
+### Findings
+
+- `productSet` uses the `input` argument shape rather than `product`, but the
+  local Product creation/update path can reuse the existing Product record
+  helpers once identifier/input lookup is handled.
+- Captured `productSet` inventory quantities use `quantity` plus `name:
+available`, not the older `availableQuantity` variant input shape. Available
+  writes also mirror `on_hand`, preserve `incoming`, and need captured location
+  names for strict payload parity.
+- Shopify's Product `totalInventory` behavior differs between ProductSet create
+  and update: create sums variants whose inventory item is not explicitly
+  untracked, while update preserves the Product's previous `totalInventory`
+  even as variant inventory levels change.
+
+### Risks / open items
+
+- Advanced product search/sort/read and selling-plan scenarios remain
+  incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 108 candidates
+
+- Continue advanced product search/sort/read parity.
+- Continue selling-plan product/variant association or selling-plan group
+  lifecycle parity.
+
+---
+
 ## 2026-04-30 - Pass 106: synchronous productDuplicate graph parity
 
 Promotes the captured synchronous `productDuplicate` fixture into the Gleam

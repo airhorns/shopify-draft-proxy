@@ -305,6 +305,7 @@ fn seed_capture_preconditions(
       seed_product_duplicate_async_preconditions(capture, proxy)
     "product-duplicate-live-parity" ->
       seed_product_duplicate_preconditions(capture, proxy)
+    "product-set-live-parity" -> seed_product_set_preconditions(capture, proxy)
     "tags-remove-live-parity" -> seed_tags_remove_preconditions(capture, proxy)
     "product-variant-create-compatibility-evidence" ->
       seed_product_variant_create_preconditions(capture, proxy)
@@ -3434,6 +3435,67 @@ fn seed_product_duplicate_preconditions(
     }
     None -> proxy
   }
+}
+
+fn seed_product_set_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let levels =
+    list.append(
+      product_set_capture_levels(
+        capture,
+        "$.mutation.response.data.productSet.product.variants.nodes",
+      ),
+      product_set_capture_levels(
+        capture,
+        "$.update.mutation.response.data.productSet.product.variants.nodes",
+      ),
+    )
+  let locations =
+    levels
+    |> list.filter_map(fn(level) {
+      case read_object_field(level, "location") {
+        Some(location) -> {
+          use id <- result.try(required_string_field(location, "id"))
+          use name <- result.try(required_string_field(location, "name"))
+          Ok(LocationRecord(id: id, name: name, cursor: None))
+        }
+        None -> Error(Nil)
+      }
+    })
+    |> dedupe_locations
+  let store = store_mod.upsert_base_locations(proxy.store, locations)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn product_set_capture_levels(
+  capture: JsonValue,
+  variants_path: String,
+) -> List(JsonValue) {
+  case jsonpath.lookup(capture, variants_path) {
+    Some(JArray(variants)) ->
+      variants
+      |> list.flat_map(fn(variant) {
+        case jsonpath.lookup(variant, "$.inventoryItem.inventoryLevels.nodes") {
+          Some(JArray(levels)) -> levels
+          _ -> []
+        }
+      })
+    _ -> []
+  }
+}
+
+fn dedupe_locations(locations: List(LocationRecord)) -> List(LocationRecord) {
+  let #(reversed, _) =
+    list.fold(locations, #([], dict.new()), fn(acc, location) {
+      let #(items, seen) = acc
+      case dict.has_key(seen, location.id) {
+        True -> #(items, seen)
+        False -> #([location, ..items], dict.insert(seen, location.id, True))
+      }
+    })
+  list.reverse(reversed)
 }
 
 fn seed_tags_remove_preconditions(

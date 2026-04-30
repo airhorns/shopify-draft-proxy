@@ -83,6 +83,14 @@ pub type ProductsError {
   ParseFailed(RootFieldError)
 }
 
+type ProductSetInventoryQuantityInput {
+  ProductSetInventoryQuantityInput(
+    location_id: Option(String),
+    name: String,
+    quantity: Int,
+  )
+}
+
 pub fn is_products_query_root(name: String) -> Bool {
   case name {
     "product"
@@ -135,6 +143,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productDelete"
     | "productUpdate"
     | "productDuplicate"
+    | "productSet"
     | "productVariantCreate"
     | "productVariantUpdate"
     | "productVariantDelete"
@@ -2942,6 +2951,60 @@ fn product_duplicate_payload(
   json.object(entries)
 }
 
+fn product_set_payload(
+  store: Store,
+  product: Option(ProductRecord),
+  operation: Option(ProductOperationRecord),
+  user_errors: List(ProductOperationUserErrorRecord),
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let operation_value = case operation {
+    Some(operation) -> product_operation_source(store, operation)
+    None -> SrcNull
+  }
+  let source =
+    src_object([
+      #("__typename", SrcString("ProductSetPayload")),
+      #("productSetOperation", operation_value),
+      #(
+        "userErrors",
+        SrcList(list.map(user_errors, product_operation_user_error_source)),
+      ),
+    ])
+  let entries =
+    get_selected_child_fields(field, default_selected_field_options())
+    |> list.map(fn(selection) {
+      let key = get_field_response_key(selection)
+      case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "product" ->
+              case product {
+                Some(product) -> #(
+                  key,
+                  serialize_product_selection(
+                    store,
+                    product,
+                    selection,
+                    variables,
+                    fragments,
+                  ),
+                )
+                None -> #(key, json.null())
+              }
+            _ -> #(
+              key,
+              project_graphql_field_value(source, selection, fragments),
+            )
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
 fn raw_child_selections(field: Selection) -> List(Selection) {
   case field {
     Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
@@ -4693,6 +4756,33 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some("Gleam staged productDuplicate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "productSet" -> {
+              let result =
+                handle_product_set(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productSet locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -6534,6 +6624,250 @@ fn handle_product_duplicate(
             fragments,
           )
       }
+  }
+}
+
+fn handle_product_set(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_object(args, "input") {
+    None ->
+      mutation_result(
+        key,
+        product_set_payload(
+          store,
+          None,
+          None,
+          [
+            ProductOperationUserErrorRecord(
+              Some(["input"]),
+              "Product input is required",
+            ),
+          ],
+          field,
+          variables,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(input) -> {
+      let existing =
+        find_product_set_existing_product(
+          store,
+          read_arg_object(args, "identifier"),
+          input,
+        )
+      stage_product_set(
+        store,
+        identity,
+        key,
+        existing,
+        input,
+        read_arg_bool_default_true(args, "synchronous"),
+        field,
+        variables,
+        fragments,
+      )
+    }
+  }
+}
+
+fn find_product_set_existing_product(
+  store: Store,
+  identifier: Option(Dict(String, ResolvedValue)),
+  input: Dict(String, ResolvedValue),
+) -> Option(ProductRecord) {
+  case identifier {
+    Some(identifier) ->
+      case product_by_identifier(store, identifier) {
+        Some(product) -> Some(product)
+        None -> find_product_set_input_product(store, input)
+      }
+    None -> find_product_set_input_product(store, input)
+  }
+}
+
+fn find_product_set_input_product(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+) -> Option(ProductRecord) {
+  case read_string_field(input, "id") {
+    Some(id) -> store.get_effective_product_by_id(store, id)
+    None -> None
+  }
+}
+
+fn read_arg_bool_default_true(
+  args: Dict(String, ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(args, name) {
+    Ok(BoolVal(False)) -> False
+    _ -> True
+  }
+}
+
+fn stage_product_set(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  existing: Option(ProductRecord),
+  input: Dict(String, ResolvedValue),
+  synchronous: Bool,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  let #(product, identity_after_product) = case existing {
+    Some(product) -> updated_product_record(identity, product, input)
+    None -> {
+      let #(created, next_identity) =
+        created_product_record(store, identity, input)
+      #(
+        ProductRecord(
+          ..created,
+          online_store_preview_url: Some(make_product_preview_url(created)),
+        ),
+        next_identity,
+      )
+    }
+  }
+  let #(_, store_after_product) = store.upsert_staged_product(store, product)
+  let #(store_after_graph, identity_after_graph, staged_ids) =
+    apply_product_set_graph(
+      store_after_product,
+      identity_after_product,
+      existing,
+      product.id,
+      input,
+    )
+  let #(synced_product, next_store, identity_after_summary) =
+    sync_product_set_inventory_summary(
+      store_after_graph,
+      identity_after_graph,
+      product.id,
+      existing,
+    )
+  let product = synced_product |> option.unwrap(product)
+  case synchronous {
+    True ->
+      mutation_result(
+        key,
+        product_set_payload(
+          next_store,
+          Some(product),
+          None,
+          [],
+          field,
+          variables,
+          fragments,
+        ),
+        next_store,
+        identity_after_summary,
+        [product.id, ..staged_ids],
+      )
+    False -> {
+      let #(operation_id, identity_after_operation) =
+        synthetic_identity.make_synthetic_gid(
+          identity_after_summary,
+          "ProductSetOperation",
+        )
+      let operation =
+        ProductOperationRecord(
+          id: operation_id,
+          type_name: "ProductSetOperation",
+          product_id: Some(product.id),
+          new_product_id: None,
+          status: "CREATED",
+          user_errors: [],
+        )
+      let #(staged_operation, store_after_operation) =
+        store.stage_product_operation(next_store, operation)
+      mutation_result(
+        key,
+        product_set_payload(
+          store_after_operation,
+          None,
+          Some(staged_operation),
+          [],
+          field,
+          variables,
+          fragments,
+        ),
+        store_after_operation,
+        identity_after_operation,
+        [product.id, operation_id, ..staged_ids],
+      )
+    }
+  }
+}
+
+fn make_product_preview_url(product: ProductRecord) -> String {
+  "https://shopify-draft-proxy.local/products_preview?product_id="
+  <> product.id
+  <> "&handle="
+  <> product.handle
+}
+
+fn sync_product_set_inventory_summary(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  previous_product: Option(ProductRecord),
+) -> #(Option(ProductRecord), Store, SyntheticIdentityRegistry) {
+  case store.get_effective_product_by_id(store, product_id) {
+    None -> #(None, store, identity)
+    Some(product) -> {
+      let #(updated_at, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      let variants =
+        store.get_effective_variants_by_product_id(store, product_id)
+      let total_inventory = case previous_product {
+        Some(previous) -> previous.total_inventory
+        None -> sum_product_set_create_inventory(variants)
+      }
+      let next_product =
+        ProductRecord(
+          ..product,
+          total_inventory: total_inventory,
+          tracks_inventory: derive_tracks_inventory(variants),
+          updated_at: Some(updated_at),
+        )
+      let #(_, next_store) = store.upsert_staged_product(store, next_product)
+      #(Some(next_product), next_store, next_identity)
+    }
+  }
+}
+
+fn sum_product_set_create_inventory(
+  variants: List(ProductVariantRecord),
+) -> Option(Int) {
+  let quantities =
+    variants
+    |> list.filter(fn(variant) {
+      case variant.inventory_item {
+        Some(item) -> item.tracked != Some(False)
+        None -> True
+      }
+    })
+    |> list.filter_map(fn(variant) {
+      case variant.inventory_quantity {
+        Some(quantity) -> Ok(quantity)
+        None -> Error(Nil)
+      }
+    })
+  case quantities {
+    [] -> None
+    _ ->
+      Some(list.fold(quantities, 0, fn(total, quantity) { total + quantity }))
   }
 }
 
@@ -16276,6 +16610,629 @@ fn duplicated_product_record(
     ),
     next_identity,
   )
+}
+
+fn apply_product_set_graph(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  existing: Option(ProductRecord),
+  product_id: String,
+  input: Dict(String, ResolvedValue),
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  let #(store, identity, option_ids) = case
+    dict.has_key(input, "productOptions")
+  {
+    True -> {
+      let #(options, next_identity, ids) =
+        product_set_option_records(
+          store,
+          identity,
+          product_id,
+          read_object_list_field(input, "productOptions"),
+        )
+      let next_store =
+        store.replace_staged_options_for_product(store, product_id, options)
+      #(next_store, next_identity, ids)
+    }
+    False ->
+      case existing {
+        Some(_) -> #(store, identity, [])
+        None ->
+          case store.get_effective_options_by_product_id(store, product_id) {
+            [] -> {
+              let assert Some(product) =
+                store.get_effective_product_by_id(store, product_id)
+              let #(option, next_identity, ids) =
+                make_default_option_record(identity, product)
+              let next_store =
+                store.replace_staged_options_for_product(store, product_id, [
+                  option,
+                ])
+              #(next_store, next_identity, ids)
+            }
+            _ -> #(store, identity, [])
+          }
+      }
+  }
+  let #(store, identity, variant_ids) = case dict.has_key(input, "variants") {
+    True -> {
+      let #(variants, next_identity, ids) =
+        product_set_variant_records(
+          store,
+          identity,
+          product_id,
+          read_object_list_field(input, "variants"),
+        )
+      let synced_options =
+        sync_product_options_with_variants(
+          store.get_effective_options_by_product_id(store, product_id),
+          variants,
+        )
+      let next_store =
+        store
+        |> store.replace_staged_variants_for_product(product_id, variants)
+        |> store.replace_staged_options_for_product(product_id, synced_options)
+      #(next_store, next_identity, ids)
+    }
+    False ->
+      case existing {
+        Some(_) -> #(store, identity, [])
+        None ->
+          case store.get_effective_variants_by_product_id(store, product_id) {
+            [] -> {
+              let assert Some(product) =
+                store.get_effective_product_by_id(store, product_id)
+              let #(variant, next_identity, ids) =
+                make_default_variant_record(identity, product)
+              let next_store =
+                store.replace_staged_variants_for_product(store, product_id, [
+                  variant,
+                ])
+              #(next_store, next_identity, ids)
+            }
+            _ -> #(store, identity, [])
+          }
+      }
+  }
+  let #(store, identity, metafield_ids) = case
+    dict.has_key(input, "metafields")
+  {
+    True -> {
+      let #(metafields, next_identity, ids) =
+        product_set_metafield_records(
+          store,
+          identity,
+          product_id,
+          read_object_list_field(input, "metafields"),
+        )
+      let next_store =
+        store.replace_staged_metafields_for_owner(store, product_id, metafields)
+      #(next_store, next_identity, ids)
+    }
+    False -> #(store, identity, [])
+  }
+  #(
+    store,
+    identity,
+    list.append(option_ids, list.append(variant_ids, metafield_ids)),
+  )
+}
+
+fn product_set_option_records(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> #(List(ProductOptionRecord), SyntheticIdentityRegistry, List(String)) {
+  let existing_options =
+    store.get_effective_options_by_product_id(store, product_id)
+  let #(reversed, final_identity, ids) =
+    inputs
+    |> enumerate_items()
+    |> list.fold(#([], identity, []), fn(acc, pair) {
+      let #(records, current_identity, collected_ids) = acc
+      let #(input, index) = pair
+      let existing = case read_string_field(input, "id") {
+        Some(id) -> find_product_option(existing_options, product_id, id)
+        None -> None
+      }
+      let #(option_id, identity_after_option, option_ids) = case existing {
+        Some(option) -> #(option.id, current_identity, [option.id])
+        None -> {
+          let #(id, next_identity) =
+            synthetic_identity.make_synthetic_gid(
+              current_identity,
+              "ProductOption",
+            )
+          #(id, next_identity, [id])
+        }
+      }
+      let #(values, next_identity, value_ids) =
+        product_set_option_value_records(
+          identity_after_option,
+          option.map(existing, fn(option) { option.option_values }),
+          read_object_list_field(input, "values"),
+        )
+      let option_record =
+        ProductOptionRecord(
+          id: option_id,
+          product_id: product_id,
+          name: read_non_empty_string_field(input, "name")
+            |> option.unwrap(
+              option.map(existing, fn(option) { option.name })
+              |> option.unwrap(""),
+            ),
+          position: read_int_field(input, "position")
+            |> option.unwrap(index + 1),
+          option_values: values,
+        )
+      #(
+        [option_record, ..records],
+        next_identity,
+        list.append(collected_ids, list.append(option_ids, value_ids)),
+      )
+    })
+  #(list.reverse(reversed), final_identity, ids)
+}
+
+fn product_set_option_value_records(
+  identity: SyntheticIdentityRegistry,
+  existing_values: Option(List(ProductOptionValueRecord)),
+  inputs: List(Dict(String, ResolvedValue)),
+) -> #(List(ProductOptionValueRecord), SyntheticIdentityRegistry, List(String)) {
+  let existing_values = existing_values |> option.unwrap([])
+  let #(reversed, final_identity, ids) =
+    list.fold(inputs, #([], identity, []), fn(acc, input) {
+      let #(records, current_identity, collected_ids) = acc
+      let existing = case read_string_field(input, "id") {
+        Some(id) ->
+          existing_values
+          |> list.find(fn(value) { value.id == id })
+          |> option.from_result
+        None -> None
+      }
+      let #(value_id, next_identity, ids) = case existing {
+        Some(value) -> #(value.id, current_identity, [value.id])
+        None -> {
+          let #(id, next_identity) =
+            synthetic_identity.make_synthetic_gid(
+              current_identity,
+              "ProductOptionValue",
+            )
+          #(id, next_identity, [id])
+        }
+      }
+      let value =
+        ProductOptionValueRecord(
+          id: value_id,
+          name: read_non_empty_string_field(input, "name")
+            |> option.unwrap(
+              option.map(existing, fn(value) { value.name })
+              |> option.unwrap("Option value"),
+            ),
+          has_variants: option.map(existing, fn(value) { value.has_variants })
+            |> option.unwrap(False),
+        )
+      #([value, ..records], next_identity, list.append(collected_ids, ids))
+    })
+  #(list.reverse(reversed), final_identity, ids)
+}
+
+fn product_set_variant_records(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> #(List(ProductVariantRecord), SyntheticIdentityRegistry, List(String)) {
+  let existing_variants =
+    store.get_effective_variants_by_product_id(store, product_id)
+  let #(reversed, final_identity, ids) =
+    list.fold(inputs, #([], identity, []), fn(acc, input) {
+      let #(records, current_identity, collected_ids) = acc
+      let existing = case read_string_field(input, "id") {
+        Some(id) ->
+          existing_variants
+          |> list.find(fn(variant) { variant.id == id })
+          |> option.from_result
+        None -> None
+      }
+      let #(variant, identity_after_variant) = case existing {
+        Some(variant) -> update_variant_record(current_identity, variant, input)
+        None ->
+          make_created_variant_record(current_identity, product_id, input, None)
+      }
+      let variant = product_set_variant_defaults(variant)
+      let #(variant, next_identity) =
+        apply_product_set_inventory_quantities(
+          store,
+          identity_after_variant,
+          variant,
+          input,
+        )
+      #(
+        [variant, ..records],
+        next_identity,
+        list.append(collected_ids, variant_staged_ids(variant)),
+      )
+    })
+  #(list.reverse(reversed), final_identity, ids)
+}
+
+fn product_set_variant_defaults(
+  variant: ProductVariantRecord,
+) -> ProductVariantRecord {
+  let inventory_item = case variant.inventory_item {
+    Some(item) ->
+      Some(
+        InventoryItemRecord(
+          ..item,
+          measurement: item.measurement
+            |> option.or(Some(default_inventory_item_measurement())),
+        ),
+      )
+    None -> None
+  }
+  ProductVariantRecord(
+    ..variant,
+    taxable: variant.taxable |> option.or(Some(True)),
+    inventory_policy: variant.inventory_policy |> option.or(Some("DENY")),
+    inventory_item: inventory_item,
+  )
+}
+
+fn default_inventory_item_measurement() -> InventoryMeasurementRecord {
+  InventoryMeasurementRecord(
+    weight: Some(InventoryWeightRecord(
+      unit: "KILOGRAMS",
+      value: InventoryWeightInt(0),
+    )),
+  )
+}
+
+fn apply_product_set_inventory_quantities(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  variant: ProductVariantRecord,
+  input: Dict(String, ResolvedValue),
+) -> #(ProductVariantRecord, SyntheticIdentityRegistry) {
+  let quantity_inputs = read_product_set_inventory_quantity_inputs(input)
+  case quantity_inputs {
+    [] -> #(variant, identity)
+    _ -> {
+      let #(inventory_item, identity_after_item) =
+        ensure_product_set_inventory_item(identity, variant.inventory_item)
+      let #(levels, next_identity) =
+        product_set_inventory_levels(
+          store,
+          identity_after_item,
+          inventory_item,
+          quantity_inputs,
+        )
+      let available = product_set_available_quantity(quantity_inputs)
+      #(
+        ProductVariantRecord(
+          ..variant,
+          inventory_quantity: available |> option.or(variant.inventory_quantity),
+          inventory_item: Some(
+            InventoryItemRecord(..inventory_item, inventory_levels: levels),
+          ),
+        ),
+        next_identity,
+      )
+    }
+  }
+}
+
+fn ensure_product_set_inventory_item(
+  identity: SyntheticIdentityRegistry,
+  inventory_item: Option(InventoryItemRecord),
+) -> #(InventoryItemRecord, SyntheticIdentityRegistry) {
+  case inventory_item {
+    Some(item) -> #(item, identity)
+    None -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "InventoryItem")
+      #(
+        InventoryItemRecord(
+          id: id,
+          tracked: None,
+          requires_shipping: None,
+          measurement: None,
+          country_code_of_origin: None,
+          province_code_of_origin: None,
+          harmonized_system_code: None,
+          inventory_levels: [],
+        ),
+        next_identity,
+      )
+    }
+  }
+}
+
+fn read_product_set_inventory_quantity_inputs(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductSetInventoryQuantityInput) {
+  read_object_list_field(input, "inventoryQuantities")
+  |> list.filter_map(fn(fields) {
+    case read_int_field(fields, "quantity") {
+      Some(quantity) ->
+        Ok(ProductSetInventoryQuantityInput(
+          location_id: read_non_empty_string_field(fields, "locationId"),
+          name: read_non_empty_string_field(fields, "name")
+            |> option.unwrap("available"),
+          quantity: quantity,
+        ))
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn product_set_available_quantity(
+  inputs: List(ProductSetInventoryQuantityInput),
+) -> Option(Int) {
+  let quantities =
+    inputs
+    |> list.filter_map(fn(input) {
+      case input.name == "available" {
+        True -> Ok(input.quantity)
+        False -> Error(Nil)
+      }
+    })
+  case quantities {
+    [] -> None
+    _ ->
+      Some(list.fold(quantities, 0, fn(total, quantity) { total + quantity }))
+  }
+}
+
+fn product_set_inventory_levels(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  inventory_item: InventoryItemRecord,
+  inputs: List(ProductSetInventoryQuantityInput),
+) -> #(List(InventoryLevelRecord), SyntheticIdentityRegistry) {
+  inputs
+  |> group_product_set_quantities_by_location
+  |> list.fold(#([], identity), fn(acc, entry) {
+    let #(levels, current_identity) = acc
+    let #(location_id, location_inputs) = entry
+    let existing =
+      find_inventory_level(inventory_item.inventory_levels, location_id)
+    let base_quantities = case existing {
+      Some(level) -> level.quantities
+      None -> []
+    }
+    let #(quantities, next_identity) =
+      apply_product_set_level_quantities(
+        current_identity,
+        base_quantities,
+        location_inputs,
+      )
+    let level =
+      InventoryLevelRecord(
+        id: existing
+          |> option.map(fn(level) { level.id })
+          |> option.unwrap(product_set_inventory_level_id(
+            inventory_item.id,
+            location_id,
+          )),
+        location: product_set_inventory_location(store, existing, location_id),
+        quantities: quantities,
+        is_active: Some(True),
+        cursor: option.then(existing, fn(level) { level.cursor }),
+      )
+    #([level, ..levels], next_identity)
+  })
+  |> fn(result) {
+    let #(levels, final_identity) = result
+    #(list.reverse(levels), final_identity)
+  }
+}
+
+fn group_product_set_quantities_by_location(
+  inputs: List(ProductSetInventoryQuantityInput),
+) -> List(#(String, List(ProductSetInventoryQuantityInput))) {
+  inputs
+  |> list.fold([], fn(groups, input) {
+    let location_id =
+      input.location_id |> option.unwrap("gid://shopify/Location/1")
+    upsert_product_set_quantity_group(groups, location_id, input)
+  })
+}
+
+fn upsert_product_set_quantity_group(
+  groups: List(#(String, List(ProductSetInventoryQuantityInput))),
+  location_id: String,
+  input: ProductSetInventoryQuantityInput,
+) -> List(#(String, List(ProductSetInventoryQuantityInput))) {
+  case groups {
+    [] -> [#(location_id, [input])]
+    [first, ..rest] -> {
+      let #(current_id, values) = first
+      case current_id == location_id {
+        True -> [#(current_id, list.append(values, [input])), ..rest]
+        False -> [
+          first,
+          ..upsert_product_set_quantity_group(rest, location_id, input)
+        ]
+      }
+    }
+  }
+}
+
+fn apply_product_set_level_quantities(
+  identity: SyntheticIdentityRegistry,
+  quantities: List(InventoryQuantityRecord),
+  inputs: List(ProductSetInventoryQuantityInput),
+) -> #(List(InventoryQuantityRecord), SyntheticIdentityRegistry) {
+  let #(next_quantities, next_identity) =
+    list.fold(inputs, #(quantities, identity), fn(acc, input) {
+      let #(current_quantities, current_identity) = acc
+      let #(updated_at, identity_after_timestamp) =
+        synthetic_identity.make_synthetic_timestamp(current_identity)
+      let with_named =
+        write_inventory_quantity(
+          current_quantities,
+          input.name,
+          input.quantity,
+          Some(updated_at),
+        )
+      let with_on_hand = case input.name == "available" {
+        True ->
+          write_inventory_quantity(with_named, "on_hand", input.quantity, None)
+        False -> with_named
+      }
+      #(with_on_hand, identity_after_timestamp)
+    })
+  #(ensure_product_set_default_quantities(next_quantities), next_identity)
+}
+
+fn write_inventory_quantity(
+  quantities: List(InventoryQuantityRecord),
+  name: String,
+  amount: Int,
+  updated_at: Option(String),
+) -> List(InventoryQuantityRecord) {
+  case list.any(quantities, fn(quantity) { quantity.name == name }) {
+    True ->
+      list.map(quantities, fn(quantity) {
+        case quantity.name == name {
+          True ->
+            InventoryQuantityRecord(
+              ..quantity,
+              quantity: amount,
+              updated_at: updated_at,
+            )
+          False -> quantity
+        }
+      })
+    False ->
+      list.append(quantities, [
+        InventoryQuantityRecord(
+          name: name,
+          quantity: amount,
+          updated_at: updated_at,
+        ),
+      ])
+  }
+}
+
+fn ensure_product_set_default_quantities(
+  quantities: List(InventoryQuantityRecord),
+) -> List(InventoryQuantityRecord) {
+  quantities
+  |> ensure_inventory_quantity("available", 0)
+  |> ensure_inventory_quantity("on_hand", 0)
+  |> ensure_inventory_quantity("incoming", 0)
+}
+
+fn ensure_inventory_quantity(
+  quantities: List(InventoryQuantityRecord),
+  name: String,
+  amount: Int,
+) -> List(InventoryQuantityRecord) {
+  case list.any(quantities, fn(quantity) { quantity.name == name }) {
+    True -> quantities
+    False ->
+      list.append(quantities, [
+        InventoryQuantityRecord(name: name, quantity: amount, updated_at: None),
+      ])
+  }
+}
+
+fn product_set_inventory_location(
+  store: Store,
+  existing: Option(InventoryLevelRecord),
+  location_id: String,
+) -> InventoryLocationRecord {
+  case store.get_effective_location_by_id(store, location_id) {
+    Some(location) ->
+      InventoryLocationRecord(id: location.id, name: location.name)
+    None ->
+      case existing {
+        Some(level) -> level.location
+        None -> InventoryLocationRecord(id: location_id, name: "")
+      }
+  }
+}
+
+fn product_set_inventory_level_id(
+  inventory_item_id: String,
+  location_id: String,
+) -> String {
+  let inventory_tail =
+    inventory_item_id |> string.split("/") |> list.last |> result.unwrap("0")
+  let location_tail =
+    location_id |> string.split("/") |> list.last |> result.unwrap("0")
+  "gid://shopify/InventoryLevel/"
+  <> inventory_tail
+  <> "-"
+  <> location_tail
+  <> "?inventory_item_id="
+  <> inventory_item_id
+}
+
+fn product_set_metafield_records(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> #(List(ProductMetafieldRecord), SyntheticIdentityRegistry, List(String)) {
+  let existing_metafields =
+    store.get_effective_metafields_by_owner_id(store, product_id)
+  let #(reversed, final_identity, ids) =
+    list.fold(inputs, #([], identity, []), fn(acc, input) {
+      let #(records, current_identity, collected_ids) = acc
+      let existing = case read_string_field(input, "id") {
+        Some(id) ->
+          existing_metafields
+          |> list.find(fn(metafield) { metafield.id == id })
+          |> option.from_result
+        None -> None
+      }
+      let #(metafield_id, next_identity, ids) = case existing {
+        Some(metafield) -> #(metafield.id, current_identity, [metafield.id])
+        None -> {
+          let #(id, next_identity) =
+            synthetic_identity.make_synthetic_gid(current_identity, "Metafield")
+          #(id, next_identity, [id])
+        }
+      }
+      let type_ =
+        read_string_field(input, "type")
+        |> option.or(option.then(existing, fn(metafield) { metafield.type_ }))
+      let value =
+        read_string_field(input, "value")
+        |> option.or(option.then(existing, fn(metafield) { metafield.value }))
+      let metafield =
+        ProductMetafieldRecord(
+          id: metafield_id,
+          owner_id: product_id,
+          namespace: read_string_field(input, "namespace")
+            |> option.unwrap(
+              option.map(existing, fn(metafield) { metafield.namespace })
+              |> option.unwrap(""),
+            ),
+          key: read_string_field(input, "key")
+            |> option.unwrap(
+              option.map(existing, fn(metafield) { metafield.key })
+              |> option.unwrap(""),
+            ),
+          type_: type_,
+          value: value,
+          compare_digest: None,
+          json_value: None,
+          created_at: option.then(existing, fn(metafield) {
+            metafield.created_at
+          }),
+          updated_at: option.then(existing, fn(metafield) {
+            metafield.updated_at
+          }),
+          owner_type: Some("PRODUCT"),
+        )
+      #([metafield, ..records], next_identity, list.append(collected_ids, ids))
+    })
+  #(list.reverse(reversed), final_identity, ids)
 }
 
 fn duplicate_product_relationships(
