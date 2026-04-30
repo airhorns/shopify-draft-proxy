@@ -22,6 +22,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import shopify_draft_proxy/graphql/ast.{Field}
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, type ParsedOperation, MutationOperation,
   QueryOperation,
@@ -985,7 +986,7 @@ fn route_query(
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case query_domain_for(proxy, parsed, primary_root_field) {
+  case query_domain_for(proxy, parsed, query, primary_root_field) {
     Ok(EventsDomain) ->
       respond(proxy, events.process(query), "Failed to handle events query")
     Ok(DeliverySettingsDomain) ->
@@ -1109,6 +1110,7 @@ type Domain {
 fn query_domain_for(
   proxy: DraftProxy,
   parsed: ParsedOperation,
+  query: String,
   primary_root_field: String,
 ) -> Result(Domain, Nil) {
   case parsed.type_ {
@@ -1120,10 +1122,10 @@ fn query_domain_for(
       {
         Some(entry) ->
           case entry.implemented {
-            True -> local_query_dispatch_domain(primary_root_field)
+            True -> local_query_dispatch_domain(primary_root_field, query)
             False -> Error(Nil)
           }
-        None -> local_query_dispatch_domain(primary_root_field)
+        None -> local_query_dispatch_domain(primary_root_field, query)
       }
     }
     _ -> Error(Nil)
@@ -1175,7 +1177,7 @@ pub fn registry_entry_has_local_dispatch(entry: RegistryEntry) -> Bool {
 fn local_dispatch_supported(type_: GraphQLOperationType, name: String) -> Bool {
   case type_ {
     QueryOperation ->
-      case local_query_dispatch_domain(name) {
+      case local_query_dispatch_domain(name, "") {
         Ok(_) -> True
         Error(_) -> False
       }
@@ -1193,7 +1195,7 @@ fn local_registry_dispatch_supported(
 ) -> Bool {
   case type_ {
     operation_registry.Query ->
-      case local_query_dispatch_domain(name) {
+      case local_query_dispatch_domain(name, "") {
         Ok(_) -> True
         Error(_) -> False
       }
@@ -1205,11 +1207,19 @@ fn local_registry_dispatch_supported(
   }
 }
 
-fn local_query_dispatch_domain(name: String) -> Result(Domain, Nil) {
+fn local_query_dispatch_domain(
+  name: String,
+  query: String,
+) -> Result(Domain, Nil) {
   case name {
     "event" | "events" | "eventsCount" -> Ok(EventsDomain)
     "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
     "shop" -> Ok(StorePropertiesDomain)
+    "product" | "collection" ->
+      case store_publishable_owner_query(name, query) {
+        True -> Ok(StorePropertiesDomain)
+        False -> Ok(MetafieldDefinitionsDomain)
+      }
     _ ->
       case saved_searches.is_saved_search_query_root(name) {
         True -> Ok(SavedSearchesDomain)
@@ -1280,7 +1290,18 @@ fn local_query_dispatch_domain(name: String) -> Result(Domain, Nil) {
                                                           Ok(
                                                             AdminPlatformDomain,
                                                           )
-                                                        False -> Error(Nil)
+                                                        False ->
+                                                          case
+                                                            store_properties.is_store_properties_query_root(
+                                                              name,
+                                                            )
+                                                          {
+                                                            True ->
+                                                              Ok(
+                                                                StorePropertiesDomain,
+                                                              )
+                                                            False -> Error(Nil)
+                                                          }
                                                       }
                                                   }
                                               }
@@ -1295,6 +1316,55 @@ fn local_query_dispatch_domain(name: String) -> Result(Domain, Nil) {
           }
       }
   }
+}
+
+fn store_publishable_owner_query(name: String, query: String) -> Bool {
+  case root_field.get_root_fields(query) {
+    Error(_) -> False
+    Ok(fields) ->
+      fields
+      |> list.any(fn(field) {
+        case field {
+          Field(name: field_name, ..) if field_name.value == name ->
+            selection_names_request_store_publishable_fields(
+              root_field.get_selection_names(field),
+            )
+          _ -> False
+        }
+      })
+  }
+}
+
+fn selection_names_request_store_publishable_fields(
+  names: List(String),
+) -> Bool {
+  let has_publishable_field =
+    list.any(names, fn(name) {
+      case name {
+        "publishedOnCurrentPublication"
+        | "publishedOnPublication"
+        | "availablePublicationsCount"
+        | "resourcePublicationsCount" -> True
+        _ -> False
+      }
+    })
+  let has_store_identity_field =
+    list.any(names, fn(name) {
+      case name {
+        "title" | "handle" -> True
+        _ -> False
+      }
+    })
+  let has_metafield_owner_field =
+    list.any(names, fn(name) {
+      case name {
+        "metafield" | "metafields" | "variants" -> True
+        _ -> False
+      }
+    })
+
+  has_publishable_field
+  || { has_store_identity_field && !has_metafield_owner_field }
 }
 
 fn local_mutation_dispatch_domain(name: String) -> Result(Domain, Nil) {

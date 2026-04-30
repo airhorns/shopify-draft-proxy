@@ -12,12 +12,15 @@ import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, SrcBool, SrcFloat, SrcInt, SrcList,
-  SrcNull, SrcString, default_selected_field_options, get_document_fragments,
-  get_field_response_key, get_selected_child_fields, project_graphql_value,
+  type ConnectionWindow, type FragmentMap, type SourceValue,
+  SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
+  SrcObject, SrcString, default_connection_page_info_options,
+  default_connection_window_options, default_selected_field_options,
+  get_document_fragments, get_field_response_key, get_selected_child_fields,
+  paginate_connection_items, project_graphql_value, serialize_connection,
   src_object,
 }
 import shopify_draft_proxy/state/store.{type Store}
@@ -29,7 +32,10 @@ import shopify_draft_proxy/state/types.{
   type ShopBundlesFeatureRecord, type ShopCartTransformEligibleOperationsRecord,
   type ShopCartTransformFeatureRecord, type ShopDomainRecord,
   type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, ShopPolicyRecord, ShopRecord,
+  type ShopRecord, type ShopResourceLimitsRecord, type StorePropertyRecord,
+  type StorePropertyValue, ShopPolicyRecord, ShopRecord, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
+  StorePropertyObject, StorePropertyRecord, StorePropertyString,
 }
 
 const shop_policy_body_limit_chars = 524_288
@@ -84,12 +90,48 @@ type StagePolicyResult {
   )
 }
 
+type GenericMutationResult {
+  GenericMutationResult(
+    payload: Json,
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    staged_resource_ids: List(String),
+    top_level_errors: List(Json),
+    should_log: Bool,
+  )
+}
+
+type QueryFieldResult {
+  QueryFieldResult(key: String, value: Json, errors: List(Json))
+}
+
 pub fn is_store_properties_query_root(name: String) -> Bool {
-  name == "shop"
+  case name {
+    "shop"
+    | "location"
+    | "locations"
+    | "locationByIdentifier"
+    | "businessEntities"
+    | "businessEntity"
+    | "collection" -> True
+    _ -> False
+  }
 }
 
 pub fn is_store_properties_mutation_root(name: String) -> Bool {
-  name == "shopPolicyUpdate"
+  case name {
+    "shopPolicyUpdate"
+    | "locationAdd"
+    | "locationEdit"
+    | "locationActivate"
+    | "locationDeactivate"
+    | "locationDelete"
+    | "publishablePublish"
+    | "publishablePublishToCurrentChannel"
+    | "publishableUnpublish"
+    | "publishableUnpublishToCurrentChannel" -> True
+    _ -> False
+  }
 }
 
 pub fn process(
@@ -102,20 +144,91 @@ pub fn process(
     |> result.map_error(ParseFailed),
   )
   let fragments = get_document_fragments(document)
-  let data_entries =
+  let results =
     list.map(fields, fn(field) {
-      let key = get_field_response_key(field)
-      case field {
-        Field(name: name, ..) ->
-          case name.value {
-            "shop" -> #(key, serialize_shop_root(store, field, fragments))
-            _ -> #(key, json.null())
-          }
-        _ -> #(key, json.null())
-      }
+      root_query_result(store, field, fragments, variables)
     })
-  let _ = variables
-  Ok(json.object([#("data", json.object(data_entries))]))
+  let data_entries =
+    list.map(results, fn(result) { #(result.key, result.value) })
+  let errors = list.flat_map(results, fn(result) { result.errors })
+  let entries = case errors {
+    [] -> [#("data", json.object(data_entries))]
+    _ -> [
+      #("errors", json.array(errors, fn(error) { error })),
+      #("data", json.object(data_entries)),
+    ]
+  }
+  Ok(json.object(entries))
+}
+
+fn root_query_result(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> QueryFieldResult {
+  let key = get_field_response_key(field)
+  case field {
+    Field(name: name, ..) ->
+      case name.value {
+        "shop" ->
+          QueryFieldResult(
+            key: key,
+            value: serialize_shop_root(store, field, fragments),
+            errors: [],
+          )
+        "location" ->
+          QueryFieldResult(
+            key: key,
+            value: serialize_location_root(store, field, fragments, variables),
+            errors: [],
+          )
+        "locations" ->
+          QueryFieldResult(
+            key: key,
+            value: serialize_locations_root(store, field, fragments, variables),
+            errors: [],
+          )
+        "locationByIdentifier" ->
+          serialize_location_by_identifier_result(
+            store,
+            field,
+            key,
+            fragments,
+            variables,
+          )
+        "businessEntities" ->
+          QueryFieldResult(
+            key: key,
+            value: serialize_business_entities_root(store, field, fragments),
+            errors: [],
+          )
+        "businessEntity" ->
+          QueryFieldResult(
+            key: key,
+            value: serialize_business_entity_root(
+              store,
+              field,
+              fragments,
+              variables,
+            ),
+            errors: [],
+          )
+        "collection" ->
+          QueryFieldResult(
+            key: key,
+            value: serialize_publishable_root(
+              store,
+              field,
+              fragments,
+              variables,
+            ),
+            errors: [],
+          )
+        _ -> QueryFieldResult(key: key, value: json.null(), errors: [])
+      }
+    _ -> QueryFieldResult(key: key, value: json.null(), errors: [])
+  }
 }
 
 pub fn process_mutation(
@@ -130,10 +243,16 @@ pub fn process_mutation(
     |> result.map_error(ParseFailed),
   )
   let fragments = get_document_fragments(document)
-  let initial = #([], store, identity, [])
-  let #(entries, final_store, final_identity, staged_ids) =
+  let initial = #([], store, identity, [], [])
+  let #(entries, final_store, final_identity, staged_ids, top_errors) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(data_entries, current_store, current_identity, current_ids) = acc
+      let #(
+        data_entries,
+        current_store,
+        current_identity,
+        current_ids,
+        current_errors,
+      ) = acc
       let key = get_field_response_key(field)
       case field {
         Field(name: name, ..) ->
@@ -165,6 +284,7 @@ pub fn process_mutation(
                     result.identity,
                     request_path,
                     document,
+                    "shopPolicyUpdate",
                     result.staged_resource_ids,
                   )
                 _ -> #(result.store, result.identity)
@@ -174,6 +294,71 @@ pub fn process_mutation(
                 logged_store,
                 logged_identity,
                 list.append(current_ids, result.staged_resource_ids),
+                current_errors,
+              )
+            }
+            "locationAdd"
+            | "locationEdit"
+            | "locationActivate"
+            | "locationDeactivate"
+            | "locationDelete" -> {
+              let result =
+                stage_location_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(logged_store, logged_identity) = case result.should_log {
+                True ->
+                  record_mutation_log(
+                    result.store,
+                    result.identity,
+                    request_path,
+                    document,
+                    name.value,
+                    result.staged_resource_ids,
+                  )
+                False -> #(result.store, result.identity)
+              }
+              #(
+                list.append(data_entries, [#(key, result.payload)]),
+                logged_store,
+                logged_identity,
+                list.append(current_ids, result.staged_resource_ids),
+                list.append(current_errors, result.top_level_errors),
+              )
+            }
+            "publishablePublish"
+            | "publishablePublishToCurrentChannel"
+            | "publishableUnpublish"
+            | "publishableUnpublishToCurrentChannel" -> {
+              let result =
+                stage_publishable_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(logged_store, logged_identity) =
+                record_mutation_log(
+                  result.store,
+                  result.identity,
+                  request_path,
+                  document,
+                  name.value,
+                  result.staged_resource_ids,
+                )
+              #(
+                list.append(data_entries, [#(key, result.payload)]),
+                logged_store,
+                logged_identity,
+                list.append(current_ids, result.staged_resource_ids),
+                current_errors,
               )
             }
             _ -> #(
@@ -181,6 +366,7 @@ pub fn process_mutation(
               current_store,
               current_identity,
               current_ids,
+              current_errors,
             )
           }
         _ -> #(
@@ -188,11 +374,21 @@ pub fn process_mutation(
           current_store,
           current_identity,
           current_ids,
+          current_errors,
         )
       }
     })
+  let data = json.object(entries)
+  let envelope = case top_errors {
+    [] -> json.object([#("data", data)])
+    _ ->
+      json.object([
+        #("errors", json.array(top_errors, fn(error) { error })),
+        #("data", data),
+      ])
+  }
   Ok(MutationOutcome(
-    data: json.object([#("data", json.object(entries))]),
+    data: envelope,
     store: final_store,
     identity: final_identity,
     staged_resource_ids: staged_ids,
@@ -201,6 +397,14 @@ pub fn process_mutation(
 
 fn selected_children(field: Selection) -> List(Selection) {
   get_selected_child_fields(field, default_selected_field_options())
+}
+
+fn selected_selections(field: Selection) -> List(Selection) {
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      selections
+    _ -> []
+  }
 }
 
 fn serialize_shop_root(
@@ -217,6 +421,236 @@ fn serialize_shop_root(
       )
     None -> json.null()
   }
+}
+
+fn serialize_location_root(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_args(field, variables)
+  let location = case read_string(args, "id") {
+    Some(id) -> store.get_effective_location_by_id(store, id)
+    None ->
+      case store.list_effective_locations(store) {
+        [first, ..] -> Some(first)
+        [] -> None
+      }
+  }
+  case location {
+    Some(record) -> project_store_property_record(record, field, fragments)
+    None -> json.null()
+  }
+}
+
+fn serialize_location_by_identifier_result(
+  store: Store,
+  field: Selection,
+  key: String,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> QueryFieldResult {
+  let args = field_args(field, variables)
+  case dict.get(args, "identifier") {
+    Ok(root_field.ObjectVal(identifier)) ->
+      case read_string(identifier, "id") {
+        Some(id) ->
+          QueryFieldResult(
+            key: key,
+            value: case store.get_effective_location_by_id(store, id) {
+              Some(record) ->
+                project_store_property_record(record, field, fragments)
+              None -> json.null()
+            },
+            errors: [],
+          )
+        None ->
+          QueryFieldResult(key: key, value: json.null(), errors: [
+            custom_location_identifier_error(key),
+          ])
+      }
+    _ -> QueryFieldResult(key: key, value: json.null(), errors: [])
+  }
+}
+
+fn serialize_locations_root(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let locations = store.list_effective_locations(store)
+  let window =
+    paginate_store_records(locations, field, variables, fn(record, _index) {
+      record.cursor |> option.unwrap(record.id)
+    })
+  serialize_store_record_connection(field, window, fragments)
+}
+
+fn paginate_store_records(
+  records: List(StorePropertyRecord),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  get_cursor: fn(StorePropertyRecord, Int) -> String,
+) -> ConnectionWindow(StorePropertyRecord) {
+  paginate_connection_items(
+    records,
+    field,
+    variables,
+    get_cursor,
+    default_connection_window_options(),
+  )
+}
+
+fn serialize_store_record_connection(
+  field: Selection,
+  window: ConnectionWindow(StorePropertyRecord),
+  fragments: FragmentMap,
+) -> Json {
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: fn(record, _index) {
+        record.cursor |> option.unwrap(record.id)
+      },
+      serialize_node: fn(record, selection, _index) {
+        project_graphql_value(
+          store_property_data_to_source(record.data),
+          selected_selections(selection),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn serialize_business_entities_root(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  json.array(store.list_effective_business_entities(store), fn(record) {
+    project_store_property_record(record, field, fragments)
+  })
+}
+
+fn serialize_business_entity_root(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_args(field, variables)
+  let entity = case read_string(args, "id") {
+    Some(id) -> store.get_business_entity_by_id(store, id)
+    None ->
+      find_primary_business_entity(store.list_effective_business_entities(store))
+  }
+  case entity {
+    Some(record) -> project_store_property_record(record, field, fragments)
+    None -> json.null()
+  }
+}
+
+fn serialize_publishable_root(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_args(field, variables)
+  case read_string(args, "id") {
+    Some(id) ->
+      case store.get_effective_publishable_by_id(store, id) {
+        Some(record) -> project_store_property_record(record, field, fragments)
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn project_store_property_record(
+  record: StorePropertyRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    store_property_data_to_source(record.data),
+    selected_selections(field),
+    fragments,
+  )
+}
+
+fn store_property_value_to_source(value: StorePropertyValue) -> SourceValue {
+  case value {
+    StorePropertyNull -> SrcNull
+    StorePropertyString(value) -> SrcString(value)
+    StorePropertyBool(value) -> SrcBool(value)
+    StorePropertyInt(value) -> SrcInt(value)
+    StorePropertyFloat(value) -> SrcFloat(value)
+    StorePropertyList(values) ->
+      SrcList(list.map(values, store_property_value_to_source))
+    StorePropertyObject(values) -> store_property_data_to_source(values)
+  }
+}
+
+fn store_property_data_to_source(
+  data: Dict(String, StorePropertyValue),
+) -> SourceValue {
+  SrcObject(
+    dict.to_list(data)
+    |> list.map(fn(pair) { #(pair.0, store_property_value_to_source(pair.1)) })
+    |> dict.from_list,
+  )
+}
+
+fn find_primary_business_entity(
+  entities: List(StorePropertyRecord),
+) -> Option(StorePropertyRecord) {
+  case entities {
+    [] -> None
+    [first, ..rest] ->
+      case dict.get(first.data, "primary") {
+        Ok(StorePropertyBool(True)) -> Some(first)
+        _ -> find_primary_business_entity(rest)
+      }
+  }
+}
+
+fn field_args(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  root_field.get_field_arguments(field, variables)
+  |> result.unwrap(dict.new())
+}
+
+fn custom_location_identifier_error(key: String) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Metafield definition of type 'id' is required when using custom ids.",
+      ),
+    ),
+    #(
+      "locations",
+      json.array([#(3, 5)], fn(location) {
+        json.object([
+          #("line", json.int(location.0)),
+          #("column", json.int(location.1)),
+        ])
+      }),
+    ),
+    #("extensions", json.object([#("code", json.string("NOT_FOUND"))])),
+    #("path", json.array([key], json.string)),
+  ])
 }
 
 pub fn serialize_shop_node_by_id(
@@ -528,6 +962,449 @@ fn stage_shop_policy_update(
   }
 }
 
+fn stage_location_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> GenericMutationResult {
+  case root_name {
+    "locationAdd" ->
+      stage_location_add(store, identity, field, fragments, variables)
+    "locationEdit" ->
+      stage_location_edit(store, identity, field, fragments, variables)
+    "locationActivate" | "locationDeactivate" ->
+      missing_idempotency_location_result(store, identity, root_name)
+    "locationDelete" ->
+      stage_location_delete(store, identity, field, fragments, variables)
+    _ ->
+      GenericMutationResult(
+        payload: json.null(),
+        store: store,
+        identity: identity,
+        staged_resource_ids: [],
+        top_level_errors: [],
+        should_log: False,
+      )
+  }
+}
+
+fn stage_location_add(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> GenericMutationResult {
+  let args = field_args(field, variables)
+  let input = read_object(args, "input")
+  let name = input |> option.then(fn(values) { read_string(values, "name") })
+  case name {
+    Some(value) ->
+      case string.trim(value) {
+        "" -> location_add_blank_name_result(store, identity, field, fragments)
+        _ -> {
+          let #(id, next_identity) =
+            synthetic_identity.make_synthetic_gid(identity, "Location")
+          let record =
+            StorePropertyRecord(
+              id: id,
+              cursor: None,
+              data: dict.from_list([
+                #("__typename", StorePropertyString("Location")),
+                #("id", StorePropertyString(id)),
+                #("name", StorePropertyString(value)),
+                #("isActive", StorePropertyBool(True)),
+                #("activatable", StorePropertyBool(False)),
+                #("deactivatable", StorePropertyBool(True)),
+                #("deletable", StorePropertyBool(False)),
+              ]),
+            )
+          let #(_, next_store) = store.upsert_staged_location(store, record)
+          let payload_source =
+            src_object([
+              #("location", store_property_data_to_source(record.data)),
+              #("userErrors", SrcList([])),
+            ])
+          GenericMutationResult(
+            payload: project_graphql_value(
+              payload_source,
+              selected_children(field),
+              fragments,
+            ),
+            store: next_store,
+            identity: next_identity,
+            staged_resource_ids: [id],
+            top_level_errors: [],
+            should_log: True,
+          )
+        }
+      }
+    _ -> {
+      location_add_blank_name_result(store, identity, field, fragments)
+    }
+  }
+}
+
+fn location_add_blank_name_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+) -> GenericMutationResult {
+  let payload_source =
+    src_object([
+      #("location", SrcNull),
+      #(
+        "userErrors",
+        SrcList([
+          src_object([
+            #("field", SrcList([SrcString("input"), SrcString("name")])),
+            #("message", SrcString("Add a location name")),
+          ]),
+        ]),
+      ),
+    ])
+  GenericMutationResult(
+    payload: project_graphql_value(
+      payload_source,
+      selected_children(field),
+      fragments,
+    ),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    top_level_errors: [],
+    should_log: False,
+  )
+}
+
+fn stage_location_edit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> GenericMutationResult {
+  let args = field_args(field, variables)
+  let id = read_string(args, "id")
+  case id {
+    Some(location_id) ->
+      case store.get_effective_location_by_id(store, location_id) {
+        Some(record) -> {
+          let input = read_object(args, "input")
+          let next_data = case
+            input |> option.then(fn(values) { read_string(values, "name") })
+          {
+            Some(name) ->
+              dict.insert(record.data, "name", StorePropertyString(name))
+            None -> record.data
+          }
+          let next_record = StorePropertyRecord(..record, data: next_data)
+          let #(_, next_store) =
+            store.upsert_staged_location(store, next_record)
+          let payload_source =
+            src_object([
+              #("location", store_property_data_to_source(next_record.data)),
+              #("userErrors", SrcList([])),
+            ])
+          GenericMutationResult(
+            payload: project_graphql_value(
+              payload_source,
+              selected_children(field),
+              fragments,
+            ),
+            store: next_store,
+            identity: identity,
+            staged_resource_ids: [location_id],
+            top_level_errors: [],
+            should_log: True,
+          )
+        }
+        None ->
+          location_user_error_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "location",
+            "userErrors",
+            "id",
+            "Location not found.",
+            None,
+          )
+      }
+    None ->
+      location_user_error_result(
+        store,
+        identity,
+        field,
+        fragments,
+        "location",
+        "userErrors",
+        "id",
+        "Location not found.",
+        None,
+      )
+  }
+}
+
+fn stage_location_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> GenericMutationResult {
+  let args = field_args(field, variables)
+  let location_id = read_string(args, "locationId")
+  case location_id {
+    Some(id) ->
+      case store.get_effective_location_by_id(store, id) {
+        Some(record) ->
+          case
+            store_property_bool_field(record, "isActive") |> option.unwrap(True)
+          {
+            True ->
+              active_location_delete_result(store, identity, field, fragments)
+            False -> {
+              let next_store = store.delete_staged_location(store, id)
+              let payload_source =
+                src_object([
+                  #("deletedLocationId", SrcString(id)),
+                  #("locationDeleteUserErrors", SrcList([])),
+                ])
+              GenericMutationResult(
+                payload: project_graphql_value(
+                  payload_source,
+                  selected_children(field),
+                  fragments,
+                ),
+                store: next_store,
+                identity: identity,
+                staged_resource_ids: [id],
+                top_level_errors: [],
+                should_log: True,
+              )
+            }
+          }
+        None ->
+          location_user_error_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "deletedLocationId",
+            "locationDeleteUserErrors",
+            "locationId",
+            "Location not found.",
+            Some("LOCATION_NOT_FOUND"),
+          )
+      }
+    None ->
+      location_user_error_result(
+        store,
+        identity,
+        field,
+        fragments,
+        "deletedLocationId",
+        "locationDeleteUserErrors",
+        "locationId",
+        "Location not found.",
+        Some("LOCATION_NOT_FOUND"),
+      )
+  }
+}
+
+fn missing_idempotency_location_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+) -> GenericMutationResult {
+  GenericMutationResult(
+    payload: json.null(),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    top_level_errors: [missing_idempotency_error(root_name)],
+    should_log: False,
+  )
+}
+
+fn missing_idempotency_error(root_name: String) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "The @idempotent directive is required for this mutation but was not provided.",
+      ),
+    ),
+    #(
+      "locations",
+      json.array([#(3, 3)], fn(location) {
+        json.object([
+          #("line", json.int(location.0)),
+          #("column", json.int(location.1)),
+        ])
+      }),
+    ),
+    #("extensions", json.object([#("code", json.string("BAD_REQUEST"))])),
+    #("path", json.array([root_name], json.string)),
+  ])
+}
+
+fn active_location_delete_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+) -> GenericMutationResult {
+  let payload_source =
+    src_object([
+      #("deletedLocationId", SrcNull),
+      #(
+        "locationDeleteUserErrors",
+        SrcList([
+          src_object([
+            #("field", SrcList([SrcString("locationId")])),
+            #(
+              "message",
+              SrcString("The location cannot be deleted while it is active."),
+            ),
+            #("code", SrcString("LOCATION_IS_ACTIVE")),
+          ]),
+          src_object([
+            #("field", SrcList([SrcString("locationId")])),
+            #(
+              "message",
+              SrcString(
+                "The location cannot be deleted while it has inventory.",
+              ),
+            ),
+            #("code", SrcString("LOCATION_HAS_INVENTORY")),
+          ]),
+        ]),
+      ),
+    ])
+  GenericMutationResult(
+    payload: project_graphql_value(
+      payload_source,
+      selected_children(field),
+      fragments,
+    ),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    top_level_errors: [],
+    should_log: False,
+  )
+}
+
+fn location_user_error_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  nullable_field: String,
+  errors_field: String,
+  error_field: String,
+  message: String,
+  code: Option(String),
+) -> GenericMutationResult {
+  let error_entries = case code {
+    Some(value) -> [
+      #("field", SrcList([SrcString(error_field)])),
+      #("message", SrcString(message)),
+      #("code", SrcString(value)),
+    ]
+    None -> [
+      #("field", SrcList([SrcString(error_field)])),
+      #("message", SrcString(message)),
+    ]
+  }
+  let payload_source =
+    src_object([
+      #(nullable_field, SrcNull),
+      #(errors_field, SrcList([src_object(error_entries)])),
+    ])
+  GenericMutationResult(
+    payload: project_graphql_value(
+      payload_source,
+      selected_children(field),
+      fragments,
+    ),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    top_level_errors: [],
+    should_log: False,
+  )
+}
+
+fn stage_publishable_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> GenericMutationResult {
+  let args = field_args(field, variables)
+  let id = read_string(args, "id") |> option.unwrap("")
+  let key = root_name <> ":" <> id
+  let payload_record = store.get_store_property_mutation_payload(store, key)
+  let payload_data = case payload_record {
+    Some(record) -> record.data
+    None ->
+      dict.from_list([
+        #("publishable", StorePropertyNull),
+        #(
+          "userErrors",
+          StorePropertyList([
+            StorePropertyObject(
+              dict.from_list([
+                #("field", StorePropertyList([StorePropertyString("id")])),
+                #("message", StorePropertyString("Publishable not found.")),
+              ]),
+            ),
+          ]),
+        ),
+      ])
+  }
+  let next_store = case dict.get(payload_data, "publishable") {
+    Ok(StorePropertyObject(data)) ->
+      case dict.get(data, "id") {
+        Ok(StorePropertyString(publishable_id)) -> {
+          let #(_, staged) =
+            store.upsert_staged_publishable(
+              store,
+              StorePropertyRecord(id: publishable_id, cursor: None, data: data),
+            )
+          staged
+        }
+        _ -> store
+      }
+    _ -> store
+  }
+  GenericMutationResult(
+    payload: project_graphql_value(
+      store_property_data_to_source(payload_data),
+      selected_children(field),
+      fragments,
+    ),
+    store: next_store,
+    identity: identity,
+    staged_resource_ids: case id {
+      "" -> []
+      _ -> [id]
+    },
+    top_level_errors: [],
+    should_log: True,
+  )
+}
+
 fn stage_valid_shop_policy_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -665,6 +1542,26 @@ fn read_string(
   }
 }
 
+fn read_object(
+  values: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(values, key) {
+    Ok(root_field.ObjectVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn store_property_bool_field(
+  record: StorePropertyRecord,
+  key: String,
+) -> Option(Bool) {
+  case dict.get(record.data, key) {
+    Ok(StorePropertyBool(value)) -> Some(value)
+    _ -> None
+  }
+}
+
 fn read_shop_policy_input(
   args: Dict(String, root_field.ResolvedValue),
 ) -> Option(Dict(String, root_field.ResolvedValue)) {
@@ -683,6 +1580,7 @@ fn record_mutation_log(
   identity: SyntheticIdentityRegistry,
   request_path: String,
   document: String,
+  root_name: String,
   staged_ids: List(String),
 ) -> #(Store, SyntheticIdentityRegistry) {
   let #(log_id, identity_after_log_id) =
@@ -702,15 +1600,15 @@ fn record_mutation_log(
       interpreted: store.InterpretedMetadata(
         operation_type: store.Mutation,
         operation_name: None,
-        root_fields: ["shopPolicyUpdate"],
-        primary_root_field: Some("shopPolicyUpdate"),
+        root_fields: [root_name],
+        primary_root_field: Some(root_name),
         capability: store.Capability(
-          operation_name: Some("shopPolicyUpdate"),
+          operation_name: Some(root_name),
           domain: "store-properties",
           execution: "stage-locally",
         ),
       ),
-      notes: Some("Locally staged shopPolicyUpdate in shopify-draft-proxy."),
+      notes: Some("Locally staged " <> root_name <> " in shopify-draft-proxy."),
     )
   #(store.record_mutation_log_entry(store, entry), identity_final)
 }
