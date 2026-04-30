@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 46: product option node reads
+
+Adds generic Relay node resolution for ProductOption and ProductOptionValue
+records backed by the product option state added in Pass 45. The Admin
+Platform `node`/`nodes` dispatcher now routes `gid://shopify/ProductOption/*`
+and `gid://shopify/ProductOptionValue/*` IDs to the Products serializer, while
+missing option IDs preserve Shopify-like `null` entries in `nodes(ids:)`.
+
+This remains a read-only node resolution slice. It does not implement product
+option mutations, option reorder lifecycle, variant strategy behavior, or the
+full admin-platform product option node parity scenario, which depends on the
+unported product option lifecycle roots.
+
+| Module                                                           | Change                                                                           |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                | Adds effective ProductOption/ProductOptionValue lookup by GID.                   |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`             | Exports ProductOption/ProductOptionValue node serializers.                       |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`       | Dispatches ProductOption/ProductOptionValue GIDs through `node` / `nodes`.       |
+| `gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam` | Adds direct generic node read coverage for option, option value, and missing ID. |
+
+Validation: `gleam test --target javascript` is green at 710 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 706 tests. Product parity
+inventory remains 115 checked-in specs, with 10 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was the Admin Platform dispatcher returning
+  `null` for ProductOption/ProductOptionValue GIDs because only store-property
+  node families were routed in Gleam.
+- The ProductOption source added in Pass 45 could be reused directly for node
+  selection projection, so no second option serializer was needed.
+
+### Risks / open items
+
+- The checked-in `admin-platform-product-option-node-reads` parity scenario is
+  still unenabled because it replays product option reorder lifecycle first.
+- Product option mutations and read-after-write lifecycle behavior remain
+  unported.
+- Only 10 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 47 candidates
+
+- Start product option create/update/delete/reorder local lifecycle behavior.
+- Add inventory quantity mutation/read-after-write behavior for the
+  `inventory-quantity-roots-parity` set/move slice.
+- Add product search sort-key ordering once per-connection product cursors and
+  `publishedAt` state are modeled.
+
+---
+
 ## 2026-04-30 — Pass 45: product option read projection
 
 Adds ProductOption/ProductOptionValue records to the Gleam store and projects

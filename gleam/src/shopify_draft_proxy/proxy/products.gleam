@@ -1061,6 +1061,40 @@ fn product_option_value_source(
   ])
 }
 
+pub fn serialize_product_option_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_product_option_by_id(store, id) {
+    Some(option) ->
+      project_graphql_value(
+        product_option_source(option),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_product_option_value_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_product_option_value_by_id(store, id) {
+    Some(option_value) ->
+      project_graphql_value(
+        product_option_value_source(option_value),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
 fn product_variants_connection_source(
   store: Store,
   product: ProductRecord,

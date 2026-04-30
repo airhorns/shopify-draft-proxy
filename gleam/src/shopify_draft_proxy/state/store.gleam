@@ -23,11 +23,12 @@ import shopify_draft_proxy/state/types.{
   type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
   type GiftCardRecord, type InventoryLevelRecord, type LocaleRecord,
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
-  type ProductOptionRecord, type ProductRecord, type ProductVariantRecord,
-  type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
-  type ShopRecord, type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
-  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
-  BulkOperationRecord, MarketingObject, MarketingString,
+  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
+  type ProductVariantRecord, type SavedSearchRecord, type SegmentRecord,
+  type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
+  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
+  type WebhookSubscriptionRecord, BulkOperationRecord, MarketingObject,
+  MarketingString,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -806,6 +807,35 @@ pub fn get_effective_options_by_product_id(
       list.sort(source_options, compare_product_options)
     }
   }
+}
+
+pub fn get_effective_product_option_by_id(
+  store: Store,
+  option_id: String,
+) -> Option(ProductOptionRecord) {
+  store
+  |> list_effective_products
+  |> list.find_map(fn(product) {
+    get_effective_options_by_product_id(store, product.id)
+    |> list.find(fn(option) { option.id == option_id })
+  })
+  |> option.from_result
+}
+
+pub fn get_effective_product_option_value_by_id(
+  store: Store,
+  option_value_id: String,
+) -> Option(ProductOptionValueRecord) {
+  store
+  |> list_effective_products
+  |> list.find_map(fn(product) {
+    get_effective_options_by_product_id(store, product.id)
+    |> list.find_map(fn(option) {
+      option.option_values
+      |> list.find(fn(value) { value.id == option_value_id })
+    })
+  })
+  |> option.from_result
 }
 
 fn remove_options_for_product(
