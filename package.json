@@ -27,6 +27,7 @@
     "gleam:test": "cd gleam && gleam test --target javascript && gleam test --target erlang",
     "gleam:test:js": "cd gleam && gleam test --target javascript",
     "gleam:test:erlang": "cd gleam && gleam test --target erlang",
+    "gleam:graphql-parity": "corepack pnpm gleam:build:js && tsx ./scripts/check-gleam-graphql-parser-parity.ts",
     "gleam:format": "cd gleam && gleam format",
     "gleam:format:check": "cd gleam && gleam format --check",
     "gleam:integration-inventory": "tsx ./scripts/verify-gleam-integration-inventory.ts",
