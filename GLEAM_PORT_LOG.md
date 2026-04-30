@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 33: CI gate hardening for port completion
+
+Adds manifest-backed CI gates for the Gleam port. The new gate keeps the
+vendored Gleam operation registry synchronized with `config/operation-registry.json`,
+requires every checked-in parity spec to remain a strict executable comparison,
+locks the current Gleam parity runner spec list against silent shrinkage, and
+maps each implemented registry domain to its TypeScript integration-test
+coverage surface so missing domain/integration gates fail in CI.
+
+This pass does not port a new endpoint domain and does not delete any TypeScript
+runtime code. It makes the existing port/conformance coverage harder to reduce
+silently while the remaining domain-port issues proceed.
+
+| Module                                | Change                                                                                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `config/gleam-port-ci-gates.json`     | Adds the reviewed CI gate manifest for parity spec counts, Gleam runner specs, required workflow commands, capture-tooling checks, and domain test mappings. |
+| `scripts/gleam-port-coverage-gate.ts` | Adds the CI gate checker for parity inventory, runner shrinkage, domain gates, integration-test mappings, workflow commands, and package scripts.            |
+| `package.json`                        | Adds `gleam:registry:check`, `gleam:port:coverage`, and `conformance:capture:check` scripts.                                                                 |
+| `.github/workflows/ci.yml`            | Runs registry drift, conformance parity, remaining TypeScript capture tooling, conformance status, the new port gate, both Gleam targets, and smoke tests.   |
+
+Validation: `corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm build`,
+`corepack pnpm gleam:registry:check`, `corepack pnpm gleam:port:coverage`,
+`corepack pnpm conformance:check`, `corepack pnpm conformance:parity`,
+`corepack pnpm conformance:capture:check`, `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`,
+`corepack pnpm gleam:format:check`, `corepack pnpm gleam:test:js`, and
+`corepack pnpm gleam:smoke:js` are green. The host lacks `escript`, so Erlang
+target and Elixir smoke were validated with the matching Gleam 1.16 containers:
+`docker run --rm -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`
+and
+`docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-elixir-alpine sh -lc 'cd gleam && gleam export erlang-shipment && cd elixir_smoke && mix test'`.
+
+### Findings
+
+- `gleam/scripts/sync-operation-registry.sh` emits unformatted Gleam; the drift
+  check now regenerates, formats, then diffs the generated registry module.
+- The current repository has 379 convention-discovered parity specs and 20
+  explicit Gleam parity runner specs; both are now reviewed values in the gate
+  manifest instead of comments in individual tests.
+- CI now checks TypeScript conformance capture tooling as remaining tooling,
+  separate from the Gleam runtime authority.
+
+### Risks / open items
+
+- The gate proves the current mapped coverage cannot shrink silently; it does
+  not claim the remaining endpoint domains are fully ported.
+- Host-local Erlang/Elixir package scripts still require a BEAM installation;
+  CI installs BEAM directly, while this workspace used containers for local
+  equivalent validation.
+
+### Pass 34 candidates
+
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the shop slice where those reads nest under shop
+  state.
+- Continue Admin Platform parity seeding for backup-region and taxonomy utility
+  captures now that store-property Node reads are executable.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain
