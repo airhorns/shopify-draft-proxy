@@ -17,13 +17,13 @@ Product `publishedAt` through local state/projection, sorts Product connections
 by the captured Shopify sort keys, and emits Shopify-style sort cursors while
 preserving stored upstream cursors for older catalog captures.
 
-| Module                                               | Change                                                                                                                   |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds Product `publishedAt` projection, Product connection sorting, sort-key cursor generation, and timestamp term reads. |
-| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds Product `published_at` state so captured Product reads can round-trip `publishedAt`.                               |
-| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries Product `publishedAt` through state JSON output.                                                            |
-| `gleam/test/parity/runner.gleam`                     | Seeds the captured sort-key Product aliases and fills fixture-derived searchable tags/vendor fields.                     |
-| `config/gleam-port-ci-gates.json`                    | Removes the newly passing `products-sort-keys-read` parity spec.                                                        |
+| Module                                                    | Change                                                                                                                   |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`      | Adds Product `publishedAt` projection, Product connection sorting, sort-key cursor generation, and timestamp term reads. |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds Product `published_at` state so captured Product reads can round-trip `publishedAt`.                                |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries Product `publishedAt` through state JSON output.                                                                 |
+| `gleam/test/parity/runner.gleam`                          | Seeds the captured sort-key Product aliases and fills fixture-derived searchable tags/vendor fields.                     |
+| `config/gleam-port-ci-gates.json`                         | Removes the newly passing `products-sort-keys-read` parity spec.                                                         |
 
 Validation:
 Focused JavaScript parity is green for `products-sort-keys-read.json` and the
