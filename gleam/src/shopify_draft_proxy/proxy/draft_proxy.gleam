@@ -39,6 +39,7 @@ import shopify_draft_proxy/proxy/delivery_settings
 import shopify_draft_proxy/proxy/events
 import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/gift_cards
+import shopify_draft_proxy/proxy/graphql_helpers.{source_to_json}
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/proxy/marketing
 import shopify_draft_proxy/proxy/media
@@ -47,11 +48,12 @@ import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/operation_registry.{
   type RegistryEntry, AdminPlatform, Apps, BulkOperations, Events, Functions,
   GiftCards, Localization, Marketing, Media, Metafields, Metaobjects,
-  SavedSearches, Segments, ShippingFulfillments, Webhooks,
+  SavedSearches, Segments, ShippingFulfillments, StoreProperties, Webhooks,
 }
 import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
+import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/upstream_dispatch
 import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/shopify/upstream_client
@@ -401,21 +403,35 @@ fn optional_string(value: Option(String)) -> Json {
 }
 
 fn serialize_base_state(state: store.BaseState) -> Json {
-  case dict.is_empty(state.saved_searches) {
-    True -> json.object([])
+  let entries = case state.shop {
+    Some(shop) -> [
+      #("shop", source_to_json(store_properties.shop_source(shop))),
+    ]
+    None -> []
+  }
+  let entries = case dict.is_empty(state.saved_searches) {
+    True -> entries
     False ->
-      json.object([
+      list.append(entries, [
         #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
       ])
   }
+  json.object(entries)
 }
 
 fn serialize_staged_state(state: store.StagedState) -> Json {
-  let entries = case dict.is_empty(state.saved_searches) {
-    True -> []
-    False -> [
-      #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
+  let entries = case state.shop {
+    Some(shop) -> [
+      #("shop", source_to_json(store_properties.shop_source(shop))),
     ]
+    None -> []
+  }
+  let entries = case dict.is_empty(state.saved_searches) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
+      ])
   }
   let entries = case dict.is_empty(state.deleted_saved_search_ids) {
     True -> entries
@@ -927,6 +943,29 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(StorePropertiesDomain) ->
+      case
+        store_properties.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(
+          bad_request("Failed to handle store properties mutation"),
+          proxy,
+        )
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -1027,6 +1066,12 @@ fn route_query(
         admin_platform.process(proxy.store, query, variables),
         "Failed to handle admin platform query",
       )
+    Ok(StorePropertiesDomain) ->
+      respond(
+        proxy,
+        store_properties.process(proxy.store, query, variables),
+        "Failed to handle store properties query",
+      )
     Error(_) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -1053,6 +1098,7 @@ type Domain {
   BulkOperationsDomain
   MediaDomain
   AdminPlatformDomain
+  StorePropertiesDomain
 }
 
 /// Resolve a query operation's domain. With a registry loaded, the
@@ -1105,6 +1151,7 @@ fn capability_to_query_domain(
         BulkOperations -> Ok(BulkOperationsDomain)
         Media -> Ok(MediaDomain)
         AdminPlatform -> Ok(AdminPlatformDomain)
+        StoreProperties -> Ok(StorePropertiesDomain)
         _ -> Error(Nil)
       }
     }
@@ -1131,6 +1178,7 @@ fn capability_to_mutation_domain(
         Marketing -> Ok(MarketingDomain)
         BulkOperations -> Ok(BulkOperationsDomain)
         AdminPlatform -> Ok(AdminPlatformDomain)
+        StoreProperties -> Ok(StorePropertiesDomain)
         _ -> Error(Nil)
       }
     }
@@ -1141,6 +1189,7 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
   case name {
     "event" | "events" | "eventsCount" -> Ok(EventsDomain)
     "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
+    "shop" -> Ok(StorePropertiesDomain)
     _ ->
       case saved_searches.is_saved_search_query_root(name) {
         True -> Ok(SavedSearchesDomain)
@@ -1229,55 +1278,63 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
 }
 
 fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
-  case saved_searches.is_saved_search_mutation_root(name) {
-    True -> Ok(SavedSearchesDomain)
+  case store_properties.is_store_properties_mutation_root(name) {
+    True -> Ok(StorePropertiesDomain)
     False ->
-      case webhooks.is_webhook_subscription_mutation_root(name) {
-        True -> Ok(WebhooksDomain)
+      case saved_searches.is_saved_search_mutation_root(name) {
+        True -> Ok(SavedSearchesDomain)
         False ->
-          case apps.is_app_mutation_root(name) {
-            True -> Ok(AppsDomain)
+          case webhooks.is_webhook_subscription_mutation_root(name) {
+            True -> Ok(WebhooksDomain)
             False ->
-              case functions.is_function_mutation_root(name) {
-                True -> Ok(FunctionsDomain)
+              case apps.is_app_mutation_root(name) {
+                True -> Ok(AppsDomain)
                 False ->
-                  case gift_cards.is_gift_card_mutation_root(name) {
-                    True -> Ok(GiftCardsDomain)
+                  case functions.is_function_mutation_root(name) {
+                    True -> Ok(FunctionsDomain)
                     False ->
-                      case segments.is_segment_mutation_root(name) {
-                        True -> Ok(SegmentsDomain)
+                      case gift_cards.is_gift_card_mutation_root(name) {
+                        True -> Ok(GiftCardsDomain)
                         False ->
-                          case
-                            metafield_definitions.is_metafield_definitions_mutation_root(
-                              name,
-                            )
-                          {
-                            True -> Ok(MetafieldDefinitionsDomain)
+                          case segments.is_segment_mutation_root(name) {
+                            True -> Ok(SegmentsDomain)
                             False ->
                               case
-                                localization.is_localization_mutation_root(name)
+                                metafield_definitions.is_metafield_definitions_mutation_root(
+                                  name,
+                                )
                               {
-                                True -> Ok(LocalizationDomain)
+                                True -> Ok(MetafieldDefinitionsDomain)
                                 False ->
                                   case
-                                    marketing.is_marketing_mutation_root(name)
+                                    localization.is_localization_mutation_root(
+                                      name,
+                                    )
                                   {
-                                    True -> Ok(MarketingDomain)
+                                    True -> Ok(LocalizationDomain)
                                     False ->
                                       case
-                                        bulk_operations.is_bulk_operations_mutation_root(
+                                        marketing.is_marketing_mutation_root(
                                           name,
                                         )
                                       {
-                                        True -> Ok(BulkOperationsDomain)
+                                        True -> Ok(MarketingDomain)
                                         False ->
                                           case
-                                            admin_platform.is_admin_platform_mutation_root(
+                                            bulk_operations.is_bulk_operations_mutation_root(
                                               name,
                                             )
                                           {
-                                            True -> Ok(AdminPlatformDomain)
-                                            False -> Error(Nil)
+                                            True -> Ok(BulkOperationsDomain)
+                                            False ->
+                                              case
+                                                admin_platform.is_admin_platform_mutation_root(
+                                                  name,
+                                                )
+                                              {
+                                                True -> Ok(AdminPlatformDomain)
+                                                False -> Error(Nil)
+                                              }
                                           }
                                       }
                                   }

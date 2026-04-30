@@ -60,6 +60,22 @@ pub fn gift_card_search_filters_test() {
   check("config/parity-specs/gift-cards/gift-card-search-filters.json")
 }
 
+// ----------- store properties -----------
+
+pub fn shop_baseline_read_test() {
+  check("config/parity-specs/store-properties/shop-baseline-read.json")
+}
+
+pub fn shop_policy_update_parity_test() {
+  check("config/parity-specs/store-properties/shopPolicyUpdate-parity.json")
+}
+
+pub fn admin_platform_store_property_node_reads_test() {
+  check(
+    "config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json",
+  )
+}
+
 // NOTE: functions-metadata-local-staging fails because the capture
 // fixture (`fixtures/.../functions-metadata-flow.json`) is hand-
 // written and aspirational — it claims `Validation/2` + T+1s, but

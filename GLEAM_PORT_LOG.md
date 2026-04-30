@@ -9,6 +9,73 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 32: store-properties shop and policy foundation
+
+Ports the Store Properties shop slice into the Gleam dispatcher. The new domain
+covers local `shop` reads from effective base/staged shop state and
+`shopPolicyUpdate` local staging, including policy validation, synthetic
+timestamps/IDs, downstream `shop.shopPolicies` read-after-write behavior, and
+mutation-log observability for successful staged updates. Admin Platform
+`node`/`nodes` now resolves Store Properties-owned `Shop`, `ShopAddress`, and
+`ShopPolicy` records when the shop slice is seeded.
+
+The TypeScript Store Properties implementation remains in place because the
+larger domain still owns locations, fulfillment services, carrier services,
+business entities, payment settings branches, publication helpers, and other
+store-adjacent roots that are not ported in this pass.
+
+| Module                                                            | Change                                                                                                                                         |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                 | Adds typed Shop, Domain, ShopAddress, plan/resource-limit/features/payment-settings, and ShopPolicy records.                                   |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                 | Adds base/staged shop state, effective-shop lookup, base seeding, and staged shop replacement helpers.                                         |
+| `gleam/src/shopify_draft_proxy/proxy/store_properties.gleam`      | Adds Store Properties query/mutation handling for `shop` and `shopPolicyUpdate`, policy serialization, validation, local staging, and logging. |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`        | Resolves Store Properties-owned Relay Node records for `Shop`, `ShopAddress`, `ShopPolicy`, and primary `Domain` from effective shop state.   |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`           | Routes Store Properties query/mutation capabilities and serializes the shop slice through `__meta/state`.                                      |
+| `gleam/test/parity/runner.gleam`                                  | Seeds Store Properties captures from `readOnlyBaselines.shop.data.shop` and supports wildcard expected-difference paths.                       |
+| `gleam/test/parity_test.gleam`                                    | Enables `shop-baseline-read`, `shopPolicyUpdate-parity`, and `admin-platform-store-property-node-reads` as executable Gleam parity evidence.   |
+| `gleam/test/shopify_draft_proxy/proxy/store_properties_test.gleam` | Adds direct coverage for empty reads, seeded shop projection, policy staging, validation, mutation logging, and Admin Platform Node reads.      |
+
+Validation: `gleam test --target javascript` is green at 670 tests on the host
+Node runtime. `gleam test --target erlang` is green at 666 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container because the host
+lacks `escript`. `gleam format`, `corepack pnpm gleam:format:check`,
+`corepack pnpm gleam:smoke:js`, and `git diff --check` are green.
+
+### Findings
+
+- Store Properties is a singleton-heavy domain: `shopPolicyUpdate` replaces the
+  effective shop row with an updated policy list rather than maintaining a
+  separate policy collection.
+- Captured parity specs already use wildcard expected-difference paths such as
+  `$.shop.shopPolicies[*].updatedAt`; the Gleam parity diff needed matching
+  support so existing specs could run without rewriting fixtures.
+- Validation-only `shopPolicyUpdate` user errors do not create mutation-log
+  entries; successful local policy updates record the staged policy ID and
+  preserve the original mutation document.
+
+### Risks / open items
+
+- Store Properties coverage is limited to `shop` and `shopPolicyUpdate`;
+  location, fulfillment-service, carrier-service, publication, business-entity,
+  and payment-settings roots still need separate domain passes.
+- Snapshot file loading for the full TS normalized state shape is still not
+  ported; parity evidence seeds the shop slice from captured fixtures in the
+  runner.
+- Admin Platform generic Node dispatch is still only as broad as the owning
+  Gleam resource domains that have been ported.
+
+### Pass 33 candidates
+
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the new shop slice where those reads nest under
+  shop state.
+- Continue Admin Platform parity seeding for backup-region and taxonomy utility
+  captures now that store-property Node reads are executable.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
 ## 2026-04-30 — Pass 31: admin-platform utility roots
 
 Ports a broad Admin Platform utility batch into the Gleam dispatcher. The new

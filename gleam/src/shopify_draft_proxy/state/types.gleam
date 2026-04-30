@@ -47,6 +47,141 @@ pub type AdminPlatformFlowTriggerRecord {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Store properties domain
+// ---------------------------------------------------------------------------
+
+pub type ShopDomainRecord {
+  ShopDomainRecord(id: String, host: String, url: String, ssl_enabled: Bool)
+}
+
+pub type ShopAddressRecord {
+  ShopAddressRecord(
+    id: String,
+    address1: Option(String),
+    address2: Option(String),
+    city: Option(String),
+    company: Option(String),
+    coordinates_validated: Bool,
+    country: Option(String),
+    country_code_v2: Option(String),
+    formatted: List(String),
+    formatted_area: Option(String),
+    latitude: Option(Float),
+    longitude: Option(Float),
+    phone: Option(String),
+    province: Option(String),
+    province_code: Option(String),
+    zip: Option(String),
+  )
+}
+
+pub type ShopPlanRecord {
+  ShopPlanRecord(
+    partner_development: Bool,
+    public_display_name: String,
+    shopify_plus: Bool,
+  )
+}
+
+pub type ShopResourceLimitsRecord {
+  ShopResourceLimitsRecord(
+    location_limit: Int,
+    max_product_options: Int,
+    max_product_variants: Int,
+    redirect_limit_reached: Bool,
+  )
+}
+
+pub type ShopBundlesFeatureRecord {
+  ShopBundlesFeatureRecord(
+    eligible_for_bundles: Bool,
+    ineligibility_reason: Option(String),
+    sells_bundles: Bool,
+  )
+}
+
+pub type ShopCartTransformEligibleOperationsRecord {
+  ShopCartTransformEligibleOperationsRecord(
+    expand_operation: Bool,
+    merge_operation: Bool,
+    update_operation: Bool,
+  )
+}
+
+pub type ShopCartTransformFeatureRecord {
+  ShopCartTransformFeatureRecord(
+    eligible_operations: ShopCartTransformEligibleOperationsRecord,
+  )
+}
+
+pub type ShopFeaturesRecord {
+  ShopFeaturesRecord(
+    avalara_avatax: Bool,
+    branding: String,
+    bundles: ShopBundlesFeatureRecord,
+    captcha: Bool,
+    cart_transform: ShopCartTransformFeatureRecord,
+    dynamic_remarketing: Bool,
+    eligible_for_subscription_migration: Bool,
+    eligible_for_subscriptions: Bool,
+    gift_cards: Bool,
+    harmonized_system_code: Bool,
+    legacy_subscription_gateway_enabled: Bool,
+    live_view: Bool,
+    paypal_express_subscription_gateway_status: String,
+    reports: Bool,
+    sells_subscriptions: Bool,
+    show_metrics: Bool,
+    storefront: Bool,
+    unified_markets: Bool,
+  )
+}
+
+pub type PaymentSettingsRecord {
+  PaymentSettingsRecord(supported_digital_wallets: List(String))
+}
+
+pub type ShopPolicyRecord {
+  ShopPolicyRecord(
+    id: String,
+    title: String,
+    body: String,
+    type_: String,
+    url: String,
+    created_at: String,
+    updated_at: String,
+  )
+}
+
+pub type ShopRecord {
+  ShopRecord(
+    id: String,
+    name: String,
+    myshopify_domain: String,
+    url: String,
+    primary_domain: ShopDomainRecord,
+    contact_email: String,
+    email: String,
+    currency_code: String,
+    enabled_presentment_currencies: List(String),
+    iana_timezone: String,
+    timezone_abbreviation: String,
+    timezone_offset: String,
+    timezone_offset_minutes: Int,
+    taxes_included: Bool,
+    tax_shipping: Bool,
+    unit_system: String,
+    weight_unit: String,
+    shop_address: ShopAddressRecord,
+    plan: ShopPlanRecord,
+    resource_limits: ShopResourceLimitsRecord,
+    features: ShopFeaturesRecord,
+    payment_settings: PaymentSettingsRecord,
+    shop_policies: List(ShopPolicyRecord),
+  )
+}
+
 /// A single saved-search record. Mirrors `SavedSearchRecord` in
 /// `src/state/types.ts`. `cursor` is set on records the proxy stages
 /// from upstream-hybrid responses; static defaults and freshly-created

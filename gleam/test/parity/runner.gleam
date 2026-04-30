@@ -24,7 +24,9 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import parity/diff.{type Mismatch}
-import parity/json_value.{type JsonValue, JArray, JBool, JObject, JString}
+import parity/json_value.{
+  type JsonValue, JArray, JBool, JFloat, JInt, JObject, JString,
+}
 import parity/jsonpath
 import parity/spec.{
   type Spec, type Target, NoVariables, OverrideRequest, ReusePrimary,
@@ -38,9 +40,15 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
   type GiftCardRecord, type GiftCardTransactionRecord, type Money,
-  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
-  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
-  GiftCardTransactionRecord, Money, ShopifyFunctionAppRecord,
+  type PaymentSettingsRecord, type ShopAddressRecord, type ShopDomainRecord,
+  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
+  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
+  type ShopifyFunctionRecord, GiftCardConfigurationRecord,
+  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
+  Money, PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
+  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
   ShopifyFunctionRecord,
 }
 import simplifile
@@ -137,8 +145,301 @@ fn seed_capture_preconditions(
       seed_gift_card_lifecycle_preconditions(capture, proxy)
     "functions-owner-metadata-local-staging" ->
       seed_shopify_function_preconditions(capture, proxy)
+    "shop-baseline-read"
+    | "shop-policy-update-parity"
+    | "admin-platform-store-property-node-reads" ->
+      seed_shop_preconditions(capture, proxy)
     _ -> proxy
   }
+}
+
+fn seed_shop_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.readOnlyBaselines.shop.data.shop") {
+    Some(shop_json) ->
+      case make_seed_shop(shop_json) {
+        Ok(shop) ->
+          draft_proxy.DraftProxy(
+            ..proxy,
+            store: store_mod.upsert_base_shop(proxy.store, shop),
+          )
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn make_seed_shop(source: JsonValue) -> Result(ShopRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  use myshopify_domain <- result.try(required_string_field(
+    source,
+    "myshopifyDomain",
+  ))
+  use url <- result.try(required_string_field(source, "url"))
+  use primary_domain <- result.try(
+    make_seed_shop_domain(read_object_field(source, "primaryDomain")),
+  )
+  use shop_address <- result.try(
+    make_seed_shop_address(read_object_field(source, "shopAddress")),
+  )
+  use plan <- result.try(make_seed_shop_plan(read_object_field(source, "plan")))
+  use resource_limits <- result.try(
+    make_seed_resource_limits(read_object_field(source, "resourceLimits")),
+  )
+  use features <- result.try(
+    make_seed_shop_features(read_object_field(source, "features")),
+  )
+  let payment_settings =
+    make_seed_payment_settings(read_object_field(source, "paymentSettings"))
+  let policies =
+    read_array_field(source, "shopPolicies")
+    |> option.unwrap([])
+    |> list.filter_map(make_seed_shop_policy)
+  Ok(ShopRecord(
+    id: id,
+    name: name,
+    myshopify_domain: myshopify_domain,
+    url: url,
+    primary_domain: primary_domain,
+    contact_email: read_string_field(source, "contactEmail")
+      |> option.unwrap(""),
+    email: read_string_field(source, "email") |> option.unwrap(""),
+    currency_code: read_string_field(source, "currencyCode")
+      |> option.unwrap(""),
+    enabled_presentment_currencies: read_string_array_field(
+      source,
+      "enabledPresentmentCurrencies",
+    ),
+    iana_timezone: read_string_field(source, "ianaTimezone")
+      |> option.unwrap(""),
+    timezone_abbreviation: read_string_field(source, "timezoneAbbreviation")
+      |> option.unwrap(""),
+    timezone_offset: read_string_field(source, "timezoneOffset")
+      |> option.unwrap(""),
+    timezone_offset_minutes: read_int_field(source, "timezoneOffsetMinutes")
+      |> option.unwrap(0),
+    taxes_included: read_bool_field(source, "taxesIncluded")
+      |> option.unwrap(False),
+    tax_shipping: read_bool_field(source, "taxShipping")
+      |> option.unwrap(False),
+    unit_system: read_string_field(source, "unitSystem") |> option.unwrap(""),
+    weight_unit: read_string_field(source, "weightUnit") |> option.unwrap(""),
+    shop_address: shop_address,
+    plan: plan,
+    resource_limits: resource_limits,
+    features: features,
+    payment_settings: payment_settings,
+    shop_policies: policies,
+  ))
+}
+
+fn make_seed_shop_domain(
+  source: Option(JsonValue),
+) -> Result(ShopDomainRecord, Nil) {
+  case source {
+    Some(value) -> {
+      use id <- result.try(required_string_field(value, "id"))
+      use host <- result.try(required_string_field(value, "host"))
+      use url <- result.try(required_string_field(value, "url"))
+      Ok(ShopDomainRecord(
+        id: id,
+        host: host,
+        url: url,
+        ssl_enabled: read_bool_field(value, "sslEnabled")
+          |> option.unwrap(False),
+      ))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_shop_address(
+  source: Option(JsonValue),
+) -> Result(ShopAddressRecord, Nil) {
+  case source {
+    Some(value) -> {
+      use id <- result.try(required_string_field(value, "id"))
+      Ok(ShopAddressRecord(
+        id: id,
+        address1: read_string_field(value, "address1"),
+        address2: read_string_field(value, "address2"),
+        city: read_string_field(value, "city"),
+        company: read_string_field(value, "company"),
+        coordinates_validated: read_bool_field(value, "coordinatesValidated")
+          |> option.unwrap(False),
+        country: read_string_field(value, "country"),
+        country_code_v2: read_string_field(value, "countryCodeV2"),
+        formatted: read_string_array_field(value, "formatted"),
+        formatted_area: read_string_field(value, "formattedArea"),
+        latitude: read_float_field(value, "latitude"),
+        longitude: read_float_field(value, "longitude"),
+        phone: read_string_field(value, "phone"),
+        province: read_string_field(value, "province"),
+        province_code: read_string_field(value, "provinceCode"),
+        zip: read_string_field(value, "zip"),
+      ))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_shop_plan(
+  source: Option(JsonValue),
+) -> Result(ShopPlanRecord, Nil) {
+  case source {
+    Some(value) ->
+      Ok(ShopPlanRecord(
+        partner_development: read_bool_field(value, "partnerDevelopment")
+          |> option.unwrap(False),
+        public_display_name: read_string_field(value, "publicDisplayName")
+          |> option.unwrap(""),
+        shopify_plus: read_bool_field(value, "shopifyPlus")
+          |> option.unwrap(False),
+      ))
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_resource_limits(
+  source: Option(JsonValue),
+) -> Result(ShopResourceLimitsRecord, Nil) {
+  case source {
+    Some(value) ->
+      Ok(ShopResourceLimitsRecord(
+        location_limit: read_int_field(value, "locationLimit")
+          |> option.unwrap(0),
+        max_product_options: read_int_field(value, "maxProductOptions")
+          |> option.unwrap(0),
+        max_product_variants: read_int_field(value, "maxProductVariants")
+          |> option.unwrap(0),
+        redirect_limit_reached: read_bool_field(value, "redirectLimitReached")
+          |> option.unwrap(False),
+      ))
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_shop_features(
+  source: Option(JsonValue),
+) -> Result(ShopFeaturesRecord, Nil) {
+  case source {
+    Some(value) -> {
+      let bundles = case read_object_field(value, "bundles") {
+        Some(b) ->
+          ShopBundlesFeatureRecord(
+            eligible_for_bundles: read_bool_field(b, "eligibleForBundles")
+              |> option.unwrap(False),
+            ineligibility_reason: read_string_field(b, "ineligibilityReason"),
+            sells_bundles: read_bool_field(b, "sellsBundles")
+              |> option.unwrap(False),
+          )
+        None ->
+          ShopBundlesFeatureRecord(
+            eligible_for_bundles: False,
+            ineligibility_reason: None,
+            sells_bundles: False,
+          )
+      }
+      let operations = case
+        read_object_field(value, "cartTransform")
+        |> option.then(fn(cart) {
+          read_object_field(cart, "eligibleOperations")
+        })
+      {
+        Some(op) ->
+          ShopCartTransformEligibleOperationsRecord(
+            expand_operation: read_bool_field(op, "expandOperation")
+              |> option.unwrap(False),
+            merge_operation: read_bool_field(op, "mergeOperation")
+              |> option.unwrap(False),
+            update_operation: read_bool_field(op, "updateOperation")
+              |> option.unwrap(False),
+          )
+        None ->
+          ShopCartTransformEligibleOperationsRecord(
+            expand_operation: False,
+            merge_operation: False,
+            update_operation: False,
+          )
+      }
+      Ok(ShopFeaturesRecord(
+        avalara_avatax: read_bool_field(value, "avalaraAvatax")
+          |> option.unwrap(False),
+        branding: read_string_field(value, "branding") |> option.unwrap(""),
+        bundles: bundles,
+        captcha: read_bool_field(value, "captcha") |> option.unwrap(False),
+        cart_transform: ShopCartTransformFeatureRecord(
+          eligible_operations: operations,
+        ),
+        dynamic_remarketing: read_bool_field(value, "dynamicRemarketing")
+          |> option.unwrap(False),
+        eligible_for_subscription_migration: read_bool_field(
+          value,
+          "eligibleForSubscriptionMigration",
+        )
+          |> option.unwrap(False),
+        eligible_for_subscriptions: read_bool_field(
+          value,
+          "eligibleForSubscriptions",
+        )
+          |> option.unwrap(False),
+        gift_cards: read_bool_field(value, "giftCards") |> option.unwrap(False),
+        harmonized_system_code: read_bool_field(value, "harmonizedSystemCode")
+          |> option.unwrap(False),
+        legacy_subscription_gateway_enabled: read_bool_field(
+          value,
+          "legacySubscriptionGatewayEnabled",
+        )
+          |> option.unwrap(False),
+        live_view: read_bool_field(value, "liveView") |> option.unwrap(False),
+        paypal_express_subscription_gateway_status: read_string_field(
+          value,
+          "paypalExpressSubscriptionGatewayStatus",
+        )
+          |> option.unwrap(""),
+        reports: read_bool_field(value, "reports") |> option.unwrap(False),
+        sells_subscriptions: read_bool_field(value, "sellsSubscriptions")
+          |> option.unwrap(False),
+        show_metrics: read_bool_field(value, "showMetrics")
+          |> option.unwrap(False),
+        storefront: read_bool_field(value, "storefront") |> option.unwrap(False),
+        unified_markets: read_bool_field(value, "unifiedMarkets")
+          |> option.unwrap(False),
+      ))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_payment_settings(
+  source: Option(JsonValue),
+) -> PaymentSettingsRecord {
+  PaymentSettingsRecord(supported_digital_wallets: case source {
+    Some(value) -> read_string_array_field(value, "supportedDigitalWallets")
+    None -> []
+  })
+}
+
+fn make_seed_shop_policy(source: JsonValue) -> Result(ShopPolicyRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use title <- result.try(required_string_field(source, "title"))
+  use body <- result.try(required_string_field(source, "body"))
+  use type_ <- result.try(required_string_field(source, "type"))
+  use url <- result.try(required_string_field(source, "url"))
+  use created_at <- result.try(required_string_field(source, "createdAt"))
+  use updated_at <- result.try(required_string_field(source, "updatedAt"))
+  Ok(ShopPolicyRecord(
+    id: id,
+    title: title,
+    body: body,
+    type_: type_,
+    url: url,
+    created_at: created_at,
+    updated_at: updated_at,
+  ))
 }
 
 fn seed_shopify_function_preconditions(
@@ -429,6 +730,34 @@ fn read_bool_field(value: JsonValue, name: String) -> Option(Bool) {
   case json_value.field(value, name) {
     Some(JBool(b)) -> Some(b)
     _ -> None
+  }
+}
+
+fn read_int_field(value: JsonValue, name: String) -> Option(Int) {
+  case json_value.field(value, name) {
+    Some(JInt(i)) -> Some(i)
+    _ -> None
+  }
+}
+
+fn read_float_field(value: JsonValue, name: String) -> Option(Float) {
+  case json_value.field(value, name) {
+    Some(JFloat(f)) -> Some(f)
+    Some(JInt(i)) -> Some(int.to_float(i))
+    _ -> None
+  }
+}
+
+fn read_string_array_field(value: JsonValue, name: String) -> List(String) {
+  case read_array_field(value, name) {
+    Some(items) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          JString(s) -> Ok(s)
+          _ -> Error(Nil)
+        }
+      })
+    None -> []
   }
 }
 
