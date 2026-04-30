@@ -120,6 +120,30 @@ pub fn products_search_read_test() {
   check("config/parity-specs/products/products-search-read.json")
 }
 
+pub fn product_options_create_variant_strategy_create_test() {
+  check(
+    "config/parity-specs/products/productOptionsCreate-variant-strategy-create.json",
+  )
+}
+
+pub fn product_options_create_variant_strategy_create_over_default_limit_test() {
+  check(
+    "config/parity-specs/products/productOptionsCreate-variant-strategy-create-over-default-limit.json",
+  )
+}
+
+pub fn product_options_create_variant_strategy_leave_as_is_test() {
+  check(
+    "config/parity-specs/products/productOptionsCreate-variant-strategy-leave-as-is.json",
+  )
+}
+
+pub fn product_options_create_variant_strategy_null_test() {
+  check(
+    "config/parity-specs/products/productOptionsCreate-variant-strategy-null.json",
+  )
+}
+
 // NOTE: functions-metadata-local-staging fails because the capture
 // fixture (`fixtures/.../functions-metadata-flow.json`) is hand-
 // written and aspirational — it claims `Validation/2` + T+1s, but

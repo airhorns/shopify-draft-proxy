@@ -9,6 +9,68 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 47: productOptionsCreate lifecycle
+
+Ports the first Products mutation slice to Gleam: `productOptionsCreate` now
+stages locally, records the raw mutation through the centralized mutation-log
+path, replaces Shopify's default Title option state, remaps the existing
+default variant for `LEAVE_AS_IS` / explicit `null`, and fans out variants for
+`variantStrategy: CREATE`. Downstream product reads observe the staged option
+and variant graph without a runtime Shopify write.
+
+The parity runner now seeds these scenarios from the captured
+`preMutationRead.data.product` payloads before replaying the primary mutation.
+It also handles expected-difference paths with two array wildcards, which the
+over-default-limit fixture uses for nested option value IDs.
+
+| Module                                                              | Change                                                                                     |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds Products mutation processing, `productOptionsCreate`, option sync, and CREATE fanout. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`             | Routes locally supported Products mutations to the Products mutation handler.              |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                   | Adds staged ProductVariant family replacement for read-after-write variant graphs.         |
+| `gleam/test/parity/runner.gleam`                                    | Seeds productOptionsCreate captures from pre-mutation product reads.                       |
+| `gleam/test/parity/diff.gleam`                                      | Supports two-wildcard expected-difference paths for nested array payloads.                 |
+| `gleam/test/parity_test.gleam`                                      | Enables four strict `productOptionsCreate` parity scenarios.                               |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Adds direct mutation/read-after-write/log coverage for the default-option create path.     |
+
+Validation: `gleam test --target javascript` is green at 715 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`escript`, and the Docker Erlang fallback is green at 711 tests. Product parity
+inventory remains 115 checked-in specs, with 14 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  test returning HTTP 400 for `productOptionsCreate` because Products
+  mutations had no Gleam dispatcher.
+- Shopify's CREATE fanout for an existing variant family preserves the first
+  new option value across existing variants first, then creates remaining
+  value combinations per existing variant. The over-default-limit capture made
+  that ordering visible.
+- Existing productOptionsCreate captures do not use `seedProducts`; they carry
+  the required baseline under `preMutationRead.data.product`.
+
+### Risks / open items
+
+- `productOptionUpdate`, `productOptionsDelete`, and `productOptionsReorder`
+  remain unported.
+- CREATE fanout is covered for the captured single-new-option scenarios; bulk
+  variant strategy behavior outside this productOptionsCreate slice remains
+  future work.
+- Only 14 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 48 candidates
+
+- Port `productOptionUpdate` over the captured option lifecycle fixture.
+- Port `productOptionsDelete` default-option restoration.
+- Port `productOptionsReorder` so the admin-platform product option node parity
+  scenario can replay its lifecycle setup instead of relying only on direct
+  seeded node coverage.
+
+---
+
 ## 2026-04-30 — Pass 46: product option node reads
 
 Adds generic Relay node resolution for ProductOption and ProductOptionValue

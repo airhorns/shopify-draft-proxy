@@ -1122,6 +1122,28 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(ProductsDomain) ->
+      case
+        products.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle products mutation"), proxy)
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -1506,7 +1528,15 @@ fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
                                                 )
                                               {
                                                 True -> Ok(AdminPlatformDomain)
-                                                False -> Error(Nil)
+                                                False ->
+                                                  case
+                                                    products.is_products_mutation_root(
+                                                      name,
+                                                    )
+                                                  {
+                                                    True -> Ok(ProductsDomain)
+                                                    False -> Error(Nil)
+                                                  }
                                               }
                                           }
                                       }

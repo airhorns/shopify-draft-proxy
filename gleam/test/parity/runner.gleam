@@ -168,6 +168,11 @@ fn seed_capture_preconditions(
       seed_products_search_read_preconditions(capture, proxy)
     "product-variants-read" | "inventory-level-read" ->
       seed_product_variants_read_preconditions(capture, proxy)
+    "product-options-create-variant-strategy-create"
+    | "product-options-create-variant-strategy-create-over-default-limit"
+    | "product-options-create-variant-strategy-leave-as-is"
+    | "product-options-create-variant-strategy-null" ->
+      seed_pre_mutation_product_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -376,6 +381,30 @@ fn seed_product_variants_read_preconditions(
   }
 }
 
+fn seed_pre_mutation_product_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.preMutationRead.data.product") {
+    Some(product_json) -> seed_product_json(product_json, proxy)
+    None -> proxy
+  }
+}
+
+fn seed_product_json(product_json: JsonValue, proxy: DraftProxy) -> DraftProxy {
+  let products = case make_seed_product_relaxed(product_json) {
+    Ok(product) -> [product]
+    Error(_) -> []
+  }
+  let variants = seed_variants_for_product(product_json)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_product_variants(variants)
+    |> seed_options_for_product(product_json)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
 fn make_seed_product_from_edge(edge: JsonValue) -> Result(ProductRecord, Nil) {
   case read_object_field(edge, "node") {
     Some(node) -> {
@@ -388,7 +417,7 @@ fn make_seed_product_from_edge(edge: JsonValue) -> Result(ProductRecord, Nil) {
 
 fn make_seed_product_relaxed(source: JsonValue) -> Result(ProductRecord, Nil) {
   use id <- result.try(required_string_field(source, "id"))
-  use title <- result.try(required_string_field(source, "title"))
+  let title = read_string_field(source, "title") |> option.unwrap("")
   Ok(ProductRecord(
     id: id,
     legacy_resource_id: read_string_field(source, "legacyResourceId"),

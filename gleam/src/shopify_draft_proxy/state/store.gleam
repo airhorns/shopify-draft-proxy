@@ -633,6 +633,35 @@ pub fn upsert_staged_product_variant(
   #(record, Store(..store, staged_state: new_staged))
 }
 
+pub fn replace_staged_variants_for_product(
+  store: Store,
+  product_id: String,
+  variants: List(ProductVariantRecord),
+) -> Store {
+  let staged = store.staged_state
+  let retained =
+    remove_variants_for_product(staged.product_variants, product_id)
+  let retained_order =
+    staged.product_variant_order
+    |> list.filter(fn(id) { dict.has_key(retained, id) })
+  let next_variants =
+    list.fold(variants, retained, fn(acc, variant) {
+      dict.insert(acc, variant.id, variant)
+    })
+  let next_order =
+    list.fold(variants, retained_order, fn(acc, variant) {
+      append_unique_id(acc, variant.id)
+    })
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      product_variants: next_variants,
+      product_variant_order: next_order,
+    ),
+  )
+}
+
 pub fn get_base_variants_by_product_id(
   store: Store,
   product_id: String,
@@ -848,6 +877,24 @@ fn remove_options_for_product(
     case dict.get(options, id) {
       Ok(option) ->
         case option.product_id == product_id {
+          True -> dict.delete(acc, id)
+          False -> acc
+        }
+      Error(_) -> acc
+    }
+  })
+}
+
+fn remove_variants_for_product(
+  variants: Dict(String, ProductVariantRecord),
+  product_id: String,
+) -> Dict(String, ProductVariantRecord) {
+  variants
+  |> dict.keys()
+  |> list.fold(variants, fn(acc, id) {
+    case dict.get(variants, id) {
+      Ok(variant) ->
+        case variant.product_id == product_id {
           True -> dict.delete(acc, id)
           False -> acc
         }
