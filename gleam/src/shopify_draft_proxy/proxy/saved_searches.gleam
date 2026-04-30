@@ -1,24 +1,10 @@
-//// Mirrors the read path and `savedSearchCreate` mutation of
-//// `src/proxy/saved-searches.ts`.
+//// Saved-search runtime implementation for the Gleam port.
 ////
-//// This pass ports the connection-shaped read pipeline for
-//// `*SavedSearches` queries (defaults + store-backed staged records,
-//// pagination, projection) plus the create mutation. It does not yet
-//// port:
-////
-////   - The full search-query parser (`src/search-query-parser.ts`,
-////     ~480 LOC) that splits stored `query` strings into structured
-////     `searchTerms` / `filters`. We treat the raw query string as
-////     `searchTerms` and ship an empty `filters` list. The static
-////     defaults already carry the right shape; user-created records
-////     therefore round-trip with structured filters elided until the
-////     parser ports.
-////   - `savedSearchUpdate` and `savedSearchDelete`. Both follow the
-////     same patterns as create and will land alongside the larger
-////     update/delete substrate (notably input-id resolution against
-////     synthetic gids).
-////   - The `hydrateSavedSearchesFromUpstreamResponse` write-back path,
-////     used only in live-hybrid mode.
+//// Covers the connection-shaped `*SavedSearches` read pipeline,
+//// `savedSearchCreate`, `savedSearchUpdate`, `savedSearchDelete`,
+//// query grammar normalization, mutation-log drafts, and the static
+//// Shopify default order/draft-order saved searches. Live-hybrid
+//// upstream hydration remains outside the current Gleam substrate.
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
@@ -459,9 +445,7 @@ pub type UserError {
   UserError(field: Option(List(String)), message: String)
 }
 
-/// Predicate matching `isSavedSearchMutationRoot` — three top-level
-/// mutations the TS handler dispatches. Only `savedSearchCreate`
-/// is implemented in this pass.
+/// Predicate matching the three saved-search mutation roots.
 pub fn is_saved_search_mutation_root(name: String) -> Bool {
   name == "savedSearchCreate"
   || name == "savedSearchUpdate"
@@ -1338,4 +1322,3 @@ fn mutation_record_source(
     ),
   ])
 }
-

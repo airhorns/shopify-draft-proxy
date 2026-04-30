@@ -2,6 +2,8 @@
 
 HAR-312 adds the first local saved-search model. This is scoped to Shopify Admin `SavedSearch` records for products, collections, orders, draft orders, files, and discount saved-search roots.
 
+The saved-search runtime is now owned by the Gleam port. The legacy TypeScript saved-search domain handler has been removed after the Gleam implementation passed the local staging, query grammar, and resource-root parity scenarios on both targets.
+
 ## Current support and limitations
 
 ### Local saved-search support
