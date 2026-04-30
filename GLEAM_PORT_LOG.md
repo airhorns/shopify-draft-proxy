@@ -42,8 +42,8 @@ root mounted at `/workspace`.
   implemented TS domains, but Gleam-local support is narrower and sometimes
   root-specific inside a partially ported domain.
 - Domain-level capability mapping was too coarse for the port: roots such as
-  `product` and `productCreate` classified correctly as TS-supported, but
-  Gleam had no local product dispatcher. Live-hybrid now treats those as
+  `orders` and `productCreate` classify correctly as TS-supported, but Gleam
+  has no local dispatcher for those roots yet. Live-hybrid now treats those as
   passthrough until the owning domain is ported.
 - A broad capability-to-domain helper layer made the guard harder to review
   than a direct dispatch table, so the final dispatcher uses flat local root
