@@ -85,6 +85,17 @@ pub fn graphql_event_query_returns_null_test() {
   assert json.to_string(body) == "{\"data\":{\"event\":null}}"
 }
 
+pub fn graphql_events_read_count_query_shapes_match_capture_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"query EventEmptyRead($eventId: ID!, $first: Int!, $query: String!) { event(id: $eventId) { id action message } events(first: $first, query: $query, sortKey: ID, reverse: true) { nodes { id action message } edges { cursor node { id action message } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } eventsCount(query: $query) { count precision } }\",\"variables\":{\"eventId\":\"gid://shopify/BasicEvent/999999999999\",\"first\":2,\"query\":\"id:999999999999\"}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  assert json.to_string(response_body)
+    == "{\"data\":{\"event\":null,\"events\":{\"nodes\":[],\"edges\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}},\"eventsCount\":{\"count\":0,\"precision\":\"EXACT\"}}}"
+}
+
 pub fn graphql_with_get_returns_405_test() {
   let proxy = draft_proxy.new()
   let request =
