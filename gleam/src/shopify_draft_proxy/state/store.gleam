@@ -33,7 +33,8 @@ import shopify_draft_proxy/state/types.{
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
   type MetafieldDefinitionRecord, type MetaobjectDefinitionRecord,
   type MetaobjectRecord, type ProductCollectionRecord, type ProductFeedRecord,
-  type ProductMediaRecord, type ProductMetafieldRecord, type ProductOptionRecord,
+  type ProductMediaRecord, type ProductMetafieldRecord,
+  type ProductOperationRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductVariantRecord,
   type PublicationRecord, type SavedSearchRecord, type SegmentRecord,
@@ -59,6 +60,7 @@ pub type BaseState {
     product_variant_order: List(String),
     product_variant_count: Option(Int),
     product_options: Dict(String, ProductOptionRecord),
+    product_operations: Dict(String, ProductOperationRecord),
     product_media: Dict(String, List(ProductMediaRecord)),
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
@@ -219,6 +221,7 @@ pub type StagedState {
     product_variant_order: List(String),
     product_variant_count: Option(Int),
     product_options: Dict(String, ProductOptionRecord),
+    product_operations: Dict(String, ProductOperationRecord),
     product_media: Dict(String, List(ProductMediaRecord)),
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
@@ -440,6 +443,7 @@ pub fn empty_base_state() -> BaseState {
     product_variant_order: [],
     product_variant_count: None,
     product_options: dict.new(),
+    product_operations: dict.new(),
     product_media: dict.new(),
     collections: dict.new(),
     collection_order: [],
@@ -575,6 +579,7 @@ pub fn empty_staged_state() -> StagedState {
     product_variant_order: [],
     product_variant_count: None,
     product_options: dict.new(),
+    product_operations: dict.new(),
     product_media: dict.new(),
     collections: dict.new(),
     collection_order: [],
@@ -2262,6 +2267,57 @@ pub fn get_effective_product_option_value_by_id(
     })
   })
   |> option.from_result
+}
+
+pub fn stage_product_operation(
+  store: Store,
+  operation: ProductOperationRecord,
+) -> #(ProductOperationRecord, Store) {
+  let staged = store.staged_state
+  let next_staged =
+    StagedState(
+      ..staged,
+      product_operations: dict.insert(
+        staged.product_operations,
+        operation.id,
+        operation,
+      ),
+    )
+  #(operation, Store(..store, staged_state: next_staged))
+}
+
+pub fn upsert_base_product_operations(
+  store: Store,
+  operations: List(ProductOperationRecord),
+) -> Store {
+  list.fold(operations, store, fn(acc, operation) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        product_operations: dict.insert(
+          base.product_operations,
+          operation.id,
+          operation,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_product_operation_by_id(
+  store: Store,
+  id: String,
+) -> Option(ProductOperationRecord) {
+  case dict.get(store.staged_state.product_operations, id) {
+    Ok(operation) -> Some(operation)
+    Error(_) ->
+      case dict.get(store.base_state.product_operations, id) {
+        Ok(operation) -> Some(operation)
+        Error(_) -> None
+      }
+  }
 }
 
 fn remove_options_for_product(

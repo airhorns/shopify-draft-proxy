@@ -9,6 +9,63 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 105: async productDuplicate parity
+
+Promotes the two captured async `productDuplicate` fixtures into the Gleam
+parity suite. The port now stages `ProductDuplicateOperation` records locally,
+returns the mutation-time operation as `CREATED`, completes the downstream
+`productOperation(id:)` read as `COMPLETE`, and exposes the duplicated Product
+through downstream reads without runtime Shopify writes.
+
+| Module                                                    | Change                                                                                                     |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`      | Adds async `productDuplicate` staging, ProductDuplicateOperation projection, and downstream Product reads. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds Product operation state on base/staged stores plus effective lookup and staging helpers.              |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds Product operation and Product operation user-error records.                                           |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries the new Product operation slice through state constructors.                                        |
+| `gleam/test/parity/runner.gleam`                          | Seeds the captured async duplicate source Product before replaying the primary request.                    |
+| `config/gleam-port-ci-gates.json`                         | Removes the newly passing async duplicate parity specs.                                                    |
+| `.agents/skills/gleam-port/SKILL.md`                      | Records the async ProductDuplicateOperation projection and seeding trap.                                   |
+
+Validation:
+Focused JavaScript parity is green for `productDuplicate-async-missing.json`
+and `productDuplicate-async-success.json`. Full JavaScript is green at 716
+tests. Host Erlang still fails with the known local `Undef` runner class; the
+Docker Erlang fallback is green at 712 tests. `corepack pnpm
+gleam:port:coverage` is green with 379 specs and 187 expected failures. Product
+parity inventory remains 115 checked-in specs, with 105 product specs
+executable in the Gleam parity suite and 10 product specs still
+expected-failing.
+
+### Findings
+
+- Async `productDuplicate` reports an initial `ProductDuplicateOperation` with
+  `status: CREATED` and `newProduct: null`, then the operation read resolves as
+  `COMPLETE` with the duplicated Product.
+- Missing async duplicate Product IDs surface no mutation payload user errors;
+  the `Product does not exist` user error appears only on the completed
+  `productOperation(id:)` read.
+- Root `productOperation(id:)` selections include inline fragments, so the
+  serializer must project the raw selection set rather than flatten only direct
+  fields.
+
+### Risks / open items
+
+- This pass covers captured async duplicate behavior only. Synchronous
+  duplicate, productSet, advanced search, and selling-plan scenarios remain
+  incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 106 candidates
+
+- Continue synchronous duplicate / productSet roots.
+- Continue advanced product search/sort/read parity.
+- Continue selling-plan product/variant association or selling-plan group
+  lifecycle parity.
+
+---
+
 ## 2026-04-30 - Pass 104: product variant bulk validation atomicity parity
 
 Promotes the captured Product variant bulk validation/atomicity fixture into

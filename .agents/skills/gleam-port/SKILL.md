@@ -341,6 +341,13 @@ synthetic-id/timestamp expected differences.
   changes. Bulk update validation returns `productVariants: null`; bulk create
   validation returns `productVariants: []`; nullable `userErrors.field` appears
   on the empty update branch.
+- Async Product `productDuplicate` captures stage a completed
+  `ProductDuplicateOperation` but serialize the mutation-time operation as
+  `CREATED` with `newProduct: null`; missing Products expose the user error on
+  the later `productOperation(id:)` read, not the mutation payload. Seed the
+  source Product from the capture before replay, and project root
+  `productOperation` with the raw selection set so inline-fragment fields like
+  `id`, `newProduct`, and `userErrors` are not dropped.
 - Product media async plan fixtures depend on timing-sensitive lifecycle state:
   create returns `UPLOADED` in the mutation payload, the immediate downstream
   Product media read is null-url `PROCESSING`, and later successful media

@@ -59,6 +59,7 @@ import shopify_draft_proxy/state/types.{
   type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
   type ProductCategoryRecord, type ProductCollectionRecord,
   type ProductFeedRecord, type ProductMediaRecord, type ProductMetafieldRecord,
+  type ProductOperationRecord, type ProductOperationUserErrorRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
@@ -71,10 +72,10 @@ import shopify_draft_proxy/state/types.{
   InventoryTransferLocationSnapshotRecord, InventoryTransferRecord,
   InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
   ProductCollectionRecord, ProductFeedRecord, ProductMediaRecord,
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord,
-  ProductResourceFeedbackRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord, PublicationRecord,
-  ShopResourceFeedbackRecord,
+  ProductOperationRecord, ProductOperationUserErrorRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductResourceFeedbackRecord,
+  ProductSeoRecord, ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  PublicationRecord, ShopResourceFeedbackRecord,
 }
 
 pub type ProductsError {
@@ -132,6 +133,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productChangeStatus"
     | "productDelete"
     | "productUpdate"
+    | "productDuplicate"
     | "productVariantCreate"
     | "productVariantUpdate"
     | "productVariantDelete"
@@ -255,7 +257,13 @@ fn serialize_root_fields(
                 variables,
                 fragments,
               )
-            "productOperation" -> json.null()
+            "productOperation" ->
+              serialize_product_operation_root(
+                store,
+                field,
+                variables,
+                fragments,
+              )
             "inventoryTransfer" ->
               serialize_inventory_transfer_root(
                 store,
@@ -2811,6 +2819,113 @@ fn serialize_product_duplicate_job(
   json.object(entries)
 }
 
+fn serialize_product_operation_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.get_effective_product_operation_by_id(store, id) {
+        Some(operation) ->
+          project_graphql_value(
+            product_operation_source(store, operation),
+            raw_child_selections(field),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn product_operation_source(
+  store: Store,
+  operation: ProductOperationRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString(operation.type_name)),
+    #("id", SrcString(operation.id)),
+    #("status", SrcString(operation.status)),
+    #("product", case operation.product_id {
+      Some(product_id) ->
+        case store.get_effective_product_by_id(store, product_id) {
+          Some(product) -> product_source_with_store(store, product)
+          None -> SrcNull
+        }
+      None -> SrcNull
+    }),
+    #("newProduct", case operation.new_product_id {
+      Some(product_id) ->
+        case store.get_effective_product_by_id(store, product_id) {
+          Some(product) -> product_source_with_store(store, product)
+          None -> SrcNull
+        }
+      None -> SrcNull
+    }),
+    #(
+      "userErrors",
+      SrcList(list.map(
+        operation.user_errors,
+        product_operation_user_error_source,
+      )),
+    ),
+  ])
+}
+
+fn product_operation_user_error_source(
+  error: ProductOperationUserErrorRecord,
+) -> SourceValue {
+  let field_value = case error.field {
+    Some(field) -> SrcList(list.map(field, SrcString))
+    None -> SrcNull
+  }
+  src_object([
+    #("field", field_value),
+    #("message", SrcString(error.message)),
+  ])
+}
+
+fn product_duplicate_payload(
+  store: Store,
+  new_product: Option(ProductRecord),
+  operation: Option(ProductOperationRecord),
+  user_errors: List(ProductOperationUserErrorRecord),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let new_product_value = case new_product {
+    Some(product) -> product_source_with_store(store, product)
+    None -> SrcNull
+  }
+  let operation_value = case operation {
+    Some(operation) -> product_operation_source(store, operation)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductDuplicatePayload")),
+      #("newProduct", new_product_value),
+      #("productDuplicateOperation", operation_value),
+      #(
+        "userErrors",
+        SrcList(list.map(user_errors, product_operation_user_error_source)),
+      ),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn raw_child_selections(field: Selection) -> List(Selection) {
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      selections
+    _ -> []
+  }
+}
+
 fn read_identifier_argument(
   field: Selection,
   variables: Dict(String, ResolvedValue),
@@ -4527,6 +4642,33 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some("Gleam staged productUpdate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "productDuplicate" -> {
+              let result =
+                handle_product_duplicate(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productDuplicate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -6280,6 +6422,209 @@ fn handle_product_update(
             [],
           )
       }
+  }
+}
+
+fn handle_product_duplicate(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let product_id = read_arg_string(args, "productId")
+  let synchronous = case dict.get(args, "synchronous") {
+    Ok(BoolVal(False)) -> False
+    _ -> True
+  }
+  case product_id {
+    None ->
+      mutation_result(
+        key,
+        product_duplicate_payload(
+          store,
+          None,
+          None,
+          [
+            ProductOperationUserErrorRecord(
+              Some(["productId"]),
+              "Product id is required",
+            ),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          case synchronous {
+            False ->
+              stage_missing_async_product_duplicate(
+                store,
+                identity,
+                key,
+                field,
+                fragments,
+              )
+            True ->
+              mutation_result(
+                key,
+                product_duplicate_payload(
+                  store,
+                  None,
+                  None,
+                  [
+                    ProductOperationUserErrorRecord(
+                      Some(["productId"]),
+                      "Product not found",
+                    ),
+                  ],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+          }
+        Some(source_product) ->
+          stage_product_duplicate(
+            store,
+            identity,
+            key,
+            product_id,
+            source_product,
+            read_arg_string(args, "newTitle"),
+            synchronous,
+            field,
+            fragments,
+          )
+      }
+  }
+}
+
+fn stage_missing_async_product_duplicate(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  let #(operation_id, next_identity) =
+    synthetic_identity.make_synthetic_gid(identity, "ProductDuplicateOperation")
+  let operation =
+    ProductOperationRecord(
+      id: operation_id,
+      type_name: "ProductDuplicateOperation",
+      product_id: None,
+      new_product_id: None,
+      status: "COMPLETE",
+      user_errors: [
+        ProductOperationUserErrorRecord(
+          Some(["productId"]),
+          "Product does not exist",
+        ),
+      ],
+    )
+  let #(staged_operation, next_store) =
+    store.stage_product_operation(store, operation)
+  let initial_operation =
+    ProductOperationRecord(
+      ..staged_operation,
+      status: "CREATED",
+      user_errors: [],
+    )
+  mutation_result(
+    key,
+    product_duplicate_payload(
+      next_store,
+      None,
+      Some(initial_operation),
+      [],
+      field,
+      fragments,
+    ),
+    next_store,
+    next_identity,
+    [operation_id],
+  )
+}
+
+fn stage_product_duplicate(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  product_id: String,
+  source_product: ProductRecord,
+  new_title: Option(String),
+  synchronous: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  let #(duplicate_product, identity_after_product) =
+    duplicated_product_record(store, identity, source_product, new_title)
+  let #(_, store_after_product) =
+    store.upsert_staged_product(store, duplicate_product)
+  case synchronous {
+    True ->
+      mutation_result(
+        key,
+        product_duplicate_payload(
+          store_after_product,
+          Some(duplicate_product),
+          None,
+          [],
+          field,
+          fragments,
+        ),
+        store_after_product,
+        identity_after_product,
+        [duplicate_product.id],
+      )
+    False -> {
+      let #(operation_id, identity_after_operation) =
+        synthetic_identity.make_synthetic_gid(
+          identity_after_product,
+          "ProductDuplicateOperation",
+        )
+      let operation =
+        ProductOperationRecord(
+          id: operation_id,
+          type_name: "ProductDuplicateOperation",
+          product_id: Some(product_id),
+          new_product_id: Some(duplicate_product.id),
+          status: "COMPLETE",
+          user_errors: [],
+        )
+      let #(staged_operation, next_store) =
+        store.stage_product_operation(store_after_product, operation)
+      let initial_operation =
+        ProductOperationRecord(
+          ..staged_operation,
+          new_product_id: None,
+          status: "CREATED",
+        )
+      mutation_result(
+        key,
+        product_duplicate_payload(
+          next_store,
+          None,
+          Some(initial_operation),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        identity_after_operation,
+        [duplicate_product.id, operation_id],
+      )
+    }
   }
 }
 
@@ -15862,6 +16207,31 @@ fn created_product_record(
       category: None,
       publication_ids: [],
       contextual_pricing: None,
+      cursor: None,
+    ),
+    next_identity,
+  )
+}
+
+fn duplicated_product_record(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  source_product: ProductRecord,
+  new_title: Option(String),
+) -> #(ProductRecord, SyntheticIdentityRegistry) {
+  let title = new_title |> option.unwrap(source_product.title <> " Copy")
+  let #(id, next_identity) =
+    synthetic_identity.make_synthetic_gid(identity, "Product")
+  let base_handle = slugify_product_handle(title)
+  let handle = ensure_unique_product_handle(store, base_handle)
+  #(
+    ProductRecord(
+      ..source_product,
+      id: id,
+      legacy_resource_id: None,
+      title: title,
+      handle: handle,
+      status: "DRAFT",
       cursor: None,
     ),
     next_identity,

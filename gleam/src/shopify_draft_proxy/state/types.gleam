@@ -311,6 +311,21 @@ pub type ProductOptionRecord {
   )
 }
 
+pub type ProductOperationUserErrorRecord {
+  ProductOperationUserErrorRecord(field: Option(List(String)), message: String)
+}
+
+pub type ProductOperationRecord {
+  ProductOperationRecord(
+    id: String,
+    type_name: String,
+    product_id: Option(String),
+    new_product_id: Option(String),
+    status: String,
+    user_errors: List(ProductOperationUserErrorRecord),
+  )
+}
+
 pub type ProductRecord {
   ProductRecord(
     id: String,
