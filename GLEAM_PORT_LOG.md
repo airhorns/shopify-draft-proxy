@@ -9,25 +9,25 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 37: operation registry and dispatcher support guards
+## 2026-04-30 — Pass 38: operation registry and dispatcher support guards
 
 Locks the Gleam operation registry mirror and dispatcher classification around
 the TypeScript registry without overclaiming roots that the Gleam port cannot
 handle locally yet. Capability lookup still mirrors the TS registry for every
-implemented match name, while local dispatch is now gated by the ported
-domain-specific root predicates. In live-hybrid mode, an implemented TS root
-whose domain or specific root is not ported to Gleam falls through to upstream
-passthrough rather than returning a local "no dispatcher" error or claiming
-stage/overlay support.
+implemented match name, while local dispatch is now gated by explicit
+Gleam-local query and mutation dispatch tables. In live-hybrid mode, an
+implemented TS root whose domain or specific root is not ported to Gleam falls
+through to upstream passthrough rather than returning a local "no dispatcher"
+error or claiming stage/overlay support.
 
 | Module                                                               | Change                                                                                                                                          |
 | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | Separates TS capability classification from Gleam-local dispatch support and gates registry-driven routing by the actual ported root predicate. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | Separates TS capability classification from Gleam-local dispatch support and gates registry-driven routing with explicit local dispatch tables. |
 | `gleam/test/shopify_draft_proxy/proxy/operation_registry_test.gleam` | Adds generated-registry semantic coverage for every implemented match name, unimplemented fallback behavior, and local-dispatch support guards. |
 | `gleam/test/shopify_draft_proxy/proxy/passthrough_test.gleam`        | Proves an implemented-but-unported TS root uses the live-hybrid passthrough branch on JS instead of claiming local dispatch.                    |
 | `gleam/scripts/sync-operation-registry.sh`                           | Adds deterministic `--check` mode and formats generated output before comparing/writing.                                                        |
 | `tests/unit/operation-registry.test.ts`                              | Wires the sync `--check` into `conformance:check`, which already runs in CI.                                                                    |
-| `gleam/README.md`                                                    | Documents the registry mirror, drift check command, and capability-vs-local-dispatch split.                                                     |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Documents the registry mirror, drift check command, and capability-vs-local-dispatch split for future porting agents.                           |
 
 Validation: `corepack pnpm conformance:check` is green at 1402 tests.
 `gleam test --target javascript` is green at 675 tests. `gleam test --target
@@ -45,6 +45,9 @@ root mounted at `/workspace`.
   `product` and `productCreate` classified correctly as TS-supported, but
   Gleam had no local product dispatcher. Live-hybrid now treats those as
   passthrough until the owning domain is ported.
+- A broad capability-to-domain helper layer made the guard harder to review
+  than a direct dispatch table, so the final dispatcher uses flat local root
+  routing and lets unknown implemented roots fall through conservatively.
 - Formatting the generated registry is part of determinism; raw generator
   output alone did not match the checked-in formatted file.
 
@@ -59,7 +62,7 @@ root mounted at `/workspace`.
 - The host still lacks a local Erlang `escript`; Erlang validation uses the
   container fallback until the host toolchain is repaired.
 
-### Pass 38 candidates
+### Pass 39 candidates
 
 - Continue Store Properties with location and fulfillment/carrier-service roots
   now that registry-driven partial-domain dispatch cannot overclaim them.
@@ -67,6 +70,78 @@ root mounted at `/workspace`.
   TS roots can stop using live-hybrid passthrough in Gleam.
 - Add a small CI helper script for containerized Erlang validation in
   workspaces that do not have `escript` installed locally.
+
+---
+
+## 2026-04-30 — Pass 37: metafield definitions and owner-scoped metafields
+
+Ports the Metafields definition lifecycle and owner-scoped metafield staging
+surface into the Gleam dispatcher. The new domain state covers metafield
+definition records, product/customer/collection/variant-owned metafields,
+standard definition enablement from the fixture-backed template subset,
+definition pin/unpin ordering, definition-backed `metafieldsSet` validation,
+compareDigest/CAS checks, downstream owner reads, and the captured custom-data
+type matrix. The Gleam parity runner now seeds captured metafield definition
+fixtures and honors target-level `excludedPaths`, which lets the checked-in
+metafields specs run without editing their recorded request or fixture shape.
+
+The TypeScript Metafields implementation remains in place for this pass. The
+root TS package still exposes the public runtime, product-owned
+`metafieldDelete`/`metafieldsDelete` remain under the Products TS surface, and
+`standardMetafieldDefinitionTemplates` is still a registry-only gap. Deleting
+the TS runtime before that remaining surface is ported would break existing TS
+behavior instead of retiring a fully duplicated implementation.
+
+| Module                                                            | Change                                                                                                                                                                       |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                 | Adds owner-scoped metafield records plus typed metafield definition capability, constraint, type, validation, and definition records.                                        |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                 | Adds base/staged metafield and definition buckets, definition tombstones, owner replacement helpers, definition lookup/listing, associated metafield cleanup, and GID order. |
+| `gleam/src/shopify_draft_proxy/proxy/metafields.gleam`            | Adds Shopify-like value normalization and `jsonValue` parsing for scalar, measurement, rating, object, list, and reference metafield types on both targets.                  |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | Adds stateful query/mutation handling for definition reads, lifecycle mutations, standard enablement, pin/unpin, owner reads, and `metafieldsSet`.                           |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`           | Routes metafield definition queries with store/variables so downstream reads observe local state.                                                                            |
+| `gleam/test/parity/runner.gleam`                                  | Seeds captured metafield definition records and definition-owned metafield nodes from parity fixtures.                                                                       |
+| `gleam/test/parity/spec.gleam`                                    | Decodes target-level `excludedPaths` as ignore rules, matching the existing parity spec contract.                                                                            |
+| `gleam/test/parity_test.gleam`                                    | Enables all six checked-in Metafields parity specs as executable Gleam evidence.                                                                                             |
+
+Validation: `gleam test --target javascript` is green at 685 tests on the host
+Node runtime. `gleam test --target erlang` is green at 681 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` with OTP 28 because the host
+Erlang runtime is OTP 25 and `gleam_json` requires OTP 27+. Targeted
+`gleam format --check ...` and `git diff --check` are green.
+
+### Findings
+
+- Shopify's owner metafields connection preserves numeric GID creation order
+  within the non-app/app namespace split; lexicographic synthetic IDs reorder
+  `Metafield/10` before `Metafield/2` and break multi-batch type-matrix reads.
+- Erlang and JavaScript differ in how parsed JSON numbers preserve `100.0`;
+  measurement `jsonValue.value` must coerce whole-number floats back to integer
+  JSON so both targets match the captured Shopify payload.
+- Captured metafield definition fixtures can include the same definition ID in
+  both rich detail selections and narrower catalog selections. Runner seeding
+  keeps the first richer record so later narrow rows do not erase description,
+  access, or capability fields.
+
+### Risks / open items
+
+- `standardMetafieldDefinitionTemplates` remains intentionally unimplemented in
+  the registry; this pass covers the fixture-backed enablement subset, not the
+  standard template catalog query root.
+- Product-owned `metafieldDelete` and `metafieldsDelete` are still part of the
+  TypeScript Products runtime and need a separate Gleam products/metafields
+  deletion pass before the TS metafield runtime can be removed safely.
+- Owner root reads are deliberately narrow and synthetic for Product,
+  ProductVariant, Collection, and Customer IDs; broader HasMetafields owners
+  should be added only with owning-domain state and parity evidence.
+
+### Pass 38 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
 
 ---
 

@@ -73,9 +73,10 @@ To keep the port tractable, these are _not_ part of the port:
 - Rewriting `shopify-conformance-app/`.
 - Changing the GraphQL surface, error semantics, or `userErrors` shapes that
   the TypeScript proxy currently emits.
-- Maintaining feature parity between the two implementations _after_ a domain
-  is fully ported. Once a domain reaches parity in Gleam, the TypeScript
-  version is removed; the Gleam version is then the authority.
+- Retiring the TypeScript runtime domain-by-domain during incremental port
+  passes. The original TypeScript implementation and TypeScript tests remain in
+  place until the final all-port cutover has verified 100% parity across
+  domains, integration coverage, CI, packaging, and docs.
 - A reimplementation in Rust, Roc, or any other language. Gleam is the
   decision.
 
@@ -128,10 +129,12 @@ A domain (e.g. `events`, `saved-searches`, `products`) is "ported" when:
       have been ported to gleeunit and pass on both targets. Test names and
       assertions remain semantically equivalent; gleeunit idioms replace
       vitest idioms but coverage of behaviour does not shrink.
-- [ ] The TypeScript implementation of that domain (`src/proxy/<domain>.ts`,
-      its slice of `src/state/types.ts`, its slice of `src/state/store.ts`,
-      its dispatcher entry in `src/proxy/routes.ts`) is **deleted**. Both
-      implementations are not maintained side-by-side after parity.
+- [ ] The original TypeScript implementation and TypeScript tests for that
+      domain remain intact while the broader port is still incremental. Per-
+      domain parity proves the Gleam surface is ready; it does not authorize
+      deleting `src/proxy/<domain>.ts`, TypeScript state/store slices,
+      dispatcher wiring, TypeScript integration tests, or TypeScript
+      conformance/parity runner coverage before final all-port cutover.
 - [ ] The interop smoke tests still pass — i.e. nothing in the Gleam port
       has broken JS or BEAM consumers' ability to load and call the package.
 - [ ] A "porting note" entry is added to `.agents/skills/gleam-port/SKILL.md`
@@ -162,9 +165,11 @@ The port is "complete" when:
 - **Parity specs are the oracle.** When the TypeScript and Gleam
   implementations disagree, run the relevant parity spec; whichever matches
   the Shopify capture wins. Do not "improve" Shopify's behaviour.
-- **Both implementations live until a domain is fully ported.** A
+- **Both implementations live until final all-port cutover.** A
   half-ported domain in Gleam is a hazard if the TypeScript version is
-  already deleted. Delete only after parity.
+  already deleted. Keep the original TypeScript implementation and tests
+  intact until the final all-port cutover proves 100% parity across the whole
+  repository.
 - **Type-driven, not opportunistic.** When porting a domain, port the
   state types first, then the read paths, then the mutations, then commit
   behaviour. Do not interleave domains.
