@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 43: apps billing/access parity cutover
+## 2026-04-30 — Pass 44: apps billing/access parity cutover
 
 Completes the broader Apps billing/access parity scenario in the Gleam runner.
 Both checked-in app parity specs now execute against the Gleam proxy, including
@@ -57,7 +57,7 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
   main and should be cut over only when the whole port is ready for that final
   transition.
 
-### Pass 44 candidates
+### Pass 45 candidates
 
 - Port product-owned `metafieldDelete` / `metafieldsDelete` and their
   hydrated/downstream deletion flows into Gleam.
@@ -75,6 +75,66 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
   scenarios can execute against the Gleam proxy.
 - Audit already-ported domains for final-cutover readiness without deleting
   TypeScript runtime modules during incremental parity passes.
+
+---
+
+## 2026-04-30 — Pass 43: privacy data-sale opt-out parity
+
+Ports the privacy-owned `dataSaleOptOut` mutation into a dedicated Gleam privacy
+module while keeping the downstream read effect on customer state. The Gleam
+dispatcher now routes only that privacy mutation root locally; other privacy
+roots remain unsupported until their own shop privacy behavior is modeled.
+
+The privacy parity spec is now executable Gleam evidence. The runner seeds the
+captured downstream customer so the mutation returns the recorded customer id,
+then strict comparisons cover the opt-out payload, downstream customer reads,
+repeat idempotency, and invalid-email `FAILED` user error shape. The original
+TypeScript runtime and TypeScript tests remain in place for the incremental port
+guardrail.
+
+| Module                                                               | Change                                                                                                           |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/privacy.gleam`                  | Adds privacy-domain local staging for `dataSaleOptOut`, including existing/unknown customer effects and errors.  |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`                | Removes `dataSaleOptOut` from customer mutation dispatch while preserving customer read serialization.           |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | Adds `PrivacyDomain` mutation routing without adding privacy query/root breadth.                                 |
+| `gleam/test/shopify_draft_proxy/proxy/privacy_test.gleam`            | Covers existing-customer opt-out readback/logs, unknown-email creation, invalid-email errors, unsupported roots. |
+| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json` | Enables privacy parity by seeding capture customer state and removing the privacy expected-failure entry.        |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Records the privacy/customer ownership note for future domain passes.                                            |
+
+Validation: `gleam test --target javascript` is green at 684 tests. The host
+`gleam test --target erlang` fails because local Erlang/OTP is 25 while
+`gleam_json` requires OTP 27; the equivalent OTP 27 container run is green at
+680 tests:
+`docker run --rm -v /home/airhorns/.local/bin/gleam:/usr/local/bin/gleam:ro -v /home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497:/home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497 -w /home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497/gleam erlang:27-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`.
+
+### Findings
+
+- `dataSaleOptOut` belongs to privacy capability/log metadata even though the
+  observable GraphQL field is `Customer.dataSaleOptOut`.
+- The captured parity scenario uses an existing customer id, so the Gleam runner
+  must seed that customer from the downstream read before replaying the primary
+  mutation instead of adding synthetic-id expected differences.
+- The synced `origin/main` parity gate still carried an expected-failure entry
+  for `localization-disable-clears-translations` even though that scenario now
+  passes; the stale entry was removed alongside the privacy gate update.
+
+### Risks / open items
+
+- Shop-level privacy settings roots are still unsupported by design. This pass
+  does not model `privacySettings` or consent-policy privacy roots.
+- The TypeScript privacy/customer runtime remains until a later final cutover
+  pass verifies repository-wide Gleam parity.
+- Local host Erlang validation requires OTP 27; OTP 25 can compile but fails at
+  runtime through `gleam_json`.
+
+### Pass 44 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
 
 ---
 
