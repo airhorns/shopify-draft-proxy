@@ -136,6 +136,12 @@ pub fn collection_create_live_parity_test() {
   check("config/parity-specs/products/collectionCreate-parity-plan.json")
 }
 
+pub fn collection_create_initial_products_live_parity_test() {
+  check(
+    "config/parity-specs/products/collectionCreate-initial-products-parity.json",
+  )
+}
+
 pub fn products_catalog_read_test() {
   check("config/parity-specs/products/products-catalog-read.json")
 }

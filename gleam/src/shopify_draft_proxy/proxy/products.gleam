@@ -409,6 +409,24 @@ fn serialize_collection_object(
   variables: Dict(String, ResolvedValue),
   fragments: FragmentMap,
 ) -> Json {
+  serialize_collection_object_with_options(
+    store,
+    collection,
+    selections,
+    variables,
+    fragments,
+    None,
+  )
+}
+
+fn serialize_collection_object_with_options(
+  store: Store,
+  collection: CollectionRecord,
+  selections: List(Selection),
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+  products_count_override: Option(Int),
+) -> Json {
   json.object(
     list.map(selections, fn(selection) {
       let key = get_field_response_key(selection)
@@ -421,6 +439,7 @@ fn serialize_collection_object(
             name.value,
             variables,
             fragments,
+            products_count_override,
           )
         _ -> json.null()
       }
@@ -436,6 +455,7 @@ fn serialize_collection_field(
   field_name: String,
   variables: Dict(String, ResolvedValue),
   fragments: FragmentMap,
+  products_count_override: Option(Int),
 ) -> Json {
   case field_name {
     "__typename" -> json.string("Collection")
@@ -458,12 +478,15 @@ fn serialize_collection_field(
     "productsCount" ->
       serialize_exact_count(
         field,
-        collection.products_count
+        products_count_override
           |> option.unwrap(
-            list.length(store.list_effective_products_for_collection(
-              store,
-              collection.id,
-            )),
+            collection.products_count
+            |> option.unwrap(
+              list.length(store.list_effective_products_for_collection(
+                store,
+                collection.id,
+              )),
+            ),
           ),
       )
     "hasProduct" ->
@@ -5417,6 +5440,8 @@ fn handle_collection_create(
           ],
           field,
           fragments,
+          variables,
+          None,
         ),
         store,
         identity,
@@ -5425,20 +5450,55 @@ fn handle_collection_create(
     Some(_) -> {
       let #(collection, next_identity) =
         created_collection_record(store, identity, input)
-      let next_store = store.upsert_staged_collections(store, [collection])
-      mutation_result(
-        key,
-        collection_create_payload(
-          next_store,
-          Some(collection),
-          [],
-          field,
-          fragments,
-        ),
-        next_store,
-        next_identity,
-        [collection.id],
-      )
+      let product_ids = read_collection_product_ids(input)
+      let result = case product_ids {
+        [] -> #(store, Some(collection), [])
+        _ ->
+          stage_collection_product_memberships(store, collection, product_ids)
+      }
+      let #(membership_store, result_collection, user_errors) = result
+      case user_errors {
+        [] -> {
+          let staged_collection =
+            result_collection
+            |> option.unwrap(collection)
+          let next_store =
+            store.upsert_staged_collections(membership_store, [
+              staged_collection,
+            ])
+          mutation_result(
+            key,
+            collection_create_payload(
+              next_store,
+              Some(staged_collection),
+              [],
+              field,
+              fragments,
+              variables,
+              Some(0),
+            ),
+            next_store,
+            next_identity,
+            [staged_collection.id],
+          )
+        }
+        _ ->
+          mutation_result(
+            key,
+            collection_create_payload(
+              store,
+              None,
+              user_errors,
+              field,
+              fragments,
+              variables,
+              None,
+            ),
+            store,
+            next_identity,
+            [],
+          )
+      }
     }
   }
 }
@@ -7331,19 +7391,50 @@ fn collection_create_payload(
   user_errors: List(ProductUserError),
   field: Selection,
   fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+  products_count_override: Option(Int),
 ) -> Json {
-  let collection_value = case collection {
-    Some(record) -> collection_source_with_store(store, record)
-    None -> SrcNull
-  }
-  project_graphql_value(
-    src_object([
-      #("__typename", SrcString("CollectionCreatePayload")),
-      #("collection", collection_value),
-      #("userErrors", user_errors_source(user_errors)),
-    ]),
-    get_selected_child_fields(field, default_selected_field_options()),
-    fragments,
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "__typename" -> json.string("CollectionCreatePayload")
+              "collection" ->
+                case collection {
+                  Some(record) ->
+                    serialize_collection_object_with_options(
+                      store,
+                      record,
+                      get_selected_child_fields(
+                        selection,
+                        default_selected_field_options(),
+                      ),
+                      variables,
+                      fragments,
+                      products_count_override,
+                    )
+                  None -> json.null()
+                }
+              "userErrors" ->
+                project_graphql_value(
+                  user_errors_source(user_errors),
+                  get_selected_child_fields(
+                    selection,
+                    default_selected_field_options(),
+                  ),
+                  fragments,
+                )
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
   )
 }
 
@@ -7742,6 +7833,14 @@ fn read_arg_string_list(
       })
     _ -> []
   }
+}
+
+fn read_collection_product_ids(
+  input: Dict(String, ResolvedValue),
+) -> List(String) {
+  read_string_list_field(input, "products")
+  |> option.unwrap([])
+  |> dedupe_preserving_order
 }
 
 fn read_inventory_set_quantity_inputs(

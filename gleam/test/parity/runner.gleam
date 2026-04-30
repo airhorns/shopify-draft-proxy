@@ -180,6 +180,8 @@ fn seed_capture_preconditions(
       seed_collection_update_preconditions(capture, proxy)
     "collection-delete-live-parity" ->
       seed_collection_delete_preconditions(capture, proxy)
+    "collection-create-initial-products-live-parity" ->
+      seed_collection_create_initial_products_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
@@ -763,6 +765,45 @@ fn seed_collection_delete_preconditions(
           updated_at_cursor: None,
         )
       let store = store_mod.upsert_base_collections(proxy.store, [collection])
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    _ -> proxy
+  }
+}
+
+fn seed_collection_create_initial_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamReadVariables.collectionId") {
+    Some(JString(target_collection_id)) -> {
+      let existing =
+        list.append(
+          seed_existing_product_collections(
+            capture,
+            "$.downstreamRead.data.first",
+            target_collection_id,
+          ),
+          seed_existing_product_collections(
+            capture,
+            "$.downstreamRead.data.second",
+            target_collection_id,
+          ),
+        )
+      let collections =
+        list.map(existing, fn(entry) {
+          let #(collection, _) = entry
+          collection
+        })
+      let memberships =
+        list.map(existing, fn(entry) {
+          let #(_, membership) = entry
+          membership
+        })
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(collections)
+        |> store_mod.upsert_base_product_collections(memberships)
       draft_proxy.DraftProxy(..proxy, store: store)
     }
     _ -> proxy

@@ -9,6 +9,68 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 79: collection create initial products
+
+Completes the captured `collectionCreate` fixture that supplies initial
+product IDs through `CollectionInput.products`. The Gleam Products handler now
+stages initial collection/product memberships locally, returns selected product
+nodes and `hasProduct: true` in the mutation payload, preserves Shopify's
+captured mutation-time aggregate lag with `productsCount: 0`, and exposes the
+actual membership count through immediate downstream collection/product reads.
+
+The pass promotes `collectionCreate-initial-products-parity` into the Gleam
+parity suite. The checked-in fixture, request documents, variables capture
+path, expected ID differences, and strict comparison contract stay unchanged.
+
+| Module                                               | Change                                                                     |
+| ---------------------------------------------------- | -------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages `CollectionInput.products` memberships during collection create.    |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured pre-existing product/Home page collection relationship. |
+| `gleam/test/parity_test.gleam`                       | Enables the strict initial-products collection create parity spec.         |
+
+Validation:
+`gleam test --target javascript collection_create_initial_products_live_parity_test`
+is green at 778 tests, and full `gleam test --target javascript` is green at
+778 tests on the host Node runtime. Host `gleam test --target erlang` still
+fails before tests execute on the local Erlang install with the known `undef`
+runner issue; after clearing host-built Erlang artifacts, the Docker Erlang
+fallback is green at 774 tests. Product parity inventory remains 115 checked-in
+specs, with 64 product specs executable in the Gleam parity suite plus the
+admin-platform ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a strict parity replay where the mutation
+  payload returned `hasProduct: null`, no product nodes, `productsCount: null`,
+  and downstream reads missed both the new collection membership and the
+  product-side relationship.
+- Shopify's live capture returns product nodes and `hasProduct: true` in the
+  mutation payload while keeping the mutation payload's `productsCount` at zero;
+  the immediate downstream read returns the real count of two.
+- The downstream product read expects the first seed product to retain its
+  existing `Home page` collection relationship, so the parity runner seeds that
+  captured precondition without changing the fixture.
+
+### Risks / open items
+
+- Inventory shipment/transfer, publication links, product feeds/feedback,
+  selling plans, product metafields, media, advanced search, and broader
+  validation atomicity parity remain incomplete in Gleam.
+- Only 64 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 80 candidates
+
+- Port product metafield behavior now that Product, Product Option,
+  Product Variant, Inventory, and Collection relationship slices are locally
+  staged or seeded.
+- Continue publication-related collection/product roots if the captured
+  fixtures can be represented without weakening request shapes.
+- Continue remaining inventory shipment/transfer roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 78: collection create staging
 
 Completes the captured base collection create mutation in the Gleam Products
