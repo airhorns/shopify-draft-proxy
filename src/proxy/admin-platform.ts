@@ -46,6 +46,7 @@ import {
   serializeProductOptionValueNodeById,
   serializeSellingPlanNodeById,
 } from './products.js';
+import { serializeSavedSearchNodeById } from './saved-searches.js';
 import { handleSegmentsQuery } from './segments.js';
 import {
   handleStorePropertiesQuery,
@@ -965,6 +966,12 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     typeConditions: ['File'],
     serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
   },
+  SavedSearch: {
+    typename: 'SavedSearch',
+    serialize: (runtime, id, selectedFields, _variables, fragments) =>
+      serializeSavedSearchNodeById(runtime, id, syntheticNodeField(selectedFields), fragments),
+  },
+
   App: {
     typename: 'App',
     serialize: (runtime, id, selectedFields) => serializeAppNodeById(runtime, id, selectedFields),

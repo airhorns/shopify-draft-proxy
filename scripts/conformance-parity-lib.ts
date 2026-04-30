@@ -1,9 +1,6 @@
 import type { ProxyRuntimeContext } from '../src/proxy/runtime-context.js';
-import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 
 import { parseOperation, type ParsedOperation } from '../src/graphql/parse-operation.js';
@@ -73,6 +70,11 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
+import {
+  handleSavedSearchMutation,
+  handleSavedSearchQuery,
+  hydrateSavedSearchesFromUpstreamResponse,
+} from '../src/proxy/saved-searches.js';
 import {
   handleMetafieldDefinitionMutation,
   handleMetafieldDefinitionQuery,
@@ -919,69 +921,6 @@ const ORDER_EDIT_SHIPPING_MUTATION_ROOTS = new Set([
   'orderEditUpdateShippingLine',
 ]);
 
-type GleamShimDraftProxy = {
-  processRequest(request: { method: string; path: string; body?: unknown }): Promise<{ status: number; body: unknown }>;
-};
-
-type GleamShimModule = {
-  createDraftProxy(config: { readMode: 'snapshot'; port: number; shopifyAdminOrigin: string }): GleamShimDraftProxy;
-};
-
-const gleamProjectRoot = path.resolve(import.meta.dirname, '..', 'gleam');
-const gleamCompiledEntrypoint = path.resolve(
-  gleamProjectRoot,
-  'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy.mjs',
-);
-const gleamShimEntrypoint = path.resolve(gleamProjectRoot, 'js/src/index.ts');
-const gleamSavedSearchProxies = new WeakMap<ProxyRuntimeContext, GleamShimDraftProxy>();
-
-async function getGleamSavedSearchProxy(runtime: ProxyRuntimeContext): Promise<GleamShimDraftProxy> {
-  const existing = gleamSavedSearchProxies.get(runtime);
-  if (existing) {
-    return existing;
-  }
-
-  if (!existsSync(gleamCompiledEntrypoint)) {
-    execFileSync('gleam', ['build', '--target', 'javascript'], {
-      cwd: gleamProjectRoot,
-      stdio: 'inherit',
-    });
-  }
-
-  const shim = (await import(pathToFileURL(gleamShimEntrypoint).href)) as GleamShimModule;
-  const proxy = shim.createDraftProxy({
-    readMode: 'snapshot',
-    port: 4000,
-    shopifyAdminOrigin: 'https://conformance.local',
-  });
-  gleamSavedSearchProxies.set(runtime, proxy);
-  return proxy;
-}
-
-async function executeSavedSearchGraphQLAgainstGleam(
-  runtime: ProxyRuntimeContext,
-  document: string,
-  variables: Record<string, unknown>,
-  apiVersion: string,
-): Promise<{ status: number; body: Record<string, unknown> }> {
-  const proxy = await getGleamSavedSearchProxy(runtime);
-  const response = await proxy.processRequest({
-    method: 'POST',
-    path: `/admin/api/${apiVersion}/graphql.json`,
-    body: {
-      query: document,
-      variables,
-    },
-  });
-  if (!isPlainObject(response.body)) {
-    throw new Error('Gleam saved-search parity response body was not a JSON object.');
-  }
-  return {
-    status: response.status,
-    body: response.body,
-  };
-}
-
 async function executeGraphQLAgainstLocalProxy(
   runtime: ProxyRuntimeContext,
   document: string,
@@ -998,10 +937,6 @@ async function executeGraphQLAgainstLocalProxy(
   });
   const capability = getOperationCapability(parsed);
   const registeredCapability = readRegisteredParityCapability(parsed, capability);
-
-  if (capability.domain === 'saved-searches') {
-    return executeSavedSearchGraphQLAgainstGleam(runtime, document, variables, apiVersion);
-  }
 
   if (parsed.type === 'mutation') {
     const discountMutation = handleDiscountMutation(runtime, document, variables);
@@ -1385,6 +1320,35 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleSegmentMutation(runtime, document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'saved-searches') {
+    const savedSearchMutation = handleSavedSearchMutation(runtime, document, variables);
+    if (!savedSearchMutation) {
+      throw new Error(
+        `Registered saved-search parity request was not handled locally: ${
+          capability.operationName ?? parsed.rootFields.join(', ')
+        }`,
+      );
+    }
+
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: `/admin/api/${apiVersion}/graphql.json`,
+      query: document,
+      variables,
+      stagedResourceIds: savedSearchMutation.stagedResourceIds,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: savedSearchMutation.response,
     };
   }
 
@@ -1920,6 +1884,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleSegmentsQuery(runtime, document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'saved-searches') {
+    if (upstreamPayload !== undefined) {
+      hydrateSavedSearchesFromUpstreamResponse(runtime, document, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleSavedSearchQuery(runtime, document, variables),
     };
   }
 

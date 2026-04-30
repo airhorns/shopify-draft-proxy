@@ -9,32 +9,21 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 33: saved-search parity cutover
+## 2026-04-30 — Pass 33: saved-search parity completion
 
-Cuts saved searches over to the Gleam implementation. The existing Gleam
-saved-search module already covered the local lifecycle (`savedSearchCreate`,
+Finishes the saved-search parity work in the Gleam implementation while keeping
+the TypeScript saved-search runtime in place. The existing Gleam saved-search
+module already covered the local lifecycle (`savedSearchCreate`,
 `savedSearchUpdate`, `savedSearchDelete`), every resource-specific saved-search
 root, query grammar normalization, mutation-log drafts, and the three captured
-saved-search parity specs. This pass removes the legacy TypeScript
-saved-search domain handler and direct dispatch hooks so the port is no longer
-maintained side-by-side for this domain.
-
-Shared TypeScript saved-search state shapes remain temporarily because other
-unported TypeScript domains still reference saved-search IDs as selectors or
-Admin Platform node records. They are bridge data, not a duplicate
-saved-search runtime.
+saved-search parity specs. This pass refreshes the Gleam module documentation
+and adds public shim smoke coverage, but leaves TypeScript dispatch unchanged
+until the final reviewer-approved deletion point.
 
 | Module                                                     | Change                                                                                                 |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `src/proxy/saved-searches.ts`                              | Deletes the legacy TypeScript saved-search read/mutation runtime.                                      |
-| `src/proxy/routes.ts`                                      | Removes direct TypeScript saved-search query/mutation dispatch.                                        |
-| `src/proxy/bulk-operations.ts`                             | Removes the saved-search inner bulk-import executor dependency on the deleted TypeScript runtime.      |
-| `src/proxy/admin-platform.ts`                              | Removes the TypeScript SavedSearch Relay node serializer dependency on the deleted runtime.            |
-| `scripts/conformance-parity-lib.ts`                        | Removes direct TypeScript saved-search parity harness branches now covered by the Gleam parity suite.  |
 | `gleam/src/shopify_draft_proxy/proxy/saved_searches.gleam` | Refreshes the module note to describe the completed lifecycle and remaining live-hybrid hydration gap. |
 | `gleam/js/test/shim.test.ts`                               | Adds a public TS-shim saved-search create/read smoke against the Gleam-backed runtime.                 |
-| `docs/endpoints/saved-searches.md`                         | Records that saved-search runtime ownership has moved to the Gleam port.                               |
-| `.agents/skills/gleam-port/SKILL.md`                       | Adds a deletion note for future domain cutovers with temporary shared-state bridges.                   |
 
 Validation: `corepack pnpm typecheck`, `corepack pnpm conformance:parity`,
 `corepack pnpm test`, Erlang target via
@@ -43,17 +32,17 @@ Validation: `corepack pnpm typecheck`, `corepack pnpm conformance:parity`,
 
 ### Findings
 
-- Saved-search parity was already executable in Gleam before the TypeScript
-  deletion: `saved-search-local-staging`, `saved-search-query-grammar`, and
-  `saved-search-resource-roots` are part of the standard Gleam parity suite.
+- Saved-search parity is executable in Gleam: `saved-search-local-staging`,
+  `saved-search-query-grammar`, and `saved-search-resource-roots` are part of
+  the standard Gleam parity suite.
 - The stale module header still described update/delete and parser coverage as
   missing; refreshing it prevents future agents from undercounting the domain.
 
 ### Risks / open items
 
 - Live-hybrid upstream hydration is still outside the current Gleam substrate.
-- Temporary TypeScript state shapes remain until unported domains that consume
-  saved-search IDs are also cut over or retired.
+- The TypeScript saved-search runtime remains authoritative for the Node
+  runtime until the project reaches the final parity handoff point.
 
 ### Pass 34 candidates
 

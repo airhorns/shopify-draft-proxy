@@ -29,6 +29,7 @@ import { handleMetaobjectDefinitionMutation } from './metaobject-definitions.js'
 import { handleOnlineStoreMutation } from './online-store.js';
 import { handleOrderMutation } from './orders/mutations.js';
 import { handlePaymentMutation } from './payments.js';
+import { handleSavedSearchMutation } from './saved-searches.js';
 import { handleSegmentMutation } from './segments.js';
 import { handleStorePropertiesMutation } from './store-properties.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
@@ -1042,6 +1043,15 @@ function handleSupportedBulkImportInnerMutation(
         options.apiVersion,
       ) as GraphqlResponseBody;
       break;
+    case 'saved-searches': {
+      const result = handleSavedSearchMutation(runtime, mutation, variables);
+      if (!result) {
+        return null;
+      }
+      responseBody = result.response as GraphqlResponseBody;
+      stagedResourceIds.push(...result.stagedResourceIds);
+      break;
+    }
     case 'segments':
       responseBody = handleSegmentMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;

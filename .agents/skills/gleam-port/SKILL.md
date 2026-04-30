@@ -187,15 +187,6 @@ If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
 path syntax instead of narrowing or rewriting the checked-in spec.
 
-### TypeScript runtime deletion
-
-When a domain reaches full Gleam parity and the ticket calls for TypeScript
-deletion, remove the legacy TypeScript domain handler and direct dispatcher
-hooks instead of keeping duplicate business logic in `src/proxy`. Some shared
-TypeScript state shapes may need to remain temporarily when unported legacy
-domains still reference those records as selectors or node IDs; document that
-as a bridge, not as a second domain implementation.
-
 ## Workflow for a new pass
 
 1. Pick a candidate from the most recent log entry's "Pass N candidates"

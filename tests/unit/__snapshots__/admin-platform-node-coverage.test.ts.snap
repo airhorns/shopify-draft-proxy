@@ -85,7 +85,6 @@ exports[`admin platform Node coverage > classifies every Shopify Node implemento
   "ReverseFulfillmentOrderDisposition",
   "ReverseFulfillmentOrderLineItem",
   "SaleAdditionalFee",
-  "SavedSearch",
   "ShopifyPaymentsAccount",
   "ShopifyPaymentsBalanceTransaction",
   "ShopifyPaymentsBankAccount",

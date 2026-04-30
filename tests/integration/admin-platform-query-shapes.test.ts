@@ -14,6 +14,7 @@ import type {
   PaymentTermsTemplateRecord,
   ProductMetafieldRecord,
   ProductRecord,
+  SavedSearchRecord,
   SellingPlanGroupRecord,
   ShopRecord,
   TaxonomyCategoryRecord,
@@ -214,6 +215,19 @@ function makeCustomerPaymentMethod(id: string, customerId: string): CustomerPaym
     revokedAt: null,
     revokedReason: null,
     subscriptionContracts: [],
+  };
+}
+
+function makeSavedSearch(id: string): SavedSearchRecord {
+  return {
+    id,
+    legacyResourceId: id.split('/').at(-1) ?? id,
+    name: 'Relay saved products',
+    query: 'tag:relay',
+    resourceType: 'PRODUCT',
+    searchTerms: 'tag:relay',
+    filters: [{ key: 'tag', value: 'relay' }],
+    cursor: null,
   };
 }
 
@@ -1687,6 +1701,7 @@ describe('admin platform utility query shapes', () => {
     store.replaceBaseMetafieldsForProduct('gid://shopify/Product/9100', [
       makeProductMetafield('gid://shopify/Metafield/9100', 'gid://shopify/Product/9100'),
     ]);
+    store.upsertBaseSavedSearches([makeSavedSearch('gid://shopify/SavedSearch/9100')]);
     store.upsertBaseSellingPlanGroups([makeSellingPlanGroup()]);
     store.upsertBasePaymentTermsTemplates([makePaymentTermsTemplate('gid://shopify/PaymentTermsTemplate/14')]);
     store.stageCreateFiles([
@@ -1766,6 +1781,11 @@ describe('admin platform utility query shapes', () => {
                 }
               }
             }
+            ... on SavedSearch {
+              name
+              resourceType
+              query
+            }
             ... on Metafield {
               namespace
               key
@@ -1810,6 +1830,7 @@ describe('admin platform utility query shapes', () => {
             'gid://shopify/ShopPolicy/9100',
             'gid://shopify/CustomerPaymentMethod/9100',
             'gid://shopify/SellingPlan/9100',
+            'gid://shopify/SavedSearch/9100',
             'gid://shopify/Metafield/9100',
             'gid://shopify/PaymentTermsTemplate/14',
             'gid://shopify/MarketRegionCountry/4062110417202',
@@ -1867,6 +1888,13 @@ describe('admin platform utility query shapes', () => {
               minCycles: null,
               maxCycles: null,
             },
+          },
+          {
+            __typename: 'SavedSearch',
+            nodeId: 'gid://shopify/SavedSearch/9100',
+            name: 'Relay saved products',
+            resourceType: 'PRODUCT',
+            query: 'tag:relay',
           },
           {
             __typename: 'Metafield',
