@@ -152,6 +152,12 @@ pub fn product_options_delete_parity_plan_test() {
   check("config/parity-specs/products/productOptionsDelete-parity-plan.json")
 }
 
+pub fn admin_platform_product_option_node_reads_test() {
+  check(
+    "config/parity-specs/admin-platform/admin-platform-product-option-node-reads.json",
+  )
+}
+
 // NOTE: functions-metadata-local-staging fails because the capture
 // fixture (`fixtures/.../functions-metadata-flow.json`) is hand-
 // written and aspirational — it claims `Validation/2` + T+1s, but

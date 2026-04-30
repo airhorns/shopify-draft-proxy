@@ -84,8 +84,10 @@ pub fn is_products_query_root(name: String) -> Bool {
 
 pub fn is_products_mutation_root(name: String) -> Bool {
   case name {
-    "productOptionsCreate" | "productOptionUpdate" | "productOptionsDelete" ->
-      True
+    "productOptionsCreate"
+    | "productOptionUpdate"
+    | "productOptionsDelete"
+    | "productOptionsReorder" -> True
     _ -> False
   }
 }
@@ -1576,6 +1578,32 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "productOptionsReorder" -> {
+              let result =
+                handle_product_options_reorder(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productOptionsReorder locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             _ -> acc
           }
         _ -> acc
@@ -1700,6 +1728,116 @@ fn handle_product_options_delete(
             fragments,
           )
       }
+  }
+}
+
+fn handle_product_options_reorder(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "productId") {
+    None ->
+      mutation_result(
+        key,
+        product_options_reorder_payload(
+          store,
+          None,
+          [ProductUserError(["productId"], "Product id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            product_options_reorder_payload(
+              store,
+              None,
+              [ProductUserError(["productId"], "Product not found", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(product) ->
+          stage_product_options_reorder(
+            store,
+            identity,
+            key,
+            product,
+            read_arg_object_list(args, "options"),
+            field,
+            fragments,
+          )
+      }
+  }
+}
+
+fn stage_product_options_reorder(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  product: ProductRecord,
+  option_inputs: List(Dict(String, ResolvedValue)),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  let product_id = product.id
+  let existing_options =
+    store.get_effective_options_by_product_id(store, product_id)
+  let #(next_options, user_errors) =
+    reorder_product_options(existing_options, option_inputs)
+  case user_errors {
+    [_, ..] ->
+      mutation_result(
+        key,
+        product_options_reorder_payload(
+          store,
+          Some(product),
+          user_errors,
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    [] -> {
+      let next_variants =
+        store.get_effective_variants_by_product_id(store, product_id)
+        |> reorder_variant_selections_for_options(next_options)
+      let synced_options =
+        sync_product_options_with_variants(next_options, next_variants)
+      let next_store =
+        store
+        |> store.replace_staged_options_for_product(product_id, synced_options)
+        |> store.replace_staged_variants_for_product(product_id, next_variants)
+      mutation_result(
+        key,
+        product_options_reorder_payload(
+          next_store,
+          store.get_effective_product_by_id(next_store, product_id),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        identity,
+        list.map(next_options, fn(option) { option.id }),
+      )
+    }
   }
 }
 
@@ -2069,6 +2207,28 @@ fn product_options_delete_payload(
   )
 }
 
+fn product_options_reorder_payload(
+  store: Store,
+  product: Option(ProductRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductOptionsReorderPayload")),
+      #("product", product_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn product_option_update_payload(
   store: Store,
   product: Option(ProductRecord),
@@ -2406,6 +2566,84 @@ fn unknown_option_errors(
       None -> Error(Nil)
     }
   })
+}
+
+fn reorder_product_options(
+  options: List(ProductOptionRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+) -> #(List(ProductOptionRecord), List(ProductUserError)) {
+  let #(remaining, reversed_reordered, reversed_errors, _) =
+    list.fold(inputs, #(options, [], [], 0), fn(acc, input) {
+      let #(current_remaining, reordered, errors, index) = acc
+      let #(matched, next_remaining) =
+        take_matching_option(current_remaining, input)
+      case matched {
+        Some(option) -> #(
+          next_remaining,
+          [option, ..reordered],
+          errors,
+          index + 1,
+        )
+        None -> #(
+          current_remaining,
+          reordered,
+          [
+            ProductUserError(
+              ["options", int.to_string(index)],
+              "Option does not exist",
+              None,
+            ),
+            ..errors
+          ],
+          index + 1,
+        )
+      }
+    })
+  let next_options =
+    list.append(list.reverse(reversed_reordered), remaining)
+    |> position_options(1, [])
+  #(next_options, list.reverse(reversed_errors))
+}
+
+fn take_matching_option(
+  options: List(ProductOptionRecord),
+  input: Dict(String, ResolvedValue),
+) -> #(Option(ProductOptionRecord), List(ProductOptionRecord)) {
+  let option_id = read_string_field(input, "id")
+  let option_name = read_string_field(input, "name")
+  take_matching_option_loop(options, option_id, option_name, [])
+}
+
+fn take_matching_option_loop(
+  options: List(ProductOptionRecord),
+  option_id: Option(String),
+  option_name: Option(String),
+  reversed_before: List(ProductOptionRecord),
+) -> #(Option(ProductOptionRecord), List(ProductOptionRecord)) {
+  case options {
+    [] -> #(None, list.reverse(reversed_before))
+    [option, ..rest] -> {
+      let matches_id = case option_id {
+        Some(id) -> option.id == id
+        None -> False
+      }
+      let matches_name = case option_name {
+        Some(name) -> option.name == name
+        None -> False
+      }
+      case matches_id || matches_name {
+        True -> #(
+          Some(option),
+          list.append(list.reverse(reversed_before), rest),
+        )
+        False ->
+          take_matching_option_loop(rest, option_id, option_name, [
+            option,
+            ..reversed_before
+          ])
+      }
+    }
+  }
 }
 
 fn restore_default_option_state(
