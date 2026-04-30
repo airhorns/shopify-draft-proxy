@@ -72,10 +72,11 @@ import shopify_draft_proxy/state/types.{
   InventoryTransferLocationSnapshotRecord, InventoryTransferRecord,
   InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
   ProductCollectionRecord, ProductFeedRecord, ProductMediaRecord,
-  ProductOperationRecord, ProductOperationUserErrorRecord, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductResourceFeedbackRecord,
-  ProductSeoRecord, ProductVariantRecord, ProductVariantSelectedOptionRecord,
-  PublicationRecord, ShopResourceFeedbackRecord,
+  ProductMetafieldRecord, ProductOperationRecord,
+  ProductOperationUserErrorRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductResourceFeedbackRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
+  ShopResourceFeedbackRecord,
 }
 
 pub type ProductsError {
@@ -2893,29 +2894,52 @@ fn product_duplicate_payload(
   operation: Option(ProductOperationRecord),
   user_errors: List(ProductOperationUserErrorRecord),
   field: Selection,
+  variables: Dict(String, ResolvedValue),
   fragments: FragmentMap,
 ) -> Json {
-  let new_product_value = case new_product {
-    Some(product) -> product_source_with_store(store, product)
-    None -> SrcNull
-  }
   let operation_value = case operation {
     Some(operation) -> product_operation_source(store, operation)
     None -> SrcNull
   }
-  project_graphql_value(
+  let source =
     src_object([
       #("__typename", SrcString("ProductDuplicatePayload")),
-      #("newProduct", new_product_value),
       #("productDuplicateOperation", operation_value),
       #(
         "userErrors",
         SrcList(list.map(user_errors, product_operation_user_error_source)),
       ),
-    ]),
-    get_selected_child_fields(field, default_selected_field_options()),
-    fragments,
-  )
+    ])
+  let entries =
+    get_selected_child_fields(field, default_selected_field_options())
+    |> list.map(fn(selection) {
+      let key = get_field_response_key(selection)
+      case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "newProduct" ->
+              case new_product {
+                Some(product) -> #(
+                  key,
+                  serialize_product_selection(
+                    store,
+                    product,
+                    selection,
+                    variables,
+                    fragments,
+                  ),
+                )
+                None -> #(key, json.null())
+              }
+            _ -> #(
+              key,
+              project_graphql_field_value(source, selection, fragments),
+            )
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 fn raw_child_selections(field: Selection) -> List(Selection) {
@@ -6454,6 +6478,7 @@ fn handle_product_duplicate(
             ),
           ],
           field,
+          variables,
           fragments,
         ),
         store,
@@ -6470,6 +6495,7 @@ fn handle_product_duplicate(
                 identity,
                 key,
                 field,
+                variables,
                 fragments,
               )
             True ->
@@ -6486,6 +6512,7 @@ fn handle_product_duplicate(
                     ),
                   ],
                   field,
+                  variables,
                   fragments,
                 ),
                 store,
@@ -6503,6 +6530,7 @@ fn handle_product_duplicate(
             read_arg_string(args, "newTitle"),
             synchronous,
             field,
+            variables,
             fragments,
           )
       }
@@ -6514,6 +6542,7 @@ fn stage_missing_async_product_duplicate(
   identity: SyntheticIdentityRegistry,
   key: String,
   field: Selection,
+  variables: Dict(String, ResolvedValue),
   fragments: FragmentMap,
 ) -> MutationFieldResult {
   let #(operation_id, next_identity) =
@@ -6548,6 +6577,7 @@ fn stage_missing_async_product_duplicate(
       Some(initial_operation),
       [],
       field,
+      variables,
       fragments,
     ),
     next_store,
@@ -6565,32 +6595,41 @@ fn stage_product_duplicate(
   new_title: Option(String),
   synchronous: Bool,
   field: Selection,
+  variables: Dict(String, ResolvedValue),
   fragments: FragmentMap,
 ) -> MutationFieldResult {
   let #(duplicate_product, identity_after_product) =
     duplicated_product_record(store, identity, source_product, new_title)
   let #(_, store_after_product) =
     store.upsert_staged_product(store, duplicate_product)
+  let #(store_after_relationships, identity_after_relationships, staged_ids) =
+    duplicate_product_relationships(
+      store_after_product,
+      identity_after_product,
+      product_id,
+      duplicate_product.id,
+    )
   case synchronous {
     True ->
       mutation_result(
         key,
         product_duplicate_payload(
-          store_after_product,
+          store_after_relationships,
           Some(duplicate_product),
           None,
           [],
           field,
+          variables,
           fragments,
         ),
-        store_after_product,
-        identity_after_product,
-        [duplicate_product.id],
+        store_after_relationships,
+        identity_after_relationships,
+        [duplicate_product.id, ..staged_ids],
       )
     False -> {
       let #(operation_id, identity_after_operation) =
         synthetic_identity.make_synthetic_gid(
-          identity_after_product,
+          identity_after_relationships,
           "ProductDuplicateOperation",
         )
       let operation =
@@ -6603,7 +6642,7 @@ fn stage_product_duplicate(
           user_errors: [],
         )
       let #(staged_operation, next_store) =
-        store.stage_product_operation(store_after_product, operation)
+        store.stage_product_operation(store_after_relationships, operation)
       let initial_operation =
         ProductOperationRecord(
           ..staged_operation,
@@ -6618,11 +6657,12 @@ fn stage_product_duplicate(
           Some(initial_operation),
           [],
           field,
+          variables,
           fragments,
         ),
         next_store,
         identity_after_operation,
-        [duplicate_product.id, operation_id],
+        [duplicate_product.id, operation_id, ..staged_ids],
       )
     }
   }
@@ -16236,6 +16276,182 @@ fn duplicated_product_record(
     ),
     next_identity,
   )
+}
+
+fn duplicate_product_relationships(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  source_product_id: String,
+  duplicate_product_id: String,
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  let #(options, identity_after_options, option_ids) =
+    duplicate_product_options(
+      identity,
+      duplicate_product_id,
+      store.get_effective_options_by_product_id(store, source_product_id),
+    )
+  let #(variants, identity_after_variants, variant_ids) =
+    duplicate_product_variants(
+      identity_after_options,
+      duplicate_product_id,
+      store.get_effective_variants_by_product_id(store, source_product_id),
+    )
+  let #(metafields, next_identity, metafield_ids) =
+    duplicate_product_metafields(
+      identity_after_variants,
+      duplicate_product_id,
+      store.get_effective_metafields_by_owner_id(store, source_product_id),
+    )
+  let memberships =
+    store.list_effective_collections_for_product(store, source_product_id)
+    |> list.map(fn(entry) {
+      let #(_, membership) = entry
+      ProductCollectionRecord(..membership, product_id: duplicate_product_id)
+    })
+  let next_store =
+    store
+    |> store.replace_staged_options_for_product(duplicate_product_id, options)
+    |> store.replace_staged_variants_for_product(duplicate_product_id, variants)
+    |> store.upsert_staged_product_collections(memberships)
+    |> store.replace_staged_media_for_product(duplicate_product_id, [])
+    |> store.replace_staged_metafields_for_owner(
+      duplicate_product_id,
+      metafields,
+    )
+  #(
+    next_store,
+    next_identity,
+    list.append(option_ids, list.append(variant_ids, metafield_ids)),
+  )
+}
+
+fn duplicate_product_options(
+  identity: SyntheticIdentityRegistry,
+  duplicate_product_id: String,
+  options: List(ProductOptionRecord),
+) -> #(List(ProductOptionRecord), SyntheticIdentityRegistry, List(String)) {
+  let #(reversed, next_identity, ids) =
+    list.fold(options, #([], identity, []), fn(acc, option_record) {
+      let #(collected, current_identity, collected_ids) = acc
+      let #(option_id, identity_after_option) =
+        synthetic_identity.make_synthetic_gid(current_identity, "ProductOption")
+      let #(values, identity_after_values, value_ids) =
+        duplicate_product_option_values(
+          identity_after_option,
+          option_record.option_values,
+        )
+      #(
+        [
+          ProductOptionRecord(
+            ..option_record,
+            id: option_id,
+            product_id: duplicate_product_id,
+            option_values: values,
+          ),
+          ..collected
+        ],
+        identity_after_values,
+        list.append(collected_ids, [option_id, ..value_ids]),
+      )
+    })
+  #(list.reverse(reversed), next_identity, ids)
+}
+
+fn duplicate_product_option_values(
+  identity: SyntheticIdentityRegistry,
+  values: List(ProductOptionValueRecord),
+) -> #(List(ProductOptionValueRecord), SyntheticIdentityRegistry, List(String)) {
+  let #(reversed, next_identity, ids) =
+    list.fold(values, #([], identity, []), fn(acc, value_record) {
+      let #(collected, current_identity, collected_ids) = acc
+      let #(value_id, next_identity) =
+        synthetic_identity.make_synthetic_gid(
+          current_identity,
+          "ProductOptionValue",
+        )
+      #(
+        [ProductOptionValueRecord(..value_record, id: value_id), ..collected],
+        next_identity,
+        list.append(collected_ids, [value_id]),
+      )
+    })
+  #(list.reverse(reversed), next_identity, ids)
+}
+
+fn duplicate_product_variants(
+  identity: SyntheticIdentityRegistry,
+  duplicate_product_id: String,
+  variants: List(ProductVariantRecord),
+) -> #(List(ProductVariantRecord), SyntheticIdentityRegistry, List(String)) {
+  let #(reversed, next_identity, ids) =
+    list.fold(variants, #([], identity, []), fn(acc, variant) {
+      let #(collected, current_identity, collected_ids) = acc
+      let #(variant_id, identity_after_variant) =
+        synthetic_identity.make_synthetic_gid(
+          current_identity,
+          "ProductVariant",
+        )
+      let #(inventory_item, identity_after_inventory, inventory_ids) =
+        duplicate_inventory_item(identity_after_variant, variant.inventory_item)
+      #(
+        [
+          ProductVariantRecord(
+            ..variant,
+            id: variant_id,
+            product_id: duplicate_product_id,
+            inventory_item: inventory_item,
+          ),
+          ..collected
+        ],
+        identity_after_inventory,
+        list.append(collected_ids, [variant_id, ..inventory_ids]),
+      )
+    })
+  #(list.reverse(reversed), next_identity, ids)
+}
+
+fn duplicate_inventory_item(
+  identity: SyntheticIdentityRegistry,
+  inventory_item: Option(InventoryItemRecord),
+) -> #(Option(InventoryItemRecord), SyntheticIdentityRegistry, List(String)) {
+  case inventory_item {
+    None -> #(None, identity, [])
+    Some(record) -> {
+      let #(inventory_item_id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "InventoryItem")
+      #(
+        Some(InventoryItemRecord(..record, id: inventory_item_id)),
+        next_identity,
+        [inventory_item_id],
+      )
+    }
+  }
+}
+
+fn duplicate_product_metafields(
+  identity: SyntheticIdentityRegistry,
+  duplicate_product_id: String,
+  metafields: List(ProductMetafieldRecord),
+) -> #(List(ProductMetafieldRecord), SyntheticIdentityRegistry, List(String)) {
+  let #(reversed, next_identity, ids) =
+    list.fold(metafields, #([], identity, []), fn(acc, metafield) {
+      let #(collected, current_identity, collected_ids) = acc
+      let #(metafield_id, next_identity) =
+        synthetic_identity.make_synthetic_gid(current_identity, "Metafield")
+      #(
+        [
+          ProductMetafieldRecord(
+            ..metafield,
+            id: metafield_id,
+            owner_id: duplicate_product_id,
+          ),
+          ..collected
+        ],
+        next_identity,
+        list.append(collected_ids, [metafield_id]),
+      )
+    })
+  #(list.reverse(reversed), next_identity, ids)
 }
 
 fn updated_collection_record(

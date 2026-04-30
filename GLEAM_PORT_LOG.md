@@ -9,6 +9,61 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 106: synchronous productDuplicate graph parity
+
+Promotes the captured synchronous `productDuplicate` fixture into the Gleam
+parity suite. The port now seeds the source Product graph from the live capture,
+stages the duplicate Product locally, copies captured options, variants,
+inventory items, collection memberships, and Product metafields, and preserves
+Shopify's immediate empty-media behavior for the duplicate without runtime
+Shopify writes.
+
+| Module                                               | Change                                                                                                         |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Duplicates the synchronous Product graph and serializes argument-aware `newProduct` selections.                |
+| `gleam/test/parity/runner.gleam`                     | Seeds the synchronous duplicate source Product, collections, memberships, and Product metafields from capture. |
+| `gleam/test/parity/diff.gleam`                       | Normalizes quoted connection path segments in expected differences so existing captures remain unchanged.      |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing synchronous duplicate parity spec.                                                   |
+
+Validation:
+Focused JavaScript parity is green for `productDuplicate-parity-plan.json`.
+Full JavaScript is green at 716 tests. Host Erlang still fails with the known
+local `Undef` runner class; the Docker Erlang fallback is green at 712 tests.
+`corepack pnpm elixir:smoke` is green at 16 ExUnit tests. `corepack pnpm
+gleam:port:coverage` is green with 379 specs and 186 expected failures.
+`corepack pnpm lint` is green. Product parity inventory remains 115 checked-in
+specs, with 106 product specs executable in the Gleam parity suite and 9
+product specs still expected-failing.
+
+### Findings
+
+- Synchronous `productDuplicate` returns `newProduct` immediately and the
+  downstream Product read observes duplicated options, variants, inventory
+  items, collection memberships, and Product metafields.
+- Shopify's immediate duplicate Product media connection is empty even when the
+  source Product had ready image media, so the local duplicate clears staged
+  media instead of copying source media rows.
+- The checked-in fixture uses expected-difference paths with quoted connection
+  segments such as `variants["nodes"][0].id`; the Gleam diff layer must
+  normalize those to the runner's emitted `variants.nodes[0].id` paths instead
+  of weakening or editing the capture.
+
+### Risks / open items
+
+- ProductSet, advanced product search/sort/read, and selling-plan scenarios
+  remain incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 107 candidates
+
+- Continue productSet root parity.
+- Continue advanced product search/sort/read parity.
+- Continue selling-plan product/variant association or selling-plan group
+  lifecycle parity.
+
+---
+
 ## 2026-04-30 - Pass 105: async productDuplicate parity
 
 Promotes the two captured async `productDuplicate` fixtures into the Gleam

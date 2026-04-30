@@ -303,6 +303,8 @@ fn seed_capture_preconditions(
       seed_product_update_preconditions(capture, proxy)
     "product-duplicate-async-missing" | "product-duplicate-async-success" ->
       seed_product_duplicate_async_preconditions(capture, proxy)
+    "product-duplicate-live-parity" ->
+      seed_product_duplicate_preconditions(capture, proxy)
     "tags-remove-live-parity" -> seed_tags_remove_preconditions(capture, proxy)
     "product-variant-create-compatibility-evidence" ->
       seed_product_variant_create_preconditions(capture, proxy)
@@ -3368,6 +3370,68 @@ fn seed_product_duplicate_async_preconditions(
     )
   {
     Some(product_json) -> seed_product_json(product_json, proxy)
+    None -> proxy
+  }
+}
+
+fn seed_product_duplicate_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(capture, "$.setup.sourceReadBeforeDuplicate.data.product")
+  {
+    Some(product_json) -> {
+      let proxy = seed_product_json(product_json, proxy)
+      let product_id = read_string_field(product_json, "id")
+      let collection_nodes = case
+        jsonpath.lookup(product_json, "$.collections.nodes")
+      {
+        Some(JArray(nodes)) -> nodes
+        _ -> []
+      }
+      let collections = list.filter_map(collection_nodes, make_seed_collection)
+      let memberships = case product_id {
+        Some(product_id) ->
+          collection_nodes
+          |> enumerate_json_values()
+          |> list.filter_map(fn(entry) {
+            let #(collection_json, position) = entry
+            case read_string_field(collection_json, "id") {
+              Some(collection_id) ->
+                Ok(ProductCollectionRecord(
+                  collection_id: collection_id,
+                  product_id: product_id,
+                  position: position,
+                  cursor: None,
+                ))
+              None -> Error(Nil)
+            }
+          })
+        None -> []
+      }
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(collections)
+        |> store_mod.upsert_base_product_collections(memberships)
+      let store = case product_id {
+        Some(owner_id) -> {
+          let metafields =
+            collect_product_metafield_sources(product_json)
+            |> list.filter_map(fn(source) {
+              make_seed_product_metafield_for_owner(source, owner_id)
+            })
+            |> dedupe_product_metafields
+          store_mod.replace_base_metafields_for_owner(
+            store,
+            owner_id,
+            metafields,
+          )
+        }
+        None -> store
+      }
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
     None -> proxy
   }
 }

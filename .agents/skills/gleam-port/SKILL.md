@@ -348,6 +348,16 @@ synthetic-id/timestamp expected differences.
   source Product from the capture before replay, and project root
   `productOperation` with the raw selection set so inline-fragment fields like
   `id`, `newProduct`, and `userErrors` are not dropped.
+- Synchronous Product `productDuplicate` captures need the source Product graph
+  hydrated from `setup.sourceReadBeforeDuplicate.data.product`, including
+  collections, memberships, and Product metafields. Duplicate the local graph
+  deeply enough for downstream reads: Product options and values, variants and
+  inventory items, collection memberships, and Product metafields get fresh GIDs
+  where Shopify returns new resources, while immediate duplicate media remains
+  empty even when the source Product had ready image media. Existing
+  expected-difference paths may use quoted connection segments like
+  `variants["nodes"][0].id`; normalize those in the diff layer rather than
+  rewriting captured specs.
 - Product media async plan fixtures depend on timing-sensitive lifecycle state:
   create returns `UPLOADED` in the mutation payload, the immediate downstream
   Product media read is null-url `PROCESSING`, and later successful media
