@@ -9,6 +9,52 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 35: saved-search parity completion
+
+Finishes the saved-search parity work in the Gleam implementation while keeping
+the TypeScript saved-search runtime in place. The existing Gleam saved-search
+module already covered the local lifecycle (`savedSearchCreate`,
+`savedSearchUpdate`, `savedSearchDelete`), every resource-specific saved-search
+root, query grammar normalization, mutation-log drafts, and the three captured
+saved-search parity specs. This pass refreshes the Gleam module documentation
+and adds public shim smoke coverage, but leaves TypeScript dispatch unchanged
+until the final reviewer-approved deletion point.
+
+| Module                                                     | Change                                                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/saved_searches.gleam` | Refreshes the module note to describe the completed lifecycle and remaining live-hybrid hydration gap. |
+| `gleam/js/test/shim.test.ts`                               | Adds a public TS-shim saved-search create/read smoke against the Gleam-backed runtime.                 |
+
+Validation: `corepack pnpm typecheck`, `corepack pnpm conformance:parity`,
+`corepack pnpm test`, Erlang target via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`, and
+`cd gleam && gleam test --target javascript`.
+
+### Findings
+
+- Saved-search parity is executable in Gleam: `saved-search-local-staging`,
+  `saved-search-query-grammar`, and `saved-search-resource-roots` are part of
+  the standard Gleam parity suite.
+- The stale module header still described update/delete and parser coverage as
+  missing; refreshing it prevents future agents from undercounting the domain.
+
+### Risks / open items
+
+- Live-hybrid upstream hydration is still outside the current Gleam substrate.
+- The TypeScript saved-search runtime remains authoritative for the Node
+  runtime until the project reaches the final parity handoff point, matching the
+  metaobject parity handoff lesson.
+
+### Pass 36 candidates
+
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots.
+- Continue Admin Platform parity seeding for utility roots that now have
+  owning-domain serializers in Gleam.
+- Continue Marketing upstream hydration and parity-runner seeding.
+
+---
+
 ## 2026-04-30 — Pass 34: events read/count parity cutover
 
 Finishes the read-only Events cutover. The Gleam events domain remains scoped
