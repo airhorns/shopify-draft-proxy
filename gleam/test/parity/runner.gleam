@@ -16,21 +16,22 @@
 //// from the `gleam/` subdirectory; the runner resolves paths via `..`
 //// (configurable via `RunnerConfig.repo_root`).
 
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/int
-import gleam/json
+import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import parity/diff.{type Mismatch}
 import parity/json_value.{
-  type JsonValue, JArray, JBool, JFloat, JInt, JObject, JString,
+  type JsonValue, JArray, JBool, JFloat, JInt, JNull, JObject, JString,
 }
 import parity/jsonpath
 import parity/spec.{
-  type Spec, type Target, NoVariables, OverrideRequest, ReusePrimary,
-  VariablesFromCapture, VariablesFromFile, VariablesInline,
+  type OutputPath, type Spec, type Target, NoVariables, OverrideRequest,
+  ProxyLogPath, ProxyPath, ProxyStatePath, ReusePrimary, VariablesFromCapture,
+  VariablesFromFile, VariablesInline,
 }
 import shopify_draft_proxy/proxy/draft_proxy.{
   type DraftProxy, type Response, Request,
@@ -64,6 +65,10 @@ pub type RunError {
   VariablesUnresolved(path: String)
   /// `fromPrimaryProxyPath` substitution path didn't resolve.
   PrimaryRefUnresolved(path: String)
+  /// `fromPreviousProxyPath` substitution path didn't resolve.
+  PreviousRefUnresolved(path: String)
+  /// `fromProxyResponse` substitution path didn't resolve.
+  NamedProxyRefUnresolved(name: String, path: String)
   /// `fromCapturePath` substitution path didn't resolve.
   CaptureRefUnresolved(path: String)
   /// Capture JSONPath did not resolve for a target.
@@ -114,14 +119,17 @@ pub fn run_with_config(
     parsed.proxy_request.variables,
     capture,
     None,
+    None,
+    dict.new(),
     "<primary>",
   ))
-  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
   let proxy = seed_capture_preconditions(parsed, capture, proxy)
   use #(primary_response, proxy) <- result.try(execute(
     proxy,
     primary_doc,
     primary_vars,
+    parsed.proxy_request.api_version,
     "<primary>",
   ))
   use primary_value <- result.try(parse_response_body(primary_response))
@@ -130,6 +138,7 @@ pub fn run_with_config(
     parsed,
     capture,
     primary_value,
+    dict.insert(dict.new(), "primary", primary_value),
     proxy,
   ))
   Ok(Report(scenario_id: parsed.scenario_id, targets: target_reports))
@@ -795,22 +804,37 @@ fn run_targets(
   parsed: Spec,
   capture: JsonValue,
   primary_response: JsonValue,
+  proxy_responses: Dict(String, JsonValue),
   proxy: DraftProxy,
 ) -> Result(#(DraftProxy, List(TargetReport)), RunError) {
-  list.try_fold(parsed.targets, #(proxy, []), fn(state, target) {
-    let #(current_proxy, acc_reports) = state
-    use #(next_proxy, report) <- result.try(run_target(
-      config,
-      parsed,
-      target,
-      capture,
-      primary_response,
-      current_proxy,
-    ))
-    Ok(#(next_proxy, [report, ..acc_reports]))
-  })
+  list.try_fold(
+    parsed.targets,
+    #(proxy, proxy_responses, primary_response, []),
+    fn(state, target) {
+      let #(current_proxy, named_responses, previous_response, acc_reports) =
+        state
+      use #(next_proxy, report, executed_response) <- result.try(run_target(
+        config,
+        parsed,
+        target,
+        capture,
+        primary_response,
+        previous_response,
+        named_responses,
+        current_proxy,
+      ))
+      let #(next_previous, next_named) = case executed_response {
+        Some(response) -> #(
+          response,
+          dict.insert(named_responses, target.name, response),
+        )
+        None -> #(previous_response, named_responses)
+      }
+      Ok(#(next_proxy, next_named, next_previous, [report, ..acc_reports]))
+    },
+  )
   |> result.map(fn(state) {
-    let #(final_proxy, reports) = state
+    let #(final_proxy, _, _, reports) = state
     #(final_proxy, list.reverse(reports))
   })
 }
@@ -821,33 +845,46 @@ fn run_target(
   target: Target,
   capture: JsonValue,
   primary_response: JsonValue,
+  previous_response: JsonValue,
+  proxy_responses: Dict(String, JsonValue),
   proxy: DraftProxy,
-) -> Result(#(DraftProxy, TargetReport), RunError) {
-  use #(actual_response, next_proxy) <- result.try(actual_response_for(
-    config,
-    target,
-    capture,
-    primary_response,
-    proxy,
-  ))
+) -> Result(#(DraftProxy, TargetReport, Option(JsonValue)), RunError) {
+  use #(actual_response, next_proxy, executed_response) <- result.try(
+    actual_response_for(
+      config,
+      parsed,
+      target,
+      capture,
+      primary_response,
+      previous_response,
+      proxy_responses,
+      proxy,
+    ),
+  )
   let expected_opt = jsonpath.lookup(capture, target.capture_path)
-  let actual_opt = jsonpath.lookup(actual_response, target.proxy_path)
+  let output_path = output_path_string(target.output_path)
+  let actual_opt = jsonpath.lookup(actual_response, output_path)
   case expected_opt, actual_opt {
     None, _ ->
       Error(CaptureUnresolved(target: target.name, path: target.capture_path))
-    _, None ->
-      Error(ProxyUnresolved(target: target.name, path: target.proxy_path))
+    _, None -> Error(ProxyUnresolved(target: target.name, path: output_path))
     Some(expected), Some(actual) -> {
       let rules = spec.rules_for(parsed, target)
-      let mismatches = diff.diff_with_expected(expected, actual, rules)
+      let mismatches =
+        diff.diff_with_expected(
+          prepare_comparison_value(expected, target),
+          prepare_comparison_value(actual, target),
+          rules,
+        )
       Ok(#(
         next_proxy,
         TargetReport(
           name: target.name,
           capture_path: target.capture_path,
-          proxy_path: target.proxy_path,
+          proxy_path: output_path,
           mismatches: mismatches,
         ),
+        executed_response,
       ))
     }
   }
@@ -859,13 +896,24 @@ fn run_target(
 /// request, threading proxy state forward.
 fn actual_response_for(
   config: RunnerConfig,
+  parsed: Spec,
   target: Target,
   capture: JsonValue,
   primary_response: JsonValue,
+  previous_response: JsonValue,
+  proxy_responses: Dict(String, JsonValue),
   proxy: DraftProxy,
-) -> Result(#(JsonValue, DraftProxy), RunError) {
+) -> Result(#(JsonValue, DraftProxy, Option(JsonValue)), RunError) {
   case target.request {
-    ReusePrimary -> Ok(#(primary_response, proxy))
+    ReusePrimary -> {
+      let source = case target.output_path {
+        ProxyStatePath(_) ->
+          snapshot_json(draft_proxy.get_state_snapshot(proxy))
+        ProxyLogPath(_) -> snapshot_json(draft_proxy.get_log_snapshot(proxy))
+        ProxyPath(_) -> primary_response
+      }
+      Ok(#(source, proxy, None))
+    }
     OverrideRequest(request: request) -> {
       use document <- result.try(
         read_file(resolve(config, request.document_path)),
@@ -875,17 +923,42 @@ fn actual_response_for(
         request.variables,
         capture,
         Some(primary_response),
+        Some(previous_response),
+        proxy_responses,
         target.name,
       ))
       use #(response, next_proxy) <- result.try(execute(
         proxy,
         document,
         variables,
+        request.api_version |> option.or(parsed.proxy_request.api_version),
         target.name,
       ))
       use value <- result.try(parse_response_body(response))
-      Ok(#(value, next_proxy))
+      let source = case target.output_path {
+        ProxyStatePath(_) ->
+          snapshot_json(draft_proxy.get_state_snapshot(next_proxy))
+        ProxyLogPath(_) ->
+          snapshot_json(draft_proxy.get_log_snapshot(next_proxy))
+        ProxyPath(_) -> value
+      }
+      Ok(#(source, next_proxy, Some(value)))
     }
+  }
+}
+
+fn snapshot_json(value: Json) -> JsonValue {
+  case json_value.parse(json.to_string(value)) {
+    Ok(parsed) -> parsed
+    Error(_) -> JNull
+  }
+}
+
+fn output_path_string(path: OutputPath) -> String {
+  case path {
+    ProxyPath(path) -> path
+    ProxyStatePath(path) -> path
+    ProxyLogPath(path) -> path
   }
 }
 
@@ -910,6 +983,8 @@ fn resolve_variables(
   variables: spec.ParityVariables,
   capture: JsonValue,
   primary_response: Option(JsonValue),
+  previous_response: Option(JsonValue),
+  proxy_responses: Dict(String, JsonValue),
   context: String,
 ) -> Result(JsonValue, RunError) {
   case variables {
@@ -926,7 +1001,13 @@ fn resolve_variables(
     }
     VariablesInline(template: template) -> {
       let _ = context
-      substitute(template, primary_response, capture)
+      substitute(
+        template,
+        primary_response,
+        previous_response,
+        proxy_responses,
+        capture,
+      )
     }
   }
 }
@@ -937,6 +1018,8 @@ fn resolve_variables(
 fn substitute(
   template: JsonValue,
   primary: Option(JsonValue),
+  previous: Option(JsonValue),
+  proxy_responses: Dict(String, JsonValue),
   capture: JsonValue,
 ) -> Result(JsonValue, RunError) {
   case as_primary_ref(template) {
@@ -950,29 +1033,71 @@ fn substitute(
           }
       }
     None ->
-      case as_capture_ref(template) {
+      case as_previous_ref(template) {
         Some(path) ->
-          case jsonpath.lookup(capture, path) {
-            Some(value) -> Ok(value)
-            None -> Error(CaptureRefUnresolved(path: path))
+          case previous {
+            None -> Error(PreviousRefUnresolved(path: path))
+            Some(root) ->
+              case jsonpath.lookup(root, path) {
+                Some(value) -> Ok(value)
+                None -> Error(PreviousRefUnresolved(path: path))
+              }
           }
         None ->
-          case template {
-            JObject(entries) ->
-              entries
-              |> list.try_map(fn(pair) {
-                let #(k, v) = pair
-                case substitute(v, primary, capture) {
-                  Ok(v2) -> Ok(#(k, v2))
-                  Error(e) -> Error(e)
-                }
-              })
-              |> result.map(JObject)
-            JArray(items) ->
-              items
-              |> list.try_map(fn(item) { substitute(item, primary, capture) })
-              |> result.map(JArray)
-            leaf -> Ok(leaf)
+          case as_named_proxy_ref(template) {
+            Some(#(name, path)) ->
+              case dict.get(proxy_responses, name) {
+                Ok(root) ->
+                  case jsonpath.lookup(root, path) {
+                    Some(value) -> Ok(value)
+                    None ->
+                      Error(NamedProxyRefUnresolved(name: name, path: path))
+                  }
+                Error(_) ->
+                  Error(NamedProxyRefUnresolved(name: name, path: path))
+              }
+            None ->
+              case as_capture_ref(template) {
+                Some(path) ->
+                  case jsonpath.lookup(capture, path) {
+                    Some(value) -> Ok(value)
+                    None -> Error(CaptureRefUnresolved(path: path))
+                  }
+                None ->
+                  case template {
+                    JObject(entries) ->
+                      entries
+                      |> list.try_map(fn(pair) {
+                        let #(k, v) = pair
+                        case
+                          substitute(
+                            v,
+                            primary,
+                            previous,
+                            proxy_responses,
+                            capture,
+                          )
+                        {
+                          Ok(v2) -> Ok(#(k, v2))
+                          Error(e) -> Error(e)
+                        }
+                      })
+                      |> result.map(JObject)
+                    JArray(items) ->
+                      items
+                      |> list.try_map(fn(item) {
+                        substitute(
+                          item,
+                          primary,
+                          previous,
+                          proxy_responses,
+                          capture,
+                        )
+                      })
+                      |> result.map(JArray)
+                    leaf -> Ok(leaf)
+                  }
+              }
           }
       }
   }
@@ -996,17 +1121,53 @@ fn as_capture_ref(value: JsonValue) -> Option(String) {
   }
 }
 
+fn as_previous_ref(value: JsonValue) -> Option(String) {
+  case value {
+    JObject([#("fromPreviousProxyPath", json_value.JString(path))]) ->
+      Some(path)
+    _ -> None
+  }
+}
+
+fn as_named_proxy_ref(value: JsonValue) -> Option(#(String, String)) {
+  case value {
+    JObject(entries) -> {
+      let name =
+        list.find_map(entries, fn(pair) {
+          case pair {
+            #("fromProxyResponse", json_value.JString(name)) -> Ok(name)
+            _ -> Error(Nil)
+          }
+        })
+      let path =
+        list.find_map(entries, fn(pair) {
+          case pair {
+            #("path", json_value.JString(path)) -> Ok(path)
+            _ -> Error(Nil)
+          }
+        })
+      case name, path {
+        Ok(name), Ok(path) -> Some(#(name, path))
+        _, _ -> None
+      }
+    }
+    _ -> None
+  }
+}
+
 fn execute(
   proxy: DraftProxy,
   document: String,
   variables: JsonValue,
+  api_version: Option(String),
   context: String,
 ) -> Result(#(Response, DraftProxy), RunError) {
+  let version = api_version |> option.unwrap("2025-01")
   let body = build_graphql_body(document, variables)
   let request =
     Request(
       method: "POST",
-      path: "/admin/api/2025-01/graphql.json",
+      path: "/admin/api/" <> version <> "/graphql.json",
       headers: dict.new(),
       body: body,
     )
@@ -1026,6 +1187,118 @@ fn build_graphql_body(document: String, variables: JsonValue) -> String {
   let query = json.to_string(json.string(document))
   let vars = json_value.to_string(variables)
   "{\"query\":" <> query <> ",\"variables\":" <> vars <> "}"
+}
+
+fn prepare_comparison_value(value: JsonValue, target: Target) -> JsonValue {
+  value
+  |> select_comparison_paths(target.selected_paths)
+  |> exclude_comparison_paths(target.excluded_paths)
+}
+
+fn select_comparison_paths(value: JsonValue, paths: List(String)) -> JsonValue {
+  case paths {
+    [] -> value
+    _ ->
+      JObject(
+        list.map(paths, fn(path) {
+          let selected = jsonpath.lookup(value, path) |> option.unwrap(JNull)
+          #(path, selected)
+        }),
+      )
+  }
+}
+
+fn exclude_comparison_paths(
+  value: JsonValue,
+  paths: List(String),
+) -> JsonValue {
+  list.fold(paths, value, fn(current, path) {
+    case jsonpath.parse(path) {
+      Ok(steps) -> delete_path(current, steps)
+      Error(_) -> current
+    }
+  })
+}
+
+fn delete_path(value: JsonValue, steps: List(jsonpath.Step)) -> JsonValue {
+  case steps {
+    [] -> value
+    [step] -> delete_child(value, step)
+    [step, ..rest] ->
+      update_child(value, step, fn(child) { delete_path(child, rest) })
+  }
+}
+
+fn delete_child(value: JsonValue, step: jsonpath.Step) -> JsonValue {
+  case value, step {
+    JObject(entries), jsonpath.FieldStep(name) ->
+      JObject(list.filter(entries, fn(pair) { pair.0 != name }))
+    JArray(items), jsonpath.IndexStep(index) ->
+      JArray(remove_index(items, index, 0))
+    JArray(_), jsonpath.WildcardStep -> JArray([])
+    JObject(_), jsonpath.WildcardStep -> JObject([])
+    _, _ -> value
+  }
+}
+
+fn update_child(
+  value: JsonValue,
+  step: jsonpath.Step,
+  update: fn(JsonValue) -> JsonValue,
+) -> JsonValue {
+  case value, step {
+    JObject(entries), jsonpath.FieldStep(name) ->
+      JObject(
+        list.map(entries, fn(pair) {
+          case pair {
+            #(key, child) if key == name -> #(key, update(child))
+            other -> other
+          }
+        }),
+      )
+    JArray(items), jsonpath.IndexStep(index) ->
+      JArray(update_index(items, index, 0, update))
+    JArray(items), jsonpath.WildcardStep -> JArray(list.map(items, update))
+    JObject(entries), jsonpath.WildcardStep ->
+      JObject(
+        list.map(entries, fn(pair) {
+          let #(key, child) = pair
+          #(key, update(child))
+        }),
+      )
+    _, _ -> value
+  }
+}
+
+fn remove_index(
+  items: List(JsonValue),
+  target: Int,
+  index: Int,
+) -> List(JsonValue) {
+  case items {
+    [] -> []
+    [first, ..rest] ->
+      case index == target {
+        True -> rest
+        False -> [first, ..remove_index(rest, target, index + 1)]
+      }
+  }
+}
+
+fn update_index(
+  items: List(JsonValue),
+  target: Int,
+  index: Int,
+  update: fn(JsonValue) -> JsonValue,
+) -> List(JsonValue) {
+  case items {
+    [] -> []
+    [first, ..rest] ->
+      case index == target {
+        True -> [update(first), ..rest]
+        False -> [first, ..update_index(rest, target, index + 1, update)]
+      }
+  }
 }
 
 fn parse_response_body(response: Response) -> Result(JsonValue, RunError) {
@@ -1097,6 +1370,10 @@ pub fn render_error(error: RunError) -> String {
     VariablesUnresolved(path) -> "variables jsonpath did not resolve: " <> path
     PrimaryRefUnresolved(path) ->
       "fromPrimaryProxyPath did not resolve in primary response: " <> path
+    PreviousRefUnresolved(path) ->
+      "fromPreviousProxyPath did not resolve in previous response: " <> path
+    NamedProxyRefUnresolved(name, path) ->
+      "fromProxyResponse " <> name <> " did not resolve path: " <> path
     CaptureRefUnresolved(path) ->
       "fromCapturePath did not resolve in capture: " <> path
     CaptureUnresolved(target, path) ->
