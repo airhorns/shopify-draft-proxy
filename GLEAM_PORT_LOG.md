@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 33: events read/count parity cutover
+## 2026-04-30 — Pass 34: events read/count parity cutover
 
 Finishes the read-only Events cutover. The Gleam events domain remains scoped
 to the captured no-data contract for `event`, `events`, and `eventsCount`, adds
@@ -53,12 +53,83 @@ conformance:parity -- --testNamePattern event-empty-read` is green, and
 - Event emission from staged mutations in other domains remains owned by those
   endpoint modules, not by a shared top-level Events catalog.
 
-### Pass 34 candidates
+### Pass 35 candidates
 
+- Add the TypeScript-to-Gleam runtime bridge needed to retire fully ported TS
+  domain modules without breaking public `createDraftProxy` consumers.
 - Continue Store Properties with locations and fulfillment/carrier-service
   lifecycle roots, reusing the shop slice from Pass 32.
 - Continue Admin Platform parity seeding for utility roots that only require
   backup-region/no-data behavior.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
+## 2026-04-30 — Pass 33: metaobject definitions and entries parity
+
+Completes the Gleam metaobjects domain surface for HAR-508. The port now
+handles metaobject definition reads and lifecycle mutations, standard definition
+enablement, entry create/update/upsert/delete/bulk delete, schema-change
+read-after-write behavior, reference fields, type matrix normalization, catalog
+visibility, handle-derived display names, and mutation-log drafts for supported
+local writes. The parity runner now seeds captured metaobject definitions and
+entries, resolves multi-step proxy-response variable substitutions, and matches
+expected-difference paths deeply enough for staged catalog rows.
+
+The TypeScript metaobject runtime remains in place because the public
+TypeScript/Koa proxy still routes metaobject requests through that module; the
+Gleam implementation is parity-complete, but deleting the TS module before the
+public runtime is bridged to Gleam would break existing TS consumers rather than
+preserve supported local staging.
+
+| Module                                                                   | Change                                                                                                                                                 |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                        | Adds typed metaobject definition, field definition, field value, capabilities, standard-template, and entry records.                                   |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                        | Adds base/staged metaobject definition and entry buckets, deleted markers, effective lookup/list helpers, and handle/type lookup support.              |
+| `gleam/src/shopify_draft_proxy/proxy/metaobject_definitions.gleam`       | Replaces the empty stub with stateful query and mutation handling, schema projection, field normalization, references, catalog filtering, and logging. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                  | Routes metaobject queries/mutations through the local Gleam dispatcher and serializes the state slice through `__meta/state`.                          |
+| `gleam/test/parity/runner.gleam`                                         | Seeds metaobject captures and supports previous/named proxy-response variable substitution for multi-step parity scenarios.                            |
+| `gleam/test/parity/diff.gleam`                                           | Treats ignored expected-difference paths as deep prefixes so captured catalog branches can remain byte-identical.                                      |
+| `gleam/test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam` | Adds direct lifecycle coverage for definitions, entries, references, bulk delete, meta API visibility, and dispatcher behavior.                        |
+
+Validation: all eight checked-in metaobject parity specs under
+`config/parity-specs/metaobjects/` pass through the Gleam parity runner.
+`gleam test --target erlang` is green at 673 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container after cleaning stale
+host BEAM build artifacts; the host Erlang install is OTP 25 and cannot run
+`gleam_json` directly. `gleam test --target javascript` is green at 677 tests on
+the host Node runtime.
+
+### Findings
+
+- Metaobject catalog reads are stricter than direct `metaobject` /
+  `metaobjectByHandle` reads: rows missing newly required fields, and rows whose
+  definition disables publishable without an entry publishable record, are not
+  visible in type catalogs.
+- Measurement values use different unit casing depending on surface: stored
+  scalar `value` strings use uppercase units, list `jsonValue` uses lowercase
+  units with Shopify's `cm`/`ml`/`kg` list overrides, and display names stringify
+  measurement JSON with lowercase units and integer-like numbers collapsed.
+- Successful metaobject definition deletes still need mutation-log drafts; those
+  log IDs are part of the synthetic identity sequence observed by later staged
+  operations in multi-step parity specs.
+
+### Risks / open items
+
+- The TypeScript metaobject runtime has not been removed because the public
+  TypeScript dispatcher still depends on it. Deletion should happen with the
+  runtime bridge that routes TS/Koa consumers to the Gleam domain without
+  reintroducing upstream passthrough for supported metaobject roots.
+- Generic GraphQL search-query parsing for metaobjects remains limited to the
+  captured/local terms modeled in the existing parity and integration coverage.
+
+### Pass 34 candidates
+
+- Add the TypeScript-to-Gleam runtime bridge needed to retire fully ported TS
+  domain modules without breaking public `createDraftProxy` consumers.
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the existing shop slice.
 - Continue Marketing upstream hydration and parity-runner seeding so captured
   Marketing read/update scenarios can execute against the Gleam proxy.
 
