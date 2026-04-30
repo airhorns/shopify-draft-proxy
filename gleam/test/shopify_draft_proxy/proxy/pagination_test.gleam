@@ -7,7 +7,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   type ConnectionWindow, ConnectionPageInfoOptions, SerializeConnectionConfig,
   default_connection_page_info_options, default_connection_window_options,
   default_selected_field_options, paginate_connection_items,
-  serialize_connection,
+  serialize_connection, serialize_connection_with_field_serializers,
 }
 
 fn first_root(document: String) -> ast.Selection {
@@ -270,6 +270,62 @@ pub fn serialize_unprefixed_cursor_when_disabled_test() {
       ),
     ))
   assert result == "{\"edges\":[{\"cursor\":\"a\"},{\"cursor\":\"b\"}]}"
+}
+
+pub fn serialize_unknown_connection_field_with_custom_hook_test() {
+  let field = first_root("{ root { nodes { id } totalCount } }")
+  let result =
+    json.to_string(
+      serialize_connection_with_field_serializers(
+        field,
+        SerializeConnectionConfig(
+          items: ["a", "b"],
+          has_next_page: False,
+          has_previous_page: False,
+          get_cursor_value: id_cursor,
+          serialize_node: node_as_id,
+          selected_field_options: default_selected_field_options(),
+          page_info_options: default_connection_page_info_options(),
+        ),
+        fn(_page_info_field) { None },
+        fn(unknown_field) {
+          case unknown_field {
+            ast.Field(name: name, ..) ->
+              case name.value {
+                "totalCount" -> json.int(2)
+                _ -> json.null()
+              }
+            _ -> json.null()
+          }
+        },
+      ),
+    )
+  assert result
+    == "{\"nodes\":[{\"id\":\"a\"},{\"id\":\"b\"}],\"totalCount\":2}"
+}
+
+pub fn serialize_page_info_with_custom_hook_test() {
+  let field = first_root("{ root { pageInfo { hasNextPage } } }")
+  let result =
+    json.to_string(
+      serialize_connection_with_field_serializers(
+        field,
+        SerializeConnectionConfig(
+          items: ["a"],
+          has_next_page: True,
+          has_previous_page: False,
+          get_cursor_value: id_cursor,
+          serialize_node: node_as_id,
+          selected_field_options: default_selected_field_options(),
+          page_info_options: default_connection_page_info_options(),
+        ),
+        fn(_page_info_field) {
+          Some(json.object([#("custom", json.string("page-info"))]))
+        },
+        fn(_unknown_field) { json.null() },
+      ),
+    )
+  assert result == "{\"pageInfo\":{\"custom\":\"page-info\"}}"
 }
 
 pub fn build_synthetic_cursor_format_test() {

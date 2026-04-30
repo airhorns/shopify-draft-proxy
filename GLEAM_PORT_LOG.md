@@ -135,6 +135,65 @@ the host Node runtime.
 
 ---
 
+## 2026-04-30 — Pass 33: shared GraphQL substrate parity guards
+
+Closes a shared-substrate pass for the Gleam port rather than advancing one
+endpoint family. The GraphQL helper module now exposes the reusable scalar,
+argument, payload, and connection serializer hooks that downstream domain
+passes need to avoid local parser/projection loops. The test corpus now guards
+all checked-in parity request GraphQL documents, and a TypeScript cross-check
+script compares the compiled Gleam parser/classifier against the existing
+TypeScript `parseOperation` contract for every `config/parity-requests/**/*.graphql`
+document.
+
+| Module                                                            | Change                                                                                                                                                                                                      |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/graphql_helpers.gleam`       | Adds nullable argument readers, scalar readers, plain-object array filtering, `data` payload extraction, resolved-value projection, and connection serializer hooks for custom `pageInfo` / unknown fields. |
+| `gleam/test/parity_corpus_test.gleam`                             | Adds an Erlang-only corpus check that parses and resolves root-field arguments for every parity request GraphQL document.                                                                                   |
+| `gleam/test/shopify_draft_proxy/proxy/graphql_helpers_test.gleam` | Covers the new shared argument/scalar/payload helpers.                                                                                                                                                      |
+| `gleam/test/shopify_draft_proxy/proxy/pagination_test.gleam`      | Covers custom unknown connection field and custom `pageInfo` serialization hooks.                                                                                                                           |
+| `scripts/check-gleam-graphql-parser-parity.ts` / `package.json`   | Adds `corepack pnpm gleam:graphql-parity`, comparing Gleam and TypeScript parser summaries across 753 parity request documents.                                                                             |
+
+Validation: `gleam test --target javascript` is green at 676 tests on the host
+Node runtime. `gleam test --target erlang` cannot run directly on the host
+because `escript` is missing, but the Erlang target is green at 673 tests via
+the `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container. `corepack pnpm
+gleam:graphql-parity` is green and matched TypeScript for 753 parity request
+documents. `gleam format --check` and `corepack pnpm exec tsc -p tsconfig.json
+--noEmit --pretty false` are green.
+
+### Findings
+
+- Existing parity corpus coverage walked `config/parity-specs/**/*.json`, but
+  did not exercise the GraphQL request corpus that the substrate acceptance bar
+  names explicitly.
+- The current connection serializer already covered `nodes`, `edges`, selected
+  `pageInfo`, cursor prefixing, and fallback cursors; custom `pageInfo` and
+  unknown-field hooks were the missing reusable surface from the TypeScript
+  helper.
+- Root-field argument resolution over the full request corpus is a useful guard
+  because it exercises literal and unbound-variable semantics without requiring
+  a live store or endpoint-specific dispatch.
+
+### Risks / open items
+
+- The parser parity script depends on the compiled JavaScript Gleam output, so
+  the package script builds the JS target before running the comparison.
+- The full TypeScript helper module still contains location helpers and
+  projection customisation hooks that should be ported when a downstream domain
+  needs them, rather than guessed ahead of concrete usage.
+
+### Pass 34 candidates
+
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the shared argument and connection helpers.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+- Port the next helper slice only when an endpoint pass needs a concrete
+  TypeScript helper contract not yet exposed in Gleam.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain
