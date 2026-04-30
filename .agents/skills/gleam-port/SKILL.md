@@ -259,6 +259,11 @@ adding broad synthetic-id/timestamp expected differences.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.
+- Segment catalog-like roots can require captured root payload storage in
+  addition to normalized records. Seed `segments-baseline-read` by extracting the
+  captured root payloads into base state, then project selected fields from that
+  payload until staged local segment writes require synthesized connection
+  output.
 
 ## Workflow for a new pass
 

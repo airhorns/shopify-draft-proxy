@@ -59,37 +59,38 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
   type MetaobjectJsonValue, type MetaobjectRecord,
   type MetaobjectStandardTemplateRecord, type Money, type PaymentSettingsRecord,
-  type ProductMetafieldRecord, type ShopAddressRecord, type ShopDomainRecord,
-  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
-  type ShopifyFunctionRecord, type StoreCreditAccountRecord,
-  type StorePropertyRecord, type StorePropertyValue, CustomerAccountPageRecord,
-  CustomerAddressRecord, CustomerCatalogConnectionRecord,
-  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
-  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
-  CustomerEmailMarketingConsentRecord, CustomerEventSummaryRecord,
-  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
-  CustomerSmsMarketingConsentRecord, GiftCardConfigurationRecord,
-  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
-  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
-  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, MetaobjectBool,
-  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
-  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
-  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
-  MetaobjectFieldDefinitionReferenceRecord,
+  type ProductMetafieldRecord, type SegmentRecord, type ShopAddressRecord,
+  type ShopDomainRecord, type ShopFeaturesRecord, type ShopPlanRecord,
+  type ShopPolicyRecord, type ShopRecord, type ShopResourceLimitsRecord,
+  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
+  type StoreCreditAccountRecord, type StorePropertyRecord,
+  type StorePropertyValue, CustomerAccountPageRecord, CustomerAddressRecord,
+  CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
+  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
+  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
+  CustomerEventSummaryRecord, CustomerMetafieldRecord,
+  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
+  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
+  GiftCardTransactionRecord, MetafieldDefinitionCapabilitiesRecord,
+  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintValueRecord,
+  MetafieldDefinitionConstraintsRecord, MetafieldDefinitionRecord,
+  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
+  MetaobjectBool, MetaobjectCapabilitiesRecord,
+  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
+  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
+  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
   MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
   MetaobjectStandardTemplateRecord, MetaobjectString, Money,
-  PaymentSettingsRecord, ProductMetafieldRecord, ShopAddressRecord,
-  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
-  ShopifyFunctionAppRecord, ShopifyFunctionRecord, StoreCreditAccountRecord,
-  StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
+  PaymentSettingsRecord, ProductMetafieldRecord, SegmentRecord,
+  ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
+  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
+  ShopifyFunctionRecord, StoreCreditAccountRecord, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList,
   StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
   StorePropertyRecord, StorePropertyString,
 }
@@ -218,6 +219,8 @@ fn seed_capture_preconditions(
       seed_customer_merge_preconditions(capture, proxy)
     "customer-order-summary-read-effects" ->
       seed_customer_order_summary_preconditions(capture, proxy)
+    "segments-baseline-read" ->
+      seed_segments_baseline_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "location-detail-read" -> seed_location_detail_preconditions(capture, proxy)
@@ -449,6 +452,71 @@ fn seed_customer_order_summary_preconditions(
     ..proxy,
     store: store_mod.upsert_base_customer_order_summaries(proxy.store, orders),
   )
+}
+
+fn seed_segments_baseline_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let segments =
+    collect_objects(capture)
+    |> list.filter_map(make_seed_segment)
+    |> dedupe_seed_segments([])
+  let root_payload_paths = [
+    #("segments", "$.data.segments"),
+    #("segmentsCount", "$.data.segmentsCount"),
+    #("segmentFilters", "$.data.segmentFilters"),
+    #("segmentFilterSuggestions", "$.data.segmentFilterSuggestions"),
+    #("segmentValueSuggestions", "$.data.segmentValueSuggestions"),
+    #("segmentMigrations", "$.data.segmentMigrations"),
+  ]
+  let store =
+    root_payload_paths
+    |> list.fold(
+      store_mod.upsert_base_segments(proxy.store, segments),
+      fn(acc, pair) {
+        let #(root_name, path) = pair
+        case jsonpath.lookup(capture, path) {
+          Some(payload) ->
+            store_mod.set_base_segment_root_payload(
+              acc,
+              root_name,
+              store_property_value(payload),
+            )
+          None -> acc
+        }
+      },
+    )
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_segment(value: JsonValue) -> Result(SegmentRecord, Nil) {
+  use id <- result.try(required_string_field(value, "id"))
+  case string.starts_with(id, "gid://shopify/Segment/") {
+    False -> Error(Nil)
+    True ->
+      Ok(SegmentRecord(
+        id: id,
+        name: read_string_field(value, "name"),
+        query: read_string_field(value, "query"),
+        creation_date: read_string_field(value, "creationDate"),
+        last_edit_date: read_string_field(value, "lastEditDate"),
+      ))
+  }
+}
+
+fn dedupe_seed_segments(
+  segments: List(SegmentRecord),
+  seen: List(String),
+) -> List(SegmentRecord) {
+  case segments {
+    [] -> []
+    [first, ..rest] ->
+      case list.contains(seen, first.id) {
+        True -> dedupe_seed_segments(rest, seen)
+        False -> [first, ..dedupe_seed_segments(rest, [first.id, ..seen])]
+      }
+  }
 }
 
 fn seed_customer_metafields(

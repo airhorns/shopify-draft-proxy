@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 42: segments baseline and member parity
+
+Completes the next Segments Gleam parity pass while preserving the TypeScript
+runtime and TypeScript tests for the incremental port. The segment baseline
+parity spec now seeds captured segment roots into Gleam base state and runs as
+passing evidence, and customer segment member reads now evaluate the supported
+segment query grammar against effective customer state instead of returning only
+empty placeholders.
+
+This pass also removes a stale Localization expected-failure entry that had
+drifted green independently. The original TypeScript segment runtime remains in
+place because per-domain Gleam parity does not authorize TypeScript retirement
+before the final all-port cutover.
+
+| Module                                                        | Change                                                                                                                   |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/segments.gleam`          | Adds segment metadata roots, top-level missing-resource errors, customer segment member filtering, and membership checks. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`             | Adds base segment upsert helpers and captured segment root payload storage.                                               |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`     | Persists `segmentRootPayloads` through state dumps and restores.                                                         |
+| `gleam/test/parity/runner.gleam`                              | Seeds `segments-baseline-read` from captured root payloads and segment records.                                           |
+| `gleam/test/shopify_draft_proxy/proxy/segments_test.gleam`    | Covers segment metadata root predicates, customer member filters, and membership evaluation.                              |
+| `config/gleam-port-ci-gates.json`                             | Removes the now-passing segment baseline and localization expected-failure entries.                                       |
+
+Validation: `gleam test --target javascript` was green at 681 tests. `gleam
+test --target erlang` was green at 677 tests in the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container after `gleam clean`
+cleared stale host OTP 25 build artifacts. `corepack pnpm
+gleam:port:coverage`, `corepack pnpm gleam:registry:check`, `corepack pnpm
+conformance:check`, `corepack pnpm lint`, `corepack pnpm gleam:format:check`,
+and `git diff --check` were green.
+
+### Findings
+
+- Segment baseline parity needs both normalized segment records and captured
+  root payloads for catalog-like roots such as filters, suggestions, value
+  suggestions, and migrations.
+- Customer segment member reads can share the mutation validation grammar for
+  the currently supported `number_of_orders` and `customer_tags CONTAINS` forms,
+  then evaluate that parsed predicate against effective customer records.
+- The host Erlang build cache can mask the container OTP version; clean inside
+  the OTP 27+ container before treating `gleam_json` OTP errors as real target
+  failures.
+
+### Risks / open items
+
+- The supported segment query grammar remains intentionally narrow and should be
+  expanded only with captured Shopify evidence for additional predicates.
+- The TypeScript segment runtime still remains the shipping Node/Koa path until
+  a final all-port cutover proves repository-wide parity.
+
+### Pass 43 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
+
+---
+
 ## 2026-04-30 — Pass 41: gift-card parity completion
 
 Completes the Gift Cards Gleam parity handoff while keeping the TypeScript
