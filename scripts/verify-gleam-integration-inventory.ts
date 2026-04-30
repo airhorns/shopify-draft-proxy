@@ -13,6 +13,7 @@ type InventoryEntry = {
 
 type InventoryDocument = {
   version: number;
+  legacyTypeScriptIntegrationTests: string[];
   entries: InventoryEntry[];
 };
 
@@ -56,6 +57,14 @@ function readStringArray(record: Record<string, unknown>, key: string): string[]
   return value;
 }
 
+function requireStringArray(record: Record<string, unknown>, key: string): string[] {
+  const value = readStringArray(record, key);
+  if (value === undefined) {
+    throw new Error(`Inventory field ${key} is required.`);
+  }
+  return value;
+}
+
 function parseInventory(): InventoryDocument {
   const parsed = JSON.parse(readFileSync(inventoryPath, 'utf8')) as unknown;
   if (!isRecord(parsed)) {
@@ -64,6 +73,8 @@ function parseInventory(): InventoryDocument {
   if (parsed['version'] !== 1) {
     throw new Error('Inventory version must be 1.');
   }
+  const legacyTypeScriptIntegrationTests = requireStringArray(parsed, 'legacyTypeScriptIntegrationTests');
+
   const entriesValue = parsed['entries'];
   if (!Array.isArray(entriesValue)) {
     throw new Error('Inventory entries must be an array.');
@@ -100,13 +111,17 @@ function parseInventory(): InventoryDocument {
     };
   });
 
-  return { version: 1, entries };
+  return { version: 1, legacyTypeScriptIntegrationTests, entries };
 }
 
-function assertRelativeFile(pathFromRoot: string, label: string): void {
+function assertRepoRelativePath(pathFromRoot: string, label: string): void {
   if (path.isAbsolute(pathFromRoot) || pathFromRoot.includes('..')) {
     throw new Error(`${label} must be a repo-relative path: ${pathFromRoot}`);
   }
+}
+
+function assertRelativeFile(pathFromRoot: string, label: string): void {
+  assertRepoRelativePath(pathFromRoot, label);
   const absolutePath = path.join(repoRoot, pathFromRoot);
   if (!existsSync(absolutePath) || !statSync(absolutePath).isFile()) {
     throw new Error(`${label} does not exist: ${pathFromRoot}`);
@@ -118,23 +133,52 @@ function sortedDifference(left: Iterable<string>, right: Iterable<string>): stri
   return [...left].filter((item) => !rightSet.has(item)).sort((a, b) => a.localeCompare(b));
 }
 
+function assertSortedUnique(values: string[], label: string): void {
+  const seen = new Set<string>();
+  let previous: string | undefined;
+
+  for (const value of values) {
+    if (seen.has(value)) {
+      throw new Error(`${label} contains duplicate value: ${value}`);
+    }
+    seen.add(value);
+
+    if (previous !== undefined && previous.localeCompare(value) > 0) {
+      throw new Error(`${label} must be sorted alphabetically: ${previous} before ${value}`);
+    }
+    previous = value;
+  }
+}
+
 function main(): void {
   const inventory = parseInventory();
-  const integrationFiles = listFiles('tests/integration', (file) => file.endsWith('.test.ts'));
   const gleamTestFiles = listFiles('gleam/test', (file) => file.endsWith('.gleam'));
-  const integrationSet = new Set(integrationFiles);
+  const legacyIntegrationSet = new Set(inventory.legacyTypeScriptIntegrationTests);
   const gleamTestSet = new Set(gleamTestFiles);
   const seenSources = new Set<string>();
+
+  assertSortedUnique(inventory.legacyTypeScriptIntegrationTests, 'legacyTypeScriptIntegrationTests');
+  for (const source of inventory.legacyTypeScriptIntegrationTests) {
+    assertRepoRelativePath(source, 'Recorded legacy TypeScript integration test');
+    if (!source.startsWith('tests/integration/') || !source.endsWith('.test.ts')) {
+      throw new Error(
+        `Recorded legacy TypeScript integration test must be a tests/integration/*.test.ts file: ${source}`,
+      );
+    }
+  }
 
   for (const entry of inventory.entries) {
     if (seenSources.has(entry.source)) {
       throw new Error(`Duplicate inventory source: ${entry.source}`);
     }
     seenSources.add(entry.source);
+    if (!legacyIntegrationSet.has(entry.source)) {
+      throw new Error(`Inventory source is not in the recorded legacy TypeScript baseline: ${entry.source}`);
+    }
     if (!entry.source.startsWith('tests/integration/') || !entry.source.endsWith('.test.ts')) {
       throw new Error(`Inventory source must be a tests/integration/*.test.ts file: ${entry.source}`);
     }
-    assertRelativeFile(entry.source, 'Inventory source');
+    assertRepoRelativePath(entry.source, 'Inventory source');
 
     const evidenceCount =
       (entry.gleamTests?.length ?? 0) +
@@ -159,21 +203,21 @@ function main(): void {
       }
     }
     for (const retainedTest of entry.retainedTypeScriptCoverage ?? []) {
-      assertRelativeFile(retainedTest, `Retained TypeScript evidence for ${entry.source}`);
-      if (!integrationSet.has(retainedTest)) {
-        throw new Error(`Retained TypeScript evidence is outside tests/integration inventory: ${retainedTest}`);
+      assertRepoRelativePath(retainedTest, `Retained TypeScript evidence for ${entry.source}`);
+      if (!legacyIntegrationSet.has(retainedTest)) {
+        throw new Error(`Retained TypeScript evidence is outside recorded legacy baseline: ${retainedTest}`);
       }
     }
   }
 
   const inventorySources = new Set(inventory.entries.map((entry) => entry.source));
-  const missingEntries = sortedDifference(integrationSet, inventorySources);
-  const staleEntries = sortedDifference(inventorySources, integrationSet);
+  const missingEntries = sortedDifference(legacyIntegrationSet, inventorySources);
+  const staleEntries = sortedDifference(inventorySources, legacyIntegrationSet);
 
   if (missingEntries.length > 0 || staleEntries.length > 0) {
     const lines = [
-      ...missingEntries.map((file) => `Missing inventory entry for ${file}`),
-      ...staleEntries.map((file) => `Stale inventory entry for ${file}`),
+      ...missingEntries.map((file) => `Missing inventory entry for recorded legacy test ${file}`),
+      ...staleEntries.map((file) => `Inventory entry is outside recorded legacy baseline ${file}`),
     ];
     throw new Error(lines.join('\n'));
   }
@@ -188,8 +232,8 @@ function main(): void {
 
   process.stdout.write(
     [
-      `Verified ${inventory.entries.length} TypeScript integration inventory entries.`,
-      `Scanned ${integrationFiles.length} tests/integration/*.test.ts files.`,
+      `Verified ${inventory.entries.length} TypeScript integration inventory entries from the recorded legacy baseline.`,
+      `Read ${inventory.legacyTypeScriptIntegrationTests.length} recorded legacy TypeScript integration test names.`,
       `Scanned ${gleamTestFiles.length} gleam/test/**/*.gleam files.`,
       `Evidence links: ${gleamEvidence} Gleam tests, ${parityEvidence} parity specs, ${retainedEvidence} retained TypeScript boundaries, ${retirements} retirements.`,
     ].join('\n') + '\n',

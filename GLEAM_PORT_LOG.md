@@ -12,11 +12,12 @@ Newer entries go at the top.
 ## 2026-04-30 — Pass 33: legacy integration inventory guard
 
 Adds a traceable migration inventory for the legacy TypeScript integration
-suite. Every `tests/integration/*.test.ts` file is now mapped to checked-in
-Gleam test evidence, parity spec evidence, or a retained TypeScript boundary
-where the behavior is explicitly tied to the not-yet-ported HTTP/runtime
-adapter surface. CI now runs the inventory verifier so future TypeScript-only
-integration additions cannot be missed during cutover.
+suite. Every test name from the recorded legacy TypeScript integration baseline
+is now mapped to checked-in Gleam test evidence, parity spec evidence, or a
+retained TypeScript boundary where the behavior is explicitly tied to the
+not-yet-ported HTTP/runtime adapter surface. CI now runs the inventory verifier
+against that fixed baseline so future cutover work can delete TypeScript tests
+without making the guard depend on the live `tests/integration` tree.
 
 This pass does not delete any TypeScript integration tests. The retained
 boundary entries are intentionally narrow: JS interop, package launch scripts,
@@ -25,16 +26,16 @@ TypeScript runtime performance smoke remain guarded by their existing TS tests
 until the corresponding Gleam HTTP adapter, snapshot loader, and broad resource
 domains land.
 
-| Module                                          | Change                                                                                                                    |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `config/gleam-integration-inventory.json`       | Adds one inventory entry for every legacy TypeScript integration test with Gleam/parity/retained evidence references.     |
-| `scripts/verify-gleam-integration-inventory.ts` | Adds the inventory command that scans `tests/integration` and `gleam/test`, validates all references, and reports counts. |
-| `package.json`                                  | Adds `gleam:integration-inventory`.                                                                                       |
-| `.github/workflows/ci.yml`                      | Runs the inventory verifier in CI before Gleam target tests.                                                              |
+| Module                                          | Change                                                                                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `config/gleam-integration-inventory.json`       | Adds the fixed legacy TypeScript integration baseline plus one inventory entry for every recorded test name.             |
+| `scripts/verify-gleam-integration-inventory.ts` | Adds the inventory command that validates mappings against the fixed baseline, scans Gleam evidence, and reports counts. |
+| `package.json`                                  | Adds `gleam:integration-inventory`.                                                                                      |
+| `.github/workflows/ci.yml`                      | Runs the inventory verifier in CI before Gleam target tests.                                                             |
 
 Validation: `corepack pnpm gleam:integration-inventory` is green, verifying 84
-TypeScript integration entries against 49 Gleam test files with 276 parity spec
-links and 5 retained TypeScript boundaries.
+TypeScript integration entries from the recorded baseline against 49 Gleam test
+files with 276 parity spec links and 5 retained TypeScript boundaries.
 
 ### Findings
 
