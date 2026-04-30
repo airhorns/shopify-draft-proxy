@@ -41,7 +41,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  RequiredArgument, read_optional_string, read_optional_string_array,
+  type LogDraft, RequiredArgument, read_optional_string,
+  read_optional_string_array, single_root_log_draft,
   validate_required_field_arguments, validate_required_id_argument,
 }
 import shopify_draft_proxy/search_query_parser.{
@@ -671,6 +672,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -741,6 +743,7 @@ type MutationFieldResult {
     payload: Json,
     staged_resource_ids: List(String),
     top_level_errors: List(Json),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -754,10 +757,24 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let initial = #([], [], store, identity, [])
-  let #(data_entries, all_errors, final_store, final_identity, all_staged_ids) =
+  let initial = #([], [], store, identity, [], [])
+  let #(
+    data_entries,
+    all_errors,
+    final_store,
+    final_identity,
+    all_staged_ids,
+    all_drafts,
+  ) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, errors, current_store, current_identity, staged_ids) = acc
+      let #(
+        entries,
+        errors,
+        current_store,
+        current_identity,
+        staged_ids,
+        drafts,
+      ) = acc
       case field {
         Field(name: name, ..) -> {
           let dispatch = case name.value {
@@ -808,12 +825,14 @@ fn handle_mutation_fields(
                 [] -> list.append(staged_ids, result.staged_resource_ids)
                 _ -> staged_ids
               }
+              let next_drafts = list.append(drafts, result.log_drafts)
               #(
                 next_entries,
                 next_errors,
                 next_store,
                 next_identity,
                 next_staged_ids,
+                next_drafts,
               )
             }
           }
@@ -837,6 +856,7 @@ fn handle_mutation_fields(
     store: final_store,
     identity: final_identity,
     staged_resource_ids: final_staged_ids,
+    log_drafts: all_drafts,
   )
 }
 
@@ -845,7 +865,7 @@ fn handle_mutation_fields(
 fn handle_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   document: String,
   operation_path: String,
   field: Selection,
@@ -879,6 +899,7 @@ fn handle_create(
           payload: json.null(),
           staged_resource_ids: [],
           top_level_errors: validation_errors,
+          log_drafts: [],
         )
       #(result, store, identity)
     }
@@ -920,35 +941,29 @@ fn handle_create(
       }
       let payload =
         project_create_payload(record_opt, user_errors, field, fragments)
-      let #(log_id, identity_after_log) =
-        synthetic_identity.make_synthetic_gid(
-          identity_after,
-          "MutationLogEntry",
-        )
-      let #(received_at, identity_final) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_log)
-      let entry =
-        build_log_entry(
+      let draft =
+        single_root_log_draft(
           "webhookSubscriptionCreate",
-          log_id,
-          received_at,
-          request_path,
-          document,
           staged_ids,
           case user_errors {
             [] -> store.Staged
             _ -> store.Failed
           },
+          "webhooks",
+          "stage-locally",
+          Some(
+            "Locally staged webhookSubscriptionCreate in shopify-draft-proxy.",
+          ),
         )
-      let store_logged = store.record_mutation_log_entry(store_after, entry)
       let result =
         MutationFieldResult(
           key: key,
           payload: payload,
           staged_resource_ids: staged_ids,
           top_level_errors: [],
+          log_drafts: [draft],
         )
-      #(result, store_logged, identity_final)
+      #(result, store_after, identity_after)
     }
   }
 }
@@ -956,7 +971,7 @@ fn handle_create(
 fn handle_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   document: String,
   operation_path: String,
   field: Selection,
@@ -987,6 +1002,7 @@ fn handle_update(
           payload: json.null(),
           staged_resource_ids: [],
           top_level_errors: validation_errors,
+          log_drafts: [],
         )
       #(result, store, identity)
     }
@@ -1029,35 +1045,29 @@ fn handle_update(
       }
       let payload =
         project_update_payload(record_opt, user_errors, field, fragments)
-      let #(log_id, identity_after_log) =
-        synthetic_identity.make_synthetic_gid(
-          identity_after,
-          "MutationLogEntry",
-        )
-      let #(received_at, identity_final) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_log)
-      let entry =
-        build_log_entry(
+      let draft =
+        single_root_log_draft(
           "webhookSubscriptionUpdate",
-          log_id,
-          received_at,
-          request_path,
-          document,
           staged_ids,
           case user_errors {
             [] -> store.Staged
             _ -> store.Failed
           },
+          "webhooks",
+          "stage-locally",
+          Some(
+            "Locally staged webhookSubscriptionUpdate in shopify-draft-proxy.",
+          ),
         )
-      let store_logged = store.record_mutation_log_entry(store_after, entry)
       let result =
         MutationFieldResult(
           key: key,
           payload: payload,
           staged_resource_ids: staged_ids,
           top_level_errors: [],
+          log_drafts: [draft],
         )
-      #(result, store_logged, identity_final)
+      #(result, store_after, identity_after)
     }
   }
 }
@@ -1065,7 +1075,7 @@ fn handle_update(
 fn handle_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   document: String,
   operation_path: String,
   field: Selection,
@@ -1089,6 +1099,7 @@ fn handle_delete(
           payload: json.null(),
           staged_resource_ids: [],
           top_level_errors: id_errors,
+          log_drafts: [],
         )
       #(result, store, identity)
     }
@@ -1117,32 +1128,29 @@ fn handle_delete(
       }
       let payload =
         project_delete_payload(deleted_id, user_errors, field, fragments)
-      let #(log_id, identity_after_log) =
-        synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
-      let #(received_at, identity_final) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_log)
-      let entry =
-        build_log_entry(
+      let draft =
+        single_root_log_draft(
           "webhookSubscriptionDelete",
-          log_id,
-          received_at,
-          request_path,
-          document,
           [],
           case user_errors {
             [] -> store.Staged
             _ -> store.Failed
           },
+          "webhooks",
+          "stage-locally",
+          Some(
+            "Locally staged webhookSubscriptionDelete in shopify-draft-proxy.",
+          ),
         )
-      let store_logged = store.record_mutation_log_entry(store_after, entry)
       let result =
         MutationFieldResult(
           key: key,
           payload: payload,
           staged_resource_ids: [],
           top_level_errors: [],
+          log_drafts: [draft],
         )
-      #(result, store_logged, identity_final)
+      #(result, store_after, identity)
     }
   }
 }
@@ -1337,39 +1345,4 @@ fn user_error_to_source(error: UserError) -> graphql_helpers.SourceValue {
     #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
     #("message", SrcString(error.message)),
   ])
-}
-
-// ---- Mutation log builder -------------------------------------------------
-
-fn build_log_entry(
-  root_field: String,
-  log_id: String,
-  received_at: String,
-  request_path: String,
-  document: String,
-  staged_ids: List(String),
-  status: store.EntryStatus,
-) -> store.MutationLogEntry {
-  store.MutationLogEntry(
-    id: log_id,
-    received_at: received_at,
-    operation_name: None,
-    path: request_path,
-    query: document,
-    variables: dict.new(),
-    staged_resource_ids: staged_ids,
-    status: status,
-    interpreted: store.InterpretedMetadata(
-      operation_type: store.Mutation,
-      operation_name: None,
-      root_fields: [root_field],
-      primary_root_field: Some(root_field),
-      capability: store.Capability(
-        operation_name: Some(root_field),
-        domain: "webhooks",
-        execution: "stage-locally",
-      ),
-    ),
-    notes: Some("Locally staged " <> root_field <> " in shopify-draft-proxy."),
-  )
 }
