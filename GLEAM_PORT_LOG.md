@@ -9,60 +9,60 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 44: order-payment parity completion
+## 2026-04-30 — Pass 46: payments and order-payment parity completion
 
-Completes the payments acceptance slice that is owned by Orders roots in the
-Gleam draft proxy. A new minimal Orders payment domain stages local order
-creation, order captures, transaction voids, mandate payments, manual-payment
-access-denied responses, and downstream `order(id:)` payment reads without
-claiming broader Orders coverage. The pass keeps the TypeScript Orders and
-Payments runtimes intact for the final all-port cutover.
+Ports the parity-backed Payments surface plus the order-payment slice that is
+owned by Orders roots into the Gleam draft proxy. Payments now stages customer
+payment-method lifecycle mutations, payment customizations, payment reminder
+intent, and payment terms locally while answering captured no-data/read-only
+payment roots for finance risk, disputes/POS/Shop Pay receipts, Shopify
+Payments account, and payment terms templates. A narrow Orders payment domain
+stages local order creation, capture, transaction void, mandate payment,
+manual-payment access-denied responses, and downstream `order(id:)` payment
+reads without claiming broader Orders coverage.
 
-| Module                                                                  | Change                                                                                                                                                                                                                                                       |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                      | Adds the narrow Orders payment lifecycle model for synthetic order creation, authorization/capture/void/mandate/manual-payment behavior, derived financial fields, transaction serialization, parent-transaction projection, and mutation-log timing parity. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Wires the Orders payment roots and `order(id:)` read into explicit local dispatch alongside the Payments domain.                                                                                                                                             |
-| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds order payment records, staged/base store slices, effective-order lookup, transaction lookup, mandate-payment idempotency storage, and state dump serialization fields.                                                                                  |
-| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json`    | Removes the order-payment expected failures once the existing captured parity specs pass on both targets.                                                                                                                                                    |
+| Module                                                                  | Change                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/payments.gleam`                    | Adds Payments query/mutation handling with local staging, customer payment-method payload projection, static payment terms templates, payment terms read-after-write, and Shopify-like no-data roots.                         |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                      | Adds the narrow Orders payment lifecycle model for synthetic order creation, authorization/capture/void/mandate/manual-payment behavior, derived financial fields, transaction serialization, and mutation-log timing parity. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Wires Payments and Orders into explicit local query/mutation dispatch alongside mainline Products smoke and Privacy dispatch.                                                                                                 |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds payment customization, reminder, terms, order payment, and mandate-payment state slices plus observable meta-state serialization.                                                                                        |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`                   | Projects customer payment-method instruments from staged/base state for downstream reads.                                                                                                                                     |
+| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json`    | Seeds captured payment preconditions and removes the Payments and order-payment expected failures once existing captured parity specs pass on both targets.                                                                   |
 
-Validation: `gleam format --check`, `git diff --check`,
-`gleam check --target javascript`, `gleam check --target erlang`, the
-JavaScript `gleam test` run with seed 0, and JSON parsing for
-`config/gleam-port-ci-gates.json` are green.
-The host Erlang runtime is still too old for the current `gleam_json`
-requirement, so Erlang target validation was run with the documented OTP 28
-container:
-`docker run --rm -v "$PWD:$PWD" -w "$PWD/gleam"
-ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval
-"io:format(\"~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell &&
-gleam test --target erlang -- --seed 0'`, green at 675 tests. The JavaScript
-target is green at 679 tests. The payments/order-payment parity scenario report
-is represented by the full parity gate: no `config/parity-specs/payments/*` or
-order-payment entries remain in `expectedGleamParityFailures`.
+Validation before the sync rework: `gleam format --check`, `git diff --check`,
+`gleam check --target javascript`, `gleam check --target erlang`, JavaScript
+`gleam test --target javascript -- --seed 0`, and an OTP 28 container
+`gleam test --target erlang -- --seed 0` were green. The payments/order-payment
+parity scenario report is represented by the full parity gate: no
+`config/parity-specs/payments/*` or order-payment entries remain in
+`expectedGleamParityFailures`.
 
 ### Findings
 
+- The customer payment-method fixture intentionally starts synthetic
+  payment-method IDs at `2`; the Gleam runner mirrors the TypeScript harness by
+  reserving the first synthetic ID during fixture seeding.
 - Order payment roots in the TypeScript route mint response IDs before consuming
   the mutation-log ID; validation-only order-payment responses still consume the
-  log ID/timestamp even when the log entry is not recorded. The Gleam Orders
-  domain mirrors that ordering so captured synthetic IDs stay stable.
-- Integer order line-item quantities must use `int.to_float`; parsing integer
-  strings as floats produced zero totals on the Gleam target and broke derived
-  financial status.
+  post-handler log ID/timestamp even when no log entry is recorded.
 - Successful `transactionVoid` payloads need the updated order context when
   serializing `parentTransaction`, while validation payloads still return null
   transactions.
 
 ### Risks / open items
 
-- This pass deliberately ports only the Orders payment roots needed by the
+- The pass deliberately ports only the Orders payment roots needed by the
   existing executable payment/order-payment parity specs. Broader Orders roots
-  remain on the expected-failure list until their owning domain passes land.
+  remain on the expected-failure list until their owning domain lands.
 - The TypeScript Payments and Orders runtimes remain in place. Per
   `GLEAM_PORT_INTENT.md`, domain-local parity is not authority to delete TS
   runtime code before the final all-port cutover.
+- Payment terms schedule totals use the captured local draft-order total shape
+  needed by current parity; a future Orders/DraftOrder state slice should own
+  draft-order totals before broadening payment terms beyond the captured fixture.
 
-### Pass 45 candidates
+### Pass 47 candidates
 
 - Continue broader Orders lifecycle parity now that a minimal order payment
   state slice exists.
@@ -73,74 +73,177 @@ order-payment entries remain in `expectedGleamParityFailures`.
 
 ---
 
-## 2026-04-30 — Pass 43: payments parity foundation
+## 2026-04-30 — Pass 45: Elixir embedder wrapper smoke
 
-Ports the parity-backed Payments surface into the Gleam draft proxy while
-leaving the TypeScript payments runtime and integration tests in place for the
-final all-port cutover. The new Payments domain stages customer payment-method
-lifecycle mutations, payment customization mutations/reads, payment reminder
-intent, and payment terms lifecycle mutations locally; it also answers the
-captured no-data/read-only payment roots for finance risk, disputes/POS/Shop
-Pay receipts, Shopify Payments account, and payment terms templates. The
-customer projection now exposes staged payment-method instruments, and the
-parity runner seeds customer payment-method and payment-terms captures before
-replay.
+Makes the BEAM embedder path usable from Elixir without application code
+manipulating raw Gleam tuple shapes. The smoke project now includes a thin
+`ShopifyDraftProxy` Elixir wrapper that keeps proxy state opaque, returns the
+next proxy explicitly from GraphQL/meta helpers, exposes JSON response bodies as
+strings, and surfaces deterministic commit reports through an injected transport
+seam. A narrow Products smoke foundation was added in Gleam for the
+productCreate -> product(id:) lifecycle required by the wrapper smoke; this is
+not a full Products-domain parity port.
 
-| Module                                                                  | Change                                                                                                                                                                                                 |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `gleam/src/shopify_draft_proxy/proxy/payments.gleam`                    | Adds the Payments query/mutation domain with local staging, scrubbed customer payment-method payloads, static payment terms templates, payment terms read-after-write, and Shopify-like no-data roots. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Wires Payments into explicit local query/mutation dispatch and mutation-log finalization.                                                                                                              |
-| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds payment customization, payment reminder, and payment terms state slices plus observable meta-state serialization.                                                                                 |
-| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`                   | Projects customer payment-method instruments from staged/base state for downstream reads.                                                                                                              |
-| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json`    | Seeds captured payment preconditions and removes all checked-in Payments parity specs from expected failures.                                                                                          |
+| Module                                                                  | Change                                                                                                                               |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/elixir_smoke/lib/shopify_draft_proxy.ex`                         | Adds Elixir structs and wrapper helpers for config, GraphQL, meta state/log/reset/commit, dump/restore, and injected commit reports. |
+| `gleam/elixir_smoke/test/interop_test.exs`                              | Uses the Elixir wrapper broadly for config, GraphQL, meta state/log, dump/restore, reset, and commit report/error smoke coverage.    |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                    | Adds narrow staged `productCreate` and `product(id:)` read support for the BEAM smoke lifecycle only.                                |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds minimal Product/ProductVariant records, effective staged-state helpers, and dump/restore serialization.                         |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Routes the narrow Products smoke roots while leaving product-metafield owner reads with the Metafields domain.                       |
+| `scripts/elixir-smoke.ts` / `package.json`                              | Keeps `corepack pnpm elixir:smoke` as the canonical command, with a Docker fallback when host `escript`/`mix` are unavailable.       |
+| `gleam/README.md`                                                       | Documents the Elixir wrapper calling conventions and Erlang shipment path.                                                           |
 
-Validation: `gleam test --target javascript -- --seed 0` is green at 679
-tests. The host Erlang runtime is OTP 25 and fails `gleam_json`'s OTP 27+
-requirement, so Erlang target validation was run with the documented container:
-`docker run --rm -v "$PWD:$PWD" -w "$PWD/gleam"
-ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval
-"io:format(\"~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell &&
-gleam test --target erlang -- --seed 0'`, green at 675 tests on OTP 28.
-`gleam format --check`, `git diff --check`, and JSON parsing for
-`config/gleam-port-ci-gates.json` are green. The payments parity scenario report
-is represented by the full parity gate: no `config/parity-specs/payments/*`
-entries remain in `expectedGleamParityFailures`, and the full JavaScript/Erlang
-Gleam parity runs passed.
+Validation: `corepack pnpm elixir:smoke` is green at 16 ExUnit tests through
+the container fallback on the current host. Host `gleam test --target erlang`
+compiled but failed before test execution with the local Erlang runtime's
+`undef` boot error; the same Erlang target is green via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`. `gleam test --target
+javascript` is green on the host Node runtime.
 
 ### Findings
 
-- The existing customer payment-method fixture intentionally starts synthetic
-  payment-method IDs at `2`; the Gleam runner mirrors the TypeScript harness by
-  reserving the first synthetic ID during fixture seeding.
-- The customer payment-method fixture is a multi-root mutation request. Payments
-  records one mutation-log draft for the request so downstream synthetic IDs
-  line up with the captured TypeScript runtime behavior.
-- The payment terms lifecycle capture only needs a draft-order owner seed; the
-  local Payment Terms model stages create/update/delete and answers the captured
-  `draftOrder(id:) { paymentTerms }` downstream reads without introducing a full
-  Orders domain.
+- The existing BEAM smoke already loaded the Erlang shipment but still exposed
+  raw `{:request, ...}` / `{:response, ...}` / `{:config, ...}` tuple shapes to
+  Elixir callers; wrapping those shapes in Elixir structs keeps explicit state
+  threading while matching how application tests will consume the embedder.
+- The host workspace has Gleam and Docker but lacks native `escript`/`mix`, so
+  the required smoke command needed the same container-based BEAM fallback used
+  by recent port validation.
+- Product roots are not broadly ported in Gleam; the added Product slice is
+  deliberately limited to the lifecycle required for BEAM wrapper smoke.
+- Product owner metafield parity also uses `product` query roots, so the smoke
+  product read dispatcher must stay narrower than the Metafields owner-root
+  dispatcher.
 
 ### Risks / open items
 
-- This pass does not delete `src/proxy/payments.ts`; per port rules, the
-  TypeScript runtime remains until the final all-port cutover.
-- Broader order payment flows such as capture, mandate, transaction, and void
-  remain under the Orders parity expected-failure set and need an Orders-domain
-  port pass rather than being hidden in Payments.
-- Payment terms schedule totals use the captured local draft-order total shape
-  needed by current parity; a future Orders/DraftOrder state slice should own
-  draft-order totals and pass them into payment terms rather than relying on the
-  local payment-terms fallback.
+- Full Products-domain parity remains unported in Gleam. Future Products work
+  still needs the normal state, read, mutation, parity-runner, and TypeScript
+  deletion bar before the domain can be considered ported.
+- The Elixir wrapper currently lives in the smoke consumer project while Hex
+  packaging is still deferred; publishing should decide whether to ship it as a
+  companion Elixir source module or replace it with a generated BEAM-friendly
+  facade.
+
+### Pass 46 candidates
+
+- Start Shipping/Fulfillments substrate so fulfillment-service,
+  carrier-service, delivery-profile, and shipping-settings roots can consume
+  ported Location state without reaching back into the TypeScript module.
+- Port the full Products read substrate needed by product smoke follow-up,
+  product parity enablement, and bulk-operation product JSONL export.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
+## 2026-04-30 — Pass 44: JS embeddable shim rework
+
+Reworks the JavaScript embeddable shim on top of the full-state dump substrate
+from Pass 36. The package-facing API now uses a single `createDraftProxy(...)`
+options object that carries both config fields and optional restore state, and
+the shim routes `processGraphQLRequest` through Gleam's own default Admin
+GraphQL path construction instead of duplicating the route string in TypeScript.
+The async `commit` wrapper remains TS-friendly while replaying the original
+staged mutation log through the Gleam runtime.
+
+| Module                                                  | Change                                                                                                                                            |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/js/src/runtime.ts`                               | Restores `processGraphQLRequest` and async `commit`, collapses construction to one options object, and delegates GraphQL route defaults to Gleam. |
+| `gleam/js/src/types.ts`                                 | Makes `DraftProxyOptions` the public construction object by extending `AppConfig` with optional restore state.                                    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Adds a JavaScript-target async `process_graphql_request_async` convenience wrapper using the shared Gleam default path helper.                    |
+| `tests/integration/gleam-interop.test.ts`               | Updates the package-level lifecycle smoke to restore state through the one-object construction API.                                               |
+
+Validation: `corepack pnpm build`, `corepack pnpm gleam:smoke:js`,
+`corepack pnpm gleam:test:js`, `corepack pnpm lint`, `corepack pnpm --dir
+gleam/js build`, `corepack pnpm --dir gleam/js test`, and `git diff --check`
+are green. `corepack pnpm gleam:test:erlang` fails on the host Erlang runtime
+with an `undef` boot error, so Erlang target validation used the established
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container fallback and is
+green at 672 tests.
+
+### Findings
+
+- `origin/main` already moved state dump/restore to the full
+  `state/serialization.gleam` substrate, so the review request for generic
+  state persistence is satisfied by preserving that merge result instead of
+  reintroducing handler-specific saved-search dump code.
+- Keeping GraphQL default path construction in Gleam avoids two JS/TS copies of
+  the default Admin API route while still letting the JS shim use the async
+  live-hybrid path.
+
+### Risks / open items
+
+- `createApp` and `loadConfig` remain explicit not-implemented shims until the
+  broader HTTP adapter work lands.
+
+### Pass 45 candidates
+
+- Continue reducing the remaining expected Gleam parity failures tracked by the
+  CI gate manifest.
+- Extend package-level consumer tests as more domains become exposed through the
+  Gleam shim.
+
+---
+
+## 2026-04-30 — Pass 43: privacy data-sale opt-out parity
+
+Ports the privacy-owned `dataSaleOptOut` mutation into a dedicated Gleam privacy
+module while keeping the downstream read effect on customer state. The Gleam
+dispatcher now routes only that privacy mutation root locally; other privacy
+roots remain unsupported until their own shop privacy behavior is modeled.
+
+The privacy parity spec is now executable Gleam evidence. The runner seeds the
+captured downstream customer so the mutation returns the recorded customer id,
+then strict comparisons cover the opt-out payload, downstream customer reads,
+repeat idempotency, and invalid-email `FAILED` user error shape. The original
+TypeScript runtime and TypeScript tests remain in place for the incremental port
+guardrail.
+
+| Module                                                               | Change                                                                                                           |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/privacy.gleam`                  | Adds privacy-domain local staging for `dataSaleOptOut`, including existing/unknown customer effects and errors.  |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`                | Removes `dataSaleOptOut` from customer mutation dispatch while preserving customer read serialization.           |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | Adds `PrivacyDomain` mutation routing without adding privacy query/root breadth.                                 |
+| `gleam/test/shopify_draft_proxy/proxy/privacy_test.gleam`            | Covers existing-customer opt-out readback/logs, unknown-email creation, invalid-email errors, unsupported roots. |
+| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json` | Enables privacy parity by seeding capture customer state and removing the privacy expected-failure entry.        |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Records the privacy/customer ownership note for future domain passes.                                            |
+
+Validation: `gleam test --target javascript` is green at 684 tests. The host
+`gleam test --target erlang` fails because local Erlang/OTP is 25 while
+`gleam_json` requires OTP 27; the equivalent OTP 27 container run is green at
+680 tests:
+`docker run --rm -v /home/airhorns/.local/bin/gleam:/usr/local/bin/gleam:ro -v /home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497:/home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497 -w /home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497/gleam erlang:27-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`.
+
+### Findings
+
+- `dataSaleOptOut` belongs to privacy capability/log metadata even though the
+  observable GraphQL field is `Customer.dataSaleOptOut`.
+- The captured parity scenario uses an existing customer id, so the Gleam runner
+  must seed that customer from the downstream read before replaying the primary
+  mutation instead of adding synthetic-id expected differences.
+- The synced `origin/main` parity gate still carried an expected-failure entry
+  for `localization-disable-clears-translations` even though that scenario now
+  passes; the stale entry was removed alongside the privacy gate update.
+
+### Risks / open items
+
+- Shop-level privacy settings roots are still unsupported by design. This pass
+  does not model `privacySettings` or consent-policy privacy roots.
+- The TypeScript privacy/customer runtime remains until a later final cutover
+  pass verifies repository-wide Gleam parity.
+- Local host Erlang validation requires OTP 27; OTP 25 can compile but fails at
+  runtime through `gleam_json`.
 
 ### Pass 44 candidates
 
-- Port Orders payment transaction/capture/mandate/void lifecycle roots into a
-  dedicated Gleam Orders domain and remove the corresponding Orders expected
-  failures.
-- Add proper DraftOrder state ownership for payment terms totals before
-  broadening payment terms beyond the captured fixture.
-- Continue Payments registry roots not backed by checked-in parity, such as
-  tender transactions and dispute evidence, once executable captures exist.
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
 
 ---
 

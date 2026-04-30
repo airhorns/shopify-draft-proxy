@@ -14,6 +14,38 @@ import gleam/json.{type Json}
 import gleam/option.{type Option}
 
 // ---------------------------------------------------------------------------
+// Products smoke foundation
+// ---------------------------------------------------------------------------
+
+/// Narrow Product record used by the BEAM embedder smoke lifecycle.
+/// This is not the full products-domain port; it models the
+/// productCreate -> product(id:) read-after-write path while the broader
+/// product domain remains owned by the TypeScript implementation.
+pub type ProductRecord {
+  ProductRecord(
+    id: String,
+    legacy_resource_id: String,
+    title: String,
+    handle: String,
+    status: String,
+    created_at: String,
+    updated_at: String,
+    default_variant_id: String,
+  )
+}
+
+pub type ProductVariantRecord {
+  ProductVariantRecord(
+    id: String,
+    legacy_resource_id: String,
+    product_id: String,
+    title: String,
+    inventory_quantity: Int,
+    inventory_item_id: String,
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Metafields domain
 // ---------------------------------------------------------------------------
 

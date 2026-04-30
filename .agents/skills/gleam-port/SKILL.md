@@ -279,6 +279,11 @@ synthetic-id/timestamp expected differences.
   mints response resource IDs before consuming the mutation-log ID; validation
   responses still consume the post-handler log ID/timestamp even when no log
   entry is recorded.
+- Privacy `dataSaleOptOut` is a privacy-domain mutation whose downstream read
+  effect belongs on `CustomerRecord.data_sale_opt_out`. Keep only that root in
+  `proxy/privacy.gleam`; seed its parity capture from the downstream customer
+  read so the proxy returns the captured customer id without broadening shop
+  privacy settings support.
 
 ## Workflow for a new pass
 
