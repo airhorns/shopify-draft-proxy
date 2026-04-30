@@ -108,12 +108,13 @@ fn serialize_root_fields(
                 fragments,
               )
             "collection"
-            | "inventoryLevel"
             | "productFeed"
             | "productResourceFeedback"
             | "productOperation" -> json.null()
             "inventoryItem" ->
               serialize_inventory_item_root(store, field, variables, fragments)
+            "inventoryLevel" ->
+              serialize_inventory_level_root(store, field, variables, fragments)
             "productVariant" ->
               serialize_product_variant_root(store, field, variables, fragments)
             "productVariantByIdentifier" ->
@@ -287,6 +288,27 @@ fn serialize_inventory_item_root(
         Some(variant) ->
           project_graphql_value(
             inventory_item_source(store, variant),
+            get_selected_child_fields(field, default_selected_field_options()),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn serialize_inventory_level_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.find_effective_inventory_level_by_id(store, id) {
+        Some(level) ->
+          project_graphql_value(
+            inventory_level_source(level),
             get_selected_child_fields(field, default_selected_field_options()),
             fragments,
           )

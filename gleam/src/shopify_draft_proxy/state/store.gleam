@@ -20,13 +20,13 @@ import shopify_draft_proxy/state/types.{
   type AppUsageRecord, type BackupRegionRecord, type BulkOperationRecord,
   type CartTransformRecord, type CustomerSegmentMembersQueryRecord,
   type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
-  type GiftCardRecord, type LocaleRecord, type MarketingEngagementRecord,
-  type MarketingRecord, type MarketingValue, type ProductRecord,
-  type ProductVariantRecord, type SavedSearchRecord, type SegmentRecord,
-  type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
-  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
-  type WebhookSubscriptionRecord, BulkOperationRecord, MarketingObject,
-  MarketingString,
+  type GiftCardRecord, type InventoryLevelRecord, type LocaleRecord,
+  type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
+  type ProductRecord, type ProductVariantRecord, type SavedSearchRecord,
+  type SegmentRecord, type ShopLocaleRecord, type ShopRecord,
+  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
+  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
+  BulkOperationRecord, MarketingObject, MarketingString,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -703,6 +703,30 @@ pub fn find_effective_variant_by_inventory_item_id(
     Ok(variant) -> Some(variant)
     Error(_) -> None
   }
+}
+
+pub fn find_effective_inventory_level_by_id(
+  store: Store,
+  inventory_level_id: String,
+) -> Option(InventoryLevelRecord) {
+  store
+  |> list_effective_product_variants
+  |> list.filter_map(fn(variant) {
+    case variant.inventory_item {
+      Some(item) ->
+        case
+          list.find(item.inventory_levels, fn(level) {
+            level.id == inventory_level_id
+          })
+        {
+          Ok(level) -> Ok(level)
+          Error(_) -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+  |> list.first
+  |> option.from_result
 }
 
 pub fn list_effective_product_variants(

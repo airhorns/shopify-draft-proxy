@@ -162,7 +162,7 @@ fn seed_capture_preconditions(
     "product-detail-read" -> seed_product_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
-    "product-variants-read" ->
+    "product-variants-read" | "inventory-level-read" ->
       seed_product_variants_read_preconditions(capture, proxy)
     _ -> proxy
   }

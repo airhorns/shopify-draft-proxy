@@ -9,6 +9,57 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 41: top-level inventory level reads
+
+Enables the captured `inventory-level-read` parity scenario in the Gleam suite.
+The Products handler now resolves top-level `inventoryLevel(id:)` from the
+effective variant-backed InventoryItem graph seeded by the product variants
+matrix fixture, reusing the same InventoryLevel serializer that backs nested
+`inventoryItem.inventoryLevels`.
+
+This remains a narrow read slice over captured fixture state. It does not
+implement inventory level mutation/lifecycle behavior, inactive-level handling,
+inventory activation/deactivation, quantity adjustments, or inventory catalog
+reads.
+
+| Module                                               | Change                                                                           |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds effective InventoryLevel lookup by id across variant-backed inventory data. |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Resolves top-level `inventoryLevel(id:)` through the local inventory graph.      |
+| `gleam/test/parity/runner.gleam`                     | Reuses product variants matrix seeding for `inventory-level-read`.               |
+| `gleam/test/parity_test.gleam`                       | Enables `inventory-level-read` in the pure-Gleam parity suite.                   |
+
+Validation: `gleam test --target javascript` is green at 702 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 8
+product specs executable in the Gleam parity suite after this pass.
+
+### Findings
+
+- Enabling `inventory-level-read` before implementation produced the expected
+  strict parity mismatch: the capture contained the selected InventoryLevel
+  object, while the proxy returned `null` from the top-level root.
+- The scenario can share Pass 40's product variants matrix seeding; no capture,
+  request, or comparison contract changes were needed.
+
+### Risks / open items
+
+- Inventory level lifecycle behavior, inactive-level semantics, quantity
+  adjustments, activation/deactivation, and inventory item/level catalog reads
+  remain unported.
+- Only 8 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 42 candidates
+
+- Add ProductOption state and product `options`/option value projection from
+  captured fixtures.
+- Start inventory item/level catalog/search reads over effective variant-backed
+  inventory items.
+- Add ProductVariant query filtering for simple `vendor`, `product_type`, `tag`,
+  `sku`, and `id` terms.
+
+---
+
 ## 2026-04-30 — Pass 40: product variant inventory reads
 
 Enables the captured `product-variants-read` parity scenario in the Gleam
