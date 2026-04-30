@@ -237,6 +237,32 @@ pub type ShopifyFunctionRecord {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Bulk operations domain
+// ---------------------------------------------------------------------------
+
+/// Mirrors `BulkOperationRecord` in `src/state/types.ts`. `result_jsonl`
+/// is intentionally stored on the record in Gleam rather than a second
+/// side-map until the HTTP result-file route ports.
+pub type BulkOperationRecord {
+  BulkOperationRecord(
+    id: String,
+    status: String,
+    type_: String,
+    error_code: Option(String),
+    created_at: String,
+    completed_at: Option(String),
+    object_count: String,
+    root_object_count: String,
+    file_size: Option(String),
+    url: Option(String),
+    partial_data_url: Option(String),
+    query: Option(String),
+    cursor: Option(String),
+    result_jsonl: Option(String),
+  )
+}
+
 /// Mirrors `ValidationRecord`. `enable`/`blockOnFailure` are nullable
 /// in TS so the same handler can model partial upstream payloads;
 /// here they're `Option(Bool)`.

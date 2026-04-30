@@ -9,6 +9,69 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 29: bulk-operation state/read/cancel foundation
+
+Continues bulk-operations beyond the empty-read stub. The Gleam port now has a
+real BulkOperation store slice, effective local reads, catalog filtering /
+pagination, current operation derivation, local `bulkOperationCancel`, and a
+local `bulkOperationRunQuery` staging shell that records supported mutation-log
+metadata without runtime Shopify writes.
+
+This is not the full TypeScript bulk executor yet: product JSONL export contents
+and `bulkOperationRunMutation` import replay remain deferred until the relevant
+product/import substrate is available in Gleam. The old null/empty read contract
+still holds when no BulkOperation state exists.
+
+| Module                                                            | Change                                                                                                                                                                |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                 | Adds `BulkOperationRecord`, mirroring the TS record plus a temporary `resultJsonl` holder until the result-file route ports.                                          |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                 | Adds base/staged BulkOperation buckets, ordering, effective lookup/listing, result staging, staged cancel, and presence APIs.                                         |
+| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`       | Replaces the stub with read projections, search filtering, cursor pagination, current-operation lookup, run-query shell, cancel handling, and mutation-log recording. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`           | Routes BulkOperations queries with store/variables and routes supported BulkOperations mutations through the local dispatcher.                                        |
+| `gleam/test/shopify_draft_proxy/proxy/bulk_operations_test.gleam` | Expands coverage from empty reads to stateful reads, filtering, pagination, current roots, run-query staging/logging, and cancel read-after-write.                    |
+
+Validation: `gleam test --target javascript` is green at 643 tests.
+`gleam test --target erlang` is green at 636 tests via the
+`erlang:27` container fallback because the host lacks a local Gleam/BEAM
+toolchain. Targeted touched-file `gleam format --check ...` is green.
+
+### Findings
+
+- BulkOperation reads can reuse the shared search-query parser and connection
+  helpers cleanly; the endpoint module only owns domain-specific positive-term
+  matching, sort decisions, cursor choice, and projection.
+- The local cancel semantics depend on distinguishing staged operations from
+  base-only operations. A non-terminal base-only operation still returns the
+  captured "does not exist" user error because local cancel only mutates staged
+  jobs.
+- Gleam currently stores generated result JSONL on `BulkOperationRecord`
+  instead of a sibling `bulkOperationResults` map. That keeps the state slice
+  useful without claiming the not-yet-ported HTTP result-file surface.
+
+### Risks / open items
+
+- `bulkOperationRunQuery` currently stages a completed local query job shell
+  with zero generated records; full product JSONL export parity still requires
+  the product state/read substrate in Gleam.
+- `bulkOperationRunMutation` remains unrouted in Gleam because replaying inner
+  Admin mutations requires product/customer/location import executors that have
+  not been ported.
+- The generic bulk-operations parity scenario is still not enabled in Gleam;
+  enabling it should wait until runner seeding and product export output can
+  satisfy the captured operation counters and result metadata.
+
+### Pass 30 candidates
+
+- Continue bulk-operations by adding parity-runner seeding for captured
+  BulkOperation jobs and enabling the read/cancel subset that no longer depends
+  on product export output.
+- Continue marketing beyond the empty-read stub by porting the activity and
+  engagement state slices.
+- Start product read substrate work required by full `bulkOperationRunQuery`
+  JSONL export parity.
+
+---
+
 ## 2026-04-29 — Pass 28: function owner metadata parity seeding
 
 Enables `functions-owner-metadata-local-staging` as executable Gleam
