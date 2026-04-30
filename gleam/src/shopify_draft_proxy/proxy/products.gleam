@@ -16,8 +16,9 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Definition, type Location, type ObjectField, type Selection,
-  type VariableDefinition, Field, NullValue, ObjectField, ObjectValue,
-  OperationDefinition, VariableDefinition, VariableValue,
+  type VariableDefinition, Field, InlineFragment, NullValue, ObjectField,
+  ObjectValue, OperationDefinition, SelectionSet, VariableDefinition,
+  VariableValue,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation
@@ -30,7 +31,7 @@ import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
-  SrcString, default_connection_page_info_options,
+  SrcObject, SrcString, default_connection_page_info_options,
   default_connection_window_options, default_selected_field_options,
   get_document_fragments, get_field_response_key, get_selected_child_fields,
   paginate_connection_items, project_graphql_value, serialize_connection,
@@ -46,12 +47,13 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CollectionImageRecord, type CollectionRecord, type CollectionRuleRecord,
-  type CollectionRuleSetRecord, type InventoryItemRecord,
-  type InventoryLevelRecord, type InventoryLocationRecord,
-  type InventoryMeasurementRecord, type InventoryQuantityRecord,
-  type InventoryShipmentLineItemRecord, type InventoryShipmentRecord,
-  type InventoryShipmentTrackingRecord, type InventoryTransferLineItemRecord,
+  type ChannelRecord, type CollectionImageRecord, type CollectionRecord,
+  type CollectionRuleRecord, type CollectionRuleSetRecord,
+  type InventoryItemRecord, type InventoryLevelRecord,
+  type InventoryLocationRecord, type InventoryMeasurementRecord,
+  type InventoryQuantityRecord, type InventoryShipmentLineItemRecord,
+  type InventoryShipmentRecord, type InventoryShipmentTrackingRecord,
+  type InventoryTransferLineItemRecord,
   type InventoryTransferLocationSnapshotRecord, type InventoryTransferRecord,
   type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
   type ProductCategoryRecord, type ProductCollectionRecord,
@@ -69,7 +71,7 @@ import shopify_draft_proxy/state/types.{
   ProductCollectionRecord, ProductFeedRecord, ProductOptionRecord,
   ProductOptionValueRecord, ProductRecord, ProductResourceFeedbackRecord,
   ProductSeoRecord, ProductVariantRecord, ProductVariantSelectedOptionRecord,
-  ShopResourceFeedbackRecord,
+  PublicationRecord, ShopResourceFeedbackRecord,
 }
 
 pub type ProductsError {
@@ -87,7 +89,12 @@ pub fn is_products_query_root(name: String) -> Bool {
     | "collectionByHandle"
     | "collections"
     | "locations"
+    | "channel"
+    | "channels"
+    | "publication"
     | "publications"
+    | "publicationsCount"
+    | "publishedProductsCount"
     | "productVariant"
     | "productVariantByIdentifier"
     | "productVariants"
@@ -144,6 +151,11 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "collectionCreate"
     | "productPublish"
     | "productUnpublish"
+    | "publicationCreate"
+    | "publicationUpdate"
+    | "publicationDelete"
+    | "publishablePublish"
+    | "publishableUnpublish"
     | "productFeedCreate"
     | "productFeedDelete"
     | "productFullSync"
@@ -305,12 +317,28 @@ fn serialize_root_fields(
               )
             "locations" ->
               serialize_locations_connection(store, field, variables, fragments)
+            "channel" ->
+              serialize_channel_root(store, field, variables, fragments)
+            "channels" ->
+              serialize_channels_connection(store, field, variables, fragments)
+            "publication" ->
+              serialize_publication_root(store, field, variables, fragments)
             "publications" ->
               serialize_publications_connection(
                 store,
                 field,
                 variables,
                 fragments,
+              )
+            "publicationsCount" ->
+              serialize_exact_count(
+                field,
+                list.length(store.list_effective_publications(store)),
+              )
+            "publishedProductsCount" ->
+              serialize_exact_count(
+                field,
+                published_products_count_for_field(store, field, variables),
               )
             "productFeeds" ->
               serialize_product_feeds_connection(
@@ -350,12 +378,19 @@ fn serialize_product_root(
   case read_string_argument(field, variables, "id") {
     Some(id) ->
       case store.get_effective_product_by_id(store, id) {
-        Some(product) ->
+        Some(product) -> {
+          let selections =
+            get_selected_child_fields(field, default_selected_field_options())
           project_graphql_value(
-            product_source_with_store(store, product),
-            get_selected_child_fields(field, default_selected_field_options()),
+            product_source_with_store_and_publication(
+              store,
+              product,
+              selected_publication_id(selections, variables),
+            ),
+            selections,
             fragments,
           )
+        }
         None -> json.null()
       }
     None -> json.null()
@@ -371,12 +406,19 @@ fn serialize_product_by_identifier_root(
   case read_identifier_argument(field, variables) {
     Some(identifier) ->
       case product_by_identifier(store, identifier) {
-        Some(product) ->
+        Some(product) -> {
+          let selections =
+            get_selected_child_fields(field, default_selected_field_options())
           project_graphql_value(
-            product_source_with_store(store, product),
-            get_selected_child_fields(field, default_selected_field_options()),
+            product_source_with_store_and_publication(
+              store,
+              product,
+              selected_publication_id(selections, variables),
+            ),
+            selections,
             fragments,
           )
+        }
         None -> json.null()
       }
     None -> json.null()
@@ -545,6 +587,17 @@ fn serialize_collection_field(
       )
     "title" -> json.string(collection.title)
     "handle" -> json.string(collection.handle)
+    "publishedOnCurrentPublication" | "publishedOnCurrentChannel" ->
+      json.bool(collection.publication_ids != [])
+    "publishedOnPublication" ->
+      json.bool(case read_string_argument(field, variables, "publicationId") {
+        Some(id) -> list.contains(collection.publication_ids, id)
+        None -> False
+      })
+    "availablePublicationsCount"
+    | "resourcePublicationsCount"
+    | "publicationCount" ->
+      serialize_exact_count(field, list.length(collection.publication_ids))
     "updatedAt" -> optional_string_json(collection.updated_at)
     "description" -> optional_string_json(collection.description)
     "descriptionHtml" -> optional_string_json(collection.description_html)
@@ -867,7 +920,7 @@ fn serialize_publications_connection(
       get_cursor_value: publication_cursor,
       serialize_node: fn(publication, node_field, _index) {
         project_graphql_value(
-          publication_source(publication),
+          publication_source(store, publication),
           get_selected_child_fields(
             node_field,
             default_selected_field_options(),
@@ -888,15 +941,239 @@ fn serialize_publications_connection(
 }
 
 fn publication_cursor(publication: PublicationRecord, _index: Int) -> String {
-  publication.cursor |> option.unwrap(publication.id)
+  publication.cursor |> option.unwrap("cursor:" <> publication.id)
 }
 
-fn publication_source(publication: PublicationRecord) -> SourceValue {
+fn serialize_publication_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.get_effective_publication_by_id(store, id) {
+        Some(publication) ->
+          project_graphql_value(
+            publication_source(store, publication),
+            get_selected_child_fields(field, default_selected_field_options()),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn serialize_channel_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.get_effective_channel_by_id(store, id) {
+        Some(channel) ->
+          project_graphql_value(
+            channel_source(store, channel),
+            get_selected_child_fields(field, default_selected_field_options()),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn serialize_channels_connection(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let channels = store.list_effective_channels(store)
+  let window =
+    paginate_connection_items(
+      channels,
+      field,
+      variables,
+      channel_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: channel_cursor,
+      serialize_node: fn(channel, node_field, _index) {
+        project_graphql_value(
+          channel_source(store, channel),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: False,
+        prefix_cursors: False,
+        include_cursors: True,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn channel_cursor(channel: ChannelRecord, _index: Int) -> String {
+  channel.cursor |> option.unwrap("cursor:" <> channel.id)
+}
+
+fn publication_source(
+  store: Store,
+  publication: PublicationRecord,
+) -> SourceValue {
+  let channel =
+    store.list_effective_channels(store)
+    |> list.find(fn(channel) { channel.publication_id == Some(publication.id) })
+    |> option.from_result
+  let published_products =
+    products_published_to_publication(store, publication.id)
+  let published_collections =
+    collections_published_to_publication(store, publication.id)
   src_object([
     #("__typename", SrcString("Publication")),
     #("id", SrcString(publication.id)),
-    #("name", SrcString(publication.name)),
+    #("name", optional_string_source(publication.name)),
+    #("autoPublish", SrcBool(publication.auto_publish |> option.unwrap(False))),
+    #(
+      "supportsFuturePublishing",
+      SrcBool(publication.supports_future_publishing |> option.unwrap(False)),
+    ),
+    #("catalog", publication_catalog_source(publication.catalog_id)),
+    #("channel", optional_channel_source(store, channel)),
+    #("products", publication_products_connection_source(published_products)),
+    #("productsCount", count_source(list.length(published_products))),
+    #("publishedProductsCount", count_source(list.length(published_products))),
+    #("collectionsCount", count_source(list.length(published_collections))),
   ])
+}
+
+fn publication_catalog_source(catalog_id: Option(String)) -> SourceValue {
+  case catalog_id {
+    Some(id) ->
+      src_object([
+        #("__typename", SrcString("MarketCatalog")),
+        #("id", SrcString(id)),
+      ])
+    None -> SrcNull
+  }
+}
+
+fn optional_channel_source(
+  store: Store,
+  channel: Option(ChannelRecord),
+) -> SourceValue {
+  case channel {
+    Some(channel) -> channel_source(store, channel)
+    None -> SrcNull
+  }
+}
+
+fn channel_source(store: Store, channel: ChannelRecord) -> SourceValue {
+  let publication = case channel.publication_id {
+    Some(id) -> store.get_effective_publication_by_id(store, id)
+    None -> None
+  }
+  let product_count = case channel.publication_id {
+    Some(id) -> list.length(products_published_to_publication(store, id))
+    None -> 0
+  }
+  src_object([
+    #("__typename", SrcString("Channel")),
+    #("id", SrcString(channel.id)),
+    #("name", optional_string_source(channel.name)),
+    #("handle", optional_string_source(channel.handle)),
+    #("publication", optional_publication_source(publication)),
+    #("productsCount", count_source(product_count)),
+  ])
+}
+
+fn optional_publication_source(
+  publication: Option(PublicationRecord),
+) -> SourceValue {
+  case publication {
+    Some(publication) ->
+      src_object([
+        #("__typename", SrcString("Publication")),
+        #("id", SrcString(publication.id)),
+        #("name", optional_string_source(publication.name)),
+      ])
+    None -> SrcNull
+  }
+}
+
+fn publication_products_connection_source(
+  products: List(ProductRecord),
+) -> SourceValue {
+  let edges =
+    products
+    |> enumerate_items()
+    |> list.map(fn(pair) {
+      let #(product, index) = pair
+      src_object([
+        #("cursor", SrcString(product_cursor(product, index))),
+        #("node", product_source(product)),
+      ])
+    })
+  src_object([
+    #("edges", SrcList(edges)),
+    #("nodes", SrcList(list.map(products, product_source))),
+    #("pageInfo", connection_page_info_source(products, product_cursor)),
+  ])
+}
+
+fn products_published_to_publication(
+  store: Store,
+  publication_id: String,
+) -> List(ProductRecord) {
+  store.list_effective_products(store)
+  |> list.filter(fn(product) {
+    product.status == "ACTIVE"
+    && list.contains(product.publication_ids, publication_id)
+  })
+}
+
+fn collections_published_to_publication(
+  store: Store,
+  publication_id: String,
+) -> List(CollectionRecord) {
+  store.list_effective_collections(store)
+  |> list.filter(fn(collection) {
+    list.contains(collection.publication_ids, publication_id)
+  })
+}
+
+fn published_products_count_for_field(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Int {
+  case read_string_argument(field, variables, "publicationId") {
+    Some(publication_id) ->
+      products_published_to_publication(store, publication_id) |> list.length
+    None ->
+      store.list_effective_products(store)
+      |> list.filter(fn(product) {
+        product.status == "ACTIVE" && !list.is_empty(product.publication_ids)
+      })
+      |> list.length
+  }
 }
 
 fn serialize_product_feed_root(
@@ -2377,6 +2654,32 @@ fn read_string_field(
   }
 }
 
+fn selected_publication_id(
+  selections: List(Selection),
+  variables: Dict(String, ResolvedValue),
+) -> Option(String) {
+  selections
+  |> list.find_map(fn(selection) {
+    case selection {
+      Field(name: name, ..) if name.value == "publishedOnPublication" ->
+        read_string_argument(selection, variables, "publicationId")
+        |> option_to_result
+      Field(selection_set: Some(SelectionSet(selections: inner, ..)), ..)
+      | InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        selected_publication_id(inner, variables) |> option_to_result
+      _ -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn option_to_result(value: Option(a)) -> Result(a, Nil) {
+  case value {
+    Some(value) -> Ok(value)
+    None -> Error(Nil)
+  }
+}
+
 fn optional_string(value: Option(String)) -> Json {
   case value {
     Some(value) -> json.string(value)
@@ -2390,12 +2693,21 @@ pub fn product_source(product: ProductRecord) -> SourceValue {
     empty_connection_source(),
     empty_connection_source(),
     SrcList([]),
+    None,
   )
 }
 
 fn product_source_with_store(
   store: Store,
   product: ProductRecord,
+) -> SourceValue {
+  product_source_with_store_and_publication(store, product, None)
+}
+
+fn product_source_with_store_and_publication(
+  store: Store,
+  product: ProductRecord,
+  publication_id: Option(String),
 ) -> SourceValue {
   product_source_with_relationships(
     product,
@@ -2405,6 +2717,7 @@ fn product_source_with_store(
       store,
       product.id,
     )),
+    publication_id,
   )
 }
 
@@ -2413,7 +2726,16 @@ fn product_source_with_relationships(
   collections: SourceValue,
   variants: SourceValue,
   options: SourceValue,
+  publication_id: Option(String),
 ) -> SourceValue {
+  let visible_publication_count = case product.status == "ACTIVE" {
+    True -> list.length(product.publication_ids)
+    False -> 0
+  }
+  let published_on_publication = case publication_id, product.status {
+    Some(id), "ACTIVE" -> list.contains(product.publication_ids, id)
+    _, _ -> False
+  }
   src_object([
     #("__typename", SrcString("Product")),
     #("id", SrcString(product.id)),
@@ -2436,9 +2758,11 @@ fn product_source_with_relationships(
     #("templateSuffix", optional_string_source(product.template_suffix)),
     #("seo", product_seo_source(product.seo)),
     #("category", optional_product_category_source(product.category)),
-    #("publishedOnCurrentPublication", SrcBool(False)),
-    #("availablePublicationsCount", count_source(0)),
-    #("resourcePublicationsCount", count_source(0)),
+    #("publishedOnCurrentPublication", SrcBool(visible_publication_count > 0)),
+    #("publishedOnCurrentChannel", SrcBool(visible_publication_count > 0)),
+    #("publishedOnPublication", SrcBool(published_on_publication)),
+    #("availablePublicationsCount", count_source(visible_publication_count)),
+    #("resourcePublicationsCount", count_source(visible_publication_count)),
     #("collections", collections),
     #("media", empty_connection_source()),
     #("options", options),
@@ -2493,6 +2817,19 @@ fn collection_source_with_store(
   store: Store,
   collection: CollectionRecord,
 ) -> SourceValue {
+  collection_source_with_store_and_publication(store, collection, None)
+}
+
+fn collection_source_with_store_and_publication(
+  store: Store,
+  collection: CollectionRecord,
+  publication_id: Option(String),
+) -> SourceValue {
+  let publication_count = list.length(collection.publication_ids)
+  let published_on_publication = case publication_id {
+    Some(id) -> list.contains(collection.publication_ids, id)
+    None -> False
+  }
   src_object([
     #("__typename", SrcString("Collection")),
     #("id", SrcString(collection.id)),
@@ -2502,6 +2839,10 @@ fn collection_source_with_store(
     #("updatedAt", optional_string_source(collection.updated_at)),
     #("description", optional_string_source(collection.description)),
     #("descriptionHtml", optional_string_source(collection.description_html)),
+    #("publishedOnPublication", SrcBool(published_on_publication)),
+    #("availablePublicationsCount", count_source(publication_count)),
+    #("resourcePublicationsCount", count_source(publication_count)),
+    #("publicationCount", count_source(publication_count)),
     #("sortOrder", optional_string_source(collection.sort_order)),
     #("templateSuffix", optional_string_source(collection.template_suffix)),
     #("products", collection_products_connection_source(store, collection)),
@@ -4012,6 +4353,62 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "publicationCreate" | "publicationUpdate" | "publicationDelete" -> {
+              let result =
+                handle_publication_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged " <> name.value <> " locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "publishablePublish" | "publishableUnpublish" -> {
+              let result =
+                handle_publishable_publication_mutation(
+                  current_store,
+                  current_identity,
+                  name.value == "publishablePublish",
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged " <> name.value <> " locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "productFeedCreate" -> {
               let result =
                 handle_product_feed_create(
@@ -4957,6 +5354,481 @@ fn handle_product_publication_mutation(
         }
       }
   }
+}
+
+fn handle_publication_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case root_name {
+    "publicationCreate" -> {
+      let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+      let #(publication_id, next_identity) =
+        make_unique_publication_gid(store, identity)
+      let name = read_string_field(input, "name")
+      let publication =
+        PublicationRecord(
+          id: publication_id,
+          name: name,
+          auto_publish: read_bool_field(input, "autoPublish"),
+          supports_future_publishing: Some(False),
+          catalog_id: read_string_field(input, "catalogId"),
+          channel_id: read_string_field(input, "channelId"),
+          cursor: None,
+        )
+      let #(staged, next_store) =
+        store.upsert_staged_publication(store, publication)
+      mutation_result(
+        key,
+        publication_mutation_payload(
+          next_store,
+          "PublicationCreatePayload",
+          Some(staged),
+          None,
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        next_identity,
+        [staged.id],
+      )
+    }
+    "publicationUpdate" -> {
+      let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+      let publication_id =
+        read_arg_string(args, "id")
+        |> option.or(read_string_field(input, "id"))
+      case publication_id {
+        None ->
+          mutation_result(
+            key,
+            publication_mutation_payload(
+              store,
+              "PublicationUpdatePayload",
+              None,
+              None,
+              [ProductUserError(["id"], "Publication id is required", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(id) ->
+          case store.get_effective_publication_by_id(store, id) {
+            None ->
+              mutation_result(
+                key,
+                publication_mutation_payload(
+                  store,
+                  "PublicationUpdatePayload",
+                  None,
+                  None,
+                  [ProductUserError(["id"], "Publication not found", None)],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            Some(existing) -> {
+              let publication =
+                PublicationRecord(
+                  ..existing,
+                  name: read_string_field(input, "name")
+                    |> option.or(existing.name),
+                  auto_publish: read_bool_field(input, "autoPublish")
+                    |> option.or(existing.auto_publish),
+                  supports_future_publishing: read_bool_field(
+                      input,
+                      "supportsFuturePublishing",
+                    )
+                    |> option.or(existing.supports_future_publishing),
+                  catalog_id: read_string_field(input, "catalogId")
+                    |> option.or(existing.catalog_id),
+                  channel_id: read_string_field(input, "channelId")
+                    |> option.or(existing.channel_id),
+                )
+              let #(staged, next_store) =
+                store.upsert_staged_publication(store, publication)
+              mutation_result(
+                key,
+                publication_mutation_payload(
+                  next_store,
+                  "PublicationUpdatePayload",
+                  Some(staged),
+                  None,
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                identity,
+                [staged.id],
+              )
+            }
+          }
+      }
+    }
+    "publicationDelete" -> {
+      case read_arg_string(args, "id") {
+        None ->
+          mutation_result(
+            key,
+            publication_mutation_payload(
+              store,
+              "PublicationDeletePayload",
+              None,
+              None,
+              [ProductUserError(["id"], "Publication id is required", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(id) ->
+          case store.get_effective_publication_by_id(store, id) {
+            None ->
+              mutation_result(
+                key,
+                publication_mutation_payload(
+                  store,
+                  "PublicationDeletePayload",
+                  None,
+                  None,
+                  [ProductUserError(["id"], "Publication not found", None)],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            Some(existing) -> {
+              let next_store =
+                store
+                |> remove_publication_from_publishables(id)
+                |> store.delete_staged_publication(id)
+              mutation_result(
+                key,
+                publication_mutation_payload(
+                  next_store,
+                  "PublicationDeletePayload",
+                  Some(existing),
+                  Some(id),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                identity,
+                [id],
+              )
+            }
+          }
+      }
+    }
+    _ -> mutation_result(key, json.null(), store, identity, [])
+  }
+}
+
+fn handle_publishable_publication_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  is_publish: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let publishable_id = read_arg_string(args, "id")
+  let publication_targets = read_publication_targets(args)
+  case publishable_id {
+    None ->
+      mutation_result(
+        key,
+        publishable_mutation_payload(
+          store,
+          None,
+          [ProductUserError(["id"], "Publishable id is required", None)],
+          field,
+          variables,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(id) ->
+      case store.get_effective_product_by_id(store, id) {
+        Some(product) ->
+          publishable_product_result(
+            store,
+            identity,
+            key,
+            product,
+            publication_targets,
+            is_publish,
+            field,
+            variables,
+            fragments,
+          )
+        None ->
+          case store.get_effective_collection_by_id(store, id) {
+            Some(collection) ->
+              publishable_collection_result(
+                store,
+                identity,
+                key,
+                collection,
+                publication_targets,
+                is_publish,
+                field,
+                variables,
+                fragments,
+              )
+            None ->
+              mutation_result(
+                key,
+                publishable_mutation_payload(
+                  store,
+                  None,
+                  [
+                    ProductUserError(
+                      ["id"],
+                      "Only Product and Collection publishable IDs are supported locally",
+                      None,
+                    ),
+                  ],
+                  field,
+                  variables,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+          }
+      }
+  }
+}
+
+fn publishable_product_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  product: ProductRecord,
+  publication_targets: List(String),
+  is_publish: Bool,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  case publication_targets {
+    [] ->
+      mutation_result(
+        key,
+        publishable_mutation_payload(
+          store,
+          Some(product_source_with_store(store, product)),
+          [ProductUserError(["input"], "Publication target is required", None)],
+          field,
+          variables,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    _ -> {
+      let next_publication_ids = case is_publish {
+        True ->
+          merge_publication_targets(
+            product.publication_ids,
+            publication_targets,
+          )
+        False ->
+          remove_publication_targets(
+            product.publication_ids,
+            publication_targets,
+          )
+      }
+      let next_product =
+        ProductRecord(..product, publication_ids: next_publication_ids)
+      let #(_, next_store) = store.upsert_staged_product(store, next_product)
+      mutation_result(
+        key,
+        publishable_mutation_payload(
+          next_store,
+          Some(product_source_with_store_and_publication(
+            next_store,
+            next_product,
+            selected_publication_id(
+              get_selected_child_fields(field, default_selected_field_options()),
+              variables,
+            ),
+          )),
+          [],
+          field,
+          variables,
+          fragments,
+        ),
+        next_store,
+        identity,
+        [next_product.id],
+      )
+    }
+  }
+}
+
+fn publishable_collection_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  collection: CollectionRecord,
+  publication_targets: List(String),
+  is_publish: Bool,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  case publication_targets {
+    [] ->
+      mutation_result(
+        key,
+        publishable_mutation_payload(
+          store,
+          Some(collection_source_with_store(store, collection)),
+          [ProductUserError(["input"], "Publication target is required", None)],
+          field,
+          variables,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    _ -> {
+      let next_publication_ids = case is_publish {
+        True ->
+          merge_publication_targets(
+            collection.publication_ids,
+            publication_targets,
+          )
+        False ->
+          remove_publication_targets(
+            collection.publication_ids,
+            publication_targets,
+          )
+      }
+      let next_collection =
+        CollectionRecord(..collection, publication_ids: next_publication_ids)
+      let next_store = store.upsert_staged_collections(store, [next_collection])
+      mutation_result(
+        key,
+        publishable_mutation_payload(
+          next_store,
+          Some(collection_source_with_store_and_publication(
+            next_store,
+            next_collection,
+            selected_publication_id(
+              get_selected_child_fields(field, default_selected_field_options()),
+              variables,
+            ),
+          )),
+          [],
+          field,
+          variables,
+          fragments,
+        ),
+        next_store,
+        identity,
+        [next_collection.id],
+      )
+    }
+  }
+}
+
+fn make_unique_publication_gid(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> #(String, SyntheticIdentityRegistry) {
+  let #(id, next_identity) =
+    synthetic_identity.make_synthetic_gid(identity, "Publication")
+  case store.get_effective_publication_by_id(store, id) {
+    Some(_) -> make_unique_publication_gid(store, next_identity)
+    None -> #(id, next_identity)
+  }
+}
+
+fn read_publication_targets(args: Dict(String, ResolvedValue)) -> List(String) {
+  read_arg_object_list(args, "input")
+  |> list.filter_map(fn(input) {
+    read_string_field(input, "publicationId") |> option_to_result
+  })
+}
+
+fn merge_publication_targets(
+  current: List(String),
+  targets: List(String),
+) -> List(String) {
+  list.append(current, targets) |> dedupe_preserving_order
+}
+
+fn remove_publication_targets(
+  current: List(String),
+  targets: List(String),
+) -> List(String) {
+  current
+  |> list.filter(fn(id) { !list.contains(targets, id) })
+}
+
+fn remove_publication_from_publishables(
+  store: Store,
+  publication_id: String,
+) -> Store {
+  let next_store =
+    store.list_effective_products(store)
+    |> list.filter(fn(product) {
+      list.contains(product.publication_ids, publication_id)
+    })
+    |> list.fold(store, fn(acc, product) {
+      let next_product =
+        ProductRecord(
+          ..product,
+          publication_ids: remove_publication_targets(product.publication_ids, [
+            publication_id,
+          ]),
+        )
+      let #(_, staged_store) = store.upsert_staged_product(acc, next_product)
+      staged_store
+    })
+  store.list_effective_collections(next_store)
+  |> list.filter(fn(collection) {
+    list.contains(collection.publication_ids, publication_id)
+  })
+  |> list.fold(next_store, fn(acc, collection) {
+    let next_collection =
+      CollectionRecord(
+        ..collection,
+        publication_ids: remove_publication_targets(collection.publication_ids, [
+          publication_id,
+        ]),
+      )
+    store.upsert_staged_collections(acc, [next_collection])
+  })
 }
 
 fn handle_product_feed_create(
@@ -10627,6 +11499,91 @@ fn product_publication_payload(
   )
 }
 
+fn publication_mutation_payload(
+  store: Store,
+  typename: String,
+  publication: Option(PublicationRecord),
+  deleted_id: Option(String),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let publication_value = case publication {
+    Some(record) -> publication_source(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString(typename)),
+      #("publication", publication_value),
+      #("deletedId", optional_string_source(deleted_id)),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn publishable_mutation_payload(
+  store: Store,
+  publishable: Option(SourceValue),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let selected_publication =
+    selected_publication_id(
+      get_selected_child_fields(field, default_selected_field_options()),
+      variables,
+    )
+  let publishable_value = case publishable {
+    Some(SrcObject(source)) ->
+      case dict.get(source, "__typename") {
+        Ok(SrcString("Product")) ->
+          case dict.get(source, "id") {
+            Ok(SrcString(id)) ->
+              case store.get_effective_product_by_id(store, id) {
+                Some(product) ->
+                  product_source_with_store_and_publication(
+                    store,
+                    product,
+                    selected_publication,
+                  )
+                None -> SrcObject(source)
+              }
+            _ -> SrcObject(source)
+          }
+        Ok(SrcString("Collection")) ->
+          case dict.get(source, "id") {
+            Ok(SrcString(id)) ->
+              case store.get_effective_collection_by_id(store, id) {
+                Some(collection) ->
+                  collection_source_with_store_and_publication(
+                    store,
+                    collection,
+                    selected_publication,
+                  )
+                None -> SrcObject(source)
+              }
+            _ -> SrcObject(source)
+          }
+        _ -> SrcObject(source)
+      }
+    Some(value) -> value
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("PublishablePublishPayload")),
+      #("publishable", publishable_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn product_feed_create_payload(
   feed: ProductFeedRecord,
   user_errors: List(ProductUserError),
@@ -11861,6 +12818,7 @@ fn created_product_record(
         input,
       ),
       category: None,
+      publication_ids: [],
       cursor: None,
     ),
     next_identity,

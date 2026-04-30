@@ -187,6 +187,8 @@ fn seed_capture_preconditions(
       seed_locations_catalog_preconditions(capture, proxy)
     "publications-catalog-read" ->
       seed_publications_catalog_preconditions(capture, proxy)
+    "publication-roots-local-runtime" ->
+      seed_publication_roots_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
@@ -942,11 +944,86 @@ fn make_seed_publication_from_edge(
     Some(id), Some(name) ->
       Ok(PublicationRecord(
         id: id,
-        name: name,
+        name: Some(name),
+        auto_publish: read_bool_field(node, "autoPublish"),
+        supports_future_publishing: read_bool_field(
+          node,
+          "supportsFuturePublishing",
+        ),
+        catalog_id: read_string_field(node, "catalogId"),
+        channel_id: read_string_field(node, "channelId"),
         cursor: read_string_field(edge, "cursor"),
       ))
     _, _ -> Error(Nil)
   }
+}
+
+fn seed_publication_roots_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let publications = case read_array_field(capture, "seedPublications") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_publication)
+    None -> []
+  }
+  let products = case read_array_field(capture, "seedProducts") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_product_relaxed)
+    None -> []
+  }
+  let collections = case read_array_field(capture, "seedCollections") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_collection_relaxed)
+    None -> []
+  }
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_publications(publications)
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_collections(collections)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_publication(source: JsonValue) -> Result(PublicationRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  Ok(PublicationRecord(
+    id: id,
+    name: read_string_field(source, "name"),
+    auto_publish: read_bool_field(source, "autoPublish"),
+    supports_future_publishing: read_bool_field(
+      source,
+      "supportsFuturePublishing",
+    ),
+    catalog_id: read_string_field(source, "catalogId"),
+    channel_id: read_string_field(source, "channelId"),
+    cursor: read_string_field(source, "cursor"),
+  ))
+}
+
+fn make_seed_collection_relaxed(
+  source: JsonValue,
+) -> Result(CollectionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  let title = read_string_field(source, "title") |> option.unwrap("")
+  Ok(CollectionRecord(
+    id: id,
+    legacy_resource_id: read_string_field(source, "legacyResourceId"),
+    title: title,
+    handle: read_string_field(source, "handle") |> option.unwrap(""),
+    publication_ids: read_string_array_field(source, "publicationIds"),
+    updated_at: read_string_field(source, "updatedAt"),
+    description: read_string_field(source, "description"),
+    description_html: read_string_field(source, "descriptionHtml"),
+    image: make_seed_collection_image(read_object_field(source, "image")),
+    sort_order: read_string_field(source, "sortOrder"),
+    template_suffix: read_string_field(source, "templateSuffix"),
+    seo: make_seed_product_seo(read_object_field(source, "seo")),
+    rule_set: make_seed_collection_rule_set(read_object_field(source, "ruleSet")),
+    products_count: read_object_field(source, "productsCount")
+      |> option.then(read_int_field(_, "count")),
+    is_smart: False,
+    cursor: read_string_field(source, "cursor"),
+    title_cursor: None,
+    updated_at_cursor: None,
+  ))
 }
 
 fn seed_existing_product_collections(
@@ -1042,7 +1119,7 @@ fn make_seed_collection(source: JsonValue) -> Result(CollectionRecord, Nil) {
     legacy_resource_id: read_string_field(source, "legacyResourceId"),
     title: title,
     handle: handle,
-    publication_ids: [],
+    publication_ids: read_string_array_field(source, "publicationIds"),
     updated_at: read_string_field(source, "updatedAt"),
     description: read_string_field(source, "description"),
     description_html: read_string_field(source, "descriptionHtml"),
@@ -1608,6 +1685,7 @@ fn seed_inventory_quantity_roots_preconditions(
       template_suffix: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
+      publication_ids: [],
       cursor: None,
     )
   let variant =
@@ -1773,6 +1851,7 @@ fn inventory_adjust_seed_product(id: String, handle: String) -> ProductRecord {
     template_suffix: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
+    publication_ids: [],
     cursor: None,
   )
 }
@@ -1917,6 +1996,7 @@ fn seed_inventory_activate_preconditions(
           template_suffix: None,
           seo: ProductSeoRecord(title: None, description: None),
           category: None,
+          publication_ids: [],
           cursor: None,
         )
       let variant =
@@ -2118,6 +2198,7 @@ fn make_seed_product_relaxed(source: JsonValue) -> Result(ProductRecord, Nil) {
     seo: make_seed_product_seo(read_object_field(source, "seo")),
     category: read_object_field(source, "category")
       |> option.then(make_seed_product_category),
+    publication_ids: read_string_array_field(source, "publicationIds"),
     cursor: None,
   ))
 }
@@ -2153,6 +2234,7 @@ fn make_seed_product_with_cursor(
     template_suffix: read_string_field(source, "templateSuffix"),
     seo: seo,
     category: category,
+    publication_ids: read_string_array_field(source, "publicationIds"),
     cursor: cursor,
   ))
 }

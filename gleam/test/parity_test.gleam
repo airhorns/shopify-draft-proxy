@@ -162,6 +162,10 @@ pub fn publications_catalog_read_test() {
   check("config/parity-specs/products/publications-catalog-read.json")
 }
 
+pub fn publication_roots_local_runtime_test() {
+  check("config/parity-specs/products/publication-roots-local-runtime.json")
+}
+
 pub fn products_catalog_read_test() {
   check("config/parity-specs/products/products-catalog-read.json")
 }

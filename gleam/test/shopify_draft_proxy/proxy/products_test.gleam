@@ -127,6 +127,7 @@ pub fn seeded_product_detail_read_test() {
         id: "gid://shopify/TaxonomyCategory/na",
         full_name: "Uncategorized",
       )),
+      publication_ids: [],
       cursor: None,
     )
   let seeded_store = store.upsert_base_products(store.new(), [product])
@@ -487,6 +488,7 @@ pub fn seeded_products_catalog_read_test() {
       template_suffix: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
+      publication_ids: [],
       cursor: Some(
         "eyJsYXN0X2lkIjo4OTcxODQyODQ2OTUzLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xOCAwMDo1ODoyMS4wMDAwMDAifQ==",
       ),
@@ -550,6 +552,7 @@ fn identifier_product() {
     template_suffix: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
+    publication_ids: [],
     cursor: None,
   )
 }
@@ -609,6 +612,7 @@ fn string_catalog_product(
     template_suffix: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
+    publication_ids: [],
     cursor: None,
   )
 }
@@ -873,6 +877,7 @@ fn search_product(
     template_suffix: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
+    publication_ids: [],
     cursor: None,
   )
 }

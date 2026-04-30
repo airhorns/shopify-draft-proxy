@@ -9,6 +9,68 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 87: publication roots local runtime
+
+Completes the captured publication roots local-runtime lifecycle in the Gleam
+Products handler. The pass stages `publicationCreate`, `publicationUpdate`,
+`publicationDelete`, and `publishablePublish` locally, adds staged-aware
+publication/channel reads, and updates downstream product/collection
+publication visibility and count reads without runtime Shopify writes.
+
+The pass promotes `publication-roots-local-runtime` into the Gleam parity
+suite. The checked-in fixture, request documents, variables capture paths, and
+strict comparison contract stay unchanged; the parity runner now seeds the
+fixture's minimal publication/product/collection preconditions for replay.
+
+| Module                                               | Change                                                                                |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds publication metadata, derived channel records, and product publication IDs.      |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds staged publication storage, deletion, effective reads, and derived channels.     |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages publication lifecycle and publishable publish mutations plus downstream reads. |
+| `gleam/test/parity/runner.gleam`                     | Seeds minimal local-runtime publication/product/collection preconditions.             |
+| `gleam/test/parity_test.gleam`                       | Enables the strict publication roots local-runtime parity spec.                       |
+
+Validation:
+Focused JavaScript parity for `publication_roots_local_runtime_test` is green
+at 791 tests, and full `gleam test --target javascript` is green at 791 tests
+on the host Node runtime. Host `gleam test --target erlang` still fails before
+tests execute on the local Erlang install with the known `undef` runner issue;
+after clearing host-built Erlang artifacts, the Docker Erlang fallback is green
+at 787 tests. `corepack pnpm lint` and `git diff --check` are green. Product
+parity inventory remains 115 checked-in specs, with 77 product specs executable
+in the Gleam parity suite plus the admin-platform ProductOption node scenario
+after this pass.
+
+### Findings
+
+- The pre-implementation signal was strict parity replay returning HTTP 400 for
+  `publicationCreate`: no mutation dispatcher was implemented for that root.
+- Publication root replay needs staged publication storage and derived channels:
+  `gid://shopify/Publication/N` maps to `gid://shopify/Channel/N` unless the
+  publication explicitly carries a channel ID.
+- The local-runtime fixture intentionally seeds compact product/collection
+  records with only publication IDs, so the Gleam parity runner now uses relaxed
+  scenario-specific seeding for those preconditions.
+
+### Risks / open items
+
+- Selling plans, product metafields, media, advanced search,
+  duplicate/productSet/media roots, and broader validation atomicity parity
+  remain incomplete in Gleam.
+- Only 77 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 88 candidates
+
+- Port selling-plan or product metafield behavior now that core Product,
+  Variant, Inventory, Collection, Location, Publication, feed, feedback,
+  shipment, and transfer read/write slices are locally staged or seeded.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+- Continue advanced product search and validation atomicity slices.
+
+---
+
 ## 2026-04-30 - Pass 86: inventory transfer local staging
 
 Completes the two captured inventory transfer local-staging parity scenarios in

@@ -103,7 +103,25 @@ pub type LocationRecord {
 }
 
 pub type PublicationRecord {
-  PublicationRecord(id: String, name: String, cursor: Option(String))
+  PublicationRecord(
+    id: String,
+    name: Option(String),
+    auto_publish: Option(Bool),
+    supports_future_publishing: Option(Bool),
+    catalog_id: Option(String),
+    channel_id: Option(String),
+    cursor: Option(String),
+  )
+}
+
+pub type ChannelRecord {
+  ChannelRecord(
+    id: String,
+    name: Option(String),
+    handle: Option(String),
+    publication_id: Option(String),
+    cursor: Option(String),
+  )
 }
 
 pub type ProductFeedRecord {
@@ -281,6 +299,7 @@ pub type ProductRecord {
     template_suffix: Option(String),
     seo: ProductSeoRecord,
     category: Option(ProductCategoryRecord),
+    publication_ids: List(String),
     cursor: Option(String),
   )
 }

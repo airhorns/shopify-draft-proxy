@@ -479,6 +479,7 @@ fn default_product() -> ProductRecord {
     template_suffix: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
+    publication_ids: [],
     cursor: None,
   )
 }

@@ -155,6 +155,7 @@ fn seeded_product_option_store() {
       template_suffix: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
+      publication_ids: [],
       cursor: None,
     ),
   ])
