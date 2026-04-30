@@ -9,6 +9,56 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 109: advanced product search read parity
+
+Promotes four captured advanced Product search read fixtures into the Gleam
+parity suite. The runner now hydrates captured Product connection edges with
+their upstream cursors for advanced search, OR precedence, relevance, and
+filtered pagination captures, and adds fixture-derived pagination sentinels
+when Shopify's captured `pageInfo` proves additional matching rows exist beyond
+the selected edge payloads.
+
+| Module                            | Change                                                                                         |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`  | Seeds captured Product connection edges/cursors and pagination sentinel rows for search reads. |
+| `config/gleam-port-ci-gates.json` | Removes the four newly passing advanced Product search/pagination parity specs.                |
+
+Validation:
+Focused JavaScript parity is green for `products-advanced-search-read.json`,
+`products-or-precedence-read.json`, `products-relevance-search-read.json`, and
+`products-search-pagination-read.json`. Full pass validation is recorded in the
+Linear workpad for HAR-487.
+
+### Findings
+
+- Advanced Product search fixtures already encode enough selected Product rows
+  to hydrate local read parity when the runner preserves captured edge cursors
+  and merges partial Product seeds before replay.
+- The pagination fixture captures only the visible edge rows, but its count and
+  pageInfo require extra matching rows after the captured second edge. Local
+  sentinel rows are acceptable runner seed data here because they model the
+  hidden store rows implied by Shopify's capture without changing the request
+  or captured comparison contract.
+- `products-search-grammar-read.json` remains gated separately: its capture
+  only contains the phrase aliases even though the replay request includes
+  additional NOT/tag_not aliases, so it needs a distinct fidelity decision
+  rather than being bundled with generic connection seeding.
+
+### Risks / open items
+
+- Product search grammar and selling-plan scenarios remain incomplete in
+  Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 110 candidates
+
+- Continue `products-search-grammar-read.json` parity.
+- Continue selling-plan product/variant association or selling-plan group
+  lifecycle parity.
+
+---
+
 ## 2026-04-30 - Pass 108: product sort-key read parity
 
 Promotes the captured `products-sort-keys-read` fixture into the Gleam parity

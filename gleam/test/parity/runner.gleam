@@ -284,6 +284,12 @@ fn seed_capture_preconditions(
       seed_products_search_read_preconditions(capture, proxy)
     "products-sort-keys-read" ->
       seed_products_sort_keys_preconditions(capture, proxy)
+    "products-advanced-search-read"
+    | "products-or-precedence-read"
+    | "products-relevance-search-read" ->
+      seed_captured_product_connections_preconditions(capture, proxy)
+    "products-search-pagination-read" ->
+      seed_products_search_pagination_preconditions(capture, proxy)
     "product-variants-read" | "inventory-level-read" ->
       seed_product_variants_read_preconditions(capture, proxy)
     "product-options-create-variant-strategy-create"
@@ -3270,6 +3276,74 @@ fn seed_products_sort_keys_preconditions(
   draft_proxy.DraftProxy(..proxy, store: store)
 }
 
+fn seed_captured_product_connections_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products =
+    collect_captured_product_connection_products(capture) |> merge_seed_products
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_products_search_pagination_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products =
+    collect_captured_product_connection_products(capture)
+    |> append_search_pagination_sentinels
+    |> merge_seed_products
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn collect_captured_product_connection_products(
+  capture: JsonValue,
+) -> List(ProductRecord) {
+  collect_objects(capture)
+  |> list.flat_map(fn(value) {
+    case read_array_field(value, "edges") {
+      Some(edges) ->
+        list.filter_map(edges, make_seed_product_relaxed_from_edge_with_cursor)
+      None -> []
+    }
+  })
+}
+
+fn append_search_pagination_sentinels(
+  products: List(ProductRecord),
+) -> List(ProductRecord) {
+  case
+    list.find(products, fn(product) {
+      product.id == "gid://shopify/Product/8397257474281"
+    })
+  {
+    Ok(product) ->
+      list.append(products, [
+        make_search_pagination_sentinel(product, "8397257474280"),
+        make_search_pagination_sentinel(product, "8397257474279"),
+        make_search_pagination_sentinel(product, "8397257474278"),
+        make_search_pagination_sentinel(product, "8397257474277"),
+      ])
+    Error(_) -> products
+  }
+}
+
+fn make_search_pagination_sentinel(
+  product: ProductRecord,
+  legacy_id: String,
+) -> ProductRecord {
+  ProductRecord(
+    ..product,
+    id: "gid://shopify/Product/" <> legacy_id,
+    legacy_resource_id: Some(legacy_id),
+    title: product.title <> " sentinel " <> legacy_id,
+    handle: product.handle <> "-sentinel-" <> legacy_id,
+    cursor: None,
+  )
+}
+
 fn append_product_tag(tags: List(String), tag: String) -> List(String) {
   case list.contains(tags, tag) {
     True -> tags
@@ -3375,6 +3449,18 @@ fn make_seed_product_relaxed_from_edge(
 ) -> Result(ProductRecord, Nil) {
   case read_object_field(edge, "node") {
     Some(node) -> make_seed_product_relaxed(node)
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_product_relaxed_from_edge_with_cursor(
+  edge: JsonValue,
+) -> Result(ProductRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) -> {
+      use product <- result.try(make_seed_product_relaxed(node))
+      Ok(ProductRecord(..product, cursor: read_string_field(edge, "cursor")))
+    }
     None -> Error(Nil)
   }
 }

@@ -374,6 +374,13 @@ synthetic-id/timestamp expected differences.
   resource-id based, and partial alias seed rows must be merged so sparse
   selections like ID-only or publishedAt-only rows do not overwrite richer
   Product metadata needed by other aliases.
+- Captured advanced Product search read fixtures can often seed local parity
+  directly from every captured Product connection edge, but preserve each
+  upstream edge cursor on the seeded Product row. Pagination captures may show
+  only the selected page edge while `count`/`pageInfo` prove additional matching
+  store rows exist; in that case seed scenario-local sentinel Products that
+  match the same query and sort after the captured edge instead of weakening
+  the captured request or expected comparison.
 - Product media async plan fixtures depend on timing-sensitive lifecycle state:
   create returns `UPLOADED` in the mutation payload, the immediate downstream
   Product media read is null-url `PROCESSING`, and later successful media
