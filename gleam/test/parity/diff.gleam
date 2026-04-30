@@ -81,7 +81,10 @@ fn is_expected(
 fn path_matches(pattern: String, path: String) -> Bool {
   case pattern == path {
     True -> True
-    False -> wildcard_segments_match(string.split(pattern, on: "[*]"), path)
+    False ->
+      string.starts_with(path, pattern <> ".")
+      || string.starts_with(path, pattern <> "[")
+      || wildcard_segments_match(string.split(pattern, on: "[*]"), path)
   }
 }
 
