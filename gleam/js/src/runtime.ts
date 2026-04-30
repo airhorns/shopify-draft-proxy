@@ -35,15 +35,19 @@ import { Result$Error$0, Result$isOk, Result$Ok$0, type List } from '../../build
 
 import type {
   AppConfig,
+  DraftProxyCommitResult,
   DraftProxyConfigSnapshot,
+  DraftProxyGraphQLRequestOptions,
   DraftProxyHeaderValue,
   DraftProxyHttpResponse,
   DraftProxyLogSnapshot,
+  DraftProxyOptions,
   DraftProxyRequest,
   DraftProxyStateDump,
   DraftProxyStateSnapshot,
   ReadMode,
 } from './types.js';
+import { DraftProxyCommitError } from './types.js';
 
 function readModeToGleam(mode: ReadMode): Snapshot | LiveHybrid | Live {
   switch (mode) {
@@ -100,14 +104,24 @@ function responseFromGleam(resp: GleamResponse): DraftProxyHttpResponse {
 export class DraftProxy {
   #inner: GleamDraftProxy;
 
-  constructor(config: AppConfig) {
+  constructor(config: AppConfig, options: DraftProxyOptions = {}) {
     this.#inner = with_default_registry(with_config(configToGleam(config)));
+    if (options.state !== undefined) this.restoreState(options.state);
   }
 
   async processRequest(request: DraftProxyRequest): Promise<DraftProxyHttpResponse> {
     const [resp, next] = await process_request_async(this.#inner, requestToGleam(request));
     this.#inner = next;
     return responseFromGleam(resp);
+  }
+
+  processGraphQLRequest(body: unknown, options: DraftProxyGraphQLRequestOptions = {}): Promise<DraftProxyHttpResponse> {
+    return this.processRequest({
+      method: 'POST',
+      path: options.path ?? `/admin/api/${options.apiVersion ?? '2025-01'}/graphql.json`,
+      headers: options.headers,
+      body,
+    });
   }
 
   reset(): void {
@@ -144,8 +158,29 @@ export class DraftProxy {
         : 'malformed dump';
     throw new Error(`DraftProxy.restoreState failed: ${message}`);
   }
+
+  async commit(headers: Record<string, DraftProxyHeaderValue> = {}): Promise<DraftProxyCommitResult> {
+    const response = await this.processRequest({
+      method: 'POST',
+      path: '/__meta/commit',
+      headers,
+    });
+    const body = response.body as { ok?: boolean; stopIndex?: number | null; attempts?: unknown[] };
+    const result = {
+      ok: Boolean(body.ok),
+      stopIndex: body.stopIndex ?? null,
+      attempts: (body.attempts ?? []) as DraftProxyCommitResult['attempts'],
+    };
+    if (!result.ok) {
+      throw new DraftProxyCommitError(result);
+    }
+    return {
+      stopIndex: null,
+      attempts: result.attempts,
+    };
+  }
 }
 
-export function createDraftProxy(config: AppConfig): DraftProxy {
-  return new DraftProxy(config);
+export function createDraftProxy(config: AppConfig, options?: DraftProxyOptions): DraftProxy {
+  return new DraftProxy(config, options);
 }

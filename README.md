@@ -32,7 +32,35 @@ normal test runs mutating a dev store.
 Products are the first deep fidelity target. Other Admin GraphQL areas are
 covered incrementally as they gain local models, fixtures, and tests.
 
-## Quick start
+## Release consumer package
+
+The npm package entry point now targets the Gleam-backed JavaScript shim:
+`gleam/js/dist/index.js`. The published tarball is intentionally limited to the
+compiled shim, the Gleam JavaScript build, shared conformance fixtures/specs,
+and TypeScript conformance capture tooling. It does not ship the legacy
+TypeScript runtime under `src/`.
+
+Package validation commands:
+
+```sh
+corepack pnpm release:pack:dry-run
+corepack pnpm smoke:js-package
+corepack pnpm smoke:elixir-shipment
+```
+
+- `release:pack:dry-run` builds the Gleam JS artefacts and checks the npm
+  tarball contents.
+- `smoke:js-package` installs the packed tarball into a temporary Node
+  consumer and imports `shopify-draft-proxy` from that installed package.
+- `smoke:elixir-shipment` exports the BEAM shipment and runs
+  `gleam/elixir_smoke/` against that release artefact. If the host lacks
+  `escript` or `mix`, the script uses Docker fallbacks.
+
+The source-tree Koa development server remains available for repository
+development while the port finishes, but release consumers should use the
+Gleam-backed package API documented below.
+
+## Source-tree quick start
 
 Prerequisites:
 
