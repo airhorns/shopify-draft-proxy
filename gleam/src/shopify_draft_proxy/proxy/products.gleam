@@ -54,12 +54,12 @@ import shopify_draft_proxy/state/types.{
   type ProductCategoryRecord, type ProductCollectionRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductSeoRecord, type ProductVariantRecord,
-  type ProductVariantSelectedOptionRecord, InventoryItemRecord,
+  type ProductVariantSelectedOptionRecord, CollectionRecord, InventoryItemRecord,
   InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
   InventoryQuantityRecord, InventoryWeightFloat, InventoryWeightInt,
-  InventoryWeightRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord,
+  InventoryWeightRecord, ProductCollectionRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord,
 }
 
 pub type ProductsError {
@@ -121,6 +121,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "inventoryItemUpdate"
     | "inventorySetQuantities"
     | "inventoryMoveQuantities"
+    | "collectionAddProducts"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -830,6 +831,14 @@ fn collection_product_cursor(
 ) -> String {
   let #(_, membership) = entry
   membership.cursor |> option.unwrap(membership.product_id)
+}
+
+fn product_collection_cursor(
+  entry: #(CollectionRecord, ProductCollectionRecord),
+  _index: Int,
+) -> String {
+  let #(collection, membership) = entry
+  membership.cursor |> option.unwrap(collection.id)
 }
 
 fn collection_has_product(
@@ -1638,6 +1647,7 @@ pub fn product_source(product: ProductRecord) -> SourceValue {
   product_source_with_relationships(
     product,
     empty_connection_source(),
+    empty_connection_source(),
     SrcList([]),
   )
 }
@@ -1648,6 +1658,7 @@ fn product_source_with_store(
 ) -> SourceValue {
   product_source_with_relationships(
     product,
+    product_collections_connection_source(store, product),
     product_variants_connection_source(store, product),
     product_options_source(store.get_effective_options_by_product_id(
       store,
@@ -1658,6 +1669,7 @@ fn product_source_with_store(
 
 fn product_source_with_relationships(
   product: ProductRecord,
+  collections: SourceValue,
   variants: SourceValue,
   options: SourceValue,
 ) -> SourceValue {
@@ -1683,10 +1695,99 @@ fn product_source_with_relationships(
     #("templateSuffix", optional_string_source(product.template_suffix)),
     #("seo", product_seo_source(product.seo)),
     #("category", optional_product_category_source(product.category)),
-    #("collections", empty_connection_source()),
+    #("collections", collections),
     #("media", empty_connection_source()),
     #("options", options),
     #("variants", variants),
+  ])
+}
+
+fn product_collections_connection_source(
+  store: Store,
+  product: ProductRecord,
+) -> SourceValue {
+  let collections =
+    store.list_effective_collections_for_product(store, product.id)
+  let edges =
+    collections
+    |> enumerate_items()
+    |> list.map(fn(pair) {
+      let #(entry, index) = pair
+      let #(collection, _) = entry
+      src_object([
+        #("cursor", SrcString(product_collection_cursor(entry, index))),
+        #("node", collection_source_with_store(store, collection)),
+      ])
+    })
+  src_object([
+    #("edges", SrcList(edges)),
+    #(
+      "nodes",
+      SrcList(
+        list.map(collections, fn(entry) {
+          let #(collection, _) = entry
+          collection_source_with_store(store, collection)
+        }),
+      ),
+    ),
+    #(
+      "pageInfo",
+      connection_page_info_source(collections, product_collection_cursor),
+    ),
+  ])
+}
+
+fn collection_source_with_store(
+  store: Store,
+  collection: CollectionRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Collection")),
+    #("id", SrcString(collection.id)),
+    #("legacyResourceId", optional_string_source(collection.legacy_resource_id)),
+    #("title", SrcString(collection.title)),
+    #("handle", SrcString(collection.handle)),
+    #("updatedAt", optional_string_source(collection.updated_at)),
+    #("description", optional_string_source(collection.description)),
+    #("descriptionHtml", optional_string_source(collection.description_html)),
+    #("sortOrder", optional_string_source(collection.sort_order)),
+    #("templateSuffix", optional_string_source(collection.template_suffix)),
+    #("products", collection_products_connection_source(store, collection)),
+  ])
+}
+
+fn collection_products_connection_source(
+  store: Store,
+  collection: CollectionRecord,
+) -> SourceValue {
+  let products =
+    store.list_effective_products_for_collection(store, collection.id)
+  let edges =
+    products
+    |> enumerate_items()
+    |> list.map(fn(pair) {
+      let #(entry, index) = pair
+      let #(product, _) = entry
+      src_object([
+        #("cursor", SrcString(collection_product_cursor(entry, index))),
+        #("node", product_source(product)),
+      ])
+    })
+  src_object([
+    #("edges", SrcList(edges)),
+    #(
+      "nodes",
+      SrcList(
+        list.map(products, fn(entry) {
+          let #(product, _) = entry
+          product_source(product)
+        }),
+      ),
+    ),
+    #(
+      "pageInfo",
+      connection_page_info_source(products, collection_product_cursor),
+    ),
   ])
 }
 
@@ -2912,6 +3013,33 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some("Gleam staged inventoryMoveQuantities locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "collectionAddProducts" -> {
+              let result =
+                handle_collection_add_products(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged collectionAddProducts locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -5027,6 +5155,197 @@ fn product_update_handle_validation_error(
   }
 }
 
+fn handle_collection_add_products(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "id") {
+    None ->
+      mutation_result(
+        key,
+        collection_add_products_payload(
+          store,
+          None,
+          [
+            ProductUserError(["id"], "Collection id is required", None),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(collection_id) ->
+      case store.get_effective_collection_by_id(store, collection_id) {
+        None ->
+          mutation_result(
+            key,
+            collection_add_products_payload(
+              store,
+              None,
+              [
+                ProductUserError(["id"], "Collection does not exist", None),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(collection) -> {
+          let result =
+            add_products_to_collection(
+              store,
+              collection,
+              read_arg_string_list(args, "productIds"),
+            )
+          let #(next_store, result_collection, user_errors) = result
+          let staged_ids = case user_errors, result_collection {
+            [], Some(record) -> [record.id]
+            _, _ -> []
+          }
+          mutation_result(
+            key,
+            collection_add_products_payload(
+              next_store,
+              result_collection,
+              user_errors,
+              field,
+              fragments,
+            ),
+            next_store,
+            identity,
+            staged_ids,
+          )
+        }
+      }
+  }
+}
+
+fn add_products_to_collection(
+  store: Store,
+  collection: CollectionRecord,
+  product_ids: List(String),
+) -> #(Store, Option(CollectionRecord), List(ProductUserError)) {
+  let normalized_product_ids = dedupe_preserving_order(product_ids)
+  case normalized_product_ids {
+    [] -> #(store, None, [
+      ProductUserError(
+        ["productIds"],
+        "At least one product id is required",
+        None,
+      ),
+    ])
+    _ ->
+      case collection.is_smart {
+        True -> #(store, None, [
+          ProductUserError(
+            ["id"],
+            "Can't manually add products to a smart collection",
+            None,
+          ),
+        ])
+        False ->
+          case
+            list.find(normalized_product_ids, fn(product_id) {
+              product_already_in_collection(store, collection.id, product_id)
+            })
+          {
+            Ok(_) -> #(store, None, [
+              ProductUserError(
+                ["productIds"],
+                "Product is already in the collection",
+                None,
+              ),
+            ])
+            Error(_) ->
+              stage_collection_product_memberships(
+                store,
+                collection,
+                normalized_product_ids,
+              )
+          }
+      }
+  }
+}
+
+fn stage_collection_product_memberships(
+  store: Store,
+  collection: CollectionRecord,
+  product_ids: List(String),
+) -> #(Store, Option(CollectionRecord), List(ProductUserError)) {
+  let existing_product_ids =
+    product_ids
+    |> list.filter(fn(product_id) {
+      case store.get_effective_product_by_id(store, product_id) {
+        Some(_) -> True
+        None -> False
+      }
+    })
+  case existing_product_ids {
+    [] -> #(store, Some(collection), [])
+    _ -> {
+      let max_position =
+        store.list_effective_products_for_collection(store, collection.id)
+        |> list.fold(-1, fn(max_position, entry) {
+          let #(_, membership) = entry
+          case int.compare(membership.position, max_position) {
+            order.Gt -> membership.position
+            _ -> max_position
+          }
+        })
+      let existing_memberships =
+        store.list_effective_products_for_collection(store, collection.id)
+      let first_position = max_position + 1
+      let memberships =
+        existing_product_ids
+        |> enumerate_strings()
+        |> list.map(fn(entry) {
+          let #(product_id, index) = entry
+          ProductCollectionRecord(
+            collection_id: collection.id,
+            product_id: product_id,
+            position: first_position + index,
+            cursor: None,
+          )
+        })
+      let next_count =
+        list.length(existing_memberships) + list.length(memberships)
+      let next_collection =
+        CollectionRecord(..collection, products_count: Some(next_count))
+      let next_store =
+        store
+        |> store.upsert_staged_collections([next_collection])
+        |> store.upsert_staged_product_collections(memberships)
+      #(next_store, Some(next_collection), [])
+    }
+  }
+}
+
+fn product_already_in_collection(
+  store: Store,
+  collection_id: String,
+  product_id: String,
+) -> Bool {
+  store.list_effective_collections_for_product(store, product_id)
+  |> list.any(fn(entry) {
+    let #(collection, _) = entry
+    collection.id == collection_id
+  })
+}
+
+fn enumerate_strings(values: List(String)) -> List(#(String, Int)) {
+  values
+  |> enumerate_items()
+}
+
 fn handle_tags_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -6199,6 +6518,28 @@ fn inventory_item_update_payload(
     src_object([
       #("__typename", SrcString("InventoryItemUpdatePayload")),
       #("inventoryItem", inventory_item),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn collection_add_products_payload(
+  store: Store,
+  collection: Option(CollectionRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let collection_value = case collection {
+    Some(record) -> collection_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("CollectionAddProductsPayload")),
+      #("collection", collection_value),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),

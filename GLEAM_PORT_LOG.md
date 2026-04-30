@@ -9,6 +9,70 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 73: collection add-products staging
+
+Adds the first collection membership mutation to the Gleam Products handler.
+The pass wires `collectionAddProducts` into the local mutation dispatcher,
+stages Product-to-Collection membership rows without runtime Shopify writes,
+and projects downstream reads from both directions: Collection.products and
+Product.collections.
+
+The pass promotes `collectionAddProducts-parity-plan` into the Gleam parity
+suite. The checked-in fixture, request document, variables, and comparison
+contract stay unchanged.
+
+| Module                                               | Change                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds base/staged helpers for product collection memberships. |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages `collectionAddProducts` and serializes product links. |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured collection/product membership preconditions.  |
+| `gleam/test/parity_test.gleam`                       | Enables the strict collection add-products parity spec.      |
+
+Validation:
+`gleam test --target javascript collection_add_products_live_parity_test` is
+green at 772 tests, and full `gleam test --target javascript` is green at 772
+tests on the host Node runtime. Host `gleam test --target erlang` still fails
+before tests execute on the local Erlang install with the known `undef` runner
+issue; after clearing host-built Erlang artifacts, the Docker Erlang fallback is
+green at 768 tests. Product parity inventory remains 115 checked-in specs, with
+58 product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay returning
+  HTTP 400 with `No mutation dispatcher implemented for root field:
+collectionAddProducts`.
+- The captured downstream read needs membership projection in both directions:
+  the mutation-created collection membership appears under `collection.products`,
+  while one product also preserves an existing ADIDAS collection before the new
+  collection appears in `product.collections`.
+- Product and collection SourceValue projections must avoid recursive eager
+  relationship expansion, so Collection.products serializes Product nodes with
+  basic product fields while Product.collections carries the collection
+  connection.
+
+### Risks / open items
+
+- Remaining collection mutation roots, publication links, product
+  feeds/feedback, selling plans, product metafields, inventory
+  shipment/transfer, media, advanced search, and broader validation atomicity
+  parity remain incomplete in Gleam.
+- Only 58 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 74 candidates
+
+- Continue collection membership roots with `collectionRemoveProducts` or
+  `collectionReorderProducts` now that bidirectional membership projection is
+  available.
+- Port `collectionCreate` initial-products behavior, using the same membership
+  substrate and captured downstream reads.
+- Port product metafield behavior now that the collection/product relationship
+  path is locally staged.
+
+---
+
 ## 2026-04-30 - Pass 72: collections catalog reads
 
 Extends the normalized collection slice from Pass 71 to the top-level

@@ -108,6 +108,10 @@ pub fn collections_catalog_read_test() {
   check("config/parity-specs/products/collections-catalog-read.json")
 }
 
+pub fn collection_add_products_live_parity_test() {
+  check("config/parity-specs/products/collectionAddProducts-parity-plan.json")
+}
+
 pub fn products_catalog_read_test() {
   check("config/parity-specs/products/products-catalog-read.json")
 }
