@@ -30,9 +30,10 @@ import shopify_draft_proxy/state/types.{
   type GiftCardRecord, type LocaleRecord, type MarketingEngagementRecord,
   type MarketingRecord, type MarketingValue, type MetafieldDefinitionRecord,
   type MetaobjectDefinitionRecord, type MetaobjectRecord,
-  type ProductMetafieldRecord, type SavedSearchRecord, type SegmentRecord,
-  type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
-  type StoreCreditAccountRecord, type StoreCreditAccountTransactionRecord,
+  type ProductMetafieldRecord, type ProductRecord, type ProductVariantRecord,
+  type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
+  type ShopRecord, type ShopifyFunctionRecord, type StoreCreditAccountRecord,
+  type StoreCreditAccountTransactionRecord,
   type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
   type StorePropertyValue, type TaxAppConfigurationRecord,
   type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
@@ -44,6 +45,10 @@ import shopify_draft_proxy/state/types.{
 /// handlers port.
 pub type BaseState {
   BaseState(
+    products: Dict(String, ProductRecord),
+    product_order: List(String),
+    product_variants: Dict(String, ProductVariantRecord),
+    product_variant_order: List(String),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -174,6 +179,10 @@ pub type BaseState {
 /// Mirrors the staged slices of `StateSnapshot`.
 pub type StagedState {
   StagedState(
+    products: Dict(String, ProductRecord),
+    product_order: List(String),
+    product_variants: Dict(String, ProductVariantRecord),
+    product_variant_order: List(String),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -367,6 +376,10 @@ pub type Store {
 /// projected onto the slices we ship.
 pub fn empty_base_state() -> BaseState {
   BaseState(
+    products: dict.new(),
+    product_order: [],
+    product_variants: dict.new(),
+    product_variant_order: [],
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -472,6 +485,10 @@ pub fn empty_base_state() -> BaseState {
 /// An empty `StagedState`.
 pub fn empty_staged_state() -> StagedState {
   StagedState(
+    products: dict.new(),
+    product_order: [],
+    product_variants: dict.new(),
+    product_variant_order: [],
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -587,6 +604,125 @@ pub fn new() -> Store {
 /// snapshot — equivalent to a fresh store for the slices we ship).
 pub fn reset(_store: Store) -> Store {
   new()
+}
+
+// ---------------------------------------------------------------------------
+// Products smoke slice
+// ---------------------------------------------------------------------------
+
+pub fn upsert_base_product(
+  store: Store,
+  product: ProductRecord,
+  variant: ProductVariantRecord,
+) -> Store {
+  let base = store.base_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      products: dict.insert(base.products, product.id, product),
+      product_order: append_unique_id(base.product_order, product.id),
+      product_variants: dict.insert(base.product_variants, variant.id, variant),
+      product_variant_order: append_unique_id(
+        base.product_variant_order,
+        variant.id,
+      ),
+    ),
+  )
+}
+
+pub fn stage_product(
+  store: Store,
+  product: ProductRecord,
+  variant: ProductVariantRecord,
+) -> #(ProductRecord, Store) {
+  let staged = store.staged_state
+  let product_known =
+    dict_has(store.base_state.products, product.id)
+    || dict_has(staged.products, product.id)
+  let variant_known =
+    dict_has(store.base_state.product_variants, variant.id)
+    || dict_has(staged.product_variants, variant.id)
+  let product_order = case product_known {
+    True -> staged.product_order
+    False -> list.append(staged.product_order, [product.id])
+  }
+  let variant_order = case variant_known {
+    True -> staged.product_variant_order
+    False -> list.append(staged.product_variant_order, [variant.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      products: dict.insert(staged.products, product.id, product),
+      product_order: product_order,
+      product_variants: dict.insert(
+        staged.product_variants,
+        variant.id,
+        variant,
+      ),
+      product_variant_order: variant_order,
+    )
+  #(product, Store(..store, staged_state: new_staged))
+}
+
+pub fn get_effective_product_by_id(
+  store: Store,
+  id: String,
+) -> Option(ProductRecord) {
+  case dict.get(store.staged_state.products, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.products, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn get_effective_product_variant_by_id(
+  store: Store,
+  id: String,
+) -> Option(ProductVariantRecord) {
+  case dict.get(store.staged_state.product_variants, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.product_variants, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn list_effective_products(store: Store) -> List(ProductRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.product_order,
+      store.staged_state.product_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_product_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(store.base_state.products, store.staged_state.products)
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_product_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
 }
 
 // ---------------------------------------------------------------------------

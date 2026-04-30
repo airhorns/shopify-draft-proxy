@@ -276,6 +276,11 @@ synthetic-id/timestamp expected differences.
   captured root payloads into base state, then project selected fields from that
   payload until staged local segment writes require synthesized connection
   output.
+- Privacy `dataSaleOptOut` is a privacy-domain mutation whose downstream read
+  effect belongs on `CustomerRecord.data_sale_opt_out`. Keep only that root in
+  `proxy/privacy.gleam`; seed its parity capture from the downstream customer
+  read so the proxy returns the captured customer id without broadening shop
+  privacy settings support.
 
 ## Workflow for a new pass
 

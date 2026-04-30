@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 43: segments baseline and member parity
+## 2026-04-30 — Pass 46: segments baseline and member parity
 
 Completes the next Segments Gleam parity pass while preserving the TypeScript
 runtime and TypeScript tests for the incremental port. The segment baseline
@@ -58,6 +58,171 @@ and `git diff --check` were green.
   expanded only with captured Shopify evidence for additional predicates.
 - The TypeScript segment runtime still remains the shipping Node/Koa path until
   a final all-port cutover proves repository-wide parity.
+
+---
+
+## 2026-04-30 — Pass 45: Elixir embedder wrapper smoke
+
+Makes the BEAM embedder path usable from Elixir without application code
+manipulating raw Gleam tuple shapes. The smoke project now includes a thin
+`ShopifyDraftProxy` Elixir wrapper that keeps proxy state opaque, returns the
+next proxy explicitly from GraphQL/meta helpers, exposes JSON response bodies as
+strings, and surfaces deterministic commit reports through an injected transport
+seam. A narrow Products smoke foundation was added in Gleam for the
+productCreate -> product(id:) lifecycle required by the wrapper smoke; this is
+not a full Products-domain parity port.
+
+| Module                                                                  | Change                                                                                                                               |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/elixir_smoke/lib/shopify_draft_proxy.ex`                         | Adds Elixir structs and wrapper helpers for config, GraphQL, meta state/log/reset/commit, dump/restore, and injected commit reports. |
+| `gleam/elixir_smoke/test/interop_test.exs`                              | Uses the Elixir wrapper broadly for config, GraphQL, meta state/log, dump/restore, reset, and commit report/error smoke coverage.    |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                    | Adds narrow staged `productCreate` and `product(id:)` read support for the BEAM smoke lifecycle only.                                |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds minimal Product/ProductVariant records, effective staged-state helpers, and dump/restore serialization.                         |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Routes the narrow Products smoke roots while leaving product-metafield owner reads with the Metafields domain.                       |
+| `scripts/elixir-smoke.ts` / `package.json`                              | Keeps `corepack pnpm elixir:smoke` as the canonical command, with a Docker fallback when host `escript`/`mix` are unavailable.       |
+| `gleam/README.md`                                                       | Documents the Elixir wrapper calling conventions and Erlang shipment path.                                                           |
+
+Validation: `corepack pnpm elixir:smoke` is green at 16 ExUnit tests through
+the container fallback on the current host. Host `gleam test --target erlang`
+compiled but failed before test execution with the local Erlang runtime's
+`undef` boot error; the same Erlang target is green via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`. `gleam test --target
+javascript` is green on the host Node runtime.
+
+### Findings
+
+- The existing BEAM smoke already loaded the Erlang shipment but still exposed
+  raw `{:request, ...}` / `{:response, ...}` / `{:config, ...}` tuple shapes to
+  Elixir callers; wrapping those shapes in Elixir structs keeps explicit state
+  threading while matching how application tests will consume the embedder.
+- The host workspace has Gleam and Docker but lacks native `escript`/`mix`, so
+  the required smoke command needed the same container-based BEAM fallback used
+  by recent port validation.
+- Product roots are not broadly ported in Gleam; the added Product slice is
+  deliberately limited to the lifecycle required for BEAM wrapper smoke.
+- Product owner metafield parity also uses `product` query roots, so the smoke
+  product read dispatcher must stay narrower than the Metafields owner-root
+  dispatcher.
+
+### Risks / open items
+
+- Full Products-domain parity remains unported in Gleam. Future Products work
+  still needs the normal state, read, mutation, parity-runner, and TypeScript
+  deletion bar before the domain can be considered ported.
+- The Elixir wrapper currently lives in the smoke consumer project while Hex
+  packaging is still deferred; publishing should decide whether to ship it as a
+  companion Elixir source module or replace it with a generated BEAM-friendly
+  facade.
+
+### Pass 46 candidates
+
+- Start Shipping/Fulfillments substrate so fulfillment-service,
+  carrier-service, delivery-profile, and shipping-settings roots can consume
+  ported Location state without reaching back into the TypeScript module.
+- Port the full Products read substrate needed by product smoke follow-up,
+  product parity enablement, and bulk-operation product JSONL export.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
+## 2026-04-30 — Pass 44: JS embeddable shim rework
+
+Reworks the JavaScript embeddable shim on top of the full-state dump substrate
+from Pass 36. The package-facing API now uses a single `createDraftProxy(...)`
+options object that carries both config fields and optional restore state, and
+the shim routes `processGraphQLRequest` through Gleam's own default Admin
+GraphQL path construction instead of duplicating the route string in TypeScript.
+The async `commit` wrapper remains TS-friendly while replaying the original
+staged mutation log through the Gleam runtime.
+
+| Module                                                  | Change                                                                                                                                            |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/js/src/runtime.ts`                               | Restores `processGraphQLRequest` and async `commit`, collapses construction to one options object, and delegates GraphQL route defaults to Gleam. |
+| `gleam/js/src/types.ts`                                 | Makes `DraftProxyOptions` the public construction object by extending `AppConfig` with optional restore state.                                    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Adds a JavaScript-target async `process_graphql_request_async` convenience wrapper using the shared Gleam default path helper.                    |
+| `tests/integration/gleam-interop.test.ts`               | Updates the package-level lifecycle smoke to restore state through the one-object construction API.                                               |
+
+Validation: `corepack pnpm build`, `corepack pnpm gleam:smoke:js`,
+`corepack pnpm gleam:test:js`, `corepack pnpm lint`, `corepack pnpm --dir
+gleam/js build`, `corepack pnpm --dir gleam/js test`, and `git diff --check`
+are green. `corepack pnpm gleam:test:erlang` fails on the host Erlang runtime
+with an `undef` boot error, so Erlang target validation used the established
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container fallback and is
+green at 672 tests.
+
+### Findings
+
+- `origin/main` already moved state dump/restore to the full
+  `state/serialization.gleam` substrate, so the review request for generic
+  state persistence is satisfied by preserving that merge result instead of
+  reintroducing handler-specific saved-search dump code.
+- Keeping GraphQL default path construction in Gleam avoids two JS/TS copies of
+  the default Admin API route while still letting the JS shim use the async
+  live-hybrid path.
+
+### Risks / open items
+
+- `createApp` and `loadConfig` remain explicit not-implemented shims until the
+  broader HTTP adapter work lands.
+
+### Pass 45 candidates
+
+- Continue reducing the remaining expected Gleam parity failures tracked by the
+  CI gate manifest.
+- Extend package-level consumer tests as more domains become exposed through the
+  Gleam shim.
+
+---
+
+## 2026-04-30 — Pass 43: privacy data-sale opt-out parity
+
+Ports the privacy-owned `dataSaleOptOut` mutation into a dedicated Gleam privacy
+module while keeping the downstream read effect on customer state. The Gleam
+dispatcher now routes only that privacy mutation root locally; other privacy
+roots remain unsupported until their own shop privacy behavior is modeled.
+
+The privacy parity spec is now executable Gleam evidence. The runner seeds the
+captured downstream customer so the mutation returns the recorded customer id,
+then strict comparisons cover the opt-out payload, downstream customer reads,
+repeat idempotency, and invalid-email `FAILED` user error shape. The original
+TypeScript runtime and TypeScript tests remain in place for the incremental port
+guardrail.
+
+| Module                                                               | Change                                                                                                           |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/privacy.gleam`                  | Adds privacy-domain local staging for `dataSaleOptOut`, including existing/unknown customer effects and errors.  |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`                | Removes `dataSaleOptOut` from customer mutation dispatch while preserving customer read serialization.           |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | Adds `PrivacyDomain` mutation routing without adding privacy query/root breadth.                                 |
+| `gleam/test/shopify_draft_proxy/proxy/privacy_test.gleam`            | Covers existing-customer opt-out readback/logs, unknown-email creation, invalid-email errors, unsupported roots. |
+| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json` | Enables privacy parity by seeding capture customer state and removing the privacy expected-failure entry.        |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Records the privacy/customer ownership note for future domain passes.                                            |
+
+Validation: `gleam test --target javascript` is green at 684 tests. The host
+`gleam test --target erlang` fails because local Erlang/OTP is 25 while
+`gleam_json` requires OTP 27; the equivalent OTP 27 container run is green at
+680 tests:
+`docker run --rm -v /home/airhorns/.local/bin/gleam:/usr/local/bin/gleam:ro -v /home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497:/home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497 -w /home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497/gleam erlang:27-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`.
+
+### Findings
+
+- `dataSaleOptOut` belongs to privacy capability/log metadata even though the
+  observable GraphQL field is `Customer.dataSaleOptOut`.
+- The captured parity scenario uses an existing customer id, so the Gleam runner
+  must seed that customer from the downstream read before replaying the primary
+  mutation instead of adding synthetic-id expected differences.
+- The synced `origin/main` parity gate still carried an expected-failure entry
+  for `localization-disable-clears-translations` even though that scenario now
+  passes; the stale entry was removed alongside the privacy gate update.
+
+### Risks / open items
+
+- Shop-level privacy settings roots are still unsupported by design. This pass
+  does not model `privacySettings` or consent-policy privacy roots.
+- The TypeScript privacy/customer runtime remains until a later final cutover
+  pass verifies repository-wide Gleam parity.
+- Local host Erlang validation requires OTP 27; OTP 25 can compile but fails at
+  runtime through `gleam_json`.
 
 ### Pass 44 candidates
 
