@@ -9,29 +9,26 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 33: webhook runtime retirement
+## 2026-04-30 — Pass 33: webhook parity completion
 
-Completes the Webhooks port handoff by retiring the legacy TypeScript webhook
-runtime after the Gleam implementation's catalog/count/detail reads,
-create/update/delete lifecycle mutations, validation branches, mutation-log
-drafts, and parity scenarios are green on both targets. The checked-in webhook
-parity specs now point at the Gleam parity/direct tests as the executable
-evidence for the domain, while the TypeScript conformance runner leaves
-Gleam-owned scenarios to the Gleam suite instead of trying to execute them
-through deleted TypeScript handlers.
+Completes the Webhooks port handoff while retaining the legacy TypeScript
+runtime for the final port cleanup phase. The Gleam implementation now covers
+catalog/count/detail reads, create/update/delete lifecycle mutations, validation
+branches, mutation-log drafts, and parity scenarios on both targets. The checked
+in webhook parity specs and operation registry list both the retained
+TypeScript tests and the new Gleam parity/direct tests as executable evidence.
 
-| Module                                                              | Change                                                                                                                               |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/proxy/webhooks.ts`                                             | Deletes the legacy TypeScript webhook runtime.                                                                                       |
-| `src/proxy/routes.ts`                                               | Removes the TypeScript webhook dispatcher for snapshot/live-hybrid reads and local mutations.                                        |
-| `src/proxy/admin-platform.ts` / `src/proxy/bulk-operations.ts`      | Removes TypeScript webhook Node/import-runtime hooks that depended on the deleted domain module.                                     |
-| `tests/integration/webhook-subscription-*.test.ts`                  | Deletes legacy TypeScript webhook integration coverage now owned by Gleam tests.                                                     |
-| `tests/unit/webhook-subscription-conformance-fixture.test.ts`       | Deletes the legacy TypeScript fixture replay test now covered by Gleam parity.                                                       |
-| `config/parity-specs/webhooks/*.json`                               | Repoints webhook runtime evidence at `gleam/test/parity_test.gleam` and direct Gleam webhook/log tests.                              |
-| `config/operation-registry.json`                                    | Repoints implemented webhook operation runtime-test metadata at Gleam tests and refreshes support notes for the completed lifecycle. |
-| `gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam` | Regenerates the vendored Gleam registry from the updated JSON source.                                                                |
-| `tests/unit/conformance-parity-scenarios.test.ts`                   | Excludes scenarios whose runtime-test ownership is entirely under `gleam/` from the TypeScript parity runner.                        |
-| `.agents/skills/gleam-port/SKILL.md`                                | Adds a porting note for future TypeScript runtime retirement passes.                                                                 |
+| Module                                                              | Change                                                                                                                                    |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/proxy/webhooks.ts`                                             | Retains the legacy TypeScript webhook runtime until the final cleanup phase.                                                              |
+| `src/proxy/routes.ts`                                               | Retains the TypeScript webhook dispatcher for snapshot/live-hybrid reads and local mutations.                                             |
+| `src/proxy/admin-platform.ts` / `src/proxy/bulk-operations.ts`      | Retains TypeScript webhook Node/import-runtime hooks.                                                                                     |
+| `tests/integration/webhook-subscription-*.test.ts`                  | Retains legacy TypeScript webhook integration coverage alongside the new Gleam coverage.                                                  |
+| `tests/unit/webhook-subscription-conformance-fixture.test.ts`       | Retains the TypeScript fixture replay test alongside Gleam parity.                                                                        |
+| `config/parity-specs/webhooks/*.json`                               | Adds `gleam/test/parity_test.gleam` and direct Gleam webhook/log tests while keeping existing TypeScript runtime-test evidence.           |
+| `config/operation-registry.json`                                    | Adds Gleam runtime-test metadata and support notes for the completed lifecycle while keeping TypeScript runtime-test metadata.            |
+| `gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam` | Regenerates the vendored Gleam registry from the updated JSON source.                                                                     |
+| `.agents/skills/gleam-port/SKILL.md`                                | Adds a porting note that TypeScript runtime retirement belongs to an explicit final cleanup phase, not routine per-domain parity handoff. |
 
 Validation: `gleam test --target javascript` is green at 681 tests on the host
 Node runtime. `gleam test --target erlang` is green at 677 tests via
@@ -42,20 +39,19 @@ conformance:parity`, `corepack pnpm lint`, and `git diff --check` are green.
 
 ### Findings
 
-- The webhook parity specs can remain byte-faithful on request/capture data; only
-  runtime-test ownership metadata changed from deleted TypeScript tests to the
+- The webhook parity specs can remain byte-faithful on request/capture data;
+  runtime-test metadata now names both retained TypeScript coverage and the
   Gleam parity/direct tests.
-- The TypeScript parity runner needs a generic "Gleam-owned scenario" exclusion
-  based on runtime-test paths, not a per-scenario webhook allowlist.
+- Reviewer feedback clarified that TypeScript runtime retirement should wait
+  for the final cleanup phase even when a domain reaches Gleam parity.
 - Erlang validation must mount the repository root at the expected relative path
   when using Docker; mounting only `gleam/` breaks parity fixtures resolved via
   `../config` and `../fixtures`.
 
 ### Risks / open items
 
-- The legacy TypeScript HTTP dispatcher no longer handles webhook roots; Webhooks
-  are now owned by the Gleam embeddable/parity path per port intent, while the
-  full Gleam HTTP adapter promotion remains a whole-port follow-up.
+- The TypeScript HTTP dispatcher still handles webhook roots until the final
+  cleanup phase; Webhooks are also owned by the Gleam embeddable/parity path.
 - Several pre-existing Gleam files needed mechanical formatting under the current
   `gleam format` version before the format check would pass.
 

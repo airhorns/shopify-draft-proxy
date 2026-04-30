@@ -23,15 +23,8 @@ const discoveredScenarios = loadConformanceScenarios(repoRoot).map((scenario) =>
   paritySpec: readParitySpec(scenario.paritySpecPath),
 }));
 
-function isGleamOnlyScenario(scenario: (typeof discoveredScenarios)[number]): boolean {
-  const runtimeTestFiles = scenario.runtimeTestFiles;
-  return runtimeTestFiles.length > 0 && runtimeTestFiles.every((file) => file.startsWith('gleam/'));
-}
-
 const readyScenarios = discoveredScenarios.filter(
-  (scenario) =>
-    classifyParityScenarioState(scenario, scenario.paritySpec) === 'ready-for-comparison' &&
-    !isGleamOnlyScenario(scenario),
+  (scenario) => classifyParityScenarioState(scenario, scenario.paritySpec) === 'ready-for-comparison',
 );
 
 describe('conformance parity scenarios (convention-driven suite)', () => {
@@ -45,19 +38,6 @@ describe('conformance parity scenarios (convention-driven suite)', () => {
 
   it('discovers at least one ready-for-comparison scenario by convention', () => {
     expect(readyScenarios.length).toBeGreaterThan(0);
-  });
-
-  it('leaves Gleam-owned parity scenarios to the Gleam parity suite', () => {
-    const gleamOnlyScenarios = discoveredScenarios.filter(isGleamOnlyScenario);
-
-    expect(gleamOnlyScenarios.map((scenario) => scenario.id)).toEqual(
-      expect.arrayContaining([
-        'webhook-subscription-catalog-read',
-        'webhook-subscription-conformance',
-        'webhook-subscription-required-argument-validation',
-      ]),
-    );
-    expect(readyScenarios.some(isGleamOnlyScenario)).toBe(false);
   });
 
   it('validates declared mutation operations against executed mutation roots', () => {

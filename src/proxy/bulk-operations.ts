@@ -50,6 +50,7 @@ import {
   serializeProductBulkSelection,
   serializeProductVariantBulkSelection,
 } from './products.js';
+import { handleWebhookSubscriptionMutation } from './webhooks.js';
 
 type BulkOperationUserError = {
   field: string[] | null;
@@ -1094,6 +1095,15 @@ function handleSupportedBulkImportInnerMutation(
             ) as GraphqlResponseBody)
           : (handleStorePropertiesMutation(runtime, mutation, variables) as GraphqlResponseBody);
       break;
+    case 'webhooks': {
+      const result = handleWebhookSubscriptionMutation(runtime, mutation, variables);
+      if (!result) {
+        return null;
+      }
+      responseBody = result.response as GraphqlResponseBody;
+      stagedResourceIds.push(...result.stagedResourceIds);
+      break;
+    }
     default:
       return null;
   }

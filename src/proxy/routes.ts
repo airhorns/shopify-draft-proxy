@@ -78,6 +78,11 @@ import {
 import { handlePaymentMutation, handlePaymentQuery } from './payments.js';
 import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
+import {
+  handleWebhookSubscriptionMutation,
+  handleWebhookSubscriptionQuery,
+  hydrateWebhookSubscriptionsFromUpstreamResponse,
+} from './webhooks.js';
 
 interface GraphQLBody {
   query?: unknown;
@@ -2126,6 +2131,73 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       setGraphQLResponse(request, 200, marketingMutation.response);
+      return true;
+    },
+  },
+  {
+    name: 'webhooks',
+    canHandle: (request) => request.capability.domain === 'webhooks',
+    async handleQuery(request) {
+      if (request.capability.execution !== 'overlay-read') {
+        return false;
+      }
+
+      if (request.config.readMode === 'snapshot') {
+        setGraphQLResponse(
+          request,
+          200,
+          handleWebhookSubscriptionQuery(request.runtime, request.body.query, request.variables),
+        );
+        return true;
+      }
+
+      if (request.config.readMode === 'live-hybrid') {
+        const upstreamResponse = await proxyUpstreamGraphQL(request);
+        hydrateWebhookSubscriptionsFromUpstreamResponse(
+          request.runtime,
+          request.body.query,
+          request.variables,
+          upstreamResponse.body,
+        );
+        setGraphQLResponse(
+          request,
+          upstreamResponse.status,
+          request.runtimeStore.hasWebhookSubscriptions() || request.runtimeStore.hasStagedWebhookSubscriptions()
+            ? handleWebhookSubscriptionQuery(request.runtime, request.body.query, request.variables)
+            : upstreamResponse.body,
+        );
+        return true;
+      }
+
+      return false;
+    },
+    handleMutation(request) {
+      if (
+        request.capability.execution !== 'stage-locally' ||
+        (request.primaryRootField !== 'webhookSubscriptionCreate' &&
+          request.primaryRootField !== 'webhookSubscriptionUpdate' &&
+          request.primaryRootField !== 'webhookSubscriptionDelete')
+      ) {
+        return false;
+      }
+
+      const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(
+        request.runtime,
+        request.body.query,
+        request.variables,
+      );
+      if (!webhookSubscriptionMutation) {
+        return false;
+      }
+
+      if (webhookSubscriptionMutation.staged) {
+        recordStagedMutation(request, {
+          stagedResourceIds: webhookSubscriptionMutation.stagedResourceIds,
+          notes: webhookSubscriptionMutation.notes,
+        });
+      }
+
+      setGraphQLResponse(request, 200, webhookSubscriptionMutation.response);
       return true;
     },
   },
