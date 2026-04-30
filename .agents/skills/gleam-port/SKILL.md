@@ -256,12 +256,24 @@ The Gift Cards lifecycle parity spec depends on target-level selected-path
 diffing so mutation payload comparisons ignore unselected Shopify fields while
 still strictly comparing the requested stable slices.
 
-Functions parity note: captures with `seedShopifyFunctions` can share one
-runner seeding helper for local staging and live read-only scenarios. When a
-local-runtime Functions fixture appears one synthetic id/timestamp step ahead,
-check whether the TypeScript conformance harness seeds the synthetic registry
-before the primary request; mirror that seed in the Gleam runner rather than
-adding broad synthetic-id/timestamp expected differences.
+### TypeScript runtime retirement
+
+Keep the legacy TypeScript runtime, dispatch hooks, and tests in place during
+ordinary per-domain parity passes. When a final explicit cleanup phase deletes a
+domain from the TypeScript proxy, update both `config/parity-specs/<domain>/*.json`
+and `config/operation-registry.json` so runtime-test metadata points at the
+Gleam parity/direct tests that then own the behavior. Then run
+`gleam/scripts/sync-operation-registry.sh` so the vendored Gleam registry
+matches the JSON source.
+
+### Functions parity note
+
+Captures with `seedShopifyFunctions` can share one runner seeding helper for
+local staging and live read-only scenarios. When a local-runtime Functions
+fixture appears one synthetic id/timestamp step ahead, check whether the
+TypeScript conformance harness seeds the synthetic registry before the primary
+request; mirror that seed in the Gleam runner rather than adding broad
+synthetic-id/timestamp expected differences.
 
 ### Porting notes
 
