@@ -33,6 +33,10 @@ import shopify_draft_proxy/graphql/ast.{
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/graphql/source as graphql_source
+import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/synthetic_identity.{
+  type SyntheticIdentityRegistry,
+}
 
 /// One required top-level argument on a mutation field. `name` is the
 /// argument name as it appears in the schema; `expected_type` is the
@@ -387,4 +391,107 @@ fn locations_payload(
       )
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Mutation log drafts
+// ---------------------------------------------------------------------------
+
+/// Per-domain description of a mutation log entry that needs to be
+/// recorded. The dispatcher (`draft_proxy.route_mutation`) is the only
+/// site that actually mints the synthetic id/timestamp and calls
+/// `store.record_mutation_log_entry`. Domain `process_mutation`
+/// implementations return one `LogDraft` per logical entry they want
+/// in the buffer (typically one per root mutation field).
+///
+/// Centralising the record call here means a domain that forgets to
+/// build a draft has its mutation invisible — but the four-domain
+/// regression that prompted this design (gift_cards / localization /
+/// metafield_definitions / segments shipping no log entries) cannot
+/// recur without a structurally-empty `MutationOutcome.log_drafts`,
+/// which is much easier to spot in code review and in domain unit
+/// tests than a missing per-handler `record_mutation_log_entry` call.
+pub type LogDraft {
+  LogDraft(
+    operation_name: Option(String),
+    root_fields: List(String),
+    primary_root_field: Option(String),
+    domain: String,
+    execution: String,
+    staged_resource_ids: List(String),
+    status: store.EntryStatus,
+    notes: Option(String),
+  )
+}
+
+/// Build a `LogDraft` for a single-root-field mutation. Mirrors the
+/// shape that webhooks/apps/saved_searches/functions all
+/// historically produced inline. `domain` and `execution` are the
+/// `Capability` fields the entry should record; they're domain
+/// constants like `"webhooks"` / `"stage-locally"`.
+pub fn single_root_log_draft(
+  root_field: String,
+  staged_resource_ids: List(String),
+  status: store.EntryStatus,
+  domain: String,
+  execution: String,
+  notes: Option(String),
+) -> LogDraft {
+  LogDraft(
+    operation_name: Some(root_field),
+    root_fields: [root_field],
+    primary_root_field: Some(root_field),
+    domain: domain,
+    execution: execution,
+    staged_resource_ids: staged_resource_ids,
+    status: status,
+    notes: notes,
+  )
+}
+
+/// Record each draft into the store, threading the synthetic-identity
+/// registry through `make_synthetic_gid` + `make_synthetic_timestamp`
+/// for the entry id and `received_at`. Returns the updated store and
+/// identity registry.
+pub fn record_log_drafts(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  drafts: List(LogDraft),
+) -> #(Store, SyntheticIdentityRegistry) {
+  list.fold(drafts, #(store, identity), fn(acc, draft) {
+    let #(current_store, current_identity) = acc
+    let #(log_id, identity_after_id) =
+      synthetic_identity.make_synthetic_gid(
+        current_identity,
+        "MutationLogEntry",
+      )
+    let #(received_at, identity_after_ts) =
+      synthetic_identity.make_synthetic_timestamp(identity_after_id)
+    let entry =
+      store.MutationLogEntry(
+        id: log_id,
+        received_at: received_at,
+        operation_name: draft.operation_name,
+        path: request_path,
+        query: document,
+        variables: dict.new(),
+        staged_resource_ids: draft.staged_resource_ids,
+        status: draft.status,
+        interpreted: store.InterpretedMetadata(
+          operation_type: store.Mutation,
+          operation_name: draft.operation_name,
+          root_fields: draft.root_fields,
+          primary_root_field: draft.primary_root_field,
+          capability: store.Capability(
+            operation_name: draft.operation_name,
+            domain: draft.domain,
+            execution: draft.execution,
+          ),
+        ),
+        notes: draft.notes,
+      )
+    #(store.record_mutation_log_entry(current_store, entry), identity_after_ts)
+  })
 }

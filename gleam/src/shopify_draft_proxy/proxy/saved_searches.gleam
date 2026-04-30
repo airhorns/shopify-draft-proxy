@@ -36,7 +36,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, project_graphql_value, serialize_connection,
   serialize_empty_connection, src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{read_optional_string}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, read_optional_string, single_root_log_draft,
+}
 import shopify_draft_proxy/search_query_parser.{
   parse_search_query_term, search_query_term_value,
   strip_search_query_value_quotes,
@@ -447,6 +449,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -507,6 +510,7 @@ fn handle_mutation_fields(
       store: store,
       identity: identity,
       staged_resource_ids: [],
+      log_drafts: [],
     )
   let #(entries, outcome) =
     list.fold(fields, #([], initial), fn(acc, field) {
@@ -525,7 +529,12 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
-              #(list.append(pairs, [#(key, payload)]), next)
+              let merged =
+                MutationOutcome(
+                  ..next,
+                  log_drafts: list.append(current.log_drafts, next.log_drafts),
+                )
+              #(list.append(pairs, [#(key, payload)]), merged)
             }
             "savedSearchUpdate" -> {
               let #(key, payload, next) =
@@ -538,7 +547,12 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
-              #(list.append(pairs, [#(key, payload)]), next)
+              let merged =
+                MutationOutcome(
+                  ..next,
+                  log_drafts: list.append(current.log_drafts, next.log_drafts),
+                )
+              #(list.append(pairs, [#(key, payload)]), merged)
             }
             "savedSearchDelete" -> {
               let #(key, payload, next) =
@@ -551,7 +565,12 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
-              #(list.append(pairs, [#(key, payload)]), next)
+              let merged =
+                MutationOutcome(
+                  ..next,
+                  log_drafts: list.append(current.log_drafts, next.log_drafts),
+                )
+              #(list.append(pairs, [#(key, payload)]), merged)
             }
             _ -> #(pairs, current)
           }
@@ -565,8 +584,8 @@ fn handle_mutation_fields(
 fn handle_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
+  _request_path: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -592,30 +611,25 @@ fn handle_create(
   }
   let payload =
     project_create_payload(record_opt, input, errors, field, fragments)
-  let #(log_id, identity_after_log) =
-    synthetic_identity.make_synthetic_gid(identity_after, "MutationLogEntry")
-  let #(received_at, identity_final) =
-    synthetic_identity.make_synthetic_timestamp(identity_after_log)
-  let entry =
-    build_log_entry(
+  let draft =
+    single_root_log_draft(
       "savedSearchCreate",
-      log_id,
-      received_at,
-      request_path,
-      document,
       staged_ids,
       case errors {
         [] -> store.Staged
         _ -> store.Failed
       },
+      "saved-searches",
+      "stage-locally",
+      Some("Locally staged savedSearchCreate in shopify-draft-proxy."),
     )
-  let store_logged = store.record_mutation_log_entry(store_after, entry)
   let outcome =
     MutationOutcome(
       data: json.object([]),
-      store: store_logged,
-      identity: identity_final,
+      store: store_after,
+      identity: identity_after,
       staged_resource_ids: staged_ids,
+      log_drafts: [draft],
     )
   #(key, payload, outcome)
 }
@@ -623,8 +637,8 @@ fn handle_create(
 fn handle_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
+  _request_path: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -684,30 +698,25 @@ fn handle_update(
       field,
       fragments,
     )
-  let #(log_id, identity_after_log) =
-    synthetic_identity.make_synthetic_gid(identity_after, "MutationLogEntry")
-  let #(received_at, identity_final) =
-    synthetic_identity.make_synthetic_timestamp(identity_after_log)
-  let entry =
-    build_log_entry(
+  let draft =
+    single_root_log_draft(
       "savedSearchUpdate",
-      log_id,
-      received_at,
-      request_path,
-      document,
       staged_ids,
       case errors {
         [] -> store.Staged
         _ -> store.Failed
       },
+      "saved-searches",
+      "stage-locally",
+      Some("Locally staged savedSearchUpdate in shopify-draft-proxy."),
     )
-  let store_logged = store.record_mutation_log_entry(store_after, entry)
   let outcome =
     MutationOutcome(
       data: json.object([]),
-      store: store_logged,
-      identity: identity_final,
+      store: store_after,
+      identity: identity_after,
       staged_resource_ids: staged_ids,
+      log_drafts: [draft],
     )
   #(key, payload, outcome)
 }
@@ -715,8 +724,8 @@ fn handle_update(
 fn handle_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
+  _request_path: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -753,30 +762,25 @@ fn handle_delete(
     _ -> None
   }
   let payload = project_delete_payload(deleted_id, errors, field, fragments)
-  let #(log_id, identity_after_log) =
-    synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
-  let #(received_at, identity_final) =
-    synthetic_identity.make_synthetic_timestamp(identity_after_log)
-  let entry =
-    build_log_entry(
+  let draft =
+    single_root_log_draft(
       "savedSearchDelete",
-      log_id,
-      received_at,
-      request_path,
-      document,
       [],
       case errors {
         [] -> store.Staged
         _ -> store.Failed
       },
+      "saved-searches",
+      "stage-locally",
+      Some("Locally staged savedSearchDelete in shopify-draft-proxy."),
     )
-  let store_logged = store.record_mutation_log_entry(store_after, entry)
   let outcome =
     MutationOutcome(
       data: json.object([]),
-      store: store_logged,
-      identity: identity_final,
+      store: store_after,
+      identity: identity,
       staged_resource_ids: [],
+      log_drafts: [draft],
     )
   #(key, payload, outcome)
 }
@@ -1333,37 +1337,4 @@ fn mutation_record_source(
       ),
     ),
   ])
-}
-
-fn build_log_entry(
-  root_field: String,
-  log_id: String,
-  received_at: String,
-  request_path: String,
-  document: String,
-  staged_ids: List(String),
-  status: store.EntryStatus,
-) -> store.MutationLogEntry {
-  store.MutationLogEntry(
-    id: log_id,
-    received_at: received_at,
-    operation_name: None,
-    path: request_path,
-    query: document,
-    variables: dict.new(),
-    staged_resource_ids: staged_ids,
-    status: status,
-    interpreted: store.InterpretedMetadata(
-      operation_type: store.Mutation,
-      operation_name: None,
-      root_fields: [root_field],
-      primary_root_field: Some(root_field),
-      capability: store.Capability(
-        operation_name: Some(root_field),
-        domain: "saved-searches",
-        execution: "stage-locally",
-      ),
-    ),
-    notes: Some("Locally staged " <> root_field <> " in shopify-draft-proxy."),
-  )
 }
