@@ -497,6 +497,20 @@ pub fn get_effective_product_by_id(
   }
 }
 
+pub fn get_effective_product_by_handle(
+  store: Store,
+  handle: String,
+) -> Option(ProductRecord) {
+  case
+    list.find(list_effective_products(store), fn(product) {
+      product.handle == handle
+    })
+  {
+    Ok(product) -> Some(product)
+    Error(_) -> None
+  }
+}
+
 pub fn list_effective_products(store: Store) -> List(ProductRecord) {
   let ordered_ids =
     list.append(

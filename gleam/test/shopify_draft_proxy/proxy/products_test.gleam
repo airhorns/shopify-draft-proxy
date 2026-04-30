@@ -154,6 +154,78 @@ pub fn seeded_product_detail_read_test() {
     == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/8971842846953\",\"title\":\"Test Product - 6635\",\"handle\":\"test-product-ge91cbbd6\",\"status\":\"ACTIVE\",\"descriptionHtml\":\"\",\"onlineStorePreviewUrl\":\"https://very-big-test-store.myshopify.com/products/test-product-ge91cbbd6\",\"templateSuffix\":null,\"seo\":{\"title\":null,\"description\":null},\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/na\",\"fullName\":\"Uncategorized\"},\"collections\":{\"edges\":[]},\"media\":{\"edges\":[]}}}}"
 }
 
+pub fn seeded_product_by_identifier_id_read_test() {
+  let seeded_store = seeded_identifier_store()
+  let variables =
+    dict.from_list([
+      #("id", StringVal("gid://shopify/Product/9801098789170")),
+    ])
+  let assert Ok(result) =
+    products.process(
+      seeded_store,
+      "query ProductByIdentifierId($id: ID!) {
+        productByIdentifier(identifier: { id: $id }) {
+          id
+          handle
+          title
+        }
+      }",
+      variables,
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"productByIdentifier\":{\"id\":\"gid://shopify/Product/9801098789170\",\"handle\":\"the-inventory-not-tracked-snowboard\",\"title\":\"The Inventory Not Tracked Snowboard\"}}}"
+}
+
+pub fn seeded_product_by_identifier_handle_read_test() {
+  let seeded_store = seeded_identifier_store()
+  let variables =
+    dict.from_list([
+      #("handle", StringVal("the-inventory-not-tracked-snowboard")),
+    ])
+  let assert Ok(result) =
+    products.process(
+      seeded_store,
+      "query ProductByIdentifierHandle($handle: String!) {
+        productByIdentifier(identifier: { handle: $handle }) {
+          id
+          handle
+          title
+        }
+      }",
+      variables,
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"productByIdentifier\":{\"id\":\"gid://shopify/Product/9801098789170\",\"handle\":\"the-inventory-not-tracked-snowboard\",\"title\":\"The Inventory Not Tracked Snowboard\"}}}"
+}
+
+pub fn seeded_product_by_identifier_missing_read_test() {
+  let seeded_store = seeded_identifier_store()
+  let variables =
+    dict.from_list([
+      #("missingId", StringVal("gid://shopify/Product/999999999999")),
+      #("missingHandle", StringVal("missing-product-handle")),
+    ])
+  let assert Ok(result) =
+    products.process(
+      seeded_store,
+      "query ProductByIdentifierMissing($missingId: ID!, $missingHandle: String!) {
+        missingById: productByIdentifier(identifier: { id: $missingId }) {
+          id
+          handle
+          title
+        }
+        missingByHandle: productByIdentifier(identifier: { handle: $missingHandle }) {
+          id
+          handle
+          title
+        }
+      }",
+      variables,
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"missingById\":null,\"missingByHandle\":null}}"
+}
+
 pub fn seeded_products_catalog_read_test() {
   let product =
     ProductRecord(
@@ -212,4 +284,31 @@ pub fn seeded_products_catalog_read_test() {
     )
   assert json.to_string(result)
     == "{\"data\":{\"productsCount\":{\"count\":13552,\"precision\":\"EXACT\"},\"products\":{\"edges\":[{\"cursor\":\"eyJsYXN0X2lkIjo4OTcxODQyODQ2OTUzLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xOCAwMDo1ODoyMS4wMDAwMDAifQ==\",\"node\":{\"id\":\"gid://shopify/Product/8971842846953\",\"legacyResourceId\":\"8971842846953\",\"title\":\"Test Product - 6635\",\"handle\":\"test-product-ge91cbbd6\",\"status\":\"ACTIVE\",\"vendor\":\"very-big-test-store\",\"productType\":\"\",\"tags\":[],\"totalInventory\":0,\"tracksInventory\":false,\"createdAt\":\"2025-07-01T23:57:25Z\",\"updatedAt\":\"2026-04-18T00:58:21Z\"}}],\"pageInfo\":{\"hasNextPage\":true,\"endCursor\":\"eyJsYXN0X2lkIjo4OTcxODQyODQ2OTUzLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xOCAwMDo1ODoyMS4wMDAwMDAifQ==\"}}}}"
+}
+
+fn seeded_identifier_store() {
+  store.upsert_base_products(store.new(), [identifier_product()])
+}
+
+fn identifier_product() {
+  ProductRecord(
+    id: "gid://shopify/Product/9801098789170",
+    legacy_resource_id: Some("9801098789170"),
+    title: "The Inventory Not Tracked Snowboard",
+    handle: "the-inventory-not-tracked-snowboard",
+    status: "ACTIVE",
+    vendor: Some("Snowdevil"),
+    product_type: Some("snowboard"),
+    tags: [],
+    total_inventory: Some(0),
+    tracks_inventory: Some(False),
+    created_at: None,
+    updated_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    category: None,
+    cursor: None,
+  )
 }

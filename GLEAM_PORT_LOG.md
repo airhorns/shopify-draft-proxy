@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 36: product identifier helper reads
+
+Extends the seeded Product read slice to the simplest product helper root:
+`productByIdentifier(identifier:)` now resolves effective local Product records
+by `id` first and then by `handle`, matching the TypeScript branch precedence.
+Missing IDs, missing handles, omitted identifiers, and unported `customId`
+lookups continue to return `null`.
+
+This is still deliberately narrower than the captured
+`product-helper-roots-read` scenario. That parity spec also exercises product
+variants, helper catalogs, saved searches, duplicate jobs, operations, feedback,
+and live-hybrid payloads, so it remains disabled until those sibling paths are
+ported instead of weakening the captured request or comparison contract.
+
+| Module                                                     | Change                                                                                                          |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Adds `productByIdentifier` ID/handle projection over effective Product state while leaving custom IDs deferred. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds an effective Product lookup by handle that respects staged/base ordering and deletion markers.             |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct ID, handle, and missing identifier branch coverage for seeded Product helper reads.                 |
+
+Validation: `gleam test --target javascript` is green at 695 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails because `escript`
+is missing; the Docker Erlang fallback is green at 691 tests. Product parity
+inventory remains 115 checked-in specs, with 5 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The existing Product record slice already contains the handle needed for the
+  helper lookup; no new fixture seeding is required for direct coverage.
+- `productByIdentifier` custom IDs depend on product metafield-definition and
+  product-metafield state that has not landed in the Gleam port yet, so this
+  pass keeps that branch explicitly unclaimed.
+
+### Risks / open items
+
+- `product-helper-roots-read` remains disabled because variant helper roots and
+  broad helper catalogs are not ported.
+- Product variants, collections, options, inventory, publications, selling
+  plans, feeds/feedback, tags, metafields, and all product mutations remain
+  unported in Gleam.
+- Only 5 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 37 candidates
+
+- Add ProductVariant state and seed the helper-root first variant scenario.
+- Start product tag/type/vendor helper catalogs from seeded Product state.
+- Begin products search grammar support using shared search-query parser
+  patterns before enabling search-specific parity specs.
+
+---
+
 ## 2026-04-30 — Pass 35: seeded products catalog reads
 
 Extends the Product read foundation from by-ID detail reads to the first

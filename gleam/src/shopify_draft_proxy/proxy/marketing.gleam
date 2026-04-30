@@ -547,13 +547,7 @@ pub fn process_mutation(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
-        store,
-        identity,
-        fields,
-        fragments,
-        variables,
-      ))
+      Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
     }
   }
 }
@@ -2329,4 +2323,3 @@ fn mutation_root_names(fields: List(Selection)) -> List(String) {
     }
   })
 }
-

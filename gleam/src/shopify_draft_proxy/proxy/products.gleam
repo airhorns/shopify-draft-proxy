@@ -13,8 +13,8 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field.{
-  type ResolvedValue, type RootFieldError, StringVal, get_field_arguments,
-  get_root_fields,
+  type ResolvedValue, type RootFieldError, ObjectVal, StringVal,
+  get_field_arguments, get_root_fields,
 }
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
@@ -92,8 +92,14 @@ fn serialize_root_fields(
           case name.value {
             "product" ->
               serialize_product_root(store, field, variables, fragments)
-            "productByIdentifier"
-            | "collection"
+            "productByIdentifier" ->
+              serialize_product_by_identifier_root(
+                store,
+                field,
+                variables,
+                fragments,
+              )
+            "collection"
             | "productVariant"
             | "productVariantByIdentifier"
             | "inventoryItem"
@@ -149,6 +155,41 @@ fn serialize_product_root(
         None -> json.null()
       }
     None -> json.null()
+  }
+}
+
+fn serialize_product_by_identifier_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_identifier_argument(field, variables) {
+    Some(identifier) ->
+      case product_by_identifier(store, identifier) {
+        Some(product) ->
+          project_graphql_value(
+            product_source(product),
+            get_selected_child_fields(field, default_selected_field_options()),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn product_by_identifier(
+  store: Store,
+  identifier: Dict(String, ResolvedValue),
+) -> Option(ProductRecord) {
+  case read_string_field(identifier, "id") {
+    Some(id) -> store.get_effective_product_by_id(store, id)
+    None ->
+      case read_string_field(identifier, "handle") {
+        Some(handle) -> store.get_effective_product_by_handle(store, handle)
+        None -> None
+      }
   }
 }
 
@@ -255,6 +296,20 @@ fn serialize_product_duplicate_job(
   json.object(entries)
 }
 
+fn read_identifier_argument(
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Option(Dict(String, ResolvedValue)) {
+  case get_field_arguments(field, variables) {
+    Ok(args) ->
+      case dict.get(args, "identifier") {
+        Ok(ObjectVal(identifier)) -> Some(identifier)
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
 fn read_string_argument(
   field: Selection,
   variables: Dict(String, ResolvedValue),
@@ -267,6 +322,16 @@ fn read_string_argument(
         _ -> None
       }
     Error(_) -> None
+  }
+}
+
+fn read_string_field(
+  fields: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(fields, name) {
+    Ok(StringVal(value)) -> Some(value)
+    _ -> None
   }
 }
 

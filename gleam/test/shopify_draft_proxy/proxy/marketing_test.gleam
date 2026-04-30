@@ -256,7 +256,8 @@ pub fn native_activity_validation_update_and_log_test() {
       missing_doc,
       empty_vars(),
     )
-  let missing_extension = record_drafts(missing_extension, request_path, missing_doc)
+  let missing_extension =
+    record_drafts(missing_extension, request_path, missing_doc)
   assert string.contains(
     json.to_string(missing_extension.data),
     "Could not find the marketing extension",
