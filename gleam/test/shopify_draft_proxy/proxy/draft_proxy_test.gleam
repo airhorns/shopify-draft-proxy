@@ -1,11 +1,13 @@
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy.{
   type Request, Config, LiveHybrid, Request, Response, Snapshot,
 }
 import shopify_draft_proxy/proxy/operation_registry
+import shopify_draft_proxy/state/serialization as state_serialization
 
 fn empty_headers() -> dict.Dict(String, String) {
   dict.new()
@@ -1034,6 +1036,50 @@ fn expect_malformed_dump(dump_string: String) {
   }
 }
 
+fn remove_base_state_dump_bucket(dump_string: String, field_name: String) {
+  replace_before_marker(
+    dump_string,
+    "\"stagedState\":{\"kind\":\"plain\",\"value\":{",
+    field_name,
+  )
+}
+
+fn remove_staged_state_dump_bucket(dump_string: String, field_name: String) {
+  replace_after_marker(
+    dump_string,
+    "\"stagedState\":{\"kind\":\"plain\",\"value\":{",
+    field_name,
+  )
+}
+
+fn replace_before_marker(
+  dump_string: String,
+  marker: String,
+  field_name: String,
+) -> String {
+  let target = "\"" <> field_name <> "\":"
+  let replacement = "\"missing" <> field_name <> "\":"
+  case string.split_once(dump_string, marker) {
+    Ok(#(before, after)) ->
+      string.replace(before, target, replacement) <> marker <> after
+    Error(_) -> string.replace(dump_string, target, replacement)
+  }
+}
+
+fn replace_after_marker(
+  dump_string: String,
+  marker: String,
+  field_name: String,
+) -> String {
+  let target = "\"" <> field_name <> "\":"
+  let replacement = "\"missing" <> field_name <> "\":"
+  case string.split_once(dump_string, marker) {
+    Ok(#(before, after)) ->
+      before <> marker <> string.replace(after, target, replacement)
+    Error(_) -> string.replace(dump_string, target, replacement)
+  }
+}
+
 pub fn dump_state_default_proxy_test() {
   let proxy = draft_proxy.new()
   let dumped = json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
@@ -1119,6 +1165,29 @@ pub fn restore_state_round_trips_mutation_log_test() {
     json.to_string(draft_proxy.dump_state(original, fixed_created_at))
   let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
   assert json.to_string(draft_proxy.get_log_snapshot(restored)) == original_log
+}
+
+pub fn restore_state_round_trips_complete_runtime_dump_test() {
+  let original = draft_proxy.new()
+  let #(_, original) =
+    draft_proxy.process_request(
+      original,
+      graphql_request(saved_search_create_body),
+    )
+  let webhook_body =
+    "{\"query\":\"mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \\\"https://hooks.example.com/orders\\\", format: JSON }) { webhookSubscription { id topic uri format } userErrors { field message } } }\"}"
+  let #(_, original) =
+    draft_proxy.process_request(original, graphql_request(webhook_body))
+  let original_state = json.to_string(draft_proxy.get_state_snapshot(original))
+  let original_log = json.to_string(draft_proxy.get_log_snapshot(original))
+  let dumped =
+    json.to_string(draft_proxy.dump_state(original, fixed_created_at))
+  let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
+  assert json.to_string(draft_proxy.get_state_snapshot(restored))
+    == original_state
+  assert json.to_string(draft_proxy.get_log_snapshot(restored)) == original_log
+  assert json.to_string(draft_proxy.dump_state(restored, fixed_created_at))
+    == dumped
 }
 
 pub fn restore_state_round_trips_ported_state_buckets_test() {
@@ -1243,6 +1312,28 @@ pub fn restore_state_rejects_missing_store_fields_test() {
     default_dump
     |> string.replace("\"mutationLog\":", "\"missingMutationLog\":"),
   )
+}
+
+pub fn restore_state_rejects_missing_every_serialized_base_state_bucket_test() {
+  let default_dump = default_dump_string()
+  state_serialization.base_state_dump_field_names()
+  |> list.each(fn(field_name) {
+    expect_malformed_dump(remove_base_state_dump_bucket(
+      default_dump,
+      field_name,
+    ))
+  })
+}
+
+pub fn restore_state_rejects_missing_every_serialized_staged_state_bucket_test() {
+  let default_dump = default_dump_string()
+  state_serialization.staged_state_dump_field_names()
+  |> list.each(fn(field_name) {
+    expect_malformed_dump(remove_staged_state_dump_bucket(
+      default_dump,
+      field_name,
+    ))
+  })
 }
 
 pub fn dump_state_constants_are_stable_test() {

@@ -9,6 +9,53 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 42: state dump completeness proof
+
+Extends the HAR-522 rework so the Gleam dump/restore substrate can answer the
+review question directly: current state dumps now use strict base/staged state
+decoders that require every serialized state bucket to be present. Snapshot
+restore keeps the permissive decoder path because TypeScript snapshots remain
+incremental while the port lands domain-by-domain.
+
+The serializer now exposes field-name inventories derived from the actual
+`baseState` and `stagedState` JSON field lists. Restore tests remove every
+serialized bucket name from a real dump, one by one, and assert restore fails as
+malformed. That makes newly serialized state buckets automatically enter the
+missing-field coverage instead of relying on a manually maintained test list.
+
+| Module                                                        | Change                                                                                                                                           |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`     | Exposes serializer-derived base/staged state dump field inventories and strict current-dump decoders that require each serialized bucket key.    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Uses strict base/staged state decoders for `restore_state` while leaving `restore_snapshot` on the existing permissive snapshot-compatible path. |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | Adds exhaustive missing-bucket tests for every serialized base/staged state field plus a whole-runtime dump round-trip assertion.                |
+
+Validation: `cd gleam && gleam test --target javascript` is green at 680 tests;
+`docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w
+/repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test
+--target erlang` is green at 676 tests; `corepack pnpm gleam:registry:check`,
+`corepack pnpm gleam:port:coverage`, `corepack pnpm lint`, `corepack pnpm
+typecheck`, `corepack pnpm build`, `corepack pnpm gleam:test:js`, `corepack
+pnpm gleam:smoke:js`, and `git diff --check` are green.
+
+### Findings
+
+- The previous Pass 41 guard made `baseState`, `stagedState`, and
+  `mutationLog` required top-level store fields, but the base/staged state
+  decoders still shared permissive snapshot defaults for inner buckets.
+- Strictness needs to be scoped to current state dumps. Snapshot restore must
+  keep accepting partial TypeScript snapshot files until the port owns every
+  bucket and fixture shape.
+
+### Risks / open items
+
+- This pass guarantees that anything currently serialized as part of
+  `baseState` or `stagedState` is required during dump restore. Gleam has no
+  runtime reflection over record fields, so future state fields still need to be
+  added to the serializer; once serialized, the meta-test makes missing restore
+  coverage automatic.
+
+---
+
 ## 2026-04-30 — Pass 41: strict runtime state restore guards
 
 Tightens the runtime state dump/restore substrate added in Pass 36. The Gleam
