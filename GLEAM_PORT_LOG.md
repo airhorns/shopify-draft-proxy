@@ -9,24 +9,18 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 38: webhook parity completion with TS retained
+## 2026-04-30 — Pass 38: webhook parity evidence metadata with TS retained
 
-Completes the Webhooks port handoff while retaining the legacy TypeScript
-runtime for the final port cleanup phase. The Gleam implementation covers
-catalog/count/detail reads, create/update/delete lifecycle mutations, validation
-branches, mutation-log drafts, and parity scenarios on both targets. The checked
-in webhook parity specs and operation registry list both the retained
-TypeScript tests and the new Gleam parity/direct tests as executable evidence.
+Records the completed Webhooks Gleam parity evidence in repository metadata
+while leaving the legacy TypeScript runtime, dispatcher hooks, and TypeScript
+tests in place. This pass does not change webhook runtime code; it updates the
+checked-in parity specs and operation registry so the already-present Gleam
+parity/direct tests are listed beside the retained TypeScript evidence.
 
 | Module                                                              | Change                                                                                                                          |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `src/proxy/webhooks.ts`                                             | Retains the legacy TypeScript webhook runtime until the final cleanup phase.                                                    |
-| `src/proxy/routes.ts`                                               | Retains the TypeScript webhook dispatcher for snapshot/live-hybrid reads and local mutations.                                   |
-| `src/proxy/admin-platform.ts` / `src/proxy/bulk-operations.ts`      | Retains TypeScript webhook Node/import-runtime hooks.                                                                           |
-| `tests/integration/webhook-subscription-*.test.ts`                  | Retains legacy TypeScript webhook integration coverage alongside the new Gleam coverage.                                        |
-| `tests/unit/webhook-subscription-conformance-fixture.test.ts`       | Retains the TypeScript fixture replay test alongside Gleam parity.                                                              |
 | `config/parity-specs/webhooks/*.json`                               | Adds `gleam/test/parity_test.gleam` and direct Gleam webhook/log tests while keeping existing TypeScript runtime-test evidence. |
-| `config/operation-registry.json`                                    | Adds Gleam runtime-test metadata and support notes for the completed lifecycle while keeping TypeScript runtime-test metadata.  |
+| `config/operation-registry.json`                                    | Adds Gleam runtime-test metadata and support notes while making the retained TypeScript runtime boundary explicit.              |
 | `gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam` | Regenerates the vendored Gleam registry from the updated JSON source.                                                           |
 | `.agents/skills/gleam-port/SKILL.md`                                | Records that TypeScript runtime retirement belongs to an explicit final cleanup phase, not routine per-domain parity handoff.   |
 
@@ -39,7 +33,7 @@ Validation: `gleam test --target javascript`, the Erlang target via
 
 - The webhook parity specs can remain byte-faithful on request/capture data;
   runtime-test metadata now names both retained TypeScript coverage and the
-  Gleam parity/direct tests.
+  already-present Gleam parity/direct tests.
 - Reviewer feedback clarified that TypeScript runtime retirement should wait
   for the final cleanup phase even when a domain reaches Gleam parity.
 - Erlang validation must mount the repository root at the expected relative path
@@ -297,6 +291,60 @@ conformance:parity -- --testNamePattern event-empty-read` is green, and
   backup-region/no-data behavior.
 - Continue Marketing upstream hydration and parity-runner seeding so captured
   Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
+## 2026-04-30 — Pass 33: functions parity closure
+
+Closes the remaining executable Functions parity gaps in the Gleam port. The
+previously disabled `functions-metadata-local-staging` scenario now runs
+against Gleam with strict JSON comparison and no new expected-difference
+allowances. The runner now mirrors the TypeScript conformance harness's
+local-runtime seed step so the existing `functions-metadata-local-staging`
+fixture remains byte-identical and executable. The live owner-metadata read
+scenario also runs by reusing the existing `seedShopifyFunctions` capture
+seeding path.
+
+| Module                           | Change                                                                                                                     |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam` | Seeds Functions parity preconditions for metadata staging, owner-metadata staging, and live owner-metadata read scenarios. |
+| `gleam/test/parity_test.gleam`   | Enables all three checked-in Functions parity specs as executable Gleam parity evidence.                                   |
+
+Validation: `gleam test --target javascript` is green at 683 tests on the host
+Node runtime. Direct `gleam test --target erlang` still cannot start locally
+because the host lacks `escript`, but the BEAM target is green at 679 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`. Touched-file
+`gleam format --check`, `git diff --check`, `corepack pnpm conformance:parity`,
+and `corepack pnpm vitest run tests/integration/functions-flow.test.ts tests/unit/conformance-parity-scenarios.test.ts`
+are green.
+
+### Findings
+
+- The divergent `functions-metadata-local-staging` signal was a runner seeding
+  gap, not a Functions port bug or a reason to weaken the fixture. Mirroring the
+  TypeScript parity harness's seed step keeps the checked-in local-runtime
+  capture unchanged and the strict comparison strong.
+- The live Functions owner-metadata read capture already carries complete
+  `seedShopifyFunctions` rows, so the same seeding helper can exercise
+  `shopifyFunction` and `shopifyFunctions` reads without runtime Shopify access.
+- Functions mutation logging was already complete from Pass 28; enabling the
+  stale fixture confirms the staged multi-root mutation and follow-up update /
+  delete requests keep the mutation-log-driven synthetic sequence aligned.
+
+### Risks / open items
+
+- The TypeScript Functions runtime remains in place because the current
+  TypeScript Koa/runtime dispatcher, Admin Platform Node resolver, and bulk
+  operation import executor still import `src/proxy/functions.ts`. Deleting it
+  before a package/runtime cutover would regress the shipping TypeScript proxy.
+
+### Pass 34 candidates
+
+- Add a focused TS-to-Gleam package cutover plan for domains whose Gleam parity
+  is complete but whose TypeScript runtime modules are still imported by the
+  legacy dispatcher.
+- Continue Store Properties or Admin Platform utility parity seeding from the
+  Pass 32 candidate list.
 
 ---
 
