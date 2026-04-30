@@ -45,6 +45,7 @@ import shopify_draft_proxy/state/types.{
   type CustomerDefaultPhoneNumberRecord,
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
+  type CustomerPaymentMethodInstrumentRecord, type CustomerPaymentMethodRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord,
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
   type GiftCardRecord, type GiftCardTransactionRecord,
@@ -68,8 +69,9 @@ import shopify_draft_proxy/state/types.{
   CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
   CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
   CustomerEmailMarketingConsentRecord, CustomerEventSummaryRecord,
-  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
-  CustomerSmsMarketingConsentRecord, GiftCardConfigurationRecord,
+  CustomerMetafieldRecord, CustomerOrderSummaryRecord,
+  CustomerPaymentMethodInstrumentRecord, CustomerPaymentMethodRecord,
+  CustomerRecord, CustomerSmsMarketingConsentRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
   MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
@@ -204,6 +206,10 @@ fn seed_capture_preconditions(
       seed_shop_preconditions(capture, proxy)
     "store-credit-account-local-staging" ->
       seed_store_credit_preconditions(capture, proxy)
+    "customer-payment-method-local-staging" ->
+      seed_customer_payment_method_preconditions(capture, proxy)
+    "payment-terms-lifecycle-local-staging" ->
+      seed_payment_terms_preconditions(capture, proxy)
     "customer-create-live-parity" ->
       seed_customer_count_baseline(capture, proxy)
     "customer-delete-live-parity" ->
@@ -302,6 +308,55 @@ fn seed_customer_preconditions(
     |> store_mod.upsert_base_customer_account_pages(pages)
     |> seed_customer_connections(connections)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_customer_payment_method_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let customers =
+    jsonpath.lookup(capture, "$.seedCustomers")
+    |> json_array_values
+    |> list.filter_map(make_seed_customer)
+  let payment_methods =
+    jsonpath.lookup(capture, "$.seedCustomerPaymentMethods")
+    |> json_array_values
+    |> list.filter_map(make_seed_customer_payment_method)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_customers(customers)
+    |> store_mod.upsert_base_customer_payment_methods(payment_methods)
+  let #(_, identity_after_seed) =
+    synthetic_identity.make_synthetic_gid(
+      proxy.synthetic_identity,
+      "CustomerPaymentMethodSeed",
+    )
+  draft_proxy.DraftProxy(
+    ..proxy,
+    store: store,
+    synthetic_identity: identity_after_seed,
+  )
+}
+
+fn seed_payment_terms_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let owner_id =
+    jsonpath.lookup(capture, "$.seedDraftOrder.id")
+    |> option.then(json_string_value)
+  let store = case owner_id {
+    Some(id) -> store_mod.register_payment_terms_owner(proxy.store, id)
+    None -> proxy.store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn json_array_values(value: Option(JsonValue)) -> List(JsonValue) {
+  case value {
+    Some(JArray(items)) -> items
+    _ -> []
+  }
 }
 
 fn seed_customer_connections(
@@ -533,6 +588,68 @@ fn merge_seed_customer(
     created_at: candidate.created_at |> option.or(existing.created_at),
     updated_at: candidate.updated_at |> option.or(existing.updated_at),
   )
+}
+
+fn make_seed_customer_payment_method(
+  source: JsonValue,
+) -> Result(CustomerPaymentMethodRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use customer_id <- result.try(required_string_field(source, "customerId"))
+  Ok(
+    CustomerPaymentMethodRecord(
+      id: id,
+      customer_id: customer_id,
+      cursor: read_string_field(source, "cursor"),
+      instrument: make_seed_customer_payment_method_instrument(
+        read_object_field(source, "instrument"),
+      ),
+      revoked_at: read_string_field(source, "revokedAt"),
+      revoked_reason: read_string_field(source, "revokedReason"),
+      subscription_contracts: [],
+    ),
+  )
+}
+
+fn make_seed_customer_payment_method_instrument(
+  source: Option(JsonValue),
+) -> Option(CustomerPaymentMethodInstrumentRecord) {
+  case source {
+    Some(value) -> {
+      let type_name =
+        read_string_field(value, "typeName")
+        |> option.or(read_string_field(value, "__typename"))
+      case type_name {
+        Some(name) ->
+          Some(CustomerPaymentMethodInstrumentRecord(
+            type_name: name,
+            data: json_object_to_string_dict(read_object_field(value, "data")),
+          ))
+        None -> None
+      }
+    }
+    None -> None
+  }
+}
+
+fn json_object_to_string_dict(
+  value: Option(JsonValue),
+) -> Dict(String, String) {
+  case value {
+    Some(JObject(entries)) ->
+      list.fold(entries, dict.new(), fn(acc, pair) {
+        let #(key, item) = pair
+        case item {
+          JString(text) -> dict.insert(acc, key, text)
+          JBool(True) -> dict.insert(acc, key, "true")
+          JBool(False) -> dict.insert(acc, key, "false")
+          JInt(number) -> dict.insert(acc, key, int.to_string(number))
+          JFloat(number) -> dict.insert(acc, key, float.to_string(number))
+          JNull -> dict.insert(acc, key, "__null")
+          _ -> acc
+        }
+      })
+    _ -> dict.new()
+  }
 }
 
 fn merge_seed_default_address(

@@ -9,6 +9,141 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 43: order-payment parity completion
+
+Completes the payments acceptance slice that is owned by Orders roots in the
+Gleam draft proxy. A new minimal Orders payment domain stages local order
+creation, order captures, transaction voids, mandate payments, manual-payment
+access-denied responses, and downstream `order(id:)` payment reads without
+claiming broader Orders coverage. The pass keeps the TypeScript Orders and
+Payments runtimes intact for the final all-port cutover.
+
+| Module | Change |
+| ------ | ------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds the narrow Orders payment lifecycle model for synthetic order creation, authorization/capture/void/mandate/manual-payment behavior, derived financial fields, transaction serialization, parent-transaction projection, and mutation-log timing parity. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Wires the Orders payment roots and `order(id:)` read into explicit local dispatch alongside the Payments domain. |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds order payment records, staged/base store slices, effective-order lookup, transaction lookup, mandate-payment idempotency storage, and state dump serialization fields. |
+| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json` | Removes the order-payment expected failures once the existing captured parity specs pass on both targets. |
+
+Validation: `gleam format --check`, `git diff --check`,
+`gleam check --target javascript`, `gleam check --target erlang`, the
+JavaScript `gleam test` run with seed 0, and JSON parsing for
+`config/gleam-port-ci-gates.json` are green.
+The host Erlang runtime is still too old for the current `gleam_json`
+requirement, so Erlang target validation was run with the documented OTP 28
+container:
+`docker run --rm -v "$PWD:$PWD" -w "$PWD/gleam"
+ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval
+"io:format(\"~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell &&
+gleam test --target erlang -- --seed 0'`, green at 675 tests. The JavaScript
+target is green at 679 tests. The payments/order-payment parity scenario report
+is represented by the full parity gate: no `config/parity-specs/payments/*` or
+order-payment entries remain in `expectedGleamParityFailures`.
+
+### Findings
+
+- Order payment roots in the TypeScript route mint response IDs before consuming
+  the mutation-log ID; validation-only order-payment responses still consume the
+  log ID/timestamp even when the log entry is not recorded. The Gleam Orders
+  domain mirrors that ordering so captured synthetic IDs stay stable.
+- Integer order line-item quantities must use `int.to_float`; parsing integer
+  strings as floats produced zero totals on the Gleam target and broke derived
+  financial status.
+- Successful `transactionVoid` payloads need the updated order context when
+  serializing `parentTransaction`, while validation payloads still return null
+  transactions.
+
+### Risks / open items
+
+- This pass deliberately ports only the Orders payment roots needed by the
+  existing executable payment/order-payment parity specs. Broader Orders roots
+  remain on the expected-failure list until their owning domain passes land.
+- The TypeScript Payments and Orders runtimes remain in place. Per
+  `GLEAM_PORT_INTENT.md`, domain-local parity is not authority to delete TS
+  runtime code before the final all-port cutover.
+
+### Pass 44 candidates
+
+- Continue broader Orders lifecycle parity now that a minimal order payment
+  state slice exists.
+- Add proper DraftOrder state ownership for payment terms totals before
+  broadening payment terms beyond the captured fixture.
+- Continue Payments registry roots not backed by checked-in parity, such as
+  tender transactions and dispute evidence, once executable captures exist.
+
+---
+
+## 2026-04-30 — Pass 42: payments parity foundation
+
+Ports the parity-backed Payments surface into the Gleam draft proxy while
+leaving the TypeScript payments runtime and integration tests in place for the
+final all-port cutover. The new Payments domain stages customer payment-method
+lifecycle mutations, payment customization mutations/reads, payment reminder
+intent, and payment terms lifecycle mutations locally; it also answers the
+captured no-data/read-only payment roots for finance risk, disputes/POS/Shop
+Pay receipts, Shopify Payments account, and payment terms templates. The
+customer projection now exposes staged payment-method instruments, and the
+parity runner seeds customer payment-method and payment-terms captures before
+replay.
+
+| Module | Change |
+| ------ | ------ |
+| `gleam/src/shopify_draft_proxy/proxy/payments.gleam` | Adds the Payments query/mutation domain with local staging, scrubbed customer payment-method payloads, static payment terms templates, payment terms read-after-write, and Shopify-like no-data roots. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Wires Payments into explicit local query/mutation dispatch and mutation-log finalization. |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds payment customization, payment reminder, and payment terms state slices plus observable meta-state serialization. |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam` | Projects customer payment-method instruments from staged/base state for downstream reads. |
+| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json` | Seeds captured payment preconditions and removes all checked-in Payments parity specs from expected failures. |
+
+Validation: `gleam test --target javascript -- --seed 0` is green at 679
+tests. The host Erlang runtime is OTP 25 and fails `gleam_json`'s OTP 27+
+requirement, so Erlang target validation was run with the documented container:
+`docker run --rm -v "$PWD:$PWD" -w "$PWD/gleam"
+ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval
+"io:format(\"~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell &&
+gleam test --target erlang -- --seed 0'`, green at 675 tests on OTP 28.
+`gleam format --check`, `git diff --check`, and JSON parsing for
+`config/gleam-port-ci-gates.json` are green. The payments parity scenario report
+is represented by the full parity gate: no `config/parity-specs/payments/*`
+entries remain in `expectedGleamParityFailures`, and the full JavaScript/Erlang
+Gleam parity runs passed.
+
+### Findings
+
+- The existing customer payment-method fixture intentionally starts synthetic
+  payment-method IDs at `2`; the Gleam runner mirrors the TypeScript harness by
+  reserving the first synthetic ID during fixture seeding.
+- The customer payment-method fixture is a multi-root mutation request. Payments
+  records one mutation-log draft for the request so downstream synthetic IDs
+  line up with the captured TypeScript runtime behavior.
+- The payment terms lifecycle capture only needs a draft-order owner seed; the
+  local Payment Terms model stages create/update/delete and answers the captured
+  `draftOrder(id:) { paymentTerms }` downstream reads without introducing a full
+  Orders domain.
+
+### Risks / open items
+
+- This pass does not delete `src/proxy/payments.ts`; per port rules, the
+  TypeScript runtime remains until the final all-port cutover.
+- Broader order payment flows such as capture, mandate, transaction, and void
+  remain under the Orders parity expected-failure set and need an Orders-domain
+  port pass rather than being hidden in Payments.
+- Payment terms schedule totals use the captured local draft-order total shape
+  needed by current parity; a future Orders/DraftOrder state slice should own
+  draft-order totals and pass them into payment terms rather than relying on the
+  local payment-terms fallback.
+
+### Pass 43 candidates
+
+- Port Orders payment transaction/capture/mandate/void lifecycle roots into a
+  dedicated Gleam Orders domain and remove the corresponding Orders expected
+  failures.
+- Add proper DraftOrder state ownership for payment terms totals before
+  broadening payment terms beyond the captured fixture.
+- Continue Payments registry roots not backed by checked-in parity, such as
+  tender transactions and dispute evidence, once executable captures exist.
+
+---
+
 ## 2026-04-30 — Pass 41: gift-card parity completion
 
 Completes the Gift Cards Gleam parity handoff while keeping the TypeScript
