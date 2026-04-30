@@ -7671,9 +7671,11 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscription", "WebhookSubscription"],
       runtime_tests: [
         "tests/integration/webhook-subscription-query-shapes.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
       ],
       support_notes: Some(
-        "Local snapshot/live-hybrid reads are modeled for API-created webhook subscription records in normalized state. Unknown IDs return null. Create/update/delete staging remains unsupported until a local mutation lifecycle model exists.",
+        "The TypeScript runtime remains in place while the Gleam runtime also models local reads for API-created webhook subscription records in normalized state. Unknown IDs return null, and staged create/update/delete effects are visible through downstream detail reads.",
       ),
     ),
     RegistryEntry(
@@ -7685,9 +7687,11 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscriptions", "WebhookSubscriptions"],
       runtime_tests: [
         "tests/integration/webhook-subscription-query-shapes.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
       ],
       support_notes: Some(
-        "Local snapshot/live-hybrid catalog reads are modeled for API-created webhook subscriptions with normalized nodes, edges, pageInfo, stable synthetic cursors, ID sorting, reverse ordering, pagination, and simple captured query filtering. App TOML webhooks remain out of scope.",
+        "The TypeScript runtime remains in place while the Gleam runtime also models catalog reads for API-created webhook subscriptions with normalized nodes, edges, pageInfo, stable synthetic cursors, ID sorting, reverse ordering, pagination, and simple captured query filtering. App TOML webhooks remain out of scope.",
       ),
     ),
     RegistryEntry(
@@ -7699,9 +7703,11 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscriptionsCount", "WebhookSubscriptionsCount"],
       runtime_tests: [
         "tests/integration/webhook-subscription-query-shapes.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
       ],
       support_notes: Some(
-        "Local snapshot/live-hybrid count reads are synthesized from normalized API-created webhook subscription state with Shopify-like count/precision fields and limit-aware AT_LEAST precision.",
+        "The TypeScript runtime remains in place while the Gleam runtime also synthesizes count reads from normalized API-created webhook subscription state with Shopify-like count/precision fields and limit-aware AT_LEAST precision.",
       ),
     ),
     RegistryEntry(
@@ -7713,9 +7719,12 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscriptionCreate", "WebhookSubscriptionCreate"],
       runtime_tests: [
         "tests/integration/webhook-subscription-mutation-flow.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
       ],
       support_notes: Some(
-        "Local staging is supported for the HAR-267 captured Admin API-created HTTP URI registration subset, including topic, format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, missing URI userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility. App TOML webhook config and webhook delivery remain out of scope.",
+        "The TypeScript runtime remains in place while the Gleam runtime also stages the HAR-267 captured Admin API-created HTTP URI registration subset locally, including topic, format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, missing URI userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility. App TOML webhook config and webhook delivery remain out of scope.",
       ),
     ),
     RegistryEntry(
@@ -7727,9 +7736,12 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscriptionUpdate", "WebhookSubscriptionUpdate"],
       runtime_tests: [
         "tests/integration/webhook-subscription-mutation-flow.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
       ],
       support_notes: Some(
-        "Local staging updates staged or hydrated webhook subscriptions for the HAR-267 captured Admin API-created HTTP URI subset, including format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, unknown-id userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility without runtime Shopify writes.",
+        "The TypeScript runtime remains in place while the Gleam runtime also locally updates staged or hydrated webhook subscriptions for the HAR-267 captured Admin API-created HTTP URI subset, including format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, unknown-id userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(
@@ -7741,9 +7753,12 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscriptionDelete", "WebhookSubscriptionDelete"],
       runtime_tests: [
         "tests/integration/webhook-subscription-mutation-flow.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
       ],
       support_notes: Some(
-        "Local staging deregisters staged or hydrated API-created webhook subscriptions for the HAR-267 captured subset, returning deletedWebhookSubscriptionId/userErrors payloads, preserving raw mutation-log replay order, and making downstream detail/catalog/count reads observe deletion without runtime Shopify writes. Unknown or already deleted IDs return the captured Webhook subscription does not exist userError; missing/null ID branches return Shopify-like GraphQL validation errors locally.",
+        "The TypeScript runtime remains in place while the Gleam runtime also locally deregisters staged or hydrated API-created webhook subscriptions for the HAR-267 captured subset, returning deletedWebhookSubscriptionId/userErrors payloads, preserving raw mutation-log replay order, and making downstream detail/catalog/count reads observe deletion without runtime Shopify writes. Unknown or already deleted IDs return the captured Webhook subscription does not exist userError; missing/null ID branches return Shopify-like GraphQL validation errors locally.",
       ),
     ),
     RegistryEntry(

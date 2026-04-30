@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 43: state dump completeness proof
+## 2026-04-30 — Pass 44: state dump completeness proof
 
 Extends the HAR-522 rework so the Gleam dump/restore substrate can answer the
 review question directly: current state dumps now use strict base/staged state
@@ -40,7 +40,7 @@ gleam:smoke:js`, and `git diff --check` are green. The JS target is green at
 
 ### Findings
 
-- The previous Pass 42 guard made `baseState`, `stagedState`, and
+- The previous Pass 43 guard made `baseState`, `stagedState`, and
   `mutationLog` required top-level store fields, but the base/staged state
   decoders still shared permissive snapshot defaults for inner buckets.
 - Strictness needs to be scoped to current state dumps. Snapshot restore must
@@ -60,7 +60,7 @@ gleam:smoke:js`, and `git diff --check` are green. The JS target is green at
 
 ---
 
-## 2026-04-30 — Pass 42: strict runtime state restore guards
+## 2026-04-30 — Pass 43: strict runtime state restore guards
 
 Tightens the runtime state dump/restore substrate added in Pass 36. The Gleam
 restore path now treats the current store field dump as a required structural
@@ -113,6 +113,54 @@ because the host Erlang runtime is OTP 25 and `gleam_json` requires OTP 27+.
 - Root-owned Docker validation can leave `gleam/build` owned by root on the
   host. The local workspace needed ownership repaired before rerunning the JS
   target after the Erlang container pass.
+
+---
+
+## 2026-04-30 — Pass 42: webhook parity evidence metadata with TS retained
+
+Records the completed Webhooks Gleam parity evidence in repository metadata
+while leaving the legacy TypeScript runtime, dispatcher hooks, and TypeScript
+tests in place. This pass does not change webhook runtime code; it updates the
+checked-in parity specs and operation registry so the already-present Gleam
+parity/direct tests are listed beside the retained TypeScript evidence.
+
+| Module                                                              | Change                                                                                                                          |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `config/parity-specs/webhooks/*.json`                               | Adds `gleam/test/parity_test.gleam` and direct Gleam webhook/log tests while keeping existing TypeScript runtime-test evidence. |
+| `config/operation-registry.json`                                    | Adds Gleam runtime-test metadata and support notes while making the retained TypeScript runtime boundary explicit.              |
+| `gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam` | Regenerates the vendored Gleam registry from the updated JSON source.                                                           |
+| `.agents/skills/gleam-port/SKILL.md`                                | Records that TypeScript runtime retirement belongs to an explicit final cleanup phase, not routine per-domain parity handoff.   |
+
+Validation: `gleam test --target javascript`, the Erlang target via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`, `corepack pnpm typecheck`,
+`corepack pnpm conformance:check`, `corepack pnpm conformance:parity`,
+`corepack pnpm lint`, and `git diff --check` are green.
+
+### Findings
+
+- The webhook parity specs can remain byte-faithful on request/capture data;
+  runtime-test metadata now names both retained TypeScript coverage and the
+  already-present Gleam parity/direct tests.
+- Reviewer feedback clarified that TypeScript runtime retirement should wait
+  for the final cleanup phase even when a domain reaches Gleam parity.
+- Erlang validation must mount the repository root at the expected relative path
+  when using Docker; mounting only `gleam/` breaks parity fixtures resolved via
+  `../config` and `../fixtures`.
+
+### Risks / open items
+
+- The TypeScript HTTP dispatcher still handles webhook roots until the final
+  cleanup phase; Webhooks are also owned by the Gleam embeddable/parity path.
+
+### Pass 42 candidates
+
+- Add a fixture-bundle snapshot loader once parity runner scenarios need
+  recorded GraphQL bundle startup state.
+- Continue Store Properties location / fulfillment-service roots now that
+  state dump/restore can persist the expanded store shape.
+- Add broader runtime smoke around `process_request_async` live-hybrid
+  passthrough and commit replay once test transport injection is exposed through
+  the JS shim.
 
 ---
 
