@@ -9,6 +9,68 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 37: runtime state dump and snapshot substrate
+
+Completes the next DraftProxy runtime substrate slice: `__meta/state` now
+serializes every state bucket currently modelled by the Gleam store instead of
+the previous shop/saved-search subset, and `dump_state` / `restore_state`
+round-trip base state, staged state, mutation log, and synthetic identity in the
+same versioned field-dump envelope shape used by the TypeScript store. The JS
+shim also accepts `createDraftProxy(config, { state })` and loads existing
+normalized snapshot files through `snapshotPath`, ignoring not-yet-ported
+unknown buckets while preserving ported ones.
+
+| Module                                                        | Change                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`     | Adds full JSON encoders/decoders for the current Gleam `BaseState` and `StagedState` buckets, including webhooks, apps, functions, gift cards, segments, localization, marketing, bulk operations, Admin Platform, and Store Properties slices. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Routes `__meta/state`, state dumps, restore, and normalized snapshot loading through the shared state serializer and uses TS-compatible `{ kind, value }` store field dumps.                                                                    |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | Updates state-shape assertions and adds executable coverage for webhook state visibility, ported bucket dump/restore, and snapshot loading with unknown-bucket tolerance.                                                                       |
+| `gleam/js/src/runtime.ts`                                     | Loads `snapshotPath` files, restores constructor-supplied state dumps, and keeps the TS shim aligned with the embeddable `createDraftProxy(config, options)` shape.                                                                             |
+| `tests/integration/gleam-interop.test.ts`                     | Expands JS interop smoke coverage for constructor state restore and normalized snapshot loading.                                                                                                                                                |
+
+Validation: `gleam test --target javascript` is green at 672 tests.
+`gleam test --target erlang` is green at 668 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container because the host
+lacks `escript`. `corepack pnpm gleam:smoke:js` is green at 4 Vitest tests.
+`corepack pnpm elixir:smoke` cannot run directly on the host for the same
+missing `escript` reason, but the equivalent command is green in
+`ghcr.io/gleam-lang/gleam:v1.16.0-elixir-alpine` at 17 ExUnit tests.
+`corepack pnpm gleam:format:check` and `git diff --check` are green.
+
+### Findings
+
+- The TS store dump is an own-field map where each field is wrapped as
+  `{ kind, value }`; the Gleam dump now preserves that substrate shape instead
+  of emitting a bespoke `mutationLog`-only fields object.
+- Normalized snapshot files can be accepted incrementally: unknown TS buckets
+  such as product/customer placeholders are ignored by the Gleam decoder, while
+  any already-ported bucket present in `baseState` is installed.
+- Keeping all state encoding/decoding in one state module makes newly ported
+  buckets easier to wire through meta/dump/restore in the same pass that adds
+  the store fields.
+
+### Risks / open items
+
+- Snapshot loading is intentionally limited to normalized snapshot JSON and the
+  buckets already represented in the Gleam `Store`; recorded GraphQL fixture
+  bundle loading remains a later substrate pass.
+- The JS shim uses Node `fs` for `snapshotPath`; browser/edge callers should
+  pass state explicitly until a fetch/blob based snapshot loader is designed.
+- Product/customer/order state remains unported in Gleam, so snapshots
+  containing only those TS buckets still load as an empty local Gleam state.
+
+### Pass 38 candidates
+
+- Add a fixture-bundle snapshot loader once the next parity runner scenarios
+  need recorded GraphQL bundle startup state.
+- Continue Store Properties location / fulfillment-service roots now that
+  state dump/restore can persist the expanded store shape.
+- Add broader runtime smoke around `process_request_async` live-hybrid
+  passthrough and commit replay once test transport injection is exposed through
+  the JS shim.
+
+---
+
 ## 2026-04-30 — Pass 36: saved-search parity completion
 
 Finishes the saved-search parity work in the Gleam implementation while keeping
