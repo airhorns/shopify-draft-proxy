@@ -70,11 +70,45 @@ fn is_expected(
 ) -> Bool {
   list.any(rules, fn(rule) {
     case rule {
-      IgnoreDifference(path: path) -> path == m.path
+      IgnoreDifference(path: path) -> path_matches(path, m.path)
       MatcherDifference(path: path, matcher: matcher) ->
-        path == m.path && satisfies_matcher(actual_root, path, matcher)
+        path_matches(path, m.path)
+        && satisfies_matcher(actual_root, m.path, matcher)
     }
   })
+}
+
+fn path_matches(pattern: String, path: String) -> Bool {
+  case pattern == path {
+    True -> True
+    False -> wildcard_path_matches(pattern, path)
+  }
+}
+
+fn wildcard_path_matches(pattern: String, path: String) -> Bool {
+  case string.split(pattern, on: "[*]") {
+    [prefix, suffix] ->
+      string.starts_with(path, prefix)
+      && string.ends_with(path, suffix)
+      && wildcard_index_segment(path, prefix, suffix)
+    _ -> False
+  }
+}
+
+fn wildcard_index_segment(
+  path: String,
+  prefix: String,
+  suffix: String,
+) -> Bool {
+  let middle_start = string.length(prefix)
+  let middle_end = string.length(path) - string.length(suffix)
+  case middle_end > middle_start {
+    True -> {
+      let middle = string.slice(path, middle_start, middle_end - middle_start)
+      string.starts_with(middle, "[") && string.ends_with(middle, "]")
+    }
+    False -> False
+  }
 }
 
 fn satisfies_matcher(

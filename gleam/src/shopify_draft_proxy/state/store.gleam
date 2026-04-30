@@ -22,10 +22,10 @@ import shopify_draft_proxy/state/types.{
   type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
   type GiftCardRecord, type LocaleRecord, type MarketingEngagementRecord,
   type MarketingRecord, type MarketingValue, type SavedSearchRecord,
-  type SegmentRecord, type ShopLocaleRecord, type ShopifyFunctionRecord,
-  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
-  type WebhookSubscriptionRecord, BulkOperationRecord, MarketingObject,
-  MarketingString,
+  type SegmentRecord, type ShopLocaleRecord, type ShopRecord,
+  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
+  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
+  BulkOperationRecord, MarketingObject, MarketingString,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -42,6 +42,7 @@ pub type BaseState {
     admin_platform_flow_signature_order: List(String),
     admin_platform_flow_triggers: Dict(String, AdminPlatformFlowTriggerRecord),
     admin_platform_flow_trigger_order: List(String),
+    shop: Option(ShopRecord),
     saved_searches: Dict(String, SavedSearchRecord),
     saved_search_order: List(String),
     deleted_saved_search_ids: Dict(String, Bool),
@@ -112,6 +113,7 @@ pub type StagedState {
     admin_platform_flow_signature_order: List(String),
     admin_platform_flow_triggers: Dict(String, AdminPlatformFlowTriggerRecord),
     admin_platform_flow_trigger_order: List(String),
+    shop: Option(ShopRecord),
     saved_searches: Dict(String, SavedSearchRecord),
     saved_search_order: List(String),
     deleted_saved_search_ids: Dict(String, Bool),
@@ -244,6 +246,7 @@ pub fn empty_base_state() -> BaseState {
     admin_platform_flow_signature_order: [],
     admin_platform_flow_triggers: dict.new(),
     admin_platform_flow_trigger_order: [],
+    shop: None,
     saved_searches: dict.new(),
     saved_search_order: [],
     deleted_saved_search_ids: dict.new(),
@@ -307,6 +310,7 @@ pub fn empty_staged_state() -> StagedState {
     admin_platform_flow_signature_order: [],
     admin_platform_flow_triggers: dict.new(),
     admin_platform_flow_trigger_order: [],
+    shop: None,
     saved_searches: dict.new(),
     saved_search_order: [],
     deleted_saved_search_ids: dict.new(),
@@ -417,6 +421,31 @@ pub fn get_effective_backup_region(store: Store) -> Option(BackupRegionRecord) {
   case store.staged_state.backup_region {
     Some(region) -> Some(region)
     None -> store.base_state.backup_region
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Store properties slice
+// ---------------------------------------------------------------------------
+
+pub fn upsert_base_shop(store: Store, record: ShopRecord) -> Store {
+  Store(..store, base_state: BaseState(..store.base_state, shop: Some(record)))
+}
+
+pub fn stage_shop(store: Store, record: ShopRecord) -> #(ShopRecord, Store) {
+  #(
+    record,
+    Store(
+      ..store,
+      staged_state: StagedState(..store.staged_state, shop: Some(record)),
+    ),
+  )
+}
+
+pub fn get_effective_shop(store: Store) -> Option(ShopRecord) {
+  case store.staged_state.shop {
+    Some(shop) -> Some(shop)
+    None -> store.base_state.shop
   }
 }
 

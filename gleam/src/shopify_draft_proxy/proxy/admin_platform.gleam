@@ -23,6 +23,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_selected_child_fields, project_graphql_value, serialize_empty_connection,
   src_object,
 }
+import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -171,10 +172,10 @@ fn serialize_query_field(
       }),
       [],
     )
-    "node" -> #(json.null(), [])
-    "nodes" -> #(serialize_nodes(field, variables), [])
+    "node" -> #(serialize_node(store, field, fragments, variables), [])
+    "nodes" -> #(serialize_nodes(store, field, fragments, variables), [])
     "job" -> #(serialize_job(field, fragments, variables), [])
-    "domain" -> #(json.null(), [])
+    "domain" -> #(serialize_domain(store, field, fragments, variables), [])
     "backupRegion" -> {
       let region = case store.get_effective_backup_region(store) {
         Some(region) -> region
@@ -205,8 +206,24 @@ fn selection_children(field: Selection) -> List(Selection) {
   }
 }
 
-fn serialize_nodes(
+fn serialize_node(
+  store: Store,
   field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_args(field, variables)
+  case dict.get(args, "id") {
+    Ok(root_field.StringVal(id)) ->
+      serialize_node_by_id(store, id, selection_children(field), fragments)
+    _ -> json.null()
+  }
+}
+
+fn serialize_nodes(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = field_args(field, variables)
@@ -220,7 +237,70 @@ fn serialize_nodes(
       })
     _ -> []
   }
-  json.array(ids, fn(_) { json.null() })
+  json.array(ids, fn(id) {
+    serialize_node_by_id(store, id, selection_children(field), fragments)
+  })
+}
+
+fn serialize_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case gid_resource_type(id) {
+    "Shop" ->
+      store_properties.serialize_shop_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
+    "ShopAddress" ->
+      store_properties.serialize_shop_address_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
+    "ShopPolicy" ->
+      store_properties.serialize_shop_policy_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
+    _ -> json.null()
+  }
+}
+
+fn serialize_domain(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_args(field, variables)
+  case dict.get(args, "id") {
+    Ok(root_field.StringVal(id)) ->
+      case store_properties.primary_domain_for_id(store, id) {
+        Some(domain) ->
+          project_graphql_value(
+            store_properties.shop_domain_source(domain),
+            selection_children(field),
+            fragments,
+          )
+        None -> json.null()
+      }
+    _ -> json.null()
+  }
+}
+
+fn gid_resource_type(id: String) -> String {
+  case string.split(id, on: "/") {
+    ["gid:", "", "shopify", resource_type, ..] -> resource_type
+    _ -> ""
+  }
 }
 
 fn serialize_job(

@@ -121,6 +121,12 @@ Helpers: `set_staged_{singular}(store, record)`,
 No order list, no deleted markers. See `tax_app_configuration` and
 `gift_card_configuration` for the canonical shape.
 
+For Store Properties-style singleton records that do not have a default
+fallback (for example `shop`), keep `Option({Singular}Record)` on both base and
+staged state, make staged replace base wholesale, and return `None`/GraphQL
+`null` rather than inventing a fake local record when no captured shop baseline
+exists.
+
 ### Dispatcher wiring (per new domain)
 
 5 lines in `proxy/draft_proxy.gleam`:
@@ -176,6 +182,10 @@ by scenario id, mirroring the TS parity harness. Pass 27's
 `gift-card-search-filters` seeding is the current template: decode only
 fields present in the capture, upsert them into base state, then let
 the setup mutation produce the staged read-after-write state.
+
+If an existing parity spec uses wildcard expected-difference paths such as
+`$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
+path syntax instead of narrowing or rewriting the checked-in spec.
 
 ## Workflow for a new pass
 
