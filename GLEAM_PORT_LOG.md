@@ -9,6 +9,69 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 77: collection delete staging
+
+Completes the captured collection delete mutation in the Gleam Products
+handler. The pass wires `collectionDelete` into the local mutation dispatcher,
+stages collection deletion without runtime Shopify writes, clears collection
+membership rows for the deleted collection, and returns the captured
+deletedCollectionId/userErrors payload shape.
+
+The pass promotes `collectionDelete-parity-plan` into the Gleam parity suite.
+The checked-in fixture, request document, variables capture path, and strict
+comparison contract stay unchanged.
+
+| Module                                               | Change                                                    |
+| ---------------------------------------------------- | --------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds staged collection deletion and membership cleanup.   |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages `collectionDelete` and serializes delete output.   |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured delete target collection precondition. |
+| `gleam/test/parity_test.gleam`                       | Enables the strict collection delete parity spec.         |
+
+Validation:
+`gleam test --target javascript collection_delete_live_parity_test` is green at
+776 tests, and full `gleam test --target javascript` is green at 776 tests on
+the host Node runtime. Host `gleam test --target erlang` still fails before
+tests execute on the local Erlang install with the known `undef` runner issue;
+after clearing host-built Erlang artifacts, the Docker Erlang fallback is green
+at 772 tests. Product parity inventory remains 115 checked-in specs, with 62
+product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay returning
+  HTTP 400 with `No mutation dispatcher implemented for root field:
+collectionDelete`.
+- The captured delete fixture only compares mutation data, but the store helper
+  also marks the collection deleted and clears its product-collection rows so
+  downstream reads observe Shopify-like no-data behavior for the deleted
+  collection.
+- The fixture does not contain the deleted collection body after the delete, so
+  the parity runner seeds a minimal target collection from the captured input ID
+  before replaying the mutation.
+
+### Risks / open items
+
+- Remaining collection create roots, inventory shipment/transfer, publication
+  links, product feeds/feedback, selling plans, product metafields, media,
+  advanced search, and broader validation atomicity parity remain incomplete in
+  Gleam.
+- Only 62 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 78 candidates
+
+- Continue collection lifecycle roots with `collectionCreate` and its captured
+  initial-products behavior.
+- Port product metafield behavior now that Product, Product Option,
+  Product Variant, Inventory, and Collection relationship slices are locally
+  staged or seeded.
+- Continue publication-related collection/product roots if the captured
+  fixtures can be represented without weakening request shapes.
+
+---
+
 ## 2026-04-30 - Pass 76: collection update staging
 
 Completes the captured collection update mutation in the Gleam Products

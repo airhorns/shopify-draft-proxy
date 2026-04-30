@@ -640,6 +640,51 @@ pub fn upsert_staged_collections(
   })
 }
 
+pub fn delete_staged_collection(store: Store, id: String) -> Store {
+  let base = store.base_state
+  let staged = store.staged_state
+  let base_product_collections =
+    base.product_collections
+    |> dict.keys()
+    |> list.fold(base.product_collections, fn(acc, key) {
+      case dict.get(acc, key) {
+        Ok(record) ->
+          case record.collection_id == id {
+            True -> dict.delete(acc, key)
+            False -> acc
+          }
+        Error(_) -> acc
+      }
+    })
+  let staged_product_collections =
+    staged.product_collections
+    |> dict.keys()
+    |> list.fold(staged.product_collections, fn(acc, key) {
+      case dict.get(acc, key) {
+        Ok(record) ->
+          case record.collection_id == id {
+            True -> dict.delete(acc, key)
+            False -> acc
+          }
+        Error(_) -> acc
+      }
+    })
+  let new_base =
+    BaseState(..base, product_collections: base_product_collections)
+  let new_staged =
+    StagedState(
+      ..staged,
+      collections: dict.delete(staged.collections, id),
+      product_collections: staged_product_collections,
+      deleted_collection_ids: dict.insert(
+        staged.deleted_collection_ids,
+        id,
+        True,
+      ),
+    )
+  Store(..store, base_state: new_base, staged_state: new_staged)
+}
+
 pub fn replace_base_products_for_collection(
   store: Store,
   collection_id: String,

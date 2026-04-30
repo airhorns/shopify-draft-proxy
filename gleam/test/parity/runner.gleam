@@ -178,6 +178,8 @@ fn seed_capture_preconditions(
       seed_collection_reorder_products_preconditions(capture, proxy)
     "collection-update-live-parity" ->
       seed_collection_update_preconditions(capture, proxy)
+    "collection-delete-live-parity" ->
+      seed_collection_delete_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
@@ -730,6 +732,40 @@ fn seed_collection_update_preconditions(
       draft_proxy.DraftProxy(..proxy, store: store)
     }
     None -> proxy
+  }
+}
+
+fn seed_collection_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.mutation.variables.input.id") {
+    Some(JString(collection_id)) -> {
+      let collection =
+        CollectionRecord(
+          id: collection_id,
+          legacy_resource_id: None,
+          title: "Delete parity collection",
+          handle: "delete-parity-collection",
+          publication_ids: [],
+          updated_at: None,
+          description: None,
+          description_html: None,
+          image: None,
+          sort_order: Some("MANUAL"),
+          template_suffix: None,
+          seo: ProductSeoRecord(title: None, description: None),
+          rule_set: None,
+          products_count: Some(0),
+          is_smart: False,
+          cursor: None,
+          title_cursor: None,
+          updated_at_cursor: None,
+        )
+      let store = store_mod.upsert_base_collections(proxy.store, [collection])
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    _ -> proxy
   }
 }
 

@@ -128,6 +128,10 @@ pub fn collection_update_live_parity_test() {
   check("config/parity-specs/products/collectionUpdate-parity-plan.json")
 }
 
+pub fn collection_delete_live_parity_test() {
+  check("config/parity-specs/products/collectionDelete-parity-plan.json")
+}
+
 pub fn products_catalog_read_test() {
   check("config/parity-specs/products/products-catalog-read.json")
 }
