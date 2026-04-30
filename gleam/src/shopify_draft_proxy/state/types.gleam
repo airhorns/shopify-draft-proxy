@@ -435,6 +435,121 @@ pub type BulkOperationRecord {
 }
 
 // ---------------------------------------------------------------------------
+// Metaobjects domain
+// ---------------------------------------------------------------------------
+
+pub type MetaobjectJsonValue {
+  MetaobjectNull
+  MetaobjectString(String)
+  MetaobjectBool(Bool)
+  MetaobjectInt(Int)
+  MetaobjectFloat(Float)
+  MetaobjectList(List(MetaobjectJsonValue))
+  MetaobjectObject(Dict(String, MetaobjectJsonValue))
+}
+
+pub type MetaobjectDefinitionCapabilityRecord {
+  MetaobjectDefinitionCapabilityRecord(enabled: Bool)
+}
+
+pub type MetaobjectDefinitionCapabilitiesRecord {
+  MetaobjectDefinitionCapabilitiesRecord(
+    publishable: Option(MetaobjectDefinitionCapabilityRecord),
+    translatable: Option(MetaobjectDefinitionCapabilityRecord),
+    renderable: Option(MetaobjectDefinitionCapabilityRecord),
+    online_store: Option(MetaobjectDefinitionCapabilityRecord),
+  )
+}
+
+pub type MetaobjectDefinitionTypeRecord {
+  MetaobjectDefinitionTypeRecord(name: String, category: Option(String))
+}
+
+pub type MetaobjectFieldDefinitionValidationRecord {
+  MetaobjectFieldDefinitionValidationRecord(name: String, value: Option(String))
+}
+
+pub type MetaobjectFieldDefinitionRecord {
+  MetaobjectFieldDefinitionRecord(
+    key: String,
+    name: Option(String),
+    description: Option(String),
+    required: Option(Bool),
+    type_: MetaobjectDefinitionTypeRecord,
+    validations: List(MetaobjectFieldDefinitionValidationRecord),
+  )
+}
+
+pub type MetaobjectStandardTemplateRecord {
+  MetaobjectStandardTemplateRecord(type_: Option(String), name: Option(String))
+}
+
+pub type MetaobjectDefinitionRecord {
+  MetaobjectDefinitionRecord(
+    id: String,
+    type_: String,
+    name: Option(String),
+    description: Option(String),
+    display_name_key: Option(String),
+    access: Dict(String, Option(String)),
+    capabilities: MetaobjectDefinitionCapabilitiesRecord,
+    field_definitions: List(MetaobjectFieldDefinitionRecord),
+    has_thumbnail_field: Option(Bool),
+    metaobjects_count: Option(Int),
+    standard_template: Option(MetaobjectStandardTemplateRecord),
+    created_at: Option(String),
+    updated_at: Option(String),
+  )
+}
+
+pub type MetaobjectFieldDefinitionReferenceRecord {
+  MetaobjectFieldDefinitionReferenceRecord(
+    key: String,
+    name: Option(String),
+    required: Option(Bool),
+    type_: MetaobjectDefinitionTypeRecord,
+  )
+}
+
+pub type MetaobjectFieldRecord {
+  MetaobjectFieldRecord(
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    json_value: MetaobjectJsonValue,
+    definition: Option(MetaobjectFieldDefinitionReferenceRecord),
+  )
+}
+
+pub type MetaobjectPublishableCapabilityRecord {
+  MetaobjectPublishableCapabilityRecord(status: Option(String))
+}
+
+pub type MetaobjectOnlineStoreCapabilityRecord {
+  MetaobjectOnlineStoreCapabilityRecord(template_suffix: Option(String))
+}
+
+pub type MetaobjectCapabilitiesRecord {
+  MetaobjectCapabilitiesRecord(
+    publishable: Option(MetaobjectPublishableCapabilityRecord),
+    online_store: Option(MetaobjectOnlineStoreCapabilityRecord),
+  )
+}
+
+pub type MetaobjectRecord {
+  MetaobjectRecord(
+    id: String,
+    handle: String,
+    type_: String,
+    display_name: Option(String),
+    fields: List(MetaobjectFieldRecord),
+    capabilities: MetaobjectCapabilitiesRecord,
+    created_at: Option(String),
+    updated_at: Option(String),
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Marketing domain
 // ---------------------------------------------------------------------------
 
