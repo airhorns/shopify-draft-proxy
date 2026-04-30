@@ -45,6 +45,7 @@ import shopify_draft_proxy/proxy/marketing
 import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
+import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/operation_registry.{
   type RegistryEntry, AdminPlatform, Apps, BulkOperations, Events, Functions,
   GiftCards, Localization, Marketing, Media, Metafields, Metaobjects, Products,
@@ -750,6 +751,39 @@ fn passthrough_async_unsupported_response() -> Response {
   )
 }
 
+/// Single point of mutation log entry recording. Each domain
+/// `process_mutation` returns a `MutationOutcome` carrying
+/// `log_drafts: List(LogDraft)`; the dispatcher records them here so
+/// individual handlers can never silently skip the buffer (which was
+/// the regression in `gift_cards`/`localization`/`metafield_definitions`/
+/// `segments` before this refactor centralized recording).
+fn finalize_mutation_outcome(
+  proxy: DraftProxy,
+  request_path: String,
+  query: String,
+  data: Json,
+  next_store: Store,
+  next_identity: SyntheticIdentityRegistry,
+  log_drafts: List(mutation_helpers.LogDraft),
+) -> #(Response, DraftProxy) {
+  let #(logged_store, logged_identity) =
+    mutation_helpers.record_log_drafts(
+      next_store,
+      next_identity,
+      request_path,
+      query,
+      log_drafts,
+    )
+  #(
+    Response(status: 200, body: data, headers: []),
+    DraftProxy(
+      ..proxy,
+      store: logged_store,
+      synthetic_identity: logged_identity,
+    ),
+  )
+}
+
 fn route_mutation(
   proxy: DraftProxy,
   parsed: ParsedOperation,
@@ -769,14 +803,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle saved searches mutation"),
           proxy,
@@ -792,14 +828,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle webhooks mutation"), proxy)
       }
     Ok(AppsDomain) ->
@@ -813,14 +851,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle apps mutation"), proxy)
       }
     Ok(FunctionsDomain) ->
@@ -833,14 +873,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle functions mutation"), proxy)
       }
     Ok(GiftCardsDomain) ->
@@ -853,14 +895,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle gift cards mutation"),
           proxy,
@@ -876,14 +920,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle segments mutation"), proxy)
       }
     Ok(MetafieldDefinitionsDomain) ->
@@ -896,14 +942,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle metafield definitions mutation"),
           proxy,
@@ -919,14 +967,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle localization mutation"),
           proxy,
@@ -942,14 +992,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle marketing mutation"), proxy)
       }
     Ok(BulkOperationsDomain) ->
@@ -962,14 +1014,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle bulk operations mutation"),
           proxy,
@@ -985,14 +1039,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(
           bad_request("Failed to handle admin platform mutation"),
           proxy,

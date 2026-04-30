@@ -38,7 +38,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, project_graphql_value,
   serialize_empty_connection, src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{read_optional_string}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, read_optional_string, single_root_log_draft,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -65,6 +67,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -167,30 +170,78 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let entries =
-    list.map(fields, fn(field) {
-      let key = get_field_response_key(field)
-      let payload = case field {
-        Field(name: name, ..) ->
-          case name.value {
+  let #(entries, drafts) =
+    list.fold(fields, #([], []), fn(acc, field) {
+      let #(entries, drafts) = acc
+      case field {
+        Field(name: name, ..) -> {
+          let dispatch = case name.value {
             "standardMetafieldDefinitionEnable" ->
-              handle_standard_metafield_definition_enable(
-                field,
-                fragments,
-                variables,
-              )
-            _ -> json.null()
+              Some(#(
+                get_field_response_key(field),
+                handle_standard_metafield_definition_enable(
+                  field,
+                  fragments,
+                  variables,
+                ),
+                [],
+              ))
+            _ -> None
           }
-        _ -> json.null()
+          case dispatch {
+            None -> acc
+            Some(#(key, payload, staged_resource_ids)) -> {
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  staged_resource_ids,
+                  metafield_definitions_status_for(
+                    name.value,
+                    staged_resource_ids,
+                  ),
+                  "metafield-definitions",
+                  "stage-locally",
+                  Some(metafield_definitions_notes_for(name.value)),
+                )
+              #(
+                list.append(entries, [#(key, payload)]),
+                list.append(drafts, [draft]),
+              )
+            }
+          }
+        }
+        _ -> acc
       }
-      #(key, payload)
     })
   MutationOutcome(
     data: wrap_data(json.object(entries)),
     store: store_in,
     identity: identity,
     staged_resource_ids: [],
+    log_drafts: drafts,
   )
+}
+
+/// Per-root-field log status. Without lifecycle mutations ported, the
+/// only mutation here is `standardMetafieldDefinitionEnable`, which in
+/// the captured parity branch always falls through to `TEMPLATE_NOT_FOUND`
+/// and never stages anything — so it logs `Failed`. The empty/non-empty
+/// `staged_resource_ids` rule still applies once create/update/delete
+/// land in a future pass.
+fn metafield_definitions_status_for(
+  _root_field_name: String,
+  staged_resource_ids: List(String),
+) -> store.EntryStatus {
+  case staged_resource_ids {
+    [] -> store.Failed
+    [_, ..] -> store.Staged
+  }
+}
+
+/// Notes string mirroring the `metafield-definitions` dispatcher in
+/// `routes.ts`.
+fn metafield_definitions_notes_for(_root_field_name: String) -> String {
+  "Staged locally in the in-memory metafield definition draft store."
 }
 
 fn handle_standard_metafield_definition_enable(
