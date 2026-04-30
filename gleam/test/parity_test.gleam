@@ -76,16 +76,9 @@ pub fn admin_platform_store_property_node_reads_test() {
   )
 }
 
-// NOTE: functions-metadata-local-staging fails because the capture
-// fixture (`fixtures/.../functions-metadata-flow.json`) is hand-
-// written and aspirational — it claims `Validation/2` + T+1s, but
-// running the *TS port* against the same primary variables produces
-// `Validation/1` + T+0s (verified 2026-04-29 with a debug
-// integration test). The Gleam port matches the TS port exactly;
-// the fixture diverges from BOTH. Either patch the fixture to match
-// real proxy output, or add `expectedDifferences` rules with
-// `shopify-gid:Validation` + `iso-timestamp` matchers. Tracked as a
-// fixture-correctness follow-up, not a port gap.
+pub fn functions_metadata_local_staging_test() {
+  check("config/parity-specs/functions/functions-metadata-local-staging.json")
+}
 
 // This scenario relies on runner seeding from the capture's
 // `seedShopifyFunctions` records so known owner/app metadata can be
@@ -94,6 +87,10 @@ pub fn functions_owner_metadata_local_staging_test() {
   check(
     "config/parity-specs/functions/functions-owner-metadata-local-staging.json",
   )
+}
+
+pub fn functions_live_owner_metadata_read_test() {
+  check("config/parity-specs/functions/functions-live-owner-metadata-read.json")
 }
 
 // ----------- apps -----------

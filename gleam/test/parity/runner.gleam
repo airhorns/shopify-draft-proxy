@@ -143,7 +143,9 @@ fn seed_capture_preconditions(
   case parsed.scenario_id {
     "gift-card-search-filters" ->
       seed_gift_card_lifecycle_preconditions(capture, proxy)
-    "functions-owner-metadata-local-staging" ->
+    "functions-metadata-local-staging"
+    | "functions-owner-metadata-local-staging"
+    | "functions-live-owner-metadata-read" ->
       seed_shopify_function_preconditions(capture, proxy)
     "shop-baseline-read"
     | "shop-policy-update-parity"

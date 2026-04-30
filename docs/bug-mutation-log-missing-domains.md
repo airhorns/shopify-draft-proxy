@@ -29,12 +29,12 @@ All four expose `pub fn process_mutation(store, identity, _request_path, documen
 discard `request_path`, and call a private `handle_mutation_fields` whose
 signature **does not include** `request_path` or `document`:
 
-| Module                                                       | `process_mutation`         | `handle_mutation_fields`     |
-| ------------------------------------------------------------ | -------------------------- | ---------------------------- |
-| `src/shopify_draft_proxy/proxy/gift_cards.gleam`             | line 1208 (discards arg)   | line 1224                    |
-| `src/shopify_draft_proxy/proxy/localization.gleam`           | (entrypoint pattern match) | line 749                     |
-| `src/shopify_draft_proxy/proxy/metafield_definitions.gleam`  | (entrypoint pattern match) | line 163                     |
-| `src/shopify_draft_proxy/proxy/segments.gleam`               | (entrypoint pattern match) | line 659                     |
+| Module                                                      | `process_mutation`         | `handle_mutation_fields` |
+| ----------------------------------------------------------- | -------------------------- | ------------------------ |
+| `src/shopify_draft_proxy/proxy/gift_cards.gleam`            | line 1208 (discards arg)   | line 1224                |
+| `src/shopify_draft_proxy/proxy/localization.gleam`          | (entrypoint pattern match) | line 749                 |
+| `src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | (entrypoint pattern match) | line 163                 |
+| `src/shopify_draft_proxy/proxy/segments.gleam`              | (entrypoint pattern match) | line 659                 |
 
 Smoking gun in `gift_cards.gleam`:
 
