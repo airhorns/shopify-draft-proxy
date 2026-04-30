@@ -28,6 +28,29 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #("locations", dict_to_json(state.locations, store_property_record_json)),
+    #("locationOrder", json.array(state.location_order, json.string)),
+    #("deletedLocationIds", bool_dict_to_json(state.deleted_location_ids)),
+    #(
+      "businessEntities",
+      dict_to_json(state.business_entities, store_property_record_json),
+    ),
+    #(
+      "businessEntityOrder",
+      json.array(state.business_entity_order, json.string),
+    ),
+    #(
+      "publishables",
+      dict_to_json(state.publishables, store_property_record_json),
+    ),
+    #("publishableOrder", json.array(state.publishable_order, json.string)),
+    #(
+      "storePropertyMutationPayloads",
+      dict_to_json(
+        state.store_property_mutation_payloads,
+        store_property_mutation_payload_json,
+      ),
+    ),
     #(
       "productMetafields",
       dict_to_json(state.product_metafields, product_metafield_json),
@@ -341,6 +364,29 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #("locations", dict_to_json(state.locations, store_property_record_json)),
+    #("locationOrder", json.array(state.location_order, json.string)),
+    #("deletedLocationIds", bool_dict_to_json(state.deleted_location_ids)),
+    #(
+      "businessEntities",
+      dict_to_json(state.business_entities, store_property_record_json),
+    ),
+    #(
+      "businessEntityOrder",
+      json.array(state.business_entity_order, json.string),
+    ),
+    #(
+      "publishables",
+      dict_to_json(state.publishables, store_property_record_json),
+    ),
+    #("publishableOrder", json.array(state.publishable_order, json.string)),
+    #(
+      "storePropertyMutationPayloads",
+      dict_to_json(
+        state.store_property_mutation_payloads,
+        store_property_mutation_payload_json,
+      ),
+    ),
     #(
       "productMetafields",
       dict_to_json(state.product_metafields, product_metafield_json),
@@ -850,6 +896,42 @@ fn shop_policy_json(record: types.ShopPolicyRecord) -> Json {
     #("createdAt", json.string(record.created_at)),
     #("updatedAt", json.string(record.updated_at)),
   ])
+}
+
+fn store_property_record_json(record: types.StorePropertyRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", store_property_data_json(record.data)),
+  ])
+}
+
+fn store_property_mutation_payload_json(
+  record: types.StorePropertyMutationPayloadRecord,
+) -> Json {
+  json.object([
+    #("key", json.string(record.key)),
+    #("data", store_property_data_json(record.data)),
+  ])
+}
+
+fn store_property_data_json(
+  data: Dict(String, types.StorePropertyValue),
+) -> Json {
+  dict_to_json(data, store_property_value_json)
+}
+
+fn store_property_value_json(value: types.StorePropertyValue) -> Json {
+  case value {
+    types.StorePropertyNull -> json.null()
+    types.StorePropertyString(value) -> json.string(value)
+    types.StorePropertyBool(value) -> json.bool(value)
+    types.StorePropertyInt(value) -> json.int(value)
+    types.StorePropertyFloat(value) -> json.float(value)
+    types.StorePropertyList(items) ->
+      json.array(items, store_property_value_json)
+    types.StorePropertyObject(fields) -> store_property_data_json(fields)
+  }
 }
 
 fn saved_search_json(record: types.SavedSearchRecord) -> Json {
@@ -1932,6 +2014,23 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     empty.shop,
     decode.optional(shop_decoder()),
   )
+  use locations <- dict_field("locations", store_property_record_decoder())
+  use location_order <- string_list_field("locationOrder")
+  use deleted_location_ids <- bool_dict_field("deletedLocationIds")
+  use business_entities <- dict_field(
+    "businessEntities",
+    store_property_record_decoder(),
+  )
+  use business_entity_order <- string_list_field("businessEntityOrder")
+  use publishables <- dict_field(
+    "publishables",
+    store_property_record_decoder(),
+  )
+  use publishable_order <- string_list_field("publishableOrder")
+  use store_property_mutation_payloads <- dict_field(
+    "storePropertyMutationPayloads",
+    store_property_mutation_payload_decoder(),
+  )
   use product_metafields <- dict_field(
     "productMetafields",
     product_metafield_decoder(),
@@ -2080,6 +2179,14 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     admin_platform_flow_triggers: flow_triggers,
     admin_platform_flow_trigger_order: flow_trigger_order,
     shop: shop,
+    locations: locations,
+    location_order: location_order,
+    deleted_location_ids: deleted_location_ids,
+    business_entities: business_entities,
+    business_entity_order: business_entity_order,
+    publishables: publishables,
+    publishable_order: publishable_order,
+    store_property_mutation_payloads: store_property_mutation_payloads,
     product_metafields: product_metafields,
     metafield_definitions: metafield_definitions,
     deleted_metafield_definition_ids: deleted_metafield_definition_ids,
@@ -2190,6 +2297,23 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     "shop",
     empty.shop,
     decode.optional(shop_decoder()),
+  )
+  use locations <- dict_field("locations", store_property_record_decoder())
+  use location_order <- string_list_field("locationOrder")
+  use deleted_location_ids <- bool_dict_field("deletedLocationIds")
+  use business_entities <- dict_field(
+    "businessEntities",
+    store_property_record_decoder(),
+  )
+  use business_entity_order <- string_list_field("businessEntityOrder")
+  use publishables <- dict_field(
+    "publishables",
+    store_property_record_decoder(),
+  )
+  use publishable_order <- string_list_field("publishableOrder")
+  use store_property_mutation_payloads <- dict_field(
+    "storePropertyMutationPayloads",
+    store_property_mutation_payload_decoder(),
   )
   use product_metafields <- dict_field(
     "productMetafields",
@@ -2336,6 +2460,14 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     admin_platform_flow_triggers: flow_triggers,
     admin_platform_flow_trigger_order: flow_trigger_order,
     shop: shop,
+    locations: locations,
+    location_order: location_order,
+    deleted_location_ids: deleted_location_ids,
+    business_entities: business_entities,
+    business_entity_order: business_entity_order,
+    publishables: publishables,
+    publishable_order: publishable_order,
+    store_property_mutation_payloads: store_property_mutation_payloads,
     product_metafields: product_metafields,
     metafield_definitions: metafield_definitions,
     deleted_metafield_definition_ids: deleted_metafield_definition_ids,
@@ -2830,6 +2962,36 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
     created_at: created_at,
     updated_at: updated_at,
   ))
+}
+
+fn store_property_record_decoder() -> Decoder(types.StorePropertyRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- dict_field("data", store_property_value_decoder())
+  decode.success(types.StorePropertyRecord(id: id, cursor: cursor, data: data))
+}
+
+fn store_property_mutation_payload_decoder() -> Decoder(
+  types.StorePropertyMutationPayloadRecord,
+) {
+  use key <- decode.field("key", decode.string)
+  use data <- dict_field("data", store_property_value_decoder())
+  decode.success(types.StorePropertyMutationPayloadRecord(key: key, data: data))
+}
+
+fn store_property_value_decoder() -> Decoder(types.StorePropertyValue) {
+  decode.recursive(fn() {
+    decode.one_of(decode.bool |> decode.map(types.StorePropertyBool), or: [
+      decode.int |> decode.map(types.StorePropertyInt),
+      decode.float |> decode.map(types.StorePropertyFloat),
+      decode.string |> decode.map(types.StorePropertyString),
+      decode.list(of: store_property_value_decoder())
+        |> decode.map(types.StorePropertyList),
+      decode.dict(decode.string, store_property_value_decoder())
+        |> decode.map(types.StorePropertyObject),
+      decode.success(types.StorePropertyNull),
+    ])
+  })
 }
 
 fn saved_search_decoder() -> Decoder(types.SavedSearchRecord) {
