@@ -9,6 +9,70 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 34: seeded product detail reads
+
+Extends the Products foundation from no-data reads to the first store-backed
+product read. The Gleam state now has a normalized `ProductRecord` slice, the
+Products query handler resolves `product(id:)` from effective base/staged
+product state, and the parity runner seeds the captured `product-detail-read`
+fixture into base state before replaying the strict proxy request. Nested
+collections and media intentionally remain empty connection shapes until their
+own product graph slices land.
+
+This pass still does not claim product lifecycle support. Product mutations,
+variants, collections, inventory, publications, selling plans, product
+metafields, and broad connection/search behavior remain deferred, so the
+TypeScript Products runtime stays in place.
+
+| Module                                                     | Change                                                                                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | Adds Product, Product SEO, and Product category record types for the seeded read slice.                                               |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds base/staged product buckets, product order/deleted markers, and effective product upsert/list/delete helpers.                    |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Resolves `product(id:)` from store-backed state and projects selected product detail fields with empty collection/media connections.  |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`    | Threads store into the Products query dispatcher, routes registry Products capabilities, and serializes the product state bucket.     |
+| `gleam/test/parity/runner.gleam`                           | Seeds the captured `product-detail-read` product row into base state without rewriting the checked-in parity request or capture.      |
+| `gleam/test/parity_test.gleam`                             | Enables `product-detail-read` as executable strict Gleam parity evidence.                                                             |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct coverage for seeded product detail projection and preserves no-data Products tests through the store-backed handler path. |
+
+Validation: `gleam test --target javascript` is green at 679 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 4
+product specs now executable in the Gleam parity suite:
+`product-empty-state-read`, `product-related-by-id-not-found-read`,
+`product-feeds-empty-read`, and `product-detail-read`.
+
+### Findings
+
+- The existing captured `product-detail-read` fixture is enough to seed a narrow
+  normalized product row and prove selected scalar/SEO/category fields without
+  weakening the strict comparison contract.
+- Product detail captures currently exercise empty `collections` and `media`
+  connections only; those can remain Shopify-shaped empty connections while the
+  real collection/media graph lands separately.
+- Registry-driven Products query routing was still missing even after the
+  legacy fallback was wired, so this pass adds the Products capability arm.
+
+### Risks / open items
+
+- Product variants, collections, options, inventory, publications, selling
+  plans, feeds/feedback, tags, metafields, and all product mutations remain
+  unported in Gleam.
+- The product state shape is intentionally minimal and will need expansion as
+  lifecycle mutations, search/filter connections, node helpers, and nested
+  resource reads land.
+- Only 4 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 35 candidates
+
+- Port `products(first:, query:)` over the new product state slice, including
+  Shopify-like search filtering for the captured catalog/helper scenarios.
+- Add ProductVariant and Collection state slices so helper roots and nested
+  product variant/catalog reads can resolve captured records.
+- Start `productCreate` / `productUpdate` / `productDelete` local staging once
+  the read model can expose downstream read-after-write effects.
+
+---
+
 ## 2026-04-30 — Pass 33: products no-data read foundation
 
 Starts the Products domain in the Gleam dispatcher with a deliberately narrow

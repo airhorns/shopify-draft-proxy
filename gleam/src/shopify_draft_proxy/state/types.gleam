@@ -13,6 +13,32 @@ import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 
 // ---------------------------------------------------------------------------
+// Products domain
+// ---------------------------------------------------------------------------
+
+pub type ProductSeoRecord {
+  ProductSeoRecord(title: Option(String), description: Option(String))
+}
+
+pub type ProductCategoryRecord {
+  ProductCategoryRecord(id: String, full_name: String)
+}
+
+pub type ProductRecord {
+  ProductRecord(
+    id: String,
+    title: String,
+    handle: String,
+    status: String,
+    description_html: String,
+    online_store_preview_url: Option(String),
+    template_suffix: Option(String),
+    seo: ProductSeoRecord,
+    category: Option(ProductCategoryRecord),
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Admin Platform utility domain
 // ---------------------------------------------------------------------------
 

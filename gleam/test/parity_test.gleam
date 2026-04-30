@@ -92,6 +92,10 @@ pub fn product_feeds_empty_read_test() {
   check("config/parity-specs/products/product-feeds-empty-read.json")
 }
 
+pub fn product_detail_read_test() {
+  check("config/parity-specs/products/product-detail-read.json")
+}
+
 // NOTE: functions-metadata-local-staging fails because the capture
 // fixture (`fixtures/.../functions-metadata-flow.json`) is hand-
 // written and aspirational — it claims `Validation/2` + T+1s, but

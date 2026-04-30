@@ -21,9 +21,9 @@ import shopify_draft_proxy/state/types.{
   type CartTransformRecord, type CustomerSegmentMembersQueryRecord,
   type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
   type GiftCardRecord, type LocaleRecord, type MarketingEngagementRecord,
-  type MarketingRecord, type MarketingValue, type SavedSearchRecord,
-  type SegmentRecord, type ShopLocaleRecord, type ShopRecord,
-  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
+  type MarketingRecord, type MarketingValue, type ProductRecord,
+  type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
+  type ShopRecord, type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
   type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
   BulkOperationRecord, MarketingObject, MarketingString,
 } as types_mod
@@ -34,6 +34,9 @@ import shopify_draft_proxy/state/types.{
 /// handlers port.
 pub type BaseState {
   BaseState(
+    products: Dict(String, ProductRecord),
+    product_order: List(String),
+    deleted_product_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -105,6 +108,9 @@ pub type BaseState {
 /// Mirrors the staged slices of `StateSnapshot`.
 pub type StagedState {
   StagedState(
+    products: Dict(String, ProductRecord),
+    product_order: List(String),
+    deleted_product_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -241,6 +247,9 @@ pub type Store {
 /// projected onto the slices we ship.
 pub fn empty_base_state() -> BaseState {
   BaseState(
+    products: dict.new(),
+    product_order: [],
+    deleted_product_ids: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -305,6 +314,9 @@ pub fn empty_base_state() -> BaseState {
 /// An empty `StagedState`.
 pub fn empty_staged_state() -> StagedState {
   StagedState(
+    products: dict.new(),
+    product_order: [],
+    deleted_product_ids: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -381,6 +393,121 @@ pub fn new() -> Store {
 /// snapshot — equivalent to a fresh store for the slices we ship).
 pub fn reset(_store: Store) -> Store {
   new()
+}
+
+// ---------------------------------------------------------------------------
+// Products slice
+// ---------------------------------------------------------------------------
+
+/// Upsert product records into the base state. Capture/upstream state wins
+/// over stale deleted markers, matching the existing collection slice pattern.
+pub fn upsert_base_products(
+  store: Store,
+  records: List(ProductRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    let new_base =
+      BaseState(
+        ..base,
+        products: dict.insert(base.products, record.id, record),
+        product_order: append_unique_id(base.product_order, record.id),
+        deleted_product_ids: dict.delete(base.deleted_product_ids, record.id),
+      )
+    let new_staged =
+      StagedState(
+        ..staged,
+        deleted_product_ids: dict.delete(staged.deleted_product_ids, record.id),
+      )
+    Store(..acc, base_state: new_base, staged_state: new_staged)
+  })
+}
+
+pub fn upsert_staged_product(
+  store: Store,
+  record: ProductRecord,
+) -> #(ProductRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.product_order, record.id)
+    || list.contains(staged.product_order, record.id)
+  let new_order = case already_known {
+    True -> staged.product_order
+    False -> list.append(staged.product_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      products: dict.insert(staged.products, record.id, record),
+      product_order: new_order,
+      deleted_product_ids: dict.delete(staged.deleted_product_ids, record.id),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn delete_staged_product(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(
+      ..staged,
+      products: dict.delete(staged.products, id),
+      deleted_product_ids: dict.insert(staged.deleted_product_ids, id, True),
+    )
+  Store(..store, staged_state: new_staged)
+}
+
+pub fn get_effective_product_by_id(
+  store: Store,
+  id: String,
+) -> Option(ProductRecord) {
+  let deleted =
+    dict_has(store.base_state.deleted_product_ids, id)
+    || dict_has(store.staged_state.deleted_product_ids, id)
+  case deleted {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.products, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.products, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_products(store: Store) -> List(ProductRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.product_order,
+      store.staged_state.product_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_product_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(store.base_state.products, store.staged_state.products)
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_product_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
 }
 
 // ---------------------------------------------------------------------------

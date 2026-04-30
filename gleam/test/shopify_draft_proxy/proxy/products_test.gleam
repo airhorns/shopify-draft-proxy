@@ -1,7 +1,12 @@
 import gleam/dict
 import gleam/json
+import gleam/option.{None, Some}
 import shopify_draft_proxy/graphql/root_field.{StringVal}
 import shopify_draft_proxy/proxy/products
+import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/types.{
+  ProductCategoryRecord, ProductRecord, ProductSeoRecord,
+}
 
 pub fn product_empty_state_read_test() {
   let variables =
@@ -11,6 +16,7 @@ pub fn product_empty_state_read_test() {
     ])
   let assert Ok(result) =
     products.process(
+      store.new(),
       "query ProductEmptyStateConformance($missingId: ID!, $emptyQuery: String!) {
         missingProduct: product(id: $missingId) { id title }
         emptyCount: productsCount(query: $emptyQuery) { count precision }
@@ -35,6 +41,7 @@ pub fn product_related_by_id_missing_read_test() {
     ])
   let assert Ok(result) =
     products.process(
+      store.new(),
       "query ProductRelatedByIdNotFound(
         $missingCollectionId: ID!
         $missingProductVariantId: ID!
@@ -59,6 +66,7 @@ pub fn product_feeds_empty_read_test() {
     ])
   let assert Ok(result) =
     products.process(
+      store.new(),
       "query ProductFeedsEmptyRead($missingProductFeedId: ID!) {
         missingProductFeed: productFeed(id: $missingProductFeedId) { id country language status }
         productFeeds(first: 10) {
@@ -80,6 +88,7 @@ pub fn product_duplicate_job_unknown_shape_test() {
     ])
   let assert Ok(result) =
     products.process(
+      store.new(),
       "query ProductDuplicateJob($missingJobId: ID!) {
         productDuplicateJob(id: $missingJobId) { id done }
       }",
@@ -87,4 +96,51 @@ pub fn product_duplicate_job_unknown_shape_test() {
     )
   assert json.to_string(result)
     == "{\"data\":{\"productDuplicateJob\":{\"id\":\"gid://shopify/ProductDuplicateJob/999\",\"done\":true}}}"
+}
+
+pub fn seeded_product_detail_read_test() {
+  let product =
+    ProductRecord(
+      id: "gid://shopify/Product/8971842846953",
+      title: "Test Product - 6635",
+      handle: "test-product-ge91cbbd6",
+      status: "ACTIVE",
+      description_html: "",
+      online_store_preview_url: Some(
+        "https://very-big-test-store.myshopify.com/products/test-product-ge91cbbd6",
+      ),
+      template_suffix: None,
+      seo: ProductSeoRecord(title: None, description: None),
+      category: Some(ProductCategoryRecord(
+        id: "gid://shopify/TaxonomyCategory/na",
+        full_name: "Uncategorized",
+      )),
+    )
+  let seeded_store = store.upsert_base_products(store.new(), [product])
+  let variables =
+    dict.from_list([
+      #("id", StringVal("gid://shopify/Product/8971842846953")),
+    ])
+  let assert Ok(result) =
+    products.process(
+      seeded_store,
+      "query ProductDetailRead($id: ID!) {
+        product(id: $id) {
+          id
+          title
+          handle
+          status
+          descriptionHtml
+          onlineStorePreviewUrl
+          templateSuffix
+          seo { title description }
+          category { id fullName }
+          collections(first: 3) { edges { node { id title handle } } }
+          media(first: 5) { edges { node { mediaContentType alt preview { image { url } } } } }
+        }
+      }",
+      variables,
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/8971842846953\",\"title\":\"Test Product - 6635\",\"handle\":\"test-product-ge91cbbd6\",\"status\":\"ACTIVE\",\"descriptionHtml\":\"\",\"onlineStorePreviewUrl\":\"https://very-big-test-store.myshopify.com/products/test-product-ge91cbbd6\",\"templateSuffix\":null,\"seo\":{\"title\":null,\"description\":null},\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/na\",\"fullName\":\"Uncategorized\"},\"collections\":{\"edges\":[]},\"media\":{\"edges\":[]}}}}"
 }

@@ -47,7 +47,7 @@ import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/operation_registry.{
   type RegistryEntry, AdminPlatform, Apps, BulkOperations, Events, Functions,
-  GiftCards, Localization, Marketing, Media, Metafields, Metaobjects,
+  GiftCards, Localization, Marketing, Media, Metafields, Metaobjects, Products,
   SavedSearches, Segments, ShippingFulfillments, StoreProperties, Webhooks,
 }
 import shopify_draft_proxy/proxy/operation_registry_data
@@ -404,11 +404,18 @@ fn optional_string(value: Option(String)) -> Json {
 }
 
 fn serialize_base_state(state: store.BaseState) -> Json {
-  let entries = case state.shop {
-    Some(shop) -> [
-      #("shop", source_to_json(store_properties.shop_source(shop))),
+  let entries = case dict.is_empty(state.products) {
+    True -> []
+    False -> [
+      #("products", serialize_product_dict(state.products)),
     ]
-    None -> []
+  }
+  let entries = case state.shop {
+    Some(shop) ->
+      list.append(entries, [
+        #("shop", source_to_json(store_properties.shop_source(shop))),
+      ])
+    None -> entries
   }
   let entries = case dict.is_empty(state.saved_searches) {
     True -> entries
@@ -417,21 +424,48 @@ fn serialize_base_state(state: store.BaseState) -> Json {
         #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
       ])
   }
+  let entries = case dict.is_empty(state.deleted_product_ids) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "deletedProductIds",
+          json.array(dict.keys(state.deleted_product_ids), json.string),
+        ),
+      ])
+  }
   json.object(entries)
 }
 
 fn serialize_staged_state(state: store.StagedState) -> Json {
-  let entries = case state.shop {
-    Some(shop) -> [
-      #("shop", source_to_json(store_properties.shop_source(shop))),
+  let entries = case dict.is_empty(state.products) {
+    True -> []
+    False -> [
+      #("products", serialize_product_dict(state.products)),
     ]
-    None -> []
+  }
+  let entries = case state.shop {
+    Some(shop) ->
+      list.append(entries, [
+        #("shop", source_to_json(store_properties.shop_source(shop))),
+      ])
+    None -> entries
   }
   let entries = case dict.is_empty(state.saved_searches) {
     True -> entries
     False ->
       list.append(entries, [
         #("savedSearches", serialize_saved_search_dict(state.saved_searches)),
+      ])
+  }
+  let entries = case dict.is_empty(state.deleted_product_ids) {
+    True -> entries
+    False ->
+      list.append(entries, [
+        #(
+          "deletedProductIds",
+          json.array(dict.keys(state.deleted_product_ids), json.string),
+        ),
       ])
   }
   let entries = case dict.is_empty(state.deleted_saved_search_ids) {
@@ -445,6 +479,18 @@ fn serialize_staged_state(state: store.StagedState) -> Json {
       ])
   }
   json.object(entries)
+}
+
+fn serialize_product_dict(
+  records: dict.Dict(String, types.ProductRecord),
+) -> Json {
+  json.object(
+    dict.to_list(records)
+    |> list.map(fn(pair) {
+      let #(id, record) = pair
+      #(id, source_to_json(products.product_source(record)))
+    }),
+  )
 }
 
 fn serialize_saved_search_dict(
@@ -1064,7 +1110,7 @@ fn route_query(
     Ok(ProductsDomain) ->
       respond(
         proxy,
-        products.process(query, variables),
+        products.process(proxy.store, query, variables),
         "Failed to handle products query",
       )
     Ok(AdminPlatformDomain) ->
@@ -1158,6 +1204,7 @@ fn capability_to_query_domain(
         Marketing -> Ok(MarketingDomain)
         BulkOperations -> Ok(BulkOperationsDomain)
         Media -> Ok(MediaDomain)
+        Products -> Ok(ProductsDomain)
         AdminPlatform -> Ok(AdminPlatformDomain)
         StoreProperties -> Ok(StorePropertiesDomain)
         _ -> Error(Nil)

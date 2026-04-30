@@ -1,9 +1,10 @@
 //// Read-only Products foundation for the Gleam port.
 ////
-//// This pass intentionally covers Shopify-like no-data behavior for product
-//// and product-adjacent query roots. Stateful product lifecycle, variants,
-//// inventory, collections, publications, selling plans, and metafields land in
-//// later passes before the TS product runtime can be removed.
+//// The module currently covers Shopify-like no-data behavior for
+//// product-adjacent query roots plus the first seeded `product(id:)` detail
+//// read. Stateful product lifecycle, variants, inventory, collections,
+//// publications, selling plans, and metafields land in later passes before the
+//// TS product runtime can be removed.
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
@@ -16,8 +17,14 @@ import shopify_draft_proxy/graphql/root_field.{
   get_root_fields,
 }
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  default_selected_field_options, get_field_response_key,
-  get_selected_child_fields, serialize_empty_connection,
+  type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcString,
+  default_selected_field_options, get_document_fragments, get_field_response_key,
+  get_selected_child_fields, project_graphql_value, serialize_empty_connection,
+  src_object,
+}
+import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/types.{
+  type ProductCategoryRecord, type ProductRecord, type ProductSeoRecord,
 }
 
 pub type ProductsError {
@@ -53,18 +60,27 @@ pub fn is_products_query_root(name: String) -> Bool {
 }
 
 pub fn handle_products_query(
+  store: Store,
   document: String,
   variables: Dict(String, ResolvedValue),
 ) -> Result(Json, ProductsError) {
   case get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
-    Ok(fields) -> Ok(serialize_root_fields(fields, variables))
+    Ok(fields) ->
+      Ok(serialize_root_fields(
+        store,
+        fields,
+        variables,
+        get_document_fragments(document),
+      ))
   }
 }
 
 fn serialize_root_fields(
+  store: Store,
   fields: List(Selection),
   variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
 ) -> Json {
   let entries =
     list.map(fields, fn(field) {
@@ -72,8 +88,9 @@ fn serialize_root_fields(
       let value = case field {
         Field(name: name, ..) ->
           case name.value {
-            "product"
-            | "productByIdentifier"
+            "product" ->
+              serialize_product_root(store, field, variables, fragments)
+            "productByIdentifier"
             | "collection"
             | "productVariant"
             | "productVariantByIdentifier"
@@ -106,6 +123,27 @@ fn serialize_root_fields(
       #(key, value)
     })
   json.object(entries)
+}
+
+fn serialize_product_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.get_effective_product_by_id(store, id) {
+        Some(product) ->
+          project_graphql_value(
+            product_source(product),
+            get_selected_child_fields(field, default_selected_field_options()),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
 }
 
 fn serialize_exact_zero_count(field: Selection) -> Json {
@@ -174,14 +212,79 @@ fn optional_string(value: Option(String)) -> Json {
   }
 }
 
+pub fn product_source(product: ProductRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Product")),
+    #("id", SrcString(product.id)),
+    #("title", SrcString(product.title)),
+    #("handle", SrcString(product.handle)),
+    #("status", SrcString(product.status)),
+    #("descriptionHtml", SrcString(product.description_html)),
+    #(
+      "onlineStorePreviewUrl",
+      optional_string_source(product.online_store_preview_url),
+    ),
+    #("templateSuffix", optional_string_source(product.template_suffix)),
+    #("seo", product_seo_source(product.seo)),
+    #("category", optional_product_category_source(product.category)),
+    #("collections", empty_connection_source()),
+    #("media", empty_connection_source()),
+  ])
+}
+
+fn product_seo_source(seo: ProductSeoRecord) -> SourceValue {
+  src_object([
+    #("title", optional_string_source(seo.title)),
+    #("description", optional_string_source(seo.description)),
+  ])
+}
+
+fn optional_product_category_source(
+  category: Option(ProductCategoryRecord),
+) -> SourceValue {
+  case category {
+    Some(category) ->
+      src_object([
+        #("__typename", SrcString("TaxonomyCategory")),
+        #("id", SrcString(category.id)),
+        #("fullName", SrcString(category.full_name)),
+      ])
+    None -> SrcNull
+  }
+}
+
+fn empty_connection_source() -> SourceValue {
+  src_object([
+    #("edges", SrcList([])),
+    #("nodes", SrcList([])),
+    #(
+      "pageInfo",
+      src_object([
+        #("hasNextPage", SrcBool(False)),
+        #("hasPreviousPage", SrcBool(False)),
+        #("startCursor", SrcNull),
+        #("endCursor", SrcNull),
+      ]),
+    ),
+  ])
+}
+
+fn optional_string_source(value: Option(String)) -> SourceValue {
+  case value {
+    Some(value) -> SrcString(value)
+    None -> SrcNull
+  }
+}
+
 pub fn wrap_data(data: Json) -> Json {
   json.object([#("data", data)])
 }
 
 pub fn process(
+  store: Store,
   document: String,
   variables: Dict(String, ResolvedValue),
 ) -> Result(Json, ProductsError) {
-  use data <- result.try(handle_products_query(document, variables))
+  use data <- result.try(handle_products_query(store, document, variables))
   Ok(wrap_data(data))
 }

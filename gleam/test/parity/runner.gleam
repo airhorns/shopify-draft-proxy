@@ -40,12 +40,14 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
   type GiftCardRecord, type GiftCardTransactionRecord, type Money,
-  type PaymentSettingsRecord, type ShopAddressRecord, type ShopDomainRecord,
+  type PaymentSettingsRecord, type ProductCategoryRecord, type ProductRecord,
+  type ProductSeoRecord, type ShopAddressRecord, type ShopDomainRecord,
   type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
   type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  Money, PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
+  Money, PaymentSettingsRecord, ProductCategoryRecord, ProductRecord,
+  ProductSeoRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
   ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
   ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
@@ -149,7 +151,69 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
+    "product-detail-read" -> seed_product_preconditions(capture, proxy)
     _ -> proxy
+  }
+}
+
+fn seed_product_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.data.product") {
+    Some(product_json) ->
+      case make_seed_product(product_json) {
+        Ok(product) ->
+          draft_proxy.DraftProxy(
+            ..proxy,
+            store: store_mod.upsert_base_products(proxy.store, [product]),
+          )
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn make_seed_product(source: JsonValue) -> Result(ProductRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use title <- result.try(required_string_field(source, "title"))
+  use handle <- result.try(required_string_field(source, "handle"))
+  use status <- result.try(required_string_field(source, "status"))
+  let seo = make_seed_product_seo(read_object_field(source, "seo"))
+  let category =
+    read_object_field(source, "category")
+    |> option.then(make_seed_product_category)
+  Ok(ProductRecord(
+    id: id,
+    title: title,
+    handle: handle,
+    status: status,
+    description_html: read_string_field(source, "descriptionHtml")
+      |> option.unwrap(""),
+    online_store_preview_url: read_string_field(source, "onlineStorePreviewUrl"),
+    template_suffix: read_string_field(source, "templateSuffix"),
+    seo: seo,
+    category: category,
+  ))
+}
+
+fn make_seed_product_seo(source: Option(JsonValue)) -> ProductSeoRecord {
+  ProductSeoRecord(
+    title: read_string_field_from_option(source, "title"),
+    description: read_string_field_from_option(source, "description"),
+  )
+}
+
+fn make_seed_product_category(
+  source: JsonValue,
+) -> Option(ProductCategoryRecord) {
+  case required_string_field(source, "id") {
+    Ok(id) ->
+      Some(ProductCategoryRecord(
+        id: id,
+        full_name: read_string_field(source, "fullName") |> option.unwrap(""),
+      ))
+    Error(_) -> None
   }
 }
 
