@@ -367,10 +367,6 @@ function restoreStateField(dump: InMemoryStoreStateFieldDumpV1): unknown {
   return structuredClone(dump.value);
 }
 
-function hasOwnField(fields: Record<string, InMemoryStoreStateFieldDumpV1>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(fields, key);
-}
-
 function buildMetaStateSnapshot(
   snapshot: StateSnapshot,
   extraState: {
@@ -844,17 +840,8 @@ export class InMemoryStore {
       throw new Error(`Unsupported in-memory store state dump version: ${String(dump.version)}`);
     }
 
-    if (!dump.fields || typeof dump.fields !== 'object' || Array.isArray(dump.fields)) {
-      throw new Error('Invalid in-memory store state dump fields.');
-    }
-
     const targetFields = this as Record<string, unknown>;
     const defaultFields = new InMemoryStore() as unknown as Record<string, unknown>;
-    const missingFields = Object.keys(defaultFields).filter((key) => !hasOwnField(dump.fields, key));
-
-    if (missingFields.length > 0) {
-      throw new Error(`In-memory store state dump is missing required fields: ${missingFields.sort().join(', ')}`);
-    }
 
     for (const [key, value] of Object.entries(defaultFields)) {
       targetFields[key] = restoreStateField(dumpStateField(value));
