@@ -37,6 +37,16 @@ fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #("products", dict_to_json(state.products, product_json)),
+    #("productOrder", json.array(state.product_order, json.string)),
+    #(
+      "productVariants",
+      dict_to_json(state.product_variants, product_variant_json),
+    ),
+    #(
+      "productVariantOrder",
+      json.array(state.product_variant_order, json.string),
+    ),
     #("locations", dict_to_json(state.locations, store_property_record_json)),
     #("locationOrder", json.array(state.location_order, json.string)),
     #("deletedLocationIds", bool_dict_to_json(state.deleted_location_ids)),
@@ -382,6 +392,16 @@ fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #("products", dict_to_json(state.products, product_json)),
+    #("productOrder", json.array(state.product_order, json.string)),
+    #(
+      "productVariants",
+      dict_to_json(state.product_variants, product_variant_json),
+    ),
+    #(
+      "productVariantOrder",
+      json.array(state.product_variant_order, json.string),
+    ),
     #("locations", dict_to_json(state.locations, store_property_record_json)),
     #("locationOrder", json.array(state.location_order, json.string)),
     #("deletedLocationIds", bool_dict_to_json(state.deleted_location_ids)),
@@ -920,6 +940,30 @@ fn shop_policy_json(record: types.ShopPolicyRecord) -> Json {
     #("url", json.string(record.url)),
     #("createdAt", json.string(record.created_at)),
     #("updatedAt", json.string(record.updated_at)),
+  ])
+}
+
+fn product_json(record: types.ProductRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("legacyResourceId", json.string(record.legacy_resource_id)),
+    #("title", json.string(record.title)),
+    #("handle", json.string(record.handle)),
+    #("status", json.string(record.status)),
+    #("createdAt", json.string(record.created_at)),
+    #("updatedAt", json.string(record.updated_at)),
+    #("defaultVariantId", json.string(record.default_variant_id)),
+  ])
+}
+
+fn product_variant_json(record: types.ProductVariantRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("legacyResourceId", json.string(record.legacy_resource_id)),
+    #("productId", json.string(record.product_id)),
+    #("title", json.string(record.title)),
+    #("inventoryQuantity", json.int(record.inventory_quantity)),
+    #("inventoryItemId", json.string(record.inventory_item_id)),
   ])
 }
 
@@ -2044,6 +2088,13 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     empty.shop,
     decode.optional(shop_decoder()),
   )
+  use products <- dict_field("products", product_decoder())
+  use product_order <- string_list_field("productOrder")
+  use product_variants <- dict_field(
+    "productVariants",
+    product_variant_decoder(),
+  )
+  use product_variant_order <- string_list_field("productVariantOrder")
   use locations <- dict_field("locations", store_property_record_decoder())
   use location_order <- string_list_field("locationOrder")
   use deleted_location_ids <- bool_dict_field("deletedLocationIds")
@@ -2209,6 +2260,10 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     admin_platform_flow_triggers: flow_triggers,
     admin_platform_flow_trigger_order: flow_trigger_order,
     shop: shop,
+    products: products,
+    product_order: product_order,
+    product_variants: product_variants,
+    product_variant_order: product_variant_order,
     locations: locations,
     location_order: location_order,
     deleted_location_ids: deleted_location_ids,
@@ -2333,6 +2388,13 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     empty.shop,
     decode.optional(shop_decoder()),
   )
+  use products <- dict_field("products", product_decoder())
+  use product_order <- string_list_field("productOrder")
+  use product_variants <- dict_field(
+    "productVariants",
+    product_variant_decoder(),
+  )
+  use product_variant_order <- string_list_field("productVariantOrder")
   use locations <- dict_field("locations", store_property_record_decoder())
   use location_order <- string_list_field("locationOrder")
   use deleted_location_ids <- bool_dict_field("deletedLocationIds")
@@ -2495,6 +2557,10 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     admin_platform_flow_triggers: flow_triggers,
     admin_platform_flow_trigger_order: flow_trigger_order,
     shop: shop,
+    products: products,
+    product_order: product_order,
+    product_variants: product_variants,
+    product_variant_order: product_variant_order,
     locations: locations,
     location_order: location_order,
     deleted_location_ids: deleted_location_ids,
@@ -3004,6 +3070,44 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
     url: url,
     created_at: created_at,
     updated_at: updated_at,
+  ))
+}
+
+fn product_decoder() -> Decoder(types.ProductRecord) {
+  use id <- decode.field("id", decode.string)
+  use legacy_resource_id <- decode.field("legacyResourceId", decode.string)
+  use title <- decode.field("title", decode.string)
+  use handle <- decode.field("handle", decode.string)
+  use status <- decode.field("status", decode.string)
+  use created_at <- decode.field("createdAt", decode.string)
+  use updated_at <- decode.field("updatedAt", decode.string)
+  use default_variant_id <- decode.field("defaultVariantId", decode.string)
+  decode.success(types.ProductRecord(
+    id: id,
+    legacy_resource_id: legacy_resource_id,
+    title: title,
+    handle: handle,
+    status: status,
+    created_at: created_at,
+    updated_at: updated_at,
+    default_variant_id: default_variant_id,
+  ))
+}
+
+fn product_variant_decoder() -> Decoder(types.ProductVariantRecord) {
+  use id <- decode.field("id", decode.string)
+  use legacy_resource_id <- decode.field("legacyResourceId", decode.string)
+  use product_id <- decode.field("productId", decode.string)
+  use title <- decode.field("title", decode.string)
+  use inventory_quantity <- decode.field("inventoryQuantity", decode.int)
+  use inventory_item_id <- decode.field("inventoryItemId", decode.string)
+  decode.success(types.ProductVariantRecord(
+    id: id,
+    legacy_resource_id: legacy_resource_id,
+    product_id: product_id,
+    title: title,
+    inventory_quantity: inventory_quantity,
+    inventory_item_id: inventory_item_id,
   ))
 }
 
