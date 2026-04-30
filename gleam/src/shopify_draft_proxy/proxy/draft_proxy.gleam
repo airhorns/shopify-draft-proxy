@@ -1004,108 +1004,119 @@ fn route_query(
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case query_domain_for(proxy, parsed, primary_root_field) {
-    Ok(EventsDomain) ->
-      respond(proxy, events.process(query), "Failed to handle events query")
-    Ok(DeliverySettingsDomain) ->
-      respond(
-        proxy,
-        delivery_settings.process(query),
-        "Failed to handle delivery settings query",
-      )
-    Ok(SavedSearchesDomain) ->
-      respond(
-        proxy,
-        saved_searches.process(proxy.store, query, variables),
-        "Failed to handle saved searches query",
-      )
-    Ok(WebhooksDomain) ->
-      respond(
-        proxy,
-        webhooks.process(proxy.store, query, variables),
-        "Failed to handle webhooks query",
-      )
-    Ok(AppsDomain) ->
-      respond(
-        proxy,
-        apps.process(proxy.store, query, variables),
-        "Failed to handle apps query",
-      )
-    Ok(FunctionsDomain) ->
-      respond(
-        proxy,
-        functions.process(proxy.store, query, variables),
-        "Failed to handle functions query",
-      )
-    Ok(GiftCardsDomain) ->
-      respond(
-        proxy,
-        gift_cards.process(proxy.store, query, variables),
-        "Failed to handle gift cards query",
-      )
-    Ok(SegmentsDomain) ->
-      respond(
-        proxy,
-        segments.process(proxy.store, query, variables),
-        "Failed to handle segments query",
-      )
-    Ok(MetafieldDefinitionsDomain) ->
-      respond(
-        proxy,
-        metafield_definitions.process(proxy.store, query, variables),
-        "Failed to handle metafield definitions query",
-      )
-    Ok(LocalizationDomain) ->
-      respond(
-        proxy,
-        localization.process(proxy.store, query, variables),
-        "Failed to handle localization query",
-      )
-    Ok(MetaobjectDefinitionsDomain) ->
-      respond(
-        proxy,
-        metaobject_definitions.process(proxy.store, query, variables),
-        "Failed to handle metaobject definitions query",
-      )
-    Ok(MarketingDomain) ->
-      respond(
-        proxy,
-        marketing.process(proxy.store, query, variables),
-        "Failed to handle marketing query",
-      )
-    Ok(BulkOperationsDomain) ->
-      respond(
-        proxy,
-        bulk_operations.process(proxy.store, query, variables),
-        "Failed to handle bulk operations query",
-      )
-    Ok(MediaDomain) ->
-      respond(proxy, media.process(query), "Failed to handle media query")
-    Ok(AdminPlatformDomain) ->
-      respond(
-        proxy,
-        admin_platform.process(proxy.store, query, variables),
-        "Failed to handle admin platform query",
-      )
-    Ok(StorePropertiesDomain) ->
-      respond(
-        proxy,
-        store_properties.process(proxy.store, query, variables),
-        "Failed to handle store properties query",
-      )
-    Ok(ProductsDomain) ->
+  case
+    primary_root_field == "product" && products.is_product_smoke_query(query)
+  {
+    True ->
       respond(
         proxy,
         products.process(proxy.store, query, variables),
         "Failed to handle products query",
       )
-    Error(_) -> #(
-      bad_request(
-        "No domain dispatcher implemented for root field: "
-        <> primary_root_field,
-      ),
-      proxy,
-    )
+    False ->
+      case query_domain_for(proxy, parsed, primary_root_field) {
+        Ok(EventsDomain) ->
+          respond(proxy, events.process(query), "Failed to handle events query")
+        Ok(DeliverySettingsDomain) ->
+          respond(
+            proxy,
+            delivery_settings.process(query),
+            "Failed to handle delivery settings query",
+          )
+        Ok(SavedSearchesDomain) ->
+          respond(
+            proxy,
+            saved_searches.process(proxy.store, query, variables),
+            "Failed to handle saved searches query",
+          )
+        Ok(WebhooksDomain) ->
+          respond(
+            proxy,
+            webhooks.process(proxy.store, query, variables),
+            "Failed to handle webhooks query",
+          )
+        Ok(AppsDomain) ->
+          respond(
+            proxy,
+            apps.process(proxy.store, query, variables),
+            "Failed to handle apps query",
+          )
+        Ok(FunctionsDomain) ->
+          respond(
+            proxy,
+            functions.process(proxy.store, query, variables),
+            "Failed to handle functions query",
+          )
+        Ok(GiftCardsDomain) ->
+          respond(
+            proxy,
+            gift_cards.process(proxy.store, query, variables),
+            "Failed to handle gift cards query",
+          )
+        Ok(SegmentsDomain) ->
+          respond(
+            proxy,
+            segments.process(proxy.store, query, variables),
+            "Failed to handle segments query",
+          )
+        Ok(MetafieldDefinitionsDomain) ->
+          respond(
+            proxy,
+            metafield_definitions.process(proxy.store, query, variables),
+            "Failed to handle metafield definitions query",
+          )
+        Ok(LocalizationDomain) ->
+          respond(
+            proxy,
+            localization.process(proxy.store, query, variables),
+            "Failed to handle localization query",
+          )
+        Ok(MetaobjectDefinitionsDomain) ->
+          respond(
+            proxy,
+            metaobject_definitions.process(proxy.store, query, variables),
+            "Failed to handle metaobject definitions query",
+          )
+        Ok(MarketingDomain) ->
+          respond(
+            proxy,
+            marketing.process(proxy.store, query, variables),
+            "Failed to handle marketing query",
+          )
+        Ok(BulkOperationsDomain) ->
+          respond(
+            proxy,
+            bulk_operations.process(proxy.store, query, variables),
+            "Failed to handle bulk operations query",
+          )
+        Ok(MediaDomain) ->
+          respond(proxy, media.process(query), "Failed to handle media query")
+        Ok(AdminPlatformDomain) ->
+          respond(
+            proxy,
+            admin_platform.process(proxy.store, query, variables),
+            "Failed to handle admin platform query",
+          )
+        Ok(StorePropertiesDomain) ->
+          respond(
+            proxy,
+            store_properties.process(proxy.store, query, variables),
+            "Failed to handle store properties query",
+          )
+        Ok(ProductsDomain) ->
+          respond(
+            proxy,
+            products.process(proxy.store, query, variables),
+            "Failed to handle products query",
+          )
+        Error(_) -> #(
+          bad_request(
+            "No domain dispatcher implemented for root field: "
+            <> primary_root_field,
+          ),
+          proxy,
+        )
+      }
   }
 }
 
@@ -1222,7 +1233,6 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
         "deliverySettings" | "deliveryPromiseSettings" ->
           Ok(DeliverySettingsDomain)
         "shop" -> Ok(StorePropertiesDomain)
-        "product" -> Ok(ProductsDomain)
         _ ->
           case saved_searches.is_saved_search_query_root(name) {
             True -> Ok(SavedSearchesDomain)

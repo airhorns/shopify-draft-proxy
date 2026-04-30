@@ -23,18 +23,19 @@ not a full Products-domain parity port.
 | Module                                                    | Change                                                                                                                                               |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `gleam/elixir_smoke/lib/shopify_draft_proxy.ex`           | Adds Elixir structs and wrapper helpers for config, GraphQL, meta state/log/reset/commit, dump/restore, and injected commit reports.                 |
-| `gleam/elixir_smoke/test/interop_test.exs`                | Adds an end-to-end Elixir wrapper smoke covering config, productCreate, product read-after-write, state/log, dump/restore, reset, and commit report. |
+| `gleam/elixir_smoke/test/interop_test.exs`                | Uses the Elixir wrapper broadly for config, GraphQL, meta state/log, dump/restore, reset, and commit report/error smoke coverage.                    |
 | `gleam/src/shopify_draft_proxy/proxy/products.gleam`      | Adds narrow staged `productCreate` and `product(id:)` read support for the BEAM smoke lifecycle only.                                                |
-| `gleam/src/shopify_draft_proxy/state/{types,store}.gleam` | Adds minimal Product/ProductVariant records and effective staged-state helpers.                                                                      |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`   | Routes the narrow Products smoke roots and includes staged products in meta state snapshots.                                                         |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds minimal Product/ProductVariant records, effective staged-state helpers, and dump/restore serialization.                            |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`   | Routes the narrow Products smoke roots while leaving product-metafield owner reads with the Metafields domain.                                      |
 | `scripts/elixir-smoke.ts` / `package.json`                | Keeps `corepack pnpm elixir:smoke` as the canonical command, with a Docker fallback when host `escript`/`mix` are unavailable.                       |
 | `gleam/README.md`                                         | Documents the Elixir wrapper calling conventions and Erlang shipment path.                                                                           |
 
-Validation: `corepack pnpm elixir:smoke` is green at 18 ExUnit tests through
-the container fallback on the current host. `gleam test --target erlang` is
-green at 667 tests via the `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`
-container because the host lacks `escript`. `gleam test --target javascript`
-is green at 671 tests on the host Node runtime.
+Validation: `corepack pnpm elixir:smoke` is green at 16 ExUnit tests through
+the container fallback on the current host. Host `gleam test --target erlang`
+compiled but failed before test execution with the local Erlang runtime's
+`undef` boot error; the same Erlang target is green at 689 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`. `gleam test --target
+javascript` is green at 692 tests on the host Node runtime.
 
 ### Findings
 
@@ -47,6 +48,9 @@ is green at 671 tests on the host Node runtime.
   by recent port validation.
 - Product roots are not broadly ported in Gleam; the added Product slice is
   deliberately limited to the lifecycle required for BEAM wrapper smoke.
+- Product owner metafield parity also uses `product` query roots, so the smoke
+  product read dispatcher must stay narrower than the Metafields owner-root
+  dispatcher.
 
 ### Risks / open items
 
@@ -57,9 +61,6 @@ is green at 671 tests on the host Node runtime.
   packaging is still deferred; publishing should decide whether to ship it as a
   companion Elixir source module or replace it with a generated BEAM-friendly
   facade.
-- State dump/restore in the Gleam substrate still restores mutation log and
-  synthetic identity only; product staged state appears in meta state but is not
-  yet round-tripped through dumps.
 
 ### Pass 39 candidates
 

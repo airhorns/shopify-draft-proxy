@@ -50,6 +50,34 @@ pub fn is_product_query_root(name: String) -> Bool {
   name == "product"
 }
 
+pub fn is_product_smoke_query(document: String) -> Bool {
+  case root_field.get_root_fields(document) {
+    Ok(fields) -> list.all(fields, is_product_smoke_field)
+    Error(_) -> False
+  }
+}
+
+fn is_product_smoke_field(field: Selection) -> Bool {
+  case field {
+    Field(
+      name: name,
+      selection_set: Some(SelectionSet(selections: selections, ..)),
+      ..,
+    ) -> name.value == "product" && !selects_metafields(selections)
+    _ -> False
+  }
+}
+
+fn selects_metafields(selections: List(Selection)) -> Bool {
+  list.any(selections, fn(selection) {
+    case selection {
+      Field(name: name, ..) ->
+        name.value == "metafield" || name.value == "metafields"
+      _ -> False
+    }
+  })
+}
+
 pub fn is_product_mutation_root(name: String) -> Bool {
   name == "productCreate"
 }
