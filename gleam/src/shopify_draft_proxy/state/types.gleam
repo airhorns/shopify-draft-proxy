@@ -9,6 +9,7 @@
 //// and the domain handler needs to read them back; both depend on this
 //// module.
 
+import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 
 /// A single saved-search record. Mirrors `SavedSearchRecord` in
@@ -234,6 +235,71 @@ pub type ShopifyFunctionRecord {
     description: Option(String),
     app_key: Option(String),
     app: Option(ShopifyFunctionAppRecord),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Bulk operations domain
+// ---------------------------------------------------------------------------
+
+/// Mirrors `BulkOperationRecord` in `src/state/types.ts`. `result_jsonl`
+/// is intentionally stored on the record in Gleam rather than a second
+/// side-map until the HTTP result-file route ports.
+pub type BulkOperationRecord {
+  BulkOperationRecord(
+    id: String,
+    status: String,
+    type_: String,
+    error_code: Option(String),
+    created_at: String,
+    completed_at: Option(String),
+    object_count: String,
+    root_object_count: String,
+    file_size: Option(String),
+    url: Option(String),
+    partial_data_url: Option(String),
+    query: Option(String),
+    cursor: Option(String),
+    result_jsonl: Option(String),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Marketing domain
+// ---------------------------------------------------------------------------
+
+/// JSON-shaped value carried by upstream-hydrated or locally staged marketing
+/// activity/event/engagement records. The TypeScript store keeps these as
+/// `Record<string, jsonValue>`; this ADT gives the Gleam port the same shape
+/// without coupling state types back to the GraphQL projector module.
+pub type MarketingValue {
+  MarketingNull
+  MarketingString(String)
+  MarketingBool(Bool)
+  MarketingInt(Int)
+  MarketingFloat(Float)
+  MarketingList(List(MarketingValue))
+  MarketingObject(Dict(String, MarketingValue))
+}
+
+/// Mirrors `MarketingRecord`.
+pub type MarketingRecord {
+  MarketingRecord(
+    id: String,
+    cursor: Option(String),
+    data: Dict(String, MarketingValue),
+  )
+}
+
+/// Mirrors `MarketingEngagementRecord`.
+pub type MarketingEngagementRecord {
+  MarketingEngagementRecord(
+    id: String,
+    marketing_activity_id: Option(String),
+    remote_id: Option(String),
+    channel_handle: Option(String),
+    occurred_on: String,
+    data: Dict(String, MarketingValue),
   )
 }
 

@@ -9,6 +9,129 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 30: marketing state/read/mutation foundation
+
+Continues Marketing beyond the empty-read stub. The Gleam port now has
+normalized Marketing activity, event, and engagement state buckets; store-backed
+activity/event reads; connection filters, cursors, and sort handling; and local
+staging for the supported Marketing mutation roots without runtime Shopify
+writes. This broadens HAR-471 beyond BulkOperations with another substantive
+endpoint family in the same PR.
+
+The TypeScript Marketing implementation remains in place because full parity
+runner enablement and upstream hydration are still not complete; this pass
+ports the local lifecycle foundation and direct integration-test coverage.
+
+| Module                                                      | Change                                                                                                                                                           |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`           | Adds JSON-shaped `MarketingValue`, `MarketingRecord`, and `MarketingEngagementRecord` state types.                                                               |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`           | Adds base/staged Marketing buckets, effective activity/event/engagement listing, remote-id lookup, external delete helpers, and channel engagement delete paths. |
+| `gleam/src/shopify_draft_proxy/proxy/marketing.gleam`       | Replaces the empty stub with stateful reads, connection search/sort/pagination, native/external activity mutations, engagement create/delete, and log recording. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`     | Routes Marketing queries with store/variables and routes Marketing mutations through the local dispatcher.                                                       |
+| `gleam/test/shopify_draft_proxy/proxy/marketing_test.gleam` | Expands coverage from empty reads to stateful reads, filters, pagination, native/external activity lifecycle, validation, logs, and engagement deletion.         |
+
+Validation: `gleam test --target erlang` is green at 636 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container. The JavaScript
+target is green at 643 tests by compiling with the same container and running
+the generated gleeunit bundle with the host Node runtime because the container
+does not include `node`. Targeted touched-file `gleam format --check ...` is
+green.
+
+### Findings
+
+- The Marketing state needs a JSON-shaped ADT because activity/event payloads
+  intentionally preserve arbitrary Shopify-selected fields while still letting
+  the query projector walk them safely on both targets.
+- Validation-only Marketing failures should not create mutation-log entries;
+  successful locally staged roots do record the original raw mutation document
+  and staged ids for commit replay.
+- Channel-level engagement deletion depends on known Marketing event
+  `channelHandle` values rather than fabricated channel catalogs.
+
+### Risks / open items
+
+- Upstream Marketing hydration is not ported yet, so live-hybrid Marketing
+  reads still need a future pass before parity scenarios that seed from live
+  captures can run against Gleam.
+- The generic Marketing parity specs are still not enabled in Gleam; enabling
+  them should wait until hydration/seeding and comparison coverage are ported.
+- The TypeScript Marketing module remains the authority until parity evidence
+  is executable for the full domain.
+
+### Pass 31 candidates
+
+- Port Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+- Start product read substrate work required by full `bulkOperationRunQuery`
+  JSONL export parity.
+- Continue bulk-operations with `bulkOperationRunMutation` once inner import
+  executors are available in Gleam.
+
+---
+
+## 2026-04-30 — Pass 29: bulk-operation state/read/cancel foundation
+
+Continues bulk-operations beyond the empty-read stub. The Gleam port now has a
+real BulkOperation store slice, effective local reads, catalog filtering /
+pagination, current operation derivation, local `bulkOperationCancel`, and a
+local `bulkOperationRunQuery` staging shell that records supported mutation-log
+metadata without runtime Shopify writes.
+
+This is not the full TypeScript bulk executor yet: product JSONL export contents
+and `bulkOperationRunMutation` import replay remain deferred until the relevant
+product/import substrate is available in Gleam. The old null/empty read contract
+still holds when no BulkOperation state exists.
+
+| Module                                                            | Change                                                                                                                                                                |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                 | Adds `BulkOperationRecord`, mirroring the TS record plus a temporary `resultJsonl` holder until the result-file route ports.                                          |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                 | Adds base/staged BulkOperation buckets, ordering, effective lookup/listing, result staging, staged cancel, and presence APIs.                                         |
+| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`       | Replaces the stub with read projections, search filtering, cursor pagination, current-operation lookup, run-query shell, cancel handling, and mutation-log recording. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`           | Routes BulkOperations queries with store/variables and routes supported BulkOperations mutations through the local dispatcher.                                        |
+| `gleam/test/shopify_draft_proxy/proxy/bulk_operations_test.gleam` | Expands coverage from empty reads to stateful reads, filtering, pagination, current roots, run-query staging/logging, and cancel read-after-write.                    |
+
+Validation: `gleam test --target javascript` is green at 643 tests.
+`gleam test --target erlang` is green at 636 tests via the
+`erlang:27` container fallback because the host lacks a local Gleam/BEAM
+toolchain. Targeted touched-file `gleam format --check ...` is green.
+
+### Findings
+
+- BulkOperation reads can reuse the shared search-query parser and connection
+  helpers cleanly; the endpoint module only owns domain-specific positive-term
+  matching, sort decisions, cursor choice, and projection.
+- The local cancel semantics depend on distinguishing staged operations from
+  base-only operations. A non-terminal base-only operation still returns the
+  captured "does not exist" user error because local cancel only mutates staged
+  jobs.
+- Gleam currently stores generated result JSONL on `BulkOperationRecord`
+  instead of a sibling `bulkOperationResults` map. That keeps the state slice
+  useful without claiming the not-yet-ported HTTP result-file surface.
+
+### Risks / open items
+
+- `bulkOperationRunQuery` currently stages a completed local query job shell
+  with zero generated records; full product JSONL export parity still requires
+  the product state/read substrate in Gleam.
+- `bulkOperationRunMutation` remains unrouted in Gleam because replaying inner
+  Admin mutations requires product/customer/location import executors that have
+  not been ported.
+- The generic bulk-operations parity scenario is still not enabled in Gleam;
+  enabling it should wait until runner seeding and product export output can
+  satisfy the captured operation counters and result metadata.
+
+### Pass 30 candidates
+
+- Continue bulk-operations by adding parity-runner seeding for captured
+  BulkOperation jobs and enabling the read/cancel subset that no longer depends
+  on product export output.
+- Continue marketing beyond the empty-read stub by porting the activity and
+  engagement state slices.
+- Start product read substrate work required by full `bulkOperationRunQuery`
+  JSONL export parity.
+
+---
+
 ## 2026-04-29 — Pass 28: function owner metadata parity seeding
 
 Enables `functions-owner-metadata-local-staging` as executable Gleam

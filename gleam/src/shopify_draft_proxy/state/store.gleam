@@ -16,12 +16,14 @@ import gleam/string
 import shopify_draft_proxy/state/types.{
   type AppInstallationRecord, type AppOneTimePurchaseRecord, type AppRecord,
   type AppSubscriptionLineItemRecord, type AppSubscriptionRecord,
-  type AppUsageRecord, type CartTransformRecord,
+  type AppUsageRecord, type BulkOperationRecord, type CartTransformRecord,
   type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
   type GiftCardConfigurationRecord, type GiftCardRecord, type LocaleRecord,
+  type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
   type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
   type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
   type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
+  BulkOperationRecord, MarketingObject, MarketingString,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -53,6 +55,17 @@ pub type BaseState {
     delegated_access_token_order: List(String),
     shopify_functions: Dict(String, ShopifyFunctionRecord),
     shopify_function_order: List(String),
+    bulk_operations: Dict(String, BulkOperationRecord),
+    bulk_operation_order: List(String),
+    marketing_activities: Dict(String, MarketingRecord),
+    marketing_activity_order: List(String),
+    marketing_events: Dict(String, MarketingRecord),
+    marketing_event_order: List(String),
+    marketing_engagements: Dict(String, MarketingEngagementRecord),
+    marketing_engagement_order: List(String),
+    deleted_marketing_activity_ids: Dict(String, Bool),
+    deleted_marketing_event_ids: Dict(String, Bool),
+    deleted_marketing_engagement_ids: Dict(String, Bool),
     validations: Dict(String, ValidationRecord),
     validation_order: List(String),
     deleted_validation_ids: Dict(String, Bool),
@@ -104,6 +117,17 @@ pub type StagedState {
     delegated_access_token_order: List(String),
     shopify_functions: Dict(String, ShopifyFunctionRecord),
     shopify_function_order: List(String),
+    bulk_operations: Dict(String, BulkOperationRecord),
+    bulk_operation_order: List(String),
+    marketing_activities: Dict(String, MarketingRecord),
+    marketing_activity_order: List(String),
+    marketing_events: Dict(String, MarketingRecord),
+    marketing_event_order: List(String),
+    marketing_engagements: Dict(String, MarketingEngagementRecord),
+    marketing_engagement_order: List(String),
+    deleted_marketing_activity_ids: Dict(String, Bool),
+    deleted_marketing_event_ids: Dict(String, Bool),
+    deleted_marketing_engagement_ids: Dict(String, Bool),
     validations: Dict(String, ValidationRecord),
     validation_order: List(String),
     deleted_validation_ids: Dict(String, Bool),
@@ -220,6 +244,17 @@ pub fn empty_base_state() -> BaseState {
     delegated_access_token_order: [],
     shopify_functions: dict.new(),
     shopify_function_order: [],
+    bulk_operations: dict.new(),
+    bulk_operation_order: [],
+    marketing_activities: dict.new(),
+    marketing_activity_order: [],
+    marketing_events: dict.new(),
+    marketing_event_order: [],
+    marketing_engagements: dict.new(),
+    marketing_engagement_order: [],
+    deleted_marketing_activity_ids: dict.new(),
+    deleted_marketing_event_ids: dict.new(),
+    deleted_marketing_engagement_ids: dict.new(),
     validations: dict.new(),
     validation_order: [],
     deleted_validation_ids: dict.new(),
@@ -267,6 +302,17 @@ pub fn empty_staged_state() -> StagedState {
     delegated_access_token_order: [],
     shopify_functions: dict.new(),
     shopify_function_order: [],
+    bulk_operations: dict.new(),
+    bulk_operation_order: [],
+    marketing_activities: dict.new(),
+    marketing_activity_order: [],
+    marketing_events: dict.new(),
+    marketing_event_order: [],
+    marketing_engagements: dict.new(),
+    marketing_engagement_order: [],
+    deleted_marketing_activity_ids: dict.new(),
+    deleted_marketing_event_ids: dict.new(),
+    deleted_marketing_engagement_ids: dict.new(),
     validations: dict.new(),
     validation_order: [],
     deleted_validation_ids: dict.new(),
@@ -1156,6 +1202,634 @@ pub fn list_effective_shopify_functions(
       }
     })
   list.append(ordered_records, unordered_records)
+}
+
+// ---------------------------------------------------------------------------
+// Marketing slice
+// ---------------------------------------------------------------------------
+
+pub fn upsert_base_marketing_activities(
+  store: Store,
+  records: List(MarketingRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        marketing_activities: dict.insert(
+          base.marketing_activities,
+          record.id,
+          record,
+        ),
+        marketing_activity_order: append_unique_id(
+          base.marketing_activity_order,
+          record.id,
+        ),
+        deleted_marketing_activity_ids: dict.delete(
+          base.deleted_marketing_activity_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_base_marketing_events(
+  store: Store,
+  records: List(MarketingRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        marketing_events: dict.insert(base.marketing_events, record.id, record),
+        marketing_event_order: append_unique_id(
+          base.marketing_event_order,
+          record.id,
+        ),
+        deleted_marketing_event_ids: dict.delete(
+          base.deleted_marketing_event_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn stage_marketing_activity(
+  store: Store,
+  record: MarketingRecord,
+) -> #(MarketingRecord, Store) {
+  let staged = store.staged_state
+  let next =
+    StagedState(
+      ..staged,
+      marketing_activities: dict.insert(
+        staged.marketing_activities,
+        record.id,
+        record,
+      ),
+      marketing_activity_order: append_unique_id(
+        staged.marketing_activity_order,
+        record.id,
+      ),
+      deleted_marketing_activity_ids: dict.delete(
+        staged.deleted_marketing_activity_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: next))
+}
+
+pub fn stage_marketing_event(
+  store: Store,
+  record: MarketingRecord,
+) -> #(MarketingRecord, Store) {
+  let staged = store.staged_state
+  let next =
+    StagedState(
+      ..staged,
+      marketing_events: dict.insert(staged.marketing_events, record.id, record),
+      marketing_event_order: append_unique_id(
+        staged.marketing_event_order,
+        record.id,
+      ),
+      deleted_marketing_event_ids: dict.delete(
+        staged.deleted_marketing_event_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: next))
+}
+
+pub fn stage_delete_marketing_activity(store: Store, id: String) -> Store {
+  let event_id = case get_effective_marketing_activity_record_by_id(store, id) {
+    Some(record) -> read_marketing_event_id(record.data)
+    None -> None
+  }
+  let staged = store.staged_state
+  let next =
+    StagedState(
+      ..staged,
+      marketing_activities: dict.delete(staged.marketing_activities, id),
+      deleted_marketing_activity_ids: dict.insert(
+        staged.deleted_marketing_activity_ids,
+        id,
+        True,
+      ),
+    )
+  let next = case event_id {
+    None -> next
+    Some(event_id) ->
+      StagedState(
+        ..next,
+        marketing_events: dict.delete(next.marketing_events, event_id),
+        deleted_marketing_event_ids: dict.insert(
+          next.deleted_marketing_event_ids,
+          event_id,
+          True,
+        ),
+      )
+  }
+  Store(..store, staged_state: next)
+}
+
+pub fn stage_delete_all_external_marketing_activities(
+  store: Store,
+) -> #(List(String), Store) {
+  let #(ids, next_store) =
+    list.fold(
+      list_effective_marketing_activities(store),
+      #([], store),
+      fn(acc, record) {
+        let #(deleted, current) = acc
+        case marketing_bool_field(record.data, "isExternal") {
+          True -> #(
+            [record.id, ..deleted],
+            stage_delete_marketing_activity(current, record.id),
+          )
+          False -> acc
+        }
+      },
+    )
+  #(list.reverse(ids), next_store)
+}
+
+pub fn get_effective_marketing_activity_record_by_id(
+  store: Store,
+  id: String,
+) -> Option(MarketingRecord) {
+  case dict.get(store.staged_state.deleted_marketing_activity_ids, id) {
+    Ok(_) -> None
+    Error(_) ->
+      case dict.get(store.staged_state.marketing_activities, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.marketing_activities, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn get_effective_marketing_event_record_by_id(
+  store: Store,
+  id: String,
+) -> Option(MarketingRecord) {
+  case dict.get(store.staged_state.deleted_marketing_event_ids, id) {
+    Ok(_) -> None
+    Error(_) ->
+      case dict.get(store.staged_state.marketing_events, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.marketing_events, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn get_effective_marketing_activity_by_remote_id(
+  store: Store,
+  remote_id: String,
+) -> Option(MarketingRecord) {
+  list.find(list_effective_marketing_activities(store), fn(record) {
+    read_marketing_remote_id(record.data) == Some(remote_id)
+  })
+  |> option.from_result
+}
+
+pub fn list_effective_marketing_activities(
+  store: Store,
+) -> List(MarketingRecord) {
+  list_effective_marketing_records(
+    store.base_state.marketing_activities,
+    store.base_state.marketing_activity_order,
+    store.staged_state.marketing_activities,
+    store.staged_state.marketing_activity_order,
+    store.staged_state.deleted_marketing_activity_ids,
+  )
+}
+
+pub fn list_effective_marketing_events(store: Store) -> List(MarketingRecord) {
+  list_effective_marketing_records(
+    store.base_state.marketing_events,
+    store.base_state.marketing_event_order,
+    store.staged_state.marketing_events,
+    store.staged_state.marketing_event_order,
+    store.staged_state.deleted_marketing_event_ids,
+  )
+}
+
+pub fn has_staged_marketing_records(store: Store) -> Bool {
+  !list.is_empty(dict.keys(store.staged_state.marketing_activities))
+  || !list.is_empty(dict.keys(store.staged_state.marketing_events))
+  || !list.is_empty(dict.keys(store.staged_state.marketing_engagements))
+  || !list.is_empty(dict.keys(store.staged_state.deleted_marketing_activity_ids))
+  || !list.is_empty(dict.keys(store.staged_state.deleted_marketing_event_ids))
+  || !list.is_empty(dict.keys(
+    store.staged_state.deleted_marketing_engagement_ids,
+  ))
+}
+
+pub fn stage_marketing_engagement(
+  store: Store,
+  record: MarketingEngagementRecord,
+) -> #(MarketingEngagementRecord, Store) {
+  let staged = store.staged_state
+  let next =
+    StagedState(
+      ..staged,
+      marketing_engagements: dict.insert(
+        staged.marketing_engagements,
+        record.id,
+        record,
+      ),
+      marketing_engagement_order: append_unique_id(
+        staged.marketing_engagement_order,
+        record.id,
+      ),
+      deleted_marketing_engagement_ids: dict.delete(
+        staged.deleted_marketing_engagement_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: next))
+}
+
+pub fn stage_delete_marketing_engagement(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  let next =
+    StagedState(
+      ..staged,
+      marketing_engagements: dict.delete(staged.marketing_engagements, id),
+      deleted_marketing_engagement_ids: dict.insert(
+        staged.deleted_marketing_engagement_ids,
+        id,
+        True,
+      ),
+    )
+  Store(..store, staged_state: next)
+}
+
+pub fn stage_delete_marketing_engagements_by_channel_handle(
+  store: Store,
+  channel_handle: String,
+) -> #(List(String), Store) {
+  let #(ids, next_store) =
+    list.fold(
+      list_effective_marketing_engagements(store),
+      #([], store),
+      fn(acc, record) {
+        let #(deleted, current) = acc
+        case record.channel_handle == Some(channel_handle) {
+          True -> #(
+            [record.id, ..deleted],
+            stage_delete_marketing_engagement(current, record.id),
+          )
+          False -> acc
+        }
+      },
+    )
+  #(list.reverse(ids), next_store)
+}
+
+pub fn stage_delete_all_channel_marketing_engagements(
+  store: Store,
+) -> #(List(String), Store) {
+  let #(ids, next_store) =
+    list.fold(
+      list_effective_marketing_engagements(store),
+      #([], store),
+      fn(acc, record) {
+        let #(deleted, current) = acc
+        case record.channel_handle {
+          Some(_) -> #(
+            [record.id, ..deleted],
+            stage_delete_marketing_engagement(current, record.id),
+          )
+          None -> acc
+        }
+      },
+    )
+  #(list.reverse(ids), next_store)
+}
+
+pub fn list_effective_marketing_engagements(
+  store: Store,
+) -> List(MarketingEngagementRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.marketing_engagement_order,
+      store.staged_state.marketing_engagement_order,
+    )
+    |> dedupe_strings()
+  let merged =
+    dict.merge(
+      store.base_state.marketing_engagements,
+      store.staged_state.marketing_engagements,
+    )
+  let ordered =
+    list.filter_map(ordered_ids, fn(id) {
+      case dict.get(store.staged_state.deleted_marketing_engagement_ids, id) {
+        Ok(_) -> Error(Nil)
+        Error(_) ->
+          case dict.get(merged, id) {
+            Ok(record) -> Ok(record)
+            Error(_) -> Error(Nil)
+          }
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let unordered =
+    dict.values(merged)
+    |> list.filter(fn(record) {
+      !dict_has(ordered_set, record.id)
+      && !dict_has(
+        store.staged_state.deleted_marketing_engagement_ids,
+        record.id,
+      )
+    })
+    |> list.sort(fn(left, right) { string_compare(left.id, right.id) })
+  list.append(ordered, unordered)
+}
+
+pub fn has_known_marketing_channel_handle(
+  store: Store,
+  handle: String,
+) -> Bool {
+  list.any(list_effective_marketing_events(store), fn(event) {
+    read_marketing_channel_handle(event.data) == Some(handle)
+  })
+}
+
+fn list_effective_marketing_records(
+  base_bucket: Dict(String, MarketingRecord),
+  base_order: List(String),
+  staged_bucket: Dict(String, MarketingRecord),
+  staged_order: List(String),
+  deleted_bucket: Dict(String, Bool),
+) -> List(MarketingRecord) {
+  let ordered_ids = list.append(base_order, staged_order) |> dedupe_strings()
+  let merged = dict.merge(base_bucket, staged_bucket)
+  let ordered =
+    list.filter_map(ordered_ids, fn(id) {
+      case dict.get(deleted_bucket, id) {
+        Ok(_) -> Error(Nil)
+        Error(_) ->
+          case dict.get(merged, id) {
+            Ok(record) -> Ok(record)
+            Error(_) -> Error(Nil)
+          }
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let unordered =
+    dict.values(merged)
+    |> list.filter(fn(record) {
+      !dict_has(ordered_set, record.id) && !dict_has(deleted_bucket, record.id)
+    })
+    |> list.sort(fn(left, right) { string_compare(left.id, right.id) })
+  list.append(ordered, unordered)
+}
+
+fn read_marketing_event_id(
+  data: Dict(String, MarketingValue),
+) -> Option(String) {
+  case dict.get(data, "marketingEvent") {
+    Ok(MarketingObject(event)) -> marketing_string_field(event, "id")
+    _ -> None
+  }
+}
+
+fn read_marketing_remote_id(
+  data: Dict(String, MarketingValue),
+) -> Option(String) {
+  case marketing_string_field(data, "remoteId") {
+    Some(id) -> Some(id)
+    None ->
+      case dict.get(data, "marketingEvent") {
+        Ok(MarketingObject(event)) -> marketing_string_field(event, "remoteId")
+        _ -> None
+      }
+  }
+}
+
+fn read_marketing_channel_handle(
+  data: Dict(String, MarketingValue),
+) -> Option(String) {
+  case marketing_string_field(data, "channelHandle") {
+    Some(handle) -> Some(handle)
+    None ->
+      case dict.get(data, "marketingEvent") {
+        Ok(MarketingObject(event)) ->
+          marketing_string_field(event, "channelHandle")
+        _ -> None
+      }
+  }
+}
+
+fn marketing_string_field(
+  data: Dict(String, MarketingValue),
+  field: String,
+) -> Option(String) {
+  case dict.get(data, field) {
+    Ok(MarketingString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn marketing_bool_field(
+  data: Dict(String, MarketingValue),
+  field: String,
+) -> Bool {
+  case dict.get(data, field) {
+    Ok(types_mod.MarketingBool(value)) -> value
+    _ -> False
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bulk-operations slice
+// ---------------------------------------------------------------------------
+
+/// Upsert BulkOperation records into base state. Mirrors
+/// `upsertBaseBulkOperations`.
+pub fn upsert_base_bulk_operations(
+  store: Store,
+  records: List(BulkOperationRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let new_base =
+      BaseState(
+        ..base,
+        bulk_operations: dict.insert(base.bulk_operations, record.id, record),
+        bulk_operation_order: append_unique_id(
+          base.bulk_operation_order,
+          record.id,
+        ),
+      )
+    Store(..acc, base_state: new_base)
+  })
+}
+
+/// Stage a BulkOperation record. Mirrors `stageBulkOperation`.
+pub fn stage_bulk_operation(
+  store: Store,
+  record: BulkOperationRecord,
+) -> #(BulkOperationRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.bulk_operation_order, record.id)
+    || list.contains(staged.bulk_operation_order, record.id)
+  let new_order = case already_known {
+    True -> staged.bulk_operation_order
+    False -> list.append(staged.bulk_operation_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      bulk_operations: dict.insert(staged.bulk_operations, record.id, record),
+      bulk_operation_order: new_order,
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+/// Stage a BulkOperation and its generated result JSONL. The TS store
+/// keeps result payloads in a sibling `bulkOperationResults` map; in
+/// Gleam the not-yet-exposed result payload lives on the record.
+pub fn stage_bulk_operation_result(
+  store: Store,
+  record: BulkOperationRecord,
+  jsonl: String,
+) -> #(BulkOperationRecord, Store) {
+  stage_bulk_operation(
+    store,
+    BulkOperationRecord(..record, result_jsonl: Some(jsonl)),
+  )
+}
+
+pub fn get_effective_bulk_operation_by_id(
+  store: Store,
+  id: String,
+) -> Option(BulkOperationRecord) {
+  case dict.get(store.staged_state.bulk_operations, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.bulk_operations, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn get_staged_bulk_operation_by_id(
+  store: Store,
+  id: String,
+) -> Option(BulkOperationRecord) {
+  case dict.get(store.staged_state.bulk_operations, id) {
+    Ok(record) -> Some(record)
+    Error(_) -> None
+  }
+}
+
+/// List effective BulkOperations. Ordered ids from base+staged come
+/// first, then unordered ids sorted by createdAt descending / id
+/// ascending, matching the TS store helper.
+pub fn list_effective_bulk_operations(
+  store: Store,
+) -> List(BulkOperationRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.bulk_operation_order,
+      store.staged_state.bulk_operation_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_bulk_operation_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(
+      store.base_state.bulk_operations,
+      store.staged_state.bulk_operations,
+    )
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(fn(left, right) {
+      case dict.get(merged, left), dict.get(merged, right) {
+        Ok(l), Ok(r) -> {
+          let date_order = string.compare(r.created_at, l.created_at)
+          case date_order {
+            order.Eq -> string_compare(l.id, r.id)
+            _ -> date_order
+          }
+        }
+        _, _ -> string_compare(left, right)
+      }
+    })
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_bulk_operation_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+pub fn get_effective_bulk_operation_result_jsonl(
+  store: Store,
+  id: String,
+) -> Option(String) {
+  case get_effective_bulk_operation_by_id(store, id) {
+    Some(BulkOperationRecord(result_jsonl: Some(jsonl), ..)) -> Some(jsonl)
+    _ -> None
+  }
+}
+
+/// Cancel only a staged operation, matching TS
+/// `cancelStagedBulkOperation`.
+pub fn cancel_staged_bulk_operation(
+  store: Store,
+  id: String,
+) -> #(Option(BulkOperationRecord), Store) {
+  case get_staged_bulk_operation_by_id(store, id) {
+    None -> #(None, store)
+    Some(record) -> {
+      let canceled =
+        BulkOperationRecord(..record, status: "CANCELING", completed_at: None)
+      let staged = store.staged_state
+      let new_staged =
+        StagedState(
+          ..staged,
+          bulk_operations: dict.insert(staged.bulk_operations, id, canceled),
+        )
+      #(Some(canceled), Store(..store, staged_state: new_staged))
+    }
+  }
+}
+
+pub fn has_bulk_operations(store: Store) -> Bool {
+  !list.is_empty(dict.keys(store.base_state.bulk_operations))
+  || !list.is_empty(dict.keys(store.staged_state.bulk_operations))
+}
+
+pub fn has_staged_bulk_operations(store: Store) -> Bool {
+  !list.is_empty(dict.keys(store.staged_state.bulk_operations))
 }
 
 /// Stage a `ValidationRecord`. Mirrors `upsertStagedValidation`. Clears
