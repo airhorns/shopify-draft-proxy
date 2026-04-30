@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 44: apps billing/access parity cutover
+## 2026-04-30 — Pass 45: apps billing/access parity cutover
 
 Completes the broader Apps billing/access parity scenario in the Gleam runner.
 Both checked-in app parity specs now execute against the Gleam proxy, including
@@ -57,7 +57,7 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
   main and should be cut over only when the whole port is ready for that final
   transition.
 
-### Pass 45 candidates
+### Pass 46 candidates
 
 - Port product-owned `metafieldDelete` / `metafieldsDelete` and their
   hydrated/downstream deletion flows into Gleam.
@@ -75,6 +75,55 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
   scenarios can execute against the Gleam proxy.
 - Audit already-ported domains for final-cutover readiness without deleting
   TypeScript runtime modules during incremental parity passes.
+
+---
+
+## 2026-04-30 — Pass 44: JS embeddable shim rework
+
+Reworks the JavaScript embeddable shim on top of the full-state dump substrate
+from Pass 36. The package-facing API now uses a single `createDraftProxy(...)`
+options object that carries both config fields and optional restore state, and
+the shim routes `processGraphQLRequest` through Gleam's own default Admin
+GraphQL path construction instead of duplicating the route string in TypeScript.
+The async `commit` wrapper remains TS-friendly while replaying the original
+staged mutation log through the Gleam runtime.
+
+| Module                                                  | Change                                                                                                                                            |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/js/src/runtime.ts`                               | Restores `processGraphQLRequest` and async `commit`, collapses construction to one options object, and delegates GraphQL route defaults to Gleam. |
+| `gleam/js/src/types.ts`                                 | Makes `DraftProxyOptions` the public construction object by extending `AppConfig` with optional restore state.                                    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Adds a JavaScript-target async `process_graphql_request_async` convenience wrapper using the shared Gleam default path helper.                    |
+| `tests/integration/gleam-interop.test.ts`               | Updates the package-level lifecycle smoke to restore state through the one-object construction API.                                               |
+
+Validation: `corepack pnpm build`, `corepack pnpm gleam:smoke:js`,
+`corepack pnpm gleam:test:js`, `corepack pnpm lint`, `corepack pnpm --dir
+gleam/js build`, `corepack pnpm --dir gleam/js test`, and `git diff --check`
+are green. `corepack pnpm gleam:test:erlang` fails on the host Erlang runtime
+with an `undef` boot error, so Erlang target validation used the established
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container fallback and is
+green at 672 tests.
+
+### Findings
+
+- `origin/main` already moved state dump/restore to the full
+  `state/serialization.gleam` substrate, so the review request for generic
+  state persistence is satisfied by preserving that merge result instead of
+  reintroducing handler-specific saved-search dump code.
+- Keeping GraphQL default path construction in Gleam avoids two JS/TS copies of
+  the default Admin API route while still letting the JS shim use the async
+  live-hybrid path.
+
+### Risks / open items
+
+- `createApp` and `loadConfig` remain explicit not-implemented shims until the
+  broader HTTP adapter work lands.
+
+### Pass 45 candidates
+
+- Continue reducing the remaining expected Gleam parity failures tracked by the
+  CI gate manifest.
+- Extend package-level consumer tests as more domains become exposed through the
+  Gleam shim.
 
 ---
 
