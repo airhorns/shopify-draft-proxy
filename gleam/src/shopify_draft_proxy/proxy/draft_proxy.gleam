@@ -47,6 +47,7 @@ import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/operation_registry_data
+import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/store_properties
@@ -993,6 +994,28 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(PrivacyDomain) ->
+      case
+        privacy.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle privacy mutation"), proxy)
+      }
     Ok(CustomersDomain) ->
       case
         customers.process_mutation(
@@ -1131,6 +1154,13 @@ fn route_query(
         customers.process(proxy.store, query, variables),
         "Failed to handle customers query",
       )
+    Ok(PrivacyDomain) -> #(
+      bad_request(
+        "No domain dispatcher implemented for root field: "
+        <> primary_root_field,
+      ),
+      proxy,
+    )
     Error(_) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -1159,6 +1189,7 @@ type Domain {
   MediaDomain
   AdminPlatformDomain
   StorePropertiesDomain
+  PrivacyDomain
   CustomersDomain
 }
 
@@ -1520,16 +1551,27 @@ fn local_mutation_dispatch_domain(name: String) -> Result(Domain, Nil) {
                                                               )
                                                             False ->
                                                               case
-                                                                customers.is_customer_mutation_root(
+                                                                privacy.is_privacy_mutation_root(
                                                                   name,
                                                                 )
                                                               {
                                                                 True ->
                                                                   Ok(
-                                                                    CustomersDomain,
+                                                                    PrivacyDomain,
                                                                   )
                                                                 False ->
-                                                                  Error(Nil)
+                                                                  case
+                                                                    customers.is_customer_mutation_root(
+                                                                      name,
+                                                                    )
+                                                                  {
+                                                                    True ->
+                                                                      Ok(
+                                                                        CustomersDomain,
+                                                                      )
+                                                                    False ->
+                                                                      Error(Nil)
+                                                                  }
                                                               }
                                                           }
                                                       }
