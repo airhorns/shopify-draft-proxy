@@ -1,8 +1,13 @@
+import { execFileSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   listImplementedOperationRegistryEntries,
   listOperationRegistryEntries,
 } from '../../src/proxy/operation-registry.js';
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 describe('operation registry', () => {
   it('keeps implemented capability names unique', () => {
@@ -21,5 +26,14 @@ describe('operation registry', () => {
     const executions = new Set(listOperationRegistryEntries().map((entry) => entry.execution));
     expect(executions.has('overlay-read')).toBe(true);
     expect(executions.has('stage-locally')).toBe(true);
+  });
+
+  it('keeps the generated Gleam operation registry mirror in sync', () => {
+    expect(() => {
+      execFileSync('bash', ['gleam/scripts/sync-operation-registry.sh', '--check'], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+      });
+    }).not.toThrow();
   });
 });
