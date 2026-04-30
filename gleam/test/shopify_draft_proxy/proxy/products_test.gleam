@@ -1,6 +1,6 @@
 import gleam/dict
 import gleam/json
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/graphql/root_field.{StringVal}
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/state/store
@@ -226,6 +226,47 @@ pub fn seeded_product_by_identifier_missing_read_test() {
     == "{\"data\":{\"missingById\":null,\"missingByHandle\":null}}"
 }
 
+pub fn seeded_product_string_catalogs_read_test() {
+  let assert Ok(result) =
+    products.process(
+      seeded_string_catalog_store(),
+      "query ProductStringCatalogs {
+        productTags(first: 10) {
+          nodes
+          edges { cursor node }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+        productTypes(first: 10) {
+          nodes
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+        productVendors(first: 10) {
+          nodes
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }",
+      dict.new(),
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"productTags\":{\"nodes\":[\"Board\",\"Hat\",\"Winter\"],\"edges\":[{\"cursor\":\"cursor:Board\",\"node\":\"Board\"},{\"cursor\":\"cursor:Hat\",\"node\":\"Hat\"},{\"cursor\":\"cursor:Winter\",\"node\":\"Winter\"}],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":\"cursor:Board\",\"endCursor\":\"cursor:Winter\"}},\"productTypes\":{\"nodes\":[\"Accessory\",\"Snowboard\"],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":\"cursor:Accessory\",\"endCursor\":\"cursor:Snowboard\"}},\"productVendors\":{\"nodes\":[\"Acme\",\"Bravo\"],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":\"cursor:Acme\",\"endCursor\":\"cursor:Bravo\"}}}}"
+}
+
+pub fn seeded_product_string_catalogs_reverse_page_test() {
+  let assert Ok(result) =
+    products.process(
+      seeded_string_catalog_store(),
+      "query ProductStringCatalogsReverse {
+        productTags(first: 2, reverse: true) {
+          nodes
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }",
+      dict.new(),
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"productTags\":{\"nodes\":[\"Winter\",\"Hat\"],\"pageInfo\":{\"hasNextPage\":true,\"hasPreviousPage\":false,\"startCursor\":\"cursor:Winter\",\"endCursor\":\"cursor:Hat\"}}}}"
+}
+
 pub fn seeded_products_catalog_read_test() {
   let product =
     ProductRecord(
@@ -302,6 +343,65 @@ fn identifier_product() {
     tags: [],
     total_inventory: Some(0),
     tracks_inventory: Some(False),
+    created_at: None,
+    updated_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    category: None,
+    cursor: None,
+  )
+}
+
+fn seeded_string_catalog_store() {
+  store.upsert_base_products(store.new(), [
+    string_catalog_product(
+      "gid://shopify/Product/1",
+      "Helper Hat",
+      "helper-hat",
+      Some("Acme"),
+      Some("Accessory"),
+      ["Winter", "Hat", ""],
+    ),
+    string_catalog_product(
+      "gid://shopify/Product/2",
+      "Helper Board",
+      "helper-board",
+      Some("Bravo"),
+      Some("Snowboard"),
+      ["Winter", "Board"],
+    ),
+    string_catalog_product(
+      "gid://shopify/Product/3",
+      "Helper Blank",
+      "helper-blank",
+      None,
+      Some(""),
+      ["  "],
+    ),
+  ])
+}
+
+fn string_catalog_product(
+  id: String,
+  title: String,
+  handle: String,
+  vendor: Option(String),
+  product_type: Option(String),
+  tags: List(String),
+) {
+  ProductRecord(
+    id: id,
+    legacy_resource_id: None,
+    title: title,
+    handle: handle,
+    status: "ACTIVE",
+    vendor: vendor,
+    product_type: product_type,
+    tags: tags,
+    total_inventory: None,
+    tracks_inventory: None,
     created_at: None,
     updated_at: None,
     description_html: "",

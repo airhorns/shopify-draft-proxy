@@ -11,18 +11,19 @@ import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field.{
-  type ResolvedValue, type RootFieldError, ObjectVal, StringVal,
+  type ResolvedValue, type RootFieldError, BoolVal, ObjectVal, StringVal,
   get_field_arguments, get_root_fields,
 }
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   SerializeConnectionConfig, SrcBool, SrcInt, SrcList, SrcNull, SrcString,
-  default_connection_window_options, default_selected_field_options,
-  get_document_fragments, get_field_response_key, get_selected_child_fields,
-  paginate_connection_items, project_graphql_value, serialize_connection,
-  serialize_empty_connection, src_object,
+  default_connection_page_info_options, default_connection_window_options,
+  default_selected_field_options, get_document_fragments, get_field_response_key,
+  get_selected_child_fields, paginate_connection_items, project_graphql_value,
+  serialize_connection, serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
@@ -109,13 +110,24 @@ fn serialize_root_fields(
             | "productOperation" -> json.null()
             "products" ->
               serialize_products_connection(store, field, variables, fragments)
+            "productTags" ->
+              serialize_string_connection(product_tags(store), field, variables)
+            "productTypes" ->
+              serialize_string_connection(
+                product_types(store),
+                field,
+                variables,
+              )
+            "productVendors" ->
+              serialize_string_connection(
+                product_vendors(store),
+                field,
+                variables,
+              )
             "collections"
             | "productVariants"
             | "inventoryItems"
             | "productFeeds"
-            | "productTags"
-            | "productTypes"
-            | "productVendors"
             | "productSavedSearches" ->
               serialize_empty_connection(
                 field,
@@ -245,6 +257,75 @@ fn serialize_products_connection(
   }
 }
 
+fn serialize_string_connection(
+  values: List(String),
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Json {
+  let sorted_values = normalize_string_catalog(values)
+  let ordered_values = case read_bool_argument(field, variables, "reverse") {
+    Some(True) -> list.reverse(sorted_values)
+    _ -> sorted_values
+  }
+  let window =
+    paginate_connection_items(
+      ordered_values,
+      field,
+      variables,
+      string_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: string_cursor,
+      serialize_node: fn(value, _node_field, _index) { json.string(value) },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn product_tags(store: Store) -> List(String) {
+  store.list_effective_products(store)
+  |> list.flat_map(fn(product) { product.tags })
+}
+
+fn product_types(store: Store) -> List(String) {
+  store.list_effective_products(store)
+  |> list.filter_map(fn(product) {
+    case product.product_type {
+      Some(value) -> Ok(value)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn product_vendors(store: Store) -> List(String) {
+  store.list_effective_products(store)
+  |> list.filter_map(fn(product) {
+    case product.vendor {
+      Some(value) -> Ok(value)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn normalize_string_catalog(values: List(String)) -> List(String) {
+  values
+  |> list.filter(fn(value) { string.length(string.trim(value)) > 0 })
+  |> list.fold(dict.new(), fn(seen, value) { dict.insert(seen, value, True) })
+  |> dict.keys()
+  |> list.sort(string.compare)
+}
+
+fn string_cursor(value: String, _index: Int) -> String {
+  value
+}
+
 fn product_cursor(product: ProductRecord, _index: Int) -> String {
   case product.cursor {
     Some(cursor) -> cursor
@@ -319,6 +400,21 @@ fn read_string_argument(
     Ok(args) ->
       case dict.get(args, name) {
         Ok(StringVal(value)) -> Some(value)
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
+fn read_bool_argument(
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case get_field_arguments(field, variables) {
+    Ok(args) ->
+      case dict.get(args, name) {
+        Ok(BoolVal(value)) -> Some(value)
         _ -> None
       }
     Error(_) -> None

@@ -9,6 +9,58 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 37: product string helper catalogs
+
+Extends the Product helper read slice to Product-backed string catalog roots:
+`productTags`, `productTypes`, and `productVendors` now derive their values from
+effective local Product state. The implementation filters blank strings,
+deduplicates values, sorts them lexicographically, supports `reverse`, and uses
+the shared connection serializer so selected `nodes`, `edges`, and `pageInfo`
+follow the same synthetic cursor behavior as the TypeScript runtime.
+
+This still does not enable the broad `product-helper-roots-read` parity spec.
+That scenario continues to require ProductVariant state, product variant helper
+roots/counts, saved-search helper payloads, and the remaining operation/feedback
+branches before it can run strictly without weakening the capture.
+
+| Module                                                     | Change                                                                                                        |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Adds Product-backed string connection serialization for tags, product types, and vendors.                     |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct coverage for sorted/deduped string catalogs, edge cursors, pageInfo, reverse ordering, and limit. |
+
+Validation: `gleam test --target javascript` is green at 697 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 5
+product specs executable in the Gleam parity suite after this pass.
+
+### Findings
+
+- The existing shared connection helper is sufficient for scalar string
+  connections; no Products-specific pagination loop is needed.
+- The TS runtime builds these helper catalogs directly from effective products,
+  so this pass can increase local read fidelity without adding a new state
+  bucket.
+
+### Risks / open items
+
+- `product-helper-roots-read` remains disabled because variant helper roots,
+  variant counts, saved-search helper fields, product operation, and feedback
+  branches are not fully ported.
+- Product variants, collections, options, inventory, publications, selling
+  plans, feeds/feedback, metafields, and all product mutations remain unported
+  in Gleam.
+- Only 5 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 38 candidates
+
+- Add ProductVariant state and seed the helper-root first variant scenario.
+- Port `productVariantsCount` and simple variant ID helper reads over effective
+  variant state.
+- Begin products search grammar support using shared search-query parser
+  patterns before enabling search-specific parity specs.
+
+---
+
 ## 2026-04-30 — Pass 36: product identifier helper reads
 
 Extends the seeded Product read slice to the simplest product helper root:
