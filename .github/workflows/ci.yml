@@ -57,8 +57,17 @@ jobs:
       - name: Typecheck TypeScript interop and tooling
         run: corepack pnpm typecheck
 
+      - name: Check Gleam operation registry drift
+        run: corepack pnpm gleam:registry:check
+
       - name: Check conformance metadata
         run: corepack pnpm conformance:check
+
+      - name: Check conformance parity scenarios
+        run: corepack pnpm conformance:parity
+
+      - name: Check remaining TypeScript conformance capture tooling
+        run: corepack pnpm conformance:capture:check
 
       - name: Find latest main conformance baseline
         id: main_conformance_baseline
@@ -90,6 +99,9 @@ jobs:
           --baseline .conformance/main/conformance-status-report.json
           --output-json .conformance/current/conformance-status-report.json
           --output-markdown .conformance/current/conformance-status-comment.md
+
+      - name: Check Gleam port coverage gates
+        run: corepack pnpm gleam:port:coverage
 
       - name: Build TypeScript interop output
         run: corepack pnpm build
