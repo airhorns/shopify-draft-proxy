@@ -8,6 +8,7 @@
 ////     "liveCaptureFiles": ["fixtures/.../capture.json"],
 ////     "proxyRequest": {                                <-- primary
 ////       "documentPath": "config/parity-requests/.../op.graphql",
+////       "apiVersion": "2026-04",
 ////       "variablesCapturePath": "$.cases[1].variables"  // OR
 ////       "variablesPath": "config/.../variables.json"    // OR
 ////       "variables": { … inline, may contain
@@ -53,7 +54,11 @@ pub type ParityVariables {
 }
 
 pub type ProxyRequest {
-  ProxyRequest(document_path: String, variables: ParityVariables)
+  ProxyRequest(
+    document_path: String,
+    variables: ParityVariables,
+    api_version: Option(String),
+  )
 }
 
 pub type TargetRequest {
@@ -122,7 +127,11 @@ fn empty_spec() -> Spec {
   Spec(
     scenario_id: "",
     capture_file: "",
-    proxy_request: ProxyRequest(document_path: "", variables: NoVariables),
+    proxy_request: ProxyRequest(
+      document_path: "",
+      variables: NoVariables,
+      api_version: None,
+    ),
     targets: [],
     expected_differences: [],
   )
@@ -130,6 +139,11 @@ fn empty_spec() -> Spec {
 
 fn proxy_request_decoder() -> Decoder(ProxyRequest) {
   use document_path <- decode.field("documentPath", decode.string)
+  use api_version <- decode.optional_field(
+    "apiVersion",
+    None,
+    decode.optional(decode.string),
+  )
   use variables_capture_path <- decode.optional_field(
     "variablesCapturePath",
     None,
@@ -154,6 +168,7 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
   decode.success(ProxyRequest(
     document_path: document_path,
     variables: variables,
+    api_version: api_version,
   ))
 }
 

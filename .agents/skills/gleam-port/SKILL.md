@@ -297,6 +297,13 @@ synthetic-id/timestamp expected differences.
   `isActive` on the level, exclude inactive levels from default
   `inventoryLevels` reads, honor `includeInactive: true`, and make
   reactivation flip the same row back to active while preserving quantities.
+- Versioned parity specs may set `proxyRequest.apiVersion`; the Gleam parity
+  runner must execute that request through the matching Admin route before
+  domain code can observe route-gated Shopify contract drift. For 2026-04
+  inventory quantity roots, require `changeFromQuantity` and `@idempotent`
+  before staging, return top-level GraphQL errors with `{data: {root: null}}`,
+  and use `changeFromQuantity` as the compare value for successful set/adjust
+  mutations.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.

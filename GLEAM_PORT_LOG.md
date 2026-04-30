@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 98: inventory quantity 2026-04 contracts
+
+Promotes the captured 2026-04 inventory quantity contract scenario into the
+Gleam parity suite. The parity runner now honors per-request `apiVersion`
+metadata, and Products mutation handling applies the 2026-04
+`changeFromQuantity` / `@idempotent` contract before local staging while still
+preserving the older `compareQuantity` behavior on earlier Admin routes.
+
+| Module                                               | Change                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds route-versioned inventory set/adjust contract validation and compare semantics. |
+| `gleam/test/parity/spec.gleam`                       | Decodes `proxyRequest.apiVersion` for primary and target requests.                   |
+| `gleam/test/parity/runner.gleam`                     | Executes parity requests through the requested Admin API version route.              |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing inventory quantity contract spec.                          |
+| `.agents/skills/gleam-port/SKILL.md`                 | Records the versioned parity runner and 2026-04 inventory contract trap.             |
+
+Validation:
+Focused JavaScript parity is green for
+`inventory-quantity-contracts-2026-04.json`. Full JavaScript is green at 711
+tests. Host Erlang still fails with the known local `Undef` runner class; the
+Docker Erlang fallback is green at 707 tests. `corepack pnpm
+gleam:port:coverage`, `corepack pnpm lint`, and whitespace checks are green.
+Product parity inventory remains 115 checked-in specs, with 95 product specs
+executable in the Gleam parity suite and 20 product specs still
+expected-failing.
+
+### Findings
+
+- The 2026-04 contract is route-gated; running the checked-in parity request
+  through the runner's previous hardcoded 2025-01 path hid the captured Shopify
+  schema drift from the product mutation handler.
+- Shopify returns omitted `changeFromQuantity` as a top-level
+  `INVALID_FIELD_ARGUMENTS` GraphQL error with the mutation root set to `null`
+  in `data`, not as a payload `userErrors` branch.
+- Successful 2026-04 set/adjust writes compare against `changeFromQuantity`;
+  older routes keep the existing `compareQuantity` / `ignoreCompareQuantity`
+  behavior.
+
+### Risks / open items
+
+- Selling plans, media, advanced search, duplicate, productSet, relationship
+  roots, and broader validation atomicity parity remain incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 99 candidates
+
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+- Continue advanced product search/sort/read parity.
+- Port selling-plan group behavior with strict captured lifecycle evidence.
+
+---
+
 ## 2026-04-30 - Pass 97: inactive inventory level lifecycle
 
 Promotes the captured inactive inventory level lifecycle scenario into the

@@ -189,6 +189,7 @@ pub fn run_with_config(
     primary_doc,
     primary_vars,
     "<primary>",
+    parsed.proxy_request.api_version,
   ))
   use primary_value <- result.try(parse_response_body(primary_response))
   use #(_proxy, target_reports) <- result.try(run_targets(
@@ -6117,6 +6118,7 @@ fn actual_response_for(
             document,
             variables,
             target.name,
+            request.api_version,
           ))
           use value <- result.try(parse_response_body(response))
           Ok(#(value, next_proxy))
@@ -6325,12 +6327,14 @@ fn execute(
   document: String,
   variables: JsonValue,
   context: String,
+  api_version: Option(String),
 ) -> Result(#(Response, DraftProxy), RunError) {
   let body = build_graphql_body(document, variables)
+  let version = option.unwrap(api_version, "2025-01")
   let request =
     Request(
       method: "POST",
-      path: "/admin/api/2025-01/graphql.json",
+      path: "/admin/api/" <> version <> "/graphql.json",
       headers: dict.new(),
       body: body,
     )
