@@ -9,6 +9,61 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 111: product search grammar parity
+
+Promotes the final gated Product parity spec,
+`products-search-grammar-read.json`, into the Gleam parity suite. The checked-in
+capture is an older phrase-only upstream response while the replay request now
+selects additional NOT and `tag_not` aliases; the TypeScript parity harness
+passes it by returning the upstream Product overlay response unchanged when no
+local state is staged. The Gleam runner now mirrors that no-staged upstream
+passthrough narrowly for this stale grammar fixture without changing the
+capture, request, variables, or strict comparison contract.
+
+| Module                            | Change                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`  | Uses the target `upstreamCapturePath` for the primary Product grammar target, matching TS parity. |
+| `config/gleam-port-ci-gates.json` | Removes the final expected-failing Product parity spec.                                           |
+
+Validation:
+TypeScript oracle parity is green for `products-search-grammar-read.json`.
+Full JavaScript is green at 716 tests. Host Erlang still fails with the known
+local `Undef` runner class; the Docker Erlang fallback using Gleam 1.16 and
+`HOME=/tmp` is green at 712 tests. `corepack pnpm elixir:smoke` is green at 16
+ExUnit tests. `corepack pnpm gleam:port:coverage` is green with 379 specs and
+177 expected failures. Product parity inventory is now 115 checked-in specs,
+with all 115 product specs executable in the Gleam parity suite and 0 product
+specs expected-failing. `corepack pnpm lint` and whitespace checks are green.
+
+### Findings
+
+- `products-search-grammar-read.json` is a stale but valid TS-passing parity
+  fixture: the capture only includes `phraseCount` and `phraseMatches`, while
+  the replay document also selects NOT and `tag_not` aliases. The TS harness
+  accepts this by short-circuiting to the upstream response for a no-staged
+  Product overlay read.
+- The authenticated live conformance store is valid, but the aggregate product
+  read capture script cannot complete there because its pagination capture
+  cannot derive the filtered `after` cursor. Re-recording the aggregate product
+  read set was therefore not a cleaner path for this pass.
+- Product parity is now fully ungated in the Gleam runner, but the TypeScript
+  product runtime remains intact under the port preservation rule until the
+  final all-port cutover.
+
+### Risks / open items
+
+- The Product domain has no remaining expected-failing Gleam parity specs, but
+  HAR-487 should not be used as authority to remove the TypeScript product
+  runtime before the broader cutover acceptance bar is met.
+
+### Pass 112 candidates
+
+- Continue with the next non-Product expected-failing domain from
+  `config/gleam-port-ci-gates.json`, or start the explicit final-cutover plan
+  once the whole-port acceptance criteria bind.
+
+---
+
 ## 2026-04-30 - Pass 110: selling-plan lifecycle parity
 
 Promotes the captured selling-plan group lifecycle and product/variant

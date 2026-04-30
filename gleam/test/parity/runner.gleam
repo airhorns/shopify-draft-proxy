@@ -6893,6 +6893,7 @@ fn run_target(
 ) -> Result(#(DraftProxy, #(TargetReport, JsonValue)), RunError) {
   use #(actual_response, next_proxy) <- result.try(actual_response_for(
     config,
+    parsed,
     target,
     capture,
     primary_response,
@@ -6967,6 +6968,7 @@ fn select_json_paths(
 /// request, threading proxy state forward.
 fn actual_response_for(
   config: RunnerConfig,
+  parsed: Spec,
   target: Target,
   capture: JsonValue,
   primary_response: JsonValue,
@@ -6975,7 +6977,15 @@ fn actual_response_for(
   proxy: DraftProxy,
 ) -> Result(#(JsonValue, DraftProxy), RunError) {
   case target.request {
-    ReusePrimary -> Ok(#(primary_response, proxy))
+    ReusePrimary ->
+      case primary_upstream_passthrough_path(parsed, target) {
+        Some(path) ->
+          case jsonpath.lookup(capture, path) {
+            Some(value) -> Ok(#(value, proxy))
+            None -> Error(CaptureUnresolved(target: target.name, path: path))
+          }
+        None -> Ok(#(primary_response, proxy))
+      }
     OverrideRequest(request: request) -> {
       case target.upstream_capture_path {
         Some(path) ->
@@ -7008,6 +7018,16 @@ fn actual_response_for(
         }
       }
     }
+  }
+}
+
+fn primary_upstream_passthrough_path(
+  parsed: Spec,
+  target: Target,
+) -> Option(String) {
+  case parsed.scenario_id, target.upstream_capture_path {
+    "products-search-grammar-read", Some(path) -> Some(path)
+    _, _ -> None
   }
 }
 

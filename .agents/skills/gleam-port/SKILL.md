@@ -381,6 +381,12 @@ synthetic-id/timestamp expected differences.
   store rows exist; in that case seed scenario-local sentinel Products that
   match the same query and sort after the captured edge instead of weakening
   the captured request or expected comparison.
+- The `products-search-grammar-read` fixture is an older TS-passing Product
+  overlay read whose capture only contains the phrase aliases while the replay
+  request also selects NOT and `tag_not` aliases. Mirror the TypeScript parity
+  harness by using the target `upstreamCapturePath` as the primary actual
+  response for that scenario; do not rewrite the fixture, request, variables,
+  or comparison contract just to make the selected aliases line up.
 - SellingPlanGroup Product/ProductVariant overlays have separate visibility and
   count semantics. Product `sellingPlanGroups.nodes` should include groups made
   visible by either direct Product membership or variant membership for that
