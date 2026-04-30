@@ -9,6 +9,63 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 33: JS embeddable shim compatibility
+
+Completes the current JavaScript embeddable API shim over the Gleam-emitted ESM
+for the saved-search-backed consumer lifecycle. The shim now exposes the
+TypeScript-friendly `createDraftProxy(config, options)`, `processRequest`,
+`processGraphQLRequest`, meta inspection, reset, dump/restore, and async
+`commit` methods without leaking Gleam tuple conventions to callers. The state
+dump now carries the saved-search base/staged slices through the versioned
+store-field envelope, so a Node/TypeScript consumer can stage a local write,
+dump it, restore into a fresh proxy, read it back, and replay the original raw
+mutation to an upstream commit target.
+
+| Module                                                        | Change                                                                                                                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/js/src/runtime.ts`                                     | Adds constructor restore options, `processGraphQLRequest`, async `commit`, and TS-shaped commit error/result adaptation around the Gleam runtime.      |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Extends dump/restore to persist saved-search base/staged state and mutation logs in plain store-field envelopes, while accepting older log-only dumps. |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | Adds saved-search state restore coverage and loosens dump assertions to the expanded store-field envelope.                                             |
+| `tests/integration/gleam-interop.test.ts`                     | Adds a Node/TypeScript consumer smoke covering stage, read, meta inspection, dump/restore, and commit replay through a local upstream server.          |
+
+Validation: `corepack pnpm build`, `corepack pnpm gleam:smoke:js`,
+`corepack pnpm gleam:test:js`, `corepack pnpm lint`,
+`corepack pnpm --dir gleam/js build`, and `corepack pnpm --dir gleam/js test`
+are green. `corepack pnpm gleam:test:erlang` is blocked on the host missing
+`escript`, so the Erlang target is green at 667 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`.
+
+### Findings
+
+- The previous shim covered health/config/dump shape only; consumers still had
+  to know lower-level request routing and could not call `processGraphQLRequest`
+  or `commit` like the TypeScript runtime.
+- Dump/restore needed real ported resource state, not only the mutation log, for
+  fresh restored instances to preserve read-after-write behavior.
+- JavaScript commit remains intentionally async because upstream `fetch` is
+  Promise-based; the shim hides the Gleam `#(Response, DraftProxy)` pair and
+  keeps the public `DraftProxy.commit(...)` contract.
+
+### Risks / open items
+
+- Dump/restore currently persists the saved-search slice needed for this
+  lifecycle proof. Other ported domains should be added to the store-field
+  envelope as those JS package compatibility paths become consumer-facing.
+- The HTTP server adapter remains deferred under the broader Gleam port plan;
+  `createApp` and `loadConfig` still throw clear not-implemented errors in the
+  shim.
+
+### Pass 34 candidates
+
+- Extend the dump/restore store-field envelope to the next consumer-facing
+  ported domain slice before exposing package-level flows that depend on it.
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the shop slice from Pass 32.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain
