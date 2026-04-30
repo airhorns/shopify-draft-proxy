@@ -19,17 +19,22 @@ import shopify_draft_proxy/graphql/root_field.{
 }
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  SerializeConnectionConfig, SrcBool, SrcInt, SrcList, SrcNull, SrcString,
-  default_connection_page_info_options, default_connection_window_options,
-  default_selected_field_options, get_document_fragments, get_field_response_key,
-  get_selected_child_fields, paginate_connection_items, project_graphql_value,
-  serialize_connection, serialize_empty_connection, src_object,
+  SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
+  SrcString, default_connection_page_info_options,
+  default_connection_window_options, default_selected_field_options,
+  get_document_fragments, get_field_response_key, get_selected_child_fields,
+  paginate_connection_items, project_graphql_value, serialize_connection,
+  serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
-  type ProductCategoryRecord, type ProductRecord, type ProductSeoRecord,
-  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
+  type InventoryItemRecord, type InventoryLevelRecord,
+  type InventoryMeasurementRecord, type InventoryQuantityRecord,
+  type InventoryWeightRecord, type ProductCategoryRecord, type ProductRecord,
+  type ProductSeoRecord, type ProductVariantRecord,
+  type ProductVariantSelectedOptionRecord, InventoryWeightFloat,
+  InventoryWeightInt,
 }
 
 pub type ProductsError {
@@ -103,11 +108,12 @@ fn serialize_root_fields(
                 fragments,
               )
             "collection"
-            | "inventoryItem"
             | "inventoryLevel"
             | "productFeed"
             | "productResourceFeedback"
             | "productOperation" -> json.null()
+            "inventoryItem" ->
+              serialize_inventory_item_root(store, field, variables, fragments)
             "productVariant" ->
               serialize_product_variant_root(store, field, variables, fragments)
             "productVariantByIdentifier" ->
@@ -175,7 +181,7 @@ fn serialize_product_root(
       case store.get_effective_product_by_id(store, id) {
         Some(product) ->
           project_graphql_value(
-            product_source(product),
+            product_source_with_store(store, product),
             get_selected_child_fields(field, default_selected_field_options()),
             fragments,
           )
@@ -196,7 +202,7 @@ fn serialize_product_by_identifier_root(
       case product_by_identifier(store, identifier) {
         Some(product) ->
           project_graphql_value(
-            product_source(product),
+            product_source_with_store(store, product),
             get_selected_child_fields(field, default_selected_field_options()),
             fragments,
           )
@@ -269,6 +275,27 @@ fn serialize_product_variant_by_identifier_root(
   }
 }
 
+fn serialize_inventory_item_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.find_effective_variant_by_inventory_item_id(store, id) {
+        Some(variant) ->
+          project_graphql_value(
+            inventory_item_source(store, variant),
+            get_selected_child_fields(field, default_selected_field_options()),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
 fn serialize_products_connection(
   store: Store,
   field: Selection,
@@ -299,7 +326,7 @@ fn serialize_products_connection(
           get_cursor_value: product_cursor,
           serialize_node: fn(product, node_field, _index) {
             project_graphql_value(
-              product_source(product),
+              product_source_with_store(store, product),
               get_selected_child_fields(
                 node_field,
                 default_selected_field_options(),
@@ -559,6 +586,23 @@ fn optional_string(value: Option(String)) -> Json {
 }
 
 pub fn product_source(product: ProductRecord) -> SourceValue {
+  product_source_with_variants(product, empty_connection_source())
+}
+
+fn product_source_with_store(
+  store: Store,
+  product: ProductRecord,
+) -> SourceValue {
+  product_source_with_variants(
+    product,
+    product_variants_connection_source(store, product),
+  )
+}
+
+fn product_source_with_variants(
+  product: ProductRecord,
+  variants: SourceValue,
+) -> SourceValue {
   src_object([
     #("__typename", SrcString("Product")),
     #("id", SrcString(product.id)),
@@ -583,12 +627,61 @@ pub fn product_source(product: ProductRecord) -> SourceValue {
     #("category", optional_product_category_source(product.category)),
     #("collections", empty_connection_source()),
     #("media", empty_connection_source()),
+    #("variants", variants),
+  ])
+}
+
+fn product_variants_connection_source(
+  store: Store,
+  product: ProductRecord,
+) -> SourceValue {
+  let variants = store.get_effective_variants_by_product_id(store, product.id)
+  let edges =
+    variants
+    |> enumerate_items()
+    |> list.map(fn(pair) {
+      let #(variant, index) = pair
+      src_object([
+        #("cursor", SrcString(product_variant_cursor(variant, index))),
+        #("node", product_variant_source(store, variant)),
+      ])
+    })
+  src_object([
+    #("edges", SrcList(edges)),
+    #(
+      "nodes",
+      SrcList(
+        list.map(variants, fn(variant) {
+          product_variant_source(store, variant)
+        }),
+      ),
+    ),
+    #("pageInfo", connection_page_info_source(variants, product_variant_cursor)),
   ])
 }
 
 pub fn product_variant_source(
   store: Store,
   variant: ProductVariantRecord,
+) -> SourceValue {
+  product_variant_source_with_inventory(
+    store,
+    variant,
+    variant_inventory_item_source(variant),
+  )
+}
+
+fn product_variant_source_without_inventory(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  product_variant_source_with_inventory(store, variant, SrcNull)
+}
+
+fn product_variant_source_with_inventory(
+  store: Store,
+  variant: ProductVariantRecord,
+  inventory_item: SourceValue,
 ) -> SourceValue {
   src_object([
     #("__typename", SrcString("ProductVariant")),
@@ -605,8 +698,195 @@ pub fn product_variant_source(
       "selectedOptions",
       SrcList(list.map(variant.selected_options, selected_option_source)),
     ),
+    #("inventoryItem", inventory_item),
     #("product", variant_product_source(store, variant.product_id)),
   ])
+}
+
+fn variant_inventory_item_source(variant: ProductVariantRecord) -> SourceValue {
+  case variant.inventory_item {
+    Some(item) -> inventory_item_source_without_variant(item)
+    None -> SrcNull
+  }
+}
+
+fn inventory_item_source(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  case variant.inventory_item {
+    Some(item) ->
+      inventory_item_source_with_variant(
+        item,
+        product_variant_source_without_inventory(store, variant),
+      )
+    None -> SrcNull
+  }
+}
+
+fn inventory_item_source_without_variant(
+  item: InventoryItemRecord,
+) -> SourceValue {
+  inventory_item_source_with_variant(item, SrcNull)
+}
+
+fn inventory_item_source_with_variant(
+  item: InventoryItemRecord,
+  variant: SourceValue,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("InventoryItem")),
+    #("id", SrcString(item.id)),
+    #("tracked", optional_bool_source(item.tracked)),
+    #("requiresShipping", optional_bool_source(item.requires_shipping)),
+    #("measurement", optional_measurement_source(item.measurement)),
+    #(
+      "countryCodeOfOrigin",
+      optional_string_source(item.country_code_of_origin),
+    ),
+    #(
+      "provinceCodeOfOrigin",
+      optional_string_source(item.province_code_of_origin),
+    ),
+    #(
+      "harmonizedSystemCode",
+      optional_string_source(item.harmonized_system_code),
+    ),
+    #(
+      "inventoryLevels",
+      inventory_levels_connection_source(item.inventory_levels),
+    ),
+    #("variant", variant),
+  ])
+}
+
+fn inventory_levels_connection_source(
+  levels: List(InventoryLevelRecord),
+) -> SourceValue {
+  let edges =
+    levels
+    |> enumerate_items()
+    |> list.map(fn(pair) {
+      let #(level, index) = pair
+      src_object([
+        #("cursor", SrcString(inventory_level_cursor(level, index))),
+        #("node", inventory_level_source(level)),
+      ])
+    })
+  src_object([
+    #("edges", SrcList(edges)),
+    #("nodes", SrcList(list.map(levels, inventory_level_source))),
+    #("pageInfo", connection_page_info_source(levels, inventory_level_cursor)),
+  ])
+}
+
+fn inventory_level_source(level: InventoryLevelRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("InventoryLevel")),
+    #("id", SrcString(level.id)),
+    #(
+      "location",
+      src_object([
+        #("__typename", SrcString("Location")),
+        #("id", SrcString(level.location.id)),
+        #("name", SrcString(level.location.name)),
+      ]),
+    ),
+    #("quantities", SrcList(list.map(level.quantities, quantity_source))),
+  ])
+}
+
+fn quantity_source(quantity: InventoryQuantityRecord) -> SourceValue {
+  src_object([
+    #("name", SrcString(quantity.name)),
+    #("quantity", SrcInt(quantity.quantity)),
+    #("updatedAt", optional_string_source(quantity.updated_at)),
+  ])
+}
+
+fn optional_measurement_source(
+  measurement: Option(InventoryMeasurementRecord),
+) -> SourceValue {
+  case measurement {
+    Some(value) ->
+      src_object([#("weight", optional_weight_source(value.weight))])
+    None -> SrcNull
+  }
+}
+
+fn optional_weight_source(
+  weight: Option(InventoryWeightRecord),
+) -> SourceValue {
+  case weight {
+    Some(value) ->
+      src_object([
+        #("unit", SrcString(value.unit)),
+        #("value", inventory_weight_value_source(value.value)),
+      ])
+    None -> SrcNull
+  }
+}
+
+fn inventory_weight_value_source(value) -> SourceValue {
+  case value {
+    InventoryWeightInt(value) -> SrcInt(value)
+    InventoryWeightFloat(value) -> SrcFloat(value)
+  }
+}
+
+fn connection_page_info_source(
+  items: List(a),
+  get_cursor: fn(a, Int) -> String,
+) -> SourceValue {
+  src_object([
+    #("hasNextPage", SrcBool(False)),
+    #("hasPreviousPage", SrcBool(False)),
+    #("startCursor", connection_start_cursor(items, get_cursor)),
+    #("endCursor", connection_end_cursor(items, get_cursor)),
+  ])
+}
+
+fn connection_start_cursor(
+  items: List(a),
+  get_cursor: fn(a, Int) -> String,
+) -> SourceValue {
+  case items {
+    [first, ..] -> SrcString(get_cursor(first, 0))
+    [] -> SrcNull
+  }
+}
+
+fn connection_end_cursor(
+  items: List(a),
+  get_cursor: fn(a, Int) -> String,
+) -> SourceValue {
+  case list.last(items) {
+    Ok(last) -> SrcString(get_cursor(last, list.length(items) - 1))
+    Error(_) -> SrcNull
+  }
+}
+
+fn inventory_level_cursor(level: InventoryLevelRecord, _index: Int) -> String {
+  case level.cursor {
+    Some(cursor) -> cursor
+    None -> level.id
+  }
+}
+
+fn enumerate_items(items: List(a)) -> List(#(a, Int)) {
+  enumerate_items_loop(items, 0, [])
+}
+
+fn enumerate_items_loop(
+  items: List(a),
+  index: Int,
+  acc: List(#(a, Int)),
+) -> List(#(a, Int)) {
+  case items {
+    [] -> list.reverse(acc)
+    [first, ..rest] ->
+      enumerate_items_loop(rest, index + 1, [#(first, index), ..acc])
+  }
 }
 
 fn selected_option_source(

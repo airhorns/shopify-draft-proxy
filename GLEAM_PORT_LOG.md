@@ -9,6 +9,66 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 40: product variant inventory reads
+
+Enables the captured `product-variants-read` parity scenario in the Gleam
+suite. ProductVariant records now carry the captured InventoryItem subset used
+by the product variants matrix fixture: tracked/shipping flags, measurement
+weight, origin fields, inventory level connections, quantities, and the
+InventoryItem -> ProductVariant backreference. Product detail projection can
+also expose a product-scoped `variants` connection from effective variant state,
+which lets the same seeded record serve `product(id:)`, top-level
+`productVariant(id:)`, and top-level `inventoryItem(id:)` reads.
+
+This is still a read slice over captured fixture state. It does not implement
+inventory item mutations, inventory level lifecycle behavior, inventory quantity
+roots, variant query filtering, or broader inventory projections beyond the
+fields selected by the parity request.
+
+| Module                                                     | Change                                                                                                       |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | Adds InventoryItem, InventoryLevel, quantity, location, measurement, and weight records.                     |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds effective variant lookup by inventory item id for `inventoryItem(id:)` reads.                           |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Serializes product-scoped variant connections, nested inventory items, inventory levels, and backreferences. |
+| `gleam/test/parity/runner.gleam`                           | Seeds the product variants matrix capture, including edge cursors and nested inventory item data.            |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Updates the direct ProductVariant record helper for the new inventory item field.                            |
+| `gleam/test/parity_test.gleam`                             | Enables `product-variants-read` in the pure-Gleam parity suite.                                              |
+
+Validation: `gleam test --target javascript` is green at 701 tests on the host
+Node runtime. Product parity inventory remains 115 checked-in specs, with 7
+product specs executable in the Gleam parity suite after this pass.
+
+### Findings
+
+- The product variants matrix capture stores the seed product as
+  `$.data.product` rather than top-level `seedProducts`, and the product payload
+  omits catalog-only fields such as `handle` and `status`. The runner seeds a
+  relaxed Product baseline for this scenario while preserving the captured
+  selected fields.
+- The static SourceValue projector is sufficient for the selected product-scoped
+  `variants(first:)` connection because the parity fixture has one captured
+  variant. Broader paginated product-scoped variants remain a later behavior
+  slice.
+
+### Risks / open items
+
+- Inventory mutations, inventory quantity roots, inventory item search/catalog
+  reads, and inventory level lifecycle behavior remain unported.
+- Product variant query filtering and non-ID sort keys remain unported.
+- Only 7 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 41 candidates
+
+- Add ProductOption state and product `options`/option value projection from
+  captured fixtures.
+- Start inventory item/level top-level catalog/search reads over effective
+  variant-backed inventory items.
+- Add ProductVariant query filtering for simple `vendor`, `product_type`, `tag`,
+  `sku`, and `id` terms.
+
+---
+
 ## 2026-04-30 — Pass 39: product helper-root parity
 
 Enables the captured `product-helper-roots-read` parity scenario in the Gleam

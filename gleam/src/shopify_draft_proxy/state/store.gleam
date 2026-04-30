@@ -688,6 +688,23 @@ pub fn get_effective_variant_by_id(
   }
 }
 
+pub fn find_effective_variant_by_inventory_item_id(
+  store: Store,
+  inventory_item_id: String,
+) -> Option(ProductVariantRecord) {
+  case
+    list.find(list_effective_product_variants(store), fn(variant) {
+      case variant.inventory_item {
+        Some(item) -> item.id == inventory_item_id
+        None -> False
+      }
+    })
+  {
+    Ok(variant) -> Some(variant)
+    Error(_) -> None
+  }
+}
+
 pub fn list_effective_product_variants(
   store: Store,
 ) -> List(ProductVariantRecord) {

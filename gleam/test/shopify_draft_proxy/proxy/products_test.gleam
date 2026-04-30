@@ -523,6 +523,7 @@ fn variant_record(
     inventory_policy: None,
     inventory_quantity: None,
     selected_options: [],
+    inventory_item: None,
     cursor: None,
   )
 }

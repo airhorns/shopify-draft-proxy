@@ -39,16 +39,21 @@ import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord, type Money,
-  type PaymentSettingsRecord, type ProductCategoryRecord, type ProductRecord,
-  type ProductSeoRecord, type ProductVariantRecord,
-  type ProductVariantSelectedOptionRecord, type ShopAddressRecord,
-  type ShopDomainRecord, type ShopFeaturesRecord, type ShopPlanRecord,
-  type ShopPolicyRecord, type ShopRecord, type ShopResourceLimitsRecord,
-  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
-  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
-  GiftCardTransactionRecord, Money, PaymentSettingsRecord, ProductCategoryRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  type GiftCardRecord, type GiftCardTransactionRecord, type InventoryItemRecord,
+  type InventoryLevelRecord, type InventoryLocationRecord,
+  type InventoryMeasurementRecord, type InventoryQuantityRecord,
+  type InventoryWeightRecord, type Money, type PaymentSettingsRecord,
+  type ProductCategoryRecord, type ProductRecord, type ProductSeoRecord,
+  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
+  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
+  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
+  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
+  type ShopifyFunctionRecord, GiftCardConfigurationRecord,
+  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
+  InventoryWeightInt, InventoryWeightRecord, Money, PaymentSettingsRecord,
+  ProductCategoryRecord, ProductRecord, ProductSeoRecord, ProductVariantRecord,
   ProductVariantSelectedOptionRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
@@ -157,6 +162,8 @@ fn seed_capture_preconditions(
     "product-detail-read" -> seed_product_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
+    "product-variants-read" ->
+      seed_product_variants_read_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -222,6 +229,27 @@ fn seed_products_catalog_preconditions(
   draft_proxy.DraftProxy(..proxy, store: store)
 }
 
+fn seed_product_variants_read_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.data.product") {
+    Some(product_json) -> {
+      let products = case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [product]
+        Error(_) -> []
+      }
+      let variants = seed_variants_for_product(product_json)
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_variants(variants)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
 fn make_seed_product_from_edge(edge: JsonValue) -> Result(ProductRecord, Nil) {
   case read_object_field(edge, "node") {
     Some(node) -> {
@@ -230,6 +258,33 @@ fn make_seed_product_from_edge(edge: JsonValue) -> Result(ProductRecord, Nil) {
     }
     None -> Error(Nil)
   }
+}
+
+fn make_seed_product_relaxed(source: JsonValue) -> Result(ProductRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use title <- result.try(required_string_field(source, "title"))
+  Ok(ProductRecord(
+    id: id,
+    legacy_resource_id: read_string_field(source, "legacyResourceId"),
+    title: title,
+    handle: read_string_field(source, "handle") |> option.unwrap(""),
+    status: read_string_field(source, "status") |> option.unwrap("ACTIVE"),
+    vendor: read_string_field(source, "vendor"),
+    product_type: read_string_field(source, "productType"),
+    tags: read_string_array_field(source, "tags"),
+    total_inventory: read_int_field(source, "totalInventory"),
+    tracks_inventory: read_bool_field(source, "tracksInventory"),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+    description_html: read_string_field(source, "descriptionHtml")
+      |> option.unwrap(""),
+    online_store_preview_url: read_string_field(source, "onlineStorePreviewUrl"),
+    template_suffix: read_string_field(source, "templateSuffix"),
+    seo: make_seed_product_seo(read_object_field(source, "seo")),
+    category: read_object_field(source, "category")
+      |> option.then(make_seed_product_category),
+    cursor: None,
+  ))
 }
 
 fn make_seed_product_with_cursor(
@@ -272,12 +327,19 @@ fn seed_variants_for_product(source: JsonValue) -> List(ProductVariantRecord) {
     Ok(product_id) ->
       case read_object_field(source, "variants") {
         Some(connection) ->
-          case read_array_field(connection, "nodes") {
-            Some(nodes) ->
-              list.filter_map(nodes, fn(node) {
-                make_seed_product_variant(product_id, node)
+          case read_array_field(connection, "edges") {
+            Some(edges) ->
+              list.filter_map(edges, fn(edge) {
+                make_seed_product_variant_from_edge(product_id, edge)
               })
-            None -> []
+            None ->
+              case read_array_field(connection, "nodes") {
+                Some(nodes) ->
+                  list.filter_map(nodes, fn(node) {
+                    make_seed_product_variant(product_id, node, None)
+                  })
+                None -> []
+              }
           }
         None -> []
       }
@@ -288,6 +350,7 @@ fn seed_variants_for_product(source: JsonValue) -> List(ProductVariantRecord) {
 fn make_seed_product_variant(
   product_id: String,
   source: JsonValue,
+  cursor: Option(String),
 ) -> Result(ProductVariantRecord, Nil) {
   use id <- result.try(required_string_field(source, "id"))
   let selected_options = case read_array_field(source, "selectedOptions") {
@@ -306,7 +369,181 @@ fn make_seed_product_variant(
     inventory_policy: read_string_field(source, "inventoryPolicy"),
     inventory_quantity: read_int_field(source, "inventoryQuantity"),
     selected_options: selected_options,
-    cursor: None,
+    inventory_item: make_seed_inventory_item(read_object_field(
+      source,
+      "inventoryItem",
+    )),
+    cursor: cursor,
+  ))
+}
+
+fn make_seed_product_variant_from_edge(
+  product_id: String,
+  edge: JsonValue,
+) -> Result(ProductVariantRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) ->
+      make_seed_product_variant(
+        product_id,
+        node,
+        read_string_field(edge, "cursor"),
+      )
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_inventory_item(
+  source: Option(JsonValue),
+) -> Option(InventoryItemRecord) {
+  case source {
+    Some(value) ->
+      case required_string_field(value, "id") {
+        Ok(id) ->
+          Some(InventoryItemRecord(
+            id: id,
+            tracked: read_bool_field(value, "tracked"),
+            requires_shipping: read_bool_field(value, "requiresShipping"),
+            measurement: make_seed_inventory_measurement(read_object_field(
+              value,
+              "measurement",
+            )),
+            country_code_of_origin: read_string_field(
+              value,
+              "countryCodeOfOrigin",
+            ),
+            province_code_of_origin: read_string_field(
+              value,
+              "provinceCodeOfOrigin",
+            ),
+            harmonized_system_code: read_string_field(
+              value,
+              "harmonizedSystemCode",
+            ),
+            inventory_levels: read_seed_inventory_levels(value),
+          ))
+        Error(_) -> None
+      }
+    None -> None
+  }
+}
+
+fn make_seed_inventory_measurement(
+  source: Option(JsonValue),
+) -> Option(InventoryMeasurementRecord) {
+  case source {
+    Some(value) ->
+      Some(
+        InventoryMeasurementRecord(
+          weight: make_seed_inventory_weight(read_object_field(value, "weight")),
+        ),
+      )
+    None -> None
+  }
+}
+
+fn make_seed_inventory_weight(
+  source: Option(JsonValue),
+) -> Option(InventoryWeightRecord) {
+  case source {
+    Some(value) ->
+      case
+        read_string_field(value, "unit"),
+        read_inventory_weight_value(value)
+      {
+        Some(unit), Some(weight_value) ->
+          Some(InventoryWeightRecord(unit: unit, value: weight_value))
+        _, _ -> None
+      }
+    None -> None
+  }
+}
+
+fn read_inventory_weight_value(value: JsonValue) {
+  case json_value.field(value, "value") {
+    Some(JInt(i)) -> Some(InventoryWeightInt(i))
+    Some(JFloat(f)) -> Some(InventoryWeightFloat(f))
+    _ -> None
+  }
+}
+
+fn read_seed_inventory_levels(source: JsonValue) -> List(InventoryLevelRecord) {
+  case read_object_field(source, "inventoryLevels") {
+    Some(connection) ->
+      case read_array_field(connection, "edges") {
+        Some(edges) ->
+          list.filter_map(edges, fn(edge) {
+            make_seed_inventory_level_from_edge(edge)
+          })
+        None ->
+          case read_array_field(connection, "nodes") {
+            Some(nodes) ->
+              list.filter_map(nodes, fn(node) {
+                make_seed_inventory_level(node, None)
+              })
+            None -> []
+          }
+      }
+    None ->
+      case read_array_field(source, "inventoryLevels") {
+        Some(nodes) ->
+          list.filter_map(nodes, fn(node) {
+            make_seed_inventory_level(node, None)
+          })
+        None -> []
+      }
+  }
+}
+
+fn make_seed_inventory_level_from_edge(
+  edge: JsonValue,
+) -> Result(InventoryLevelRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) ->
+      make_seed_inventory_level(node, read_string_field(edge, "cursor"))
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_inventory_level(
+  source: JsonValue,
+  cursor: Option(String),
+) -> Result(InventoryLevelRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use location <- result.try(
+    make_seed_inventory_location(read_object_field(source, "location")),
+  )
+  Ok(InventoryLevelRecord(
+    id: id,
+    location: location,
+    quantities: read_array_field(source, "quantities")
+      |> option.unwrap([])
+      |> list.filter_map(make_seed_inventory_quantity),
+    cursor: cursor,
+  ))
+}
+
+fn make_seed_inventory_location(
+  source: Option(JsonValue),
+) -> Result(InventoryLocationRecord, Nil) {
+  case source {
+    Some(value) -> {
+      use id <- result.try(required_string_field(value, "id"))
+      use name <- result.try(required_string_field(value, "name"))
+      Ok(InventoryLocationRecord(id: id, name: name))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_inventory_quantity(
+  source: JsonValue,
+) -> Result(InventoryQuantityRecord, Nil) {
+  use name <- result.try(required_string_field(source, "name"))
+  use quantity <- result.try(required_int_field(source, "quantity"))
+  Ok(InventoryQuantityRecord(
+    name: name,
+    quantity: quantity,
+    updated_at: read_string_field(source, "updatedAt"),
   ))
 }
 
@@ -890,6 +1127,13 @@ fn required_string_field(
 ) -> Result(String, Nil) {
   case read_string_field(value, name) {
     Some(s) -> Ok(s)
+    None -> Error(Nil)
+  }
+}
+
+fn required_int_field(value: JsonValue, name: String) -> Result(Int, Nil) {
+  case read_int_field(value, name) {
+    Some(i) -> Ok(i)
     None -> Error(Nil)
   }
 }

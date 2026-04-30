@@ -28,6 +28,53 @@ pub type ProductVariantSelectedOptionRecord {
   ProductVariantSelectedOptionRecord(name: String, value: String)
 }
 
+pub type InventoryWeightValue {
+  InventoryWeightInt(Int)
+  InventoryWeightFloat(Float)
+}
+
+pub type InventoryWeightRecord {
+  InventoryWeightRecord(unit: String, value: InventoryWeightValue)
+}
+
+pub type InventoryMeasurementRecord {
+  InventoryMeasurementRecord(weight: Option(InventoryWeightRecord))
+}
+
+pub type InventoryLocationRecord {
+  InventoryLocationRecord(id: String, name: String)
+}
+
+pub type InventoryQuantityRecord {
+  InventoryQuantityRecord(
+    name: String,
+    quantity: Int,
+    updated_at: Option(String),
+  )
+}
+
+pub type InventoryLevelRecord {
+  InventoryLevelRecord(
+    id: String,
+    location: InventoryLocationRecord,
+    quantities: List(InventoryQuantityRecord),
+    cursor: Option(String),
+  )
+}
+
+pub type InventoryItemRecord {
+  InventoryItemRecord(
+    id: String,
+    tracked: Option(Bool),
+    requires_shipping: Option(Bool),
+    measurement: Option(InventoryMeasurementRecord),
+    country_code_of_origin: Option(String),
+    province_code_of_origin: Option(String),
+    harmonized_system_code: Option(String),
+    inventory_levels: List(InventoryLevelRecord),
+  )
+}
+
 pub type ProductVariantRecord {
   ProductVariantRecord(
     id: String,
@@ -41,6 +88,7 @@ pub type ProductVariantRecord {
     inventory_policy: Option(String),
     inventory_quantity: Option(Int),
     selected_options: List(ProductVariantSelectedOptionRecord),
+    inventory_item: Option(InventoryItemRecord),
     cursor: Option(String),
   )
 }
