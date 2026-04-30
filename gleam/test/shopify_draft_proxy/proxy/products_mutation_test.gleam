@@ -480,6 +480,7 @@ fn default_product() -> ProductRecord {
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
     publication_ids: [],
+    contextual_pricing: None,
     cursor: None,
   )
 }
@@ -512,6 +513,7 @@ fn option_update_variant() -> ProductVariantRecord {
         inventory_levels: [],
       ),
     ),
+    contextual_pricing: None,
     cursor: None,
   )
 }
@@ -543,6 +545,7 @@ fn default_variant() -> ProductVariantRecord {
         inventory_levels: [],
       ),
     ),
+    contextual_pricing: None,
     cursor: None,
   )
 }

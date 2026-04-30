@@ -48,8 +48,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type ChannelRecord, type CollectionImageRecord, type CollectionRecord,
-  type CollectionRuleRecord, type CollectionRuleSetRecord,
+  type CapturedJsonValue, type ChannelRecord, type CollectionImageRecord,
+  type CollectionRecord, type CollectionRuleRecord, type CollectionRuleSetRecord,
   type InventoryItemRecord, type InventoryLevelRecord,
   type InventoryLocationRecord, type InventoryMeasurementRecord,
   type InventoryQuantityRecord, type InventoryShipmentLineItemRecord,
@@ -62,9 +62,10 @@ import shopify_draft_proxy/state/types.{
   type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  type PublicationRecord, type ShopResourceFeedbackRecord, CollectionRecord,
-  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
-  InventoryMeasurementRecord, InventoryQuantityRecord,
+  type PublicationRecord, type ShopResourceFeedbackRecord, CapturedArray,
+  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString, CollectionRecord, InventoryItemRecord, InventoryLevelRecord,
+  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
   InventoryShipmentLineItemRecord, InventoryShipmentRecord,
   InventoryShipmentTrackingRecord, InventoryTransferLineItemRecord,
   InventoryTransferLocationSnapshotRecord, InventoryTransferRecord,
@@ -2951,6 +2952,10 @@ fn product_source_with_relationships(
     #("templateSuffix", optional_string_source(product.template_suffix)),
     #("seo", product_seo_source(product.seo)),
     #("category", optional_product_category_source(product.category)),
+    #(
+      "contextualPricing",
+      optional_captured_json_source(product.contextual_pricing),
+    ),
     #("publishedOnCurrentPublication", SrcBool(visible_publication_count > 0)),
     #("publishedOnCurrentChannel", SrcBool(visible_publication_count > 0)),
     #("publishedOnPublication", SrcBool(published_on_publication)),
@@ -3296,6 +3301,10 @@ fn product_variant_source_with_inventory(
     ),
     #("inventoryItem", inventory_item),
     #("product", variant_product_source(store, variant.product_id)),
+    #(
+      "contextualPricing",
+      optional_captured_json_source(variant.contextual_pricing),
+    ),
   ])
 }
 
@@ -3577,6 +3586,35 @@ fn optional_bool_source(value: Option(Bool)) -> SourceValue {
   case value {
     Some(value) -> SrcBool(value)
     None -> SrcNull
+  }
+}
+
+fn optional_captured_json_source(
+  value: Option(CapturedJsonValue),
+) -> SourceValue {
+  case value {
+    Some(value) -> captured_json_source(value)
+    None -> SrcNull
+  }
+}
+
+fn captured_json_source(value: CapturedJsonValue) -> SourceValue {
+  case value {
+    CapturedNull -> SrcNull
+    CapturedBool(value) -> SrcBool(value)
+    CapturedInt(value) -> SrcInt(value)
+    CapturedFloat(value) -> SrcFloat(value)
+    CapturedString(value) -> SrcString(value)
+    CapturedArray(items) -> SrcList(list.map(items, captured_json_source))
+    CapturedObject(fields) ->
+      SrcObject(
+        fields
+        |> list.map(fn(pair) {
+          let #(key, item) = pair
+          #(key, captured_json_source(item))
+        })
+        |> dict.from_list,
+      )
   }
 }
 
@@ -13092,6 +13130,7 @@ fn created_product_record(
       ),
       category: None,
       publication_ids: [],
+      contextual_pricing: None,
       cursor: None,
     ),
     next_identity,
@@ -13345,6 +13384,7 @@ fn make_default_variant_record(
           inventory_levels: [],
         ),
       ),
+      contextual_pricing: None,
       cursor: None,
     ),
     next_identity,
@@ -13402,6 +13442,7 @@ fn make_created_variant_record(
       inventory_quantity: read_variant_inventory_quantity(input, Some(0)),
       selected_options: selected_options,
       inventory_item: inventory_item,
+      contextual_pricing: None,
       cursor: None,
     ),
     final_identity,
@@ -15886,6 +15927,9 @@ fn make_variant_for_combination(
       }),
       selected_options: combination,
       inventory_item: inventory_item,
+      contextual_pricing: option.then(template, fn(variant) {
+        variant.contextual_pricing
+      }),
       cursor: None,
     ),
     final_identity,

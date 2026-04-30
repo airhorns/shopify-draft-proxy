@@ -128,6 +128,7 @@ pub fn seeded_product_detail_read_test() {
         full_name: "Uncategorized",
       )),
       publication_ids: [],
+      contextual_pricing: None,
       cursor: None,
     )
   let seeded_store = store.upsert_base_products(store.new(), [product])
@@ -489,6 +490,7 @@ pub fn seeded_products_catalog_read_test() {
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
       publication_ids: [],
+      contextual_pricing: None,
       cursor: Some(
         "eyJsYXN0X2lkIjo4OTcxODQyODQ2OTUzLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xOCAwMDo1ODoyMS4wMDAwMDAifQ==",
       ),
@@ -553,6 +555,7 @@ fn identifier_product() {
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
     publication_ids: [],
+    contextual_pricing: None,
     cursor: None,
   )
 }
@@ -613,6 +616,7 @@ fn string_catalog_product(
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
     publication_ids: [],
+    contextual_pricing: None,
     cursor: None,
   )
 }
@@ -728,6 +732,7 @@ fn seeded_product_option_store() {
         ProductVariantSelectedOptionRecord(name: "Size", value: "Small"),
       ],
       inventory_item: None,
+      contextual_pricing: None,
       cursor: None,
     ),
   ])
@@ -785,6 +790,7 @@ fn variant_record(
     inventory_quantity: None,
     selected_options: [],
     inventory_item: None,
+    contextual_pricing: None,
     cursor: None,
   )
 }
@@ -878,6 +884,7 @@ fn search_product(
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
     publication_ids: [],
+    contextual_pricing: None,
     cursor: None,
   )
 }

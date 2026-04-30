@@ -9,6 +9,61 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 96: product contextual pricing read
+
+Promotes the captured Product/ProductVariant contextual pricing read scenario
+into the Gleam parity suite. Product and ProductVariant state now carry a
+small captured JSON payload for Shopify contextual pricing snapshots, and the
+Products serializer exposes that payload through normal GraphQL source
+projection so seeded Markets price-list reads preserve Shopify's no-mutation
+read shape.
+
+| Module                                               | Change                                                                  |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds a walkable captured JSON value for product contextual pricing.     |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Projects Product and ProductVariant `contextualPricing` from state.     |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured contextual pricing onto Product and ProductVariant rows. |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing contextual-pricing spec from expected fails.  |
+| `.agents/skills/gleam-port/SKILL.md`                 | Records the contextual pricing seeding/projection pattern.              |
+
+Validation:
+Focused JavaScript parity is green for
+`product-contextual-pricing-price-list-read.json`. Full JavaScript is green at
+711 tests. Host Erlang still fails with the known local `Undef` runner class;
+the Docker Erlang fallback is green at 707 tests. `corepack pnpm
+gleam:port:coverage`, `corepack pnpm lint`, and whitespace checks are green.
+Product parity inventory remains 115 checked-in specs, with 93 product specs
+executable in the Gleam parity suite and 22 product specs still
+expected-failing.
+
+### Findings
+
+- The fixture already carries exact Product and ProductVariant
+  `contextualPricing` snapshots under `seedProducts`; the missing Gleam piece
+  was preserving that captured payload in state and projecting it through the
+  selected GraphQL fields.
+- Contextual pricing remains read-seeded evidence for the captured
+  country/price-list path. Broader price-list derivation, relative
+  adjustments, priority conflicts, and B2B/app catalog contextual pricing stay
+  outside this pass.
+
+### Risks / open items
+
+- Selling plans, media, advanced search, inventory contracts, duplicate,
+  productSet/media roots, and broader validation atomicity parity remain
+  incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 97 candidates
+
+- Port selling-plan group behavior with strict captured lifecycle evidence.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+- Continue advanced product search/sort/read parity.
+
+---
+
 ## 2026-04-30 - Pass 95: product metafieldsSet owner expansion
 
 Promotes the captured Product `metafieldsSet` owner expansion scenario into the

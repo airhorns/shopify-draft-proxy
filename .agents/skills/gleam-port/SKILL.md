@@ -277,6 +277,10 @@ adding broad synthetic-id/timestamp expected differences.
   `metafield` / `metafields` fields must read from owner-scoped staged
   metafields, including nested Product `variants`, instead of falling through
   generic source projection.
+- Product and ProductVariant contextual pricing captures should be stored as a
+  walkable state JSON value and projected through normal source projection.
+  Do not hardcode contextual pricing response fragments in the parity runner;
+  the capture seeding path should hydrate the Product/Variant records.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.

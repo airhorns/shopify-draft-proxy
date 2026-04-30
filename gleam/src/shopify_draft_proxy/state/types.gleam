@@ -81,6 +81,16 @@ pub type ProductVariantSelectedOptionRecord {
   ProductVariantSelectedOptionRecord(name: String, value: String)
 }
 
+pub type CapturedJsonValue {
+  CapturedNull
+  CapturedBool(Bool)
+  CapturedInt(Int)
+  CapturedFloat(Float)
+  CapturedString(String)
+  CapturedArray(List(CapturedJsonValue))
+  CapturedObject(List(#(String, CapturedJsonValue)))
+}
+
 pub type InventoryWeightValue {
   InventoryWeightInt(Int)
   InventoryWeightFloat(Float)
@@ -262,6 +272,7 @@ pub type ProductVariantRecord {
     inventory_quantity: Option(Int),
     selected_options: List(ProductVariantSelectedOptionRecord),
     inventory_item: Option(InventoryItemRecord),
+    contextual_pricing: Option(CapturedJsonValue),
     cursor: Option(String),
   )
 }
@@ -300,6 +311,7 @@ pub type ProductRecord {
     seo: ProductSeoRecord,
     category: Option(ProductCategoryRecord),
     publication_ids: List(String),
+    contextual_pricing: Option(CapturedJsonValue),
     cursor: Option(String),
   )
 }

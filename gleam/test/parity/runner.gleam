@@ -39,11 +39,12 @@ import shopify_draft_proxy/proxy/draft_proxy.{
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type CollectionImageRecord, type CollectionRecord, type CollectionRuleRecord,
-  type CollectionRuleSetRecord, type CustomerAccountPageRecord,
-  type CustomerAddressRecord, type CustomerCatalogConnectionRecord,
-  type CustomerCatalogPageInfoRecord, type CustomerDefaultAddressRecord,
-  type CustomerDefaultEmailAddressRecord, type CustomerDefaultPhoneNumberRecord,
+  type CapturedJsonValue, type CollectionImageRecord, type CollectionRecord,
+  type CollectionRuleRecord, type CollectionRuleSetRecord,
+  type CustomerAccountPageRecord, type CustomerAddressRecord,
+  type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
+  type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
+  type CustomerDefaultPhoneNumberRecord,
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord,
@@ -71,9 +72,10 @@ import shopify_draft_proxy/state/types.{
   type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
   type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, type StoreCreditAccountRecord,
-  type StorePropertyRecord, type StorePropertyValue, CollectionImageRecord,
-  CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
-  CustomerAccountPageRecord, CustomerAddressRecord,
+  type StorePropertyRecord, type StorePropertyValue, CapturedArray, CapturedBool,
+  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
+  CollectionRuleSetRecord, CustomerAccountPageRecord, CustomerAddressRecord,
   CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
   CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
   CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
@@ -3431,6 +3433,7 @@ fn seed_inventory_quantity_roots_preconditions(
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
       publication_ids: [],
+      contextual_pricing: None,
       cursor: None,
     )
   let variant =
@@ -3469,6 +3472,7 @@ fn seed_inventory_quantity_roots_preconditions(
           ],
         ),
       ),
+      contextual_pricing: None,
       cursor: None,
     )
   let store =
@@ -3597,6 +3601,7 @@ fn inventory_adjust_seed_product(id: String, handle: String) -> ProductRecord {
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
     publication_ids: [],
+    contextual_pricing: None,
     cursor: None,
   )
 }
@@ -3647,6 +3652,7 @@ fn inventory_adjust_seed_variant(
         ],
       ),
     ),
+    contextual_pricing: None,
     cursor: None,
   )
 }
@@ -3742,6 +3748,7 @@ fn seed_inventory_activate_preconditions(
           seo: ProductSeoRecord(title: None, description: None),
           category: None,
           publication_ids: [],
+          contextual_pricing: None,
           cursor: None,
         )
       let variant =
@@ -3790,6 +3797,7 @@ fn seed_inventory_activate_preconditions(
               ],
             ),
           ),
+          contextual_pricing: None,
           cursor: None,
         )
       let store =
@@ -3898,6 +3906,7 @@ fn minimal_seed_variant(
     inventory_quantity: Some(0),
     selected_options: [],
     inventory_item: None,
+    contextual_pricing: None,
     cursor: None,
   )
 }
@@ -3944,6 +3953,7 @@ fn make_seed_product_relaxed(source: JsonValue) -> Result(ProductRecord, Nil) {
     category: read_object_field(source, "category")
       |> option.then(make_seed_product_category),
     publication_ids: read_string_array_field(source, "publicationIds"),
+    contextual_pricing: read_captured_json_field(source, "contextualPricing"),
     cursor: None,
   ))
 }
@@ -3980,6 +3990,7 @@ fn make_seed_product_with_cursor(
     seo: seo,
     category: category,
     publication_ids: read_string_array_field(source, "publicationIds"),
+    contextual_pricing: read_captured_json_field(source, "contextualPricing"),
     cursor: cursor,
   ))
 }
@@ -4035,6 +4046,7 @@ fn make_seed_product_variant(
       source,
       "inventoryItem",
     )),
+    contextual_pricing: read_captured_json_field(source, "contextualPricing"),
     cursor: cursor,
   ))
 }
@@ -5762,6 +5774,34 @@ fn read_object_field(value: JsonValue, name: String) -> Option(JsonValue) {
   case json_value.field(value, name) {
     Some(JObject(_)) as object -> object
     _ -> None
+  }
+}
+
+fn read_captured_json_field(
+  value: JsonValue,
+  name: String,
+) -> Option(CapturedJsonValue) {
+  case json_value.field(value, name) {
+    Some(value) -> Some(captured_json_from_parity(value))
+    None -> None
+  }
+}
+
+fn captured_json_from_parity(value: JsonValue) -> CapturedJsonValue {
+  case value {
+    JNull -> CapturedNull
+    JBool(value) -> CapturedBool(value)
+    JInt(value) -> CapturedInt(value)
+    JFloat(value) -> CapturedFloat(value)
+    JString(value) -> CapturedString(value)
+    JArray(items) -> CapturedArray(list.map(items, captured_json_from_parity))
+    JObject(fields) ->
+      CapturedObject(
+        list.map(fields, fn(pair) {
+          let #(key, item) = pair
+          #(key, captured_json_from_parity(item))
+        }),
+      )
   }
 }
 
