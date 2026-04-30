@@ -262,6 +262,10 @@ pub fn product_variants_bulk_delete_parity_plan_test() {
   )
 }
 
+pub fn inventory_quantity_roots_parity_test() {
+  check("config/parity-specs/products/inventory-quantity-roots-parity.json")
+}
+
 pub fn tags_add_parity_plan_test() {
   check("config/parity-specs/products/tagsAdd-parity-plan.json")
 }

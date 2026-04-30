@@ -193,6 +193,8 @@ fn seed_capture_preconditions(
       seed_product_variant_delete_preconditions(capture, proxy)
     "product-variants-bulk-delete-live-parity" ->
       seed_product_variant_delete_preconditions(capture, proxy)
+    "inventory-quantity-roots-parity" ->
+      seed_inventory_quantity_roots_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -718,6 +720,125 @@ fn seed_product_variant_delete_preconditions(
     }
     None -> proxy
   }
+}
+
+fn seed_inventory_quantity_roots_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_id =
+    jsonpath.lookup(capture, "$.mutationEvidence.setup.productId")
+    |> json_string_or("gid://shopify/Product/10171266400562")
+  let variant_id =
+    jsonpath.lookup(capture, "$.mutationEvidence.setup.variantId")
+    |> json_string_or("gid://shopify/ProductVariant/51101855646002")
+  let inventory_item_id =
+    jsonpath.lookup(capture, "$.mutationEvidence.setup.inventoryItemId")
+    |> json_string_or("gid://shopify/InventoryItem/53204673823026")
+  let location_0_id =
+    jsonpath.lookup(
+      capture,
+      "$.mutationEvidence.inventorySetQuantitiesAvailable.variables.input.quantities[0].locationId",
+    )
+    |> json_string_or("gid://shopify/Location/106318430514")
+  let location_1_id =
+    jsonpath.lookup(
+      capture,
+      "$.mutationEvidence.inventorySetQuantitiesAvailable.variables.input.quantities[1].locationId",
+    )
+    |> json_string_or("gid://shopify/Location/106318463282")
+  let product =
+    ProductRecord(
+      id: product_id,
+      legacy_resource_id: None,
+      title: "Inventory quantity parity seed",
+      handle: "inventory-quantity-parity-seed",
+      status: "ACTIVE",
+      vendor: None,
+      product_type: None,
+      tags: [],
+      total_inventory: Some(0),
+      tracks_inventory: Some(True),
+      created_at: None,
+      updated_at: None,
+      description_html: "",
+      online_store_preview_url: None,
+      template_suffix: None,
+      seo: ProductSeoRecord(title: None, description: None),
+      category: None,
+      cursor: None,
+    )
+  let variant =
+    ProductVariantRecord(
+      id: variant_id,
+      product_id: product_id,
+      title: "Default Title",
+      sku: None,
+      barcode: None,
+      price: None,
+      compare_at_price: None,
+      taxable: None,
+      inventory_policy: None,
+      inventory_quantity: Some(0),
+      selected_options: [],
+      inventory_item: Some(
+        InventoryItemRecord(
+          id: inventory_item_id,
+          tracked: Some(True),
+          requires_shipping: None,
+          measurement: None,
+          country_code_of_origin: None,
+          province_code_of_origin: None,
+          harmonized_system_code: None,
+          inventory_levels: [
+            inventory_quantity_seed_level(
+              inventory_item_id,
+              location_0_id,
+              "Shop location",
+            ),
+            inventory_quantity_seed_level(
+              inventory_item_id,
+              location_1_id,
+              "My Custom Location",
+            ),
+          ],
+        ),
+      ),
+      cursor: None,
+    )
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products([product])
+    |> store_mod.upsert_base_product_variants([variant])
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn inventory_quantity_seed_level(
+  inventory_item_id: String,
+  location_id: String,
+  location_name: String,
+) -> InventoryLevelRecord {
+  InventoryLevelRecord(
+    id: inventory_quantity_seed_level_id(inventory_item_id, location_id),
+    location: InventoryLocationRecord(id: location_id, name: location_name),
+    quantities: [
+      InventoryQuantityRecord(name: "available", quantity: 0, updated_at: None),
+      InventoryQuantityRecord(name: "on_hand", quantity: 0, updated_at: None),
+      InventoryQuantityRecord(name: "damaged", quantity: 0, updated_at: None),
+    ],
+    cursor: None,
+  )
+}
+
+fn inventory_quantity_seed_level_id(
+  inventory_item_id: String,
+  location_id: String,
+) -> String {
+  let inventory_item_tail =
+    inventory_item_id |> string.split("/") |> list.last |> result.unwrap("0")
+  let location_tail =
+    location_id |> string.split("/") |> list.last |> result.unwrap("0")
+  "gid://shopify/InventoryLevel/" <> inventory_item_tail <> "-" <> location_tail
 }
 
 fn seed_product_and_base_variants(
@@ -1725,6 +1846,13 @@ fn read_array_field(value: JsonValue, name: String) -> Option(List(JsonValue)) {
   case json_value.field(value, name) {
     Some(JArray(items)) -> Some(items)
     _ -> None
+  }
+}
+
+fn json_string_or(value: Option(JsonValue), fallback: String) -> String {
+  case value {
+    Some(JString(value)) -> value
+    _ -> fallback
   }
 }
 

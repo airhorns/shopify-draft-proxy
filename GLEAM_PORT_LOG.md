@@ -9,6 +9,72 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 58: inventory quantity set/move lifecycle
+
+Adds local staging for the captured inventory quantity roots
+`inventorySetQuantities` and `inventoryMoveQuantities`. The Gleam Products
+mutation handler now routes both roots locally, preserves the raw mutation
+requests through the centralized draft-log path, updates staged
+InventoryItem/InventoryLevel quantities through the owning ProductVariant, and
+returns Shopify-like InventoryAdjustmentGroup payloads without runtime Shopify
+writes.
+
+The pass promotes `inventory-quantity-roots-parity` into the Gleam parity
+suite. Runner seeding reconstructs the captured disposable product, variant,
+inventory item, and two stocked locations from the live fixture metadata, then
+replays the captured set and move mutations against the local state. The strict
+targets cover mutation payloads, empty inventory item search behavior,
+inventory properties, downstream InventoryItem/ProductVariant quantity reads,
+and the captured blocked branches.
+
+| Module                                               | Change                                                                                              |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds inventory set/move routing, validation, quantity staging, adjustment payloads, and log drafts. |
+| `gleam/test/parity/runner.gleam`                     | Seeds the inventory quantity fixture product/variant/item/location preconditions.                   |
+| `gleam/test/parity_test.gleam`                       | Enables the strict inventory quantity roots parity scenario.                                        |
+
+Validation: `gleam test --target javascript` is green at 756 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails before tests execute
+on the local Erlang install with the known `undef` runner issue; after clearing
+host-built Erlang artifacts, the Docker Erlang fallback is green at 752 tests.
+Product parity inventory remains 115 checked-in specs, with 42 product specs
+executable in the Gleam parity suite plus the admin-platform ProductOption node
+scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was direct `draft_proxy.process_request`
+  requests returning HTTP 400 for `inventorySetQuantities` and the same
+  unrouted Products mutation-family gap for `inventoryMoveQuantities`.
+- The fixture intentionally keeps downstream Product `totalInventory` at `0`
+  after quantity set/move. The Gleam staging updates the variant/item
+  inventory levels but avoids Product inventory-summary sync for this slice so
+  the recorded Shopify lag remains intact.
+- The move root needs the sibling ledger-document validation rules from the
+  TypeScript oracle: available adjustments reject ledger documents, while
+  non-available terminals require them.
+
+### Risks / open items
+
+- This pass covers the captured set/move quantity slice, not activation,
+  deactivation, scheduled changes, inventory shipments, or inventory transfers.
+- Collections, publication, product feeds/feedback, selling plans, product
+  metafields, and remaining variant relationship/media/reorder behavior remain
+  incomplete in Gleam.
+- Only 42 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 59 candidates
+
+- Port `productVariantsBulkReorder` and remaining variant relationship/media
+  parity scenarios.
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+- Add inventory activation/quantity-adjacent roots that build on the staged
+  InventoryLevel helpers introduced in this pass.
+
+---
+
 ## 2026-04-30 — Pass 57: product variant bulk lifecycle
 
 Adds local staging for the live-supported product variant bulk roots:
