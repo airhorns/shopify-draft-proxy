@@ -243,6 +243,8 @@ fn seed_capture_preconditions(
     | "productUnpublish-parity-plan"
     | "productUnpublish-aggregate-parity" ->
       seed_product_publication_preconditions(capture, proxy)
+    "product-feedback-lifecycle-local-runtime" ->
+      seed_product_feedback_preconditions(capture, proxy)
     _ -> proxy
   }
 }
@@ -341,6 +343,19 @@ fn seed_product_publication_preconditions(
         Ok(product) -> [product]
         Error(_) -> []
       }
+    None -> []
+  }
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_product_feedback_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products = case read_array_field(capture, "seedProducts") {
+    Some(product_nodes) ->
+      list.filter_map(product_nodes, make_seed_product_relaxed)
     None -> []
   }
   let store = store_mod.upsert_base_products(proxy.store, products)

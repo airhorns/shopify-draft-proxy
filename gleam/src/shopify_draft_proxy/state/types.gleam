@@ -115,6 +115,25 @@ pub type ProductFeedRecord {
   )
 }
 
+pub type ProductResourceFeedbackRecord {
+  ProductResourceFeedbackRecord(
+    product_id: String,
+    state: String,
+    feedback_generated_at: String,
+    product_updated_at: String,
+    messages: List(String),
+  )
+}
+
+pub type ShopResourceFeedbackRecord {
+  ShopResourceFeedbackRecord(
+    id: String,
+    state: String,
+    feedback_generated_at: String,
+    messages: List(String),
+  )
+}
+
 pub type InventoryQuantityRecord {
   InventoryQuantityRecord(
     name: String,

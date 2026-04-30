@@ -53,14 +53,17 @@ import shopify_draft_proxy/state/types.{
   type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
   type ProductCategoryRecord, type ProductCollectionRecord,
   type ProductFeedRecord, type ProductOptionRecord,
-  type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
+  type ProductOptionValueRecord, type ProductRecord,
+  type ProductResourceFeedbackRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  type PublicationRecord, CollectionRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
-  InventoryQuantityRecord, InventoryWeightFloat, InventoryWeightInt,
-  InventoryWeightRecord, ProductCollectionRecord, ProductFeedRecord,
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  type PublicationRecord, type ShopResourceFeedbackRecord, CollectionRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
+  InventoryWeightInt, InventoryWeightRecord, ProductCollectionRecord,
+  ProductFeedRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductResourceFeedbackRecord, ProductSeoRecord,
   ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  ShopResourceFeedbackRecord,
 }
 
 pub type ProductsError {
@@ -135,6 +138,8 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productFeedCreate"
     | "productFeedDelete"
     | "productFullSync"
+    | "bulkProductResourceFeedbackCreate"
+    | "shopResourceFeedbackCreate"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -197,7 +202,14 @@ fn serialize_root_fields(
               )
             "productFeed" ->
               serialize_product_feed_root(store, field, variables, fragments)
-            "productResourceFeedback" | "productOperation" -> json.null()
+            "productResourceFeedback" ->
+              serialize_product_resource_feedback_root(
+                store,
+                field,
+                variables,
+                fragments,
+              )
+            "productOperation" -> json.null()
             "inventoryItem" ->
               serialize_inventory_item_root(store, field, variables, fragments)
             "inventoryLevel" ->
@@ -916,6 +928,60 @@ fn product_feed_source(feed: ProductFeedRecord) -> SourceValue {
     #("country", optional_string_source(feed.country)),
     #("language", optional_string_source(feed.language)),
     #("status", SrcString(feed.status)),
+  ])
+}
+
+fn serialize_product_resource_feedback_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.get_effective_product_resource_feedback(store, id) {
+        Some(feedback) ->
+          project_graphql_value(
+            product_resource_feedback_source(feedback),
+            get_selected_child_fields(field, default_selected_field_options()),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn product_resource_feedback_source(
+  feedback: ProductResourceFeedbackRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("ProductResourceFeedback")),
+    #("productId", SrcString(feedback.product_id)),
+    #("state", SrcString(feedback.state)),
+    #("messages", SrcList(list.map(feedback.messages, SrcString))),
+    #("feedbackGeneratedAt", SrcString(feedback.feedback_generated_at)),
+    #("productUpdatedAt", SrcString(feedback.product_updated_at)),
+  ])
+}
+
+fn shop_resource_feedback_source(
+  feedback: ShopResourceFeedbackRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("AppFeedback")),
+    #("state", SrcString(feedback.state)),
+    #("feedbackGeneratedAt", SrcString(feedback.feedback_generated_at)),
+    #(
+      "messages",
+      SrcList(
+        list.map(feedback.messages, fn(message) {
+          src_object([#("message", SrcString(message))])
+        }),
+      ),
+    ),
+    #("app", SrcNull),
+    #("link", SrcNull),
   ])
 }
 
@@ -3575,6 +3641,62 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "bulkProductResourceFeedbackCreate" -> {
+              let result =
+                handle_bulk_product_resource_feedback_create(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some(
+                    "Gleam staged bulkProductResourceFeedbackCreate locally.",
+                  ),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "shopResourceFeedbackCreate" -> {
+              let result =
+                handle_shop_resource_feedback_create(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged shopResourceFeedbackCreate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "tagsAdd" -> {
               let result =
                 handle_tags_update(
@@ -4384,6 +4506,209 @@ fn handle_product_full_sync(
         [],
       )
   }
+}
+
+fn handle_bulk_product_resource_feedback_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let initial = #(store, identity, [], [], [])
+  let #(next_store, next_identity, feedback, user_errors, staged_ids) =
+    read_arg_object_list(args, "feedbackInput")
+    |> enumerate_items()
+    |> list.fold(initial, fn(acc, entry) {
+      let #(current_store, current_identity, records, errors, ids) = acc
+      let #(input, index) = entry
+      let #(record, identity_after_record) =
+        make_product_resource_feedback_record(current_identity, input)
+      case record {
+        Some(feedback_record) ->
+          case
+            store.get_effective_product_by_id(
+              current_store,
+              feedback_record.product_id,
+            )
+          {
+            Some(_) -> {
+              let #(staged, staged_store) =
+                store.upsert_staged_product_resource_feedback(
+                  current_store,
+                  feedback_record,
+                )
+              #(
+                staged_store,
+                identity_after_record,
+                list.append(records, [staged]),
+                errors,
+                list.append(ids, [staged.product_id]),
+              )
+            }
+            None -> #(
+              current_store,
+              identity_after_record,
+              records,
+              list.append(errors, [
+                ProductUserError(
+                  ["feedbackInput", int.to_string(index), "productId"],
+                  "Product does not exist",
+                  None,
+                ),
+              ]),
+              ids,
+            )
+          }
+        None -> #(
+          current_store,
+          identity_after_record,
+          records,
+          list.append(errors, [
+            ProductUserError(
+              ["feedbackInput", int.to_string(index), "productId"],
+              "Product does not exist",
+              None,
+            ),
+          ]),
+          ids,
+        )
+      }
+    })
+  mutation_result(
+    key,
+    bulk_product_resource_feedback_create_payload(
+      feedback,
+      user_errors,
+      field,
+      fragments,
+    ),
+    next_store,
+    next_identity,
+    staged_ids,
+  )
+}
+
+fn handle_shop_resource_feedback_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let #(record, next_identity) =
+    make_shop_resource_feedback_record(identity, input)
+  case record {
+    Some(feedback) -> {
+      let #(staged, next_store) =
+        store.upsert_staged_shop_resource_feedback(store, feedback)
+      mutation_result(
+        key,
+        shop_resource_feedback_create_payload(
+          Some(staged),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        next_identity,
+        [staged.id],
+      )
+    }
+    None ->
+      mutation_result(
+        key,
+        shop_resource_feedback_create_payload(
+          None,
+          [ProductUserError(["input", "state"], "State is invalid", None)],
+          field,
+          fragments,
+        ),
+        store,
+        next_identity,
+        [],
+      )
+  }
+}
+
+fn make_product_resource_feedback_record(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, ResolvedValue),
+) -> #(Option(ProductResourceFeedbackRecord), SyntheticIdentityRegistry) {
+  let product_id = read_string_field(input, "productId")
+  let state = read_string_field(input, "state")
+  let #(feedback_generated_at, next_identity) =
+    feedback_generated_at(input, identity)
+  let product_updated_at =
+    read_string_field(input, "productUpdatedAt")
+    |> option.unwrap(feedback_generated_at)
+  case product_id, state {
+    Some(product_id), Some(state) ->
+      case is_valid_feedback_state(state) {
+        True -> #(
+          Some(ProductResourceFeedbackRecord(
+            product_id: product_id,
+            state: state,
+            feedback_generated_at: feedback_generated_at,
+            product_updated_at: product_updated_at,
+            messages: read_string_list_field(input, "messages")
+              |> option.unwrap([]),
+          )),
+          next_identity,
+        )
+        False -> #(None, next_identity)
+      }
+    _, _ -> #(None, next_identity)
+  }
+}
+
+fn make_shop_resource_feedback_record(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, ResolvedValue),
+) -> #(Option(ShopResourceFeedbackRecord), SyntheticIdentityRegistry) {
+  let state = read_string_field(input, "state")
+  case state {
+    Some(state) ->
+      case is_valid_feedback_state(state) {
+        True -> {
+          let #(id, identity_after_id) =
+            synthetic_identity.make_synthetic_gid(identity, "AppFeedback")
+          let #(feedback_generated_at, next_identity) =
+            feedback_generated_at(input, identity_after_id)
+          #(
+            Some(ShopResourceFeedbackRecord(
+              id: id,
+              state: state,
+              feedback_generated_at: feedback_generated_at,
+              messages: read_string_list_field(input, "messages")
+                |> option.unwrap([]),
+            )),
+            next_identity,
+          )
+        }
+        False -> #(None, identity)
+      }
+    None -> #(None, identity)
+  }
+}
+
+fn feedback_generated_at(
+  input: Dict(String, ResolvedValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(String, SyntheticIdentityRegistry) {
+  case read_string_field(input, "feedbackGeneratedAt") {
+    Some(value) -> #(value, identity)
+    None -> synthetic_identity.make_synthetic_timestamp(identity)
+  }
+}
+
+fn is_valid_feedback_state(state: String) -> Bool {
+  state == "ACCEPTED" || state == "REQUIRES_ACTION"
 }
 
 fn handle_product_variant_create(
@@ -7710,6 +8035,47 @@ fn product_full_sync_payload(
     src_object([
       #("__typename", SrcString("ProductFullSyncPayload")),
       #("id", optional_string_source(id)),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn bulk_product_resource_feedback_create_payload(
+  feedback: List(ProductResourceFeedbackRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("BulkProductResourceFeedbackCreatePayload")),
+      #(
+        "feedback",
+        SrcList(list.map(feedback, product_resource_feedback_source)),
+      ),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn shop_resource_feedback_create_payload(
+  feedback: Option(ShopResourceFeedbackRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let feedback_value = case feedback {
+    Some(record) -> shop_resource_feedback_source(record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ShopResourceFeedbackCreatePayload")),
+      #("feedback", feedback_value),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),

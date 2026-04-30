@@ -98,6 +98,12 @@ pub fn product_feed_lifecycle_local_runtime_test() {
   )
 }
 
+pub fn product_feedback_lifecycle_local_runtime_test() {
+  check(
+    "config/parity-specs/products/product-feedback-lifecycle-local-runtime.json",
+  )
+}
+
 pub fn product_detail_read_test() {
   check("config/parity-specs/products/product-detail-read.json")
 }

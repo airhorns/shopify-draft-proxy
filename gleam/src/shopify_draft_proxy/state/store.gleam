@@ -25,12 +25,13 @@ import shopify_draft_proxy/state/types.{
   type InventoryLevelRecord, type LocaleRecord, type LocationRecord,
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
   type ProductCollectionRecord, type ProductFeedRecord, type ProductOptionRecord,
-  type ProductOptionValueRecord, type ProductRecord, type ProductVariantRecord,
+  type ProductOptionValueRecord, type ProductRecord,
+  type ProductResourceFeedbackRecord, type ProductVariantRecord,
   type PublicationRecord, type SavedSearchRecord, type SegmentRecord,
-  type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
-  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
-  type WebhookSubscriptionRecord, BulkOperationRecord, MarketingObject,
-  MarketingString,
+  type ShopLocaleRecord, type ShopRecord, type ShopResourceFeedbackRecord,
+  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
+  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
+  BulkOperationRecord, MarketingObject, MarketingString,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -58,6 +59,8 @@ pub type BaseState {
     product_feeds: Dict(String, ProductFeedRecord),
     product_feed_order: List(String),
     deleted_product_feed_ids: Dict(String, Bool),
+    product_resource_feedback: Dict(String, ProductResourceFeedbackRecord),
+    shop_resource_feedback: Dict(String, ShopResourceFeedbackRecord),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -145,6 +148,8 @@ pub type StagedState {
     product_feeds: Dict(String, ProductFeedRecord),
     product_feed_order: List(String),
     deleted_product_feed_ids: Dict(String, Bool),
+    product_resource_feedback: Dict(String, ProductResourceFeedbackRecord),
+    shop_resource_feedback: Dict(String, ShopResourceFeedbackRecord),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -300,6 +305,8 @@ pub fn empty_base_state() -> BaseState {
     product_feeds: dict.new(),
     product_feed_order: [],
     deleted_product_feed_ids: dict.new(),
+    product_resource_feedback: dict.new(),
+    shop_resource_feedback: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -380,6 +387,8 @@ pub fn empty_staged_state() -> StagedState {
     product_feeds: dict.new(),
     product_feed_order: [],
     deleted_product_feed_ids: dict.new(),
+    product_resource_feedback: dict.new(),
+    shop_resource_feedback: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -925,6 +934,74 @@ pub fn list_effective_product_feeds(store: Store) -> List(ProductFeedRecord) {
       }
     })
   list.append(ordered_records, unordered_records)
+}
+
+pub fn upsert_base_product_resource_feedback(
+  store: Store,
+  records: List(ProductResourceFeedbackRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        product_resource_feedback: dict.insert(
+          base.product_resource_feedback,
+          record.product_id,
+          record,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_staged_product_resource_feedback(
+  store: Store,
+  record: ProductResourceFeedbackRecord,
+) -> #(ProductResourceFeedbackRecord, Store) {
+  let staged = store.staged_state
+  let next_staged =
+    StagedState(
+      ..staged,
+      product_resource_feedback: dict.insert(
+        staged.product_resource_feedback,
+        record.product_id,
+        record,
+      ),
+    )
+  #(record, Store(..store, staged_state: next_staged))
+}
+
+pub fn get_effective_product_resource_feedback(
+  store: Store,
+  product_id: String,
+) -> Option(ProductResourceFeedbackRecord) {
+  case dict.get(store.staged_state.product_resource_feedback, product_id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.product_resource_feedback, product_id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn upsert_staged_shop_resource_feedback(
+  store: Store,
+  record: ShopResourceFeedbackRecord,
+) -> #(ShopResourceFeedbackRecord, Store) {
+  let staged = store.staged_state
+  let next_staged =
+    StagedState(
+      ..staged,
+      shop_resource_feedback: dict.insert(
+        staged.shop_resource_feedback,
+        record.id,
+        record,
+      ),
+    )
+  #(record, Store(..store, staged_state: next_staged))
 }
 
 pub fn replace_base_products_for_collection(

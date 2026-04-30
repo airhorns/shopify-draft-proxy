@@ -9,6 +9,71 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 84: product feedback lifecycle
+
+Completes the captured product and shop resource feedback local-runtime
+lifecycle in the Gleam Products handler. The pass adds normalized product and
+shop feedback state slices, routes `productResourceFeedback` reads through the
+local Products dispatcher, and stages `bulkProductResourceFeedbackCreate` plus
+`shopResourceFeedbackCreate` without runtime Shopify writes. Downstream reads
+now expose staged product feedback by product ID while preserving Shopify's
+null behavior for missing products.
+
+The pass promotes `product-feedback-lifecycle-local-runtime` into the Gleam
+parity suite. The checked-in fixture, request documents, variables capture
+path, and strict comparison contract stay unchanged.
+
+| Module                                               | Change                                                                |
+| ---------------------------------------------------- | --------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds product and shop resource feedback record shapes.                |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds base/staged feedback storage and effective product lookup.       |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages feedback mutations and serializes product/shop feedback reads. |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured product precondition for strict replay.            |
+| `gleam/test/parity_test.gleam`                       | Enables the strict product feedback lifecycle parity spec.            |
+
+Validation:
+`gleam test --target javascript product_feedback_lifecycle_local_runtime_test`
+is green at 786 tests, and full `gleam test --target javascript` is green at
+786 tests on the host Node runtime. Host `gleam test --target erlang` still
+fails before tests execute on the local Erlang install with the known `undef`
+runner issue; after clearing host-built Erlang artifacts, the Docker Erlang
+fallback is green at 782 tests. Product parity inventory remains 115 checked-in
+specs, with 72 product specs executable in the Gleam parity suite plus the
+admin-platform ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was strict parity replay returning HTTP 400 for
+  `bulkProductResourceFeedbackCreate`: `No mutation dispatcher implemented for
+root field`.
+- `bulkProductResourceFeedbackCreate` is partially successful by input row:
+  staged feedback is returned for the existing product while the missing
+  product row returns `Product does not exist` at the captured indexed
+  `feedbackInput` path.
+- `shopResourceFeedbackCreate` returns an `AppFeedback` payload with message
+  objects, null `app`/`link`, and the captured generated timestamp rather than
+  a product-addressable record.
+
+### Risks / open items
+
+- Inventory shipment/transfer roots, broader publication roots, selling plans,
+  product metafields, media, advanced search, duplicate/productSet/media roots,
+  and broader validation atomicity parity remain incomplete in Gleam.
+- Only 72 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 85 candidates
+
+- Continue remaining inventory shipment/transfer roots with strict captured
+  fixture replay.
+- Continue the broader publication roots local-runtime scenario now that
+  top-level publications and product publish/unpublish are represented.
+- Port selling-plan or product metafield behavior now that core Product,
+  Variant, Inventory, Collection, Location, Publication, feed, and feedback
+  read/write slices are locally staged or seeded.
+
+---
+
 ## 2026-04-30 - Pass 83: product feed lifecycle
 
 Completes the captured product feed local-runtime lifecycle in the Gleam
