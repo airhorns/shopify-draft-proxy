@@ -9,6 +9,39 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Mainline Pass 45: Elixir embedder wrapper smoke
+
+Merged the mainline Elixir embedder wrapper smoke into the long-running
+Products branch. The smoke project now includes a thin `ShopifyDraftProxy`
+Elixir wrapper that keeps proxy state opaque, returns the next proxy explicitly
+from GraphQL/meta helpers, exposes JSON response bodies as strings, and drives
+deterministic commit reports through an injected transport. The branch preserves
+the richer Products implementation already present here rather than replacing it
+with the narrow mainline smoke-only Product slice.
+
+| Module                                               | Change                                                                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/elixir_smoke/lib/shopify_draft_proxy.ex`      | Adds Elixir structs and wrapper helpers for config, GraphQL, meta state/log/reset/commit, dump/restore, and injected commit reports. |
+| `gleam/elixir_smoke/test/interop_test.exs`           | Uses the Elixir wrapper broadly for config, GraphQL, meta state/log, dump/restore, reset, and commit report/error smoke coverage.    |
+| `scripts/elixir-smoke.ts` / `package.json`           | Keeps `corepack pnpm elixir:smoke` as the canonical command, with a Docker fallback when host `escript`/`mix` are unavailable.       |
+| `gleam/README.md`                                    | Documents the Elixir wrapper calling conventions and Erlang shipment path.                                                           |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Resolves the mainline smoke-only Product slice in favor of this branch's broader Products port.                                      |
+
+Validation: carried forward from mainline, where `corepack pnpm elixir:smoke`
+was green at 16 ExUnit tests through the container fallback. The merge into
+HAR-487 will be covered by this branch's normal JS/Erlang/Docker validation
+before the next push.
+
+### Findings
+
+- The BEAM wrapper can consume the existing `default_graphql_path` and
+  `process_request` public surface already present on the Products branch.
+- The smoke-only Product records added on main conflict with this branch's
+  richer Products state model; the Products branch keeps its broader state,
+  dispatcher, and tests.
+
+---
+
 ## 2026-04-30 - Pass 103: product merchandising guardrail parity
 
 Promotes the captured Product merchandising mutation guardrail fixture into the

@@ -28,6 +28,16 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #("products", dict_to_json(state.products, product_json)),
+    #("productOrder", json.array(state.product_order, json.string)),
+    #(
+      "productVariants",
+      dict_to_json(state.product_variants, product_variant_json),
+    ),
+    #(
+      "productVariantOrder",
+      json.array(state.product_variant_order, json.string),
+    ),
     #(
       "locations",
       dict_to_json(state.store_property_locations, store_property_record_json),
@@ -373,6 +383,16 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #("products", dict_to_json(state.products, product_json)),
+    #("productOrder", json.array(state.product_order, json.string)),
+    #(
+      "productVariants",
+      dict_to_json(state.product_variants, product_variant_json),
+    ),
+    #(
+      "productVariantOrder",
+      json.array(state.product_variant_order, json.string),
+    ),
     #(
       "locations",
       dict_to_json(state.store_property_locations, store_property_record_json),
@@ -949,6 +969,105 @@ fn store_property_value_json(value: types.StorePropertyValue) -> Json {
     types.StorePropertyList(items) ->
       json.array(items, store_property_value_json)
     types.StorePropertyObject(fields) -> store_property_data_json(fields)
+  }
+}
+
+fn product_json(record: types.ProductRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("legacyResourceId", optional_string(record.legacy_resource_id)),
+    #("title", json.string(record.title)),
+    #("handle", json.string(record.handle)),
+    #("status", json.string(record.status)),
+    #("vendor", optional_string(record.vendor)),
+    #("productType", optional_string(record.product_type)),
+    #("tags", json.array(record.tags, json.string)),
+    #("totalInventory", optional_int(record.total_inventory)),
+    #("tracksInventory", optional_bool(record.tracks_inventory)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("descriptionHtml", json.string(record.description_html)),
+    #("onlineStorePreviewUrl", optional_string(record.online_store_preview_url)),
+    #("templateSuffix", optional_string(record.template_suffix)),
+    #("seo", product_seo_json(record.seo)),
+    #("category", optional_to_json(record.category, product_category_json)),
+    #("publicationIds", json.array(record.publication_ids, json.string)),
+    #(
+      "contextualPricing",
+      optional_to_json(record.contextual_pricing, captured_json_value_json),
+    ),
+    #("cursor", optional_string(record.cursor)),
+  ])
+}
+
+fn product_variant_json(record: types.ProductVariantRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("productId", json.string(record.product_id)),
+    #("title", json.string(record.title)),
+    #("sku", optional_string(record.sku)),
+    #("barcode", optional_string(record.barcode)),
+    #("price", optional_string(record.price)),
+    #("compareAtPrice", optional_string(record.compare_at_price)),
+    #("taxable", optional_bool(record.taxable)),
+    #("inventoryPolicy", optional_string(record.inventory_policy)),
+    #("inventoryQuantity", optional_int(record.inventory_quantity)),
+    #(
+      "selectedOptions",
+      json.array(record.selected_options, selected_option_json),
+    ),
+    #("mediaIds", json.array(record.media_ids, json.string)),
+    #(
+      "inventoryItemId",
+      optional_to_json(record.inventory_item, fn(item) { json.string(item.id) }),
+    ),
+    #(
+      "contextualPricing",
+      optional_to_json(record.contextual_pricing, captured_json_value_json),
+    ),
+    #("cursor", optional_string(record.cursor)),
+  ])
+}
+
+fn selected_option_json(
+  record: types.ProductVariantSelectedOptionRecord,
+) -> Json {
+  json.object([
+    #("name", json.string(record.name)),
+    #("value", json.string(record.value)),
+  ])
+}
+
+fn product_seo_json(record: types.ProductSeoRecord) -> Json {
+  json.object([
+    #("title", optional_string(record.title)),
+    #("description", optional_string(record.description)),
+  ])
+}
+
+fn product_category_json(record: types.ProductCategoryRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("fullName", json.string(record.full_name)),
+  ])
+}
+
+fn captured_json_value_json(value: types.CapturedJsonValue) -> Json {
+  case value {
+    types.CapturedNull -> json.null()
+    types.CapturedBool(value) -> json.bool(value)
+    types.CapturedInt(value) -> json.int(value)
+    types.CapturedFloat(value) -> json.float(value)
+    types.CapturedString(value) -> json.string(value)
+    types.CapturedArray(items) -> json.array(items, captured_json_value_json)
+    types.CapturedObject(fields) ->
+      json.object(
+        fields
+        |> list.map(fn(pair) {
+          let #(key, item) = pair
+          #(key, captured_json_value_json(item))
+        }),
+      )
   }
 }
 
