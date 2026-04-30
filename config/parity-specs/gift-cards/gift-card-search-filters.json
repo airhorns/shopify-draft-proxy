@@ -12,7 +12,10 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-lifecycle.json"
   ],
-  "runtimeTestFiles": ["tests/integration/gift-card-flow.test.ts"],
+  "runtimeTestFiles": [
+    "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+    "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/gift-cards/gift-card-search-setup.graphql",
     "variablesCapturePath": "$.proxyVariables.lifecycle"
@@ -42,5 +45,5 @@
       }
     ]
   },
-  "notes": "HAR-457 rework adds executable strict parity for giftCards/giftCardsCount search behavior that was previously covered only by integration tests. The live capture records the post-credit/debit, pre-deactivation gift-card state so `balance_status:partial`, `balance_status:full`, `balance_status:empty`, `balance_status:full_or_partial`, and visible code-fragment search are compared against the local proxy without customer-visible notification delivery. HAR-464 extends the same executable parity slice to populated date/range, customer_id, recipient_id, source, and initial_value filters captured against a disposable customer-backed gift card."
+  "notes": "HAR-457 rework adds executable strict parity for giftCards/giftCardsCount search behavior that was previously covered only by integration tests. The Gleam parity suite executes this strict proxy parity spec after the TypeScript gift-card handler was deleted. The live capture records the post-credit/debit, pre-deactivation gift-card state so `balance_status:partial`, `balance_status:full`, `balance_status:empty`, `balance_status:full_or_partial`, and visible code-fragment search are compared against the local proxy without customer-visible notification delivery. HAR-464 extends the same executable parity slice to populated date/range, customer_id, recipient_id, source, and initial_value filters captured against a disposable customer-backed gift card."
 }

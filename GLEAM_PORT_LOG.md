@@ -9,6 +9,69 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 33: gift-card parity completion
+
+Completes the Gift Cards domain handoff to the Gleam port. Both checked-in
+gift-card parity specs now execute in the Gleam parity suite: the existing
+search-filter scenario remains enabled, and the lifecycle scenario now runs
+against the captured fixture with seeded gift-card/configuration preconditions.
+The parity runner also decodes and honors target-level `selectedPaths`, which is
+required by the lifecycle spec's mutation-payload comparisons and preserves the
+checked-in capture/request shape without adding expected differences.
+
+The old TypeScript gift-card runtime handler and its TypeScript integration
+flow were removed after the Gleam query/mutation tests plus lifecycle/search
+parity evidence were executable. The transitional TypeScript normalized state
+schema still keeps gift-card buckets so existing state snapshots and meta-state
+shape validation can continue to tolerate persisted gift-card data during the
+larger port.
+
+| Module                                                            | Change                                                                                                                             |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity_test.gleam`                                    | Enables `gift-card-lifecycle` alongside `gift-card-search-filters` as executable Gleam parity evidence.                            |
+| `gleam/test/parity/runner.gleam`                                  | Seeds lifecycle/search captures from the gift-card conformance fixture before replaying local mutation/read requests.              |
+| `gleam/test/parity/spec.gleam` / `gleam/test/parity/diff.gleam`   | Adds target-level `selectedPaths` decoding and selected-slice diffing for parity specs.                                            |
+| `src/proxy/gift-cards.ts` / TypeScript gift-card dispatcher hooks | Removes the old TypeScript gift-card domain runtime now that Gleam owns the executable domain behavior.                            |
+| `config/operation-registry.json` and gift-card parity specs       | Points runtime-test inventory at the Gleam gift-card query/mutation test files instead of the deleted TypeScript integration flow. |
+
+Validation: `gleam test --target javascript` is green at 682 tests.
+`gleam test --target erlang` is green at 678 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container because the host
+lacks `escript`. `corepack pnpm typecheck`, `corepack pnpm conformance:check`,
+`corepack pnpm conformance:parity`, `corepack pnpm lint`, and
+`git diff --check` are green after the TypeScript runtime deletion.
+
+### Findings
+
+- The gift-card lifecycle parity spec already had enough captured evidence, but
+  it was not wired into the Gleam parity suite.
+- The Gleam parity spec decoder previously ignored `selectedPaths`, so enabling
+  the lifecycle spec compared full mutation payload objects and reported
+  expected unselected Shopify fields as missing from the proxy selection.
+- Gift-card capture seeding can reuse the same lifecycle precondition loader for
+  both lifecycle and search-filter parity specs.
+
+### Risks / open items
+
+- The TypeScript conformance parity harness no longer executes gift-card
+  scenarios after the handler deletion; gift-card executable evidence now lives
+  in the Gleam parity suite.
+- Admin Platform generic Node resolution for `GiftCard` in the TypeScript
+  runtime was removed with the old handler. The Gleam Admin Platform resolver
+  should add GiftCard node dispatch when a future pass broadens cross-domain
+  Relay node coverage.
+
+### Pass 34 candidates
+
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the existing shop slice.
+- Continue Admin Platform cross-domain Node parity now that more resource
+  domains are owned by Gleam.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain

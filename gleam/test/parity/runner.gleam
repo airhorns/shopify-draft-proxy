@@ -143,6 +143,8 @@ fn seed_capture_preconditions(
   case parsed.scenario_id {
     "gift-card-search-filters" ->
       seed_gift_card_lifecycle_preconditions(capture, proxy)
+    "gift-card-lifecycle" ->
+      seed_gift_card_lifecycle_preconditions(capture, proxy)
     "functions-owner-metadata-local-staging" ->
       seed_shopify_function_preconditions(capture, proxy)
     "shop-baseline-read"
@@ -839,7 +841,11 @@ fn run_target(
       Error(ProxyUnresolved(target: target.name, path: target.proxy_path))
     Some(expected), Some(actual) -> {
       let rules = spec.rules_for(parsed, target)
-      let mismatches = diff.diff_with_expected(expected, actual, rules)
+      let mismatches = case target.selected_paths {
+        [] -> diff.diff_with_expected(expected, actual, rules)
+        selected_paths ->
+          diff.diff_selected_paths(expected, actual, selected_paths, rules)
+      }
       Ok(#(
         next_proxy,
         TargetReport(

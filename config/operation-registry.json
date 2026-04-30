@@ -4623,7 +4623,7 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["giftCard", "GiftCard"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam"],
     "supportNotes": "Snapshot reads resolve from normalized gift-card state and return null for missing IDs. Staged lifecycle mutations are visible to downstream giftCard(id:) reads without sending supported writes upstream."
   },
   {
@@ -4633,7 +4633,7 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["giftCards", "GiftCards"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam"],
     "supportNotes": "Connection reads use shared pagination helpers over normalized gift-card state and preserve empty/no-data structures in snapshot mode."
   },
   {
@@ -4643,7 +4643,7 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["giftCardsCount", "GiftCardsCount"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam"],
     "supportNotes": "Local count support covers exact no-data and staged gift-card counts with id, status, balance_status, and visible code-fragment query filtering."
   },
   {
@@ -4653,7 +4653,7 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["giftCardConfiguration", "GiftCardConfiguration"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam"],
     "supportNotes": "Snapshot support exposes issueLimit and purchaseLimit money objects from normalized gift-card configuration, with safe zero-value placeholders when no readable configuration fixture is present."
   },
   {
@@ -4663,7 +4663,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardCreate", "GiftCardCreate"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
     "supportNotes": "Locally stages gift-card creation with initial balance, masked code metadata, optional note/expiry/template/customer metadata, stable timestamps, and raw mutation retention for commit replay."
   },
   {
@@ -4673,7 +4673,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardUpdate", "GiftCardUpdate"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
     "supportNotes": "Locally stages mutable metadata updates and keeps downstream giftCard/giftCards reads consistent without runtime Shopify writes."
   },
   {
@@ -4683,7 +4683,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardCredit", "GiftCardCredit"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
     "supportNotes": "Locally stages balance credits and transaction nodes for supported local gift cards."
   },
   {
@@ -4693,7 +4693,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardDebit", "GiftCardDebit"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
     "supportNotes": "Locally stages balance debits and transaction nodes for supported local gift cards, including a local insufficient-balance guardrail."
   },
   {
@@ -4703,7 +4703,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardDeactivate", "GiftCardDeactivate"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
     "supportNotes": "Locally stages deactivation by flipping enabled state and recording deactivatedAt while preserving read-after-write visibility."
   },
   {
@@ -4713,7 +4713,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardSendNotificationToCustomer", "GiftCardSendNotificationToCustomer"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
     "supportNotes": "Short-circuits customer notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling."
   },
   {
@@ -4723,7 +4723,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardSendNotificationToRecipient", "GiftCardSendNotificationToRecipient"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
     "supportNotes": "Short-circuits recipient notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling."
   },
   {
