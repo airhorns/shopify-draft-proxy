@@ -304,6 +304,13 @@ synthetic-id/timestamp expected differences.
   before staging, return top-level GraphQL errors with `{data: {root: null}}`,
   and use `changeFromQuantity` as the compare value for successful set/adjust
   mutations.
+- Product media validation scenarios need explicit `seedProductMedia`
+  hydration in the parity runner before the primary request. Model
+  `productCreateMedia` as partial for valid create inputs plus
+  `mediaUserErrors`, but keep `productUpdateMedia` and `productDeleteMedia`
+  atomic when any requested media ID is unknown. Empty product IDs and invalid
+  `CreateMediaInput.mediaContentType` are top-level `INVALID_VARIABLE` GraphQL
+  errors, not payload user errors.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.

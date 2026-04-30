@@ -58,8 +58,8 @@ import shopify_draft_proxy/state/types.{
   type InventoryTransferLocationSnapshotRecord, type InventoryTransferRecord,
   type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
   type ProductCategoryRecord, type ProductCollectionRecord,
-  type ProductFeedRecord, type ProductMetafieldRecord, type ProductOptionRecord,
-  type ProductOptionValueRecord, type ProductRecord,
+  type ProductFeedRecord, type ProductMediaRecord, type ProductMetafieldRecord,
+  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
   type PublicationRecord, type ShopResourceFeedbackRecord, CapturedArray,
@@ -70,10 +70,11 @@ import shopify_draft_proxy/state/types.{
   InventoryShipmentTrackingRecord, InventoryTransferLineItemRecord,
   InventoryTransferLocationSnapshotRecord, InventoryTransferRecord,
   InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
-  ProductCollectionRecord, ProductFeedRecord, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductResourceFeedbackRecord,
-  ProductSeoRecord, ProductVariantRecord, ProductVariantSelectedOptionRecord,
-  PublicationRecord, ShopResourceFeedbackRecord,
+  ProductCollectionRecord, ProductFeedRecord, ProductMediaRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord,
+  ProductResourceFeedbackRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord, PublicationRecord,
+  ShopResourceFeedbackRecord,
 }
 
 pub type ProductsError {
@@ -161,6 +162,9 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productFeedCreate"
     | "productFeedDelete"
     | "productFullSync"
+    | "productCreateMedia"
+    | "productUpdateMedia"
+    | "productDeleteMedia"
     | "bulkProductResourceFeedbackCreate"
     | "inventoryShipmentCreateInTransit"
     | "inventoryShipmentReceive"
@@ -2901,6 +2905,7 @@ pub fn product_source(product: ProductRecord) -> SourceValue {
     product,
     empty_connection_source(),
     empty_connection_source(),
+    empty_connection_source(),
     SrcList([]),
     None,
   )
@@ -2922,6 +2927,7 @@ fn product_source_with_store_and_publication(
     product,
     product_collections_connection_source(store, product),
     product_variants_connection_source(store, product),
+    product_media_connection_source(store, product),
     product_options_source(store.get_effective_options_by_product_id(
       store,
       product.id,
@@ -2934,6 +2940,7 @@ fn product_source_with_relationships(
   product: ProductRecord,
   collections: SourceValue,
   variants: SourceValue,
+  media: SourceValue,
   options: SourceValue,
   publication_id: Option(String),
 ) -> SourceValue {
@@ -2977,9 +2984,83 @@ fn product_source_with_relationships(
     #("availablePublicationsCount", count_source(visible_publication_count)),
     #("resourcePublicationsCount", count_source(visible_publication_count)),
     #("collections", collections),
-    #("media", empty_connection_source()),
+    #("media", media),
     #("options", options),
     #("variants", variants),
+  ])
+}
+
+fn product_media_connection_source(
+  store: Store,
+  product: ProductRecord,
+) -> SourceValue {
+  let media = store.get_effective_media_by_product_id(store, product.id)
+  src_object([
+    #(
+      "edges",
+      SrcList(
+        list.map(enumerate_items(media), fn(entry) {
+          let #(record, index) = entry
+          src_object([
+            #("cursor", SrcString(product_media_cursor(record, index))),
+            #("node", product_media_source(record)),
+          ])
+        }),
+      ),
+    ),
+    #("nodes", SrcList(list.map(media, product_media_source))),
+    #(
+      "pageInfo",
+      src_object([
+        #("hasNextPage", SrcBool(False)),
+        #("hasPreviousPage", SrcBool(False)),
+        #("startCursor", connection_start_cursor(media, product_media_cursor)),
+        #("endCursor", connection_end_cursor(media, product_media_cursor)),
+      ]),
+    ),
+  ])
+}
+
+fn product_media_cursor(media: ProductMediaRecord, _index: Int) -> String {
+  media.key
+}
+
+fn product_media_source(media: ProductMediaRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString(product_media_typename(media))),
+    #("id", optional_string_source(media.id)),
+    #("alt", optional_string_source(media.alt)),
+    #("mediaContentType", optional_string_source(media.media_content_type)),
+    #("status", optional_string_source(media.status)),
+    #("preview", product_media_preview_source(media)),
+    #(
+      "image",
+      product_media_image_source(
+        media.image_url |> option.or(media.preview_image_url),
+      ),
+    ),
+  ])
+}
+
+fn product_media_typename(media: ProductMediaRecord) -> String {
+  case media.media_content_type {
+    Some("IMAGE") -> "MediaImage"
+    Some("VIDEO") -> "Video"
+    Some("EXTERNAL_VIDEO") -> "ExternalVideo"
+    Some("MODEL_3D") -> "Model3d"
+    _ -> "Media"
+  }
+}
+
+fn product_media_preview_source(media: ProductMediaRecord) -> SourceValue {
+  src_object([
+    #("image", product_media_image_source(media.preview_image_url)),
+  ])
+}
+
+fn product_media_image_source(url: Option(String)) -> SourceValue {
+  src_object([
+    #("url", optional_string_source(url)),
   ])
 }
 
@@ -5152,6 +5233,50 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "productCreateMedia"
+            | "productUpdateMedia"
+            | "productDeleteMedia" -> {
+              let result =
+                handle_product_media_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  document,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged " <> name.value <> " locally."),
+                )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
+              #(
+                next_entries,
+                next_errors,
+                result.store,
+                result.identity,
+                next_staged,
+                next_drafts,
+              )
+            }
             "bulkProductResourceFeedbackCreate" -> {
               let result =
                 handle_bulk_product_resource_feedback_create(
@@ -6641,6 +6766,951 @@ fn handle_product_full_sync(
         [],
       )
   }
+}
+
+fn handle_product_media_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  case root_name {
+    "productCreateMedia" ->
+      handle_product_create_media(
+        store,
+        identity,
+        document,
+        field,
+        fragments,
+        variables,
+      )
+    "productUpdateMedia" ->
+      handle_product_update_media(
+        store,
+        identity,
+        document,
+        field,
+        fragments,
+        variables,
+      )
+    "productDeleteMedia" ->
+      handle_product_delete_media(
+        store,
+        identity,
+        document,
+        field,
+        fragments,
+        variables,
+      )
+    _ ->
+      mutation_result(
+        get_field_response_key(field),
+        json.null(),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_product_create_media(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let product_id = read_arg_string(args, "productId")
+  case product_id {
+    Some("") ->
+      mutation_error_result(key, store, identity, [
+        invalid_product_media_product_id_variable_error("", document),
+      ])
+    _ ->
+      case invalid_create_media_content_type(args, document) {
+        Some(error) -> mutation_error_result(key, store, identity, [error])
+        None ->
+          case product_id {
+            None ->
+              mutation_result(
+                key,
+                product_create_media_payload(
+                  store,
+                  [],
+                  [
+                    ProductUserError(
+                      ["productId"],
+                      "Product id is required",
+                      None,
+                    ),
+                  ],
+                  None,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            Some(product_id) ->
+              case store.get_effective_product_by_id(store, product_id) {
+                None ->
+                  mutation_result(
+                    key,
+                    product_media_not_found_payload("create", field, fragments),
+                    store,
+                    identity,
+                    [],
+                  )
+                Some(_) ->
+                  stage_product_create_media(
+                    store,
+                    identity,
+                    key,
+                    product_id,
+                    read_arg_object_list(args, "media"),
+                    field,
+                    fragments,
+                  )
+              }
+          }
+      }
+  }
+}
+
+fn stage_product_create_media(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  product_id: String,
+  inputs: List(Dict(String, ResolvedValue)),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  let existing_media =
+    store.get_effective_media_by_product_id(store, product_id)
+  let initial = #(identity, [], [])
+  let #(next_identity, created_reversed, user_errors_reversed) =
+    inputs
+    |> enumerate_items()
+    |> list.fold(initial, fn(acc, entry) {
+      let #(current_identity, created, errors) = acc
+      let #(input, index) = entry
+      let media_content_type =
+        read_string_field(input, "mediaContentType") |> option.unwrap("IMAGE")
+      case
+        media_content_type == "IMAGE"
+        && !is_valid_media_source(read_string_field(input, "originalSource"))
+      {
+        True -> #(current_identity, created, [
+          ProductUserError(
+            ["media", int.to_string(index), "originalSource"],
+            "Image URL is invalid",
+            None,
+          ),
+          ..errors
+        ])
+        False -> {
+          let position = list.length(existing_media) + list.length(created)
+          let #(record, identity_after_record) =
+            make_created_media_record(
+              current_identity,
+              product_id,
+              input,
+              position,
+            )
+          #(identity_after_record, [record, ..created], errors)
+        }
+      }
+    })
+  let created_media = list.reverse(created_reversed)
+  let user_errors = list.reverse(user_errors_reversed)
+  let response_store = case created_media {
+    [] -> store
+    _ ->
+      store.replace_staged_media_for_product(
+        store,
+        product_id,
+        list.append(existing_media, created_media),
+      )
+  }
+  let final_store = case created_media {
+    [] -> store
+    _ ->
+      store.replace_staged_media_for_product(
+        store,
+        product_id,
+        list.append(
+          existing_media,
+          list.map(created_media, transition_media_to_ready),
+        ),
+      )
+  }
+  let product = store.get_effective_product_by_id(response_store, product_id)
+  let staged_ids = created_media |> list.filter_map(media_record_id_result)
+  mutation_result(
+    key,
+    product_create_media_payload(
+      response_store,
+      created_media,
+      user_errors,
+      product,
+      field,
+      fragments,
+    ),
+    final_store,
+    next_identity,
+    staged_ids,
+  )
+}
+
+fn handle_product_update_media(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let product_id = read_arg_string(args, "productId")
+  case product_id {
+    Some("") ->
+      mutation_error_result(key, store, identity, [
+        invalid_product_media_product_id_variable_error("", document),
+      ])
+    None ->
+      mutation_result(
+        key,
+        product_update_media_payload(
+          [],
+          [ProductUserError(["productId"], "Product id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            product_media_not_found_payload("update", field, fragments),
+            store,
+            identity,
+            [],
+          )
+        Some(_) ->
+          stage_product_update_media(
+            store,
+            identity,
+            key,
+            product_id,
+            read_arg_object_list(args, "media"),
+            field,
+            fragments,
+          )
+      }
+  }
+}
+
+fn stage_product_update_media(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  product_id: String,
+  updates: List(Dict(String, ResolvedValue)),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  let effective_media =
+    store.get_effective_media_by_product_id(store, product_id)
+  case first_missing_media_update(updates, effective_media) {
+    Some(update) -> {
+      let media_id = read_string_field(update, "id")
+      let media_value = case media_id {
+        Some(_) -> SrcNull
+        None -> SrcList([])
+      }
+      let error = case media_id {
+        Some(id) ->
+          ProductUserError(
+            ["media"],
+            "Media id " <> id <> " does not exist",
+            None,
+          )
+        None -> ProductUserError(["media", "id"], "Media id is required", None)
+      }
+      mutation_result(
+        key,
+        product_update_media_payload_with_media_value(
+          media_value,
+          [error],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    }
+    None ->
+      case first_non_ready_media_update(updates, effective_media) {
+        Some(index) ->
+          mutation_result(
+            key,
+            product_update_media_payload(
+              [],
+              [
+                ProductUserError(
+                  ["media", int.to_string(index), "id"],
+                  "Non-ready media cannot be updated.",
+                  None,
+                ),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        None -> {
+          let updated_media =
+            effective_media
+            |> list.map(fn(media) {
+              case find_media_update(updates, media.id) {
+                Some(update) -> update_media_record(media, update)
+                None -> media
+              }
+            })
+          let changed_media =
+            updated_media
+            |> list.filter(fn(media) {
+              case find_media_update(updates, media.id) {
+                Some(_) -> True
+                None -> False
+              }
+            })
+          let next_store =
+            store.replace_staged_media_for_product(
+              store,
+              product_id,
+              updated_media,
+            )
+          mutation_result(
+            key,
+            product_update_media_payload(changed_media, [], field, fragments),
+            next_store,
+            identity,
+            changed_media |> list.filter_map(media_record_id_result),
+          )
+        }
+      }
+  }
+}
+
+fn handle_product_delete_media(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let product_id = read_arg_string(args, "productId")
+  case product_id {
+    Some("") ->
+      mutation_error_result(key, store, identity, [
+        invalid_product_media_product_id_variable_error("", document),
+      ])
+    None ->
+      mutation_result(
+        key,
+        product_delete_media_payload(
+          SrcList([]),
+          SrcList([]),
+          [ProductUserError(["productId"], "Product id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            product_media_not_found_payload("delete", field, fragments),
+            store,
+            identity,
+            [],
+          )
+        Some(_) ->
+          stage_product_delete_media(
+            store,
+            identity,
+            key,
+            product_id,
+            read_arg_string_list(args, "mediaIds"),
+            field,
+            fragments,
+          )
+      }
+  }
+}
+
+fn stage_product_delete_media(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  product_id: String,
+  media_ids: List(String),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  let effective_media =
+    store.get_effective_media_by_product_id(store, product_id)
+  case first_unknown_media_id(media_ids, effective_media) {
+    Some(media_id) ->
+      mutation_result(
+        key,
+        product_delete_media_payload(
+          SrcNull,
+          SrcNull,
+          [
+            ProductUserError(
+              ["mediaIds"],
+              "Media id " <> media_id <> " does not exist",
+              None,
+            ),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    None -> {
+      let deleted_media =
+        effective_media
+        |> list.filter(fn(media) {
+          case media.id {
+            Some(id) -> list.contains(media_ids, id)
+            None -> False
+          }
+        })
+      let next_media =
+        effective_media
+        |> list.filter(fn(media) {
+          case media.id {
+            Some(id) -> !list.contains(media_ids, id)
+            None -> True
+          }
+        })
+      let next_store =
+        store.replace_staged_media_for_product(store, product_id, next_media)
+      let deleted_media_ids =
+        deleted_media |> list.filter_map(media_record_id_result)
+      let deleted_product_image_ids =
+        deleted_media |> list.filter_map(product_media_product_image_id_result)
+      mutation_result(
+        key,
+        product_delete_media_payload(
+          SrcList(list.map(deleted_media_ids, SrcString)),
+          SrcList(list.map(deleted_product_image_ids, SrcString)),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        identity,
+        deleted_media_ids,
+      )
+    }
+  }
+}
+
+fn invalid_create_media_content_type(
+  args: Dict(String, ResolvedValue),
+  document: String,
+) -> Option(Json) {
+  case dict.get(args, "media") {
+    Ok(ListVal(values)) ->
+      values
+      |> enumerate_items()
+      |> list.find_map(fn(entry) {
+        let #(value, index) = entry
+        case value {
+          ObjectVal(fields) ->
+            case read_string_field(fields, "mediaContentType") {
+              Some(media_content_type) ->
+                case is_create_media_content_type(media_content_type) {
+                  True -> Error(Nil)
+                  False ->
+                    Ok(invalid_product_media_content_type_variable_error(
+                      values,
+                      index,
+                      media_content_type,
+                      document,
+                    ))
+                }
+              None -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn is_create_media_content_type(value: String) -> Bool {
+  case value {
+    "VIDEO" | "EXTERNAL_VIDEO" | "MODEL_3D" | "IMAGE" -> True
+    _ -> False
+  }
+}
+
+fn is_valid_media_source(value: Option(String)) -> Bool {
+  case value {
+    Some(value) -> {
+      let trimmed = string.trim(value)
+      string.length(trimmed) > 0
+      && {
+        string.starts_with(trimmed, "http://")
+        || string.starts_with(trimmed, "https://")
+      }
+    }
+    None -> False
+  }
+}
+
+fn make_created_media_record(
+  identity: SyntheticIdentityRegistry,
+  product_id: String,
+  input: Dict(String, ResolvedValue),
+  position: Int,
+) -> #(ProductMediaRecord, SyntheticIdentityRegistry) {
+  let media_content_type =
+    read_string_field(input, "mediaContentType") |> option.unwrap("IMAGE")
+  let #(media_id, identity_after_media) =
+    make_synthetic_media_id(identity, media_content_type)
+  let #(product_image_id, next_identity) =
+    make_synthetic_product_image_id(identity_after_media, media_content_type)
+  let source_url =
+    option.then(read_string_field(input, "originalSource"), non_empty_string)
+  #(
+    ProductMediaRecord(
+      key: product_id <> ":media:" <> int.to_string(position),
+      product_id: product_id,
+      position: position,
+      id: Some(media_id),
+      media_content_type: Some(media_content_type),
+      alt: read_string_field(input, "alt"),
+      status: Some("UPLOADED"),
+      product_image_id: product_image_id,
+      image_url: None,
+      image_width: None,
+      image_height: None,
+      preview_image_url: None,
+      source_url: source_url,
+    ),
+    next_identity,
+  )
+}
+
+fn make_synthetic_media_id(
+  identity: SyntheticIdentityRegistry,
+  media_content_type: String,
+) -> #(String, SyntheticIdentityRegistry) {
+  case media_content_type {
+    "IMAGE" -> synthetic_identity.make_synthetic_gid(identity, "MediaImage")
+    _ -> synthetic_identity.make_synthetic_gid(identity, "Media")
+  }
+}
+
+fn make_synthetic_product_image_id(
+  identity: SyntheticIdentityRegistry,
+  media_content_type: String,
+) -> #(Option(String), SyntheticIdentityRegistry) {
+  case media_content_type {
+    "IMAGE" -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "ProductImage")
+      #(Some(id), next_identity)
+    }
+    _ -> #(None, identity)
+  }
+}
+
+fn transition_media_to_ready(media: ProductMediaRecord) -> ProductMediaRecord {
+  let ready_url =
+    media.source_url
+    |> option.or(media.image_url)
+    |> option.or(media.preview_image_url)
+  ProductMediaRecord(
+    ..media,
+    status: Some("READY"),
+    image_url: ready_url,
+    preview_image_url: ready_url,
+  )
+}
+
+fn update_media_record(
+  media: ProductMediaRecord,
+  input: Dict(String, ResolvedValue),
+) -> ProductMediaRecord {
+  let next_image_url =
+    option.then(
+      read_string_field(input, "previewImageSource"),
+      non_empty_string,
+    )
+    |> option.or(option.then(
+      read_string_field(input, "originalSource"),
+      non_empty_string,
+    ))
+    |> option.or(media.image_url)
+    |> option.or(media.preview_image_url)
+    |> option.or(media.source_url)
+  ProductMediaRecord(
+    ..media,
+    alt: read_string_field(input, "alt") |> option.or(media.alt),
+    status: Some("READY"),
+    image_url: next_image_url,
+    preview_image_url: next_image_url,
+    source_url: media.source_url |> option.or(next_image_url),
+  )
+}
+
+fn first_missing_media_update(
+  updates: List(Dict(String, ResolvedValue)),
+  media: List(ProductMediaRecord),
+) -> Option(Dict(String, ResolvedValue)) {
+  updates
+  |> list.find(fn(update) {
+    case read_string_field(update, "id") {
+      Some(id) -> !has_media_id(media, id)
+      None -> True
+    }
+  })
+  |> option.from_result
+}
+
+fn first_non_ready_media_update(
+  updates: List(Dict(String, ResolvedValue)),
+  media: List(ProductMediaRecord),
+) -> Option(Int) {
+  updates
+  |> enumerate_items()
+  |> list.find_map(fn(entry) {
+    let #(update, index) = entry
+    case read_string_field(update, "id") {
+      Some(id) ->
+        case find_media_by_id(media, id) {
+          Some(record) ->
+            case record.status {
+              Some("READY") -> Error(Nil)
+              _ -> Ok(index)
+            }
+          None -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn find_media_update(
+  updates: List(Dict(String, ResolvedValue)),
+  media_id: Option(String),
+) -> Option(Dict(String, ResolvedValue)) {
+  case media_id {
+    None -> None
+    Some(id) ->
+      updates
+      |> list.find(fn(update) { read_string_field(update, "id") == Some(id) })
+      |> option.from_result
+  }
+}
+
+fn first_unknown_media_id(
+  media_ids: List(String),
+  media: List(ProductMediaRecord),
+) -> Option(String) {
+  media_ids
+  |> list.find(fn(id) { !has_media_id(media, id) })
+  |> option.from_result
+}
+
+fn has_media_id(media: List(ProductMediaRecord), id: String) -> Bool {
+  case find_media_by_id(media, id) {
+    Some(_) -> True
+    None -> False
+  }
+}
+
+fn find_media_by_id(
+  media: List(ProductMediaRecord),
+  id: String,
+) -> Option(ProductMediaRecord) {
+  media
+  |> list.find(fn(record) { record.id == Some(id) })
+  |> option.from_result
+}
+
+fn media_record_id_result(media: ProductMediaRecord) -> Result(String, Nil) {
+  case media.id {
+    Some(id) -> Ok(id)
+    None -> Error(Nil)
+  }
+}
+
+fn product_media_product_image_id_result(
+  media: ProductMediaRecord,
+) -> Result(String, Nil) {
+  case media.product_image_id {
+    Some(id) -> Ok(id)
+    None -> Error(Nil)
+  }
+}
+
+fn product_create_media_payload(
+  store: Store,
+  media: List(ProductMediaRecord),
+  user_errors: List(ProductUserError),
+  product: Option(ProductRecord),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(product) -> product_source_with_store(store, product)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductCreateMediaPayload")),
+      #("media", SrcList(list.map(media, product_media_source))),
+      #("mediaUserErrors", user_errors_source(user_errors)),
+      #("product", product_value),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_update_media_payload(
+  media: List(ProductMediaRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  product_update_media_payload_with_media_value(
+    SrcList(list.map(media, product_media_source)),
+    user_errors,
+    field,
+    fragments,
+  )
+}
+
+fn product_update_media_payload_with_media_value(
+  media: SourceValue,
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductUpdateMediaPayload")),
+      #("media", media),
+      #("mediaUserErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_delete_media_payload(
+  deleted_media_ids: SourceValue,
+  deleted_product_image_ids: SourceValue,
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductDeleteMediaPayload")),
+      #("deletedMediaIds", deleted_media_ids),
+      #("deletedProductImageIds", deleted_product_image_ids),
+      #("mediaUserErrors", user_errors_source(user_errors)),
+      #("product", SrcNull),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_media_not_found_payload(
+  shape: String,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case shape {
+    "delete" ->
+      product_delete_media_payload(
+        SrcNull,
+        SrcNull,
+        [ProductUserError(["productId"], "Product does not exist", None)],
+        field,
+        fragments,
+      )
+    "create" ->
+      project_graphql_value(
+        src_object([
+          #("__typename", SrcString("ProductCreateMediaPayload")),
+          #("media", SrcNull),
+          #(
+            "mediaUserErrors",
+            user_errors_source([
+              ProductUserError(["productId"], "Product does not exist", None),
+            ]),
+          ),
+          #("product", SrcNull),
+        ]),
+        get_selected_child_fields(field, default_selected_field_options()),
+        fragments,
+      )
+    _ ->
+      product_update_media_payload_with_media_value(
+        SrcNull,
+        [ProductUserError(["productId"], "Product does not exist", None)],
+        field,
+        fragments,
+      )
+  }
+}
+
+fn invalid_product_media_product_id_variable_error(
+  product_id: String,
+  document: String,
+) -> Json {
+  let message = "Invalid global id '" <> product_id <> "'"
+  let base = [
+    #(
+      "message",
+      json.string("Variable $productId of type ID! was provided invalid value"),
+    ),
+  ]
+  let with_locations = case
+    find_variable_definition_location(document, "productId")
+  {
+    Some(loc) ->
+      list.append(base, [#("locations", locations_json(loc, document))])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("INVALID_VARIABLE")),
+          #("value", json.string(product_id)),
+          #(
+            "problems",
+            json.preprocessed_array([
+              json.object([
+                #("path", json.preprocessed_array([])),
+                #("explanation", json.string(message)),
+                #("message", json.string(message)),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn invalid_product_media_content_type_variable_error(
+  media_values: List(ResolvedValue),
+  media_index: Int,
+  media_content_type: String,
+  document: String,
+) -> Json {
+  let explanation =
+    "Expected \""
+    <> media_content_type
+    <> "\" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE"
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Variable $media of type [CreateMediaInput!]! was provided invalid value for "
+        <> int.to_string(media_index)
+        <> ".mediaContentType ("
+        <> explanation
+        <> ")",
+      ),
+    ),
+  ]
+  let with_locations = case
+    find_variable_definition_location(document, "media")
+  {
+    Some(loc) ->
+      list.append(base, [#("locations", locations_json(loc, document))])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("INVALID_VARIABLE")),
+          #("value", json.array(media_values, resolved_value_to_json)),
+          #(
+            "problems",
+            json.preprocessed_array([
+              json.object([
+                #(
+                  "path",
+                  json.preprocessed_array([
+                    json.int(media_index),
+                    json.string("mediaContentType"),
+                  ]),
+                ),
+                #("explanation", json.string(explanation)),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn locations_json(loc: Location, document: String) -> Json {
+  let source = graphql_source.new(document)
+  let computed = graphql_location.get_location(source, position: loc.start)
+  json.preprocessed_array([
+    json.object([
+      #("line", json.int(computed.line)),
+      #("column", json.int(computed.column)),
+    ]),
+  ])
 }
 
 fn handle_bulk_product_resource_feedback_create(

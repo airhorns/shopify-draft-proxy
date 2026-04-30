@@ -33,7 +33,7 @@ import shopify_draft_proxy/state/types.{
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
   type MetafieldDefinitionRecord, type MetaobjectDefinitionRecord,
   type MetaobjectRecord, type ProductCollectionRecord, type ProductFeedRecord,
-  type ProductMetafieldRecord, type ProductOptionRecord,
+  type ProductMediaRecord, type ProductMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductVariantRecord,
   type PublicationRecord, type SavedSearchRecord, type SegmentRecord,
@@ -59,6 +59,7 @@ pub type BaseState {
     product_variant_order: List(String),
     product_variant_count: Option(Int),
     product_options: Dict(String, ProductOptionRecord),
+    product_media: Dict(String, List(ProductMediaRecord)),
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
     product_collections: Dict(String, ProductCollectionRecord),
@@ -218,6 +219,7 @@ pub type StagedState {
     product_variant_order: List(String),
     product_variant_count: Option(Int),
     product_options: Dict(String, ProductOptionRecord),
+    product_media: Dict(String, List(ProductMediaRecord)),
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
     product_collections: Dict(String, ProductCollectionRecord),
@@ -438,6 +440,7 @@ pub fn empty_base_state() -> BaseState {
     product_variant_order: [],
     product_variant_count: None,
     product_options: dict.new(),
+    product_media: dict.new(),
     collections: dict.new(),
     collection_order: [],
     product_collections: dict.new(),
@@ -572,6 +575,7 @@ pub fn empty_staged_state() -> StagedState {
     product_variant_order: [],
     product_variant_count: None,
     product_options: dict.new(),
+    product_media: dict.new(),
     collections: dict.new(),
     collection_order: [],
     product_collections: dict.new(),
@@ -783,6 +787,67 @@ pub fn delete_staged_product(store: Store, id: String) -> Store {
       deleted_product_ids: dict.insert(staged.deleted_product_ids, id, True),
     )
   Store(..store, staged_state: new_staged)
+}
+
+pub fn replace_base_media_for_product(
+  store: Store,
+  product_id: String,
+  media: List(ProductMediaRecord),
+) -> Store {
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..store.base_state,
+      product_media: dict.insert(
+        store.base_state.product_media,
+        product_id,
+        media,
+      ),
+    ),
+  )
+}
+
+pub fn replace_staged_media_for_product(
+  store: Store,
+  product_id: String,
+  media: List(ProductMediaRecord),
+) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      product_media: dict.insert(
+        store.staged_state.product_media,
+        product_id,
+        media,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_media_by_product_id(
+  store: Store,
+  product_id: String,
+) -> List(ProductMediaRecord) {
+  case dict.get(store.staged_state.product_media, product_id) {
+    Ok(media) -> sort_product_media(media)
+    Error(_) ->
+      case dict.get(store.base_state.product_media, product_id) {
+        Ok(media) -> sort_product_media(media)
+        Error(_) -> []
+      }
+  }
+}
+
+fn sort_product_media(
+  media: List(ProductMediaRecord),
+) -> List(ProductMediaRecord) {
+  list.sort(media, fn(left, right) {
+    case int.compare(left.position, right.position) {
+      order.Eq -> string_compare(left.key, right.key)
+      other -> other
+    }
+  })
 }
 
 pub fn get_effective_product_by_id(

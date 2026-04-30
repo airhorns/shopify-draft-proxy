@@ -9,6 +9,65 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 99: product media validation branches
+
+Promotes the captured product media validation fixture into the Gleam parity
+suite. Products now carry media records in state, Product `media` reads project
+locally staged media, and the three captured media mutation roots stage or
+reject create/update/delete branches without runtime Shopify writes.
+
+| Module                                               | Change                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds Product media records.                                                          |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds base/staged Product media families and effective media reads.                   |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Handles productCreateMedia, productUpdateMedia, productDeleteMedia, and media reads. |
+| `gleam/test/parity/runner.gleam`                     | Seeds explicit `seedProductMedia` fixture rows into base state.                      |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing media validation spec.                                     |
+| `.agents/skills/gleam-port/SKILL.md`                 | Records the Product media validation/staging trap.                                   |
+
+Validation:
+Focused JavaScript parity is green for
+`product-media-validation-branches.json`. Full JavaScript is green at 711
+tests. Host Erlang still fails with the known local `Undef` runner class; the
+Docker Erlang fallback is green at 707 tests. `corepack pnpm
+gleam:port:coverage`, `corepack pnpm lint`, and whitespace checks are green.
+Product parity inventory remains 115 checked-in specs, with 96 product specs
+executable in the Gleam parity suite and 19 product specs still
+expected-failing.
+
+### Findings
+
+- The media validation fixture needs both global `seedProducts` and explicit
+  `seedProductMedia` hydration before the primary create request. The seeded
+  media row is what lets later update/delete mixed branches reject only the
+  unknown ID while preserving the known seed row for downstream reads.
+- Shopify returns empty-product-id and invalid `mediaContentType` branches as
+  top-level `INVALID_VARIABLE` GraphQL errors, while unknown product/media and
+  invalid image source branches stay in `mediaUserErrors`.
+- Mixed create is partial: valid media is staged even when another input has an
+  invalid image source. Mixed update/delete with an unknown media ID reject the
+  whole batch and leave downstream media unchanged.
+
+### Risks / open items
+
+- Product media promotion is sufficient for the captured validation branch but
+  broader asynchronous media lifecycle parity, product images, reorder-media,
+  variant-media relationship roots, duplicate, productSet, selling plans, and
+  advanced search remain incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 100 candidates
+
+- Continue product relationship media roots (`productVariantAppendMedia`,
+  `productVariantDetachMedia`, `productReorderMedia`) with strict captured
+  fixture replay.
+- Continue duplicate / productSet roots and validation atomicity.
+- Continue advanced product search/sort/read parity or selling-plan group
+  lifecycle behavior.
+
+---
+
 ## 2026-04-30 - Pass 98: inventory quantity 2026-04 contracts
 
 Promotes the captured 2026-04 inventory quantity contract scenario into the

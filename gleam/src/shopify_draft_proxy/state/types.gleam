@@ -77,6 +77,24 @@ pub type ProductCollectionRecord {
   )
 }
 
+pub type ProductMediaRecord {
+  ProductMediaRecord(
+    key: String,
+    product_id: String,
+    position: Int,
+    id: Option(String),
+    media_content_type: Option(String),
+    alt: Option(String),
+    status: Option(String),
+    product_image_id: Option(String),
+    image_url: Option(String),
+    image_width: Option(Int),
+    image_height: Option(Int),
+    preview_image_url: Option(String),
+    source_url: Option(String),
+  )
+}
+
 pub type ProductVariantSelectedOptionRecord {
   ProductVariantSelectedOptionRecord(name: String, value: String)
 }

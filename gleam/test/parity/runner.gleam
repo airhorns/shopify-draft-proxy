@@ -65,7 +65,7 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectJsonValue, type MetaobjectRecord,
   type MetaobjectStandardTemplateRecord, type Money, type PaymentSettingsRecord,
   type ProductCategoryRecord, type ProductCollectionRecord,
-  type ProductMetafieldRecord, type ProductOptionRecord,
+  type ProductMediaRecord, type ProductMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
   type PublicationRecord, type ShopAddressRecord, type ShopDomainRecord,
@@ -99,14 +99,15 @@ import shopify_draft_proxy/state/types.{
   MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
   MetaobjectStandardTemplateRecord, MetaobjectString, Money,
   PaymentSettingsRecord, ProductCategoryRecord, ProductCollectionRecord,
-  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord, PublicationRecord, ShopAddressRecord,
-  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
-  ShopifyFunctionAppRecord, ShopifyFunctionRecord, StoreCreditAccountRecord,
-  StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
+  ProductMediaRecord, ProductMetafieldRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
+  ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
+  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
+  ShopifyFunctionRecord, StoreCreditAccountRecord, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList,
   StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
   StorePropertyRecord, StorePropertyString,
 }
@@ -208,6 +209,7 @@ fn seed_capture_preconditions(
   proxy: DraftProxy,
 ) -> DraftProxy {
   let proxy = seed_captured_products_preconditions(capture, proxy)
+  let proxy = seed_product_media_preconditions(capture, proxy)
   case parsed.scenario_id {
     "gift-card-search-filters" ->
       seed_gift_card_lifecycle_preconditions(capture, proxy)
@@ -1824,6 +1826,102 @@ fn seed_captured_products_preconditions(
     |> store_mod.upsert_base_product_variants(variants)
   let store = list.fold(product_nodes, store, seed_options_for_product)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_product_media_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let media = case read_array_field(capture, "seedProductMedia") {
+    Some(nodes) ->
+      nodes
+      |> enumerate_json_values()
+      |> list.filter_map(fn(entry) {
+        let #(node, index) = entry
+        make_seed_product_media(node, index)
+      })
+    None -> []
+  }
+  let store =
+    media
+    |> group_product_media_by_product_id
+    |> list.fold(proxy.store, fn(current_store, entry) {
+      let #(product_id, records) = entry
+      let store_with_product = case
+        store_mod.get_effective_product_by_id(current_store, product_id)
+      {
+        Some(_) -> current_store
+        None -> {
+          let products = case
+            make_seed_product_relaxed(
+              JObject([
+                #("id", JString(product_id)),
+                #("title", JString("Seed product")),
+              ]),
+            )
+          {
+            Ok(product) -> [product]
+            Error(_) -> []
+          }
+          store_mod.upsert_base_products(current_store, products)
+        }
+      }
+      store_mod.replace_base_media_for_product(
+        store_with_product,
+        product_id,
+        records,
+      )
+    })
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_product_media(
+  source: JsonValue,
+  index: Int,
+) -> Result(ProductMediaRecord, Nil) {
+  use product_id <- result.try(required_string_field(source, "productId"))
+  use id <- result.try(required_string_field(source, "id"))
+  let position = read_int_field(source, "position") |> option.unwrap(index)
+  let key =
+    read_string_field(source, "key")
+    |> option.unwrap(
+      product_id <> ":media:" <> int.to_string(position) <> ":" <> id,
+    )
+  Ok(ProductMediaRecord(
+    key: key,
+    product_id: product_id,
+    position: position,
+    id: Some(id),
+    media_content_type: read_string_field(source, "mediaContentType")
+      |> option.or(Some("IMAGE")),
+    alt: read_string_field(source, "alt"),
+    status: read_string_field(source, "status") |> option.or(Some("READY")),
+    product_image_id: read_string_field(source, "productImageId"),
+    image_url: read_string_field(source, "imageUrl"),
+    image_width: read_int_field(source, "imageWidth"),
+    image_height: read_int_field(source, "imageHeight"),
+    preview_image_url: read_string_field(source, "previewImageUrl"),
+    source_url: read_string_field(source, "sourceUrl"),
+  ))
+}
+
+fn group_product_media_by_product_id(
+  media: List(ProductMediaRecord),
+) -> List(#(String, List(ProductMediaRecord))) {
+  let grouped =
+    list.fold(media, dict.new(), fn(groups, record) {
+      let existing = case dict.get(groups, record.product_id) {
+        Ok(records) -> records
+        Error(_) -> []
+      }
+      dict.insert(groups, record.product_id, [record, ..existing])
+    })
+  grouped
+  |> dict.to_list
+  |> list.map(fn(entry) {
+    let #(product_id, records) = entry
+    #(product_id, list.reverse(records))
+  })
 }
 
 fn seed_options_for_product(
