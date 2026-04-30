@@ -8,6 +8,9 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  issues: write
+  pull-requests: write
 
 jobs:
   gleam:
@@ -48,6 +51,43 @@ jobs:
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
+      - name: Typecheck TypeScript interop and tooling
+        run: corepack pnpm typecheck
+
+      - name: Check conformance metadata
+        run: corepack pnpm conformance:check
+
+      - name: Find latest main conformance baseline
+        id: main_conformance_baseline
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: corepack pnpm exec tsx ./scripts/find-main-conformance-baseline.ts
+
+      - name: Download latest main conformance baseline
+        if: github.event_name == 'pull_request' && steps.main_conformance_baseline.outputs.found == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.main_conformance_baseline.outputs.run_id }}
+          artifact-ids: ${{ steps.main_conformance_baseline.outputs.artifact_id }}
+          path: .conformance/main
+          merge-multiple: true
+
+      - name: Fall back to checked-in main conformance baseline
+        if: github.event_name == 'pull_request' && steps.main_conformance_baseline.outputs.found != 'true'
+        run: |
+          mkdir -p .conformance/main
+          echo "No main conformance baseline artifact found; PR status will omit the baseline comparison."
+
+      - name: Generate Gleam conformance status report
+        id: conformance_status
+        run: >
+          corepack pnpm conformance:status --
+          --baseline .conformance/main/conformance-status-report.json
+          --output-json .conformance/current/conformance-status-report.json
+          --output-markdown .conformance/current/conformance-status-comment.md
+
       - name: Gleam format check
         run: corepack pnpm gleam:format:check
 
@@ -62,3 +102,19 @@ jobs:
 
       - name: Elixir BEAM interop smoke
         run: corepack pnpm elixir:smoke
+
+      - name: Upload main conformance baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-status-main
+          path: .conformance/current/conformance-status-report.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Add or update PR conformance comment
+        if: github.event_name == 'pull_request' && always() && steps.conformance_status.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: corepack pnpm exec tsx ./scripts/upsert-pr-conformance-comment.ts --body-file .conformance/current/conformance-status-comment.md
