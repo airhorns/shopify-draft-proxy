@@ -110,6 +110,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productVariantsBulkReorder"
     | "inventoryAdjustQuantities"
     | "inventoryActivate"
+    | "inventoryDeactivate"
     | "inventorySetQuantities"
     | "inventoryMoveQuantities"
     | "tagsAdd"
@@ -1561,6 +1562,10 @@ type ProductUserError {
   ProductUserError(field: List(String), message: String, code: Option(String))
 }
 
+type NullableFieldUserError {
+  NullableFieldUserError(field: Option(List(String)), message: String)
+}
+
 type InventoryAdjustmentChange {
   InventoryAdjustmentChange(
     inventory_item_id: String,
@@ -2182,6 +2187,33 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some("Gleam staged inventoryActivate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "inventoryDeactivate" -> {
+              let result =
+                handle_inventory_deactivate(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged inventoryDeactivate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -3710,6 +3742,60 @@ fn handle_inventory_activate(
   )
 }
 
+fn handle_inventory_deactivate(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let inventory_level_id = read_string_field(args, "inventoryLevelId")
+  let target = case inventory_level_id {
+    Some(inventory_level_id) ->
+      find_inventory_level_target(store, inventory_level_id)
+    None -> None
+  }
+  let user_errors = case target {
+    Some(#(variant, level)) -> {
+      let active_levels = variant_inventory_levels(variant)
+      case list.length(active_levels) <= 1 {
+        True -> [
+          NullableFieldUserError(
+            None,
+            "The product couldn't be unstocked from "
+              <> level.location.name
+              <> " because products need to be stocked at a minimum of 1 location.",
+          ),
+        ]
+        False -> []
+      }
+    }
+    None -> []
+  }
+  let next_store = case target, user_errors {
+    Some(#(variant, level)), [] -> {
+      let next_levels =
+        variant_inventory_levels(variant)
+        |> list.filter(fn(candidate) { candidate.id != level.id })
+      stage_variant_inventory_levels(store, variant, next_levels)
+    }
+    _, _ -> store
+  }
+  let staged_ids = case target, user_errors {
+    Some(#(_variant, level)), [] -> [level.id]
+    _, _ -> []
+  }
+  mutation_result(
+    key,
+    inventory_deactivate_payload(user_errors, field, fragments),
+    next_store,
+    identity,
+    staged_ids,
+  )
+}
+
 fn handle_inventory_set_quantities(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -5143,6 +5229,21 @@ fn inventory_activate_payload(
   )
 }
 
+fn inventory_deactivate_payload(
+  user_errors: List(NullableFieldUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("InventoryDeactivatePayload")),
+      #("userErrors", nullable_field_user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn inventory_adjustment_group_source(
   store: Store,
   group: Option(InventoryAdjustmentGroup),
@@ -5361,6 +5462,24 @@ fn user_errors_source(errors: List(ProductUserError)) -> SourceValue {
         #("field", SrcList(list.map(field, SrcString))),
         #("message", SrcString(message)),
         #("code", optional_string_source(code)),
+      ])
+    }),
+  )
+}
+
+fn nullable_field_user_errors_source(
+  errors: List(NullableFieldUserError),
+) -> SourceValue {
+  SrcList(
+    list.map(errors, fn(error) {
+      let NullableFieldUserError(field: field, message: message) = error
+      let field_value = case field {
+        Some(field) -> SrcList(list.map(field, SrcString))
+        None -> SrcNull
+      }
+      src_object([
+        #("field", field_value),
+        #("message", SrcString(message)),
       ])
     }),
   )
@@ -6966,6 +7085,25 @@ fn find_inventory_level(
 ) -> Option(InventoryLevelRecord) {
   levels
   |> list.find(fn(level) { level.location.id == location_id })
+  |> option.from_result
+}
+
+fn find_inventory_level_target(
+  store: Store,
+  inventory_level_id: String,
+) -> Option(#(ProductVariantRecord, InventoryLevelRecord)) {
+  store.list_effective_product_variants(store)
+  |> list.filter_map(fn(variant) {
+    case
+      list.find(variant_inventory_levels(variant), fn(level) {
+        level.id == inventory_level_id
+      })
+    {
+      Ok(level) -> Ok(#(variant, level))
+      Error(_) -> Error(Nil)
+    }
+  })
+  |> list.first
   |> option.from_result
 }
 
