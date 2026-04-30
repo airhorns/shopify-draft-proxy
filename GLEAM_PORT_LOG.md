@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 75: collection reorder-products staging
+
+Completes the captured collection product reorder mutation in the Gleam
+Products handler. The pass wires `collectionReorderProducts` into the local
+mutation dispatcher, parses Shopify `MoveInput` values, stages reordered
+product-collection families without runtime Shopify writes, and returns the
+captured asynchronous Job/userErrors payload shape.
+
+The pass promotes `collectionReorderProducts-parity-plan` into the Gleam parity
+suite. The checked-in fixture, request document, variables, downstream read,
+and comparison contract stay unchanged.
+
+| Module                                               | Change                                                        |
+| ---------------------------------------------------- | ------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages `collectionReorderProducts` and serializes Job output. |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured reorder collection/product preconditions.      |
+| `gleam/test/parity_test.gleam`                       | Enables the strict collection reorder-products parity spec.   |
+
+Validation:
+`gleam test --target javascript collection_reorder_products_live_parity_test`
+is green at 774 tests, and full `gleam test --target javascript` is green at
+774 tests on the host Node runtime. Host `gleam test --target erlang` still
+fails before tests execute on the local Erlang install with the known `undef`
+runner issue; after clearing host-built Erlang artifacts, the Docker Erlang
+fallback is green at 770 tests. Product parity inventory remains 115 checked-in
+specs, with 60 product specs executable in the Gleam parity suite plus the
+admin-platform ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay returning
+  HTTP 400 with `No mutation dispatcher implemented for root field:
+collectionReorderProducts`.
+- The captured reorder fixture moves the second product to position `0`; both
+  default and manual collection product reads reflect the new order while the
+  individual Product.collections reads preserve unrelated collection links.
+- The staged product-collection family substrate from Pass 74 maps directly to
+  reorder behavior: each affected product gets a complete staged collection
+  family with only the target membership position changed.
+
+### Risks / open items
+
+- Remaining collection create/update/delete roots, inventory shipment/transfer,
+  publication links, product feeds/feedback, selling plans, product metafields,
+  media, advanced search, and broader validation atomicity parity remain
+  incomplete in Gleam.
+- Only 60 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 76 candidates
+
+- Continue collection mutations with `collectionCreate` initial-products
+  behavior or collection update/delete lifecycle.
+- Port product metafield behavior now that Product, Product Option,
+  Product Variant, Inventory, and Collection relationship slices are locally
+  staged or seeded.
+- Continue publication-related collection/product roots if the captured
+  fixtures can be represented without weakening request shapes.
+
+---
+
 ## 2026-04-30 - Pass 74: collection remove-products staging
 
 Completes the second collection membership mutation in the Gleam Products

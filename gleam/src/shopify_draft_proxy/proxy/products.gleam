@@ -123,6 +123,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "inventoryMoveQuantities"
     | "collectionAddProducts"
     | "collectionRemoveProducts"
+    | "collectionReorderProducts"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -2254,6 +2255,10 @@ type ProductUserError {
   ProductUserError(field: List(String), message: String, code: Option(String))
 }
 
+type CollectionProductMove {
+  CollectionProductMove(id: String, new_position: Int)
+}
+
 type NullableFieldUserError {
   NullableFieldUserError(field: Option(List(String)), message: String)
 }
@@ -3068,6 +3073,33 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some("Gleam staged collectionRemoveProducts locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "collectionReorderProducts" -> {
+              let result =
+                handle_collection_reorder_products(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged collectionReorderProducts locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -5468,6 +5500,324 @@ fn remove_products_from_collection(
   })
 }
 
+fn handle_collection_reorder_products(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "id") {
+    None ->
+      mutation_result(
+        key,
+        collection_reorder_products_payload(
+          None,
+          [
+            ProductUserError(["id"], "Collection id is required", None),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(collection_id) ->
+      case store.get_effective_collection_by_id(store, collection_id) {
+        None ->
+          mutation_result(
+            key,
+            collection_reorder_products_payload(
+              None,
+              [
+                ProductUserError(
+                  ["id"],
+                  "Collection not found",
+                  Some("COLLECTION_NOT_FOUND"),
+                ),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(collection) -> {
+          let result =
+            reorder_collection_products(
+              store,
+              collection,
+              read_arg_object_list(args, "moves"),
+            )
+          let #(next_store, user_errors) = result
+          case user_errors {
+            [] -> {
+              let #(job_id, next_identity) =
+                synthetic_identity.make_synthetic_gid(identity, "Job")
+              mutation_result(
+                key,
+                collection_reorder_products_payload(
+                  Some(job_id),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                next_identity,
+                [collection.id],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                collection_reorder_products_payload(
+                  None,
+                  user_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+          }
+        }
+      }
+  }
+}
+
+fn reorder_collection_products(
+  store: Store,
+  collection: CollectionRecord,
+  raw_moves: List(Dict(String, ResolvedValue)),
+) -> #(Store, List(ProductUserError)) {
+  case
+    collection.is_smart
+    || case collection.sort_order {
+      Some(sort_order) -> sort_order != "MANUAL"
+      None -> False
+    }
+  {
+    True -> #(store, [
+      ProductUserError(
+        ["id"],
+        "Can't reorder products unless collection is manually sorted",
+        Some("MANUALLY_SORTED_COLLECTION"),
+      ),
+    ])
+    False -> {
+      let #(moves, user_errors) = read_collection_product_moves(raw_moves)
+      let ordered_entries =
+        store.list_effective_products_for_collection(store, collection.id)
+      let product_ids_in_collection =
+        ordered_entries
+        |> list.map(fn(entry) {
+          let #(product, _) = entry
+          product.id
+        })
+      let user_errors =
+        list.fold(enumerate_items(moves), user_errors, fn(errors, entry) {
+          let #(move, index) = entry
+          let CollectionProductMove(id: product_id, new_position: _) = move
+          case store.get_effective_product_by_id(store, product_id) {
+            None ->
+              list.append(errors, [
+                ProductUserError(
+                  ["moves", int.to_string(index), "id"],
+                  "Product does not exist",
+                  Some("INVALID_MOVE"),
+                ),
+              ])
+            Some(_) ->
+              case list.contains(product_ids_in_collection, product_id) {
+                True -> errors
+                False ->
+                  list.append(errors, [
+                    ProductUserError(
+                      ["moves", int.to_string(index), "id"],
+                      "Product is not in the collection",
+                      Some("INVALID_MOVE"),
+                    ),
+                  ])
+              }
+          }
+        })
+      case user_errors {
+        [] -> {
+          let reordered_entries =
+            apply_collection_product_moves(ordered_entries, moves)
+          let next_store =
+            reordered_entries
+            |> enumerate_items()
+            |> list.fold(store, fn(current_store, entry) {
+              let #(#(product, _), position) = entry
+              let next_memberships =
+                store.list_effective_collections_for_product(
+                  current_store,
+                  product.id,
+                )
+                |> list.map(fn(collection_entry) {
+                  let #(existing_collection, membership) = collection_entry
+                  case existing_collection.id == collection.id {
+                    True ->
+                      ProductCollectionRecord(..membership, position: position)
+                    False -> membership
+                  }
+                })
+              store.replace_staged_collections_for_product(
+                current_store,
+                product.id,
+                next_memberships,
+              )
+            })
+          #(next_store, [])
+        }
+        _ -> #(store, user_errors)
+      }
+    }
+  }
+}
+
+fn read_collection_product_moves(
+  raw_moves: List(Dict(String, ResolvedValue)),
+) -> #(List(CollectionProductMove), List(ProductUserError)) {
+  case raw_moves {
+    [] -> #([], [
+      ProductUserError(
+        ["moves"],
+        "At least one move is required",
+        Some("INVALID_MOVE"),
+      ),
+    ])
+    _ -> {
+      let too_many_errors = case list.length(raw_moves) > 250 {
+        True -> [
+          ProductUserError(
+            ["moves"],
+            "Too many moves were provided",
+            Some("INVALID_MOVE"),
+          ),
+        ]
+        False -> []
+      }
+      let result =
+        raw_moves
+        |> enumerate_items()
+        |> list.fold(#([], too_many_errors), fn(acc, entry) {
+          let #(moves, errors) = acc
+          let #(raw_move, index) = entry
+          let product_id = read_string_field(raw_move, "id")
+          let new_position = read_collection_reorder_position(raw_move)
+          let errors = case product_id {
+            Some(_) -> errors
+            None ->
+              list.append(errors, [
+                ProductUserError(
+                  ["moves", int.to_string(index), "id"],
+                  "Product id is required",
+                  Some("INVALID_MOVE"),
+                ),
+              ])
+          }
+          let errors = case new_position {
+            Some(_) -> errors
+            None ->
+              list.append(errors, [
+                ProductUserError(
+                  ["moves", int.to_string(index), "newPosition"],
+                  "Position is invalid",
+                  Some("INVALID_MOVE"),
+                ),
+              ])
+          }
+          case product_id, new_position {
+            Some(id), Some(position) -> #(
+              list.append(moves, [
+                CollectionProductMove(id: id, new_position: position),
+              ]),
+              errors,
+            )
+            _, _ -> #(moves, errors)
+          }
+        })
+      result
+    }
+  }
+}
+
+fn read_collection_reorder_position(
+  fields: Dict(String, ResolvedValue),
+) -> Option(Int) {
+  case dict.get(fields, "newPosition") {
+    Ok(IntVal(value)) -> Some(int.max(0, value))
+    Ok(StringVal(value)) -> parse_unsigned_int_string(value)
+    _ -> None
+  }
+}
+
+fn parse_unsigned_int_string(value: String) -> Option(Int) {
+  let trimmed = string.trim(value)
+  case
+    string.length(trimmed) > 0
+    && list.all(string.to_graphemes(trimmed), is_decimal_digit)
+  {
+    False -> None
+    True ->
+      case int.parse(trimmed) {
+        Ok(parsed) -> Some(parsed)
+        Error(_) -> None
+      }
+  }
+}
+
+fn is_decimal_digit(grapheme: String) -> Bool {
+  case grapheme {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    _ -> False
+  }
+}
+
+fn apply_collection_product_moves(
+  entries: List(#(ProductRecord, ProductCollectionRecord)),
+  moves: List(CollectionProductMove),
+) -> List(#(ProductRecord, ProductCollectionRecord)) {
+  list.fold(moves, entries, fn(current_entries, move) {
+    let CollectionProductMove(id: product_id, new_position: new_position) = move
+    case
+      list.find(current_entries, fn(entry) {
+        let #(product, _) = entry
+        product.id == product_id
+      })
+    {
+      Error(_) -> current_entries
+      Ok(entry) -> {
+        let without_entry =
+          current_entries
+          |> list.filter(fn(candidate) {
+            let #(product, _) = candidate
+            product.id != product_id
+          })
+        insert_collection_entry(without_entry, entry, new_position)
+      }
+    }
+  })
+}
+
+fn insert_collection_entry(
+  entries: List(#(ProductRecord, ProductCollectionRecord)),
+  entry: #(ProductRecord, ProductCollectionRecord),
+  position: Int,
+) -> List(#(ProductRecord, ProductCollectionRecord)) {
+  let insertion_index = int.min(position, list.length(entries))
+  let before = list.take(entries, insertion_index)
+  let after = list.drop(entries, insertion_index)
+  list.append(before, [entry, ..after])
+}
+
 fn product_already_in_collection(
   store: Store,
   collection_id: String,
@@ -6699,6 +7049,27 @@ fn collection_remove_products_payload(
   project_graphql_value(
     src_object([
       #("__typename", SrcString("CollectionRemoveProductsPayload")),
+      #("job", job_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn collection_reorder_products_payload(
+  job_id: Option(String),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let job_value = case job_id {
+    Some(id) -> job_source(id, False)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("CollectionReorderProductsPayload")),
       #("job", job_value),
       #("userErrors", user_errors_source(user_errors)),
     ]),

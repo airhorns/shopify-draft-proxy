@@ -174,6 +174,8 @@ fn seed_capture_preconditions(
       seed_collection_add_products_preconditions(capture, proxy)
     "collection-remove-products-live-parity" ->
       seed_collection_remove_products_preconditions(capture, proxy)
+    "collection-reorder-products-live-parity" ->
+      seed_collection_reorder_products_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
@@ -602,6 +604,79 @@ fn collection_remove_product_ids(capture: JsonValue) -> List(String) {
         }
       })
     _ -> []
+  }
+}
+
+fn seed_collection_reorder_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.initialCollectionRead.data.collection") {
+    Some(collection_json) -> {
+      let target_collection_id =
+        read_string_field(collection_json, "id") |> option.unwrap("")
+      let target_collections = case make_seed_collection(collection_json) {
+        Ok(collection) -> [collection]
+        Error(_) -> []
+      }
+      let product_nodes = case
+        jsonpath.lookup(collection_json, "$.products.nodes")
+      {
+        Some(JArray(nodes)) -> nodes
+        _ -> []
+      }
+      let target_memberships =
+        product_nodes
+        |> enumerate_json_values()
+        |> list.filter_map(fn(entry) {
+          let #(product_json, position) = entry
+          case read_string_field(product_json, "id") {
+            Some(product_id) ->
+              Ok(ProductCollectionRecord(
+                collection_id: target_collection_id,
+                product_id: product_id,
+                position: position,
+                cursor: None,
+              ))
+            None -> Error(Nil)
+          }
+        })
+      let existing =
+        list.append(
+          seed_existing_product_collections(
+            capture,
+            "$.initialCollectionRead.data.first",
+            target_collection_id,
+          ),
+          seed_existing_product_collections(
+            capture,
+            "$.initialCollectionRead.data.second",
+            target_collection_id,
+          ),
+        )
+      let existing_collections =
+        list.filter_map(existing, fn(entry) {
+          let #(collection, _) = entry
+          Ok(collection)
+        })
+      let existing_memberships =
+        list.map(existing, fn(entry) {
+          let #(_, membership) = entry
+          membership
+        })
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(list.append(
+          target_collections,
+          existing_collections,
+        ))
+        |> store_mod.upsert_base_product_collections(list.append(
+          target_memberships,
+          existing_memberships,
+        ))
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
   }
 }
 

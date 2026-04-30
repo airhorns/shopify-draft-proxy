@@ -118,6 +118,12 @@ pub fn collection_remove_products_live_parity_test() {
   )
 }
 
+pub fn collection_reorder_products_live_parity_test() {
+  check(
+    "config/parity-specs/products/collectionReorderProducts-parity-plan.json",
+  )
+}
+
 pub fn products_catalog_read_test() {
   check("config/parity-specs/products/products-catalog-read.json")
 }
