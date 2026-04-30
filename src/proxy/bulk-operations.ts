@@ -18,6 +18,7 @@ import type { BulkOperationRecord } from '../state/types.js';
 import { handleDeliveryProfileMutation } from './delivery-profiles.js';
 import { handleDiscountMutation } from './discounts.js';
 import { handleFunctionMutation } from './functions.js';
+import { handleGiftCardMutation } from './gift-cards.js';
 import { handleInventoryShipmentMutation } from './inventory-shipments.js';
 import { handleLocalizationMutation } from './localization.js';
 import { handleMarketMutation } from './markets.js';
@@ -980,6 +981,9 @@ function handleSupportedBulkImportInnerMutation(
     }
     case 'functions':
       responseBody = handleFunctionMutation(runtime, mutation, variables) as GraphqlResponseBody;
+      break;
+    case 'gift-cards':
+      responseBody = handleGiftCardMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;
     case 'localization':
       responseBody = handleLocalizationMutation(runtime, mutation, variables) as GraphqlResponseBody;

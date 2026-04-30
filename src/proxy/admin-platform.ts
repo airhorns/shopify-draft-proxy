@@ -23,6 +23,7 @@ import { handleCustomerQuery } from './customers.js';
 import { handleDeliveryProfileQuery, serializeDeliveryProfileNestedNodeById } from './delivery-profiles.js';
 import { handleDiscountQuery } from './discounts.js';
 import { handleFunctionQuery } from './functions.js';
+import { handleGiftCardQuery } from './gift-cards.js';
 import {
   getDocumentFragments,
   isPlainObject,
@@ -852,6 +853,7 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   DraftOrder: { rootField: 'draftOrder', typename: 'DraftOrder', handler: handleOrderQuery },
   Abandonment: { rootField: 'abandonment', typename: 'Abandonment', handler: handleOrderQuery },
 
+  GiftCard: { rootField: 'giftCard', typename: 'GiftCard', handler: handleGiftCardQuery },
   DeliveryProfile: { rootField: 'deliveryProfile', typename: 'DeliveryProfile', handler: handleDeliveryProfileQuery },
   DeliveryCondition: {
     typename: 'DeliveryCondition',
