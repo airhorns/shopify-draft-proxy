@@ -237,6 +237,12 @@ If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
 path syntax instead of narrowing or rewriting the checked-in spec.
 
+If an existing parity target declares `selectedPaths`, preserve that contract in
+the Gleam parity runner instead of broadening or narrowing the checked-in spec.
+The Gift Cards lifecycle parity spec depends on target-level selected-path
+diffing so mutation payload comparisons ignore unselected Shopify fields while
+still strictly comparing the requested stable slices.
+
 Functions parity note: captures with `seedShopifyFunctions` can share one
 runner seeding helper for local staging and live read-only scenarios. When a
 local-runtime Functions fixture appears one synthetic id/timestamp step ahead,
@@ -250,6 +256,9 @@ adding broad synthetic-id/timestamp expected differences.
   and `eventsCount` should still include parity and dispatcher-level tests, but
   the TS handler and TS runtime coverage stay in place until the final all-port
   cutover.
+- Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
+  gift-card runtime and legacy integration coverage stay in place until a later
+  reviewer-approved runtime cutover.
 
 ## Workflow for a new pass
 

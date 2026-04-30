@@ -196,6 +196,11 @@ fn target_decoder() -> Decoder(Target) {
     [],
     decode.list(expected_difference_decoder()),
   )
+  use selected_paths <- decode.optional_field(
+    "selectedPaths",
+    [],
+    decode.list(decode.string),
+  )
   use excluded_paths <- decode.optional_field(
     "excludedPaths",
     [],
