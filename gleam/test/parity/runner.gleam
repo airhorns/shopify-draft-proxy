@@ -304,7 +304,10 @@ fn seed_capture_preconditions(
     | "metafields-set-duplicate-input"
     | "metafields-set-cas-success"
     | "metafields-set-stale-digest"
-    | "metafields-set-null-create" ->
+    | "metafields-set-null-create"
+    | "metafields-set-missing-namespace"
+    | "metafields-set-missing-type"
+    | "metafields-set-over-limit" ->
       seed_metafields_set_preconditions(capture, proxy)
     "inventory-shipment-lifecycle-local-staging"
     | "inventory-shipment-partial-receive-update-delete-local-staging" ->

@@ -9,6 +9,54 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 92: product metafieldsSet seeded validation reads
+
+Promotes three additional captured Product `metafieldsSet` scenarios whose
+mutation payloads already matched Shopify but whose downstream Product reads
+needed the same captured precondition owner-metafield seed added in Pass 91:
+missing namespace, missing type, and over-limit validation.
+
+| Module                            | Change                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`  | Seeds captured Product metafields for three more `metafieldsSet` specs. |
+| `config/gleam-port-ci-gates.json` | Removes the three newly passing Product specs from expected failures.   |
+
+Validation:
+Focused JavaScript parity is green for `metafieldsSet-missing-namespace`,
+`metafieldsSet-missing-type`, and `metafieldsSet-over-limit`. The
+all-discovered JavaScript parity gate is green at 708 tests after manifest
+alignment. Product parity inventory remains 115 checked-in specs, with 86
+product specs executable in the Gleam parity suite and 29 product specs still
+expected-failing.
+
+### Findings
+
+- Some validation scenarios still perform downstream reads after a failed or
+  partially defaulted mutation; these need captured baseline owner state even
+  when the mutation payload itself is already correct.
+- Missing key, missing owner, and missing value remain a different class: the
+  captured Shopify response is GraphQL variable validation, not a
+  `metafieldsSet.userErrors` payload.
+
+### Risks / open items
+
+- GraphQL variable validation branches for malformed `metafieldsSet` inputs,
+  metafield delete roots, selling plans, media, advanced search,
+  duplicate/productSet/media roots, and broader validation atomicity parity
+  remain incomplete in Gleam.
+- Only 86 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 93 candidates
+
+- Continue product metafield mutation parity with `metafieldsDelete`,
+  `metafieldDelete`, or GraphQL variable validation branches.
+- Port selling-plan group behavior with strict captured lifecycle evidence.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 91: product metafieldsSet captured branches
 
 Promotes four captured Product `metafieldsSet` branches into the Gleam parity
