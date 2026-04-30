@@ -9,6 +9,72 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 31: admin-platform utility roots
+
+Ports a broad Admin Platform utility batch into the Gleam dispatcher. The new
+domain covers the safe local/no-data read roots (`publicApiVersions`, `node`,
+`nodes`, `job`, `domain`, `backupRegion`, `taxonomy`, `staffMember`, and
+`staffMembers`) plus the locally handled utility mutations
+`flowGenerateSignature`, `flowTriggerReceive`, and `backupRegionUpdate`.
+Successful mutations stage only in memory, preserve raw mutation documents in
+the mutation log, and keep sensitive Flow payload/signature data hashed in the
+state slice.
+
+The TypeScript Admin Platform implementation remains in place because the full
+generic Node resolver matrix still depends on unported product/customer/order,
+store-property, delivery-profile, markets, and payments substrate. This pass
+intentionally models the utility subset without claiming those downstream
+families are ported.
+
+| Module                                                           | Change                                                                                                                                                    |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                | Adds backup-region and Admin Platform Flow audit record types.                                                                                            |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                | Adds base/staged backup-region state plus staged Flow signature/trigger audit buckets and helpers.                                                        |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`       | Adds Admin Platform utility read serialization, staff access blockers, Flow utility mutation handling, backup-region local staging, and log recording.    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`          | Routes Admin Platform capabilities and legacy root detection for query and mutation paths.                                                                |
+| `gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam` | Adds direct and dispatcher coverage for utility reads, staff errors, backup-region read-after-write, Flow validation, Flow staging, and mutation logging. |
+
+Validation: `gleam test --target erlang` is green at 644 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container. The JavaScript
+target is green at 651 tests by compiling with the same container and running
+the generated gleeunit bundle with the host Node runtime because the container
+does not include `node`. Targeted touched-file `gleam format --check ...` is
+green.
+
+### Findings
+
+- Admin Platform is a coordinator surface: the utility roots can be ported now,
+  but full Relay `node`/`nodes` parity should expand only as owning resource
+  domains land in Gleam.
+- Validation-only utility mutations should not create mutation-log entries;
+  successful local Flow and backup-region mutations do record staged log
+  entries with original documents for commit replay.
+- Flow utility staging can keep the observable local behavior without storing
+  raw signatures or payloads in the state buckets.
+
+### Risks / open items
+
+- The current Gleam `flowGenerateSignature` signature is deterministic and
+  runtime-test-backed, but it is not yet HMAC-identical to the TypeScript helper;
+  live success parity is still deferred because the conformance app has no safe
+  valid Flow trigger capture.
+- Generic Node dispatch is still null-only for Admin Platform in Gleam until
+  the relevant resource domains and node serializers are ported.
+- Taxonomy remains limited to Shopify-like empty/no-data connection shapes; the
+  captured taxonomy hierarchy catalog still needs runner seeding and taxonomy
+  record state before parity can be enabled.
+
+### Pass 32 candidates
+
+- Port Admin Platform parity-runner seeding for utility roots that only require
+  backup-region/no-data behavior, then enable the safe parity subset.
+- Port Store Properties read substrate next so Admin Platform `domain`,
+  `shopAddress`, and `shopPolicy` node dispatch can resolve real local records.
+- Continue Marketing upstream hydration and parity-runner seeding so captured
+  Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
 ## 2026-04-30 — Pass 30: marketing state/read/mutation foundation
 
 Continues Marketing beyond the empty-read stub. The Gleam port now has

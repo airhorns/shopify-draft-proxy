@@ -14,16 +14,18 @@ import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/string
 import shopify_draft_proxy/state/types.{
+  type AdminPlatformFlowSignatureRecord, type AdminPlatformFlowTriggerRecord,
   type AppInstallationRecord, type AppOneTimePurchaseRecord, type AppRecord,
   type AppSubscriptionLineItemRecord, type AppSubscriptionRecord,
-  type AppUsageRecord, type BulkOperationRecord, type CartTransformRecord,
-  type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
-  type GiftCardConfigurationRecord, type GiftCardRecord, type LocaleRecord,
-  type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
-  type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
-  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
-  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
-  BulkOperationRecord, MarketingObject, MarketingString,
+  type AppUsageRecord, type BackupRegionRecord, type BulkOperationRecord,
+  type CartTransformRecord, type CustomerSegmentMembersQueryRecord,
+  type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
+  type GiftCardRecord, type LocaleRecord, type MarketingEngagementRecord,
+  type MarketingRecord, type MarketingValue, type SavedSearchRecord,
+  type SegmentRecord, type ShopLocaleRecord, type ShopifyFunctionRecord,
+  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
+  type WebhookSubscriptionRecord, BulkOperationRecord, MarketingObject,
+  MarketingString,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -32,6 +34,14 @@ import shopify_draft_proxy/state/types.{
 /// handlers port.
 pub type BaseState {
   BaseState(
+    backup_region: Option(BackupRegionRecord),
+    admin_platform_flow_signatures: Dict(
+      String,
+      AdminPlatformFlowSignatureRecord,
+    ),
+    admin_platform_flow_signature_order: List(String),
+    admin_platform_flow_triggers: Dict(String, AdminPlatformFlowTriggerRecord),
+    admin_platform_flow_trigger_order: List(String),
     saved_searches: Dict(String, SavedSearchRecord),
     saved_search_order: List(String),
     deleted_saved_search_ids: Dict(String, Bool),
@@ -94,6 +104,14 @@ pub type BaseState {
 /// Mirrors the staged slices of `StateSnapshot`.
 pub type StagedState {
   StagedState(
+    backup_region: Option(BackupRegionRecord),
+    admin_platform_flow_signatures: Dict(
+      String,
+      AdminPlatformFlowSignatureRecord,
+    ),
+    admin_platform_flow_signature_order: List(String),
+    admin_platform_flow_triggers: Dict(String, AdminPlatformFlowTriggerRecord),
+    admin_platform_flow_trigger_order: List(String),
     saved_searches: Dict(String, SavedSearchRecord),
     saved_search_order: List(String),
     deleted_saved_search_ids: Dict(String, Bool),
@@ -221,6 +239,11 @@ pub type Store {
 /// projected onto the slices we ship.
 pub fn empty_base_state() -> BaseState {
   BaseState(
+    backup_region: None,
+    admin_platform_flow_signatures: dict.new(),
+    admin_platform_flow_signature_order: [],
+    admin_platform_flow_triggers: dict.new(),
+    admin_platform_flow_trigger_order: [],
     saved_searches: dict.new(),
     saved_search_order: [],
     deleted_saved_search_ids: dict.new(),
@@ -279,6 +302,11 @@ pub fn empty_base_state() -> BaseState {
 /// An empty `StagedState`.
 pub fn empty_staged_state() -> StagedState {
   StagedState(
+    backup_region: None,
+    admin_platform_flow_signatures: dict.new(),
+    admin_platform_flow_signature_order: [],
+    admin_platform_flow_triggers: dict.new(),
+    admin_platform_flow_trigger_order: [],
     saved_searches: dict.new(),
     saved_search_order: [],
     deleted_saved_search_ids: dict.new(),
@@ -349,6 +377,108 @@ pub fn new() -> Store {
 /// snapshot — equivalent to a fresh store for the slices we ship).
 pub fn reset(_store: Store) -> Store {
   new()
+}
+
+// ---------------------------------------------------------------------------
+// Admin Platform utility slice
+// ---------------------------------------------------------------------------
+
+/// Seed or update the captured/effective backup region in base state.
+pub fn upsert_base_backup_region(
+  store: Store,
+  record: BackupRegionRecord,
+) -> Store {
+  Store(
+    ..store,
+    base_state: BaseState(..store.base_state, backup_region: Some(record)),
+  )
+}
+
+/// Stage the shop backup region. Mirrors `stageBackupRegion`.
+pub fn stage_backup_region(
+  store: Store,
+  record: BackupRegionRecord,
+) -> #(BackupRegionRecord, Store) {
+  #(
+    record,
+    Store(
+      ..store,
+      staged_state: StagedState(
+        ..store.staged_state,
+        backup_region: Some(record),
+      ),
+    ),
+  )
+}
+
+/// Return the staged backup region when present, otherwise the seeded base
+/// region. The domain handler applies the no-shop captured fallback.
+pub fn get_effective_backup_region(store: Store) -> Option(BackupRegionRecord) {
+  case store.staged_state.backup_region {
+    Some(region) -> Some(region)
+    None -> store.base_state.backup_region
+  }
+}
+
+/// Stage a local Flow signature audit record.
+pub fn stage_admin_platform_flow_signature(
+  store: Store,
+  record: AdminPlatformFlowSignatureRecord,
+) -> #(AdminPlatformFlowSignatureRecord, Store) {
+  let staged = store.staged_state
+  let known =
+    list.contains(staged.admin_platform_flow_signature_order, record.id)
+    || dict_has(staged.admin_platform_flow_signatures, record.id)
+  let order = case known {
+    True -> staged.admin_platform_flow_signature_order
+    False ->
+      list.append(staged.admin_platform_flow_signature_order, [record.id])
+  }
+  #(
+    record,
+    Store(
+      ..store,
+      staged_state: StagedState(
+        ..staged,
+        admin_platform_flow_signatures: dict.insert(
+          staged.admin_platform_flow_signatures,
+          record.id,
+          record,
+        ),
+        admin_platform_flow_signature_order: order,
+      ),
+    ),
+  )
+}
+
+/// Stage a local Flow trigger receipt audit record.
+pub fn stage_admin_platform_flow_trigger(
+  store: Store,
+  record: AdminPlatformFlowTriggerRecord,
+) -> #(AdminPlatformFlowTriggerRecord, Store) {
+  let staged = store.staged_state
+  let known =
+    list.contains(staged.admin_platform_flow_trigger_order, record.id)
+    || dict_has(staged.admin_platform_flow_triggers, record.id)
+  let order = case known {
+    True -> staged.admin_platform_flow_trigger_order
+    False -> list.append(staged.admin_platform_flow_trigger_order, [record.id])
+  }
+  #(
+    record,
+    Store(
+      ..store,
+      staged_state: StagedState(
+        ..staged,
+        admin_platform_flow_triggers: dict.insert(
+          staged.admin_platform_flow_triggers,
+          record.id,
+          record,
+        ),
+        admin_platform_flow_trigger_order: order,
+      ),
+    ),
+  )
 }
 
 // ---------------------------------------------------------------------------
