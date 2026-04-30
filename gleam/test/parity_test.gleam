@@ -108,6 +108,10 @@ pub fn product_metafields_read_test() {
   check("config/parity-specs/products/product-metafields-read.json")
 }
 
+pub fn metafields_set_live_parity_test() {
+  check("config/parity-specs/products/metafieldsSet-parity-plan.json")
+}
+
 pub fn product_detail_read_test() {
   check("config/parity-specs/products/product-detail-read.json")
 }

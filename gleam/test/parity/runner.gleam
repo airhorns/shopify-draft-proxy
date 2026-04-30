@@ -279,6 +279,8 @@ fn seed_capture_preconditions(
       seed_product_feedback_preconditions(capture, proxy)
     "product-metafields-read" | "admin-platform-metafield-node-reads" ->
       seed_product_metafields_preconditions(capture, proxy)
+    "metafields-set-live-parity" ->
+      seed_metafields_set_preconditions(capture, proxy)
     "inventory-shipment-lifecycle-local-staging"
     | "inventory-shipment-partial-receive-update-delete-local-staging" ->
       seed_inventory_shipment_preconditions(capture, proxy)
@@ -466,6 +468,86 @@ fn collect_product_metafield_sources(
     |> option.then(read_array_field(_, "nodes"))
     |> option.unwrap([])
   list.append(primary, list.append(first_page, next_page))
+}
+
+fn seed_metafields_set_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let inputs = case
+    jsonpath.lookup(capture, "$.mutation.variables.metafields")
+  {
+    Some(JArray(items)) -> items
+    _ -> []
+  }
+  let owner_ids =
+    inputs
+    |> list.filter_map(fn(input) {
+      case read_string_field(input, "ownerId") {
+        Some(owner_id) -> Ok(owner_id)
+        None -> Error(Nil)
+      }
+    })
+    |> dedupe_strings_preserving_order
+  let products =
+    owner_ids
+    |> list.filter_map(fn(owner_id) {
+      make_seed_product_relaxed(JObject([#("id", JString(owner_id))]))
+    })
+  let metafield_sources = case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.metafieldsSet.metafields",
+    )
+  {
+    Some(JArray(items)) -> items
+    _ -> []
+  }
+  let metafields =
+    metafield_sources
+    |> list.filter_map(fn(source) {
+      case owner_id_for_metafields_set_source(source, inputs) {
+        Some(owner_id) ->
+          make_seed_product_metafield_for_owner(source, owner_id)
+        None -> Error(Nil)
+      }
+    })
+    |> dedupe_product_metafields
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  let store =
+    list.fold(owner_ids, store, fn(current, owner_id) {
+      let owner_metafields =
+        metafields
+        |> list.filter(fn(metafield) { metafield.owner_id == owner_id })
+      store_mod.replace_base_metafields_for_owner(
+        current,
+        owner_id,
+        owner_metafields,
+      )
+    })
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn owner_id_for_metafields_set_source(
+  source: JsonValue,
+  inputs: List(JsonValue),
+) -> Option(String) {
+  let namespace = read_string_field(source, "namespace")
+  let key = read_string_field(source, "key")
+  inputs
+  |> list.find_map(fn(input) {
+    case
+      read_string_field(input, "ownerId"),
+      read_string_field(input, "namespace"),
+      read_string_field(input, "key")
+    {
+      Some(owner_id), input_namespace, input_key
+        if input_namespace == namespace && input_key == key
+      -> Ok(owner_id)
+      _, _, _ -> Error(Nil)
+    }
+  })
+  |> option.from_result
 }
 
 fn seed_inventory_shipment_preconditions(

@@ -9,6 +9,65 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 89: metafieldsSet product downstream parity
+
+Promotes the captured `metafields-set-live-parity` Product spec into the Gleam
+parity suite. The pass keeps `metafieldsSet` in the metafields domain, but
+teaches Product reads to expose a narrow staged owner view when a successful
+product-owned metafield mutation has local metafields for a Product GID before
+the Products slice has a full Product record.
+
+The parity runner seeds the captured existing product metafields from the
+mutation response before replay. That matches the fixture's update semantics:
+Shopify returned stable existing Metafield IDs, so the local replay updates
+seeded base metafields instead of minting new IDs. The checked-in request,
+fixture, and comparison contract stay unchanged.
+
+| Module                                               | Change                                                               |
+| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Serializes staged Product metafield owner views for Product GIDs.    |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured existing metafields for `metafields-set-live-parity`. |
+| `gleam/test/parity_test.gleam`                       | Enables the strict `metafields-set-live-parity` product parity spec. |
+
+Validation:
+Focused JavaScript parity for `metafields_set_live_parity_test`,
+`product_metafields_read_test`, `custom_data_metafield_type_matrix_test`, and
+`metafield_definition_lifecycle_mutations_test` is green at 803 tests. Full
+`gleam test --target javascript` is green at 803 tests on the host Node
+runtime. Host `gleam test --target erlang` still fails before tests execute
+with the known `undef` runner issue; after clearing host-built Erlang artifacts,
+the Docker Erlang fallback is green at 800 tests. Product parity inventory
+remains 115 checked-in specs, with 79 product specs executable in the Gleam
+parity suite plus the admin-platform ProductOption node scenario after this
+pass.
+
+### Findings
+
+- The first replay after enabling the spec produced correct mutation and
+  downstream shapes but synthetic Metafield IDs; the capture is an update of
+  existing product metafields, not a first create.
+- A staged product-owned metafield mutation can make the Products dispatcher
+  responsible for `product(id:) { id metafield metafields }` even when only the
+  metafield slice has local owner state.
+
+### Risks / open items
+
+- Metafield delete/CAS/validation branches, selling plans, media, advanced
+  search, duplicate/productSet/media roots, and broader validation atomicity
+  parity remain incomplete in Gleam.
+- Only 79 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 90 candidates
+
+- Continue product metafield mutation parity with `metafieldsDelete`,
+  `metafieldDelete`, CAS, or validation branches.
+- Port selling-plan group behavior with strict captured lifecycle evidence.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 88: product metafield read bridge
 
 Completes strict captured product-owned metafield reads through the Gleam

@@ -387,7 +387,17 @@ fn serialize_product_root(
             variables,
             fragments,
           )
-        None -> json.null()
+        None ->
+          case has_effective_product_metafield_owner(store, id) {
+            True ->
+              serialize_product_metafield_owner_selection(
+                store,
+                id,
+                field,
+                variables,
+              )
+            False -> json.null()
+          }
       }
     None -> json.null()
   }
@@ -453,13 +463,18 @@ fn serialize_product_selection(
           case name.value {
             "metafield" -> #(
               key,
-              serialize_product_metafield(store, product, selection, variables),
+              serialize_product_metafield(
+                store,
+                product.id,
+                selection,
+                variables,
+              ),
             )
             "metafields" -> #(
               key,
               serialize_product_metafields_connection(
                 store,
-                product,
+                product.id,
                 selection,
                 variables,
               ),
@@ -475,16 +490,63 @@ fn serialize_product_selection(
   json.object(entries)
 }
 
+fn serialize_product_metafield_owner_selection(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Json {
+  let selections =
+    get_selected_child_fields(field, default_selected_field_options())
+  let entries =
+    list.map(selections, fn(selection) {
+      let key = get_field_response_key(selection)
+      case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "__typename" -> #(key, json.string("Product"))
+            "id" -> #(key, json.string(owner_id))
+            "metafield" -> #(
+              key,
+              serialize_product_metafield(store, owner_id, selection, variables),
+            )
+            "metafields" -> #(
+              key,
+              serialize_product_metafields_connection(
+                store,
+                owner_id,
+                selection,
+                variables,
+              ),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn has_effective_product_metafield_owner(
+  store: Store,
+  owner_id: String,
+) -> Bool {
+  case store.get_effective_metafields_by_owner_id(store, owner_id) {
+    [] -> False
+    _ -> True
+  }
+}
+
 fn serialize_product_metafield(
   store: Store,
-  product: ProductRecord,
+  owner_id: String,
   field: Selection,
   variables: Dict(String, ResolvedValue),
 ) -> Json {
   let namespace = read_string_argument(field, variables, "namespace")
   let key = read_string_argument(field, variables, "key")
   let found =
-    store.get_effective_metafields_by_owner_id(store, product.id)
+    store.get_effective_metafields_by_owner_id(store, owner_id)
     |> list.find(fn(metafield) {
       metafield.namespace == option.unwrap(namespace, "")
       && metafield.key == option.unwrap(key, "")
@@ -503,13 +565,13 @@ fn serialize_product_metafield(
 
 fn serialize_product_metafields_connection(
   store: Store,
-  product: ProductRecord,
+  owner_id: String,
   field: Selection,
   variables: Dict(String, ResolvedValue),
 ) -> Json {
   let namespace = read_string_argument(field, variables, "namespace")
   let records =
-    store.get_effective_metafields_by_owner_id(store, product.id)
+    store.get_effective_metafields_by_owner_id(store, owner_id)
     |> list.filter(fn(metafield) {
       case namespace {
         Some(ns) -> metafield.namespace == ns
