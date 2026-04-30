@@ -33,7 +33,7 @@ export interface DraftProxyGraphQLRequestOptions {
   headers?: Record<string, DraftProxyHeaderValue>;
 }
 
-export interface DraftProxyOptions {
+export interface DraftProxyOptions extends AppConfig {
   state?: DraftProxyStateDump;
 }
 

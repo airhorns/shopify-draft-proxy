@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 41: Elixir embedder wrapper smoke
+## 2026-04-30 — Pass 45: Elixir embedder wrapper smoke
 
 Makes the BEAM embedder path usable from Elixir without application code
 manipulating raw Gleam tuple shapes. The smoke project now includes a thin
@@ -62,7 +62,7 @@ javascript` is green on the host Node runtime.
   companion Elixir source module or replace it with a generated BEAM-friendly
   facade.
 
-### Pass 42 candidates
+### Pass 46 candidates
 
 - Start Shipping/Fulfillments substrate so fulfillment-service,
   carrier-service, delivery-profile, and shipping-settings roots can consume
@@ -71,6 +71,227 @@ javascript` is green on the host Node runtime.
   product parity enablement, and bulk-operation product JSONL export.
 - Continue Marketing upstream hydration and parity-runner seeding so captured
   Marketing read/update scenarios can execute against the Gleam proxy.
+
+---
+
+## 2026-04-30 — Pass 44: JS embeddable shim rework
+
+Reworks the JavaScript embeddable shim on top of the full-state dump substrate
+from Pass 36. The package-facing API now uses a single `createDraftProxy(...)`
+options object that carries both config fields and optional restore state, and
+the shim routes `processGraphQLRequest` through Gleam's own default Admin
+GraphQL path construction instead of duplicating the route string in TypeScript.
+The async `commit` wrapper remains TS-friendly while replaying the original
+staged mutation log through the Gleam runtime.
+
+| Module                                                  | Change                                                                                                                                            |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/js/src/runtime.ts`                               | Restores `processGraphQLRequest` and async `commit`, collapses construction to one options object, and delegates GraphQL route defaults to Gleam. |
+| `gleam/js/src/types.ts`                                 | Makes `DraftProxyOptions` the public construction object by extending `AppConfig` with optional restore state.                                    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Adds a JavaScript-target async `process_graphql_request_async` convenience wrapper using the shared Gleam default path helper.                    |
+| `tests/integration/gleam-interop.test.ts`               | Updates the package-level lifecycle smoke to restore state through the one-object construction API.                                               |
+
+Validation: `corepack pnpm build`, `corepack pnpm gleam:smoke:js`,
+`corepack pnpm gleam:test:js`, `corepack pnpm lint`, `corepack pnpm --dir
+gleam/js build`, `corepack pnpm --dir gleam/js test`, and `git diff --check`
+are green. `corepack pnpm gleam:test:erlang` fails on the host Erlang runtime
+with an `undef` boot error, so Erlang target validation used the established
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container fallback and is
+green at 672 tests.
+
+### Findings
+
+- `origin/main` already moved state dump/restore to the full
+  `state/serialization.gleam` substrate, so the review request for generic
+  state persistence is satisfied by preserving that merge result instead of
+  reintroducing handler-specific saved-search dump code.
+- Keeping GraphQL default path construction in Gleam avoids two JS/TS copies of
+  the default Admin API route while still letting the JS shim use the async
+  live-hybrid path.
+
+### Risks / open items
+
+- `createApp` and `loadConfig` remain explicit not-implemented shims until the
+  broader HTTP adapter work lands.
+
+### Pass 45 candidates
+
+- Continue reducing the remaining expected Gleam parity failures tracked by the
+  CI gate manifest.
+- Extend package-level consumer tests as more domains become exposed through the
+  Gleam shim.
+
+---
+
+## 2026-04-30 — Pass 43: privacy data-sale opt-out parity
+
+Ports the privacy-owned `dataSaleOptOut` mutation into a dedicated Gleam privacy
+module while keeping the downstream read effect on customer state. The Gleam
+dispatcher now routes only that privacy mutation root locally; other privacy
+roots remain unsupported until their own shop privacy behavior is modeled.
+
+The privacy parity spec is now executable Gleam evidence. The runner seeds the
+captured downstream customer so the mutation returns the recorded customer id,
+then strict comparisons cover the opt-out payload, downstream customer reads,
+repeat idempotency, and invalid-email `FAILED` user error shape. The original
+TypeScript runtime and TypeScript tests remain in place for the incremental port
+guardrail.
+
+| Module                                                               | Change                                                                                                           |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/privacy.gleam`                  | Adds privacy-domain local staging for `dataSaleOptOut`, including existing/unknown customer effects and errors.  |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`                | Removes `dataSaleOptOut` from customer mutation dispatch while preserving customer read serialization.           |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | Adds `PrivacyDomain` mutation routing without adding privacy query/root breadth.                                 |
+| `gleam/test/shopify_draft_proxy/proxy/privacy_test.gleam`            | Covers existing-customer opt-out readback/logs, unknown-email creation, invalid-email errors, unsupported roots. |
+| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json` | Enables privacy parity by seeding capture customer state and removing the privacy expected-failure entry.        |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Records the privacy/customer ownership note for future domain passes.                                            |
+
+Validation: `gleam test --target javascript` is green at 684 tests. The host
+`gleam test --target erlang` fails because local Erlang/OTP is 25 while
+`gleam_json` requires OTP 27; the equivalent OTP 27 container run is green at
+680 tests:
+`docker run --rm -v /home/airhorns/.local/bin/gleam:/usr/local/bin/gleam:ro -v /home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497:/home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497 -w /home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-497/gleam erlang:27-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`.
+
+### Findings
+
+- `dataSaleOptOut` belongs to privacy capability/log metadata even though the
+  observable GraphQL field is `Customer.dataSaleOptOut`.
+- The captured parity scenario uses an existing customer id, so the Gleam runner
+  must seed that customer from the downstream read before replaying the primary
+  mutation instead of adding synthetic-id expected differences.
+- The synced `origin/main` parity gate still carried an expected-failure entry
+  for `localization-disable-clears-translations` even though that scenario now
+  passes; the stale entry was removed alongside the privacy gate update.
+
+### Risks / open items
+
+- Shop-level privacy settings roots are still unsupported by design. This pass
+  does not model `privacySettings` or consent-policy privacy roots.
+- The TypeScript privacy/customer runtime remains until a later final cutover
+  pass verifies repository-wide Gleam parity.
+- Local host Erlang validation requires OTP 27; OTP 25 can compile but fails at
+  runtime through `gleam_json`.
+
+### Pass 44 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
+
+---
+
+## 2026-04-30 — Pass 42: webhook parity evidence metadata with TS retained
+
+Records the completed Webhooks Gleam parity evidence in repository metadata
+while leaving the legacy TypeScript runtime, dispatcher hooks, and TypeScript
+tests in place. This pass does not change webhook runtime code; it updates the
+checked-in parity specs and operation registry so the already-present Gleam
+parity/direct tests are listed beside the retained TypeScript evidence.
+
+| Module                                                              | Change                                                                                                                          |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `config/parity-specs/webhooks/*.json`                               | Adds `gleam/test/parity_test.gleam` and direct Gleam webhook/log tests while keeping existing TypeScript runtime-test evidence. |
+| `config/operation-registry.json`                                    | Adds Gleam runtime-test metadata and support notes while making the retained TypeScript runtime boundary explicit.              |
+| `gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam` | Regenerates the vendored Gleam registry from the updated JSON source.                                                           |
+| `.agents/skills/gleam-port/SKILL.md`                                | Records that TypeScript runtime retirement belongs to an explicit final cleanup phase, not routine per-domain parity handoff.   |
+
+Validation: `gleam test --target javascript`, the Erlang target via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`, `corepack pnpm typecheck`,
+`corepack pnpm conformance:check`, `corepack pnpm conformance:parity`,
+`corepack pnpm lint`, and `git diff --check` are green.
+
+### Findings
+
+- The webhook parity specs can remain byte-faithful on request/capture data;
+  runtime-test metadata now names both retained TypeScript coverage and the
+  already-present Gleam parity/direct tests.
+- Reviewer feedback clarified that TypeScript runtime retirement should wait
+  for the final cleanup phase even when a domain reaches Gleam parity.
+- Erlang validation must mount the repository root at the expected relative path
+  when using Docker; mounting only `gleam/` breaks parity fixtures resolved via
+  `../config` and `../fixtures`.
+
+### Risks / open items
+
+- The TypeScript HTTP dispatcher still handles webhook roots until the final
+  cleanup phase; Webhooks are also owned by the Gleam embeddable/parity path.
+
+### Pass 42 candidates
+
+- Add a fixture-bundle snapshot loader once parity runner scenarios need
+  recorded GraphQL bundle startup state.
+- Continue Store Properties location / fulfillment-service roots now that
+  state dump/restore can persist the expanded store shape.
+- Add broader runtime smoke around `process_request_async` live-hybrid
+  passthrough and commit replay once test transport injection is exposed through
+  the JS shim.
+
+---
+
+## 2026-04-30 — Pass 41: gift-card parity completion
+
+Completes the Gift Cards Gleam parity handoff while keeping the TypeScript
+runtime in place. Both checked-in gift-card parity specs now execute in the
+Gleam parity suite: the existing search-filter scenario remains enabled, and
+the lifecycle scenario now runs against the captured fixture with seeded
+gift-card/configuration preconditions. The parity runner also decodes and
+honors target-level `selectedPaths`, which is required by the lifecycle spec's
+mutation-payload comparisons and preserves the checked-in capture/request shape
+without adding expected differences.
+
+The TypeScript gift-card runtime handler and legacy TypeScript integration flow
+remain present for this pass. That keeps the public TypeScript/Koa proxy and
+existing runtime coverage unchanged while the Gleam port gains executable
+parity evidence.
+
+| Module                                                             | Change                                                                                                                |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `config/gleam-port-ci-gates.json` / `gleam/test/parity_test.gleam` | Removes `gift-card-lifecycle` from expected failures so discovery-based Gleam parity treats it as passing evidence.   |
+| `gleam/test/parity/runner.gleam`                                   | Seeds lifecycle/search captures from the gift-card conformance fixture before replaying local mutation/read requests. |
+| `gleam/test/parity/spec.gleam` / `gleam/test/parity/diff.gleam`    | Adds target-level `selectedPaths` decoding and selected-slice diffing for parity specs.                               |
+| `src/proxy/gift-cards.ts` / TypeScript gift-card test flow         | Remains in place as the legacy TypeScript runtime and integration coverage until a later explicit removal pass.       |
+| `config/operation-registry.json` and gift-card parity specs        | Keeps legacy TS coverage visible while also pointing to the new Gleam gift-card query/mutation tests.                 |
+
+Validation after rework and the latest `origin/main` merge: `gleam test
+--target javascript` was green at 676 tests. `gleam test --target erlang` was
+green at 672 tests via the `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`
+container because the host lacks `escript`. `corepack pnpm typecheck`,
+`corepack pnpm conformance:check`, `corepack pnpm conformance:parity`,
+`corepack pnpm lint`, `corepack pnpm gleam:port:coverage`, `corepack pnpm
+gleam:registry:check`, `corepack pnpm conformance:capture:check`, `corepack
+pnpm build`, targeted `corepack pnpm vitest run
+tests/integration/gift-card-flow.test.ts`, and `git diff --check` were green.
+
+### Findings
+
+- The gift-card lifecycle parity spec already had enough captured evidence, but
+  it was not wired into the Gleam parity suite.
+- The Gleam parity spec decoder previously ignored `selectedPaths`, so enabling
+  the lifecycle spec compared full mutation payload objects and reported
+  expected unselected Shopify fields as missing from the proxy selection.
+- Gift-card capture seeding can reuse the same lifecycle precondition loader for
+  both lifecycle and search-filter parity specs.
+
+### Risks / open items
+
+- The TypeScript gift-card runtime still needs a later explicit cutover/removal
+  pass once reviewers are ready to retire the public TS handler path.
+- Admin Platform generic Node resolution for `GiftCard` still depends on the
+  TypeScript runtime in Node; the Gleam Admin Platform resolver should add
+  GiftCard node dispatch when a future pass broadens cross-domain Relay node
+  coverage.
+
+### Pass 42 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
 
 ---
 
@@ -273,6 +494,77 @@ extra registrations.
   and collection records.
 - Continue Markets or Online Store ports where Store Properties shop/location
   read effects are now available as local Gleam state.
+
+---
+
+## 2026-04-30 — Pass 33: customer domain foundation and parity coverage
+
+Ports the Customer domain into the Gleam dispatcher. The new module models
+customer create/update/delete/set, address lifecycle, consent updates, tax
+exemptions, merge/merge status, account-page reads, identifier reads,
+customer metafields, customer-owned order/event summaries, outbound side-effect
+validation, payment-method update-email intent, data-sale opt-out, and store
+credit credit/debit/read behavior. Customer state is normalized in the Gleam
+store, merge redirects and attached-resource transfer stay local, and supported
+customer mutations stage without runtime Shopify writes.
+
+The TypeScript Customer runtime remains in place for this pass. The Gleam
+parity path is green for the checked-in customer fixtures, but the repository
+still has TypeScript integration surfaces outside this port that need a final
+domain-removal pass before deleting `src/proxy/customers.ts`.
+
+| Module                                                          | Change                                                                                                                                                                     |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`           | Adds Customer query/mutation handling, local validation, projection, merge staging, store-credit staging, and customer-owned subresource reads.                            |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`         | Routes Customer capabilities and legacy customer roots through the new domain.                                                                                             |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`               | Adds customer, address, metafield, payment-method, store-credit, account-page, merge, order-summary, and event-summary records.                                            |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`               | Adds normalized Customer-domain base/staged state, effective reads, merge redirects, address ordering, nested subresource helpers, and state buckets.                      |
+| `gleam/test/parity/runner.gleam`                                | Seeds customer captures, customer connection pages, selected-path comparison inputs, variable substitutions, store-credit/account/order fixtures, and nested subresources. |
+| `gleam/test/parity/diff.gleam` / `gleam/test/parity/spec.gleam` | Extends parity comparison support for selected paths and ignored expected-difference subtrees used by customer specs.                                                      |
+| `gleam/test/parity_test.gleam`                                  | Enables all 28 checked-in Customer parity specs as executable Gleam parity evidence.                                                                                       |
+| `gleam/test/shopify_draft_proxy/proxy/customers_test.gleam`     | Adds direct coverage for customer lifecycle, address lifecycle, and store-credit local staging.                                                                            |
+
+Validation: `gleam test --target javascript` is green at 701 tests on the host
+Node runtime. `gleam test --target erlang` is green at 697 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container because the host
+lacks `escript`. The Customer parity inventory has 28 specs under
+`config/parity-specs/customers/`, and all are now enabled in
+`gleam/test/parity_test.gleam`.
+
+### Findings
+
+- Customer capture seeding must be deterministic across JavaScript and Erlang:
+  captured JSON object traversal order can differ by target, so sparse/rich
+  duplicate seed records need commutative merge rules rather than last-write
+  wins.
+- Merge attached-resource parity depends on transferring source customer
+  addresses, metafields, and customer-owned order summaries before the source
+  tombstone suppresses reads.
+- Some customer parity captures compare Shopify connection pages that expose
+  only captured window data. The runner now seeds captured customer connection
+  cursors/pageInfo and the customer projector preserves those windows without
+  inventing unrelated local rows.
+
+### Risks / open items
+
+- The TypeScript Customer runtime has not been deleted in this pass; keep it
+  until the remaining TypeScript integration handoff and any non-parity callers
+  have been audited against the Gleam dispatcher.
+- Customer-owned order/event summaries are intentionally minimal and scoped to
+  the fields present in the customer parity captures. Full order-domain
+  behavior remains owned by future order passes.
+- Advanced customer search is fixture-backed for captured complex queries; a
+  general Shopify search grammar port remains a future broadening task.
+
+### Pass 34 candidates
+
+- Run the final Customer removal pass: audit TypeScript integration callers,
+  remove `src/proxy/customers.ts` only after equivalent Gleam runtime paths are
+  the sole supported implementation, and keep customer parity green.
+- Continue the Orders Gleam port so `orderCustomerSet` / `orderCustomerRemove`
+  can move from the Customer bridge into a broader normalized order graph.
+- Expand shared search-query parsing in Gleam before claiming general advanced
+  Customer search semantics beyond the captured fixtures.
 
 ---
 

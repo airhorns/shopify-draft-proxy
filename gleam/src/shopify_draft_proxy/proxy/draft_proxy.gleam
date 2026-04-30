@@ -33,6 +33,7 @@ import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/bulk_operations
 import shopify_draft_proxy/proxy/capabilities
 import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/proxy/customers
 import shopify_draft_proxy/proxy/delivery_settings
 import shopify_draft_proxy/proxy/events
 import shopify_draft_proxy/proxy/functions
@@ -45,6 +46,7 @@ import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/operation_registry_data
+import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
@@ -990,6 +992,48 @@ fn route_mutation(
         )
         Error(_) -> #(bad_request("Failed to handle products mutation"), proxy)
       }
+    Ok(PrivacyDomain) ->
+      case
+        privacy.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle privacy mutation"), proxy)
+      }
+    Ok(CustomersDomain) ->
+      case
+        customers.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(bad_request("Failed to handle customers mutation"), proxy)
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -1123,6 +1167,19 @@ fn route_domain_query(
         products.process(proxy.store, query, variables),
         "Failed to handle products query",
       )
+    Ok(CustomersDomain) ->
+      respond(
+        proxy,
+        customers.process(proxy.store, query, variables),
+        "Failed to handle customers query",
+      )
+    Ok(PrivacyDomain) -> #(
+      bad_request(
+        "No domain dispatcher implemented for root field: "
+        <> primary_root_field,
+      ),
+      proxy,
+    )
     Error(_) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -1151,6 +1208,8 @@ type Domain {
   AdminPlatformDomain
   StorePropertiesDomain
   ProductsDomain
+  PrivacyDomain
+  CustomersDomain
 }
 
 /// Resolve a query operation's domain. The registry decides whether a
@@ -1288,68 +1347,75 @@ fn local_query_dispatch_domain(
                           case segments.is_segment_query_root(name) {
                             True -> Ok(SegmentsDomain)
                             False ->
-                              case
-                                metafield_definitions.is_metafield_definitions_query_root(
-                                  name,
-                                )
-                              {
-                                True -> Ok(MetafieldDefinitionsDomain)
+                              case customers.is_customer_query_root(name) {
+                                True -> Ok(CustomersDomain)
                                 False ->
                                   case
-                                    localization.is_localization_query_root(
+                                    metafield_definitions.is_metafield_definitions_query_root(
                                       name,
                                     )
                                   {
-                                    True -> Ok(LocalizationDomain)
+                                    True -> Ok(MetafieldDefinitionsDomain)
                                     False ->
                                       case
-                                        metaobject_definitions.is_metaobject_definitions_query_root(
+                                        localization.is_localization_query_root(
                                           name,
                                         )
                                       {
-                                        True -> Ok(MetaobjectDefinitionsDomain)
+                                        True -> Ok(LocalizationDomain)
                                         False ->
                                           case
-                                            marketing.is_marketing_query_root(
+                                            metaobject_definitions.is_metaobject_definitions_query_root(
                                               name,
                                             )
                                           {
-                                            True -> Ok(MarketingDomain)
+                                            True ->
+                                              Ok(MetaobjectDefinitionsDomain)
                                             False ->
                                               case
-                                                bulk_operations.is_bulk_operations_query_root(
+                                                marketing.is_marketing_query_root(
                                                   name,
                                                 )
                                               {
-                                                True -> Ok(BulkOperationsDomain)
+                                                True -> Ok(MarketingDomain)
                                                 False ->
                                                   case
-                                                    media.is_media_query_root(
+                                                    bulk_operations.is_bulk_operations_query_root(
                                                       name,
                                                     )
                                                   {
-                                                    True -> Ok(MediaDomain)
+                                                    True ->
+                                                      Ok(BulkOperationsDomain)
                                                     False ->
                                                       case
-                                                        admin_platform.is_admin_platform_query_root(
+                                                        media.is_media_query_root(
                                                           name,
                                                         )
                                                       {
-                                                        True ->
-                                                          Ok(
-                                                            AdminPlatformDomain,
-                                                          )
+                                                        True -> Ok(MediaDomain)
                                                         False ->
                                                           case
-                                                            store_properties.is_store_properties_query_root(
+                                                            admin_platform.is_admin_platform_query_root(
                                                               name,
                                                             )
                                                           {
                                                             True ->
                                                               Ok(
-                                                                StorePropertiesDomain,
+                                                                AdminPlatformDomain,
                                                               )
-                                                            False -> Error(Nil)
+                                                            False ->
+                                                              case
+                                                                store_properties.is_store_properties_query_root(
+                                                                  name,
+                                                                )
+                                                              {
+                                                                True ->
+                                                                  Ok(
+                                                                    StorePropertiesDomain,
+                                                                  )
+                                                                False ->
+                                                                  Error(Nil)
+                                                              }
                                                           }
                                                       }
                                                   }
@@ -1493,7 +1559,30 @@ fn local_mutation_dispatch_domain(name: String) -> Result(Domain, Nil) {
                                                               Ok(
                                                                 AdminPlatformDomain,
                                                               )
-                                                            False -> Error(Nil)
+                                                            False ->
+                                                              case
+                                                                privacy.is_privacy_mutation_root(
+                                                                  name,
+                                                                )
+                                                              {
+                                                                True ->
+                                                                  Ok(
+                                                                    PrivacyDomain,
+                                                                  )
+                                                                False ->
+                                                                  case
+                                                                    customers.is_customer_mutation_root(
+                                                                      name,
+                                                                    )
+                                                                  {
+                                                                    True ->
+                                                                      Ok(
+                                                                        CustomersDomain,
+                                                                      )
+                                                                    False ->
+                                                                      Error(Nil)
+                                                                  }
+                                                              }
                                                           }
                                                       }
                                                   }
@@ -1645,6 +1734,29 @@ pub fn process_graphql_request(
       ))
   }
   process_request(
+    proxy,
+    Request(method: "POST", path: path, headers: options.headers, body: body),
+  )
+}
+
+@target(javascript)
+/// Async JavaScript-target variant of `process_graphql_request`.
+/// Keeps the default GraphQL route construction in Gleam while still
+/// allowing live-hybrid passthrough requests to await upstream `fetch`.
+pub fn process_graphql_request_async(
+  proxy: DraftProxy,
+  body: String,
+  options: GraphQLRequestOptions,
+) -> Promise(#(Response, DraftProxy)) {
+  let path = case options.path {
+    Some(p) -> p
+    None ->
+      default_graphql_path(option.unwrap(
+        options.api_version,
+        default_admin_api_version,
+      ))
+  }
+  process_request_async(
     proxy,
     Request(method: "POST", path: path, headers: options.headers, body: body),
   )
