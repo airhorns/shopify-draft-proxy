@@ -2,6 +2,7 @@ defmodule ShopifyDraftProxy.InteropTest do
   use ExUnit.Case, async: true
 
   alias :shopify_draft_proxy@proxy@draft_proxy, as: DraftProxy
+  alias :shopify_draft_proxy@proxy@commit, as: Commit
 
   test "phase 0 hello/0 is callable from elixir and returns the expected marker" do
     assert :shopify_draft_proxy.hello() ==
@@ -108,6 +109,56 @@ defmodule ShopifyDraftProxy.InteropTest do
     assert body =~ ~s("ok":true)
     assert body =~ ~s("stopIndex":null)
     assert body =~ ~s("attempts":[])
+  end
+
+  test "DraftProxy.commit/2 is reachable on the Erlang target with an empty log" do
+    proxy = DraftProxy.new()
+
+    {{:response, 200, json_tree, _}, _next} = DraftProxy.commit(proxy, %{})
+
+    body = :gleam@json.to_string(json_tree)
+    assert body =~ ~s("ok":true)
+    assert body =~ ~s("attempts":[])
+  end
+
+  test "Commit.run_commit_sync/4 lets Elixir consumers inject a fake HTTP send" do
+    proxy = DraftProxy.new()
+    options = DraftProxy.default_graphql_request_options()
+
+    body =
+      ~s|{"query":"mutation { savedSearchCreate(input: { name: \\"Smoke\\", query: \\"tag:vip\\", resourceType: ORDER }) { savedSearch { id } userErrors { field message } } }"}|
+
+    {_, mutated} = DraftProxy.process_graphql_request(proxy, body, options)
+    store = elem(mutated, 3)
+
+    upstream_body =
+      ~s({"data":{"savedSearchCreate":{"savedSearch":{"id":"gid://shopify/SavedSearch/12345"},"userErrors":[]}}})
+
+    fake_send = fn _request -> {:ok, {:http_outcome, 200, upstream_body}} end
+
+    {_next_store, meta} =
+      Commit.run_commit_sync(store, "https://shop.example", %{}, fake_send)
+
+    assert {:meta_commit_response, true, :none, attempts} = meta
+    assert length(attempts) == 1
+  end
+
+  test "Commit.run_commit_sync/4 surfaces transport errors from the injected send" do
+    proxy = DraftProxy.new()
+    options = DraftProxy.default_graphql_request_options()
+
+    body =
+      ~s|{"query":"mutation { savedSearchCreate(input: { name: \\"Smoke\\", query: \\"tag:vip\\", resourceType: ORDER }) { savedSearch { id } userErrors { field message } } }"}|
+
+    {_, mutated} = DraftProxy.process_graphql_request(proxy, body, options)
+    store = elem(mutated, 3)
+
+    fake_send = fn _request -> {:error, {:commit_transport_error, "boom"}} end
+
+    {_next_store, meta} =
+      Commit.run_commit_sync(store, "https://shop.example", %{}, fake_send)
+
+    assert {:meta_commit_response, false, {:some, 0}, _attempts} = meta
   end
 
   test "dump_state + restore_state round-trips synthetic identity counters" do
