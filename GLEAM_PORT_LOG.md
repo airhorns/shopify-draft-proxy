@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 80: locations catalog read
+
+Completes the captured top-level `locations` catalog read in the Gleam Products
+handler. The pass adds a base location catalog slice, routes `locations` through
+the Products dispatcher, serializes selected `Location` fields through the
+shared connection helpers, and preserves captured opaque cursors/pageInfo for
+strict replay.
+
+The pass promotes `locations-catalog-read` into the Gleam parity suite. The
+checked-in fixture, request document, variables, and strict comparison contract
+stay unchanged.
+
+| Module                                               | Change                                                      |
+| ---------------------------------------------------- | ----------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds a top-level `LocationRecord` with cursor preservation. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds base location catalog storage/listing helpers.         |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Routes and serializes the top-level `locations` connection. |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured location catalog baselines for pure replay.  |
+| `gleam/test/parity_test.gleam`                       | Enables the strict locations catalog parity spec.           |
+
+Validation:
+`gleam test --target javascript locations_catalog_read_test` is green at 779
+tests, and full `gleam test --target javascript` is green at 779 tests on the
+host Node runtime. Host `gleam test --target erlang` still fails before tests
+execute on the local Erlang install with the known `undef` runner issue; after
+clearing host-built Erlang artifacts, the Docker Erlang fallback is green at
+775 tests. Product parity inventory remains 115 checked-in specs, with 65
+product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a strict parity replay returning HTTP 400
+  with `No domain dispatcher implemented for root field: locations`.
+- The captured fixture compares Shopify's opaque location cursors exactly, so
+  the local record stores the captured cursor instead of deriving a synthetic
+  cursor from the location ID.
+- The top-level `locations` root belongs to the Products registry domain in
+  this repo, even though location records are also reused by inventory-level
+  projections.
+
+### Risks / open items
+
+- Inventory shipment/transfer, publication links, product feeds/feedback,
+  selling plans, product metafields, media, advanced search, and broader
+  validation atomicity parity remain incomplete in Gleam.
+- Only 65 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 81 candidates
+
+- Port product metafield behavior now that Product, Product Option,
+  Product Variant, Inventory, Collection, and Location read slices are locally
+  staged or seeded.
+- Continue publication-related collection/product roots if the captured
+  fixtures can be represented without weakening request shapes.
+- Continue remaining inventory shipment/transfer roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 79: collection create initial products
 
 Completes the captured `collectionCreate` fixture that supplies initial

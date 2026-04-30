@@ -98,6 +98,10 @@ pub type InventoryLocationRecord {
   InventoryLocationRecord(id: String, name: String)
 }
 
+pub type LocationRecord {
+  LocationRecord(id: String, name: String, cursor: Option(String))
+}
+
 pub type InventoryQuantityRecord {
   InventoryQuantityRecord(
     name: String,

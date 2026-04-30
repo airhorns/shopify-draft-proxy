@@ -22,14 +22,14 @@ import shopify_draft_proxy/state/types.{
   type CartTransformRecord, type CollectionRecord,
   type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
   type GiftCardConfigurationRecord, type GiftCardRecord,
-  type InventoryLevelRecord, type LocaleRecord, type MarketingEngagementRecord,
-  type MarketingRecord, type MarketingValue, type ProductCollectionRecord,
-  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
-  type ProductVariantRecord, type SavedSearchRecord, type SegmentRecord,
-  type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
-  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
-  type WebhookSubscriptionRecord, BulkOperationRecord, MarketingObject,
-  MarketingString,
+  type InventoryLevelRecord, type LocaleRecord, type LocationRecord,
+  type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
+  type ProductCollectionRecord, type ProductOptionRecord,
+  type ProductOptionValueRecord, type ProductRecord, type ProductVariantRecord,
+  type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
+  type ShopRecord, type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
+  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
+  BulkOperationRecord, MarketingObject, MarketingString,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -50,6 +50,8 @@ pub type BaseState {
     collection_order: List(String),
     product_collections: Dict(String, ProductCollectionRecord),
     deleted_collection_ids: Dict(String, Bool),
+    locations: Dict(String, LocationRecord),
+    location_order: List(String),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -282,6 +284,8 @@ pub fn empty_base_state() -> BaseState {
     collection_order: [],
     product_collections: dict.new(),
     deleted_collection_ids: dict.new(),
+    locations: dict.new(),
+    location_order: [],
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -683,6 +687,55 @@ pub fn delete_staged_collection(store: Store, id: String) -> Store {
       ),
     )
   Store(..store, base_state: new_base, staged_state: new_staged)
+}
+
+pub fn upsert_base_locations(
+  store: Store,
+  records: List(LocationRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        locations: dict.insert(base.locations, record.id, record),
+        location_order: append_unique_id(base.location_order, record.id),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_location_by_id(
+  store: Store,
+  id: String,
+) -> Option(LocationRecord) {
+  case dict.get(store.base_state.locations, id) {
+    Ok(record) -> Some(record)
+    Error(_) -> None
+  }
+}
+
+pub fn list_effective_locations(store: Store) -> List(LocationRecord) {
+  let ordered_records =
+    list.filter_map(store.base_state.location_order, fn(id) {
+      case get_effective_location_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(store.base_state.location_order)
+  let unordered =
+    dict.keys(store.base_state.locations)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+    |> list.filter_map(fn(id) {
+      case get_effective_location_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered)
 }
 
 pub fn replace_base_products_for_collection(

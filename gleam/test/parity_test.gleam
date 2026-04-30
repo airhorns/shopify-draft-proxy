@@ -142,6 +142,10 @@ pub fn collection_create_initial_products_live_parity_test() {
   )
 }
 
+pub fn locations_catalog_read_test() {
+  check("config/parity-specs/products/locations-catalog-read.json")
+}
+
 pub fn products_catalog_read_test() {
   check("config/parity-specs/products/products-catalog-read.json")
 }

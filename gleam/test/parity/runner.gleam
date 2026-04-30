@@ -44,22 +44,22 @@ import shopify_draft_proxy/state/types.{
   type GiftCardTransactionRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
-  type InventoryWeightRecord, type Money, type PaymentSettingsRecord,
-  type ProductCategoryRecord, type ProductCollectionRecord,
-  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
-  type ProductSeoRecord, type ProductVariantRecord,
-  type ProductVariantSelectedOptionRecord, type ShopAddressRecord,
-  type ShopDomainRecord, type ShopFeaturesRecord, type ShopPlanRecord,
-  type ShopPolicyRecord, type ShopRecord, type ShopResourceLimitsRecord,
-  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
-  CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
-  CollectionRuleSetRecord, GiftCardConfigurationRecord,
+  type InventoryWeightRecord, type LocationRecord, type Money,
+  type PaymentSettingsRecord, type ProductCategoryRecord,
+  type ProductCollectionRecord, type ProductOptionRecord,
+  type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
+  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
+  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
+  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
+  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
+  type ShopifyFunctionRecord, CollectionImageRecord, CollectionRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
   InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
   InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
-  InventoryWeightInt, InventoryWeightRecord, Money, PaymentSettingsRecord,
-  ProductCategoryRecord, ProductCollectionRecord, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  InventoryWeightInt, InventoryWeightRecord, LocationRecord, Money,
+  PaymentSettingsRecord, ProductCategoryRecord, ProductCollectionRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
   ProductVariantRecord, ProductVariantSelectedOptionRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
@@ -182,6 +182,8 @@ fn seed_capture_preconditions(
       seed_collection_delete_preconditions(capture, proxy)
     "collection-create-initial-products-live-parity" ->
       seed_collection_create_initial_products_preconditions(capture, proxy)
+    "locations-catalog-read" ->
+      seed_locations_catalog_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
@@ -807,6 +809,34 @@ fn seed_collection_create_initial_products_preconditions(
       draft_proxy.DraftProxy(..proxy, store: store)
     }
     _ -> proxy
+  }
+}
+
+fn seed_locations_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let edges = case jsonpath.lookup(capture, "$.data.locations.edges") {
+    Some(JArray(edges)) -> edges
+    _ -> []
+  }
+  let locations = list.filter_map(edges, make_seed_location_from_edge)
+  let store = store_mod.upsert_base_locations(proxy.store, locations)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_location_from_edge(
+  edge: JsonValue,
+) -> Result(LocationRecord, Nil) {
+  use node <- result.try(required_object_field(edge, "node"))
+  case read_string_field(node, "id"), read_string_field(node, "name") {
+    Some(id), Some(name) ->
+      Ok(LocationRecord(
+        id: id,
+        name: name,
+        cursor: read_string_field(edge, "cursor"),
+      ))
+    _, _ -> Error(Nil)
   }
 }
 

@@ -50,7 +50,7 @@ import shopify_draft_proxy/state/types.{
   type CollectionRuleSetRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
-  type InventoryWeightRecord, type InventoryWeightValue,
+  type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
   type ProductCategoryRecord, type ProductCollectionRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductSeoRecord, type ProductVariantRecord,
@@ -76,6 +76,7 @@ pub fn is_products_query_root(name: String) -> Bool {
     | "collectionByIdentifier"
     | "collectionByHandle"
     | "collections"
+    | "locations"
     | "productVariant"
     | "productVariantByIdentifier"
     | "productVariants"
@@ -241,6 +242,8 @@ fn serialize_root_fields(
                 variables,
                 fragments,
               )
+            "locations" ->
+              serialize_locations_connection(store, field, variables, fragments)
             "productFeeds" | "productSavedSearches" ->
               serialize_empty_connection(
                 field,
@@ -707,6 +710,62 @@ fn serialize_collections_connection(
       )
     }
   }
+}
+
+fn serialize_locations_connection(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let locations = store.list_effective_locations(store)
+  let window =
+    paginate_connection_items(
+      locations,
+      field,
+      variables,
+      location_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: location_cursor,
+      serialize_node: fn(location, node_field, _index) {
+        project_graphql_value(
+          location_source(location),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: False,
+        prefix_cursors: False,
+        include_cursors: True,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn location_cursor(location: LocationRecord, _index: Int) -> String {
+  location.cursor |> option.unwrap(location.id)
+}
+
+fn location_source(location: LocationRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Location")),
+    #("id", SrcString(location.id)),
+    #("name", SrcString(location.name)),
+  ])
 }
 
 fn filtered_collections(
