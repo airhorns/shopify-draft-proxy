@@ -9,6 +9,7 @@
 //// `SyntheticIdentityRegistry`).
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order
@@ -22,9 +23,9 @@ import shopify_draft_proxy/state/types.{
   type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
   type GiftCardRecord, type InventoryLevelRecord, type LocaleRecord,
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
-  type ProductRecord, type ProductVariantRecord, type SavedSearchRecord,
-  type SegmentRecord, type ShopLocaleRecord, type ShopRecord,
-  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
+  type ProductOptionRecord, type ProductRecord, type ProductVariantRecord,
+  type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
+  type ShopRecord, type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
   type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
   BulkOperationRecord, MarketingObject, MarketingString,
 } as types_mod
@@ -42,6 +43,7 @@ pub type BaseState {
     product_variants: Dict(String, ProductVariantRecord),
     product_variant_order: List(String),
     product_variant_count: Option(Int),
+    product_options: Dict(String, ProductOptionRecord),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -120,6 +122,7 @@ pub type StagedState {
     product_variants: Dict(String, ProductVariantRecord),
     product_variant_order: List(String),
     product_variant_count: Option(Int),
+    product_options: Dict(String, ProductOptionRecord),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -263,6 +266,7 @@ pub fn empty_base_state() -> BaseState {
     product_variants: dict.new(),
     product_variant_order: [],
     product_variant_count: None,
+    product_options: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -334,6 +338,7 @@ pub fn empty_staged_state() -> StagedState {
     product_variants: dict.new(),
     product_variant_order: [],
     product_variant_count: None,
+    product_options: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -746,6 +751,88 @@ pub fn get_effective_product_variant_count(store: Store) -> Int {
         Some(count) -> count
         None -> list.length(list_effective_product_variants(store))
       }
+  }
+}
+
+pub fn replace_base_options_for_product(
+  store: Store,
+  product_id: String,
+  options: List(ProductOptionRecord),
+) -> Store {
+  let base = store.base_state
+  let retained = remove_options_for_product(base.product_options, product_id)
+  let next_options =
+    list.fold(options, retained, fn(acc, option) {
+      dict.insert(acc, option.id, option)
+    })
+  Store(..store, base_state: BaseState(..base, product_options: next_options))
+}
+
+pub fn replace_staged_options_for_product(
+  store: Store,
+  product_id: String,
+  options: List(ProductOptionRecord),
+) -> Store {
+  let staged = store.staged_state
+  let retained = remove_options_for_product(staged.product_options, product_id)
+  let next_options =
+    list.fold(options, retained, fn(acc, option) {
+      dict.insert(acc, option.id, option)
+    })
+  Store(
+    ..store,
+    staged_state: StagedState(..staged, product_options: next_options),
+  )
+}
+
+pub fn get_effective_options_by_product_id(
+  store: Store,
+  product_id: String,
+) -> List(ProductOptionRecord) {
+  case product_is_deleted(store, product_id) {
+    True -> []
+    False -> {
+      let staged_options =
+        store.staged_state.product_options
+        |> dict.values()
+        |> list.filter(fn(option) { option.product_id == product_id })
+      let source_options = case staged_options {
+        [] ->
+          store.base_state.product_options
+          |> dict.values()
+          |> list.filter(fn(option) { option.product_id == product_id })
+        _ -> staged_options
+      }
+      list.sort(source_options, compare_product_options)
+    }
+  }
+}
+
+fn remove_options_for_product(
+  options: Dict(String, ProductOptionRecord),
+  product_id: String,
+) -> Dict(String, ProductOptionRecord) {
+  options
+  |> dict.keys()
+  |> list.fold(options, fn(acc, id) {
+    case dict.get(options, id) {
+      Ok(option) ->
+        case option.product_id == product_id {
+          True -> dict.delete(acc, id)
+          False -> acc
+        }
+      Error(_) -> acc
+    }
+  })
+}
+
+fn compare_product_options(
+  left: ProductOptionRecord,
+  right: ProductOptionRecord,
+) -> order.Order {
+  case int.compare(left.position, right.position) {
+    order.Eq -> string.compare(left.id, right.id)
+    other -> other
   }
 }
 

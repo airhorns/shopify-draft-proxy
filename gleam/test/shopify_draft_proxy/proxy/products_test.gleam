@@ -7,8 +7,9 @@ import shopify_draft_proxy/graphql/root_field.{StringVal}
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  InventoryItemRecord, ProductCategoryRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord,
+  InventoryItemRecord, ProductCategoryRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord,
 }
 
 pub fn product_empty_state_read_test() {
@@ -430,6 +431,42 @@ pub fn inventory_properties_quantity_names_read_test() {
     == "{\"data\":{\"inventoryProperties\":{\"quantityNames\":[{\"name\":\"available\",\"displayName\":\"Available\",\"isInUse\":true,\"belongsTo\":[\"on_hand\"],\"comprises\":[]},{\"name\":\"committed\",\"displayName\":\"Committed\",\"isInUse\":true,\"belongsTo\":[\"on_hand\"],\"comprises\":[]},{\"name\":\"damaged\",\"displayName\":\"Damaged\",\"isInUse\":false,\"belongsTo\":[\"on_hand\"],\"comprises\":[]},{\"name\":\"incoming\",\"displayName\":\"Incoming\",\"isInUse\":false,\"belongsTo\":[],\"comprises\":[]},{\"name\":\"on_hand\",\"displayName\":\"On hand\",\"isInUse\":true,\"belongsTo\":[],\"comprises\":[\"available\",\"committed\",\"damaged\",\"quality_control\",\"reserved\",\"safety_stock\"]},{\"name\":\"quality_control\",\"displayName\":\"Quality control\",\"isInUse\":false,\"belongsTo\":[\"on_hand\"],\"comprises\":[]},{\"name\":\"reserved\",\"displayName\":\"Reserved\",\"isInUse\":true,\"belongsTo\":[\"on_hand\"],\"comprises\":[]},{\"name\":\"safety_stock\",\"displayName\":\"Safety stock\",\"isInUse\":false,\"belongsTo\":[\"on_hand\"],\"comprises\":[]}]}}}"
 }
 
+pub fn seeded_product_options_read_test() {
+  let assert Ok(result) =
+    products.process(
+      seeded_product_option_store(),
+      "query ProductOptionsRead($productId: ID!) {
+        product(id: $productId) {
+          id
+          options {
+            __typename
+            id
+            name
+            position
+            values
+            optionValues {
+              __typename
+              id
+              name
+              hasVariants
+            }
+          }
+          variants(first: 5) {
+            nodes {
+              id
+              selectedOptions { name value }
+            }
+          }
+        }
+      }",
+      dict.from_list([
+        #("productId", StringVal("gid://shopify/Product/optioned")),
+      ]),
+    )
+  assert json.to_string(result)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"options\":[{\"__typename\":\"ProductOption\",\"id\":\"gid://shopify/ProductOption/color\",\"name\":\"Color\",\"position\":1,\"values\":[\"Red\"],\"optionValues\":[{\"__typename\":\"ProductOptionValue\",\"id\":\"gid://shopify/ProductOptionValue/red\",\"name\":\"Red\",\"hasVariants\":true},{\"__typename\":\"ProductOptionValue\",\"id\":\"gid://shopify/ProductOptionValue/blue\",\"name\":\"Blue\",\"hasVariants\":false}]},{\"__typename\":\"ProductOption\",\"id\":\"gid://shopify/ProductOption/size\",\"name\":\"Size\",\"position\":2,\"values\":[\"Small\"],\"optionValues\":[{\"__typename\":\"ProductOptionValue\",\"id\":\"gid://shopify/ProductOptionValue/small\",\"name\":\"Small\",\"hasVariants\":true}]}],\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/optioned\",\"selectedOptions\":[{\"name\":\"Color\",\"value\":\"Red\"},{\"name\":\"Size\",\"value\":\"Small\"}]}]}}}}"
+}
+
 pub fn seeded_products_catalog_read_test() {
   let product =
     ProductRecord(
@@ -654,6 +691,73 @@ fn seeded_inventory_item_store() {
       Some("sku-untracked"),
       "gid://shopify/InventoryItem/20",
       Some(False),
+    ),
+  ])
+}
+
+fn seeded_product_option_store() {
+  store.new()
+  |> store.upsert_base_products([
+    string_catalog_product(
+      "gid://shopify/Product/optioned",
+      "Optioned Board",
+      "optioned-board",
+      Some("Acme"),
+      Some("Snowboard"),
+      ["Winter"],
+    ),
+  ])
+  |> store.upsert_base_product_variants([
+    ProductVariantRecord(
+      id: "gid://shopify/ProductVariant/optioned",
+      product_id: "gid://shopify/Product/optioned",
+      title: "Red / Small",
+      sku: Some("optioned-red-small"),
+      barcode: None,
+      price: None,
+      compare_at_price: None,
+      taxable: None,
+      inventory_policy: None,
+      inventory_quantity: None,
+      selected_options: [
+        ProductVariantSelectedOptionRecord(name: "Color", value: "Red"),
+        ProductVariantSelectedOptionRecord(name: "Size", value: "Small"),
+      ],
+      inventory_item: None,
+      cursor: None,
+    ),
+  ])
+  |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/size",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Size",
+      position: 2,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/small",
+          name: "Small",
+          has_variants: True,
+        ),
+      ],
+    ),
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/color",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Color",
+      position: 1,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/red",
+          name: "Red",
+          has_variants: True,
+        ),
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/blue",
+          name: "Blue",
+          has_variants: False,
+        ),
+      ],
     ),
   ])
 }

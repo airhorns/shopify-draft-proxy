@@ -33,7 +33,8 @@ import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
   type InventoryItemRecord, type InventoryLevelRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
-  type InventoryWeightRecord, type ProductCategoryRecord, type ProductRecord,
+  type InventoryWeightRecord, type ProductCategoryRecord,
+  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductSeoRecord, type ProductVariantRecord,
   type ProductVariantSelectedOptionRecord, InventoryWeightFloat,
   InventoryWeightInt,
@@ -969,22 +970,31 @@ fn optional_string(value: Option(String)) -> Json {
 }
 
 pub fn product_source(product: ProductRecord) -> SourceValue {
-  product_source_with_variants(product, empty_connection_source())
+  product_source_with_relationships(
+    product,
+    empty_connection_source(),
+    SrcList([]),
+  )
 }
 
 fn product_source_with_store(
   store: Store,
   product: ProductRecord,
 ) -> SourceValue {
-  product_source_with_variants(
+  product_source_with_relationships(
     product,
     product_variants_connection_source(store, product),
+    product_options_source(store.get_effective_options_by_product_id(
+      store,
+      product.id,
+    )),
   )
 }
 
-fn product_source_with_variants(
+fn product_source_with_relationships(
   product: ProductRecord,
   variants: SourceValue,
+  options: SourceValue,
 ) -> SourceValue {
   src_object([
     #("__typename", SrcString("Product")),
@@ -1010,7 +1020,44 @@ fn product_source_with_variants(
     #("category", optional_product_category_source(product.category)),
     #("collections", empty_connection_source()),
     #("media", empty_connection_source()),
+    #("options", options),
     #("variants", variants),
+  ])
+}
+
+fn product_options_source(options: List(ProductOptionRecord)) -> SourceValue {
+  SrcList(list.map(options, product_option_source))
+}
+
+fn product_option_source(option: ProductOptionRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("ProductOption")),
+    #("id", SrcString(option.id)),
+    #("name", SrcString(option.name)),
+    #("position", SrcInt(option.position)),
+    #(
+      "values",
+      SrcList(
+        option.option_values
+        |> list.filter(fn(value) { value.has_variants })
+        |> list.map(fn(value) { SrcString(value.name) }),
+      ),
+    ),
+    #(
+      "optionValues",
+      SrcList(list.map(option.option_values, product_option_value_source)),
+    ),
+  ])
+}
+
+fn product_option_value_source(
+  option_value: ProductOptionValueRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("ProductOptionValue")),
+    #("id", SrcString(option_value.id)),
+    #("name", SrcString(option_value.name)),
+    #("hasVariants", SrcBool(option_value.has_variants)),
   ])
 }
 

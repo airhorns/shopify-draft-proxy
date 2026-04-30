@@ -43,7 +43,8 @@ import shopify_draft_proxy/state/types.{
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
   type InventoryWeightRecord, type Money, type PaymentSettingsRecord,
-  type ProductCategoryRecord, type ProductRecord, type ProductSeoRecord,
+  type ProductCategoryRecord, type ProductOptionRecord,
+  type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
   type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
   type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
@@ -53,7 +54,8 @@ import shopify_draft_proxy/state/types.{
   InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
   InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
   InventoryWeightInt, InventoryWeightRecord, Money, PaymentSettingsRecord,
-  ProductCategoryRecord, ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductCategoryRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
   ProductVariantSelectedOptionRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
@@ -174,22 +176,79 @@ fn seed_captured_products_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let products = case read_array_field(capture, "seedProducts") {
-    Some(nodes) -> list.filter_map(nodes, make_seed_product)
+  let product_nodes = case read_array_field(capture, "seedProducts") {
+    Some(nodes) -> nodes
     None -> []
   }
-  let variants = case read_array_field(capture, "seedProducts") {
-    Some(nodes) ->
+  let products = case product_nodes {
+    [] -> []
+    nodes -> list.filter_map(nodes, make_seed_product)
+  }
+  let variants = case product_nodes {
+    [] -> []
+    nodes ->
       list.flat_map(nodes, fn(product_json) {
         seed_variants_for_product(product_json)
       })
-    None -> []
   }
   let store =
     proxy.store
     |> store_mod.upsert_base_products(products)
     |> store_mod.upsert_base_product_variants(variants)
+  let store = list.fold(product_nodes, store, seed_options_for_product)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_options_for_product(
+  store: store_mod.Store,
+  product_json: JsonValue,
+) -> store_mod.Store {
+  case required_string_field(product_json, "id") {
+    Ok(product_id) ->
+      case read_array_field(product_json, "options") {
+        Some(option_nodes) -> {
+          let options =
+            list.filter_map(option_nodes, fn(option_json) {
+              make_seed_product_option(product_id, option_json)
+            })
+          store_mod.replace_base_options_for_product(store, product_id, options)
+        }
+        None -> store
+      }
+    Error(_) -> store
+  }
+}
+
+fn make_seed_product_option(
+  product_id: String,
+  source: JsonValue,
+) -> Result(ProductOptionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  let position = read_int_field(source, "position") |> option.unwrap(0)
+  let option_values = case read_array_field(source, "optionValues") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_product_option_value)
+    None -> []
+  }
+  Ok(ProductOptionRecord(
+    id: id,
+    product_id: product_id,
+    name: name,
+    position: position,
+    option_values: option_values,
+  ))
+}
+
+fn make_seed_product_option_value(
+  source: JsonValue,
+) -> Result(ProductOptionValueRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  Ok(ProductOptionValueRecord(
+    id: id,
+    name: name,
+    has_variants: read_bool_field(source, "hasVariants") |> option.unwrap(False),
+  ))
 }
 
 fn seed_product_preconditions(
@@ -199,11 +258,13 @@ fn seed_product_preconditions(
   case jsonpath.lookup(capture, "$.data.product") {
     Some(product_json) ->
       case make_seed_product(product_json) {
-        Ok(product) ->
-          draft_proxy.DraftProxy(
-            ..proxy,
-            store: store_mod.upsert_base_products(proxy.store, [product]),
-          )
+        Ok(product) -> {
+          let store =
+            proxy.store
+            |> store_mod.upsert_base_products([product])
+            |> seed_options_for_product(product_json)
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
         Error(_) -> proxy
       }
     None -> proxy
@@ -308,6 +369,7 @@ fn seed_product_variants_read_preconditions(
         proxy.store
         |> store_mod.upsert_base_products(products)
         |> store_mod.upsert_base_product_variants(variants)
+        |> seed_options_for_product(product_json)
       draft_proxy.DraftProxy(..proxy, store: store)
     }
     None -> proxy

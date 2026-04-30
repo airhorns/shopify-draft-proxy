@@ -93,6 +93,20 @@ pub type ProductVariantRecord {
   )
 }
 
+pub type ProductOptionValueRecord {
+  ProductOptionValueRecord(id: String, name: String, has_variants: Bool)
+}
+
+pub type ProductOptionRecord {
+  ProductOptionRecord(
+    id: String,
+    product_id: String,
+    name: String,
+    position: Int,
+    option_values: List(ProductOptionValueRecord),
+  )
+}
+
 pub type ProductRecord {
   ProductRecord(
     id: String,

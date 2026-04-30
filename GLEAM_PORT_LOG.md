@@ -9,6 +9,63 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 45: product option read projection
+
+Adds ProductOption/ProductOptionValue records to the Gleam store and projects
+store-backed product `options` from Product reads. The serializer now covers
+`ProductOption.__typename`, `id`, `name`, `position`, `values`, and nested
+`optionValues { __typename id name hasVariants }`, matching the captured
+Shopify shape used by product relationship and option lifecycle scenarios.
+Variant `selectedOptions` remains backed by ProductVariant state.
+
+This is a read/projection slice only. It does not implement product option
+create/update/delete/reorder mutations, variant strategy behavior, default
+option restoration, or full product option lifecycle parity.
+
+| Module                                                     | Change                                                                              |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | Adds ProductOption/ProductOptionValue record shapes.                                |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds base/staged option slices, replace helpers, and effective option lookup.       |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`       | Projects product `options`, `values`, and nested `optionValues` from store state.   |
+| `gleam/test/parity/runner.gleam`                           | Seeds ProductOption records from captured `seedProducts` and product read payloads. |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam` | Adds direct option/value projection coverage alongside variant selected options.    |
+
+Validation: `gleam test --target javascript` is green at 709 tests on the host
+Node runtime. Host `gleam test --target erlang` remains blocked by missing
+`erl`, and the Docker Erlang fallback is green at 705 tests. Product parity
+inventory remains 115 checked-in specs, with 10 product specs executable in the
+Gleam parity suite after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct read failure: after seeding
+  product options into store, `product { options { ... } }` returned
+  `options: null` while the same product's variant `selectedOptions` already
+  serialized correctly.
+- Product relationship captures already include option records under
+  `seedProducts`; teaching the parity runner to ingest those records prepares
+  future strict option lifecycle scenarios without editing capture files.
+
+### Risks / open items
+
+- Product option mutations and read-after-write lifecycle behavior remain
+  unported.
+- `ProductOption` / `ProductOptionValue` node resolution remains unported.
+- Variant parent-product backreferences still use the existing shallow product
+  source and do not hydrate product option relationships from that nested path.
+- Only 10 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 46 candidates
+
+- Add `ProductOption` / `ProductOptionValue` node resolution for admin-platform
+  product option node reads.
+- Start product option create/update/delete/reorder local lifecycle behavior.
+- Add product search sort-key ordering once per-connection product cursors and
+  `publishedAt` state are modeled.
+
+---
+
 ## 2026-04-30 — Pass 44: inventory item catalog reads
 
 Adds the first top-level InventoryItem catalog/search read slice to the Gleam
