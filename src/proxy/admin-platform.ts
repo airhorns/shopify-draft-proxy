@@ -54,7 +54,6 @@ import {
   serializeShopNodeById,
   serializeShopPolicyNodeById,
 } from './store-properties.js';
-import { handleWebhookSubscriptionQuery } from './webhooks.js';
 
 interface GraphQLResponseError {
   message: string;
@@ -906,11 +905,6 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
 
   MarketingActivity: { rootField: 'marketingActivity', typename: 'MarketingActivity', handler: handleMarketingQuery },
   MarketingEvent: { rootField: 'marketingEvent', typename: 'MarketingEvent', handler: handleMarketingQuery },
-  WebhookSubscription: {
-    rootField: 'webhookSubscription',
-    typename: 'WebhookSubscription',
-    handler: handleWebhookSubscriptionQuery,
-  },
   Segment: { rootField: 'segment', typename: 'Segment', handler: handleSegmentsQuery },
   CustomerSegmentMembersQuery: {
     rootField: 'customerSegmentMembersQuery',

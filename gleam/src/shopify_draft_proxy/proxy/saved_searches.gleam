@@ -1338,4 +1338,3 @@ fn mutation_record_source(
     ),
   ])
 }
-

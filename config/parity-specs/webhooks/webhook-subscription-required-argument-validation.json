@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-conformance.json"
   ],
-  "runtimeTestFiles": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
+  "runtimeTestFiles": ["gleam/test/parity_test.gleam", "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/webhooks/webhook-subscription-missing-create-topic.graphql"
   },

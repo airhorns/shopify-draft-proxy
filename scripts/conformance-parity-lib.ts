@@ -91,11 +91,6 @@ import {
   hydrateSegmentsFromUpstreamResponse,
 } from '../src/proxy/segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
-import {
-  handleWebhookSubscriptionMutation,
-  handleWebhookSubscriptionQuery,
-  hydrateWebhookSubscriptionsFromUpstreamResponse,
-} from '../src/proxy/webhooks.js';
 import { DEFAULT_ADMIN_API_VERSION } from '../src/shopify/api-version.js';
 import { SyntheticIdentityRegistry } from '../src/state/synthetic-identity.js';
 import { InMemoryStore } from '../src/state/store.js';
@@ -1459,33 +1454,6 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
-  if (capability.execution === 'stage-locally' && capability.domain === 'webhooks') {
-    const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(runtime, document, variables);
-    if (!webhookSubscriptionMutation) {
-      throw new Error(`Webhook-domain parity request was not handled locally: ${capability.operationName}`);
-    }
-
-    if (webhookSubscriptionMutation.staged) {
-      runtime.store.recordMutationLogEntry({
-        id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
-        receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
-        operationName: capability.operationName,
-        path: `/admin/api/${apiVersion}/graphql.json`,
-        query: document,
-        variables,
-        status: 'staged',
-        interpreted: interpretMutationLogEntry(parsed, capability),
-        stagedResourceIds: webhookSubscriptionMutation.stagedResourceIds,
-        notes: webhookSubscriptionMutation.notes,
-      });
-    }
-
-    return {
-      status: 200,
-      body: webhookSubscriptionMutation.response,
-    };
-  }
-
   if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {
     runtime.store.recordMutationLogEntry({
       id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
@@ -1952,23 +1920,6 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleAppQuery(runtime, document, variables),
-    };
-  }
-
-  if (capability.execution === 'overlay-read' && capability.domain === 'webhooks') {
-    if (upstreamPayload !== undefined) {
-      hydrateWebhookSubscriptionsFromUpstreamResponse(runtime, document, variables, upstreamPayload);
-      if (!hasStagedState(runtime)) {
-        return {
-          status: 200,
-          body: isPlainObject(upstreamPayload) ? upstreamPayload : {},
-        };
-      }
-    }
-
-    return {
-      status: 200,
-      body: handleWebhookSubscriptionQuery(runtime, document, variables),
     };
   }
 

@@ -187,6 +187,17 @@ If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
 path syntax instead of narrowing or rewriting the checked-in spec.
 
+### TypeScript runtime retirement
+
+When a domain is deleted from the legacy TypeScript proxy after Gleam parity,
+update both `config/parity-specs/<domain>/*.json` and
+`config/operation-registry.json` so runtime-test metadata points at the
+Gleam parity/direct tests that now own the behavior. Then run
+`gleam/scripts/sync-operation-registry.sh` so the vendored Gleam registry
+matches the JSON source. The TypeScript `conformance:parity` suite should
+derive its exclusions from `gleam/` runtime-test ownership, rather than
+hard-coding scenario IDs or restating exact parity-spec metadata.
+
 ## Workflow for a new pass
 
 1. Pick a candidate from the most recent log entry's "Pass N candidates"
