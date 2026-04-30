@@ -172,6 +172,7 @@ fn seed_capture_preconditions(
     | "product-options-create-variant-strategy-create-over-default-limit"
     | "product-options-create-variant-strategy-leave-as-is"
     | "product-options-create-variant-strategy-null"
+    | "product-options-create-live-parity"
     | "product-option-update-live-parity"
     | "product-options-delete-live-parity"
     | "admin-platform-product-option-node-reads" ->

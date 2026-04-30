@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 65: product options create parity seeding
+
+Enables the captured `productOptionsCreate-parity-plan` in the Gleam parity
+suite without changing the fixture or request shape. The Product Options create
+root was already staged locally in Gleam, but this specific live parity scenario
+was missing the same captured `preMutationRead` seed path used by the sibling
+Product Option scenarios. The runner now seeds that product/options/variant
+baseline before replaying the captured mutation and downstream read.
+
+| Module                           | Change                                                             |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `gleam/test/parity/runner.gleam` | Seeds `product-options-create-live-parity` from `preMutationRead`. |
+| `gleam/test/parity_test.gleam`   | Enables the strict product options create parity scenario.         |
+
+Validation: `gleam test --target javascript product_options_create_parity_plan_test`
+is green at 763 tests, and full `gleam test --target javascript` is green at
+763 tests on the host Node runtime. Host `gleam test --target erlang` still
+fails before tests execute on the local Erlang install with the known `undef`
+runner issue; after clearing host-built Erlang artifacts, the Docker Erlang
+fallback is green at 759 tests. Product parity inventory remains 115 checked-in
+specs, with 49 product specs executable in the Gleam parity suite plus the
+admin-platform ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct parity-runner replay of
+  `productOptionsCreate-parity-plan` failing because
+  `$.data.productOptionsCreate.product.id` could not be resolved from the
+  primary proxy response.
+- The failure was a missing scenario seeding entry, not a runtime request-shape
+  gap: the scenario's captured `preMutationRead` graph uses the same product
+  option seed helper as existing create-strategy/update/delete option scenarios.
+
+### Risks / open items
+
+- This pass enables one already-modeled Product Option lifecycle slice; broader
+  collection, publication, product feeds/feedback, selling plans, product
+  metafield, inventory shipment/transfer, media, and advanced search parity
+  remain incomplete in Gleam.
+- Only 49 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 66 candidates
+
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+- Port product metafield behavior now that several Product and Product Option
+  mutation families are locally staged.
+- Port publication roots or product feed/feedback local-runtime roots if their
+  fixture-backed state shapes can be lifted narrowly.
+
+---
+
 ## 2026-04-30 — Pass 64: inventory item update lifecycle
 
 Adds local staging for the captured `inventoryItemUpdate` success path. The

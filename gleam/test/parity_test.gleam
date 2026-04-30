@@ -144,6 +144,10 @@ pub fn product_options_create_variant_strategy_null_test() {
   )
 }
 
+pub fn product_options_create_parity_plan_test() {
+  check("config/parity-specs/products/productOptionsCreate-parity-plan.json")
+}
+
 pub fn product_option_update_parity_plan_test() {
   check("config/parity-specs/products/productOptionUpdate-parity-plan.json")
 }
