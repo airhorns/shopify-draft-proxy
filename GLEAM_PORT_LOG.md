@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 101: product relationship roots parity
+
+Promotes the captured Product relationship roots fixture into the Gleam parity
+suite. The port now stages `collectionAddProductsV2` with Shopify-like async
+Job payloads and non-manual prepend-reverse ordering, tracks ProductVariant
+media membership locally, and makes `productVariantAppendMedia` /
+`productVariantDetachMedia` visible through downstream ProductVariant media
+reads without runtime Shopify writes.
+
+| Module                                               | Change                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds ProductVariant media ID membership state.                                       |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Handles collection V2 add and ProductVariant media append/detach relationship roots. |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured relationship collections alongside generic products/media.            |
+| `config/gleam-port-ci-gates.json`                    | Removes the newly passing relationship-roots parity spec.                            |
+| `.agents/skills/gleam-port/SKILL.md`                 | Records collection V2 ordering and variant media membership traps.                   |
+
+Validation:
+Focused JavaScript parity is green for
+`product-relationship-roots-live-parity.json`. Full JavaScript is green at 711
+tests. Host Erlang still fails with the known local `Undef` runner class; the
+Docker Erlang fallback is green at 707 tests. `corepack pnpm
+gleam:port:coverage` is green with 379 specs and 195 expected failures.
+`corepack pnpm lint` and whitespace checks are green. Product parity inventory
+remains 115 checked-in specs, with 98 product specs executable in the Gleam
+parity suite and 17 product specs still expected-failing.
+
+### Findings
+
+- `collectionAddProductsV2` differs from legacy `collectionAddProducts`: the
+  mutation payload returns only async `job` plus `userErrors`, and collections
+  without explicit `MANUAL` sorting prepend the input products in reverse order.
+- ProductVariant media is relationship state, not duplicated media state. The
+  variant stores ordered Product media IDs and resolves its `media` connection
+  through the Product media records already seeded/staged for the Product.
+- The relationship fixture depends on generic `seedProducts` and
+  `seedProductMedia`, plus explicit `seedCollections`; the runner must hydrate
+  all three before replaying the primary collection add request.
+
+### Risks / open items
+
+- Selling-plan group membership, duplicate, productSet, advanced search, media
+  async plan fixtures, and remaining validation atomicity parity remain
+  incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 102 candidates
+
+- Continue selling-plan product/variant association or selling-plan group
+  lifecycle parity now that relationship fixture seeding is in place.
+- Continue duplicate / productSet roots and validation atomicity.
+- Continue advanced product search/sort/read parity.
+
+---
+
 ## 2026-04-30 - Pass 100: product media reorder parity
 
 Promotes the captured `productReorderMedia` fixture into the Gleam parity

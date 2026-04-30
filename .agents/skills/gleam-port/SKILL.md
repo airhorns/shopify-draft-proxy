@@ -318,6 +318,14 @@ synthetic-id/timestamp expected differences.
   `mediaUserErrors` without collection reorder codes. Downstream Product reads
   may select both `media` and `images`; media-only captures should expose
   Shopify's empty Product `images` connection rather than omitting the field.
+- Product relationship roots combine multiple local slices. For
+  `collectionAddProductsV2`, reuse collection membership staging but return the
+  async Job payload and apply Shopify's non-manual prepend-reverse ordering
+  (`MANUAL` collections append). For ProductVariant media roots, store ordered
+  media IDs on the variant and resolve `ProductVariant.media` through Product
+  media records; do not duplicate media rows per variant. Relationship captures
+  may need `seedCollections` hydrated in addition to generic `seedProducts` and
+  `seedProductMedia`.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.

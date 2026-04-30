@@ -147,6 +147,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "inventorySetQuantities"
     | "inventoryMoveQuantities"
     | "collectionAddProducts"
+    | "collectionAddProductsV2"
     | "collectionRemoveProducts"
     | "collectionReorderProducts"
     | "collectionUpdate"
@@ -166,6 +167,8 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productUpdateMedia"
     | "productDeleteMedia"
     | "productReorderMedia"
+    | "productVariantAppendMedia"
+    | "productVariantDetachMedia"
     | "bulkProductResourceFeedbackCreate"
     | "inventoryShipmentCreateInTransit"
     | "inventoryShipmentReceive"
@@ -3399,9 +3402,47 @@ fn product_variant_source_with_inventory(
     ),
     #("inventoryItem", inventory_item),
     #("product", variant_product_source(store, variant.product_id)),
+    #("media", variant_media_connection_source(store, variant)),
     #(
       "contextualPricing",
       optional_captured_json_source(variant.contextual_pricing),
+    ),
+  ])
+}
+
+fn variant_media_connection_source(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  let product_media =
+    store.get_effective_media_by_product_id(store, variant.product_id)
+  let media =
+    variant.media_ids
+    |> list.filter_map(fn(media_id) {
+      find_media_by_id(product_media, media_id) |> option_to_result
+    })
+  src_object([
+    #(
+      "edges",
+      SrcList(
+        list.map(enumerate_items(media), fn(entry) {
+          let #(record, index) = entry
+          src_object([
+            #("cursor", SrcString(product_media_cursor(record, index))),
+            #("node", product_media_source(record)),
+          ])
+        }),
+      ),
+    ),
+    #("nodes", SrcList(list.map(media, product_media_source))),
+    #(
+      "pageInfo",
+      src_object([
+        #("hasNextPage", SrcBool(False)),
+        #("hasPreviousPage", SrcBool(False)),
+        #("startCursor", connection_start_cursor(media, product_media_cursor)),
+        #("endCursor", connection_end_cursor(media, product_media_cursor)),
+      ]),
     ),
   ])
 }
@@ -3868,6 +3909,15 @@ type InventoryTransferLineItemUpdate {
 
 type CollectionProductMove {
   CollectionProductMove(id: String, new_position: Int)
+}
+
+type CollectionProductPlacement {
+  AppendProducts
+  PrependReverseProducts
+}
+
+type VariantMediaInput {
+  VariantMediaInput(variant_id: String, media_ids: List(String))
 }
 
 type NullableFieldUserError {
@@ -4907,6 +4957,33 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "collectionAddProductsV2" -> {
+              let result =
+                handle_collection_add_products_v2(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged collectionAddProductsV2 locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "collectionCreate" -> {
               let result =
                 handle_collection_create(
@@ -5278,6 +5355,33 @@ fn handle_mutation_fields(
                 result.identity,
                 next_staged,
                 next_drafts,
+              )
+            }
+            "productVariantAppendMedia" | "productVariantDetachMedia" -> {
+              let result =
+                handle_product_variant_media_mutation(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged ProductVariant media membership locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
               )
             }
             "bulkProductResourceFeedbackCreate" -> {
@@ -7409,6 +7513,231 @@ fn insert_product_media_at_position(
   list.append(before, [record, ..after])
 }
 
+fn handle_product_variant_media_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "productId") {
+    None ->
+      mutation_result(
+        key,
+        product_variant_media_payload(
+          store,
+          None,
+          [],
+          [ProductUserError(["productId"], "Product id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(product_id) ->
+      case store.get_effective_product_by_id(store, product_id) {
+        None ->
+          mutation_result(
+            key,
+            product_variant_media_payload(
+              store,
+              None,
+              [],
+              [ProductUserError(["productId"], "Product does not exist", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(product) -> {
+          let inputs =
+            read_variant_media_inputs(read_arg_object_list(args, "variantMedia"))
+          let is_append = case field {
+            Field(name: name, ..) -> name.value == "productVariantAppendMedia"
+            _ -> False
+          }
+          let #(next_store, updated_variant_ids, user_errors) =
+            stage_variant_media_memberships(
+              store,
+              product_id,
+              inputs,
+              is_append,
+            )
+          let response_store = case user_errors {
+            [] -> next_store
+            _ -> store
+          }
+          let variants =
+            updated_variant_ids
+            |> dedupe_preserving_order
+            |> list.filter_map(fn(variant_id) {
+              store.get_effective_variant_by_id(response_store, variant_id)
+              |> option_to_result
+            })
+          let staged_ids = case user_errors {
+            [] -> [product_id, ..dedupe_preserving_order(updated_variant_ids)]
+            _ -> []
+          }
+          mutation_result(
+            key,
+            product_variant_media_payload(
+              response_store,
+              Some(product),
+              variants,
+              user_errors,
+              field,
+              fragments,
+            ),
+            response_store,
+            identity,
+            staged_ids,
+          )
+        }
+      }
+  }
+}
+
+fn read_variant_media_inputs(
+  raw_inputs: List(Dict(String, ResolvedValue)),
+) -> List(VariantMediaInput) {
+  raw_inputs
+  |> list.filter_map(fn(input) {
+    case read_string_field(input, "variantId") {
+      Some(variant_id) ->
+        Ok(VariantMediaInput(
+          variant_id: variant_id,
+          media_ids: read_arg_string_list(input, "mediaIds"),
+        ))
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn stage_variant_media_memberships(
+  store: Store,
+  product_id: String,
+  inputs: List(VariantMediaInput),
+  is_append: Bool,
+) -> #(Store, List(String), List(ProductUserError)) {
+  let effective_variants =
+    store.get_effective_variants_by_product_id(store, product_id)
+  let product_media_ids =
+    store.get_effective_media_by_product_id(store, product_id)
+    |> list.filter_map(media_record_id_result)
+  let #(next_variants, updated_variant_ids, user_errors) =
+    list.fold(enumerate_items(inputs), #([], [], []), fn(acc, item) {
+      let #(updated_variants, updated_ids, errors) = acc
+      let #(entry, index) = item
+      let VariantMediaInput(variant_id: variant_id, media_ids: media_ids) =
+        entry
+      case find_variant_by_id(effective_variants, variant_id) {
+        None -> #(
+          updated_variants,
+          updated_ids,
+          list.append(errors, [
+            ProductUserError(
+              ["variantMedia", int.to_string(index), "variantId"],
+              "Variant does not exist",
+              None,
+            ),
+          ]),
+        )
+        Some(variant) ->
+          case first_unknown_media_index(media_ids, product_media_ids) {
+            Some(media_index) -> #(
+              updated_variants,
+              updated_ids,
+              list.append(errors, [
+                ProductUserError(
+                  [
+                    "variantMedia",
+                    int.to_string(index),
+                    "mediaIds",
+                    int.to_string(media_index),
+                  ],
+                  "Media does not exist",
+                  None,
+                ),
+              ]),
+            )
+            None -> {
+              let next_media_ids = case is_append {
+                True ->
+                  dedupe_preserving_order(list.append(
+                    variant.media_ids,
+                    media_ids,
+                  ))
+                False ->
+                  list.filter(variant.media_ids, fn(media_id) {
+                    !list.contains(media_ids, media_id)
+                  })
+              }
+              #(
+                [
+                  ProductVariantRecord(..variant, media_ids: next_media_ids),
+                  ..updated_variants
+                ],
+                [variant.id, ..updated_ids],
+                errors,
+              )
+            }
+          }
+      }
+    })
+  case user_errors {
+    [] -> {
+      let staged_variants =
+        effective_variants
+        |> list.map(fn(variant) {
+          find_variant_by_id(next_variants, variant.id)
+          |> option.unwrap(variant)
+        })
+      #(
+        store.replace_staged_variants_for_product(
+          store,
+          product_id,
+          staged_variants,
+        ),
+        list.reverse(updated_variant_ids),
+        [],
+      )
+    }
+    _ -> #(store, list.reverse(updated_variant_ids), user_errors)
+  }
+}
+
+fn find_variant_by_id(
+  variants: List(ProductVariantRecord),
+  variant_id: String,
+) -> Option(ProductVariantRecord) {
+  variants
+  |> list.find(fn(variant) { variant.id == variant_id })
+  |> option.from_result
+}
+
+fn first_unknown_media_index(
+  media_ids: List(String),
+  product_media_ids: List(String),
+) -> Option(Int) {
+  media_ids
+  |> enumerate_strings()
+  |> list.find(fn(entry) {
+    let #(media_id, _) = entry
+    !list.contains(product_media_ids, media_id)
+  })
+  |> result.map(fn(entry) {
+    let #(_, index) = entry
+    index
+  })
+  |> option.from_result
+}
+
 fn invalid_create_media_content_type(
   args: Dict(String, ResolvedValue),
   document: String,
@@ -7743,6 +8072,37 @@ fn product_reorder_media_payload(
       #("__typename", SrcString("ProductReorderMediaPayload")),
       #("job", job_value),
       #("mediaUserErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_variant_media_payload(
+  store: Store,
+  product: Option(ProductRecord),
+  variants: List(ProductVariantRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let product_value = case product {
+    Some(record) -> product_source_with_store(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductVariantMediaPayload")),
+      #("product", product_value),
+      #(
+        "productVariants",
+        SrcList(
+          list.map(variants, fn(variant) {
+            product_variant_source(store, variant)
+          }),
+        ),
+      ),
+      #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,
@@ -11869,7 +12229,12 @@ fn handle_collection_create(
       let result = case product_ids {
         [] -> #(store, Some(collection), [])
         _ ->
-          stage_collection_product_memberships(store, collection, product_ids)
+          stage_collection_product_memberships(
+            store,
+            collection,
+            product_ids,
+            AppendProducts,
+          )
       }
       let #(membership_store, result_collection, user_errors) = result
       case user_errors {
@@ -11968,6 +12333,7 @@ fn handle_collection_add_products(
               store,
               collection,
               read_arg_string_list(args, "productIds"),
+              AppendProducts,
             )
           let #(next_store, result_collection, user_errors) = result
           let staged_ids = case user_errors, result_collection {
@@ -11992,10 +12358,97 @@ fn handle_collection_add_products(
   }
 }
 
+fn handle_collection_add_products_v2(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "id") {
+    None ->
+      mutation_result(
+        key,
+        collection_add_products_v2_payload(
+          None,
+          [ProductUserError(["id"], "Collection id is required", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(collection_id) ->
+      case store.get_effective_collection_by_id(store, collection_id) {
+        None ->
+          mutation_result(
+            key,
+            collection_add_products_v2_payload(
+              None,
+              [ProductUserError(["id"], "Collection does not exist", None)],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        Some(collection) -> {
+          let placement = case collection.sort_order {
+            Some("MANUAL") -> AppendProducts
+            _ -> PrependReverseProducts
+          }
+          let #(next_store, result_collection, user_errors) =
+            add_products_to_collection(
+              store,
+              collection,
+              read_arg_string_list(args, "productIds"),
+              placement,
+            )
+          case user_errors, result_collection {
+            [], Some(record) -> {
+              let #(job_id, next_identity) =
+                synthetic_identity.make_synthetic_gid(identity, "Job")
+              mutation_result(
+                key,
+                collection_add_products_v2_payload(
+                  Some(job_id),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                next_identity,
+                [record.id],
+              )
+            }
+            _, _ ->
+              mutation_result(
+                key,
+                collection_add_products_v2_payload(
+                  None,
+                  user_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+          }
+        }
+      }
+  }
+}
+
 fn add_products_to_collection(
   store: Store,
   collection: CollectionRecord,
   product_ids: List(String),
+  placement: CollectionProductPlacement,
 ) -> #(Store, Option(CollectionRecord), List(ProductUserError)) {
   let normalized_product_ids = dedupe_preserving_order(product_ids)
   case normalized_product_ids {
@@ -12033,6 +12486,7 @@ fn add_products_to_collection(
                 store,
                 collection,
                 normalized_product_ids,
+                placement,
               )
           }
       }
@@ -12043,6 +12497,7 @@ fn stage_collection_product_memberships(
   store: Store,
   collection: CollectionRecord,
   product_ids: List(String),
+  placement: CollectionProductPlacement,
 ) -> #(Store, Option(CollectionRecord), List(ProductUserError)) {
   let existing_product_ids =
     product_ids
@@ -12055,20 +12510,36 @@ fn stage_collection_product_memberships(
   case existing_product_ids {
     [] -> #(store, Some(collection), [])
     _ -> {
-      let max_position =
+      let existing_positions =
         store.list_effective_products_for_collection(store, collection.id)
-        |> list.fold(-1, fn(max_position, entry) {
+        |> list.map(fn(entry) {
           let #(_, membership) = entry
-          case int.compare(membership.position, max_position) {
-            order.Gt -> membership.position
-            _ -> max_position
-          }
+          membership.position
         })
+      let first_position = case placement {
+        AppendProducts ->
+          case existing_positions {
+            [] -> 0
+            _ -> {
+              list.fold(existing_positions, -1, int.max) + 1
+            }
+          }
+        PrependReverseProducts ->
+          case existing_positions {
+            [] -> 0
+            [first, ..rest] ->
+              list.fold(rest, first, int.min)
+              - list.length(existing_product_ids)
+          }
+      }
+      let positioned_product_ids = case placement {
+        AppendProducts -> existing_product_ids
+        PrependReverseProducts -> list.reverse(existing_product_ids)
+      }
       let existing_memberships =
         store.list_effective_products_for_collection(store, collection.id)
-      let first_position = max_position + 1
       let memberships =
-        existing_product_ids
+        positioned_product_ids
         |> enumerate_strings()
         |> list.map(fn(entry) {
           let #(product_id, index) = entry
@@ -14170,6 +14641,27 @@ fn collection_add_products_payload(
   )
 }
 
+fn collection_add_products_v2_payload(
+  job_id: Option(String),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let job_value = case job_id {
+    Some(id) -> job_source(id, False)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("CollectionAddProductsV2Payload")),
+      #("job", job_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
 fn collection_create_payload(
   store: Store,
   collection: Option(CollectionRecord),
@@ -15087,6 +15579,7 @@ fn make_default_variant_record(
           value: "Default Title",
         ),
       ],
+      media_ids: [],
       inventory_item: Some(
         InventoryItemRecord(
           id: inventory_item_id,
@@ -15156,6 +15649,7 @@ fn make_created_variant_record(
         ),
       inventory_quantity: read_variant_inventory_quantity(input, Some(0)),
       selected_options: selected_options,
+      media_ids: [],
       inventory_item: inventory_item,
       contextual_pricing: None,
       cursor: None,
@@ -17734,6 +18228,7 @@ fn make_variant_for_combination(
         variant.inventory_quantity
       }),
       selected_options: combination,
+      media_ids: [],
       inventory_item: inventory_item,
       contextual_pricing: option.then(template, fn(variant) {
         variant.contextual_pricing

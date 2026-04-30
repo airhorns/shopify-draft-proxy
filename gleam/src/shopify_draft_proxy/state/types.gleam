@@ -290,6 +290,7 @@ pub type ProductVariantRecord {
     inventory_policy: Option(String),
     inventory_quantity: Option(Int),
     selected_options: List(ProductVariantSelectedOptionRecord),
+    media_ids: List(String),
     inventory_item: Option(InventoryItemRecord),
     contextual_pricing: Option(CapturedJsonValue),
     cursor: Option(String),

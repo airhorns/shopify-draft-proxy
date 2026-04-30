@@ -501,6 +501,7 @@ fn option_update_variant() -> ProductVariantRecord {
       ProductVariantSelectedOptionRecord(name: "Color", value: "Red"),
       ProductVariantSelectedOptionRecord(name: "Size", value: "Small"),
     ],
+    media_ids: [],
     inventory_item: Some(
       InventoryItemRecord(
         id: "gid://shopify/InventoryItem/optioned",
@@ -533,6 +534,7 @@ fn default_variant() -> ProductVariantRecord {
     selected_options: [
       ProductVariantSelectedOptionRecord(name: "Title", value: "Default Title"),
     ],
+    media_ids: [],
     inventory_item: Some(
       InventoryItemRecord(
         id: "gid://shopify/InventoryItem/default",

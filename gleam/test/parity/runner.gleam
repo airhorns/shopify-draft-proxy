@@ -332,6 +332,8 @@ fn seed_capture_preconditions(
       seed_product_variants_bulk_reorder_preconditions(capture, proxy)
     "product-reorder-media-live-parity" ->
       seed_product_reorder_media_preconditions(capture, proxy)
+    "product-relationship-roots-live-parity" ->
+      seed_product_relationship_roots_preconditions(capture, proxy)
     "productPublish-parity-plan"
     | "productPublish-aggregate-parity"
     | "productUnpublish-parity-plan"
@@ -3562,6 +3564,18 @@ fn make_seed_product_media_from_node(
   ))
 }
 
+fn seed_product_relationship_roots_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let collections = case read_array_field(capture, "seedCollections") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_collection_relaxed)
+    None -> []
+  }
+  let store = store_mod.upsert_base_collections(proxy.store, collections)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
 fn seed_inventory_quantity_roots_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -3623,6 +3637,7 @@ fn seed_inventory_quantity_roots_preconditions(
       inventory_policy: None,
       inventory_quantity: Some(0),
       selected_options: [],
+      media_ids: [],
       inventory_item: Some(
         InventoryItemRecord(
           id: inventory_item_id,
@@ -3801,6 +3816,7 @@ fn inventory_adjust_seed_variant(
     inventory_policy: None,
     inventory_quantity: Some(available),
     selected_options: [],
+    media_ids: [],
     inventory_item: Some(
       InventoryItemRecord(
         id: inventory_item_id,
@@ -3944,6 +3960,7 @@ fn seed_inventory_activate_preconditions(
             |> json_int_or(0)
             |> Some,
           selected_options: [],
+          media_ids: [],
           inventory_item: Some(
             InventoryItemRecord(
               id: inventory_item_id,
@@ -4112,6 +4129,7 @@ fn minimal_seed_variant(
     inventory_policy: None,
     inventory_quantity: Some(0),
     selected_options: [],
+    media_ids: [],
     inventory_item: None,
     contextual_pricing: None,
     cursor: None,
@@ -4249,6 +4267,7 @@ fn make_seed_product_variant(
     inventory_policy: read_string_field(source, "inventoryPolicy"),
     inventory_quantity: read_int_field(source, "inventoryQuantity"),
     selected_options: selected_options,
+    media_ids: read_string_array_field(source, "mediaIds"),
     inventory_item: make_seed_inventory_item(read_object_field(
       source,
       "inventoryItem",
