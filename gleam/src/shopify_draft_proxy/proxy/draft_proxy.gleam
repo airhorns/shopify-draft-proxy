@@ -51,6 +51,7 @@ import shopify_draft_proxy/proxy/operation_registry.{
   SavedSearches, Segments, ShippingFulfillments, StoreProperties, Webhooks,
 }
 import shopify_draft_proxy/proxy/operation_registry_data
+import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/store_properties
@@ -1060,6 +1061,12 @@ fn route_query(
       )
     Ok(MediaDomain) ->
       respond(proxy, media.process(query), "Failed to handle media query")
+    Ok(ProductsDomain) ->
+      respond(
+        proxy,
+        products.process(query, variables),
+        "Failed to handle products query",
+      )
     Ok(AdminPlatformDomain) ->
       respond(
         proxy,
@@ -1097,6 +1104,7 @@ type Domain {
   MarketingDomain
   BulkOperationsDomain
   MediaDomain
+  ProductsDomain
   AdminPlatformDomain
   StorePropertiesDomain
 }
@@ -1252,15 +1260,24 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
                                                     True -> Ok(MediaDomain)
                                                     False ->
                                                       case
-                                                        admin_platform.is_admin_platform_query_root(
+                                                        products.is_products_query_root(
                                                           name,
                                                         )
                                                       {
                                                         True ->
-                                                          Ok(
-                                                            AdminPlatformDomain,
-                                                          )
-                                                        False -> Error(Nil)
+                                                          Ok(ProductsDomain)
+                                                        False ->
+                                                          case
+                                                            admin_platform.is_admin_platform_query_root(
+                                                              name,
+                                                            )
+                                                          {
+                                                            True ->
+                                                              Ok(
+                                                                AdminPlatformDomain,
+                                                              )
+                                                            False -> Error(Nil)
+                                                          }
                                                       }
                                                   }
                                               }

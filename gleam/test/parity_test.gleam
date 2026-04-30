@@ -76,6 +76,22 @@ pub fn admin_platform_store_property_node_reads_test() {
   )
 }
 
+// ----------- products -----------
+
+pub fn product_empty_state_read_test() {
+  check("config/parity-specs/products/product-empty-state-read.json")
+}
+
+pub fn product_related_by_id_not_found_read_test() {
+  check(
+    "config/parity-specs/products/product-related-by-id-not-found-read.json",
+  )
+}
+
+pub fn product_feeds_empty_read_test() {
+  check("config/parity-specs/products/product-feeds-empty-read.json")
+}
+
 // NOTE: functions-metadata-local-staging fails because the capture
 // fixture (`fixtures/.../functions-metadata-flow.json`) is hand-
 // written and aspirational — it claims `Validation/2` + T+1s, but

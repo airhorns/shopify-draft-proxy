@@ -9,6 +9,76 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 33: products no-data read foundation
+
+Starts the Products domain in the Gleam dispatcher with a deliberately narrow
+read-only foundation. The new module handles Shopify-like null/empty behavior
+for product and product-adjacent query roots when no local product graph is
+seeded: missing product, collection, variant, inventory item/level, feed,
+operation, and feedback roots return `null`; product, variant, feed, helper,
+tag/type/vendor, inventory-item, and collection connections return selected
+empty connection shapes; count roots return `0` with `EXACT` precision; and
+unknown `productDuplicateJob` preserves the current Shopify-observed
+`done: true` helper shape.
+
+This pass does not claim product lifecycle support. The TypeScript Products
+runtime remains in place because mutations, downstream read-after-write effects,
+stateful product/variant/collection/inventory records, publications, selling
+plans, product metafields, and the rest of the 115 product parity specs are not
+ported yet.
+
+| Module                                                        | Change                                                                                                                                  |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`          | Adds Products query-root detection and selected no-data/null/empty serializers for product-adjacent reads.                              |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Routes Products query capabilities and legacy product root detection to the new Products dispatcher.                                    |
+| `gleam/test/shopify_draft_proxy/proxy/products_test.gleam`    | Adds direct coverage for product empty-state reads, missing related by-id roots, product feeds empty reads, and unknown duplicate jobs. |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | Updates the previous product-unimplemented dispatcher test to assert the new empty read route returns a GraphQL envelope.               |
+| `gleam/test/parity_test.gleam`                                | Enables the three strict no-data product parity scenarios that this pass supports without fixture weakening or capture rewrites.        |
+
+Validation: `gleam test --target javascript` is green at 677 tests on the host
+Node runtime. Host `gleam test --target erlang` is blocked by missing `escript`,
+so the established fallback
+`docker run --rm -v "$PWD/..:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`
+is green at 673 tests. Product parity inventory remains 115 checked-in specs,
+with 3 product specs now executable in the Gleam parity suite:
+`product-empty-state-read`, `product-related-by-id-not-found-read`, and
+`product-feeds-empty-read`.
+
+### Findings
+
+- The current product parity corpus already has a useful no-data subset that
+  can run before the normalized product graph exists, giving the Products domain
+  an executable starting point without weakening any captures.
+- `productDuplicateJob` is not a null no-data root in the TS handler; unknown
+  IDs serialize as an object with the requested ID and `done: true`, so the
+  Gleam no-data foundation preserves that helper quirk.
+- Product helper roots are mixed: empty/null helper shapes can be handled now,
+  but seeded identifier, variant, catalog, and live-hybrid helper comparisons
+  still need product/variant state seeding before the full helper parity spec can
+  be enabled.
+
+### Risks / open items
+
+- No product mutations are ported in this pass, so supported Products mutations
+  still cannot stage locally in Gleam.
+- No normalized product, variant, collection, inventory, publication, selling
+  plan, or product-metafield state slice exists in Gleam yet.
+- The TypeScript Products runtime cannot be deleted until all product lifecycle
+  parity and downstream read-after-write behavior are ported and proven.
+- Only 3 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 34 candidates
+
+- Add the normalized Product/ProductVariant/Collection state foundation and seed
+  captured product detail/catalog reads in the parity runner.
+- Port `productCreate` / `productUpdate` / `productDelete` local staging as the
+  first mutation lifecycle slice, including raw mutation log preservation.
+- Expand product helper roots once product and variant state can resolve
+  identifier, variant, tag/type/vendor, count, and saved-search projections.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain
