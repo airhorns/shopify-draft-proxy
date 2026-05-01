@@ -21,6 +21,7 @@
 ////           "name": "...",
 ////           "capturePath": "$....",
 ////           "proxyPath": "$....",
+////           "selectedPaths": ["$.field"],
 ////           "upstreamCapturePath": "$.response.payload",
 ////           "expectedDifferences": [...],
 ////           "proxyRequest": { … per-target override, same shape as
