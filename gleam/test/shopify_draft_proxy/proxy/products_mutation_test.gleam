@@ -7,8 +7,9 @@ import shopify_draft_proxy/proxy/draft_proxy.{type Request, Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type ProductRecord, type ProductVariantRecord, InventoryItemRecord,
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord,
 }
 
 fn empty_headers() -> dict.Dict(String, String) {
@@ -187,6 +188,79 @@ pub fn product_delete_stages_downstream_no_data_test() {
   assert read_status == 200
   assert json.to_string(read_body)
     == "{\"data\":{\"product\":null,\"products\":{\"nodes\":[]}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn metafield_delete_stages_product_owned_deletion_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: metafield_store())
+  let query =
+    "mutation { metafieldDelete(input: { id: \\\"gid://shopify/Metafield/material\\\" }) { deletedId userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metafieldDelete\":{\"deletedId\":\"gid://shopify/Metafield/material\",\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { material: metafield(namespace: \\\"custom\\\", key: \\\"material\\\") { id } origin: metafield(namespace: \\\"details\\\", key: \\\"origin\\\") { id namespace key value } metafields(first: 10) { nodes { id namespace key value } pageInfo { hasNextPage hasPreviousPage } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"material\":null,\"origin\":{\"id\":\"gid://shopify/Metafield/origin\",\"namespace\":\"details\",\"key\":\"origin\",\"value\":\"VN\"},\"metafields\":{\"nodes\":[{\"id\":\"gid://shopify/Metafield/origin\",\"namespace\":\"details\",\"key\":\"origin\",\"value\":\"VN\"}],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false}}}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn metafield_delete_unknown_id_returns_user_error_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: metafield_store())
+  let query =
+    "mutation { metafieldDelete(input: { id: \\\"gid://shopify/Metafield/missing\\\" }) { deletedId userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metafieldDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Metafield not found\"}]}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn metafields_delete_stages_product_owned_deletions_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: metafield_store())
+  let query =
+    "mutation { metafieldsDelete(metafields: [{ ownerId: \\\"gid://shopify/Product/optioned\\\", namespace: \\\"custom\\\", key: \\\"material\\\" }, { ownerId: \\\"gid://shopify/Product/optioned\\\", namespace: \\\"custom\\\", key: \\\"missing\\\" }]) { deletedMetafields { ownerId namespace key } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metafieldsDelete\":{\"deletedMetafields\":[{\"ownerId\":\"gid://shopify/Product/optioned\",\"namespace\":\"custom\",\"key\":\"material\"},null],\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { material: metafield(namespace: \\\"custom\\\", key: \\\"material\\\") { id } origin: metafield(namespace: \\\"details\\\", key: \\\"origin\\\") { id namespace key value } metafields(first: 10) { nodes { id namespace key value } pageInfo { hasNextPage hasPreviousPage } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"material\":null,\"origin\":{\"id\":\"gid://shopify/Metafield/origin\",\"namespace\":\"details\",\"key\":\"origin\",\"value\":\"VN\"},\"metafields\":{\"nodes\":[{\"id\":\"gid://shopify/Metafield/origin\",\"namespace\":\"details\",\"key\":\"origin\",\"value\":\"VN\"}],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false}}}}}"
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
@@ -418,6 +492,38 @@ fn tagged_product_store() -> store.Store {
   default_option_store()
   |> store.upsert_base_products([
     ProductRecord(..default_product(), tags: ["existing", "sale", "summer"]),
+  ])
+}
+
+fn metafield_store() -> store.Store {
+  default_option_store()
+  |> store.replace_base_metafields_for_owner("gid://shopify/Product/optioned", [
+    ProductMetafieldRecord(
+      id: "gid://shopify/Metafield/material",
+      owner_id: "gid://shopify/Product/optioned",
+      namespace: "custom",
+      key: "material",
+      type_: Some("single_line_text_field"),
+      value: Some("Canvas"),
+      compare_digest: Some("digest-material"),
+      json_value: None,
+      created_at: None,
+      updated_at: None,
+      owner_type: Some("PRODUCT"),
+    ),
+    ProductMetafieldRecord(
+      id: "gid://shopify/Metafield/origin",
+      owner_id: "gid://shopify/Product/optioned",
+      namespace: "details",
+      key: "origin",
+      type_: Some("single_line_text_field"),
+      value: Some("VN"),
+      compare_digest: Some("digest-origin"),
+      json_value: None,
+      created_at: None,
+      updated_at: None,
+      owner_type: Some("PRODUCT"),
+    ),
   ])
 }
 

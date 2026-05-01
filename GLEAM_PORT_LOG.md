@@ -9,6 +9,47 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 168: HAR-519 metafield deletion runtime coverage
+
+Adds explicit Gleam runtime coverage for the product-owned metafield deletion
+roots and records the current TypeScript-retirement boundary. `origin/main`
+already routed `metafieldsDelete` and the legacy compatibility
+`metafieldDelete` through the Gleam custom-data/metafield-definition surface;
+this pass locks the product downstream read behavior with focused tests and
+keeps the TypeScript runtime intact under the incremental port guardrail.
+
+| Module                                                         | Change                                                                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Covers singular deletion, plural mixed hit/miss deletion, unknown-ID userErrors, downstream reads, and mutation-log staging. |
+| `.agents/skills/gleam-port/SKILL.md`                           | Notes that owner-scoped metafield delete roots live with custom-data/metafield-definition handling while sharing product metafield state. |
+| `GLEAM_PORT_LOG.md`                                            | Records HAR-519 evidence and the TypeScript retirement deferral.                                        |
+
+Validation:
+
+- `cd gleam && gleam format --check`
+- `cd gleam && gleam test --target javascript` (776 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`
+  (772 passed)
+
+### Findings
+
+- The missing behavior described in HAR-519 could not be reproduced on current
+  `origin/main`: both `metafieldsDelete` and `metafieldDelete` already stage
+  locally in the Gleam implementation and pass the checked-in parity suite.
+- Explicit runtime tests were still valuable because the existing parity specs
+  prove fixture replay, while the focused tests prove direct product-owned
+  read-after-delete behavior and deterministic legacy `deletedId` handling.
+- `standardMetafieldDefinitionTemplates` still has no captured executable
+  catalog fixture in this branch, so no catalog support was added.
+
+### Risks / open items
+
+- TypeScript metafields/metafield-definition runtime deletion remains deferred
+  under the incremental port preservation rule until the final whole-port
+  cutover acceptance bar is met.
+
+---
+
 ## 2026-05-01 - Pass 167: HAR-496 payments branch localization refresh
 
 Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
