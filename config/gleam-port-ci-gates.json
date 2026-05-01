@@ -637,10 +637,6 @@
     {
       "specPath": "config/parity-specs/payments/shopify-payments-account-read.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/segments/segments-baseline-read.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     }
   ],
   "requiredWorkflowCommands": [
