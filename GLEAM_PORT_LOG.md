@@ -366,7 +366,2608 @@ Gleam parity failures are down from 11 to 9.
   local pickup enable/disable staging.
 - Continue `fulfillment-service-lifecycle.json` if a smaller mutation/read
   lifecycle slice is preferred.
+---
 
+## 2026-05-01 - Pass 162: fulfillment-order request lifecycle staging
+
+Ports the remaining implemented fulfillment-order request roots from the
+legacy Orders integration flow. This pass stages
+`fulfillmentOrderSubmitFulfillmentRequest`,
+`fulfillmentOrderAcceptFulfillmentRequest`,
+`fulfillmentOrderRejectFulfillmentRequest`,
+`fulfillmentOrderSubmitCancellationRequest`,
+`fulfillmentOrderAcceptCancellationRequest`, and
+`fulfillmentOrderRejectCancellationRequest`, plus
+`assignedFulfillmentOrders` readback. It keeps `fulfillmentOrdersReroute`
+unclaimed because the operation registry still marks it `implemented: false`
+with HAR-234 capture blockers.
+
+| Module                                                               | Change                                                   |
+| -------------------------------------------------------------------- | -------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                   | Adds request/cancellation staging and assigned readback. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`             | Covers request/cancellation read-after-write.            |
+| `gleam/test/shopify_draft_proxy/proxy/operation_registry_test.gleam` | Moves the unported-root sentinel to service reads.       |
+| `gleam/test/shopify_draft_proxy/proxy/passthrough_test.gleam`        | Keeps live-hybrid passthrough coverage unported.         |
+| `GLEAM_PORT_LOG.md`                                                  | Records pass 162 evidence.                               |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Records request lifecycle patterns.                      |
+
+Validation:
+
+- Reproduction signal before porting: request/cancellation roots were absent
+  from `is_orders_mutation_root` and local mutation dispatch, while
+  `assignedFulfillmentOrders` was the explicit implemented-but-unported
+  sentinel.
+- `cd gleam && gleam test --target javascript
+orders_fulfillment_order_request_cancellation_read_after_write_test`
+  (762 passed).
+
+### Findings
+
+- Submit-fulfillment-request staging must split partially requested line-item
+  quantities into submitted and unsubmitted fulfillment orders, minting fresh
+  unsubmitted fulfillment-order and line-item IDs while keeping the submitted
+  fulfillment order at the original ID.
+- Merchant requests need a connection-shaped serializer, not raw JSON
+  projection, so `merchantRequests(first:) { nodes { ... } }` behaves like the
+  TypeScript flow.
+- `assignedFulfillmentOrders` is now local readback. The passthrough sentinel
+  moved to `fulfillmentService`, which remains implemented in TypeScript but
+  outside the current Gleam dispatch table.
+
+### Risks / open items
+
+- `fulfillmentOrdersReroute`, `fulfillmentOrderReschedule`, and
+  `fulfillmentOrderClose` remain registry-unimplemented beyond captured
+  guardrail behavior; do not claim lifecycle support for those roots without
+  successful conformance evidence.
+
+### Pass 163 candidates
+
+- Run the full two-target/repo validation gate and re-check HAR-492 for any
+  remaining executable Orders integration-flow gaps before deciding whether the
+  draft PR can leave active implementation.
+
+---
+
+## 2026-05-01 - Pass 161: fulfillment-order split/deadline/merge staging
+
+Extends the fulfillment-order lifecycle slice with the residual local staging
+roots from the legacy Orders integration flow. This pass stages
+`fulfillmentOrderSplit`, `fulfillmentOrdersSetFulfillmentDeadline`, and
+`fulfillmentOrderMerge`, preserving downstream nested `Order.fulfillmentOrders`
+readback without runtime Shopify writes.
+
+| Module                                                   | Change                                      |
+| -------------------------------------------------------- | ------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds split/deadline/merge mutation staging. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers residual lifecycle read-after-write. |
+| `GLEAM_PORT_LOG.md`                                      | Records pass 161 evidence.                  |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records split/deadline/merge patterns.      |
+
+Validation:
+
+- Reproduction with the new residual lifecycle proof first failed with
+  `{\"data\":{}}`, proving `fulfillmentOrderSplit` was still ignored locally.
+- `cd gleam && gleam test --target javascript
+orders_fulfillment_order_split_deadline_merge_read_after_write_test`
+  (761 passed).
+
+### Findings
+
+- Split support needs a stored `supportedActions` override because Shopify adds
+  `MERGE` to split fulfillment orders; the generic status/quantity-derived
+  action set cannot infer that by itself.
+- The split-off fulfillment order gets a new fulfillment-order ID and a new
+  line-item ID when only part of an existing line item is split. The original
+  fulfillment order keeps the original line-item ID and reduced quantities.
+- Merge preserves the target fulfillment order ID and original line-item ID,
+  closes merged sibling orders with zeroed line items, and carries forward the
+  first staged `fulfillBy` deadline.
+
+### Risks / open items
+
+- Fulfillment-order request/cancellation request roots, reroute, and
+  assigned-fulfillment-order catalog filters remain outside this pass.
+
+### Pass 162 candidates
+
+- Port fulfillment-order request and cancellation request roots plus
+  `assignedFulfillmentOrders` readback, or decide whether the remaining
+  shipping-fulfillments roots should move to a narrower follow-up issue.
+
+---
+
+## 2026-05-01 - Pass 160: fulfillment-order lifecycle staging
+
+Adds the first fulfillment-order lifecycle slice to the Gleam Orders domain.
+This pass stages hold/release, move, progress/open, cancel, and captured
+reschedule/close guardrails locally, and exposes the downstream effects through
+top-level `fulfillmentOrder`/`fulfillmentOrders`,
+`manualHoldsFulfillmentOrders`, and nested `Order.fulfillmentOrders` reads.
+
+| Module                                                               | Change                                               |
+| -------------------------------------------------------------------- | ---------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                   | Adds fulfillment-order lifecycle reads/mutations.    |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`             | Covers hold/release, move/progress/open/cancel.      |
+| `gleam/test/shopify_draft_proxy/proxy/operation_registry_test.gleam` | Moves the unported-root sentinel to assignment read. |
+| `gleam/test/shopify_draft_proxy/proxy/passthrough_test.gleam`        | Keeps live-hybrid passthrough coverage unported.     |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Records fulfillment-order lifecycle patterns.        |
+
+Validation:
+
+- Reproduction with the in-flight lifecycle proof first exposed the old
+  supported-root gap: local dispatch for these roots was absent, and after
+  adding the root set the registry/passthrough sentinel still treated
+  `fulfillmentOrders` as unported.
+- `cd gleam && gleam test --target javascript
+orders_fulfillment_order_hold_release_read_after_write_test`
+  (760 passed).
+- `cd gleam && gleam test --target javascript
+orders_fulfillment_order_lifecycle_mutations_read_after_write_test`
+  (760 passed).
+- `cd gleam && gleam test --target javascript` (760 passed).
+- Docker Erlang fallback `gleam clean && gleam test --target erlang`
+  (756 passed).
+
+### Findings
+
+- `fulfillmentOrders` is now a local Orders query root, so substrate
+  passthrough tests need a different implemented-but-unported sentinel;
+  `assignedFulfillmentOrders` remains covered by the registry but outside this
+  pass.
+- Releasing a partial hold must merge the held quantity back with its split
+  sibling and close that sibling. Without that merge, downstream supported
+  actions lose `SPLIT` even though the local order graph should again represent
+  the original quantity.
+- Top-level fulfillment-order catalog reads should filter `CLOSED` records by
+  default while nested order reads preserve the order graph, matching the legacy
+  TypeScript integration flow.
+
+### Risks / open items
+
+- Fulfillment-order request/cancellation request roots, split/deadline/merge,
+  reroute, and assigned-fulfillment-order catalog filters remain outside this
+  pass.
+
+### Pass 161 candidates
+
+- Port the remaining fulfillment-order request/split/merge/deadline roots from
+  the legacy TypeScript Orders module, or split them into a dedicated
+  shipping-fulfillments pass if HAR-492 remains too broad for one PR.
+
+---
+
+## 2026-05-01 - Pass 159: fulfillment create and event staging
+
+Adds a bounded fulfillment creation/event lifecycle slice to the Gleam Orders
+domain. This pass stages `fulfillmentCreate` against order-backed local
+fulfillment orders, exposes the new fulfillment through top-level and nested
+reads, and stages `fulfillmentEventCreate` event history without invoking
+external carrier, notification, or fulfillment-service side effects.
+
+| Module                                                   | Change                                     |
+| -------------------------------------------------------- | ------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds fulfillment create/event handling.    |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers create, event, and detail readback. |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records fulfillment create/event patterns. |
+
+Validation:
+
+- Reproduction with the new fulfillment create/event proof first failed because
+  `fulfillmentCreate` always returned the captured invalid-id branch, even for a
+  local order-backed fulfillment order.
+- `cd gleam && gleam test --target javascript orders_fulfillment_create_event_and_detail_read_test`
+  (758 passed).
+
+### Findings
+
+- The existing fulfillment cancel/tracking path already projected fulfillment
+  JSON well enough for both mutation payloads and nested `Order.fulfillments`;
+  the missing piece was creating and appending order-backed fulfillment JSON.
+- Fulfillment events need connection-shaped storage (`events.nodes` plus
+  `pageInfo`) so top-level `fulfillment(id:)` and nested order reads can use the
+  shared GraphQL projector.
+
+### Risks / open items
+
+- Broader fulfillment-order request/move/hold/split/merge workflows remain
+  outside this pass.
+
+### Pass 160 candidates
+
+- Port the fulfillment-order lifecycle roots still covered only by the legacy
+  TypeScript Orders module, or decide whether they belong in a separate
+  shipping-fulfillments ticket.
+
+---
+
+## 2026-05-01 - Pass 158: order delete tombstone staging
+
+Adds direct `orderDelete` handling to the Gleam Orders domain. This pass
+matches the existing TypeScript snapshot behavior for supported order deletes:
+known orders are tombstoned locally, downstream reads omit the order, and repeat
+deletes return a payload-level user error without runtime upstream writes.
+
+| Module                                                   | Change                                   |
+| -------------------------------------------------------- | ---------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `orderDelete` mutation handling.    |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`        | Adds staged order tombstone helper.      |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers delete read-after-write behavior. |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records order delete staging notes.      |
+
+Validation:
+
+- Reproduction with the new direct `orderDelete` proof first failed with an
+  empty data payload because the Gleam Orders dispatcher ignored the supported
+  root.
+- `cd gleam && gleam test --target javascript orders_order_delete_tombstone_read_after_write_test`
+  (757 passed).
+
+### Findings
+
+- `OrderRecord` already had deleted-id tracking in the base and staged state
+  shapes; the port only lacked the store helper and mutation wiring.
+- The local delete can use a staged tombstone without mutating base state,
+  preserving isolated proxy instance behavior and read-after-write suppression.
+
+### Risks / open items
+
+- Fulfillment creation and broader fulfillment-order workflows are still not
+  part of this pass.
+
+### Pass 159 candidates
+
+- Port the fulfillment creation/event slice or fulfillment-order lifecycle
+  workflows if HAR-492 is judged to include those legacy Orders-module roots.
+
+---
+
+## 2026-05-01 - Pass 157: return reverse logistics staging
+
+Promotes the local-runtime and recorded reverse-logistics return scenarios in
+the Gleam Orders domain. This pass adds requested-return approval, reverse
+delivery creation/update, reverse fulfillment disposition, return processing,
+top-level reverse delivery and reverse fulfillment order reads, and downstream
+read-after-write effects for both fixture shapes.
+
+| Module                                             | Change                                           |
+| -------------------------------------------------- | ------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds reverse-logistics mutation/read handling.   |
+| `config/gleam-port-ci-gates.json`                  | Removes the final two gated Orders parity specs. |
+| `.agents/skills/gleam-port/SKILL.md`               | Records reverse-logistics staging notes.         |
+
+Validation:
+
+- Reproduction with both reverse-logistics specs ungated first failed at
+  missing local dispatcher support for `returnApproveRequest`.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- Approval is the bridge from a requested return to reverse logistics: it
+  creates the reverse fulfillment order and line item IDs that all later targets
+  derive from.
+- The local and recorded fixtures select different reverse-logistics field
+  shapes (`company` vs `carrierName`, `dispositionType` vs `dispositions`), so
+  serializers need to expose both Shopify field families from one captured
+  reverse-order model.
+- `returnProcess` persists a closed return when all line items are processed,
+  while the mutation payload keeps Shopify's captured response status from the
+  pre-process open return.
+
+### Risks / open items
+
+- All 78 checked-in Orders parity specs now run in the Gleam parity gate, but
+  HAR-492's broader integration-flow acceptance still needs final validation
+  before the issue can leave `In Progress`.
+- Direct order delete success and broader fulfillment creation workflows remain
+  outside the promoted parity set unless covered by existing executable tests.
+
+### Pass 158 candidates
+
+- Run the required full validation suite, inspect remaining registry/runtime
+  gaps for HAR-492 acceptance, and decide whether the PR can move toward human
+  review or needs another targeted pass.
+
+---
+
+## 2026-05-01 - Pass 156: return request decline staging
+
+Promotes the local-runtime requested-return decline scenario in the Gleam
+Orders domain. This pass adds `returnDeclineRequest` handling for captured
+requested returns, preserving local-only notification boundaries while staging
+the Shopify-like `DECLINED` return state and decline reason/note payload.
+
+| Module                                             | Change                                          |
+| -------------------------------------------------- | ----------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds `returnDeclineRequest` mutation staging.   |
+| `config/gleam-port-ci-gates.json`                  | Removes the newly passing request-decline spec. |
+| `.agents/skills/gleam-port/SKILL.md`               | Records requested-return decline staging notes. |
+
+Validation:
+
+- Reproduction with `return-request-decline-local-staging` ungated first failed
+  at missing local dispatcher support for `returnDeclineRequest`.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- Decline is a state transition on the existing order-backed return JSON. The
+  handler should reject missing or non-`REQUESTED` returns, then stage
+  `status: DECLINED` with the captured decline `reason` and `note`.
+- Notification side effects are intentionally not modeled; the parity scenario
+  only asserts the local mutation payload and no upstream passthrough.
+
+### Risks / open items
+
+- Reverse-logistics return roots remain gated.
+- Direct order delete success and broader fulfillment creation workflows remain
+  outside the promoted parity set.
+
+### Pass 157 candidates
+
+- Port `return-reverse-logistics-local-staging`; if it proves too broad, split
+  request approval from reverse delivery/disposal/process roots.
+
+---
+
+## 2026-05-01 - Pass 155: remove from return staging
+
+Promotes the local-runtime `removeFromReturn` scenario in the Gleam Orders
+domain. This pass extends the order-backed return model from Pass 154 with
+line-item removal, return quantity recomputation, and reverse fulfillment order
+line recomputation without runtime upstream passthrough.
+
+| Module                                             | Change                                             |
+| -------------------------------------------------- | -------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds `removeFromReturn` mutation staging.          |
+| `config/gleam-port-ci-gates.json`                  | Removes the newly passing remove-from-return spec. |
+| `.agents/skills/gleam-port/SKILL.md`               | Records return-removal staging notes.              |
+
+Validation:
+
+- Reproduction with `removeFromReturn-local-staging` ungated first failed at
+  missing local dispatcher support for `removeFromReturn`.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- `removeFromReturn` should not mint replacement reverse fulfillment order line
+  IDs when matching existing lines remain; it preserves existing reverse line
+  identity and only drops lines whose return line item was removed.
+- Reverse fulfillment order line nodes are derived from current return line
+  items, so successful removal must update both `returnLineItems` and every
+  reverse fulfillment order's `lineItems` array before staging the order.
+
+### Risks / open items
+
+- Request-decline and reverse-logistics return roots remain gated.
+- Direct order delete success and broader fulfillment creation workflows remain
+  outside the promoted parity set.
+
+### Pass 156 candidates
+
+- Port `return-request-decline-local-staging`, then use the same return-backed
+  serializers for reverse-logistics roots.
+
+---
+
+## 2026-05-01 - Pass 154: return lifecycle staging
+
+Promotes the local-runtime return lifecycle scenario in the Gleam Orders
+domain. This pass adds order-backed return creation/request staging, return
+status transitions, top-level `return(id:)` reads, and nested `Order.returns`
+read-after-write serialization for the captured fixture.
+
+| Module                                             | Change                                           |
+| -------------------------------------------------- | ------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds return lifecycle mutation/query handling.   |
+| `gleam/test/parity/runner.gleam`                   | Seeds the fulfilled return-flow source order.    |
+| `config/gleam-port-ci-gates.json`                  | Removes the newly passing return lifecycle spec. |
+| `.agents/skills/gleam-port/SKILL.md`               | Records return lifecycle staging notes.          |
+
+Validation:
+
+- Reproduction with `return-lifecycle-local-staging` ungated first failed at
+  missing local dispatcher support for `returnCreate`.
+- After initial implementation, the direct runner showed only
+  `returnClose.closedAt` one second late; the fix now mints `closedAt` before
+  the order `updatedAt` timestamp to preserve local-runtime fixture identity
+  order.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- Return IDs in the local-runtime fixture rely on mutation-log identity
+  consumption between requests. Return lifecycle handlers must emit log drafts
+  so later requested-return IDs line up with captured local behavior.
+- The fixture stores returns as order-backed captured JSON. Custom serializers
+  are needed for `Return`, `ReturnLineItem`, reverse fulfillment order
+  connections, and nested `Order.returns` because raw captured arrays are not
+  Shopify GraphQL connections.
+
+### Risks / open items
+
+- Reverse-logistics roots and `removeFromReturn` remain gated.
+- Direct order delete success and broader fulfillment creation workflows remain
+  outside the promoted parity set.
+
+### Pass 155 candidates
+
+- Port `removeFromReturn-local-staging`, then use the same return-backed
+  serializers for request decline and reverse-logistics roots.
+
+---
+
+## 2026-05-01 - Pass 153: residual order edit calculated edits
+
+Promotes the captured residual calculated-order edit scenario in the Gleam
+Orders domain. This pass wires the local residual edit roots for custom items,
+line-item discount add/remove, and shipping line add/update/remove into the
+same hidden calculated-session state introduced for order-edit commit.
+
+| Module                                             | Change                                              |
+| -------------------------------------------------- | --------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds residual calculated edit mutation handling.    |
+| `gleam/test/parity/runner.gleam`                   | Seeds the residual edit source order precondition.  |
+| `config/gleam-port-ci-gates.json`                  | Removes the newly passing residual order-edit spec. |
+| `.agents/skills/gleam-port/SKILL.md`               | Records residual calculated-session notes.          |
+
+Validation:
+
+- Reproduction with the residual order-edit spec ungated first failed because
+  the source order was not seeded for that scenario ID; after seeding, the
+  next failure was no local dispatcher for `orderEditAddCustomItem`.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- The residual workflow only needs pre-commit calculated-order state, so it can
+  reuse hidden session bookkeeping without widening commit behavior beyond the
+  already-promoted add-variant and zero-removal workflows.
+- Shopify's stable comparison fields are totals, quantities, discount
+  allocation payloads, and shipping-line status/price/title; synthetic
+  calculated ids remain opaque and are excluded by the spec.
+
+### Risks / open items
+
+- Returns remain gated and are the last Orders parity group still blocked in
+  the Gleam gate.
+- Direct order delete success and broader fulfillment creation workflows remain
+  outside the promoted parity set.
+
+### Pass 154 candidates
+
+- Begin the return lifecycle slice, starting with `returnCreate` and return
+  status transitions before reverse logistics.
+
+---
+
+## 2026-05-01 - Pass 152: order edit commit parity
+
+Promotes the captured existing-order order-edit commit scenarios in the Gleam
+Orders domain. This pass seeds the captured source order for all commit
+workflow specs, keeps calculated edit sessions as hidden staged-order JSON
+between `orderEditBegin`, `orderEditAddVariant` / `orderEditSetQuantity`, and
+`orderEditCommit`, and applies committed line-item current quantity effects to
+downstream `order(id:)` reads.
+
+| Module                                             | Change                                                  |
+| -------------------------------------------------- | ------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds order-edit session persistence and commit effects. |
+| `gleam/test/parity/runner.gleam`                   | Seeds existing-order commit workflow preconditions.     |
+| `config/gleam-port-ci-gates.json`                  | Removes the three newly passing order-edit specs.       |
+| `.agents/skills/gleam-port/SKILL.md`               | Records order-edit session bookkeeping notes.           |
+
+Validation:
+
+- Reproduction with the three order-edit commit specs ungated first failed
+  because the source order was not seeded for those scenario IDs; after seeding,
+  the remaining failure was the validation-only `orderEditCommit` null payload.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- The existing-order commit fixtures can share the already-ported begin/add/set
+  payload behavior. The missing domain behavior was durable calculated-session
+  state and applying that session back onto the original order at commit time.
+- Hidden staged-order JSON is sufficient for this slice and stays invisible to
+  selected order reads, matching the mandate-payment bookkeeping pattern from
+  Pass 151.
+- Shopify keeps historical `quantity` on existing line items after a zero
+  removal while changing `currentQuantity`; newly added calculated lines become
+  downstream order line items.
+
+### Risks / open items
+
+- Residual calculated edit roots for custom items, discounts, and shipping
+  lines remain gated.
+- Direct order delete success, fulfillment creation/fulfillment-order
+  workflows, and returns remain gated.
+
+### Pass 153 candidates
+
+- Continue with residual order-edit calculated edits, or switch to the returns
+  lifecycle slice.
+
+---
+
+## 2026-05-01 - Pass 151: order payment lifecycle parity
+
+Promotes the checked-in local-runtime order payment parity scenarios in the
+Gleam Orders domain. This pass wires `orderCapture`, `transactionVoid`, and
+`orderCreateMandatePayment` through the local Orders dispatcher, stages payment
+transactions against synthetic orders, updates downstream financial/capturable
+fields, and preserves mutation-log-driven synthetic identity gaps for strict
+fixture parity.
+
+| Module                                             | Change                                                  |
+| -------------------------------------------------- | ------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds local order payment lifecycle mutation handling.   |
+| `config/gleam-port-ci-gates.json`                  | Removes the three newly passing payment parity specs.   |
+| `.agents/skills/gleam-port/SKILL.md`               | Records payment lifecycle synthetic-id and state notes. |
+
+Validation:
+
+- Reproduction with the three payment specs ungated first failed at dispatch:
+  `orderCapture`, `transactionVoid`, and `orderCreateMandatePayment` had no
+  local mutation dispatcher.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- The local-runtime payment fixtures rely on `orderCreate` mutation-log entries
+  consuming synthetic ids between requests. Failed payment validation branches
+  also need `Failed` log drafts so later capture ids line up with the recorded
+  fixture.
+- `orderCapture` derives partial/final financial state from the original
+  authorization and staged capture children. Capture transactions keep a
+  selected `parentTransaction` object so downstream transaction reads do not
+  need resolver-time parent lookup.
+- `orderCreateMandatePayment` can keep idempotency data as hidden captured JSON
+  on the staged order; selected order fields ignore that local bookkeeping while
+  repeated calls reuse the same job and payment reference.
+
+### Risks / open items
+
+- Direct order delete success, order-edit commit sessions, fulfillment
+  creation/fulfillment-order workflows, and returns remain gated.
+- The payment implementation covers the checked-in local-runtime lifecycle
+  branches; broader gateway semantics remain outside this pass.
+
+### Pass 152 candidates
+
+- Continue with order-edit commit session persistence, or begin the returns
+  lifecycle slice now that direct order/payment foundations are stronger.
+
+---
+
+## 2026-05-01 - Pass 150: order create parity
+
+Promotes the checked-in `orderCreate-parity-plan` scenario in the Gleam
+Orders domain. This pass replaces the validation-only `orderCreate` branch
+with local staging for the captured direct-order creation payload, including
+selected totals, tax/discount/shipping fields, line item identity, transaction
+payment status, and immediate downstream `order(id:)` reads.
+
+| Module                                                   | Change                                                   |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Builds and stages direct `orderCreate` order records.    |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers created order payload and downstream order reads. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `orderCreate` parity spec.     |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records direct order-create porting notes.               |
+
+Validation:
+
+- Reproduction with only `orderCreate-parity-plan.json` ungated first failed
+  because `$.data.orderCreate.userErrors` did not resolve for valid input.
+- `cd gleam && gleam test --target javascript` (756 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (752 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 106 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The parity spec's selected payload can be satisfied from the resolved
+  `OrderCreateOrderInput`; no fixture rewrite or Shopify runtime passthrough is
+  needed.
+- Synthetic identity order is load-bearing for downstream payment specs:
+  `Order/1`, `LineItem/2`, then `OrderTransaction/3` for the authorization
+  local-runtime fixtures.
+- Shopify sorts direct order tags lexicographically, preserves
+  `presentmentMoney` on line-item prices when present, and computes
+  `currentTotalPriceSet` as line subtotal plus shipping plus tax minus fixed
+  discount.
+
+### Risks / open items
+
+- Payment transaction roots remain gated because `orderCapture`,
+  `transactionVoid`, and `orderCreateMandatePayment` are not yet locally
+  modeled in Gleam.
+- Order-edit commit sessions, fulfillment creation/fulfillment-order workflows,
+  and returns remain gated.
+
+### Pass 151 candidates
+
+- Use the now-staged direct `orderCreate` foundation to port payment
+  transaction lifecycle roots, or switch to order-edit commit state if a smaller
+  session model slice is available.
+
+---
+
+## 2026-05-01 - Pass 149: order edit validation parity
+
+Promotes the checked-in `orderEditExistingOrder-validation` parity scenario in
+the Gleam Orders domain. This pass seeds the captured validation source order,
+keeps duplicate-variant add payloads on the local calculated-line path, and
+adds Shopify's captured invalid-variant user error for `ProductVariant/0`.
+
+| Module                                                   | Change                                                         |
+| -------------------------------------------------------- | -------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds captured invalid-variant `orderEditAddVariant` payloads.  |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured order-edit source orders for validation parity. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers invalid variant null payload and user error shape.      |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing validation parity spec.              |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records order-edit validation porting notes.                   |
+
+Validation:
+
+- Reproduction with only `orderEditExistingOrder-validation.json` ungated first
+  failed because `$.data.orderEditBegin.userErrors` did not resolve before the
+  validation scenario seeded `$.seedOrder`.
+- `cd gleam && gleam test --target javascript` (755 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (751 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 107 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The validation scenario uses the same begin seed path as other order-edit
+  existing-order specs.
+- Shopify's captured invalid variant id `gid://shopify/ProductVariant/0`
+  returns a payload object with null calculated objects/session and a
+  `variantId` user error, not a top-level GraphQL error.
+- Duplicate existing variants with `allowDuplicates: false` still return a
+  calculated line item in the captured scenario, so the existing add-variant
+  calculated-line path covers that target once the product/variant seed is
+  loaded.
+
+### Risks / open items
+
+- Order-edit commit sessions, direct order creation/delete, payment transaction
+  and mandate roots, fulfillment creation/fulfillment-order workflows, and
+  returns remain gated.
+
+### Pass 150 candidates
+
+- Continue order-edit by adding commit persistence for the captured add/remove
+  workflows, or switch to another bounded existing-order, payment, fulfillment,
+  or return fixture if it can be modeled without partial support.
+
+---
+
+## 2026-05-01 - Pass 148: order edit set quantity parity
+
+Promotes the checked-in `orderEditSetQuantity` existing-order parity scenario
+in the Gleam Orders domain. This pass seeds the captured zero-removal source
+order, maps the synthetic calculated-line id from `orderEditBegin` back to the
+captured source line item, and returns Shopify's stable zero-quantity
+calculated-line payload without claiming commit or downstream edit persistence.
+
+| Module                                                   | Change                                                           |
+| -------------------------------------------------------- | ---------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `orderEditSetQuantity` calculated-line payload support.     |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured order-edit source orders for set-quantity parity. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers zero-quantity calculated-line payloads.                   |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `orderEditSetQuantity` parity spec.    |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records order-edit set-quantity porting notes.                   |
+
+Validation:
+
+- Reproduction with only `orderEditSetQuantity-parity-plan.json` ungated failed
+  because `fromPrimaryProxyPath` could not resolve
+  `$.data.orderEditBegin.calculatedOrder.id` before the set-quantity scenario
+  seeded `$.seedOrder`.
+- `cd gleam && gleam test --target javascript` (754 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (750 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 108 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The set-quantity spec compares only the stable calculated-line payload and
+  empty `userErrors`; it does not require a serialized session id.
+- Because the begin payload mints calculated line ids deterministically after
+  the calculated order id, the payload slice can map `CalculatedLineItem/N` back
+  to the seeded order line item by order index. This is a narrow bridge, not
+  persistent calculated-edit state.
+- Commit and downstream order effects remain separate work. This pass returns
+  the selected calculated line with overridden `quantity`/`currentQuantity`
+  only.
+
+### Risks / open items
+
+- Order-edit commit sessions, direct order creation/delete, payment transaction
+  and mandate roots, fulfillment creation/fulfillment-order workflows, and
+  returns remain gated.
+
+### Pass 149 candidates
+
+- Continue order-edit by adding commit persistence for the captured add/remove
+  workflows, or switch to another bounded existing-order, payment, fulfillment,
+  or return fixture if it can be modeled without partial support.
+
+---
+
+## 2026-05-01 - Pass 147: order edit add variant parity
+
+Promotes the checked-in `orderEditAddVariant` existing-order parity scenario in
+the Gleam Orders domain. This pass reuses the captured begin-order fixture,
+seeds the captured product/variant catalog, and returns the stable calculated
+line-item payload locally without claiming set-quantity, commit, or persistent
+calculated-order lifecycle support.
+
+| Module                                                   | Change                                                          |
+| -------------------------------------------------------- | --------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `orderEditAddVariant` calculated-line payload support.     |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured order-edit source orders for add-variant parity. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers add-variant payload, product title, SKU, and price set.  |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `orderEditAddVariant` parity spec.    |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records order-edit add-variant porting notes.                   |
+
+Validation:
+
+- Reproduction with only `orderEditAddVariant-parity-plan.json` ungated failed
+  because `fromPrimaryProxyPath` could not resolve
+  `$.data.orderEditBegin.calculatedOrder.id` before the add-variant scenario
+  seeded `$.seedOrder`.
+- `cd gleam && gleam test --target javascript` (753 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (749 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 109 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The add-variant parity spec depends on the begin request only to provide a
+  calculated-order id; the strict comparison target is the stable
+  `calculatedLineItem`, empty `userErrors`, and an `OrderEditSession` GID type.
+- Captured `seedProducts` already provide the product title and variant SKU/
+  price. The local payload should prefer the product title over the variant
+  option title, matching Shopify's calculated add-line shape.
+- This is still a payload slice: it does not persist calculated edits or mutate
+  downstream order line items until set/commit lifecycle support lands.
+
+### Risks / open items
+
+- Order-edit set/commit sessions, direct order creation/delete, payment
+  transaction and mandate roots, fulfillment creation/fulfillment-order
+  workflows, and returns remain gated.
+
+### Pass 148 candidates
+
+- Continue order-edit by adding `orderEditSetQuantity`/`orderEditCommit`
+  calculated-edit persistence, or switch to another bounded existing-order,
+  payment, fulfillment, or return fixture if it can be modeled without partial
+  support.
+
+---
+
+## 2026-05-01 - Pass 146: order edit begin parity
+
+Promotes the checked-in `orderEditBegin` existing-order parity scenario in the
+Gleam Orders domain. This pass seeds the captured source order, builds a
+synthetic calculated order/session payload locally, and preserves the captured
+`originalOrder` and empty `userErrors` behavior without claiming add/set/commit
+order-edit workflow support.
+
+| Module                                                   | Change                                                       |
+| -------------------------------------------------------- | ------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `orderEditBegin` existing-order calculated payloads.    |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured order-edit source orders from `$.seedOrder`.  |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers begin payload, line-item clone, and session id shape. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `orderEditBegin` parity spec.      |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records order-edit begin porting notes.                      |
+
+Validation:
+
+- Reproduction with only `orderEditBegin-parity-plan.json` ungated failed on
+  `$.data.orderEditBegin.calculatedOrder.originalOrder` before implementation.
+- `cd gleam && gleam test --target javascript` (752 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (748 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 110 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The begin parity spec compares only the stable calculated order
+  `originalOrder` and empty `userErrors`; session ids and calculated-line ids
+  are synthetic and intentionally not used as strict fixture equality.
+- `orderEditBegin` needs the fixture's `$.seedOrder` payload, not a downstream
+  read, because that is where the source line items for calculated-order
+  cloning live.
+- Begin can mint the calculated order/session shape without mutating order
+  state. Add-variant, set-quantity, commit, and calculated edit persistence
+  remain separate gated lifecycle work.
+
+### Risks / open items
+
+- Order-edit add/set/commit sessions, direct order creation/delete, payment
+  transaction and mandate roots, fulfillment creation/fulfillment-order
+  workflows, and returns remain gated.
+
+### Pass 147 candidates
+
+- Continue order-edit sessions by adding persistent calculated-order state for
+  add/set/commit, or switch to another bounded existing-order/payment/return
+  fixture if it can be modeled without partial support.
+
+---
+
+## 2026-05-01 - Pass 145: refund success parity
+
+Promotes the checked-in full and partial `refundCreate` success parity
+scenarios in the Gleam Orders domain. This pass stages synthetic refund,
+refund-line-item, and refund transaction records over captured setup orders,
+updates order financial status and refunded totals, and preserves downstream
+order refund/transaction/returns visibility.
+
+| Module                                                   | Change                                                         |
+| -------------------------------------------------------- | -------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `refundCreate` success staging and downstream order data. |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured setup orders for refund success parity.         |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers partial refund success and downstream reads.            |
+| `config/gleam-port-ci-gates.json`                        | Removes the two newly passing refund success parity specs.     |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records refund success porting notes.                          |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (751 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (747 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 111 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Refund success parity needs the captured setup `orderCreate` order because it
+  carries line-item prices, shipping lines, sale transactions, and original
+  total price needed to calculate status and downstream state.
+- Shopify's captured `NO_RESTOCK` refund line item has `subtotalSet` `0.0`,
+  while `RETURN` uses unit price times refunded quantity. The refund
+  transaction amount drives the total refunded amount when present.
+- Successful refunds append a refund transaction to the order transactions,
+  append a refund to `order.refunds`, preserve the empty returns connection,
+  and mark the order `REFUNDED` only once refunded total reaches the order
+  total.
+
+### Risks / open items
+
+- Direct order creation/delete, payment transaction and mandate roots,
+  fulfillment creation/fulfillment-order workflows, returns, and order-edit
+  sessions remain gated.
+
+### Pass 146 candidates
+
+- Continue with another bounded existing-order lifecycle fixture, or start a
+  coherent return/payment/order-edit slice only if downstream state and parity
+  evidence can be modeled together.
+
+---
+
+## 2026-05-01 - Pass 144: refund over-refund validation parity
+
+Promotes the checked-in `refundCreate` over-refund user-error parity scenario
+in the Gleam Orders domain. This pass handles only the captured validation
+branch: no refund is staged, the existing paid order is serialized unchanged,
+and downstream `order(id:)` still shows no refunds or returns.
+
+| Module                                                   | Change                                                       |
+| -------------------------------------------------------- | ------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `refundCreate` over-refund validation payload handling. |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured setup order for refund validation parity. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers over-refund payload and unchanged downstream reads.   |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing over-refund parity spec.           |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (750 passed).
+- Local `cd gleam && gleam test --target erlang` still hit the host runner
+  `undef` issue after compile; Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  passed (746 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 113 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured over-refund scenario needs the setup `orderCreate` order, not
+  only the downstream order read, because Shopify's error message compares the
+  requested refund to the order's original `totalPriceSet`.
+- Shopify returns `userErrors.field: null` for this branch and leaves the order
+  unchanged: `refund` is null, financial status remains `PAID`, total refunded
+  stays `0.0`, and downstream `refunds`/`returns` remain empty.
+
+### Risks / open items
+
+- Refund success paths, full/partial refund staging, transaction insertion,
+  return flows, payment transaction roots, order creation/delete, and order-edit
+  sessions remain gated.
+
+### Pass 145 candidates
+
+- Continue with another validation-only existing-resource fixture, or start a
+  coherent refund success slice only if refund records, order totals,
+  transactions, and downstream reads can be modeled together.
+
+---
+
+## 2026-05-01 - Pass 143: fulfillment cancel and tracking parity
+
+Promotes the checked-in `fulfillmentCancel` and
+`fulfillmentTrackingInfoUpdate` parity scenarios in the Gleam Orders domain.
+This pass stages updates to existing fulfillments embedded in captured order
+state and preserves immediate downstream `order(id:)` fulfillment reads.
+
+| Module                                                   | Change                                                    |
+| -------------------------------------------------------- | --------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Stages fulfillment cancel/tracking updates inside orders. |
+| `gleam/test/parity/runner.gleam`                         | Seeds fulfillment parity from captured downstream orders. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers tracking, cancel, and downstream reads.            |
+| `config/gleam-port-ci-gates.json`                        | Removes the two newly passing fulfillment parity specs.   |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (749 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (745 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 114 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured fulfillment success specs are existing-fulfillment state updates:
+  tracking replacement for `fulfillmentTrackingInfoUpdate`, and
+  `CANCELLED`/`CANCELED` status fields for `fulfillmentCancel`. They can be
+  staged locally over captured order JSON without claiming fulfillment creation
+  or fulfillment-order workflows.
+- Seeding from the captured downstream order keeps fulfillment line items and
+  fulfillment-order snapshots available for strict downstream comparisons while
+  the mutation handler touches only the matching fulfillment.
+
+### Risks / open items
+
+- Fulfillment creation, fulfillment-order lifecycle roots, direct order
+  creation/delete, payment transaction and mandate roots, refunds, returns, and
+  order-edit sessions remain gated.
+
+### Pass 144 candidates
+
+- Continue with another narrow existing-resource validation or lifecycle
+  fixture, or start the larger direct-order creation/payment/refund slices only
+  with coherent downstream state modeling.
+
+---
+
+## 2026-05-01 - Pass 142: order update field parity
+
+Promotes the checked-in simple and expanded `orderUpdate` parity scenarios in
+the Gleam Orders domain. This pass turns the previous validation-only
+`orderUpdate` handler into a local existing-order update path for the captured
+simple fields and preserves downstream `order(id:)` read visibility.
+
+| Module                                                   | Change                                                   |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Stages existing-order update fields and metafields.      |
+| `gleam/test/parity/runner.gleam`                         | Seeds order-update parity from captured downstream data. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers expanded update payload and downstream read.      |
+| `config/gleam-port-ci-gates.json`                        | Removes the two newly passing order-update parity specs. |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (748 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (744 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 116 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured `orderUpdate` success fixtures are limited to existing-order
+  field staging: note/tags in the simple fixture and email, PO number, note,
+  tags, custom attributes, shipping address, and one order metafield in the
+  expanded fixture. These can be modeled over captured order JSON without
+  claiming order creation, deletion, or order-edit session behavior.
+- The expanded fixture updates an existing `custom/gift` metafield, so the
+  Gleam handler preserves the seeded Shopify metafield id by namespace/key
+  rather than minting a replacement id for that captured path.
+
+### Risks / open items
+
+- Direct order creation/delete success, broader payment transaction and mandate
+  roots, fulfillment success paths, refunds, returns, and order-edit sessions
+  remain gated.
+
+### Pass 143 candidates
+
+- Continue with another bounded existing-order lifecycle fixture, or start a
+  coherent payment/fulfillment/refund slice only if the staged state model can
+  satisfy all asserted downstream reads.
+
+---
+
+## 2026-05-01 - Pass 141: order mark-as-paid parity
+
+Promotes the checked-in `orderMarkAsPaid` parity scenario in the Gleam Orders
+domain. This pass adds local existing-order payment state staging for
+mark-as-paid requests, preserves already-paid captured orders without
+duplicating transactions, and seeds the parity fixture from its captured paid
+order payload.
+
+| Module                                                   | Change                                                   |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds local `orderMarkAsPaid` payment state handling.     |
+| `gleam/test/parity/runner.gleam`                         | Seeds mark-as-paid parity from captured mutation order.  |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers mark-as-paid payload and downstream read effects. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing mark-as-paid parity spec.      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (747 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (743 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 118 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured `orderMarkAsPaid` scenario selects the paid financial status,
+  manual gateway, zero outstanding amount, and a successful manual SALE
+  transaction. These fields can be modeled locally from an existing captured
+  order without claiming the broader payment/transaction lifecycle roots.
+- Parity seeding uses the captured already-paid mutation order, so the handler
+  must serialize already-paid orders unchanged rather than appending a duplicate
+  local transaction.
+
+### Risks / open items
+
+- Manual payment creation, mandate payments, transaction capture/void flows,
+  order creation/update/delete success, fulfillment, refunds, returns, and
+  order-edit sessions remain gated.
+
+### Pass 142 candidates
+
+- Continue with payment lifecycle roots only if their transaction/state
+  interactions can be modeled coherently, or move to another narrow validation
+  fixture.
+
+---
+
+## 2026-05-01 - Pass 140: order customer association parity
+
+Promotes the checked-in `orderCustomerSet` and `orderCustomerRemove` parity
+scenarios in the Gleam Orders gate without moving root ownership away from the
+Customers domain. This pass seeds the captured customers and customer order
+summaries required by the existing Customers-domain handlers, then ungates the
+two Orders parity specs.
+
+| Module                            | Change                                                        |
+| --------------------------------- | ------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`  | Seeds order-customer parity from customer/order summary data. |
+| `config/gleam-port-ci-gates.json` | Removes the two newly passing order-customer parity specs.    |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (746 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (742 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 119 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The Gleam Customers domain already owns `orderCustomerSet` and
+  `orderCustomerRemove` because those roots update Customer.orders summary
+  state. Registering them in Orders would route customer order-summary parity to
+  the wrong domain.
+- The standalone Orders parity captures only need the mutation's selected
+  `order.customer` payload and empty user errors. Seeding customer records plus
+  customer order summaries from the capture lets the existing local handler
+  satisfy those targets without duplicating order-customer logic.
+
+### Risks / open items
+
+- Direct order creation/update/delete success, payment mutations, fulfillment,
+  refunds, returns, and order-edit sessions remain gated.
+- Broader customer/order lifecycle edge cases stay with the Customers-domain
+  parity coverage until a later whole-domain cutover reconciles ownership.
+
+### Pass 141 candidates
+
+- Continue with another narrow existing handler/seeding promotion if available,
+  or start a coherent payment lifecycle slice such as `orderMarkAsPaid`.
+
+---
+
+## 2026-05-01 - Pass 139: order invoice send payload parity
+
+Promotes the checked-in `orderInvoiceSend` parity scenario in the Gleam Orders
+domain. This pass adds a local existing-order payload response for invoice-send
+requests, returns the selected captured order and empty user errors, keeps
+runtime state untouched, and seeds the parity fixture from its captured mutation
+order payload.
+
+| Module                                                   | Change                                                   |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds local `orderInvoiceSend` payload handling.          |
+| `gleam/test/parity/runner.gleam`                         | Seeds invoice-send parity from captured mutation order.  |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers invoice-send payload and no staging side effects. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing invoice-send parity spec.      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (746 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (742 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 121 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured `orderInvoiceSend` parity target asserts the returned order id
+  and empty user errors; no local order state mutation is needed for this slice.
+- Seeding from `$.mutation.response.data.orderInvoiceSend.order` preserves the
+  selected order shape without claiming email delivery or side effects.
+
+### Risks / open items
+
+- Email-send delivery semantics, notification side effects, direct order
+  creation/update/delete/customer/payment effects, fulfillment, refunds,
+  returns, and order-edit sessions remain gated.
+
+### Pass 140 candidates
+
+- Continue with another narrow order management validation fixture, or start a
+  coherent payment/customer lifecycle slice when the surrounding state effects
+  can be modeled together.
+
+---
+
+## 2026-05-01 - Pass 138: order cancel downstream parity
+
+Promotes the checked-in `orderCancel` parity scenario in the Gleam Orders
+domain. This pass adds local cancellation staging for existing orders, returns
+the captured immediate empty `orderCancelUserErrors` payload, updates
+closed/cancelled fields for downstream `order(id:)` reads, and seeds the parity
+fixture from its captured downstream order payload.
+
+| Module                                                   | Change                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds local `orderCancel` mutation staging.              |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured downstream order state for cancellation. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers cancel payload and downstream cancelled state.   |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing order cancel parity spec.     |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (745 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (741 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 122 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify's captured `orderCancel` mutation response can be an immediate
+  payload with only `orderCancelUserErrors: []`; the cancelled state is observed
+  through a downstream order read.
+- For this executable scenario, seeding from
+  `$.downstreamRead.response.data.order` gives the local proxy enough captured
+  order shape to stage cancellation without claiming direct order creation or
+  broader payment/customer side effects.
+- `cancelReason` should come from the captured/requested `reason` argument;
+  local timestamps can use the deterministic synthetic timestamp because the
+  checked-in comparison targets assert closed state and cancel reason, not the
+  exact live timestamp.
+
+### Risks / open items
+
+- Repeated-cancel errors, canceled-order interactions with other roots, direct
+  order creation/update/delete/customer/payment effects, fulfillment, refunds,
+  returns, and order-edit sessions remain gated.
+
+### Pass 139 candidates
+
+- Continue with a narrow order management fixture such as invoice send, or defer
+  to a coherent payment/customer lifecycle slice when the surrounding state
+  effects can be modeled together.
+
+---
+
+## 2026-05-01 - Pass 137: order open/close lifecycle parity
+
+Promotes the checked-in `orderOpen` and `orderClose` parity scenarios in the
+Gleam Orders domain. This pass adds narrow existing-order lifecycle staging for
+open/close mutations, preserves selected captured order fields, writes the
+staged order back into downstream reads, records local mutation-log drafts, and
+seeds the two parity fixtures from their captured order payloads.
+
+| Module                                                   | Change                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds local `orderOpen`/`orderClose` mutation staging.         |
+| `gleam/test/parity/runner.gleam`                         | Seeds order-management parity scenarios from captured orders. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers close/open read-after-write lifecycle behavior.        |
+| `config/gleam-port-ci-gates.json`                        | Removes the two newly passing order lifecycle specs.          |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (744 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (740 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 123 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured `orderOpen`/`orderClose` scenarios only need existing-order
+  lifecycle fields and selected downstream order reads; they can stage over a
+  captured `OrderRecord` without claiming direct `orderCreate` success support.
+- `orderClose` can use the synthetic timestamp for local `closedAt` and
+  `updatedAt`; the checked-in comparison targets assert closed state and
+  downstream read effects, not the captured live timestamp value.
+- The parity runner should seed these scenarios from
+  `$.mutation.response.data.<root>.order`, matching the captured order payload
+  shape that the mutation and downstream read select.
+
+### Risks / open items
+
+- Repeated open/close user-error branches, canceled-order constraints, direct
+  order creation/update success, payment/customer effects, fulfillment,
+  refunds, returns, and order-edit sessions remain gated.
+
+### Pass 138 candidates
+
+- Continue with another narrow order-management validation/lifecycle fixture, or
+  start a coherent order create/update/payment slice only when the required
+  downstream state effects can be modeled together.
+
+---
+
+## 2026-05-01 - Pass 136: order update unknown-id validation
+
+Promotes the checked-in `orderUpdate-parity-plan` scenario in the Gleam Orders
+domain. This pass extends the existing `orderUpdate` validation guardrail from
+missing/null nested IDs to Shopify's captured unknown-order payload branch,
+returning `order: null` and the `Order does not exist` user error without
+staging state or claiming update success behavior.
+
+| Module                                                   | Change                                                      |
+| -------------------------------------------------------- | ----------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds store-aware unknown-order `orderUpdate` user errors.   |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers unknown-id response plus no staging/logging effects. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing order update validation spec.     |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (743 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (739 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 125 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Unknown-order `orderUpdate` is a payload user-error branch, not a top-level
+  GraphQL error: `order: null`, `field: ["id"]`, and message
+  `Order does not exist`.
+- The guardrail needs access to effective order state so future successful
+  `orderUpdate` support can distinguish unknown upstream IDs from local staged
+  orders.
+
+### Risks / open items
+
+- Successful `orderUpdate` field changes, timestamp behavior, downstream reads,
+  and lifecycle interactions remain gated.
+
+### Pass 137 candidates
+
+- Either continue with another captured validation guardrail, or begin the
+  direct order lifecycle substrate when the order, payment, customer, inventory,
+  fulfillment, refund, and return effects can be modeled coherently.
+
+---
+
+## 2026-05-01 - Pass 135: order create no-line-items validation
+
+Promotes the checked-in `orderCreate-validation-matrix` scenario in the Gleam
+Orders domain. This pass extends the existing `orderCreate` validation
+guardrail beyond required-argument errors to mirror Shopify's captured
+no-line-items business-rule user error without staging an order, writing a
+mutation-log draft, or claiming order creation success behavior.
+
+| Module                                                   | Change                                                          |
+| -------------------------------------------------------- | --------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds the no-line-items `orderCreate` validation payload branch. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers the local no-line-items response and no staging/logging. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing order create validation spec.         |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (743 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (739 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 126 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify returns the no-line-items branch as payload `userErrors`, not a
+  top-level GraphQL error: `order: null`, `field: ["order", "lineItems"]`, and
+  message `Line items must have at least one line item`.
+- This rejected branch should not stage an `OrderRecord`, mint synthetic IDs, or
+  create a mutation-log draft.
+
+### Risks / open items
+
+- This is still a validation guardrail only. Successful `orderCreate`
+  lifecycle, downstream read effects, payment transactions, inventory bypass,
+  customer linkage, fulfillment state, refunds, and returns remain gated.
+
+### Pass 136 candidates
+
+- Continue with another validation-only order guardrail if it is backed by a
+  captured executable fixture, or start the broader `orderCreate` lifecycle only
+  when all downstream state effects can be modeled together.
+
+---
+
+## 2026-05-01 - Pass 134: order catalog filters and count limits
+
+Promotes the checked-in `order-catalog-count-read` scenario in the Gleam Orders
+domain. This pass extends the narrow order catalog slice with captured catalog
+seeding from node-based responses, shared Admin search-query filtering for the
+captured `tag:`, `name:`, `financial_status:`, and `fulfillment_status:` terms,
+raw cursor replay for the captured next-page request, reverse ordering, and
+`ordersCount(limit:)` precision.
+
+| Module                                                   | Change                                                                     |
+| -------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds order catalog query filtering, reverse windows, and count precision.  |
+| `gleam/test/parity/runner.gleam`                         | Seeds node-based captured order catalogs with preserved cursors.           |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Extends direct catalog/count coverage for tag filters and limit precision. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing order catalog/count parity spec.                 |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (743 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (739 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 127 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- `orders` can use the shared `search_query_parser.apply_search_query` helper
+  with a small order-specific positive term matcher. The captured terms only
+  require exact tag/status matching and text matching for names.
+- The captured catalog fixture selects `nodes`, not `edges`, so the parity
+  runner needs to derive stable raw cursors from the captured pageInfo windows
+  and attach them to seeded `OrderRecord`s.
+- `ordersCount(limit:)` returns `AT_LEAST` when the filtered count exceeds the
+  limit and otherwise returns `EXACT`; a `null` limit behaves as unlimited.
+
+### Risks / open items
+
+- Search support remains limited to the fields proven by the captured fixture.
+- This does not add order lifecycle mutations, order-edit success paths,
+  fulfillment success paths, refunds, returns, or customer/payment side effects.
+
+### Pass 135 candidates
+
+- Continue with another order read fixture that can build on the catalog
+  substrate, or shift to the next lifecycle fixture only when the required
+  downstream state can be modeled without partial mutation support.
+
+---
+
+## 2026-05-01 - Pass 133: order empty catalog/count reads
+
+Promotes the checked-in `order-empty-state-read` scenario and the
+`order-edit-residual-local-staging` empty `ordersCount` baseline in the Gleam
+Orders domain. This pass adds narrow `orders`/`ordersCount` query support,
+seeds the captured order catalog edge plus placeholder records for count and
+pageInfo parity, and keeps missing direct order reads as Shopify-style `null`.
+
+| Module                                                   | Change                                                                 |
+| -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `orders` connection and `ordersCount` query serialization.        |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured order catalog edges and count-padding placeholders.     |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers order catalog cursor/pageInfo/count output.                     |
+| `gleam/test/shopify_draft_proxy/proxy/*_test.gleam`      | Moves unported-root sentinel assertions from `orders` to fulfillments. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing order empty-state and count-baseline specs.  |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (743 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (739 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 128 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The older `order-empty-state-read` capture includes a selected order catalog
+  node with only `id` and `name`. The connection serializer therefore preserves
+  captured sparse nodes by omitting fields absent from the captured payload,
+  while direct `order(id:)` detail reads still use the normal captured JSON
+  projector.
+- Count/pageInfo parity can be satisfied by padding the seeded order catalog
+  with placeholder records after captured edges, mirroring the draft-order
+  catalog approach without exposing placeholders on the selected first page.
+- Once `orders` is locally dispatched, substrate tests that used it as an
+  unported-root sentinel need to use a still-unported implemented root such as
+  `fulfillmentOrders`.
+
+### Risks / open items
+
+- This pass does not add order search filtering, count `limit:` precision
+  semantics, cursor `after:` replay, or lifecycle mutations.
+- The `order-edit-residual-local-staging` parity target promoted here is only
+  the empty `ordersCount` baseline. It does not claim order-edit session,
+  commit, or order-delete mutation success behavior in Gleam.
+
+### Pass 134 candidates
+
+- Continue into `order-catalog-count-read` if search, sort, cursor, and count
+  precision can be modeled against the captured catalog, or choose another
+  narrow read slice backed by existing order fixtures.
+
+---
+
+## 2026-05-01 - Pass 132: order merchant detail read
+
+Promotes the checked-in `order-merchant-detail-read` scenario in the Gleam
+Orders domain. This pass introduces the first narrow first-class order state
+slice, seeds the captured merchant-detail order fixture for parity replay, and
+serves `order(id:)` reads by projecting the requested selection from captured
+JSON while preserving Shopify's `null` behavior for missing order IDs.
+
+| Module                                                    | Change                                                                      |
+| --------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds `OrderRecord` for captured order payloads.                             |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds base/staged order buckets and effective order lookup helpers.          |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Adds order bucket dump/restore serialization.                               |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`        | Adds `order(id:)` query dispatch and captured JSON projection.              |
+| `gleam/test/parity/runner.gleam`                          | Seeds `order-merchant-detail-read` from the captured Shopify order payload. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`  | Covers seeded order detail reads and missing-order `null` responses.        |
+| `config/gleam-port-ci-gates.json`                         | Removes the newly passing merchant-detail order parity spec.                |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (742 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (738 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 130 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- `order(id:)` can be promoted before order catalog/search/counts by seeding
+  only the captured order detail payload and projecting fields from captured
+  JSON. This keeps the slice faithful without inventing broad order behavior.
+- The order state bucket needs dump/restore support immediately because parity
+  seeding uses the same store shape as runtime state snapshots.
+- The local read should return GraphQL `null` when no captured or staged order
+  exists for an ID, matching Shopify's no-data behavior.
+
+### Risks / open items
+
+- This does not add `orders` connection/count/search support or any order
+  lifecycle mutation behavior.
+- Order-edit sessions, fulfillment success paths, refunds, returns, and
+  payment/customer downstream effects remain gated.
+
+### Pass 133 candidates
+
+- Continue with a narrow order no-data/read/count slice if backed by existing
+  captures, or pick the next order lifecycle fixture that can reuse the new
+  `OrderRecord` state without claiming unsupported mutations.
+
+---
+
+## 2026-05-01 - Pass 131: draft order create from order
+
+Promotes the checked-in `draftOrderCreateFromOrder-parity-plan` scenario in
+the Gleam Orders domain. This pass adds local `draftOrderCreateFromOrder`
+dispatch, required `orderId` validation, source-order lookup through completed
+draft orders, and staged draft-order creation with fresh draft/line-item IDs and
+downstream `draftOrder(id:)` visibility.
+
+| Module                                                   | Change                                                                               |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderCreateFromOrder` mutation handling from embedded completed orders.   |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured setup draft/order chain for create-from-order parity replay.      |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers local create-complete-createFromOrder read-after-write plus missing order id. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing create-from-order parity spec.                             |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (741 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (737 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 131 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured create-from-order setup can be replayed without a new broad
+  order store by seeding the completed draft order and finding its nested
+  `order` payload by id.
+- Shopify resets draft-order fields when creating from an order: the new draft
+  is open/ready, clears shipping and discounts, allocates fresh draft and
+  draft-line-item IDs, and recomputes totals from order line-item unit prices.
+- The captured completed-order payload carries line-item prices, while the
+  source draft carries the original email. The local builder keeps both pieces
+  together for this narrow slice.
+
+### Risks / open items
+
+- This does not introduce general `OrderRecord` state or standalone order
+  reads/search/counts; broader order lifecycle remains gated.
+- Fulfillment success paths, refunds, returns, and order editing remain
+  unported.
+
+### Pass 132 candidates
+
+- Start a narrow order no-data/read/count slice if it can be backed by existing
+  captured parity fixtures, or continue with the next draft-order-adjacent
+  order lifecycle fixture that does not require broad fulfillment state.
+
+---
+
+## 2026-05-01 - Pass 130: draft order catalog/count reads
+
+Promotes the checked-in `draftOrders-read-parity-plan`,
+`draftOrdersCount-read-parity-plan`, and `draftOrders-invalid-email-query-read`
+parity scenarios in the Gleam Orders domain. This pass adds local
+`draftOrders` connection serialization, `draftOrdersCount`, captured catalog
+baseline seeding for parity, and Shopify's invalid-email search warning
+extension for these draft-order roots.
+
+| Module                                                   | Change                                                                           |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrders`/`draftOrdersCount` query roots and search-warning extensions. |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured draft-order catalog edges, cursors, and count baselines.          |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers draft-order connection/count output plus invalid email warnings.          |
+| `config/gleam-port-ci-gates.json`                        | Removes the three newly passing `draftOrders*` specs.                            |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (738 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (734 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 136 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Captured catalog parity needs cursor preservation from connection edges, not
+  generated local cursors, because the checked-in specs compare strict JSON.
+- Count parity can be satisfied by seeding placeholder draft orders after the
+  captured window; only the count/pageInfo shape observes the extra records.
+- Shopify returns invalid-email search warnings for both `draftOrders` and
+  `draftOrdersCount` while still returning the unfiltered catalog baseline.
+
+### Risks / open items
+
+- This pass does not add draft-order search filtering beyond the captured
+  invalid-email warning branch.
+- `draftOrderCreateFromOrder`, broader order lifecycle, order editing,
+  fulfillment success paths, refunds, and returns remain unported.
+
+### Pass 131 candidates
+
+- Continue with `draftOrderCreateFromOrder` while the draft-order data model is
+  active, or start a narrow order no-data/read slice if create-from-order needs
+  broader order seeding first.
+
+---
+
+## 2026-05-01 - Pass 129: draft order create validation parity
+
+Promotes the checked-in `draftOrderCreate-validation-matrix` parity scenario in
+the Gleam Orders domain. This pass adds Shopify-shaped payload validation for
+invalid draft-order create inputs, keeps failed branches from staging draft
+orders or consuming synthetic IDs, and preserves valid local create staging.
+
+| Module                                                   | Change                                                                             |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds create-time validation and nullable user-error payload serialization.         |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers the captured validation matrix and verifies failed creates stage no drafts. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderCreate-validation-matrix` spec.               |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (737 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (733 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 139 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The create validation matrix can run without new live credentials because its
+  captured request/response fixture already covers the invalid input branches.
+- Validation failures need the same nullable `userErrors.field` projection as
+  invoice-send guardrails, and they should produce failed mutation-log drafts
+  without local store changes.
+- Reserve-inventory validation should use the existing cross-target timestamp
+  FFI rather than a fixed cutoff so future-dated valid creates stay valid.
+
+### Risks / open items
+
+- This does not port draft-order catalog/count/search hydration, nor
+  `draftOrderCreateFromOrder`; those remain gated.
+- Broader order lifecycle, order editing, fulfillment success paths, refunds,
+  and returns remain unported.
+
+### Pass 130 candidates
+
+- Continue with `draftOrderCreateFromOrder` if the existing setup/order data
+  can be seeded narrowly, or tackle draft-order catalog/count/search hydration
+  as a focused read slice.
+
+---
+
+## 2026-05-01 - Pass 128: draft order residual helper roots
+
+Promotes the checked-in `draft-order-residual-helper-roots` parity scenario in
+the Gleam Orders domain. This pass adds local handling for draft-order delivery
+option no-data reads, `draftOrderCalculate`, `draftOrderInvoicePreview`, and
+the bulk add/remove/delete tag helpers. It preserves local read-after-write
+effects for staged draft-order tags and deletion while keeping the work scoped
+to draft orders rather than broad order lifecycle behavior.
+
+| Module                                                   | Change                                                                                   |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds helper root dispatch, empty delivery options, calculate, invoice preview, and bulk. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers helper payloads plus bulk tag/delete read-after-write behavior directly.          |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draft-order-residual-helper-roots` spec.                      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (736 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (732 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 140 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The residual helper fixture can reuse staged draft orders from
+  `draftOrderCreate`; no capture seeding is needed for the primary scenario.
+- `draftOrderCalculate` needs a calculate-shaped `lineItems` list and explicit
+  `currencyCode`, not the connection-shaped `lineItems` stored on staged draft
+  orders.
+- Bulk tag helpers can model Shopify's async `Job` payload deterministically
+  while still applying local staged tag/delete effects immediately.
+
+### Risks / open items
+
+- Saved-search query semantics are reused from the saved-search domain, but
+  broader `draftOrders` catalog/count/search hydration remains gated.
+- `draftOrderCreateFromOrder`, order lifecycle, order editing, fulfillment
+  success paths, refunds, and returns remain unported.
+
+### Pass 129 candidates
+
+- Continue with draft-order catalog/count/search parity, or a narrow validation
+  matrix if the checked-in fixture can be modeled without broad order-store
+  work.
+
+---
+
+## 2026-05-01 - Pass 127: draft order invoice send guardrails
+
+Promotes the captured `draftOrderInvoiceSend` safety parity plan in the Gleam
+Orders domain. This pass keeps the root validation-only: it handles unknown,
+deleted/unseeded, open no-recipient, and completed no-recipient drafts locally,
+serializes Shopify's nullable user-error `field`, and deliberately avoids
+claiming email-send success behavior or mutating staged draft-order state.
+
+| Module                                                   | Change                                                                                          |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderInvoiceSend` dispatch and captured no-recipient/not-found/paid validation.      |
+| `gleam/test/parity/runner.gleam`                         | Seeds only the captured open/completed no-recipient draft states before replaying the scenario. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers unknown-id and open no-recipient validation directly.                                    |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderInvoiceSend-parity-plan` spec.                             |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (735 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (731 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 141 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify returns `field: null` for the captured invoice-send user errors, so
+  the Orders serializer needs a nullable user-error projection instead of the
+  existing list-backed helper used by other mutation payloads.
+- A completed draft with no recipient returns both `To can't be blank` and
+  `Draft order Invoice can't be sent. This draft order is already paid.`, while
+  unknown and deleted/unseeded draft ids both return `Draft order not found`.
+
+### Risks / open items
+
+- Recipient-backed invoice send success remains gated; this pass does not send
+  email, mutate draft state, or claim notification lifecycle support.
+- Draft-order helper roots, broader draft-order reads/count/search, order
+  lifecycle, order editing, fulfillment success paths, refunds, and returns
+  remain unported.
+
+### Pass 128 candidates
+
+- Continue with draft-order helper roots or read/count/search parity if the
+  checked-in fixtures can be modeled without broad order-store work.
+
+---
+
+## 2026-05-01 - Pass 126: draft order complete lifecycle
+
+Promotes the captured `draftOrderComplete` parity plan in the Gleam Orders
+domain. This pass keeps the required-id validation guardrails, completes a
+seeded/staged draft locally, attaches a synthetic nested order to the completed
+draft, preserves downstream `draftOrder(id:)` visibility, and keeps root order
+reads/counts gated until the order store slice is ported.
+
+| Module                                                   | Change                                                                                  |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderComplete` success handling, completed draft mutation, and nested order. |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured setup draft and setup input note before replaying completion.        |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers completion payload normalization and downstream reads directly.                  |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderComplete-parity-plan` spec.                        |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (734 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (730 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 142 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify completes the same draft-order id rather than allocating a new draft;
+  draft line-item ids remain stable while the linked order receives fresh order
+  and order line-item ids.
+- The captured Shopify order normalizes any non-null completion `sourceName` to
+  `347082227713`, records `manual` as the payment gateway when
+  `paymentPending` is false, and copies the setup input note into the completed
+  order even though the setup draft-order response did not select `note`.
+
+### Risks / open items
+
+- Root `order(id:)`, `orders`, and `ordersCount` visibility for completed draft
+  orders remains gated until the Gleam order store slice exists.
+- Draft-order invoice/helper roots, order editing, fulfillment success paths,
+  refunds, and returns remain unported.
+
+### Pass 127 candidates
+
+- Continue with draft-order read/count/search parity or a narrow invoice/helper
+  root if the checked-in fixture can be modeled without broad order-store work.
+
+---
+
+## 2026-05-01 - Pass 125: draft order duplicate lifecycle
+
+Promotes the captured `draftOrderDuplicate` parity plan in the Gleam Orders
+domain. This pass stages a local duplicate with fresh draft-order and line-item
+IDs, preserves the copied customer/address/tag/custom-attribute fields, clears
+the Shopify-cleared shipping and discount fields, recalculates totals, and keeps
+the duplicate visible through downstream `draftOrder(id:)` reads.
+
+| Module                                                   | Change                                                                           |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderDuplicate` mutation handling and duplicate graph normalization.  |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured setup draft order before replaying the duplicate parity plan. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers duplicate payload normalization and downstream reads directly.            |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderDuplicate-parity-plan` spec.                |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (733 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (729 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 143 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify duplicate preserves identifying customer/address/tag/custom-attribute
+  data from the source draft, but it clears `taxExempt`,
+  `reserveInventoryUntil`, order-level discount, shipping line, and line-item
+  discounts before recalculating totals.
+- The parity spec already treats duplicate draft ids, names, invoice URLs, and
+  line-item ids as expected differences, so the port can use deterministic
+  synthetic ids while strictly comparing the stable duplicated graph.
+
+### Risks / open items
+
+- `draftOrderComplete` success, invoice, bulk/helper roots, and broader
+  draft-order search/count reads remain gated.
+- Order lifecycle, order editing success paths, fulfillment success paths,
+  refunds, and returns remain unported.
+
+### Pass 126 candidates
+
+- Continue draft-order lifecycle with `draftOrderComplete` success if the
+  checked-in fixture can be modeled safely, or move to a small draft-order
+  read/count/search slice backed by checked-in parity evidence.
+
+---
+
+## 2026-05-01 - Pass 124: draft order update lifecycle
+
+Promotes the captured `draftOrderUpdate` parity plan in the Gleam Orders
+domain. This pass seeds the setup draft order from the live capture, stages
+local update effects for the captured draft-order fields, recalculates totals
+when shipping or line items change, and preserves downstream `draftOrder(id:)`
+read-after-write visibility.
+
+| Module                                                   | Change                                                                             |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderUpdate` mutation handling, local field updates, and recalculation. |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured setup draft order before replaying the update parity plan.      |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers local update payloads and downstream reads directly.                        |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderUpdate-parity-plan` spec.                     |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (732 passed).
+- Docker Erlang fallback:
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (728 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 parity specs; 144 expected Gleam
+  parity failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The update capture reuses the setup draft order's Shopify-generated id, name,
+  invoice URL, customer, discount, addresses, and line-item ids; the port seeds
+  that captured graph into base state, then stages only the requested local
+  changes.
+- Draft-order totals must be recalculated from the effective line-item totals,
+  order discount, and shipping line after update, even when the parity request
+  only changes the shipping line.
+
+### Risks / open items
+
+- `draftOrderDuplicate`, `draftOrderComplete` success, invoice, bulk/helper
+  roots, and broader draft-order search/count reads remain gated.
+- Order lifecycle, order editing success paths, fulfillment success paths,
+  refunds, and returns remain unported.
+
+### Pass 125 candidates
+
+- Continue draft-order lifecycle with `draftOrderDuplicate`, or move to a
+  small draft-order read/count/search slice backed by checked-in parity
+  evidence.
+
+---
+
+## 2026-05-01 - Pass 123: draft order delete lifecycle
+
+Promotes the captured `draftOrderDelete` parity plan in the Gleam Orders domain.
+This pass stages a local draft-order deletion, returns the selected `deletedId`
+and empty `userErrors`, and preserves Shopify-like downstream `draftOrder(id:)`
+null behavior through the deleted-id marker.
+
+| Module                                                   | Change                                                                        |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderDelete` mutation handling and selected payload serialization. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`        | Adds staged draft-order deletion with a deleted-id marker.                    |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured draft order before replaying the delete parity plan.       |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers delete payload and downstream local read suppression directly.         |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderDelete-parity-plan` spec.                |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (731 passed).
+- Docker Erlang fallback:
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (727 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 parity specs; 145 expected Gleam
+  parity failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Draft-order state already carried deleted-id markers, but the Gleam store did
+  not yet expose a helper to stage draft-order deletion.
+- The Shopify capture verifies downstream `draftOrder(id:)` returns null after
+  delete; the local helper marks deletes instead of only removing staged data so
+  seeded base records are also suppressed.
+
+### Risks / open items
+
+- `draftOrderUpdate`, `draftOrderDuplicate`, `draftOrderComplete` success, and
+  invoice/helper roots remain gated.
+- Order lifecycle, order editing success paths, fulfillment success paths,
+  refunds, and returns remain unported.
+
+### Pass 124 candidates
+
+- Continue draft-order lifecycle with update/delete siblings, or move to a
+  small read/count/search slice backed by checked-in parity evidence.
+
+---
+
+## 2026-05-01 - Pass 122: fulfillment create invalid-id guardrail
+
+Promotes the captured `fulfillmentCreate` invalid fulfillment-order id branch
+in the Gleam Orders domain. This pass mirrors Shopify's top-level
+`RESOURCE_NOT_FOUND` error with `data.fulfillmentCreate: null` for the checked-in
+invalid-id parity fixture, while keeping successful fulfillment creation and
+downstream fulfillment reads gated.
+
+| Module                                                   | Change                                                                     |
+| -------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds a narrow `fulfillmentCreate` invalid-id resource-not-found guardrail. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers the invalid fulfillment-order id response envelope directly.        |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `fulfillmentCreate-invalid-id-parity` spec.      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (730 passed).
+- Docker Erlang fallback:
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (726 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 parity specs; 146 expected Gleam
+  parity failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify returns this branch as a top-level GraphQL error with
+  `extensions.code = RESOURCE_NOT_FOUND` and a null mutation payload, not as a
+  mutation `userErrors` payload.
+- The checked-in parity target compares the stable data/error message,
+  extensions, and path; locations remain outside the comparison target.
+
+### Risks / open items
+
+- `fulfillmentCreate` happy path, fulfillment-order state, and downstream order
+  fulfillment visibility remain gated.
+- Order lifecycle, order editing success paths, refunds, returns, and the
+  remaining draft-order lifecycle roots remain unported.
+
+### Pass 123 candidates
+
+- Start a durable draft-order update/delete lifecycle slice, or continue
+  fulfillment success-path state only with checked-in parity evidence.
+
+---
+
+## 2026-05-01 - Pass 121: order-edit missing-id guardrails
+
+Promotes the captured order-edit missing-id validation branches in the Gleam
+Orders domain. This pass mirrors Shopify's `INVALID_VARIABLE` response when the
+non-null `$id` variable is omitted for `orderEditBegin`, `orderEditAddVariant`,
+`orderEditSetQuantity`, and `orderEditCommit`, without claiming edit-session
+lifecycle support.
+
+| Module                                                   | Change                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds narrow required-`id` validation guardrails for four order-edit mutation roots.         |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers missing `$id` variables for begin/add-variant/set-quantity/commit branches directly. |
+| `config/gleam-port-ci-gates.json`                        | Removes four newly passing order-edit missing-id validation parity specs.                   |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (729 passed).
+- Docker Erlang fallback:
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (725 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 parity specs; 147 expected Gleam
+  parity failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The checked-in parity specs compare only the stable error message and
+  extensions; Shopify also reports root-specific variable locations that are
+  intentionally outside the current comparison target.
+- These roots remain guardrail-only. Successful edits still need calculated
+  order state, line-item mutations, commit effects, and downstream order reads.
+
+### Risks / open items
+
+- Order edit begin/add-variant/set-quantity/commit success paths remain gated.
+- Order lifecycle, fulfillments, refunds, returns, and the remaining draft-order
+  lifecycle roots remain unported.
+
+### Pass 122 candidates
+
+- Start a durable draft-order update/delete lifecycle slice, or continue
+  order-edit calculated edit state with checked-in parity evidence.
+
+---
+
+## 2026-05-01 - Pass 120: order update validation guardrails
+
+Promotes the captured `orderUpdate` missing-id validation branches in the Gleam
+Orders domain. This pass mirrors Shopify's error message/extension shapes for
+inline missing `input.id`, inline null `input.id`, and variable-backed
+`OrderInput` values without an id, while leaving order update lifecycle
+semantics gated.
+
+| Module                                                   | Change                                                                                |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds narrow nested `OrderInput.id` validation guardrails for `orderUpdate`.           |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers inline missing, inline null, and variable-backed missing id branches directly. |
+| `config/gleam-port-ci-gates.json`                        | Removes three newly passing `orderUpdate` validation parity specs.                    |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (728 passed).
+- Docker Erlang fallback:
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (724 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 parity specs; 151 expected Gleam
+  parity failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- `orderUpdate` cannot use the top-level required-argument helper for these
+  captures because Shopify validates the required `id` inside `OrderInput`.
+- The checked-in parity specs compare the stable error message/extensions, so
+  this pass keeps the guardrail focused and does not claim update success,
+  downstream reads, metafields, address updates, or timestamp behavior.
+
+### Risks / open items
+
+- `orderUpdate-parity-plan`, `orderUpdate-live-parity`, and
+  `orderUpdate-expanded-parity-plan` remain gated.
+- Order lifecycle, editing, fulfillments, refunds, returns, and the remaining
+  draft-order lifecycle roots remain unported.
+
+### Pass 121 candidates
+
+- Continue order-edit missing-id validation guardrails, or start a durable
+  draft-order update/delete lifecycle slice with checked-in parity evidence.
+
+---
+
+## 2026-05-01 - Pass 119: order create validation guardrails
+
+Promotes the captured `orderCreate` required-`order` validation branches in the
+Gleam Orders domain. This pass mirrors Shopify's top-level GraphQL validation
+errors for omitted, inline-null, and missing variable order input values without
+claiming direct order creation, payment staging, inventory effects, or
+downstream order materialization.
+
+| Module                                                   | Change                                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds a narrow `orderCreate` required-order validation guardrail.         |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers inline missing-order and inline null-order error shapes directly. |
+| `config/gleam-port-ci-gates.json`                        | Removes three newly passing `orderCreate` validation parity specs.       |
+
+Validation:
+Full JavaScript is green at 727 tests; Docker Erlang is green at 723 tests.
+Orders now has 22 executable/pass specs and 56 gated specs out of 78.
+
+### Findings
+
+- `orderCreate`'s captured missing-order branches fit the existing top-level
+  required argument helper with `OrderCreateOrderInput!`.
+- These validation branches are not evidence for the happy-path `orderCreate`
+  lifecycle; order creation remains gated until local order state, payments,
+  inventory bypass, and downstream reads are modeled.
+
+### Risks / open items
+
+- `orderCreate-parity-plan` and `orderCreate-validation-matrix` remain gated.
+- Order update/open/close/cancel/customer/payment roots, order editing,
+  fulfillments, refunds, and returns remain unported.
+
+### Pass 120 candidates
+
+- Continue validation branches for `orderUpdate` after adding nested input
+  object validation helpers, or move to a durable draft-order update/delete
+  lifecycle slice.
+
+---
+
+## 2026-05-01 - Pass 118: fulfillment validation guardrails
+
+Promotes the captured `fulfillmentCancel` and
+`fulfillmentTrackingInfoUpdate` required-id validation branches in the Gleam
+Orders domain. This pass mirrors Shopify's top-level GraphQL validation errors
+for omitted, inline-null, and missing variable fulfillment identifiers without
+claiming fulfillment lifecycle staging, cancellation, or tracking update
+success semantics.
+
+| Module                                                   | Change                                                                                   |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds narrow fulfillment required-id validation guardrails for two mutation roots.        |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers inline missing-id and inline null-id shapes for cancel and tracking update roots. |
+| `config/gleam-port-ci-gates.json`                        | Removes six newly passing fulfillment validation parity specs.                           |
+
+Validation:
+Full JavaScript is green at 726 tests; Docker Erlang is green at 722 tests.
+Orders now has 19 executable/pass specs and 59 gated specs out of 78.
+
+### Findings
+
+- `fulfillmentCancel` validates a required `id: ID!` argument, while
+  `fulfillmentTrackingInfoUpdate` validates `fulfillmentId: ID!`; both fit the
+  existing shared mutation validation helper.
+- These are guardrails only. The happy-path fulfillment cancel/tracking specs
+  still need order fulfillment state, downstream visibility, and local mutation
+  log effects before they can be ungated.
+
+### Risks / open items
+
+- `fulfillmentCreate-invalid-id-parity`, `fulfillmentCancel-parity-plan`, and
+  `fulfillmentTrackingInfoUpdate-parity-plan` remain gated.
+- Draft-order lifecycle, order editing, refunds, and returns remain unported.
+
+### Pass 119 candidates
+
+- Continue validation branches for `orderUpdate`/`orderCreate`, or start a
+  durable lifecycle slice for draft-order update/delete if it can be backed by
+  checked-in executable parity.
+
+---
+
+## 2026-05-01 - Pass 117: draft-order complete validation guardrails
+
+Promotes the captured `draftOrderComplete` required-`id` validation branches in
+the Gleam Orders domain. This pass mirrors Shopify's top-level GraphQL
+validation errors for omitted, inline-null, and missing variable `id` values
+without claiming the happy-path draft-order completion lifecycle.
+
+| Module                                                   | Change                                                                    |
+| -------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds a narrow `draftOrderComplete` required-id validation guardrail.      |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers inline missing-id and inline null-id error shapes directly.        |
+| `config/gleam-port-ci-gates.json`                        | Removes three newly passing `draftOrderComplete` validation parity specs. |
+
+Validation:
+Full JavaScript is green at 725 tests. Orders now has 13 executable/pass specs
+and 65 gated specs out of 78.
+
+### Findings
+
+- The existing mutation validation helper is sufficient for
+  `draftOrderComplete`'s required top-level `id` argument; no draft-order
+  completion state transition should be inferred from these guardrails.
+- The happy-path `draftOrderComplete` scenario remains gated until the port can
+  model payment/source effects and downstream order materialization.
+
+### Risks / open items
+
+- `draftOrderComplete-parity-plan` and the rest of the draft-order mutation
+  lifecycle remain unported.
+- Regular order lifecycle, editing, fulfillment, refund, and return roots
+  remain unported.
+
+### Pass 118 candidates
+
+- Continue with another small captured validation branch only if it does not
+  broaden runtime support beyond the proven branch, or start modeling
+  draft-order update/delete lifecycle state.
+
+---
+
+## 2026-05-01 - Pass 116: draft-order detail read seeding
+
+Promotes the standalone draft-order detail read parity scenario in the Gleam
+runner. The Orders runtime already projects captured draft-order records through
+the `draftOrder(id:)` query path from Pass 115; this pass seeds the captured
+detail fixture into base state so the checked-in strict read contract can run
+without changing the request or fixture.
+
+| Module                            | Change                                                                                  |
+| --------------------------------- | --------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`  | Seeds `draft-order-detail-read` from `$.response.data.draftOrder` as a draft-order row. |
+| `config/gleam-port-ci-gates.json` | Removes the newly passing `draftOrder-read-parity-plan` Orders spec.                    |
+
+Validation:
+Full JavaScript is green at 724 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 specs and 166 expected Gleam parity failures. Orders now has 10
+executable/pass specs and 68 gated specs out of 78.
+
+### Findings
+
+- The captured detail read does not need bespoke field modeling yet; storing
+  the captured `DraftOrder` payload as `CapturedJsonValue` preserves the strict
+  selected-field contract.
+- Scenario-specific seeding is enough for standalone read parity; it should not
+  be generalized into broad draft-order fixture hydration until update,
+  complete, delete, invoice, and helper roots define their lifecycle needs.
+
+### Risks / open items
+
+- `draft-order-residual-helper-roots` and the draft-order lifecycle mutations
+  remain gated.
+- The broader order lifecycle, editing, fulfillment, refund, and return roots
+  remain unported.
+
+### Pass 117 candidates
+
+- Continue the draft-order cluster with validation branches for
+  `draftOrderComplete`, `draftOrderDelete`, or the residual helper roots only
+  when each branch has executable parity evidence.
+
+---
+
+## 2026-05-01 - Pass 115: draft-order create/read parity seed
+
+Ports the first executable draft-order lifecycle slice in the Orders Gleam
+domain. The local Orders dispatcher now handles `draftOrder(id:)` not-found
+reads, `draftOrderCreate` required-input validation branches, and the captured
+draft-order create/read-after-write parity scenario. Draft orders are staged as
+captured JSON records so selected downstream reads project the same Shopify
+field shapes while broader draft-order roots remain gated.
+
+| Module                                                    | Change                                                                                              |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`        | Adds `draftOrder` reads plus `draftOrderCreate` staging for the captured custom/variant line slice. |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds captured draft-order records and a minimal variant catalog seed record.                        |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds instance-owned draft-order base/staged state and variant catalog helpers.                      |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries draft-order slices through dump/restore serialization.                                      |
+| `gleam/test/parity/runner.gleam`                          | Seeds customer and variant catalog data for the live draft-order create parity fixture.             |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`  | Covers not-found reads, validation guardrails, and custom-line create read-after-write.             |
+| `config/gleam-port-ci-gates.json`                         | Removes five newly passing Orders draft-order parity specs.                                         |
+
+Validation:
+Full JavaScript is green at 724 tests. The draft-order create parity plan now
+passes in the Gleam runner, bringing Orders to 9 executable/pass specs with 69
+Orders specs still gated.
+
+### Findings
+
+- Variant-backed draft-order line items have separate Shopify semantics for
+  line-item `sku`, line-item `variantTitle`, and nested `variant.sku`: a
+  default-title variant projects `variantTitle: null`, line item `sku` can be
+  the empty string, and nested variant `sku` remains null.
+- The captured draft-order create fixture needs customer preconditions plus a
+  variant catalog seed derived from the captured created line item; no parity
+  request or fixture shape changes were needed.
+- Storing draft orders as captured JSON is the right first boundary for this
+  slice because it preserves selected field projection without prematurely
+  designing the whole draft-order lifecycle model.
+
+### Risks / open items
+
+- Existing captured draft-order detail reads still need base draft-order
+  seeding before they can be ungated.
+- Draft-order update, complete, delete, invoice, and create-from-order roots
+  remain unported; this pass is not broader order lifecycle support.
+
+### Pass 116 candidates
+
+- Seed captured draft-order detail fixtures so `draftOrder-read-parity-plan`
+  can run, then continue into draft-order update/delete/complete lifecycle
+  behavior.
+
+---
+
+## 2026-05-01 - Pass 114: orders access-denied guardrail parity
+
+Promotes two captured Orders access-denied guardrail fixtures into the Gleam
+parity suite without claiming broader order payment or tax-summary lifecycle
+support. The Orders dispatcher now handles only the documented safe
+`orderCreateManualPayment` unknown/non-local order branch and
+`taxSummaryCreate` access-denied branch locally, returning Shopify-shaped
+top-level `ACCESS_DENIED` errors with the selected root payload set to null.
+
+| Module                                                   | Change                                                                                       |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds captured access-denied error payloads and failed mutation-log drafts for the two roots. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers both access-denied guardrails directly.                                               |
+| `config/gleam-port-ci-gates.json`                        | Removes the two newly passing Orders access-denied parity specs.                             |
+
+Validation:
+Full JavaScript is green at 721 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 parity specs and 172 expected Gleam parity failures.
+
+### Findings
+
+- `ACCESS_DENIED` GraphQL errors preserve both `errors` and `data` in the same
+  response envelope; the Orders mutation accumulator now keeps selected null
+  root payloads when a handled branch also returns top-level errors.
+- These roots remain guardrail-only in Gleam. `orderCreateManualPayment` does
+  not yet model local synthetic-order success, and `taxSummaryCreate` does not
+  model tax-app success semantics.
+
+### Risks / open items
+
+- The remaining Orders parity gaps still include draft-order lifecycle,
+  regular order lifecycle, order editing, fulfillments, refunds, and returns.
+
+### Pass 115 candidates
+
+- Continue Orders with a complete draft-order create/read lifecycle slice that
+  seeds or models the ProductVariant and Customer data required by the captured
+  merchant-realistic fixture.
+
+---
+
+## 2026-05-01 - Pass 113: orders abandonment no-data parity
+
+Starts the Orders Gleam domain with the narrow abandoned-checkout and
+abandonment slice backed by checked-in parity evidence. The dispatcher now
+claims only `abandonedCheckouts`, `abandonedCheckoutsCount`, `abandonment`,
+`abandonmentByAbandonedCheckoutId`, and
+`abandonmentUpdateActivitiesDeliveryStatuses`; all broader orders, draft-order,
+fulfillment, refund, and return roots stay gated until their lifecycle behavior
+is ported.
+
+| Module                                                    | Change                                                                                                       |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`        | Adds abandoned-checkout empty reads/counts, abandonment lookup reads, and unknown-id delivery-status errors. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`   | Wires the narrow Orders dispatch roots without claiming the rest of the domain.                              |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds captured abandoned-checkout and abandonment state records.                                              |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds instance-owned abandoned-checkout/abandonment base and staged slices plus delivery activity staging.    |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries the new slices through state dump serialization and restore.                                         |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`  | Covers the empty read roots and the unknown-id mutation branch.                                              |
+| `config/gleam-port-ci-gates.json`                         | Removes the two newly passing Orders parity specs.                                                           |
+
+Validation:
+Full JavaScript is green at 718 tests. Host Erlang still fails because local
+OTP 25 cannot run `gleam_json`, matching the known workstation limitation; the
+Docker Erlang fallback with `HOME=/tmp` is green at 714 tests. `corepack pnpm
+gleam:format:check`, `corepack pnpm gleam:port:coverage`, and `corepack pnpm
+conformance:check` are green. The port coverage gate now reports 379 parity
+specs with 175 expected Gleam parity failures, meaning 2 of the 78 Orders specs
+are executable in Gleam and 76 remain gated.
+
+### Findings
+
+- The abandonment delivery-status unknown-id branch is a useful first Orders
+  mutation because it is side-effect-free but still exercises local mutation
+  dispatch, selected payload projection, userErrors, and a failed mutation-log
+  draft.
+- Captured abandoned checkout and abandonment payloads are best stored as raw
+  captured JSON values so future non-empty fixtures can project Shopify fields
+  without a premature bespoke record model.
+- The TypeScript order runtime remains intact under the active port guardrail;
+  this pass does not authorize TypeScript runtime retirement.
+
+### Risks / open items
+
+- The current Orders module intentionally does not claim order, draft-order,
+  fulfillment, refund, return, or broad search/count behavior yet.
+- Seeded non-empty abandoned-checkout search/filter parity still needs more
+  fixture-backed work before it should be ungated beyond the two safe specs.
+
+### Pass 114 candidates
+
+- Continue Orders with the next evidence-backed slice that can be ported
+  without claiming unsupported roots, preferably a complete draft-order or
+  order lifecycle cluster rather than validation-only roots.
 ---
 
 ## 2026-05-01 - Pass 116: segments baseline and member parity
