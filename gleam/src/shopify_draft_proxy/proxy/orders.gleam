@@ -114,6 +114,9 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "fulfillmentOrderReleaseHold",
       "fulfillmentOrderReportProgress",
       "fulfillmentOrderReschedule",
+      "fulfillmentOrderMerge",
+      "fulfillmentOrderSplit",
+      "fulfillmentOrdersSetFulfillmentDeadline",
       "fulfillmentTrackingInfoUpdate",
       "orderCancel",
       "orderCapture",
@@ -538,10 +541,7 @@ fn serialize_order_fulfillment_order(
             "supportedActions" -> #(
               key,
               json.array(
-                fulfillment_order_supported_actions(
-                  captured_string_field(fulfillment_order, "status"),
-                  fulfillment_order_line_items(fulfillment_order),
-                ),
+                fulfillment_order_supported_actions(fulfillment_order),
                 fn(action) {
                   project_graphql_value(
                     src_object([#("action", SrcString(action))]),
@@ -1675,6 +1675,48 @@ pub fn process_mutation(
               current_identity,
               document,
               operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            next_ids,
+            next_errors,
+            next_drafts,
+          ) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, next_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              list.append(entries, [#(key, payload)]),
+              list.append(errors, next_errors),
+              next_store,
+              next_identity,
+              ids,
+              list.append(drafts, next_drafts),
+            )
+          }
+        }
+        Field(name: name, ..)
+          if name.value == "fulfillmentOrderMerge"
+          || name.value == "fulfillmentOrderSplit"
+          || name.value == "fulfillmentOrdersSetFulfillmentDeadline"
+        -> {
+          let result =
+            handle_fulfillment_order_bulk_mutation(
+              name.value,
+              current_store,
+              current_identity,
               field,
               fragments,
               variables,
@@ -9914,6 +9956,19 @@ type RequestedFulfillmentLineItem {
 }
 
 fn fulfillment_order_supported_actions(
+  fulfillment_order: CapturedJsonValue,
+) -> List(String) {
+  case captured_string_list_field(fulfillment_order, "supportedActions") {
+    [] ->
+      computed_fulfillment_order_supported_actions(
+        captured_string_field(fulfillment_order, "status"),
+        fulfillment_order_line_items(fulfillment_order),
+      )
+    actions -> actions
+  }
+}
+
+fn computed_fulfillment_order_supported_actions(
   status: Option(String),
   line_items: List(CapturedJsonValue),
 ) -> List(String) {
@@ -9937,6 +9992,39 @@ fn fulfillment_order_supported_actions(
         ]
         False -> ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"]
       }
+  }
+}
+
+fn fulfillment_order_supported_actions_with_merge(
+  status: Option(String),
+  line_items: List(CapturedJsonValue),
+  include_merge: Bool,
+) -> List(String) {
+  let actions = computed_fulfillment_order_supported_actions(status, line_items)
+  case include_merge && !list.contains(actions, "MERGE") {
+    True -> list.append(actions, ["MERGE"])
+    False -> actions
+  }
+}
+
+fn captured_supported_actions(actions: List(String)) -> CapturedJsonValue {
+  CapturedArray(list.map(actions, CapturedString))
+}
+
+fn captured_string_list_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> List(String) {
+  case captured_object_field(value, name) {
+    Some(CapturedArray(values)) ->
+      values
+      |> list.filter_map(fn(value) {
+        case value {
+          CapturedString(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
   }
 }
 
@@ -10596,6 +10684,977 @@ fn serialize_fulfillment_event_create_payload(
       }
     })
   json.object(entries)
+}
+
+type FulfillmentOrderSplitInput {
+  FulfillmentOrderSplitInput(
+    fulfillment_order_id: String,
+    line_items: List(RequestedFulfillmentLineItem),
+  )
+}
+
+type FulfillmentOrderSplitResult {
+  FulfillmentOrderSplitResult(
+    fulfillment_order: CapturedJsonValue,
+    remaining_fulfillment_order: CapturedJsonValue,
+    replacement_fulfillment_order: Option(CapturedJsonValue),
+  )
+}
+
+type FulfillmentOrderMergeInput {
+  FulfillmentOrderMergeInput(ids: List(String))
+}
+
+type FulfillmentOrderMergeResult {
+  FulfillmentOrderMergeResult(fulfillment_order: CapturedJsonValue)
+}
+
+fn handle_fulfillment_order_bulk_mutation(
+  root_name: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  case root_name {
+    "fulfillmentOrderSplit" ->
+      handle_fulfillment_order_split_mutation(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      )
+    "fulfillmentOrderMerge" ->
+      handle_fulfillment_order_merge_mutation(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      )
+    "fulfillmentOrdersSetFulfillmentDeadline" ->
+      handle_fulfillment_orders_set_deadline_mutation(
+        store,
+        identity,
+        field,
+        variables,
+      )
+    _ -> #(
+      get_field_response_key(field),
+      json.null(),
+      store,
+      identity,
+      [],
+      [],
+      [],
+    )
+  }
+}
+
+fn handle_fulfillment_order_split_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let inputs = read_fulfillment_order_split_inputs(variables)
+  case inputs {
+    [] -> #(
+      key,
+      json.null(),
+      store,
+      identity,
+      [],
+      [fulfillment_order_bulk_invalid_id_error("fulfillmentOrderSplit", key)],
+      [],
+    )
+    [_, ..] ->
+      case
+        apply_fulfillment_order_split_inputs(store, identity, inputs, [], [])
+      {
+        Ok(result) -> {
+          let #(results, next_store, next_identity, staged_ids) = result
+          #(
+            key,
+            serialize_fulfillment_order_split_payload(
+              field,
+              results,
+              [],
+              fragments,
+            ),
+            next_store,
+            next_identity,
+            staged_ids,
+            [],
+            [
+              fulfillment_order_log_draft("fulfillmentOrderSplit", staged_ids),
+            ],
+          )
+        }
+        Error(_) -> #(
+          key,
+          json.null(),
+          store,
+          identity,
+          [],
+          [
+            fulfillment_order_bulk_invalid_id_error(
+              "fulfillmentOrderSplit",
+              key,
+            ),
+          ],
+          [],
+        )
+      }
+  }
+}
+
+fn handle_fulfillment_order_merge_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let inputs = read_fulfillment_order_merge_inputs(variables)
+  case inputs {
+    [] -> #(
+      key,
+      json.null(),
+      store,
+      identity,
+      [],
+      [fulfillment_order_bulk_invalid_id_error("fulfillmentOrderMerge", key)],
+      [],
+    )
+    [_, ..] ->
+      case
+        apply_fulfillment_order_merge_inputs(store, identity, inputs, [], [])
+      {
+        Ok(result) -> {
+          let #(results, next_store, next_identity, staged_ids) = result
+          #(
+            key,
+            serialize_fulfillment_order_merge_payload(
+              field,
+              results,
+              [],
+              fragments,
+            ),
+            next_store,
+            next_identity,
+            staged_ids,
+            [],
+            [
+              fulfillment_order_log_draft("fulfillmentOrderMerge", staged_ids),
+            ],
+          )
+        }
+        Error(_) -> #(
+          key,
+          json.null(),
+          store,
+          identity,
+          [],
+          [
+            fulfillment_order_bulk_invalid_id_error(
+              "fulfillmentOrderMerge",
+              key,
+            ),
+          ],
+          [],
+        )
+      }
+  }
+}
+
+fn handle_fulfillment_orders_set_deadline_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let ids = read_string_list(variables, "fulfillmentOrderIds")
+  let deadline = read_string(variables, "fulfillmentDeadline")
+  case ids, deadline {
+    [], _ | _, None -> #(
+      key,
+      json.null(),
+      store,
+      identity,
+      [],
+      [
+        fulfillment_order_bulk_invalid_id_error(
+          "fulfillmentOrdersSetFulfillmentDeadline",
+          key,
+        ),
+      ],
+      [],
+    )
+    [_, ..], Some(deadline) ->
+      case apply_fulfillment_order_deadline(store, identity, ids, deadline) {
+        Ok(result) -> {
+          let #(next_store, next_identity, staged_ids) = result
+          #(
+            key,
+            serialize_fulfillment_orders_set_deadline_payload(field, True, []),
+            next_store,
+            next_identity,
+            staged_ids,
+            [],
+            [
+              fulfillment_order_log_draft(
+                "fulfillmentOrdersSetFulfillmentDeadline",
+                staged_ids,
+              ),
+            ],
+          )
+        }
+        Error(_) -> #(
+          key,
+          json.null(),
+          store,
+          identity,
+          [],
+          [
+            fulfillment_order_bulk_invalid_id_error(
+              "fulfillmentOrdersSetFulfillmentDeadline",
+              key,
+            ),
+          ],
+          [],
+        )
+      }
+  }
+}
+
+fn read_fulfillment_order_split_inputs(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(FulfillmentOrderSplitInput) {
+  read_object_list(variables, "fulfillmentOrderSplits")
+  |> list.filter_map(fn(input) {
+    case read_string(input, "fulfillmentOrderId") {
+      Some(id) ->
+        Ok(FulfillmentOrderSplitInput(
+          fulfillment_order_id: id,
+          line_items: read_fulfillment_order_line_item_inputs(input),
+        ))
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn read_fulfillment_order_merge_inputs(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(FulfillmentOrderMergeInput) {
+  read_object_list(variables, "fulfillmentOrderMergeInputs")
+  |> list.filter_map(fn(input) {
+    let ids =
+      read_object_list(input, "mergeIntents")
+      |> list.filter_map(fn(intent) {
+        read_string(intent, "fulfillmentOrderId") |> option_to_result
+      })
+    case ids {
+      [] -> Error(Nil)
+      [_, ..] -> Ok(FulfillmentOrderMergeInput(ids: ids))
+    }
+  })
+}
+
+fn apply_fulfillment_order_split_inputs(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  inputs: List(FulfillmentOrderSplitInput),
+  results: List(FulfillmentOrderSplitResult),
+  staged_ids: List(String),
+) -> Result(
+  #(
+    List(FulfillmentOrderSplitResult),
+    Store,
+    SyntheticIdentityRegistry,
+    List(String),
+  ),
+  Nil,
+) {
+  case inputs {
+    [] -> Ok(#(results, store, identity, staged_ids))
+    [input, ..rest] -> {
+      let FulfillmentOrderSplitInput(fulfillment_order_id:, line_items:) = input
+      case find_order_with_fulfillment_order(store, fulfillment_order_id) {
+        None -> Error(Nil)
+        Some(match) -> {
+          let #(order, fulfillment_order) = match
+          let #(result, next_order, next_identity) =
+            apply_fulfillment_order_split(
+              order,
+              fulfillment_order,
+              identity,
+              line_items,
+            )
+          let next_store = store.stage_order(store, next_order)
+          apply_fulfillment_order_split_inputs(
+            next_store,
+            next_identity,
+            rest,
+            list.append(results, [result]),
+            list.append(staged_ids, [next_order.id]),
+          )
+        }
+      }
+    }
+  }
+}
+
+fn apply_fulfillment_order_merge_inputs(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  inputs: List(FulfillmentOrderMergeInput),
+  results: List(FulfillmentOrderMergeResult),
+  staged_ids: List(String),
+) -> Result(
+  #(
+    List(FulfillmentOrderMergeResult),
+    Store,
+    SyntheticIdentityRegistry,
+    List(String),
+  ),
+  Nil,
+) {
+  case inputs {
+    [] -> Ok(#(results, store, identity, staged_ids))
+    [input, ..rest] -> {
+      let FulfillmentOrderMergeInput(ids:) = input
+      case find_fulfillment_orders_for_merge(store, ids) {
+        Error(_) -> Error(Nil)
+        Ok(match) -> {
+          let #(order, fulfillment_orders) = match
+          let #(result, next_order, next_identity) =
+            apply_fulfillment_order_merge(order, fulfillment_orders, identity)
+          let next_store = store.stage_order(store, next_order)
+          apply_fulfillment_order_merge_inputs(
+            next_store,
+            next_identity,
+            rest,
+            list.append(results, [result]),
+            list.append(staged_ids, [next_order.id]),
+          )
+        }
+      }
+    }
+  }
+}
+
+fn apply_fulfillment_order_deadline(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  ids: List(String),
+  deadline: String,
+) -> Result(#(Store, SyntheticIdentityRegistry, List(String)), Nil) {
+  case all_fulfillment_order_ids_exist(store, ids) {
+    False -> Error(Nil)
+    True ->
+      apply_fulfillment_order_deadline_updates(
+        store,
+        identity,
+        ids,
+        deadline,
+        [],
+      )
+  }
+}
+
+fn apply_fulfillment_order_deadline_updates(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  ids: List(String),
+  deadline: String,
+  staged_ids: List(String),
+) -> Result(#(Store, SyntheticIdentityRegistry, List(String)), Nil) {
+  case ids {
+    [] -> Ok(#(store, identity, staged_ids))
+    [id, ..rest] ->
+      case find_order_with_fulfillment_order(store, id) {
+        None -> Error(Nil)
+        Some(match) -> {
+          let #(order, fulfillment_order) = match
+          let #(updated_at, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let updated =
+            replace_captured_object_fields(fulfillment_order, [
+              #("fulfillBy", CapturedString(deadline)),
+              #("updatedAt", CapturedString(updated_at)),
+            ])
+          let next_order = replace_order_fulfillment_order(order, id, updated)
+          let next_store = store.stage_order(store, next_order)
+          apply_fulfillment_order_deadline_updates(
+            next_store,
+            next_identity,
+            rest,
+            deadline,
+            list.append(staged_ids, [next_order.id]),
+          )
+        }
+      }
+  }
+}
+
+fn all_fulfillment_order_ids_exist(store: Store, ids: List(String)) -> Bool {
+  !list.any(ids, fn(id) { find_order_with_fulfillment_order(store, id) == None })
+}
+
+fn find_fulfillment_orders_for_merge(
+  store: Store,
+  ids: List(String),
+) -> Result(#(OrderRecord, List(CapturedJsonValue)), Nil) {
+  case ids {
+    [] -> Error(Nil)
+    [first_id, ..] ->
+      case find_order_with_fulfillment_order(store, first_id) {
+        None -> Error(Nil)
+        Some(first_match) -> {
+          let #(first_order, _) = first_match
+          let matches =
+            ids
+            |> list.filter_map(fn(id) {
+              find_order_with_fulfillment_order(store, id) |> option_to_result
+            })
+          case list.length(matches) == list.length(ids) {
+            False -> Error(Nil)
+            True -> {
+              let same_order =
+                !list.any(matches, fn(match) {
+                  let #(order, _) = match
+                  order.id != first_order.id
+                })
+              case same_order {
+                False -> Error(Nil)
+                True ->
+                  Ok(#(
+                    first_order,
+                    list.map(matches, fn(match) {
+                      let #(_, fulfillment_order) = match
+                      fulfillment_order
+                    }),
+                  ))
+              }
+            }
+          }
+        }
+      }
+  }
+}
+
+fn apply_fulfillment_order_split(
+  order: OrderRecord,
+  fulfillment_order: CapturedJsonValue,
+  identity: SyntheticIdentityRegistry,
+  requested: List(RequestedFulfillmentLineItem),
+) -> #(FulfillmentOrderSplitResult, OrderRecord, SyntheticIdentityRegistry) {
+  let #(original_line_items, split_line_items, identity_after_line_items) =
+    split_fulfillment_order_for_split(
+      fulfillment_order_line_items(fulfillment_order),
+      requested,
+      identity,
+      [],
+      [],
+    )
+  let #(updated_at, identity_after_timestamp) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_line_items)
+  let original =
+    fulfillment_order
+    |> replace_fulfillment_order_line_items(original_line_items)
+    |> replace_captured_object_fields([
+      #("updatedAt", CapturedString(updated_at)),
+      #(
+        "supportedActions",
+        captured_supported_actions(
+          fulfillment_order_supported_actions_with_merge(
+            captured_string_field(fulfillment_order, "status"),
+            original_line_items,
+            True,
+          ),
+        ),
+      ),
+    ])
+  let #(remaining, next_identity) =
+    build_replacement_fulfillment_order(
+      identity_after_timestamp,
+      fulfillment_order,
+      split_line_items,
+      [
+        #(
+          "supportedActions",
+          captured_supported_actions(
+            fulfillment_order_supported_actions_with_merge(
+              captured_string_field(fulfillment_order, "status"),
+              split_line_items,
+              True,
+            )
+            |> list.filter(fn(action) {
+              action != "SPLIT"
+              || fulfillment_order_supports_split(split_line_items)
+            }),
+          ),
+        ),
+      ],
+    )
+  let next_order =
+    replace_order_fulfillment_order_with_extras(
+      order,
+      captured_string_field(fulfillment_order, "id") |> option.unwrap(""),
+      original,
+      [remaining],
+    )
+  #(
+    FulfillmentOrderSplitResult(
+      fulfillment_order: original,
+      remaining_fulfillment_order: remaining,
+      replacement_fulfillment_order: None,
+    ),
+    next_order,
+    next_identity,
+  )
+}
+
+fn split_fulfillment_order_for_split(
+  line_items: List(CapturedJsonValue),
+  requested: List(RequestedFulfillmentLineItem),
+  identity: SyntheticIdentityRegistry,
+  original_line_items: List(CapturedJsonValue),
+  split_line_items: List(CapturedJsonValue),
+) -> #(
+  List(CapturedJsonValue),
+  List(CapturedJsonValue),
+  SyntheticIdentityRegistry,
+) {
+  case line_items {
+    [] -> #(original_line_items, split_line_items, identity)
+    [line_item, ..rest] -> {
+      let line_item_id =
+        captured_string_field(line_item, "id") |> option.unwrap("")
+      let requested_quantity =
+        requested_fulfillment_quantity(line_item_id, requested)
+        |> option.unwrap(0)
+      let total_quantity =
+        captured_int_field(line_item, "totalQuantity") |> option.unwrap(0)
+      let remaining_quantity =
+        captured_int_field(line_item, "remainingQuantity")
+        |> option.unwrap(total_quantity)
+      let selected_quantity = int.min(requested_quantity, remaining_quantity)
+      let original_quantity = total_quantity - selected_quantity
+      let fulfillable_quantity =
+        captured_int_field(line_item, "lineItemFulfillableQuantity")
+        |> option.or(captured_int_field(line_item, "lineItemQuantity"))
+        |> option.unwrap(remaining_quantity)
+      let next_original_line_items = case original_quantity > 0 {
+        True ->
+          list.append(original_line_items, [
+            replace_captured_object_fields(line_item, [
+              #("totalQuantity", CapturedInt(original_quantity)),
+              #(
+                "remainingQuantity",
+                CapturedInt(int.min(
+                  original_quantity,
+                  int.max(0, remaining_quantity - selected_quantity),
+                )),
+              ),
+              #(
+                "lineItemFulfillableQuantity",
+                CapturedInt(fulfillable_quantity),
+              ),
+            ]),
+          ])
+        False -> original_line_items
+      }
+      let #(next_split_line_items, next_identity) = case selected_quantity > 0 {
+        False -> #(split_line_items, identity)
+        True -> {
+          let #(split_line_item_id, identity_after_id) = case
+            original_quantity > 0
+          {
+            True ->
+              synthetic_identity.make_synthetic_gid(
+                identity,
+                "FulfillmentOrderLineItem",
+              )
+            False -> #(line_item_id, identity)
+          }
+          #(
+            list.append(split_line_items, [
+              replace_captured_object_fields(line_item, [
+                #("id", CapturedString(split_line_item_id)),
+                #("totalQuantity", CapturedInt(selected_quantity)),
+                #("remainingQuantity", CapturedInt(selected_quantity)),
+                #(
+                  "lineItemFulfillableQuantity",
+                  CapturedInt(fulfillable_quantity),
+                ),
+              ]),
+            ]),
+            identity_after_id,
+          )
+        }
+      }
+      split_fulfillment_order_for_split(
+        rest,
+        requested,
+        next_identity,
+        next_original_line_items,
+        next_split_line_items,
+      )
+    }
+  }
+}
+
+fn apply_fulfillment_order_merge(
+  order: OrderRecord,
+  fulfillment_orders: List(CapturedJsonValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(FulfillmentOrderMergeResult, OrderRecord, SyntheticIdentityRegistry) {
+  let target = case fulfillment_orders {
+    [first, ..] -> first
+    [] -> CapturedNull
+  }
+  let merged_line_items =
+    fulfillment_orders
+    |> list.flat_map(fulfillment_order_line_items)
+    |> list.fold([], merge_fulfillment_order_line_item)
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let merged =
+    target
+    |> replace_fulfillment_order_line_items(merged_line_items)
+    |> replace_captured_object_fields([
+      #("updatedAt", CapturedString(updated_at)),
+      #(
+        "fulfillBy",
+        optional_captured_string(first_fulfillment_order_fulfill_by(
+          fulfillment_orders,
+        )),
+      ),
+      #(
+        "supportedActions",
+        captured_supported_actions(computed_fulfillment_order_supported_actions(
+          captured_string_field(target, "status"),
+          merged_line_items,
+        )),
+      ),
+    ])
+  let target_id = captured_string_field(target, "id")
+  let merged_ids =
+    fulfillment_orders
+    |> list.filter_map(fn(fulfillment_order) {
+      captured_string_field(fulfillment_order, "id") |> option_to_result
+    })
+  let updated_fulfillment_orders =
+    order_fulfillment_orders(order.data)
+    |> list.map(fn(candidate) {
+      let candidate_id = captured_string_field(candidate, "id")
+      case candidate_id == target_id {
+        True -> merged
+        False ->
+          case option_is_in(candidate_id, merged_ids) {
+            True ->
+              candidate
+              |> replace_fulfillment_order_line_items(
+                zero_fulfillment_order_line_items(candidate),
+              )
+              |> replace_captured_object_fields([
+                #("status", CapturedString("CLOSED")),
+                #("updatedAt", CapturedString(updated_at)),
+                #("supportedActions", CapturedArray([])),
+              ])
+            False -> candidate
+          }
+      }
+    })
+  let next_order =
+    OrderRecord(
+      ..order,
+      data: replace_captured_object_fields(order.data, [
+        #("fulfillmentOrders", CapturedArray(updated_fulfillment_orders)),
+      ]),
+    )
+  #(
+    FulfillmentOrderMergeResult(fulfillment_order: merged),
+    next_order,
+    next_identity,
+  )
+}
+
+fn merge_fulfillment_order_line_item(
+  merged: List(CapturedJsonValue),
+  line_item: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  let source_id = fulfillment_source_line_item_id(line_item)
+  case merged {
+    [] -> [line_item]
+    [first, ..rest] ->
+      case fulfillment_source_line_item_id(first) == source_id {
+        True -> [
+          merge_fulfillment_order_line_item_values(first, line_item),
+          ..rest
+        ]
+        False -> [first, ..merge_fulfillment_order_line_item(rest, line_item)]
+      }
+  }
+}
+
+fn merge_fulfillment_order_line_item_values(
+  existing: CapturedJsonValue,
+  line_item: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let existing_remaining =
+    captured_int_field(existing, "remainingQuantity") |> option.unwrap(0)
+  replace_captured_object_fields(existing, [
+    #(
+      "totalQuantity",
+      CapturedInt(
+        { captured_int_field(existing, "totalQuantity") |> option.unwrap(0) }
+        + { captured_int_field(line_item, "totalQuantity") |> option.unwrap(0) },
+      ),
+    ),
+    #(
+      "remainingQuantity",
+      CapturedInt(
+        existing_remaining
+        + {
+          captured_int_field(line_item, "remainingQuantity") |> option.unwrap(0)
+        },
+      ),
+    ),
+    #(
+      "lineItemFulfillableQuantity",
+      CapturedInt(
+        captured_int_field(existing, "lineItemFulfillableQuantity")
+        |> option.or(captured_int_field(
+          line_item,
+          "lineItemFulfillableQuantity",
+        ))
+        |> option.unwrap(existing_remaining),
+      ),
+    ),
+  ])
+}
+
+fn first_fulfillment_order_fulfill_by(
+  fulfillment_orders: List(CapturedJsonValue),
+) -> Option(String) {
+  fulfillment_orders
+  |> list.find_map(fn(fulfillment_order) {
+    captured_string_field(fulfillment_order, "fulfillBy") |> option_to_result
+  })
+  |> option.from_result
+}
+
+fn option_is_in(value: Option(String), values: List(String)) -> Bool {
+  case value {
+    Some(value) -> list.contains(values, value)
+    None -> False
+  }
+}
+
+fn serialize_fulfillment_order_split_payload(
+  field: Selection,
+  results: List(FulfillmentOrderSplitResult),
+  user_errors: List(#(Option(List(String)), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "fulfillmentOrderSplits" -> #(
+              key,
+              json.array(results, fn(result) {
+                serialize_fulfillment_order_split_result(
+                  child,
+                  result,
+                  fragments,
+                )
+              }),
+            )
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_nullable_field_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_fulfillment_order_split_result(
+  field: Selection,
+  result: FulfillmentOrderSplitResult,
+  fragments: FragmentMap,
+) -> Json {
+  let FulfillmentOrderSplitResult(
+    fulfillment_order:,
+    remaining_fulfillment_order:,
+    replacement_fulfillment_order:,
+  ) = result
+  serialize_fulfillment_order_result_fields(
+    field,
+    [
+      #("fulfillmentOrder", Some(fulfillment_order)),
+      #("remainingFulfillmentOrder", Some(remaining_fulfillment_order)),
+      #("replacementFulfillmentOrder", replacement_fulfillment_order),
+    ],
+    fragments,
+  )
+}
+
+fn serialize_fulfillment_order_merge_payload(
+  field: Selection,
+  results: List(FulfillmentOrderMergeResult),
+  user_errors: List(#(Option(List(String)), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "fulfillmentOrderMerges" -> #(
+              key,
+              json.array(results, fn(result) {
+                let FulfillmentOrderMergeResult(fulfillment_order:) = result
+                serialize_fulfillment_order_result_fields(
+                  child,
+                  [#("fulfillmentOrder", Some(fulfillment_order))],
+                  fragments,
+                )
+              }),
+            )
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_nullable_field_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_fulfillment_orders_set_deadline_payload(
+  field: Selection,
+  success: Bool,
+  user_errors: List(#(Option(List(String)), String)),
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "success" -> #(key, json.bool(success))
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_nullable_field_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_fulfillment_order_result_fields(
+  field: Selection,
+  values: List(#(String, Option(CapturedJsonValue))),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case find_named_captured_value(values, name.value) {
+            Some(value) -> #(
+              key,
+              serialize_order_fulfillment_order(child, value, fragments),
+            )
+            None -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn fulfillment_order_bulk_invalid_id_error(
+  root_name: String,
+  response_key: String,
+) -> Json {
+  json.object([
+    #("message", json.string("invalid id")),
+    #("extensions", json.object([#("code", json.string("RESOURCE_NOT_FOUND"))])),
+    #(
+      "path",
+      json.array(
+        [
+          case response_key == "" {
+            True -> root_name
+            False -> response_key
+          },
+        ],
+        json.string,
+      ),
+    ),
+  ])
 }
 
 fn handle_fulfillment_order_lifecycle_mutation(

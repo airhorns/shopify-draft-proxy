@@ -9,6 +9,54 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 161: fulfillment-order split/deadline/merge staging
+
+Extends the fulfillment-order lifecycle slice with the residual local staging
+roots from the legacy Orders integration flow. This pass stages
+`fulfillmentOrderSplit`, `fulfillmentOrdersSetFulfillmentDeadline`, and
+`fulfillmentOrderMerge`, preserving downstream nested `Order.fulfillmentOrders`
+readback without runtime Shopify writes.
+
+| Module                                                   | Change                                      |
+| -------------------------------------------------------- | ------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds split/deadline/merge mutation staging. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers residual lifecycle read-after-write. |
+| `GLEAM_PORT_LOG.md`                                      | Records pass 161 evidence.                  |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records split/deadline/merge patterns.      |
+
+Validation:
+
+- Reproduction with the new residual lifecycle proof first failed with
+  `{\"data\":{}}`, proving `fulfillmentOrderSplit` was still ignored locally.
+- `cd gleam && gleam test --target javascript
+orders_fulfillment_order_split_deadline_merge_read_after_write_test`
+  (761 passed).
+
+### Findings
+
+- Split support needs a stored `supportedActions` override because Shopify adds
+  `MERGE` to split fulfillment orders; the generic status/quantity-derived
+  action set cannot infer that by itself.
+- The split-off fulfillment order gets a new fulfillment-order ID and a new
+  line-item ID when only part of an existing line item is split. The original
+  fulfillment order keeps the original line-item ID and reduced quantities.
+- Merge preserves the target fulfillment order ID and original line-item ID,
+  closes merged sibling orders with zeroed line items, and carries forward the
+  first staged `fulfillBy` deadline.
+
+### Risks / open items
+
+- Fulfillment-order request/cancellation request roots, reroute, and
+  assigned-fulfillment-order catalog filters remain outside this pass.
+
+### Pass 162 candidates
+
+- Port fulfillment-order request and cancellation request roots plus
+  `assignedFulfillmentOrders` readback, or decide whether the remaining
+  shipping-fulfillments roots should move to a narrower follow-up issue.
+
+---
+
 ## 2026-05-01 - Pass 160: fulfillment-order lifecycle staging
 
 Adds the first fulfillment-order lifecycle slice to the Gleam Orders domain.

@@ -720,6 +720,16 @@ synthetic-id/timestamp expected differences.
   are status transitions; cancel closes the target and appends an open
   replacement. Keep reschedule/close as captured guardrail payloads until a
   success path has executable evidence.
+- Fulfillment-order split/deadline/merge roots build on the same order-backed
+  graph. `fulfillmentOrderSplit` keeps the original fulfillment order and line
+  item IDs for the reduced original quantity, mints a replacement fulfillment
+  order plus split line-item ID for the split-off quantity, and stores a
+  `supportedActions` override containing `MERGE`. `fulfillmentOrdersSetFulfillmentDeadline`
+  mutates `fulfillBy` on every requested local fulfillment order and should
+  validate that all IDs exist before staging. `fulfillmentOrderMerge` targets
+  the first merge intent, sums quantities by source line item, preserves the
+  target line-item ID, carries forward the first `fulfillBy`, and closes merged
+  sibling fulfillment orders with zeroed line items.
 
 ## Workflow for a new pass
 

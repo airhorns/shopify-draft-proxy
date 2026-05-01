@@ -2103,6 +2103,305 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
     == "{\"data\":{\"order\":{\"displayFulfillmentStatus\":\"UNFULFILLED\",\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},{\"status\":\"CLOSED\",\"lineItems\":{\"nodes\":[]}},{\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}}]}},\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\"},{\"status\":\"OPEN\"}]}}}"
 }
 
+pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-residual"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/residual"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/residual"
+  let split_fulfillment_order_id = "gid://shopify/FulfillmentOrder/2"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-order-lifecycle"
+  let seeded =
+    store.upsert_base_orders(store.new(), [
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#FULFILLMENT-ORDER-RESIDUAL")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+          #("fulfillments", types.CapturedArray([])),
+          #(
+            "fulfillmentOrders",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString(fulfillment_order_id)),
+                #("status", types.CapturedString("OPEN")),
+                #("requestStatus", types.CapturedString("UNSUBMITTED")),
+                #(
+                  "assignedLocation",
+                  types.CapturedObject([
+                    #("name", types.CapturedString("My Custom Location")),
+                    #(
+                      "locationId",
+                      types.CapturedString("gid://shopify/Location/source"),
+                    ),
+                  ]),
+                ),
+                #("fulfillmentHolds", types.CapturedArray([])),
+                #(
+                  "lineItems",
+                  types.CapturedArray([
+                    types.CapturedObject([
+                      #(
+                        "id",
+                        types.CapturedString(fulfillment_order_line_item_id),
+                      ),
+                      #("lineItemId", types.CapturedString(line_item_id)),
+                      #(
+                        "title",
+                        types.CapturedString("Fulfillment order lifecycle item"),
+                      ),
+                      #("lineItemQuantity", types.CapturedInt(3)),
+                      #("lineItemFulfillableQuantity", types.CapturedInt(3)),
+                      #("totalQuantity", types.CapturedInt(3)),
+                      #("remainingQuantity", types.CapturedInt(3)),
+                    ]),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let split_mutation =
+    "
+    mutation Split($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {
+      fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {
+        fulfillmentOrderSplits {
+          fulfillmentOrder {
+            id
+            status
+            supportedActions {
+              action
+            }
+            lineItems(first: 10) {
+              nodes {
+                id
+                totalQuantity
+                remainingQuantity
+                lineItem {
+                  id
+                  quantity
+                  fulfillableQuantity
+                }
+              }
+            }
+          }
+          remainingFulfillmentOrder {
+            id
+            status
+            supportedActions {
+              action
+            }
+            lineItems(first: 10) {
+              nodes {
+                totalQuantity
+                remainingQuantity
+                lineItem {
+                  id
+                  quantity
+                  fulfillableQuantity
+                }
+              }
+            }
+          }
+          replacementFulfillmentOrder {
+            id
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let split_variables =
+    dict.from_list([
+      #(
+        "fulfillmentOrderSplits",
+        root_field.ListVal([
+          root_field.ObjectVal(
+            dict.from_list([
+              #(
+                "fulfillmentOrderId",
+                root_field.StringVal(fulfillment_order_id),
+              ),
+              #(
+                "fulfillmentOrderLineItems",
+                root_field.ListVal([
+                  root_field.ObjectVal(
+                    dict.from_list([
+                      #(
+                        "id",
+                        root_field.StringVal(fulfillment_order_line_item_id),
+                      ),
+                      #("quantity", root_field.IntVal(1)),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let assert Ok(split_outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      split_mutation,
+      split_variables,
+    )
+  assert json.to_string(split_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":[{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/residual\",\"status\":\"OPEN\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"},{\"action\":\"SPLIT\"},{\"action\":\"MERGE\"}],\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/residual\",\"totalQuantity\":2,\"remainingQuantity\":2,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-order-lifecycle\",\"quantity\":3,\"fulfillableQuantity\":3}}]}},\"remainingFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"OPEN\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"},{\"action\":\"MERGE\"}],\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-order-lifecycle\",\"quantity\":3,\"fulfillableQuantity\":3}}]}},\"replacementFulfillmentOrder\":null}],\"userErrors\":[]}}}"
+
+  let deadline = "2026-05-02T02:16:59Z"
+  let deadline_mutation =
+    "
+    mutation Deadline($fulfillmentOrderIds: [ID!]!, $fulfillmentDeadline: DateTime!) {
+      fulfillmentOrdersSetFulfillmentDeadline(
+        fulfillmentOrderIds: $fulfillmentOrderIds
+        fulfillmentDeadline: $fulfillmentDeadline
+      ) {
+        success
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let assert Ok(deadline_outcome) =
+    orders.process_mutation(
+      split_outcome.store,
+      split_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      deadline_mutation,
+      dict.from_list([
+        #(
+          "fulfillmentOrderIds",
+          root_field.ListVal([
+            root_field.StringVal(fulfillment_order_id),
+            root_field.StringVal(split_fulfillment_order_id),
+          ]),
+        ),
+        #("fulfillmentDeadline", root_field.StringVal(deadline)),
+      ]),
+    )
+  assert json.to_string(deadline_outcome.data)
+    == "{\"data\":{\"fulfillmentOrdersSetFulfillmentDeadline\":{\"success\":true,\"userErrors\":[]}}}"
+
+  let merge_mutation =
+    "
+    mutation Merge($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {
+      fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {
+        fulfillmentOrderMerges {
+          fulfillmentOrder {
+            id
+            status
+            fulfillBy
+            supportedActions {
+              action
+            }
+            lineItems(first: 10) {
+              nodes {
+                id
+                totalQuantity
+                remainingQuantity
+                lineItem {
+                  id
+                  quantity
+                  fulfillableQuantity
+                }
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let assert Ok(merge_outcome) =
+    orders.process_mutation(
+      deadline_outcome.store,
+      deadline_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      merge_mutation,
+      dict.from_list([
+        #(
+          "fulfillmentOrderMergeInputs",
+          root_field.ListVal([
+            root_field.ObjectVal(
+              dict.from_list([
+                #(
+                  "mergeIntents",
+                  root_field.ListVal([
+                    root_field.ObjectVal(
+                      dict.from_list([
+                        #(
+                          "fulfillmentOrderId",
+                          root_field.StringVal(fulfillment_order_id),
+                        ),
+                      ]),
+                    ),
+                    root_field.ObjectVal(
+                      dict.from_list([
+                        #(
+                          "fulfillmentOrderId",
+                          root_field.StringVal(split_fulfillment_order_id),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    )
+  assert json.to_string(merge_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":[{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/residual\",\"status\":\"OPEN\",\"fulfillBy\":\"2026-05-02T02:16:59Z\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"},{\"action\":\"SPLIT\"}],\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/residual\",\"totalQuantity\":3,\"remainingQuantity\":3,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-order-lifecycle\",\"quantity\":3,\"fulfillableQuantity\":3}}]}}}],\"userErrors\":[]}}}"
+
+  let downstream_query =
+    "
+    query MergedRead($id: ID!) {
+      order(id: $id) {
+        fulfillmentOrders(first: 10) {
+          nodes {
+            id
+            fulfillBy
+            lineItems(first: 5) {
+              nodes {
+                id
+                totalQuantity
+                remainingQuantity
+              }
+            }
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(downstream) =
+    orders.process(
+      merge_outcome.store,
+      downstream_query,
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+    )
+  assert json.to_string(downstream)
+    == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/residual\",\"fulfillBy\":\"2026-05-02T02:16:59Z\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/residual\",\"totalQuantity\":3,\"remainingQuantity\":3}]}},{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"fulfillBy\":\"2026-05-02T02:16:59Z\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/1\",\"totalQuantity\":0,\"remainingQuantity\":0}]}}]}}}}"
+}
+
 fn fulfillment_order_lifecycle_store(
   order_id: String,
   fulfillment_order_id: String,
