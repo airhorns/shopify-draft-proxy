@@ -707,6 +707,19 @@ synthetic-id/timestamp expected differences.
   connection-shaped `events` field and updates display/timestamp fields such as
   `IN_TRANSIT`/`inTransitAt`. Keep external shipping notifications and carrier
   side effects out of the local model.
+- Fulfillment-order lifecycle support is order-backed and intentionally local.
+  `fulfillmentOrderHold` splits requested line-item quantities, keeps the held
+  order under the original ID with `ON_HOLD` + `fulfillmentHolds`, and appends
+  an `OPEN` remaining fulfillment order when quantities remain.
+  `manualHoldsFulfillmentOrders` lists held local orders; top-level
+  `fulfillmentOrders` filters closed orders unless `includeClosed` is true.
+  `fulfillmentOrderReleaseHold` must merge split sibling quantities back into
+  the released order and close the sibling so downstream supported actions
+  regain `SPLIT`. `fulfillmentOrderMove` creates a moved replacement order and
+  leaves the original as the remaining order for partial moves; progress/open
+  are status transitions; cancel closes the target and appends an open
+  replacement. Keep reschedule/close as captured guardrail payloads until a
+  success path has executable evidence.
 
 ## Workflow for a new pass
 

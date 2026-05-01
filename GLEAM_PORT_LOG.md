@@ -9,6 +9,66 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 160: fulfillment-order lifecycle staging
+
+Adds the first fulfillment-order lifecycle slice to the Gleam Orders domain.
+This pass stages hold/release, move, progress/open, cancel, and captured
+reschedule/close guardrails locally, and exposes the downstream effects through
+top-level `fulfillmentOrder`/`fulfillmentOrders`,
+`manualHoldsFulfillmentOrders`, and nested `Order.fulfillmentOrders` reads.
+
+| Module                                                               | Change                                               |
+| -------------------------------------------------------------------- | ---------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                   | Adds fulfillment-order lifecycle reads/mutations.    |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`             | Covers hold/release, move/progress/open/cancel.      |
+| `gleam/test/shopify_draft_proxy/proxy/operation_registry_test.gleam` | Moves the unported-root sentinel to assignment read. |
+| `gleam/test/shopify_draft_proxy/proxy/passthrough_test.gleam`        | Keeps live-hybrid passthrough coverage unported.     |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Records fulfillment-order lifecycle patterns.        |
+
+Validation:
+
+- Reproduction with the in-flight lifecycle proof first exposed the old
+  supported-root gap: local dispatch for these roots was absent, and after
+  adding the root set the registry/passthrough sentinel still treated
+  `fulfillmentOrders` as unported.
+- `cd gleam && gleam test --target javascript
+orders_fulfillment_order_hold_release_read_after_write_test`
+  (760 passed).
+- `cd gleam && gleam test --target javascript
+orders_fulfillment_order_lifecycle_mutations_read_after_write_test`
+  (760 passed).
+- `cd gleam && gleam test --target javascript` (760 passed).
+- Docker Erlang fallback `gleam clean && gleam test --target erlang`
+  (756 passed).
+
+### Findings
+
+- `fulfillmentOrders` is now a local Orders query root, so substrate
+  passthrough tests need a different implemented-but-unported sentinel;
+  `assignedFulfillmentOrders` remains covered by the registry but outside this
+  pass.
+- Releasing a partial hold must merge the held quantity back with its split
+  sibling and close that sibling. Without that merge, downstream supported
+  actions lose `SPLIT` even though the local order graph should again represent
+  the original quantity.
+- Top-level fulfillment-order catalog reads should filter `CLOSED` records by
+  default while nested order reads preserve the order graph, matching the legacy
+  TypeScript integration flow.
+
+### Risks / open items
+
+- Fulfillment-order request/cancellation request roots, split/deadline/merge,
+  reroute, and assigned-fulfillment-order catalog filters remain outside this
+  pass.
+
+### Pass 161 candidates
+
+- Port the remaining fulfillment-order request/split/merge/deadline roots from
+  the legacy TypeScript Orders module, or split them into a dedicated
+  shipping-fulfillments pass if HAR-492 remains too broad for one PR.
+
+---
+
 ## 2026-05-01 - Pass 159: fulfillment create and event staging
 
 Adds a bounded fulfillment creation/event lifecycle slice to the Gleam Orders

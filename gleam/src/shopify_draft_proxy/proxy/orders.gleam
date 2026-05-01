@@ -73,6 +73,9 @@ pub fn is_orders_query_root(name: String) -> Bool {
       "draftOrders",
       "draftOrdersCount",
       "fulfillment",
+      "fulfillmentOrder",
+      "fulfillmentOrders",
+      "manualHoldsFulfillmentOrders",
       "order",
       "orders",
       "ordersCount",
@@ -103,6 +106,14 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "fulfillmentCancel",
       "fulfillmentCreate",
       "fulfillmentEventCreate",
+      "fulfillmentOrderCancel",
+      "fulfillmentOrderClose",
+      "fulfillmentOrderHold",
+      "fulfillmentOrderMove",
+      "fulfillmentOrderOpen",
+      "fulfillmentOrderReleaseHold",
+      "fulfillmentOrderReportProgress",
+      "fulfillmentOrderReschedule",
       "fulfillmentTrackingInfoUpdate",
       "orderCancel",
       "orderCapture",
@@ -334,6 +345,33 @@ fn serialize_query_field(
         None -> json.null()
       }
     }
+    "fulfillmentOrder" -> {
+      let id = read_string_argument(field, "id", variables)
+      case id {
+        Some(id) ->
+          case find_order_with_fulfillment_order(store, id) {
+            Some(match) -> {
+              let #(_, fulfillment_order) = match
+              serialize_order_fulfillment_order(
+                field,
+                fulfillment_order,
+                fragments,
+              )
+            }
+            None -> json.null()
+          }
+        None -> json.null()
+      }
+    }
+    "fulfillmentOrders" ->
+      serialize_fulfillment_orders_root(store, field, fragments, variables)
+    "manualHoldsFulfillmentOrders" ->
+      serialize_manual_holds_fulfillment_orders(
+        store,
+        field,
+        fragments,
+        variables,
+      )
     "order" -> {
       let id = read_string_argument(field, "id", variables)
       case id {
@@ -497,6 +535,30 @@ fn serialize_order_fulfillment_order(
                 fragments,
               ),
             )
+            "supportedActions" -> #(
+              key,
+              json.array(
+                fulfillment_order_supported_actions(
+                  captured_string_field(fulfillment_order, "status"),
+                  fulfillment_order_line_items(fulfillment_order),
+                ),
+                fn(action) {
+                  project_graphql_value(
+                    src_object([#("action", SrcString(action))]),
+                    selection_children(child),
+                    fragments,
+                  )
+                },
+              ),
+            )
+            "assignedLocation" -> #(
+              key,
+              serialize_fulfillment_order_assigned_location(
+                child,
+                captured_object_field(fulfillment_order, "assignedLocation"),
+                fragments,
+              ),
+            )
             _ -> #(key, project_graphql_field_value(source, child, fragments))
           }
         _ -> #(key, json.null())
@@ -520,7 +582,7 @@ fn serialize_order_fulfillment_order_line_items_connection(
         captured_string_field(line_item, "id") |> option.unwrap("")
       },
       serialize_node: fn(line_item, selection, _index) {
-        serialize_captured_selection(selection, Some(line_item), fragments)
+        serialize_fulfillment_order_line_item(selection, line_item, fragments)
       },
       selected_field_options: SelectedFieldOptions(True),
       page_info_options: ConnectionPageInfoOptions(
@@ -532,6 +594,170 @@ fn serialize_order_fulfillment_order_line_items_connection(
       ),
     ),
   )
+}
+
+fn serialize_fulfillment_order_line_item(
+  field: Selection,
+  line_item: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  let source = captured_json_source(line_item)
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "lineItem" -> #(
+              key,
+              serialize_fulfillment_source_line_item(
+                child,
+                line_item,
+                fragments,
+              ),
+            )
+            _ -> #(key, project_graphql_field_value(source, child, fragments))
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_fulfillment_source_line_item(
+  field: Selection,
+  line_item: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  case captured_object_field(line_item, "lineItem") {
+    Some(source_line_item) ->
+      serialize_captured_selection(field, Some(source_line_item), fragments)
+    None -> {
+      let source =
+        src_object([
+          #("id", SrcString(fulfillment_source_line_item_id(line_item))),
+          #("title", SrcString(fulfillment_source_line_item_title(line_item))),
+          #(
+            "quantity",
+            SrcInt(
+              captured_int_field(line_item, "lineItemQuantity")
+              |> option.unwrap(0),
+            ),
+          ),
+          #(
+            "fulfillableQuantity",
+            SrcInt(
+              captured_int_field(line_item, "lineItemFulfillableQuantity")
+              |> option.unwrap(
+                captured_int_field(line_item, "remainingQuantity")
+                |> option.unwrap(0),
+              ),
+            ),
+          ),
+        ])
+      project_graphql_value(source, selection_children(field), fragments)
+    }
+  }
+}
+
+fn serialize_fulfillment_order_assigned_location(
+  field: Selection,
+  assigned_location: Option(CapturedJsonValue),
+  fragments: FragmentMap,
+) -> Json {
+  case assigned_location {
+    Some(assigned_location) -> {
+      let source = captured_json_source(assigned_location)
+      let entries =
+        list.map(selection_children(field), fn(child) {
+          let key = get_field_response_key(child)
+          case child {
+            Field(name: name, ..) ->
+              case name.value {
+                "location" -> {
+                  let location_id =
+                    captured_string_field(assigned_location, "locationId")
+                    |> option.unwrap("")
+                  let location_name =
+                    captured_string_field(assigned_location, "name")
+                    |> option.unwrap("")
+                  #(
+                    key,
+                    project_graphql_value(
+                      src_object([
+                        #("id", SrcString(location_id)),
+                        #("name", SrcString(location_name)),
+                      ]),
+                      selection_children(child),
+                      fragments,
+                    ),
+                  )
+                }
+                _ -> #(
+                  key,
+                  project_graphql_field_value(source, child, fragments),
+                )
+              }
+            _ -> #(key, json.null())
+          }
+        })
+      json.object(entries)
+    }
+    None -> json.null()
+  }
+}
+
+fn serialize_fulfillment_orders_root(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let include_closed =
+    read_bool_argument(field, "includeClosed", variables)
+    |> option.unwrap(False)
+  let items =
+    list_effective_fulfillment_orders(store)
+    |> list.filter(fn(pair) {
+      let #(_, fulfillment_order) = pair
+      include_closed
+      || captured_string_field(fulfillment_order, "status") != Some("CLOSED")
+    })
+    |> list.map(fn(pair) {
+      let #(_, fulfillment_order) = pair
+      fulfillment_order
+    })
+  serialize_order_fulfillment_orders_connection(field, items, fragments)
+}
+
+fn serialize_manual_holds_fulfillment_orders(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  _variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let items =
+    list_effective_fulfillment_orders(store)
+    |> list.filter(fn(pair) {
+      let #(_, fulfillment_order) = pair
+      captured_string_field(fulfillment_order, "status") == Some("ON_HOLD")
+      || !list.is_empty(order_fulfillment_holds(fulfillment_order))
+    })
+    |> list.map(fn(pair) {
+      let #(_, fulfillment_order) = pair
+      fulfillment_order
+    })
+  serialize_order_fulfillment_orders_connection(field, items, fragments)
+}
+
+fn list_effective_fulfillment_orders(
+  store: Store,
+) -> List(#(OrderRecord, CapturedJsonValue)) {
+  store.list_effective_orders(store)
+  |> list.flat_map(fn(order) {
+    order_fulfillment_orders(order.data)
+    |> list.map(fn(fulfillment_order) { #(order, fulfillment_order) })
+  })
 }
 
 fn serialize_orders(
@@ -1445,6 +1671,55 @@ pub fn process_mutation(
         Field(name: name, ..) if name.value == "fulfillmentEventCreate" -> {
           let result =
             handle_fulfillment_event_create_mutation(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            next_ids,
+            next_errors,
+            next_drafts,
+          ) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, next_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              list.append(entries, [#(key, payload)]),
+              list.append(errors, next_errors),
+              next_store,
+              next_identity,
+              ids,
+              list.append(drafts, next_drafts),
+            )
+          }
+        }
+        Field(name: name, ..)
+          if name.value == "fulfillmentOrderCancel"
+          || name.value == "fulfillmentOrderClose"
+          || name.value == "fulfillmentOrderHold"
+          || name.value == "fulfillmentOrderMove"
+          || name.value == "fulfillmentOrderOpen"
+          || name.value == "fulfillmentOrderReleaseHold"
+          || name.value == "fulfillmentOrderReportProgress"
+          || name.value == "fulfillmentOrderReschedule"
+        -> {
+          let result =
+            handle_fulfillment_order_lifecycle_mutation(
+              name.value,
               current_store,
               current_identity,
               document,
@@ -9638,6 +9913,46 @@ type RequestedFulfillmentLineItem {
   RequestedFulfillmentLineItem(id: String, quantity: Option(Int))
 }
 
+fn fulfillment_order_supported_actions(
+  status: Option(String),
+  line_items: List(CapturedJsonValue),
+) -> List(String) {
+  case status {
+    Some("ON_HOLD") -> ["RELEASE_HOLD", "HOLD", "MOVE"]
+    Some("IN_PROGRESS") -> [
+      "CREATE_FULFILLMENT",
+      "REPORT_PROGRESS",
+      "HOLD",
+      "MARK_AS_OPEN",
+    ]
+    Some("CLOSED") -> []
+    _ ->
+      case fulfillment_order_supports_split(line_items) {
+        True -> [
+          "CREATE_FULFILLMENT",
+          "REPORT_PROGRESS",
+          "MOVE",
+          "HOLD",
+          "SPLIT",
+        ]
+        False -> ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"]
+      }
+  }
+}
+
+fn fulfillment_order_supports_split(
+  line_items: List(CapturedJsonValue),
+) -> Bool {
+  line_items
+  |> list.any(fn(line_item) {
+    let total =
+      captured_int_field(line_item, "totalQuantity") |> option.unwrap(0)
+    let remaining =
+      captured_int_field(line_item, "remainingQuantity") |> option.unwrap(0)
+    int.max(total, remaining) > 1
+  })
+}
+
 fn build_fulfillment_from_order(
   identity: SyntheticIdentityRegistry,
   input: Dict(String, root_field.ResolvedValue),
@@ -9774,6 +10089,34 @@ fn requested_fulfillment_quantity(
   |> option.from_result
 }
 
+fn read_fulfillment_order_line_item_inputs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(RequestedFulfillmentLineItem) {
+  case dict.get(input, "fulfillmentOrderLineItems") {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.ObjectVal(item) ->
+            case read_string(item, "id") {
+              Some(id) ->
+                case read_optional_int(item, "quantity") {
+                  Some(quantity) if quantity > 0 ->
+                    Ok(RequestedFulfillmentLineItem(
+                      id: id,
+                      quantity: Some(quantity),
+                    ))
+                  _ -> Error(Nil)
+                }
+              None -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
 fn fulfillment_source_line_item_id(line_item: CapturedJsonValue) -> String {
   captured_string_field(line_item, "lineItemId")
   |> option.or({
@@ -9823,6 +10166,119 @@ fn fulfillment_order_line_items(
     Some(value) -> connection_nodes(value)
     None -> []
   }
+}
+
+fn order_fulfillment_holds(
+  fulfillment_order: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(fulfillment_order, "fulfillmentHolds") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> connection_nodes(value)
+    None -> []
+  }
+}
+
+fn split_fulfillment_order_line_items(
+  identity: SyntheticIdentityRegistry,
+  fulfillment_order: CapturedJsonValue,
+  requested: List(RequestedFulfillmentLineItem),
+) -> #(
+  List(CapturedJsonValue),
+  List(CapturedJsonValue),
+  SyntheticIdentityRegistry,
+) {
+  case requested {
+    [] -> #(fulfillment_order_line_items(fulfillment_order), [], identity)
+    [_, ..] ->
+      fulfillment_order_line_items(fulfillment_order)
+      |> list.fold(#([], [], identity), fn(acc, line_item) {
+        let #(selected, remaining, current_identity) = acc
+        let line_item_id =
+          captured_string_field(line_item, "id") |> option.unwrap("")
+        case requested_fulfillment_quantity(line_item_id, requested) {
+          None -> #(
+            selected,
+            list.append(remaining, [line_item]),
+            current_identity,
+          )
+          Some(quantity) -> {
+            let total =
+              captured_int_field(line_item, "totalQuantity") |> option.unwrap(0)
+            let current_remaining =
+              captured_int_field(line_item, "remainingQuantity")
+              |> option.unwrap(total)
+            let selected_quantity =
+              int.min(quantity, int.min(total, current_remaining))
+            let remaining_quantity = total - selected_quantity
+            let next_selected = case selected_quantity > 0 {
+              True ->
+                list.append(selected, [
+                  replace_captured_object_fields(line_item, [
+                    #("totalQuantity", CapturedInt(selected_quantity)),
+                    #("remainingQuantity", CapturedInt(selected_quantity)),
+                    #(
+                      "lineItemFulfillableQuantity",
+                      CapturedInt(selected_quantity),
+                    ),
+                  ]),
+                ])
+              False -> selected
+            }
+            case remaining_quantity > 0 {
+              True -> {
+                let #(remaining_id, next_identity) =
+                  synthetic_identity.make_synthetic_gid(
+                    current_identity,
+                    "FulfillmentOrderLineItem",
+                  )
+                let remaining_line_item =
+                  replace_captured_object_fields(line_item, [
+                    #("id", CapturedString(remaining_id)),
+                    #("totalQuantity", CapturedInt(remaining_quantity)),
+                    #("remainingQuantity", CapturedInt(remaining_quantity)),
+                    #(
+                      "lineItemFulfillableQuantity",
+                      CapturedInt(remaining_quantity),
+                    ),
+                  ])
+                #(
+                  next_selected,
+                  list.append(remaining, [remaining_line_item]),
+                  next_identity,
+                )
+              }
+              False -> #(next_selected, remaining, current_identity)
+            }
+          }
+        }
+      })
+  }
+}
+
+fn build_replacement_fulfillment_order(
+  identity: SyntheticIdentityRegistry,
+  fulfillment_order: CapturedJsonValue,
+  line_items: List(CapturedJsonValue),
+  replacements: List(#(String, CapturedJsonValue)),
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(id, identity_after_id) =
+    synthetic_identity.make_synthetic_gid(identity, "FulfillmentOrder")
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let replacement =
+    fulfillment_order
+    |> replace_fulfillment_order_line_items(line_items)
+    |> replace_captured_object_fields(list.append(
+      [
+        #("id", CapturedString(id)),
+        #("status", CapturedString("OPEN")),
+        #("updatedAt", CapturedString(updated_at)),
+        #("requestStatus", CapturedString("UNSUBMITTED")),
+        #("fulfillmentHolds", CapturedArray([])),
+      ],
+      replacements,
+    ))
+  #(replacement, next_identity)
 }
 
 fn close_fulfillment_order(
@@ -9895,6 +10351,31 @@ fn replace_order_fulfillment_order(
       {
         True -> updated_fulfillment_order
         False -> fulfillment_order
+      }
+    })
+  OrderRecord(
+    ..order,
+    data: replace_captured_object_fields(order.data, [
+      #("fulfillmentOrders", CapturedArray(updated_fulfillment_orders)),
+    ]),
+  )
+}
+
+fn replace_order_fulfillment_order_with_extras(
+  order: OrderRecord,
+  fulfillment_order_id: String,
+  updated_fulfillment_order: CapturedJsonValue,
+  extras: List(CapturedJsonValue),
+) -> OrderRecord {
+  let updated_fulfillment_orders =
+    order_fulfillment_orders(order.data)
+    |> list.flat_map(fn(fulfillment_order) {
+      case
+        captured_string_field(fulfillment_order, "id")
+        == Some(fulfillment_order_id)
+      {
+        True -> [updated_fulfillment_order, ..extras]
+        False -> [fulfillment_order]
       }
     })
   OrderRecord(
@@ -10115,6 +10596,702 @@ fn serialize_fulfillment_event_create_payload(
       }
     })
   json.object(entries)
+}
+
+fn handle_fulfillment_order_lifecycle_mutation(
+  root_name: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      root_name,
+      [RequiredArgument(name: "id", expected_type: "ID!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      case read_string_argument(field, "id", variables) {
+        None -> #(key, json.null(), store, identity, [], [], [])
+        Some(id) -> {
+          case root_name {
+            "fulfillmentOrderReschedule" -> {
+              let payload =
+                serialize_fulfillment_order_mutation_payload(
+                  field,
+                  [],
+                  [#(None, "Fulfillment order must be scheduled.")],
+                  fragments,
+                )
+              let draft = fulfillment_order_log_draft(root_name, [id])
+              #(key, payload, store, identity, [], [], [draft])
+            }
+            "fulfillmentOrderClose" -> {
+              let payload =
+                serialize_fulfillment_order_mutation_payload(
+                  field,
+                  [],
+                  [
+                    #(
+                      None,
+                      "The fulfillment order's assigned fulfillment service must be of api type",
+                    ),
+                  ],
+                  fragments,
+                )
+              let draft = fulfillment_order_log_draft(root_name, [id])
+              #(key, payload, store, identity, [], [], [draft])
+            }
+            _ ->
+              case find_order_with_fulfillment_order(store, id) {
+                None -> #(
+                  key,
+                  json.null(),
+                  store,
+                  identity,
+                  [],
+                  [fulfillment_order_invalid_id_error(root_name, key, id)],
+                  [],
+                )
+                Some(match) -> {
+                  let #(order, fulfillment_order) = match
+                  let #(values, next_order, next_identity) =
+                    apply_fulfillment_order_lifecycle(
+                      root_name,
+                      order,
+                      fulfillment_order,
+                      identity,
+                      field,
+                      variables,
+                    )
+                  let next_store = store.stage_order(store, next_order)
+                  let payload =
+                    serialize_fulfillment_order_mutation_payload(
+                      field,
+                      values,
+                      [],
+                      fragments,
+                    )
+                  let draft = fulfillment_order_log_draft(root_name, [id])
+                  #(
+                    key,
+                    payload,
+                    next_store,
+                    next_identity,
+                    [next_order.id],
+                    [],
+                    [draft],
+                  )
+                }
+              }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn apply_fulfillment_order_lifecycle(
+  root_name: String,
+  order: OrderRecord,
+  fulfillment_order: CapturedJsonValue,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  List(#(String, Option(CapturedJsonValue))),
+  OrderRecord,
+  SyntheticIdentityRegistry,
+) {
+  case root_name {
+    "fulfillmentOrderHold" ->
+      apply_fulfillment_order_hold(
+        order,
+        fulfillment_order,
+        identity,
+        variables,
+      )
+    "fulfillmentOrderReleaseHold" ->
+      apply_fulfillment_order_release_hold(order, fulfillment_order, identity)
+    "fulfillmentOrderMove" ->
+      apply_fulfillment_order_move(
+        order,
+        fulfillment_order,
+        identity,
+        variables,
+      )
+    "fulfillmentOrderReportProgress" ->
+      apply_fulfillment_order_status(
+        "fulfillmentOrder",
+        order,
+        fulfillment_order,
+        identity,
+        "IN_PROGRESS",
+      )
+    "fulfillmentOrderOpen" ->
+      apply_fulfillment_order_status(
+        "fulfillmentOrder",
+        order,
+        fulfillment_order,
+        identity,
+        "OPEN",
+      )
+    "fulfillmentOrderCancel" ->
+      apply_fulfillment_order_cancel(order, fulfillment_order, identity)
+    _ -> {
+      let id = read_string_argument(field, "id", variables) |> option.unwrap("")
+      #(
+        [#("fulfillmentOrder", Some(fulfillment_order))],
+        replace_order_fulfillment_order(order, id, fulfillment_order),
+        identity,
+      )
+    }
+  }
+}
+
+fn apply_fulfillment_order_hold(
+  order: OrderRecord,
+  fulfillment_order: CapturedJsonValue,
+  identity: SyntheticIdentityRegistry,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  List(#(String, Option(CapturedJsonValue))),
+  OrderRecord,
+  SyntheticIdentityRegistry,
+) {
+  let fulfillment_hold_input = case dict.get(variables, "fulfillmentHold") {
+    Ok(root_field.ObjectVal(input)) -> input
+    _ -> dict.new()
+  }
+  let requested =
+    read_fulfillment_order_line_item_inputs(fulfillment_hold_input)
+  let #(selected_line_items, remaining_line_items, identity_after_split) =
+    split_fulfillment_order_line_items(identity, fulfillment_order, requested)
+  let #(hold_id, identity_after_hold) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_split,
+      "FulfillmentHold",
+    )
+  let #(updated_at, identity_after_timestamp) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_hold)
+  let hold =
+    CapturedObject([
+      #("id", CapturedString(hold_id)),
+      #(
+        "handle",
+        optional_captured_string(read_string(fulfillment_hold_input, "handle")),
+      ),
+      #(
+        "reason",
+        CapturedString(
+          read_string(fulfillment_hold_input, "reason")
+          |> option.unwrap("OTHER"),
+        ),
+      ),
+      #(
+        "reasonNotes",
+        optional_captured_string(read_string(
+          fulfillment_hold_input,
+          "reasonNotes",
+        )),
+      ),
+      #("displayReason", CapturedString("Other")),
+      #("heldByRequestingApp", CapturedBool(True)),
+    ])
+  let held_fulfillment_order =
+    fulfillment_order
+    |> replace_fulfillment_order_line_items(selected_line_items)
+    |> replace_captured_object_fields([
+      #("status", CapturedString("ON_HOLD")),
+      #("updatedAt", CapturedString(updated_at)),
+      #("fulfillmentHolds", CapturedArray([hold])),
+    ])
+  let #(remaining_fulfillment_order, next_identity) = case
+    remaining_line_items
+  {
+    [] -> #(None, identity_after_timestamp)
+    [_, ..] -> {
+      let #(replacement, identity_after_replacement) =
+        build_replacement_fulfillment_order(
+          identity_after_timestamp,
+          fulfillment_order,
+          remaining_line_items,
+          [],
+        )
+      #(Some(replacement), identity_after_replacement)
+    }
+  }
+  let next_order =
+    replace_order_fulfillment_order_with_extras(
+      order,
+      captured_string_field(fulfillment_order, "id") |> option.unwrap(""),
+      held_fulfillment_order,
+      case remaining_fulfillment_order {
+        Some(remaining_fulfillment_order) -> [remaining_fulfillment_order]
+        None -> []
+      },
+    )
+  #(
+    [
+      #("fulfillmentOrder", Some(held_fulfillment_order)),
+      #("remainingFulfillmentOrder", remaining_fulfillment_order),
+    ],
+    next_order,
+    next_identity,
+  )
+}
+
+fn apply_fulfillment_order_release_hold(
+  order: OrderRecord,
+  fulfillment_order: CapturedJsonValue,
+  identity: SyntheticIdentityRegistry,
+) -> #(
+  List(#(String, Option(CapturedJsonValue))),
+  OrderRecord,
+  SyntheticIdentityRegistry,
+) {
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let released_line_items = fulfillment_order_line_items(fulfillment_order)
+  let target_id = captured_string_field(fulfillment_order, "id")
+  let release_siblings =
+    order_fulfillment_orders(order.data)
+    |> list.filter(fn(candidate) {
+      captured_string_field(candidate, "id") != target_id
+      && captured_string_field(candidate, "status") != Some("CLOSED")
+      && fulfillment_order_has_matching_line_item(
+        candidate,
+        released_line_items,
+      )
+    })
+  let merged_line_items =
+    merge_released_fulfillment_order_line_items(
+      released_line_items,
+      release_siblings,
+    )
+  let released =
+    fulfillment_order
+    |> replace_fulfillment_order_line_items(merged_line_items)
+    |> replace_captured_object_fields([
+      #("status", CapturedString("OPEN")),
+      #("updatedAt", CapturedString(updated_at)),
+      #("fulfillmentHolds", CapturedArray([])),
+    ])
+  let updated_fulfillment_orders =
+    order_fulfillment_orders(order.data)
+    |> list.map(fn(candidate) {
+      case captured_string_field(candidate, "id") == target_id {
+        True -> released
+        False ->
+          case
+            fulfillment_order_has_matching_line_item(
+              candidate,
+              released_line_items,
+            )
+          {
+            True ->
+              candidate
+              |> replace_fulfillment_order_line_items(
+                zero_fulfillment_order_line_items(candidate),
+              )
+              |> replace_captured_object_fields([
+                #("status", CapturedString("CLOSED")),
+                #("updatedAt", CapturedString(updated_at)),
+                #("fulfillmentHolds", CapturedArray([])),
+              ])
+            False -> candidate
+          }
+      }
+    })
+  let next_order =
+    OrderRecord(
+      ..order,
+      data: replace_captured_object_fields(order.data, [
+        #("fulfillmentOrders", CapturedArray(updated_fulfillment_orders)),
+      ]),
+    )
+  #([#("fulfillmentOrder", Some(released))], next_order, next_identity)
+}
+
+fn fulfillment_order_has_matching_line_item(
+  fulfillment_order: CapturedJsonValue,
+  line_items: List(CapturedJsonValue),
+) -> Bool {
+  fulfillment_order_line_items(fulfillment_order)
+  |> list.any(fn(candidate) {
+    let candidate_line_item_id = fulfillment_source_line_item_id(candidate)
+    line_items
+    |> list.any(fn(line_item) {
+      candidate_line_item_id != ""
+      && candidate_line_item_id == fulfillment_source_line_item_id(line_item)
+    })
+  })
+}
+
+fn merge_released_fulfillment_order_line_items(
+  line_items: List(CapturedJsonValue),
+  siblings: List(CapturedJsonValue),
+) -> List(CapturedJsonValue) {
+  line_items
+  |> list.map(fn(line_item) {
+    let source_line_item_id = fulfillment_source_line_item_id(line_item)
+    let sibling_line_items =
+      siblings
+      |> list.flat_map(fulfillment_order_line_items)
+      |> list.filter(fn(candidate) {
+        source_line_item_id != ""
+        && source_line_item_id == fulfillment_source_line_item_id(candidate)
+      })
+    let total_quantity =
+      captured_int_field(line_item, "totalQuantity") |> option.unwrap(0)
+    let remaining_quantity =
+      captured_int_field(line_item, "remainingQuantity") |> option.unwrap(0)
+    let fulfillable_quantity =
+      captured_int_field(line_item, "lineItemFulfillableQuantity")
+      |> option.unwrap(remaining_quantity)
+    replace_captured_object_fields(line_item, [
+      #(
+        "totalQuantity",
+        CapturedInt(
+          total_quantity
+          + sum_fulfillment_order_line_item_field(
+            sibling_line_items,
+            "totalQuantity",
+          ),
+        ),
+      ),
+      #(
+        "remainingQuantity",
+        CapturedInt(
+          remaining_quantity
+          + sum_fulfillment_order_line_item_field(
+            sibling_line_items,
+            "remainingQuantity",
+          ),
+        ),
+      ),
+      #(
+        "lineItemFulfillableQuantity",
+        CapturedInt(
+          fulfillable_quantity
+          + sum_fulfillment_order_line_item_field(
+            sibling_line_items,
+            "lineItemFulfillableQuantity",
+          ),
+        ),
+      ),
+    ])
+  })
+}
+
+fn sum_fulfillment_order_line_item_field(
+  line_items: List(CapturedJsonValue),
+  field_name: String,
+) -> Int {
+  line_items
+  |> list.fold(0, fn(sum, line_item) {
+    let fallback =
+      captured_int_field(line_item, "remainingQuantity") |> option.unwrap(0)
+    sum
+    + { captured_int_field(line_item, field_name) |> option.unwrap(fallback) }
+  })
+}
+
+fn zero_fulfillment_order_line_items(
+  fulfillment_order: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  fulfillment_order_line_items(fulfillment_order)
+  |> list.map(fn(line_item) {
+    replace_captured_object_fields(line_item, [
+      #("totalQuantity", CapturedInt(0)),
+      #("remainingQuantity", CapturedInt(0)),
+      #("lineItemFulfillableQuantity", CapturedInt(0)),
+    ])
+  })
+}
+
+fn apply_fulfillment_order_move(
+  order: OrderRecord,
+  fulfillment_order: CapturedJsonValue,
+  identity: SyntheticIdentityRegistry,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  List(#(String, Option(CapturedJsonValue))),
+  OrderRecord,
+  SyntheticIdentityRegistry,
+) {
+  let requested = read_fulfillment_order_line_item_inputs(variables)
+  let #(selected_line_items, remaining_line_items, identity_after_split) =
+    split_fulfillment_order_line_items(identity, fulfillment_order, requested)
+  let new_location_id = case dict.get(variables, "newLocationId") {
+    Ok(root_field.StringVal(id)) -> Some(id)
+    _ -> None
+  }
+  let assigned_location =
+    CapturedObject([
+      #("name", CapturedString("Shop location")),
+      #("locationId", optional_captured_string(new_location_id)),
+    ])
+  let #(moved, identity_after_moved) =
+    build_replacement_fulfillment_order(
+      identity_after_split,
+      fulfillment_order,
+      selected_line_items,
+      [#("assignedLocation", assigned_location)],
+    )
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_moved)
+  let original =
+    fulfillment_order
+    |> replace_fulfillment_order_line_items(remaining_line_items)
+    |> replace_captured_object_fields([
+      #("updatedAt", CapturedString(updated_at)),
+    ])
+  let remaining = case remaining_line_items {
+    [] -> None
+    [_, ..] -> Some(original)
+  }
+  let next_order =
+    replace_order_fulfillment_order_with_extras(
+      order,
+      captured_string_field(fulfillment_order, "id") |> option.unwrap(""),
+      case remaining {
+        Some(original) -> original
+        None -> moved
+      },
+      case remaining {
+        Some(_) -> [moved]
+        None -> []
+      },
+    )
+  #(
+    [
+      #("movedFulfillmentOrder", Some(moved)),
+      #("originalFulfillmentOrder", Some(original)),
+      #("remainingFulfillmentOrder", remaining),
+    ],
+    next_order,
+    next_identity,
+  )
+}
+
+fn apply_fulfillment_order_status(
+  payload_key: String,
+  order: OrderRecord,
+  fulfillment_order: CapturedJsonValue,
+  identity: SyntheticIdentityRegistry,
+  status: String,
+) -> #(
+  List(#(String, Option(CapturedJsonValue))),
+  OrderRecord,
+  SyntheticIdentityRegistry,
+) {
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let updated =
+    replace_captured_object_fields(fulfillment_order, [
+      #("status", CapturedString(status)),
+      #("updatedAt", CapturedString(updated_at)),
+    ])
+  let replacements = case status {
+    "IN_PROGRESS" -> [
+      #("displayFulfillmentStatus", CapturedString("IN_PROGRESS")),
+    ]
+    "OPEN" -> [#("displayFulfillmentStatus", CapturedString("UNFULFILLED"))]
+    _ -> []
+  }
+  let next_order =
+    replace_order_fulfillment_order(
+      OrderRecord(
+        ..order,
+        data: replace_captured_object_fields(order.data, replacements),
+      ),
+      captured_string_field(fulfillment_order, "id") |> option.unwrap(""),
+      updated,
+    )
+  #([#(payload_key, Some(updated))], next_order, next_identity)
+}
+
+fn apply_fulfillment_order_cancel(
+  order: OrderRecord,
+  fulfillment_order: CapturedJsonValue,
+  identity: SyntheticIdentityRegistry,
+) -> #(
+  List(#(String, Option(CapturedJsonValue))),
+  OrderRecord,
+  SyntheticIdentityRegistry,
+) {
+  let #(updated_at, identity_after_closed) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let closed =
+    fulfillment_order
+    |> replace_fulfillment_order_line_items([])
+    |> replace_captured_object_fields([
+      #("status", CapturedString("CLOSED")),
+      #("updatedAt", CapturedString(updated_at)),
+    ])
+  let #(replacement, next_identity) =
+    build_replacement_fulfillment_order(
+      identity_after_closed,
+      fulfillment_order,
+      fulfillment_order_line_items(fulfillment_order),
+      [],
+    )
+  let next_order =
+    replace_order_fulfillment_order_with_extras(
+      order,
+      captured_string_field(fulfillment_order, "id") |> option.unwrap(""),
+      closed,
+      [replacement],
+    )
+  #(
+    [
+      #("fulfillmentOrder", Some(closed)),
+      #("replacementFulfillmentOrder", Some(replacement)),
+    ],
+    next_order,
+    next_identity,
+  )
+}
+
+fn serialize_fulfillment_order_mutation_payload(
+  field: Selection,
+  values: List(#(String, Option(CapturedJsonValue))),
+  user_errors: List(#(Option(List(String)), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "fulfillmentOrder"
+            | "remainingFulfillmentOrder"
+            | "movedFulfillmentOrder"
+            | "originalFulfillmentOrder"
+            | "replacementFulfillmentOrder" -> #(
+              key,
+              case find_named_captured_value(values, name.value) {
+                Some(value) ->
+                  serialize_order_fulfillment_order(child, value, fragments)
+                None -> json.null()
+              },
+            )
+            "fulfillmentHold" -> #(
+              key,
+              case find_named_captured_value(values, "fulfillmentOrder") {
+                Some(fulfillment_order) ->
+                  case order_fulfillment_holds(fulfillment_order) {
+                    [hold, ..] ->
+                      serialize_captured_selection(child, Some(hold), fragments)
+                    [] -> json.null()
+                  }
+                None -> json.null()
+              },
+            )
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_nullable_field_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_nullable_field_user_error(
+  field: Selection,
+  error: #(Option(List(String)), String),
+) -> Json {
+  let #(field_path, message) = error
+  let field_value = case field_path {
+    Some(path) -> SrcList(list.map(path, SrcString))
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("field", field_value),
+      #("message", SrcString(message)),
+      #("code", SrcNull),
+    ]),
+    selection_children(field),
+    dict.new(),
+  )
+}
+
+fn find_named_captured_value(
+  values: List(#(String, Option(CapturedJsonValue))),
+  name: String,
+) -> Option(CapturedJsonValue) {
+  values
+  |> list.find_map(fn(pair) {
+    let #(key, value) = pair
+    case key == name, value {
+      True, Some(value) -> Ok(value)
+      _, _ -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn fulfillment_order_invalid_id_error(
+  root_name: String,
+  response_key: String,
+  id: String,
+) -> Json {
+  json.object([
+    #("message", json.string("Invalid id: " <> id)),
+    #("extensions", json.object([#("code", json.string("RESOURCE_NOT_FOUND"))])),
+    #(
+      "path",
+      json.array(
+        [
+          case response_key == "" {
+            True -> root_name
+            False -> response_key
+          },
+        ],
+        json.string,
+      ),
+    ),
+  ])
+}
+
+fn fulfillment_order_log_draft(
+  root_name: String,
+  staged_ids: List(String),
+) -> LogDraft {
+  single_root_log_draft(
+    root_name,
+    staged_ids,
+    store.Staged,
+    "orders",
+    "stage-locally",
+    Some("Locally staged " <> root_name <> " in shopify-draft-proxy."),
+  )
 }
 
 fn handle_order_update_mutation(
@@ -14363,6 +15540,17 @@ fn read_int_argument(
 ) -> Option(Int) {
   case dict.get(field_arguments(field, variables), name) {
     Ok(root_field.IntVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn read_bool_argument(
+  field: Selection,
+  name: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(Bool) {
+  case dict.get(field_arguments(field, variables), name) {
+    Ok(root_field.BoolVal(value)) -> Some(value)
     _ -> None
   }
 }

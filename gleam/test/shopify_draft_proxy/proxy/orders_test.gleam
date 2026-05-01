@@ -1647,6 +1647,522 @@ pub fn orders_fulfillment_create_event_and_detail_read_test() {
     == "{\"data\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\",\"displayStatus\":\"IN_TRANSIT\",\"estimatedDeliveryAt\":\"2026-04-27T18:00:00Z\",\"inTransitAt\":\"2026-04-25T22:25:00Z\",\"events\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentEvent/3\",\"status\":\"IN_TRANSIT\",\"message\":\"HAR-159 package scanned\",\"happenedAt\":\"2026-04-25T22:25:00Z\",\"estimatedDeliveryAt\":\"2026-04-27T18:00:00Z\",\"city\":\"Toronto\",\"province\":\"Ontario\",\"country\":\"Canada\",\"zip\":\"M5H 2M9\",\"address1\":\"123 Queen St W\",\"latitude\":43.6532,\"longitude\":-79.3832}]}},\"order\":{\"id\":\"gid://shopify/Order/fulfillment-create\",\"displayFulfillmentStatus\":\"PARTIALLY_FULFILLED\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/1\",\"displayStatus\":\"IN_TRANSIT\",\"events\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentEvent/3\",\"status\":\"IN_TRANSIT\"}]}}],\"fulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/fulfillment-create\",\"status\":\"CLOSED\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create\",\"remainingQuantity\":1},{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create-unrequested\",\"remainingQuantity\":5}]}},{\"id\":\"gid://shopify/FulfillmentOrder/fulfillment-create-second\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create-second\",\"remainingQuantity\":1}]}}]}}}}"
 }
 
+pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-hold"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/hold-release"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/hold-release"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-order-lifecycle"
+  let seeded =
+    fulfillment_order_lifecycle_store(
+      order_id,
+      fulfillment_order_id,
+      fulfillment_order_line_item_id,
+      line_item_id,
+    )
+  let hold_mutation =
+    "
+    mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+      fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+        fulfillmentHold {
+          handle
+          reason
+          reasonNotes
+          heldByRequestingApp
+        }
+        fulfillmentOrder {
+          id
+          status
+          requestStatus
+          supportedActions {
+            action
+          }
+          fulfillmentHolds {
+            handle
+            reason
+            reasonNotes
+            heldByRequestingApp
+          }
+          lineItems(first: 5) {
+            nodes {
+              totalQuantity
+              remainingQuantity
+              lineItem {
+                id
+                title
+              }
+            }
+          }
+        }
+        remainingFulfillmentOrder {
+          status
+          lineItems(first: 5) {
+            nodes {
+              totalQuantity
+              remainingQuantity
+              lineItem {
+                id
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let hold_variables =
+    dict.from_list([
+      #("id", root_field.StringVal(fulfillment_order_id)),
+      #(
+        "fulfillmentHold",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("reason", root_field.StringVal("OTHER")),
+            #("reasonNotes", root_field.StringVal("Local lifecycle hold")),
+            #("handle", root_field.StringVal("local-lifecycle-hold")),
+            #("notifyMerchant", root_field.BoolVal(False)),
+            #(
+              "fulfillmentOrderLineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #(
+                      "id",
+                      root_field.StringVal(fulfillment_order_line_item_id),
+                    ),
+                    #("quantity", root_field.IntVal(1)),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(hold_outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      hold_variables,
+    )
+  assert json.to_string(hold_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"local-lifecycle-hold\",\"reason\":\"OTHER\",\"reasonNotes\":\"Local lifecycle hold\",\"heldByRequestingApp\":true},\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/hold-release\",\"status\":\"ON_HOLD\",\"requestStatus\":\"UNSUBMITTED\",\"supportedActions\":[{\"action\":\"RELEASE_HOLD\"},{\"action\":\"HOLD\"},{\"action\":\"MOVE\"}],\"fulfillmentHolds\":[{\"handle\":\"local-lifecycle-hold\",\"reason\":\"OTHER\",\"reasonNotes\":\"Local lifecycle hold\",\"heldByRequestingApp\":true}],\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-order-lifecycle\",\"title\":\"Fulfillment order lifecycle item\"}}]}},\"remainingFulfillmentOrder\":{\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-order-lifecycle\"}}]}},\"userErrors\":[]}}}"
+
+  let held_read_query =
+    "
+    query HeldReads($id: ID!, $first: Int!) {
+      order(id: $id) {
+        fulfillmentOrders(first: $first) {
+          nodes {
+            status
+            fulfillmentHolds {
+              handle
+            }
+          }
+        }
+      }
+      manualHoldsFulfillmentOrders(first: $first) {
+        nodes {
+          id
+          status
+          fulfillmentHolds {
+            handle
+          }
+        }
+      }
+    }
+  "
+  let held_read_variables =
+    dict.from_list([
+      #("id", root_field.StringVal(order_id)),
+      #("first", root_field.IntVal(5)),
+    ])
+  let assert Ok(held_read) =
+    orders.process(hold_outcome.store, held_read_query, held_read_variables)
+  assert json.to_string(held_read)
+    == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"local-lifecycle-hold\"}]},{\"status\":\"OPEN\",\"fulfillmentHolds\":[]}]}},\"manualHoldsFulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/hold-release\",\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"local-lifecycle-hold\"}]}]}}}"
+
+  let release_mutation =
+    "
+    mutation ReleaseHold($id: ID!) {
+      fulfillmentOrderReleaseHold(id: $id) {
+        fulfillmentOrder {
+          id
+          status
+          fulfillmentHolds {
+            handle
+          }
+          supportedActions {
+            action
+          }
+          lineItems(first: 5) {
+            nodes {
+              totalQuantity
+              remainingQuantity
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(release_outcome) =
+    orders.process_mutation(
+      hold_outcome.store,
+      hold_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      release_mutation,
+      dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+    )
+  assert json.to_string(release_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderReleaseHold\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/hold-release\",\"status\":\"OPEN\",\"fulfillmentHolds\":[],\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"},{\"action\":\"SPLIT\"}],\"lineItems\":{\"nodes\":[{\"totalQuantity\":2,\"remainingQuantity\":2}]}},\"userErrors\":[]}}}"
+
+  let assert Ok(released_read) =
+    orders.process(release_outcome.store, held_read_query, held_read_variables)
+  assert json.to_string(released_read)
+    == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\",\"fulfillmentHolds\":[]},{\"status\":\"CLOSED\",\"fulfillmentHolds\":[]}]}},\"manualHoldsFulfillmentOrders\":{\"nodes\":[]}}}"
+}
+
+pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-lifecycle"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/lifecycle"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/lifecycle"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-order-lifecycle"
+  let seeded =
+    fulfillment_order_lifecycle_store(
+      order_id,
+      fulfillment_order_id,
+      fulfillment_order_line_item_id,
+      line_item_id,
+    )
+  let move_mutation =
+    "
+    mutation Move($id: ID!, $newLocationId: ID!, $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]) {
+      fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $fulfillmentOrderLineItems) {
+        movedFulfillmentOrder {
+          id
+          status
+          assignedLocation {
+            name
+            location {
+              id
+              name
+            }
+          }
+          lineItems(first: 5) {
+            nodes {
+              totalQuantity
+              remainingQuantity
+            }
+          }
+        }
+        originalFulfillmentOrder {
+          id
+          status
+          lineItems(first: 5) {
+            nodes {
+              totalQuantity
+              remainingQuantity
+            }
+          }
+        }
+        remainingFulfillmentOrder {
+          id
+          status
+          lineItems(first: 5) {
+            nodes {
+              totalQuantity
+              remainingQuantity
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let move_variables =
+    dict.from_list([
+      #("id", root_field.StringVal(fulfillment_order_id)),
+      #(
+        "newLocationId",
+        root_field.StringVal("gid://shopify/Location/destination"),
+      ),
+      #(
+        "fulfillmentOrderLineItems",
+        root_field.ListVal([
+          root_field.ObjectVal(
+            dict.from_list([
+              #("id", root_field.StringVal(fulfillment_order_line_item_id)),
+              #("quantity", root_field.IntVal(1)),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let assert Ok(move_outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      move_mutation,
+      move_variables,
+    )
+  assert json.to_string(move_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"OPEN\",\"assignedLocation\":{\"name\":\"Shop location\",\"location\":{\"id\":\"gid://shopify/Location/destination\",\"name\":\"Shop location\"}},\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/lifecycle\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"remainingFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/lifecycle\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"userErrors\":[]}}}"
+
+  let moved_fulfillment_order_id = "gid://shopify/FulfillmentOrder/2"
+  let progress_mutation =
+    "
+    mutation Progress($id: ID!, $progressReport: FulfillmentOrderReportProgressInput) {
+      fulfillmentOrderReportProgress(id: $id, progressReport: $progressReport) {
+        fulfillmentOrder {
+          id
+          status
+          supportedActions {
+            action
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(progress_outcome) =
+    orders.process_mutation(
+      move_outcome.store,
+      move_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      progress_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(moved_fulfillment_order_id)),
+        #(
+          "progressReport",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("reasonNotes", root_field.StringVal("Local progress")),
+            ]),
+          ),
+        ),
+      ]),
+    )
+  assert json.to_string(progress_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"IN_PROGRESS\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"HOLD\"},{\"action\":\"MARK_AS_OPEN\"}]},\"userErrors\":[]}}}"
+
+  let open_mutation =
+    "
+    mutation Open($id: ID!) {
+      fulfillmentOrderOpen(id: $id) {
+        fulfillmentOrder {
+          id
+          status
+          supportedActions {
+            action
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(open_outcome) =
+    orders.process_mutation(
+      progress_outcome.store,
+      progress_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      open_mutation,
+      dict.from_list([#("id", root_field.StringVal(moved_fulfillment_order_id))]),
+    )
+  assert json.to_string(open_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderOpen\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"OPEN\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"}]},\"userErrors\":[]}}}"
+
+  let cancel_mutation =
+    "
+    mutation Cancel($id: ID!) {
+      fulfillmentOrderCancel(id: $id) {
+        fulfillmentOrder {
+          id
+          status
+          lineItems(first: 5) {
+            nodes {
+              id
+            }
+          }
+        }
+        replacementFulfillmentOrder {
+          status
+          lineItems(first: 5) {
+            nodes {
+              totalQuantity
+              remainingQuantity
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(cancel_outcome) =
+    orders.process_mutation(
+      open_outcome.store,
+      open_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      cancel_mutation,
+      dict.from_list([#("id", root_field.StringVal(moved_fulfillment_order_id))]),
+    )
+  assert json.to_string(cancel_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"CLOSED\",\"lineItems\":{\"nodes\":[]}},\"replacementFulfillmentOrder\":{\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"userErrors\":[]}}}"
+
+  let guardrail_mutation =
+    "
+    mutation Guardrails($id: ID!, $fulfillAt: DateTime!, $message: String) {
+      fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+        fulfillmentOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+      fulfillmentOrderClose(id: $id, message: $message) {
+        fulfillmentOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(guardrail_outcome) =
+    orders.process_mutation(
+      cancel_outcome.store,
+      cancel_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      guardrail_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #("fulfillAt", root_field.StringVal("2026-04-28T00:00:00Z")),
+        #("message", root_field.StringVal("close guardrail")),
+      ]),
+    )
+  assert json.to_string(guardrail_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderReschedule\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order must be scheduled.\"}]},\"fulfillmentOrderClose\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"The fulfillment order's assigned fulfillment service must be of api type\"}]}}}"
+
+  let downstream_query =
+    "
+    query Downstream($orderId: ID!) {
+      order(id: $orderId) {
+        displayFulfillmentStatus
+        fulfillmentOrders(first: 10, includeClosed: true) {
+          nodes {
+            status
+            lineItems(first: 5) {
+              nodes {
+                totalQuantity
+                remainingQuantity
+              }
+            }
+          }
+        }
+      }
+      fulfillmentOrders(first: 10) {
+        nodes {
+          status
+        }
+      }
+    }
+  "
+  let assert Ok(downstream) =
+    orders.process(
+      guardrail_outcome.store,
+      downstream_query,
+      dict.from_list([#("orderId", root_field.StringVal(order_id))]),
+    )
+  assert json.to_string(downstream)
+    == "{\"data\":{\"order\":{\"displayFulfillmentStatus\":\"UNFULFILLED\",\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},{\"status\":\"CLOSED\",\"lineItems\":{\"nodes\":[]}},{\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}}]}},\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\"},{\"status\":\"OPEN\"}]}}}"
+}
+
+fn fulfillment_order_lifecycle_store(
+  order_id: String,
+  fulfillment_order_id: String,
+  fulfillment_order_line_item_id: String,
+  line_item_id: String,
+) -> store.Store {
+  store.new()
+  |> store.upsert_base_orders([
+    types.OrderRecord(
+      id: order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("name", types.CapturedString("#FULFILLMENT-ORDER")),
+        #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+        #("fulfillments", types.CapturedArray([])),
+        #(
+          "fulfillmentOrders",
+          types.CapturedArray([
+            types.CapturedObject([
+              #("id", types.CapturedString(fulfillment_order_id)),
+              #("status", types.CapturedString("OPEN")),
+              #("requestStatus", types.CapturedString("UNSUBMITTED")),
+              #(
+                "assignedLocation",
+                types.CapturedObject([
+                  #("name", types.CapturedString("My Custom Location")),
+                  #(
+                    "locationId",
+                    types.CapturedString("gid://shopify/Location/source"),
+                  ),
+                ]),
+              ),
+              #("fulfillmentHolds", types.CapturedArray([])),
+              #(
+                "lineItems",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #(
+                      "id",
+                      types.CapturedString(fulfillment_order_line_item_id),
+                    ),
+                    #("lineItemId", types.CapturedString(line_item_id)),
+                    #(
+                      "title",
+                      types.CapturedString("Fulfillment order lifecycle item"),
+                    ),
+                    #("totalQuantity", types.CapturedInt(2)),
+                    #("remainingQuantity", types.CapturedInt(2)),
+                  ]),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
 pub fn orders_refund_create_over_refund_validation_keeps_order_unchanged_test() {
   let order_id = "gid://shopify/Order/6830465417449"
   let line_item_id = "gid://shopify/LineItem/16202166632681"
