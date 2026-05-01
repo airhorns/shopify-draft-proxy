@@ -25,6 +25,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -297,6 +298,20 @@ fn serialize_node_by_id(
       )
     "ShopPolicy" ->
       store_properties.serialize_shop_policy_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
+    "ProductOption" ->
+      products.serialize_product_option_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
+    "ProductOptionValue" ->
+      products.serialize_product_option_value_node_by_id(
         store,
         id,
         selections,

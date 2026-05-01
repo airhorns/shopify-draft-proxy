@@ -431,9 +431,9 @@ fn serialize_location_root(
 ) -> Json {
   let args = field_args(field, variables)
   let location = case read_string(args, "id") {
-    Some(id) -> store.get_effective_location_by_id(store, id)
+    Some(id) -> store.get_effective_store_property_location_by_id(store, id)
     None ->
-      case store.list_effective_locations(store) {
+      case store.list_effective_store_property_locations(store) {
         [first, ..] -> Some(first)
         [] -> None
       }
@@ -458,7 +458,9 @@ fn serialize_location_by_identifier_result(
         Some(id) ->
           QueryFieldResult(
             key: key,
-            value: case store.get_effective_location_by_id(store, id) {
+            value: case
+              store.get_effective_store_property_location_by_id(store, id)
+            {
               Some(record) ->
                 project_store_property_record(record, field, fragments)
               None -> json.null()
@@ -480,7 +482,7 @@ fn serialize_locations_root(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let locations = store.list_effective_locations(store)
+  let locations = store.list_effective_store_property_locations(store)
   let window =
     paginate_store_records(locations, field, variables, fn(record, _index) {
       record.cursor |> option.unwrap(record.id)
@@ -1022,7 +1024,8 @@ fn stage_location_add(
                 #("deletable", StorePropertyBool(False)),
               ]),
             )
-          let #(_, next_store) = store.upsert_staged_location(store, record)
+          let #(_, next_store) =
+            store.upsert_staged_store_property_location(store, record)
           let payload_source =
             src_object([
               #("location", store_property_data_to_source(record.data)),
@@ -1092,7 +1095,9 @@ fn stage_location_edit(
   let id = read_string(args, "id")
   case id {
     Some(location_id) ->
-      case store.get_effective_location_by_id(store, location_id) {
+      case
+        store.get_effective_store_property_location_by_id(store, location_id)
+      {
         Some(record) -> {
           let input = read_object(args, "input")
           let next_data = case
@@ -1104,7 +1109,7 @@ fn stage_location_edit(
           }
           let next_record = StorePropertyRecord(..record, data: next_data)
           let #(_, next_store) =
-            store.upsert_staged_location(store, next_record)
+            store.upsert_staged_store_property_location(store, next_record)
           let payload_source =
             src_object([
               #("location", store_property_data_to_source(next_record.data)),
@@ -1162,7 +1167,7 @@ fn stage_location_delete(
   let location_id = read_string(args, "locationId")
   case location_id {
     Some(id) ->
-      case store.get_effective_location_by_id(store, id) {
+      case store.get_effective_store_property_location_by_id(store, id) {
         Some(record) ->
           case
             store_property_bool_field(record, "isActive") |> option.unwrap(True)
@@ -1170,7 +1175,8 @@ fn stage_location_delete(
             True ->
               active_location_delete_result(store, identity, field, fragments)
             False -> {
-              let next_store = store.delete_staged_location(store, id)
+              let next_store =
+                store.delete_staged_store_property_location(store, id)
               let payload_source =
                 src_object([
                   #("deletedLocationId", SrcString(id)),

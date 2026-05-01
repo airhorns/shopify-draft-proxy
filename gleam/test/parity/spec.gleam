@@ -8,6 +8,7 @@
 ////     "liveCaptureFiles": ["fixtures/.../capture.json"],
 ////     "proxyRequest": {                                <-- primary
 ////       "documentPath": "config/parity-requests/.../op.graphql",
+////       "apiVersion": "2026-04",
 ////       "variablesCapturePath": "$.cases[1].variables"  // OR
 ////       "variablesPath": "config/.../variables.json"    // OR
 ////       "variables": { … inline, may contain
@@ -20,6 +21,7 @@
 ////           "name": "...",
 ////           "capturePath": "$....",
 ////           "proxyPath": "$....",
+////           "upstreamCapturePath": "$.response.payload",
 ////           "expectedDifferences": [...],
 ////           "proxyRequest": { … per-target override, same shape as
 ////                             primary, may use fromPrimaryProxyPath
@@ -52,7 +54,11 @@ pub type ParityVariables {
 }
 
 pub type ProxyRequest {
-  ProxyRequest(document_path: String, variables: ParityVariables)
+  ProxyRequest(
+    document_path: String,
+    variables: ParityVariables,
+    api_version: Option(String),
+  )
 }
 
 pub type TargetRequest {
@@ -70,8 +76,10 @@ pub type Target {
     name: String,
     capture_path: String,
     proxy_path: String,
+    upstream_capture_path: Option(String),
     selected_paths: List(String),
     expected_differences: List(ExpectedDifference),
+    excluded_paths: List(String),
     request: TargetRequest,
   )
 }
@@ -119,7 +127,11 @@ fn empty_spec() -> Spec {
   Spec(
     scenario_id: "",
     capture_file: "",
-    proxy_request: ProxyRequest(document_path: "", variables: NoVariables),
+    proxy_request: ProxyRequest(
+      document_path: "",
+      variables: NoVariables,
+      api_version: None,
+    ),
     targets: [],
     expected_differences: [],
   )
@@ -127,6 +139,11 @@ fn empty_spec() -> Spec {
 
 fn proxy_request_decoder() -> Decoder(ProxyRequest) {
   use document_path <- decode.field("documentPath", decode.string)
+  use api_version <- decode.optional_field(
+    "apiVersion",
+    None,
+    decode.optional(decode.string),
+  )
   use variables_capture_path <- decode.optional_field(
     "variablesCapturePath",
     None,
@@ -151,6 +168,7 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
   decode.success(ProxyRequest(
     document_path: document_path,
     variables: variables,
+    api_version: api_version,
   ))
 }
 
@@ -185,6 +203,11 @@ fn target_decoder() -> Decoder(Target) {
   use name <- decode.field("name", decode.string)
   use capture_path <- decode.field("capturePath", decode.string)
   use proxy_path <- decode.field("proxyPath", decode.string)
+  use upstream_capture_path <- decode.optional_field(
+    "upstreamCapturePath",
+    None,
+    decode.optional(decode.string),
+  )
   use expected_differences <- decode.optional_field(
     "expectedDifferences",
     [],
@@ -214,8 +237,10 @@ fn target_decoder() -> Decoder(Target) {
     name: name,
     capture_path: capture_path,
     proxy_path: proxy_path,
+    upstream_capture_path: upstream_capture_path,
     selected_paths: selected_paths,
     expected_differences: expected_differences,
+    excluded_paths: excluded_paths,
     request: request,
   ))
 }
@@ -232,5 +257,7 @@ fn expected_difference_decoder() -> Decoder(ExpectedDifference) {
 
 /// Combine spec-level and target-level expected differences.
 pub fn rules_for(spec: Spec, target: Target) -> List(ExpectedDifference) {
+  let excluded = list.map(target.excluded_paths, diff.expected_ignore)
   list.append(spec.expected_differences, target.expected_differences)
+  |> list.append(excluded)
 }

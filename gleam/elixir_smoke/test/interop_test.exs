@@ -39,7 +39,7 @@ defmodule ShopifyDraftProxy.InteropTest do
     assert create_body =~ ~s("title":"Elixir Wrapper Hat")
     assert create_body =~ ~s("handle":"elixir-wrapper-hat")
     assert create_body =~ ~s("userErrors":[])
-    [_, product_id] = Regex.run(~r/"id":"(gid:\/\/shopify\/Product\/\d+)"/, create_body)
+    [_, product_id] = Regex.run(~r/"id":"(gid:\/\/shopify\/Product\/[^"]+)"/, create_body)
 
     read =
       ShopifyDraftProxy.graphql(
