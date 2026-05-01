@@ -489,6 +489,13 @@ synthetic-id/timestamp expected differences.
   unseeded so they behave as not found, serialize user-error `field` as nullable
   when Shopify returns `null`, and do not mutate staged draft-order state or
   claim recipient-backed email-send success behavior.
+- Residual draft-order helper roots can be handled as a coherent local helper
+  slice once `draftOrderCreate` exists. Keep delivery options as Shopify's empty
+  no-data shape, make `draftOrderCalculate` serialize calculate-shaped line item
+  lists instead of stored connection nodes, make invoice preview safe/local
+  without sending email, and let bulk tag/delete helpers return deterministic
+  async `Job` payloads while immediately staging local draft-order tag/delete
+  read-after-write effects.
 
 ## Workflow for a new pass
 

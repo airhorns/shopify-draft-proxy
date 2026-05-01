@@ -64,6 +64,7 @@ pub fn is_orders_query_root(name: String) -> Bool {
       "abandonment",
       "abandonmentByAbandonedCheckoutId",
       "draftOrder",
+      "draftOrderAvailableDeliveryOptions",
     ],
     name,
   )
@@ -77,6 +78,11 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "draftOrderCreate",
       "draftOrderDelete",
       "draftOrderDuplicate",
+      "draftOrderBulkAddTags",
+      "draftOrderBulkDelete",
+      "draftOrderBulkRemoveTags",
+      "draftOrderCalculate",
+      "draftOrderInvoicePreview",
       "draftOrderInvoiceSend",
       "draftOrderUpdate",
       "fulfillmentCancel",
@@ -173,8 +179,32 @@ fn serialize_query_field(
         None -> json.null()
       }
     }
+    "draftOrderAvailableDeliveryOptions" ->
+      serialize_draft_order_available_delivery_options(field, fragments)
     _ -> json.null()
   }
+}
+
+fn serialize_draft_order_available_delivery_options(
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let source =
+    src_object([
+      #("availableShippingRates", SrcList([])),
+      #("availableLocalDeliveryRates", SrcList([])),
+      #("availableLocalPickupOptions", SrcList([])),
+      #(
+        "pageInfo",
+        src_object([
+          #("hasNextPage", SrcBool(False)),
+          #("hasPreviousPage", SrcBool(False)),
+          #("startCursor", SrcNull),
+          #("endCursor", SrcNull),
+        ]),
+      ),
+    ])
+  project_graphql_value(source, selection_children(field), fragments)
 }
 
 fn serialize_abandoned_checkouts(
@@ -542,6 +572,90 @@ pub fn process_mutation(
             list.append(ids, next_ids),
             list.append(drafts, next_drafts),
           )
+        }
+        Field(name: name, ..) if name.value == "draftOrderCalculate" -> {
+          let result =
+            handle_draft_order_calculate(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          let #(key, payload, next_errors, next_drafts) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              current_store,
+              current_identity,
+              ids,
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
+        Field(name: name, ..)
+          if name.value == "draftOrderBulkAddTags"
+          || name.value == "draftOrderBulkRemoveTags"
+          || name.value == "draftOrderBulkDelete"
+        -> {
+          let result =
+            handle_draft_order_bulk_helper(
+              current_store,
+              current_identity,
+              name.value,
+              field,
+              variables,
+            )
+          let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
+            result
+          #(
+            list.append(entries, [#(key, payload)]),
+            errors,
+            next_store,
+            next_identity,
+            list.append(ids, next_ids),
+            list.append(drafts, next_drafts),
+          )
+        }
+        Field(name: name, ..) if name.value == "draftOrderInvoicePreview" -> {
+          let result =
+            handle_draft_order_invoice_preview(
+              current_store,
+              document,
+              operation_path,
+              field,
+              variables,
+            )
+          let #(key, payload, next_errors, next_drafts) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              current_store,
+              current_identity,
+              ids,
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+          }
         }
         Field(name: name, ..) if name.value == "draftOrderInvoiceSend" -> {
           let result =
@@ -1222,6 +1336,421 @@ fn serialize_nullable_user_error(
       }),
       #("message", SrcString(message)),
     ])
+  project_graphql_value(source, selection_children(field), dict.new())
+}
+
+fn handle_draft_order_calculate(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, List(Json), List(LogDraft)) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "draftOrderCalculate",
+      [RequiredArgument(name: "input", expected_type: "DraftOrderInput!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      case dict.get(args, "input") {
+        Ok(root_field.ObjectVal(input)) -> {
+          let #(draft_order, _) =
+            build_draft_order_from_input(store, identity, input)
+          let calculated = build_calculated_draft_order_from_draft(draft_order)
+          let payload =
+            serialize_draft_order_calculate_payload(
+              field,
+              Some(calculated),
+              [],
+              fragments,
+            )
+          let draft =
+            single_root_log_draft(
+              "draftOrderCalculate",
+              [],
+              store.Staged,
+              "orders",
+              "stage-locally",
+              Some(
+                "Locally calculated draftOrderCalculate in shopify-draft-proxy.",
+              ),
+            )
+          #(key, payload, [], [draft])
+        }
+        _ -> #(key, json.null(), [], [])
+      }
+    }
+  }
+}
+
+fn build_calculated_draft_order_from_draft(
+  draft_order: DraftOrderRecord,
+) -> CapturedJsonValue {
+  let line_items = draft_order_line_items(draft_order.data)
+  draft_order.data
+  |> replace_captured_object_fields([
+    #("currencyCode", CapturedString(captured_order_currency(draft_order.data))),
+    #("lineItems", CapturedArray(line_items)),
+    #("availableShippingRates", CapturedArray([])),
+  ])
+}
+
+fn serialize_draft_order_calculate_payload(
+  field: Selection,
+  calculated: Option(CapturedJsonValue),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "calculatedDraftOrder" -> #(key, case calculated {
+              Some(value) ->
+                project_graphql_value(
+                  captured_json_source(value),
+                  selection_children(child),
+                  fragments,
+                )
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn handle_draft_order_invoice_preview(
+  store: Store,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, List(Json), List(LogDraft)) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "draftOrderInvoicePreview",
+      [RequiredArgument(name: "id", expected_type: "ID!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      let id = read_string_arg(args, "id")
+      let draft_order = case id {
+        Some(id) -> store.get_draft_order_by_id(store, id)
+        None -> None
+      }
+      let user_errors = case draft_order {
+        Some(_) -> []
+        None -> [#(["id"], "Draft order does not exist")]
+      }
+      let payload =
+        serialize_draft_order_invoice_preview_payload(field, args, user_errors)
+      let draft =
+        single_root_log_draft(
+          "draftOrderInvoicePreview",
+          [],
+          case user_errors {
+            [] -> store.Staged
+            _ -> store.Failed
+          },
+          "orders",
+          "stage-locally",
+          Some(
+            "Locally handled draftOrderInvoicePreview in shopify-draft-proxy.",
+          ),
+        )
+      #(key, payload, [], [draft])
+    }
+  }
+}
+
+fn serialize_draft_order_invoice_preview_payload(
+  field: Selection,
+  args: Dict(String, root_field.ResolvedValue),
+  user_errors: List(#(List(String), String)),
+) -> Json {
+  let email = read_object(args, "email") |> option.unwrap(dict.new())
+  let subject =
+    read_string(email, "subject") |> option.unwrap("Complete your purchase")
+  let custom_message = read_string(email, "customMessage") |> option.unwrap("")
+  let source =
+    src_object([
+      #("previewSubject", SrcString(subject)),
+      #(
+        "previewHtml",
+        SrcString(
+          "<!DOCTYPE html><html><body><h1>"
+          <> subject
+          <> "</h1><p>"
+          <> custom_message
+          <> "</p></body></html>",
+        ),
+      ),
+      #(
+        "userErrors",
+        SrcList(
+          list.map(user_errors, fn(error) {
+            let #(field_path, message) = error
+            src_object([
+              #("field", SrcList(list.map(field_path, SrcString))),
+              #("message", SrcString(message)),
+            ])
+          }),
+        ),
+      ),
+    ])
+  project_graphql_value(source, selection_children(field), dict.new())
+}
+
+fn handle_draft_order_bulk_helper(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let args = field_arguments(field, variables)
+  let tags = read_string_list(args, "tags")
+  let user_errors = case
+    root_name != "draftOrderBulkDelete" && list.is_empty(tags)
+  {
+    True -> [#(["tags"], "Tags can't be blank")]
+    False -> []
+  }
+  let targets = case user_errors {
+    [] -> select_draft_order_bulk_targets(store, args)
+    _ -> []
+  }
+  let #(next_store, changed_ids) = case user_errors {
+    [] -> apply_draft_order_bulk_helper(store, root_name, targets, tags)
+    _ -> #(store, [])
+  }
+  let #(job_id, next_identity) = case user_errors {
+    [] -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "Job")
+      #(Some(id), next_identity)
+    }
+    _ -> #(None, identity)
+  }
+  let payload = serialize_draft_order_bulk_payload(field, job_id, user_errors)
+  let draft =
+    single_root_log_draft(
+      root_name,
+      changed_ids,
+      case user_errors {
+        [] -> store.Staged
+        _ -> store.Failed
+      },
+      "orders",
+      "stage-locally",
+      Some("Locally staged " <> root_name <> " in shopify-draft-proxy."),
+    )
+  #(key, payload, next_store, next_identity, changed_ids, [draft])
+}
+
+fn apply_draft_order_bulk_helper(
+  store: Store,
+  root_name: String,
+  targets: List(DraftOrderRecord),
+  tags: List(String),
+) -> #(Store, List(String)) {
+  targets
+  |> list.fold(#(store, []), fn(acc, draft_order) {
+    let #(current_store, ids) = acc
+    case root_name {
+      "draftOrderBulkDelete" -> #(
+        store.delete_staged_draft_order(current_store, draft_order.id),
+        [draft_order.id, ..ids],
+      )
+      "draftOrderBulkAddTags" -> {
+        let updated = update_draft_order_tags(draft_order, tags, "add")
+        #(store.stage_draft_order(current_store, updated), [
+          draft_order.id,
+          ..ids
+        ])
+      }
+      "draftOrderBulkRemoveTags" -> {
+        let updated = update_draft_order_tags(draft_order, tags, "remove")
+        #(store.stage_draft_order(current_store, updated), [
+          draft_order.id,
+          ..ids
+        ])
+      }
+      _ -> #(current_store, ids)
+    }
+  })
+}
+
+fn select_draft_order_bulk_targets(
+  store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(DraftOrderRecord) {
+  let ids = read_string_list(args, "ids")
+  case ids {
+    [_, ..] ->
+      ids
+      |> list.filter_map(fn(id) {
+        store.get_draft_order_by_id(store, id) |> option.to_result(Nil)
+      })
+    [] ->
+      case read_string(args, "search") {
+        Some(search) ->
+          store.list_effective_draft_orders(store)
+          |> list.filter(fn(record) {
+            draft_order_matches_bulk_search(record, search)
+          })
+        None ->
+          case read_string(args, "savedSearchId") {
+            Some(_) ->
+              store.list_effective_draft_orders(store)
+              |> list.filter(fn(record) {
+                captured_string_field(record.data, "status") == Some("OPEN")
+              })
+            None -> []
+          }
+      }
+  }
+}
+
+fn draft_order_matches_bulk_search(
+  draft_order: DraftOrderRecord,
+  search: String,
+) -> Bool {
+  let query = string.trim(search)
+  case string.split_once(query, ":") {
+    Ok(#("tag", tag)) ->
+      list.contains(draft_order_tags(draft_order.data), string.trim(tag))
+    Ok(#("id", id)) -> {
+      let expected = string.trim(id)
+      draft_order.id == expected
+      || draft_order_gid_tail(draft_order.id) == expected
+    }
+    _ -> False
+  }
+}
+
+fn draft_order_gid_tail(id: String) -> String {
+  case string.split(id, "/") |> list.last {
+    Ok(tail) -> tail
+    Error(_) -> id
+  }
+}
+
+fn update_draft_order_tags(
+  draft_order: DraftOrderRecord,
+  tags: List(String),
+  mode: String,
+) -> DraftOrderRecord {
+  let existing = draft_order_tags(draft_order.data)
+  let next_tags = case mode {
+    "add" ->
+      unique_strings(list.append(existing, tags))
+      |> list.sort(by: string.compare)
+    "remove" ->
+      existing
+      |> list.filter(fn(tag) { !list.contains(tags, tag) })
+      |> list.sort(by: string.compare)
+    _ -> existing
+  }
+  DraftOrderRecord(
+    ..draft_order,
+    data: replace_captured_object_fields(draft_order.data, [
+      #("tags", CapturedArray(list.map(next_tags, CapturedString))),
+    ]),
+  )
+}
+
+fn draft_order_tags(data: CapturedJsonValue) -> List(String) {
+  case captured_object_field(data, "tags") {
+    Some(CapturedArray(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          CapturedString(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn unique_strings(values: List(String)) -> List(String) {
+  values
+  |> list.fold([], fn(acc, value) {
+    case list.contains(acc, value) {
+      True -> acc
+      False -> [value, ..acc]
+    }
+  })
+}
+
+fn serialize_draft_order_bulk_payload(
+  field: Selection,
+  job_id: Option(String),
+  user_errors: List(#(List(String), String)),
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "job" -> #(key, case job_id {
+              Some(id) -> serialize_job(child, id)
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_job(field: Selection, id: String) -> Json {
+  let source = src_object([#("id", SrcString(id)), #("done", SrcBool(False))])
   project_graphql_value(source, selection_children(field), dict.new())
 }
 

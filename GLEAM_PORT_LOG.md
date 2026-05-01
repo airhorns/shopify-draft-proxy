@@ -9,6 +9,61 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 128: draft order residual helper roots
+
+Promotes the checked-in `draft-order-residual-helper-roots` parity scenario in
+the Gleam Orders domain. This pass adds local handling for draft-order delivery
+option no-data reads, `draftOrderCalculate`, `draftOrderInvoicePreview`, and
+the bulk add/remove/delete tag helpers. It preserves local read-after-write
+effects for staged draft-order tags and deletion while keeping the work scoped
+to draft orders rather than broad order lifecycle behavior.
+
+| Module                                                   | Change                                                                                   |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds helper root dispatch, empty delivery options, calculate, invoice preview, and bulk. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers helper payloads plus bulk tag/delete read-after-write behavior directly.          |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draft-order-residual-helper-roots` spec.                      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (736 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (732 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 140 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The residual helper fixture can reuse staged draft orders from
+  `draftOrderCreate`; no capture seeding is needed for the primary scenario.
+- `draftOrderCalculate` needs a calculate-shaped `lineItems` list and explicit
+  `currencyCode`, not the connection-shaped `lineItems` stored on staged draft
+  orders.
+- Bulk tag helpers can model Shopify's async `Job` payload deterministically
+  while still applying local staged tag/delete effects immediately.
+
+### Risks / open items
+
+- Saved-search query semantics are reused from the saved-search domain, but
+  broader `draftOrders` catalog/count/search hydration remains gated.
+- `draftOrderCreateFromOrder`, order lifecycle, order editing, fulfillment
+  success paths, refunds, and returns remain unported.
+
+### Pass 129 candidates
+
+- Continue with draft-order catalog/count/search parity, or a narrow validation
+  matrix if the checked-in fixture can be modeled without broad order-store
+  work.
+
+---
+
 ## 2026-05-01 - Pass 127: draft order invoice send guardrails
 
 Promotes the captured `draftOrderInvoiceSend` safety parity plan in the Gleam
@@ -17,12 +72,12 @@ deleted/unseeded, open no-recipient, and completed no-recipient drafts locally,
 serializes Shopify's nullable user-error `field`, and deliberately avoids
 claiming email-send success behavior or mutating staged draft-order state.
 
-| Module                                                   | Change                                                                                         |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderInvoiceSend` dispatch and captured no-recipient/not-found/paid validation.     |
+| Module                                                   | Change                                                                                          |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderInvoiceSend` dispatch and captured no-recipient/not-found/paid validation.      |
 | `gleam/test/parity/runner.gleam`                         | Seeds only the captured open/completed no-recipient draft states before replaying the scenario. |
-| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers unknown-id and open no-recipient validation directly.                                   |
-| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderInvoiceSend-parity-plan` spec.                            |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers unknown-id and open no-recipient validation directly.                                    |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderInvoiceSend-parity-plan` spec.                             |
 
 Validation:
 

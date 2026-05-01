@@ -1512,3 +1512,218 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
   assert json.to_string(open_outcome.data)
     == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"OPEN\",\"email\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice\"},\"userErrors\":[{\"field\":null,\"message\":\"To can't be blank\"}]}}}"
 }
+
+pub fn orders_draft_order_residual_helper_roots_test() {
+  let assert Ok(delivery_result) =
+    orders.process(
+      store.new(),
+      "
+      query {
+        draftOrderAvailableDeliveryOptions(input: {
+          lineItems: [{ title: \"Local delivery probe\", quantity: 1, originalUnitPrice: \"4.00\" }]
+        }) {
+          availableShippingRates { handle title }
+          availableLocalDeliveryRates { handle title }
+          availableLocalPickupOptions { handle title }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+    ",
+      dict.new(),
+    )
+  assert json.to_string(delivery_result)
+    == "{\"data\":{\"draftOrderAvailableDeliveryOptions\":{\"availableShippingRates\":[],\"availableLocalDeliveryRates\":[],\"availableLocalPickupOptions\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}}}}"
+
+  let assert Ok(calculate_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        draftOrderCalculate(input: {
+          lineItems: [{ title: \"Calculated custom item\", quantity: 2, originalUnitPrice: \"6.25\" }]
+        }) {
+          calculatedDraftOrder {
+            currencyCode
+            totalQuantityOfLineItems
+            subtotalPriceSet { shopMoney { amount currencyCode } }
+            totalPriceSet { shopMoney { amount currencyCode } }
+            lineItems {
+              title
+              quantity
+              custom
+              originalTotalSet { shopMoney { amount currencyCode } }
+            }
+            availableShippingRates { handle title }
+          }
+          userErrors { field message }
+        }
+      }
+    ",
+      dict.new(),
+    )
+  assert json.to_string(calculate_outcome.data)
+    == "{\"data\":{\"draftOrderCalculate\":{\"calculatedDraftOrder\":{\"currencyCode\":\"CAD\",\"totalQuantityOfLineItems\":2,\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}},\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}},\"lineItems\":[{\"title\":\"Calculated custom item\",\"quantity\":2,\"custom\":true,\"originalTotalSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}],\"availableShippingRates\":[]},\"userErrors\":[]}}}"
+
+  let create_mutation =
+    "
+    mutation {
+      draftOrderCreate(input: {
+        email: \"helper@example.test\"
+        tags: [\"initial\"]
+        lineItems: [{ title: \"Bulk helper item\", quantity: 1, originalUnitPrice: \"2.00\" }]
+      }) {
+        draftOrder { id tags }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(create_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      create_mutation,
+      dict.new(),
+    )
+
+  let invoice_preview_mutation =
+    "
+    mutation PreviewDraftInvoice($id: ID!, $email: EmailInput) {
+      draftOrderInvoicePreview(id: $id, email: $email) {
+        previewSubject
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(preview_outcome) =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      invoice_preview_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+        #(
+          "email",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("subject", root_field.StringVal("Custom invoice subject")),
+            ]),
+          ),
+        ),
+      ]),
+    )
+  assert json.to_string(preview_outcome.data)
+    == "{\"data\":{\"draftOrderInvoicePreview\":{\"previewSubject\":\"Custom invoice subject\",\"userErrors\":[]}}}"
+
+  let bulk_add_mutation =
+    "
+    mutation BulkAdd($ids: [ID!], $tags: [String!]!) {
+      draftOrderBulkAddTags(ids: $ids, tags: $tags) {
+        job { id done }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(add_outcome) =
+    orders.process_mutation(
+      preview_outcome.store,
+      preview_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      bulk_add_mutation,
+      dict.from_list([
+        #(
+          "ids",
+          root_field.ListVal([
+            root_field.StringVal("gid://shopify/DraftOrder/1"),
+          ]),
+        ),
+        #("tags", root_field.ListVal([root_field.StringVal("added")])),
+      ]),
+    )
+  assert json.to_string(add_outcome.data)
+    == "{\"data\":{\"draftOrderBulkAddTags\":{\"job\":{\"id\":\"gid://shopify/Job/3\",\"done\":false},\"userErrors\":[]}}}"
+
+  let assert Ok(after_add_read) =
+    orders.process(
+      add_outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/1\") { id tags } }",
+      dict.new(),
+    )
+  assert json.to_string(after_add_read)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"tags\":[\"added\",\"initial\"]}}}"
+
+  let bulk_remove_mutation =
+    "
+    mutation BulkRemove($ids: [ID!], $tags: [String!]!) {
+      draftOrderBulkRemoveTags(ids: $ids, tags: $tags) {
+        job { id done }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(remove_outcome) =
+    orders.process_mutation(
+      add_outcome.store,
+      add_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      bulk_remove_mutation,
+      dict.from_list([
+        #(
+          "ids",
+          root_field.ListVal([
+            root_field.StringVal("gid://shopify/DraftOrder/1"),
+          ]),
+        ),
+        #("tags", root_field.ListVal([root_field.StringVal("initial")])),
+      ]),
+    )
+  assert json.to_string(remove_outcome.data)
+    == "{\"data\":{\"draftOrderBulkRemoveTags\":{\"job\":{\"id\":\"gid://shopify/Job/4\",\"done\":false},\"userErrors\":[]}}}"
+
+  let assert Ok(after_remove_read) =
+    orders.process(
+      remove_outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/1\") { id tags } }",
+      dict.new(),
+    )
+  assert json.to_string(after_remove_read)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"tags\":[\"added\"]}}}"
+
+  let bulk_delete_mutation =
+    "
+    mutation BulkDelete($ids: [ID!]) {
+      draftOrderBulkDelete(ids: $ids) {
+        job { id done }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(delete_outcome) =
+    orders.process_mutation(
+      remove_outcome.store,
+      remove_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      bulk_delete_mutation,
+      dict.from_list([
+        #(
+          "ids",
+          root_field.ListVal([
+            root_field.StringVal("gid://shopify/DraftOrder/1"),
+          ]),
+        ),
+      ]),
+    )
+  assert json.to_string(delete_outcome.data)
+    == "{\"data\":{\"draftOrderBulkDelete\":{\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":false},\"userErrors\":[]}}}"
+
+  let assert Ok(after_delete_read) =
+    orders.process(
+      delete_outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/1\") { id tags } }",
+      dict.new(),
+    )
+  assert json.to_string(after_delete_read) == "{\"data\":{\"draftOrder\":null}}"
+}

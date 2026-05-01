@@ -319,10 +319,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/orders/draft-order-residual-helper-roots.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/orders/draftOrderCreate-validation-matrix.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
