@@ -39,6 +39,8 @@ import shopify_draft_proxy/proxy/draft_proxy.{
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
+  type CapturedJsonValue, type CollectionImageRecord, type CollectionRecord,
+  type CollectionRuleRecord, type CollectionRuleSetRecord,
   type CustomerAccountPageRecord, type CustomerAddressRecord,
   type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
   type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
@@ -47,7 +49,10 @@ import shopify_draft_proxy/state/types.{
   type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord,
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord,
+  type GiftCardRecord, type GiftCardTransactionRecord, type InventoryItemRecord,
+  type InventoryLevelRecord, type InventoryLocationRecord,
+  type InventoryMeasurementRecord, type InventoryQuantityRecord,
+  type InventoryWeightRecord, type LocationRecord,
   type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord,
   type MetafieldDefinitionConstraintsRecord, type MetafieldDefinitionRecord,
@@ -59,32 +64,46 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
   type MetaobjectJsonValue, type MetaobjectRecord,
   type MetaobjectStandardTemplateRecord, type Money, type PaymentSettingsRecord,
-  type ProductMetafieldRecord, type ShopAddressRecord, type ShopDomainRecord,
-  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
+  type ProductCategoryRecord, type ProductCollectionRecord,
+  type ProductMediaRecord, type ProductMetafieldRecord, type ProductOptionRecord,
+  type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
+  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
+  type PublicationRecord, type SellingPlanGroupRecord, type SellingPlanRecord,
+  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
+  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
+  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, type StoreCreditAccountRecord,
-  type StorePropertyRecord, type StorePropertyValue, CustomerAccountPageRecord,
-  CustomerAddressRecord, CustomerCatalogConnectionRecord,
-  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
-  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
-  CustomerEmailMarketingConsentRecord, CustomerEventSummaryRecord,
-  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
-  CustomerSmsMarketingConsentRecord, GiftCardConfigurationRecord,
-  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
-  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
-  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, MetaobjectBool,
-  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
-  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
-  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
-  MetaobjectFieldDefinitionReferenceRecord,
+  type StorePropertyRecord, type StorePropertyValue, CapturedArray, CapturedBool,
+  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
+  CollectionRuleSetRecord, CustomerAccountPageRecord, CustomerAddressRecord,
+  CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
+  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
+  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
+  CustomerEventSummaryRecord, CustomerMetafieldRecord,
+  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
+  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
+  GiftCardTransactionRecord, InventoryItemRecord, InventoryLevelRecord,
+  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
+  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
+  LocationRecord, MetafieldDefinitionCapabilitiesRecord,
+  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintValueRecord,
+  MetafieldDefinitionConstraintsRecord, MetafieldDefinitionRecord,
+  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
+  MetaobjectBool, MetaobjectCapabilitiesRecord,
+  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
+  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
+  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
   MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
   MetaobjectStandardTemplateRecord, MetaobjectString, Money,
-  PaymentSettingsRecord, ProductMetafieldRecord, ShopAddressRecord,
+  PaymentSettingsRecord, ProductCategoryRecord, ProductCollectionRecord,
+  ProductMediaRecord, ProductMetafieldRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
+  SellingPlanGroupRecord, SellingPlanRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
   ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
@@ -172,6 +191,7 @@ pub fn run_with_config(
     primary_doc,
     primary_vars,
     "<primary>",
+    parsed.proxy_request.api_version,
   ))
   use primary_value <- result.try(parse_response_body(primary_response))
   use #(_proxy, target_reports) <- result.try(run_targets(
@@ -189,6 +209,9 @@ fn seed_capture_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
+  let proxy = seed_captured_products_preconditions(capture, proxy)
+  let proxy = seed_selling_plan_group_preconditions(capture, proxy)
+  let proxy = seed_product_media_preconditions(capture, proxy)
   case parsed.scenario_id {
     "gift-card-search-filters" ->
       seed_gift_card_lifecycle_preconditions(capture, proxy)
@@ -234,6 +257,138 @@ fn seed_capture_preconditions(
     | "publishableUnpublishToCurrentChannel-shop-count-parity"
     | "collection-publishable-publication-parity" ->
       seed_publishable_preconditions(parsed.scenario_id, capture, proxy)
+    "product-detail-read" -> seed_product_preconditions(capture, proxy)
+    "collection-detail-read" | "collection-identifier-read" ->
+      seed_collection_detail_preconditions(capture, proxy)
+    "collections-catalog-read" ->
+      seed_collections_catalog_preconditions(capture, proxy)
+    "collection-add-products-live-parity" ->
+      seed_collection_add_products_preconditions(capture, proxy)
+    "collection-remove-products-live-parity" ->
+      seed_collection_remove_products_preconditions(capture, proxy)
+    "collection-reorder-products-live-parity" ->
+      seed_collection_reorder_products_preconditions(capture, proxy)
+    "collection-update-live-parity" ->
+      seed_collection_update_preconditions(capture, proxy)
+    "collection-delete-live-parity" ->
+      seed_collection_delete_preconditions(capture, proxy)
+    "collection-create-initial-products-live-parity" ->
+      seed_collection_create_initial_products_preconditions(capture, proxy)
+    "locations-catalog-read" ->
+      seed_locations_catalog_preconditions(capture, proxy)
+    "publications-catalog-read" ->
+      seed_publications_catalog_preconditions(capture, proxy)
+    "publication-roots-local-runtime" ->
+      seed_publication_roots_preconditions(capture, proxy)
+    "products-catalog-read" ->
+      seed_products_catalog_preconditions(capture, proxy)
+    "products-search-read" ->
+      seed_products_search_read_preconditions(capture, proxy)
+    "products-sort-keys-read" ->
+      seed_products_sort_keys_preconditions(capture, proxy)
+    "products-advanced-search-read"
+    | "products-or-precedence-read"
+    | "products-relevance-search-read" ->
+      seed_captured_product_connections_preconditions(capture, proxy)
+    "products-search-pagination-read" ->
+      seed_products_search_pagination_preconditions(capture, proxy)
+    "product-variants-read" | "inventory-level-read" ->
+      seed_product_variants_read_preconditions(capture, proxy)
+    "product-options-create-variant-strategy-create"
+    | "product-options-create-variant-strategy-create-over-default-limit"
+    | "product-options-create-variant-strategy-leave-as-is"
+    | "product-options-create-variant-strategy-null"
+    | "product-options-create-live-parity"
+    | "product-option-update-live-parity"
+    | "product-options-delete-live-parity"
+    | "product-variants-bulk-create-strategy-default-default-standalone"
+    | "product-variants-bulk-create-strategy-remove-default-standalone"
+    | "product-variants-bulk-create-strategy-default-custom-standalone"
+    | "product-variants-bulk-create-strategy-remove-custom-standalone"
+    | "admin-platform-product-option-node-reads" ->
+      seed_pre_mutation_product_preconditions(capture, proxy)
+    "product-delete-live-parity" ->
+      seed_product_delete_preconditions(capture, proxy)
+    "product-update-live-parity" | "productUpdate-blank-title-parity" ->
+      seed_product_update_preconditions(capture, proxy)
+    "product-duplicate-async-missing" | "product-duplicate-async-success" ->
+      seed_product_duplicate_async_preconditions(capture, proxy)
+    "product-duplicate-live-parity" ->
+      seed_product_duplicate_preconditions(capture, proxy)
+    "product-set-live-parity" -> seed_product_set_preconditions(capture, proxy)
+    "tags-remove-live-parity" -> seed_tags_remove_preconditions(capture, proxy)
+    "product-variant-create-compatibility-evidence" ->
+      seed_product_variant_create_preconditions(capture, proxy)
+    "product-variants-bulk-create-live-parity"
+    | "product-variants-bulk-create-inventory-read-live-parity" ->
+      seed_product_variants_bulk_create_preconditions(capture, proxy)
+    "product-variants-bulk-validation-atomicity" ->
+      seed_product_variants_bulk_validation_atomicity_preconditions(
+        capture,
+        proxy,
+      )
+    "product-variant-update-compatibility-evidence" ->
+      seed_product_variant_update_preconditions(capture, proxy)
+    "product-variants-bulk-update-live-parity" ->
+      seed_product_variants_bulk_update_preconditions(capture, proxy)
+    "product-variant-delete-compatibility-evidence" ->
+      seed_product_variant_delete_preconditions(capture, proxy)
+    "product-variants-bulk-delete-live-parity" ->
+      seed_product_variant_delete_preconditions(capture, proxy)
+    "inventory-quantity-roots-parity" ->
+      seed_inventory_quantity_roots_preconditions(capture, proxy)
+    "inventory-adjust-quantities-live-parity" ->
+      seed_inventory_adjust_quantities_preconditions(capture, proxy)
+    "inventory-activate-live-parity" ->
+      seed_inventory_activate_preconditions(capture, proxy)
+    "inventory-deactivate-live-parity" ->
+      seed_inventory_activate_preconditions(capture, proxy)
+    "inventory-inactive-level-lifecycle-2026-04" ->
+      seed_inventory_inactive_lifecycle_preconditions(capture, proxy)
+    "inventory-bulk-toggle-activation-live-parity" ->
+      seed_inventory_activate_preconditions(capture, proxy)
+    "inventory-item-update-live-parity" ->
+      seed_inventory_item_update_preconditions(capture, proxy)
+    "product-variants-bulk-reorder-live-parity" ->
+      seed_product_variants_bulk_reorder_preconditions(capture, proxy)
+    "product-reorder-media-live-parity" ->
+      seed_product_reorder_media_preconditions(capture, proxy)
+    "product-relationship-roots-live-parity" ->
+      seed_product_relationship_roots_preconditions(capture, proxy)
+    "product-create-media-live-parity" ->
+      seed_product_create_media_plan_preconditions(capture, proxy)
+    "product-update-media-live-parity" ->
+      seed_product_update_media_plan_preconditions(capture, proxy)
+    "product-delete-media-live-parity" ->
+      seed_product_delete_media_plan_preconditions(capture, proxy)
+    "productPublish-parity-plan"
+    | "productPublish-aggregate-parity"
+    | "productUnpublish-parity-plan"
+    | "productUnpublish-aggregate-parity" ->
+      seed_product_publication_preconditions(capture, proxy)
+    "product-feedback-lifecycle-local-runtime" ->
+      seed_product_feedback_preconditions(capture, proxy)
+    "product-metafields-read" | "admin-platform-metafield-node-reads" ->
+      seed_product_metafields_preconditions(capture, proxy)
+    "metafields-set-live-parity"
+    | "metafields-set-duplicate-input"
+    | "metafields-set-cas-success"
+    | "metafields-set-stale-digest"
+    | "metafields-set-null-create"
+    | "metafields-set-missing-namespace"
+    | "metafields-set-missing-type"
+    | "metafields-set-over-limit"
+    | "metafields-set-owner-expansion" ->
+      seed_metafields_set_preconditions(capture, proxy)
+    "metafields-delete-live-parity"
+    | "metafield-delete-compatibility-live-parity" ->
+      seed_metafields_delete_preconditions(capture, proxy)
+    "inventory-shipment-lifecycle-local-staging"
+    | "inventory-shipment-partial-receive-update-delete-local-staging" ->
+      seed_inventory_shipment_preconditions(capture, proxy)
+    "inventory-transfer-lifecycle-local-staging"
+    | "inventory-transfer-ready-item-adjustments-local-staging" ->
+      seed_inventory_transfer_preconditions(capture, proxy)
     "metafield-definitions-product-read"
     | "metafield-definition-pinning-parity" ->
       seed_metafield_definition_preconditions(capture, proxy)
@@ -1667,6 +1822,3333 @@ fn dedupe_account_pages(
   }
 }
 
+fn seed_captured_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let single_product_nodes = case read_object_field(capture, "seedProduct") {
+    Some(node) -> [node]
+    None -> []
+  }
+  let product_nodes = case read_array_field(capture, "seedProducts") {
+    Some(nodes) -> nodes
+    None -> []
+  }
+  let seed_id_nodes = case jsonpath.lookup(capture, "$.seed.productId") {
+    Some(JString(id)) -> [JObject([#("id", JString(id))])]
+    _ -> []
+  }
+  let product_nodes =
+    list.append(single_product_nodes, list.append(product_nodes, seed_id_nodes))
+  let products = case product_nodes {
+    [] -> []
+    nodes -> list.filter_map(nodes, make_seed_product_relaxed)
+  }
+  let variants = case product_nodes {
+    [] -> []
+    nodes ->
+      list.flat_map(nodes, fn(product_json) {
+        seed_variants_for_product(product_json)
+      })
+  }
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_product_variants(variants)
+  let store = list.fold(product_nodes, store, seed_options_for_product)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_selling_plan_group_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let groups = case read_array_field(capture, "seedSellingPlanGroups") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_selling_plan_group)
+    None -> []
+  }
+  case groups {
+    [] -> proxy
+    _ ->
+      draft_proxy.DraftProxy(
+        ..proxy,
+        store: store_mod.upsert_base_selling_plan_groups(proxy.store, groups),
+      )
+  }
+}
+
+fn make_seed_selling_plan_group(
+  source: JsonValue,
+) -> Result(SellingPlanGroupRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  use merchant_code <- result.try(required_string_field(source, "merchantCode"))
+  Ok(SellingPlanGroupRecord(
+    id: id,
+    app_id: read_string_field(source, "appId"),
+    name: name,
+    merchant_code: merchant_code,
+    description: read_string_field(source, "description"),
+    options: read_string_array_field(source, "options"),
+    position: read_int_field(source, "position"),
+    summary: read_string_field(source, "summary"),
+    created_at: read_string_field(source, "createdAt"),
+    product_ids: read_connection_node_ids(source, "products"),
+    product_variant_ids: read_connection_node_ids(source, "productVariants"),
+    selling_plans: read_connection_nodes(source, "sellingPlans")
+      |> list.filter_map(make_seed_selling_plan),
+    cursor: None,
+  ))
+}
+
+fn make_seed_selling_plan(source: JsonValue) -> Result(SellingPlanRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  Ok(SellingPlanRecord(id: id, data: captured_json_from_parity(source)))
+}
+
+fn read_connection_node_ids(source: JsonValue, field: String) -> List(String) {
+  read_connection_nodes(source, field)
+  |> list.filter_map(fn(node) { required_string_field(node, "id") })
+}
+
+fn read_connection_nodes(source: JsonValue, field: String) -> List(JsonValue) {
+  case read_object_field(source, field) {
+    Some(connection) ->
+      read_array_field(connection, "nodes") |> option.unwrap([])
+    None -> []
+  }
+}
+
+fn seed_product_media_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let media = case read_array_field(capture, "seedProductMedia") {
+    Some(nodes) ->
+      nodes
+      |> enumerate_json_values()
+      |> list.filter_map(fn(entry) {
+        let #(node, index) = entry
+        make_seed_product_media(node, index)
+      })
+    None -> []
+  }
+  let store =
+    media
+    |> group_product_media_by_product_id
+    |> list.fold(proxy.store, fn(current_store, entry) {
+      let #(product_id, records) = entry
+      let store_with_product = case
+        store_mod.get_effective_product_by_id(current_store, product_id)
+      {
+        Some(_) -> current_store
+        None -> {
+          let products = case
+            make_seed_product_relaxed(
+              JObject([
+                #("id", JString(product_id)),
+                #("title", JString("Seed product")),
+              ]),
+            )
+          {
+            Ok(product) -> [product]
+            Error(_) -> []
+          }
+          store_mod.upsert_base_products(current_store, products)
+        }
+      }
+      store_mod.replace_base_media_for_product(
+        store_with_product,
+        product_id,
+        records,
+      )
+    })
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_product_create_media_plan_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath_string(capture, "$.mutation.variables.productId") {
+    Some(product_id) -> seed_media_plan_product(product_id, proxy)
+    None -> proxy
+  }
+}
+
+fn seed_product_update_media_plan_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath_string(capture, "$.mutation.variables.productId") {
+    Some(product_id) -> {
+      let proxy = seed_media_plan_product(product_id, proxy)
+      let media =
+        seed_media_nodes_at(
+          capture,
+          "$.mutation.response.data.productUpdateMedia.media",
+          product_id,
+        )
+      seed_media_plan_records(product_id, media, proxy)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_delete_media_plan_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath_string(capture, "$.mutation.variables.productId") {
+    Some(product_id) -> {
+      let proxy = seed_media_plan_product(product_id, proxy)
+      let media_ids =
+        jsonpath_string_array(capture, "$.mutation.variables.mediaIds")
+      let product_image_ids =
+        jsonpath_string_array(
+          capture,
+          "$.mutation.response.data.productDeleteMedia.deletedProductImageIds",
+        )
+      let media =
+        media_ids
+        |> enumerate_strings()
+        |> list.map(fn(entry) {
+          let #(id, index) = entry
+          ProductMediaRecord(
+            key: product_id <> ":media:" <> int.to_string(index) <> ":" <> id,
+            product_id: product_id,
+            position: index,
+            id: Some(id),
+            media_content_type: Some("IMAGE"),
+            alt: None,
+            status: Some("READY"),
+            product_image_id: string_at(product_image_ids, index),
+            image_url: None,
+            image_width: None,
+            image_height: None,
+            preview_image_url: None,
+            source_url: None,
+          )
+        })
+      seed_media_plan_records(product_id, media, proxy)
+    }
+    None -> proxy
+  }
+}
+
+fn string_at(items: List(String), index: Int) -> Option(String) {
+  case items, index {
+    [first, ..], 0 -> Some(first)
+    [_, ..rest], index if index > 0 -> string_at(rest, index - 1)
+    _, _ -> None
+  }
+}
+
+fn seed_media_plan_product(
+  product_id: String,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case store_mod.get_effective_product_by_id(proxy.store, product_id) {
+    Some(_) -> proxy
+    None ->
+      seed_product_and_base_variants(
+        proxy,
+        make_seed_product_relaxed(
+          JObject([
+            #("id", JString(product_id)),
+            #("title", JString("Seed product")),
+          ]),
+        ),
+        [],
+      )
+  }
+}
+
+fn seed_media_plan_records(
+  product_id: String,
+  media: List(ProductMediaRecord),
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case media {
+    [] -> proxy
+    _ -> {
+      let store =
+        store_mod.replace_base_media_for_product(proxy.store, product_id, media)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+  }
+}
+
+fn seed_media_nodes_at(
+  capture: JsonValue,
+  path: String,
+  product_id: String,
+) -> List(ProductMediaRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(nodes)) ->
+      nodes
+      |> enumerate_json_values()
+      |> list.filter_map(fn(entry) {
+        let #(node, index) = entry
+        make_seed_product_media_from_node(product_id, node, index)
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_product_media(
+  source: JsonValue,
+  index: Int,
+) -> Result(ProductMediaRecord, Nil) {
+  use product_id <- result.try(required_string_field(source, "productId"))
+  use id <- result.try(required_string_field(source, "id"))
+  let position = read_int_field(source, "position") |> option.unwrap(index)
+  let key =
+    read_string_field(source, "key")
+    |> option.unwrap(
+      product_id <> ":media:" <> int.to_string(position) <> ":" <> id,
+    )
+  Ok(ProductMediaRecord(
+    key: key,
+    product_id: product_id,
+    position: position,
+    id: Some(id),
+    media_content_type: read_string_field(source, "mediaContentType")
+      |> option.or(Some("IMAGE")),
+    alt: read_string_field(source, "alt"),
+    status: read_string_field(source, "status") |> option.or(Some("READY")),
+    product_image_id: read_string_field(source, "productImageId"),
+    image_url: read_string_field(source, "imageUrl"),
+    image_width: read_int_field(source, "imageWidth"),
+    image_height: read_int_field(source, "imageHeight"),
+    preview_image_url: read_string_field(source, "previewImageUrl"),
+    source_url: read_string_field(source, "sourceUrl"),
+  ))
+}
+
+fn group_product_media_by_product_id(
+  media: List(ProductMediaRecord),
+) -> List(#(String, List(ProductMediaRecord))) {
+  let grouped =
+    list.fold(media, dict.new(), fn(groups, record) {
+      let existing = case dict.get(groups, record.product_id) {
+        Ok(records) -> records
+        Error(_) -> []
+      }
+      dict.insert(groups, record.product_id, [record, ..existing])
+    })
+  grouped
+  |> dict.to_list
+  |> list.map(fn(entry) {
+    let #(product_id, records) = entry
+    #(product_id, list.reverse(records))
+  })
+}
+
+fn seed_options_for_product(
+  store: store_mod.Store,
+  product_json: JsonValue,
+) -> store_mod.Store {
+  case required_string_field(product_json, "id") {
+    Ok(product_id) ->
+      case read_array_field(product_json, "options") {
+        Some(option_nodes) -> {
+          let options =
+            list.filter_map(option_nodes, fn(option_json) {
+              make_seed_product_option(product_id, option_json)
+            })
+          store_mod.replace_base_options_for_product(store, product_id, options)
+        }
+        None -> store
+      }
+    Error(_) -> store
+  }
+}
+
+fn make_seed_product_option(
+  product_id: String,
+  source: JsonValue,
+) -> Result(ProductOptionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  let position = read_int_field(source, "position") |> option.unwrap(0)
+  let option_values = case read_array_field(source, "optionValues") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_product_option_value)
+    None -> []
+  }
+  Ok(ProductOptionRecord(
+    id: id,
+    product_id: product_id,
+    name: name,
+    position: position,
+    option_values: option_values,
+  ))
+}
+
+fn make_seed_product_option_value(
+  source: JsonValue,
+) -> Result(ProductOptionValueRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use name <- result.try(required_string_field(source, "name"))
+  Ok(ProductOptionValueRecord(
+    id: id,
+    name: name,
+    has_variants: read_bool_field(source, "hasVariants") |> option.unwrap(False),
+  ))
+}
+
+fn seed_product_publication_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products = case read_object_field(capture, "seedProduct") {
+    Some(product_json) ->
+      case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [product]
+        Error(_) -> []
+      }
+    None -> []
+  }
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_product_feedback_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products = case read_array_field(capture, "seedProducts") {
+    Some(product_nodes) ->
+      list.filter_map(product_nodes, make_seed_product_relaxed)
+    None -> []
+  }
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_product_metafields_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.response.data.product") {
+    Some(product_json) ->
+      seed_product_metafield_product_json(product_json, proxy)
+    None -> proxy
+  }
+}
+
+fn seed_product_metafield_product_json(
+  product_json: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_id = read_string_field(product_json, "id")
+  let store = case make_seed_product_relaxed(product_json) {
+    Ok(product) -> store_mod.upsert_base_products(proxy.store, [product])
+    Error(_) -> proxy.store
+  }
+  let store = case product_id {
+    Some(owner_id) -> {
+      let metafields =
+        collect_product_metafield_sources(product_json)
+        |> list.filter_map(fn(source) {
+          make_seed_product_metafield_for_owner(source, owner_id)
+        })
+        |> dedupe_product_metafields
+      store_mod.replace_base_metafields_for_owner(store, owner_id, metafields)
+    }
+    None -> store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn collect_product_metafield_sources(
+  product_json: JsonValue,
+) -> List(JsonValue) {
+  let primary = case read_object_field(product_json, "primarySpec") {
+    Some(source) -> [source]
+    None -> []
+  }
+  let first_page =
+    read_object_field(product_json, "metafields")
+    |> option.then(read_array_field(_, "nodes"))
+    |> option.unwrap([])
+  let next_page =
+    read_object_field(product_json, "nextMetafields")
+    |> option.then(read_array_field(_, "nodes"))
+    |> option.unwrap([])
+  list.append(primary, list.append(first_page, next_page))
+}
+
+fn seed_metafields_set_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let proxy = seed_metafields_set_collection_preconditions(capture, proxy)
+  let #(proxy, seeded_from_precondition) = case
+    jsonpath.lookup(capture, "$.preconditionRead.data.product")
+  {
+    Some(product_json) -> #(
+      seed_product_metafield_product_json(product_json, proxy),
+      True,
+    )
+    None -> #(proxy, False)
+  }
+  let inputs = case
+    jsonpath.lookup(capture, "$.mutation.variables.metafields")
+  {
+    Some(JArray(items)) -> items
+    _ -> []
+  }
+  case seeded_from_precondition {
+    True -> proxy
+    False -> {
+      let owner_ids =
+        inputs
+        |> list.filter_map(fn(input) {
+          case read_string_field(input, "ownerId") {
+            Some(owner_id) -> Ok(owner_id)
+            None -> Error(Nil)
+          }
+        })
+        |> dedupe_strings_preserving_order
+      let products =
+        owner_ids
+        |> list.filter_map(fn(owner_id) {
+          make_seed_product_relaxed(JObject([#("id", JString(owner_id))]))
+        })
+      let metafield_sources = case
+        jsonpath.lookup(
+          capture,
+          "$.mutation.response.data.metafieldsSet.metafields",
+        )
+      {
+        Some(JArray(items)) -> items
+        _ -> []
+      }
+      let metafields =
+        metafield_sources
+        |> list.filter_map(fn(source) {
+          case owner_id_for_metafields_set_source(source, inputs) {
+            Some(owner_id) ->
+              make_seed_product_metafield_for_owner(source, owner_id)
+            None -> Error(Nil)
+          }
+        })
+        |> dedupe_product_metafields
+      let store = store_mod.upsert_base_products(proxy.store, products)
+      let store =
+        list.fold(owner_ids, store, fn(current, owner_id) {
+          let owner_metafields =
+            metafields
+            |> list.filter(fn(metafield) { metafield.owner_id == owner_id })
+          store_mod.replace_base_metafields_for_owner(
+            current,
+            owner_id,
+            owner_metafields,
+          )
+        })
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+  }
+}
+
+fn seed_metafields_set_collection_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let collection_sources =
+    [
+      read_object_field(capture, "seedCollection"),
+      jsonpath.lookup(capture, "$.downstreamRead.data.collection"),
+    ]
+    |> list.filter_map(fn(source) {
+      case source {
+        Some(value) -> Ok(value)
+        None -> Error(Nil)
+      }
+    })
+  let collections =
+    collection_sources
+    |> list.filter_map(make_seed_collection_relaxed)
+  let store = store_mod.upsert_base_collections(proxy.store, collections)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_metafields_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamRead.data.product") {
+    Some(product_json) -> {
+      let proxy = seed_product_metafield_product_json(product_json, proxy)
+      case read_string_field(product_json, "id") {
+        Some(owner_id) -> {
+          let retained =
+            collect_product_metafield_sources(product_json)
+            |> list.filter_map(fn(source) {
+              make_seed_product_metafield_for_owner(source, owner_id)
+            })
+          let material =
+            ProductMetafieldRecord(
+              id: "gid://shopify/Metafield/9001",
+              owner_id: owner_id,
+              namespace: "custom",
+              key: "material",
+              type_: Some("single_line_text_field"),
+              value: Some("Seed material"),
+              compare_digest: None,
+              json_value: None,
+              created_at: None,
+              updated_at: None,
+              owner_type: Some("PRODUCT"),
+            )
+          let store =
+            store_mod.replace_base_metafields_for_owner(
+              proxy.store,
+              owner_id,
+              dedupe_product_metafields([material, ..retained]),
+            )
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        None -> proxy
+      }
+    }
+    None -> proxy
+  }
+}
+
+fn owner_id_for_metafields_set_source(
+  source: JsonValue,
+  inputs: List(JsonValue),
+) -> Option(String) {
+  let namespace = read_string_field(source, "namespace")
+  let key = read_string_field(source, "key")
+  inputs
+  |> list.find_map(fn(input) {
+    case
+      read_string_field(input, "ownerId"),
+      read_string_field(input, "namespace"),
+      read_string_field(input, "key")
+    {
+      Some(owner_id), input_namespace, input_key
+        if input_namespace == namespace && input_key == key
+      -> Ok(owner_id)
+      _, _, _ -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn seed_inventory_shipment_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_nodes = case read_array_field(capture, "seedProducts") {
+    Some(product_nodes) -> product_nodes
+    None -> []
+  }
+  let products = list.filter_map(product_nodes, make_seed_product_relaxed)
+  let variants = list.flat_map(product_nodes, seed_variants_for_product)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_product_variants(variants)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_inventory_transfer_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_nodes = case read_array_field(capture, "seedProducts") {
+    Some(product_nodes) -> product_nodes
+    None -> []
+  }
+  let products = list.filter_map(product_nodes, make_seed_product_relaxed)
+  let variants = list.flat_map(product_nodes, seed_variants_for_product)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_product_variants(variants)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_product_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.data.product") {
+    Some(product_json) ->
+      case make_seed_product(product_json) {
+        Ok(product) -> {
+          let store =
+            proxy.store
+            |> store_mod.upsert_base_products([product])
+            |> seed_options_for_product(product_json)
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_collection_detail_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let collection_sources =
+    ["$.data.customCollection", "$.data.smartCollection"]
+    |> list.filter_map(fn(path) {
+      case jsonpath.lookup(capture, path) {
+        Some(value) -> Ok(value)
+        None -> Error(Nil)
+      }
+    })
+  let has_product_seed_id =
+    jsonpath.lookup(
+      capture,
+      "$.data.customCollection.products.edges[0].node.id",
+    )
+    |> json_string_option
+  let collections = list.filter_map(collection_sources, make_seed_collection)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_collections(collections)
+  let proxy = draft_proxy.DraftProxy(..proxy, store: store)
+  list.fold(collection_sources, proxy, fn(acc, collection_json) {
+    seed_collection_products(collection_json, has_product_seed_id, acc)
+  })
+}
+
+fn seed_collection_products(
+  collection_json: JsonValue,
+  has_product_seed_id: Option(String),
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case make_seed_collection(collection_json) {
+    Ok(collection) -> {
+      let edges = case jsonpath.lookup(collection_json, "$.products.edges") {
+        Some(JArray(edges)) -> edges
+        _ -> []
+      }
+      let products = list.filter_map(edges, make_seed_product_relaxed_from_edge)
+      let memberships =
+        edges
+        |> enumerate_json_values()
+        |> list.filter_map(fn(pair) {
+          let #(edge, position) = pair
+          make_seed_product_collection_from_edge(collection.id, edge, position)
+        })
+      let memberships = case
+        read_bool_field(collection_json, "hasProduct"),
+        has_product_seed_id
+      {
+        Some(True), Some(product_id) ->
+          case
+            list.any(memberships, fn(record) { record.product_id == product_id })
+          {
+            True -> memberships
+            False ->
+              list.append(memberships, [
+                ProductCollectionRecord(
+                  collection_id: collection.id,
+                  product_id: product_id,
+                  position: list.length(memberships),
+                  cursor: None,
+                ),
+              ])
+          }
+        _, _ -> memberships
+      }
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.replace_base_products_for_collection(
+          collection.id,
+          memberships,
+        )
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    Error(_) -> proxy
+  }
+}
+
+fn seed_collections_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let edges = case jsonpath.lookup(capture, "$.data.collections.edges") {
+    Some(JArray(edges)) -> edges
+    _ -> []
+  }
+  let collections =
+    edges
+    |> list.filter_map(make_seed_collection_from_edge)
+    |> merge_collection_cursors_from_path(
+      capture,
+      "$.data.titleWildcard.edges",
+      "title",
+    )
+    |> merge_collection_cursors_from_path(
+      capture,
+      "$.data.smartCollections.edges",
+      "title",
+    )
+    |> merge_collection_cursors_from_path(
+      capture,
+      "$.data.updatedNewest.edges",
+      "updated_at",
+    )
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_collections(collections)
+  let proxy = draft_proxy.DraftProxy(..proxy, store: store)
+  list.fold(edges, proxy, fn(acc, edge) {
+    case read_object_field(edge, "node") {
+      Some(collection_json) ->
+        seed_collection_products(collection_json, None, acc)
+      None -> acc
+    }
+  })
+}
+
+fn seed_collection_add_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.collectionAddProducts.collection",
+    )
+  {
+    Some(collection_json) -> {
+      let target_collection_id =
+        read_string_field(collection_json, "id") |> option.unwrap("")
+      let target_collections = case make_seed_collection(collection_json) {
+        Ok(collection) -> [collection]
+        Error(_) -> []
+      }
+      let product_nodes = case
+        jsonpath.lookup(collection_json, "$.products.nodes")
+      {
+        Some(JArray(nodes)) -> nodes
+        _ -> []
+      }
+      let products = list.filter_map(product_nodes, make_seed_product_relaxed)
+      let existing =
+        list.append(
+          seed_existing_product_collections(
+            capture,
+            "$.downstreamRead.data.first",
+            target_collection_id,
+          ),
+          seed_existing_product_collections(
+            capture,
+            "$.downstreamRead.data.second",
+            target_collection_id,
+          ),
+        )
+      let existing_collections =
+        list.filter_map(existing, fn(entry) {
+          let #(collection, _) = entry
+          Ok(collection)
+        })
+      let existing_memberships =
+        list.map(existing, fn(entry) {
+          let #(_, membership) = entry
+          membership
+        })
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(list.append(
+          target_collections,
+          existing_collections,
+        ))
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_collections(existing_memberships)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_collection_remove_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamRead.data.collection") {
+    Some(collection_json) -> {
+      let target_collection_id =
+        read_string_field(collection_json, "id") |> option.unwrap("")
+      let target_collections = case make_seed_collection(collection_json) {
+        Ok(collection) -> [collection]
+        Error(_) -> []
+      }
+      let collection_product_nodes = case
+        jsonpath.lookup(collection_json, "$.products.nodes")
+      {
+        Some(JArray(nodes)) -> nodes
+        _ -> []
+      }
+      let target_memberships =
+        collection_product_nodes
+        |> enumerate_json_values()
+        |> list.filter_map(fn(entry) {
+          let #(product_json, position) = entry
+          case read_string_field(product_json, "id") {
+            Some(product_id) ->
+              Ok(ProductCollectionRecord(
+                collection_id: target_collection_id,
+                product_id: product_id,
+                position: position + 1,
+                cursor: None,
+              ))
+            None -> Error(Nil)
+          }
+        })
+      let removed_memberships =
+        collection_remove_product_ids(capture)
+        |> enumerate_strings()
+        |> list.map(fn(entry) {
+          let #(product_id, position) = entry
+          ProductCollectionRecord(
+            collection_id: target_collection_id,
+            product_id: product_id,
+            position: position,
+            cursor: None,
+          )
+        })
+      let existing =
+        seed_existing_product_collections(
+          capture,
+          "$.downstreamRead.data.untouched",
+          target_collection_id,
+        )
+      let existing_collections =
+        list.filter_map(existing, fn(entry) {
+          let #(collection, _) = entry
+          Ok(collection)
+        })
+      let existing_memberships =
+        list.map(existing, fn(entry) {
+          let #(_, membership) = entry
+          membership
+        })
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(list.append(
+          target_collections,
+          existing_collections,
+        ))
+        |> store_mod.upsert_base_product_collections(list.append(
+          list.append(removed_memberships, target_memberships),
+          existing_memberships,
+        ))
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn collection_remove_product_ids(capture: JsonValue) -> List(String) {
+  case jsonpath.lookup(capture, "$.mutation.variables.productIds") {
+    Some(JArray(ids)) ->
+      list.filter_map(ids, fn(id) {
+        case id {
+          JString(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn seed_collection_reorder_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.initialCollectionRead.data.collection") {
+    Some(collection_json) -> {
+      let target_collection_id =
+        read_string_field(collection_json, "id") |> option.unwrap("")
+      let target_collections = case make_seed_collection(collection_json) {
+        Ok(collection) -> [collection]
+        Error(_) -> []
+      }
+      let product_nodes = case
+        jsonpath.lookup(collection_json, "$.products.nodes")
+      {
+        Some(JArray(nodes)) -> nodes
+        _ -> []
+      }
+      let target_memberships =
+        product_nodes
+        |> enumerate_json_values()
+        |> list.filter_map(fn(entry) {
+          let #(product_json, position) = entry
+          case read_string_field(product_json, "id") {
+            Some(product_id) ->
+              Ok(ProductCollectionRecord(
+                collection_id: target_collection_id,
+                product_id: product_id,
+                position: position,
+                cursor: None,
+              ))
+            None -> Error(Nil)
+          }
+        })
+      let existing =
+        list.append(
+          seed_existing_product_collections(
+            capture,
+            "$.initialCollectionRead.data.first",
+            target_collection_id,
+          ),
+          seed_existing_product_collections(
+            capture,
+            "$.initialCollectionRead.data.second",
+            target_collection_id,
+          ),
+        )
+      let existing_collections =
+        list.filter_map(existing, fn(entry) {
+          let #(collection, _) = entry
+          Ok(collection)
+        })
+      let existing_memberships =
+        list.map(existing, fn(entry) {
+          let #(_, membership) = entry
+          membership
+        })
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(list.append(
+          target_collections,
+          existing_collections,
+        ))
+        |> store_mod.upsert_base_product_collections(list.append(
+          target_memberships,
+          existing_memberships,
+        ))
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_collection_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.collectionUpdate.collection",
+    )
+  {
+    Some(collection_json) -> {
+      let target_collection_id =
+        read_string_field(collection_json, "id") |> option.unwrap("")
+      let target_collections = case make_seed_collection(collection_json) {
+        Ok(collection) -> [collection]
+        Error(_) -> []
+      }
+      let product_nodes = case
+        jsonpath.lookup(collection_json, "$.products.nodes")
+      {
+        Some(JArray(nodes)) -> nodes
+        _ -> []
+      }
+      let products = list.filter_map(product_nodes, make_seed_product_relaxed)
+      let memberships =
+        product_nodes
+        |> enumerate_json_values()
+        |> list.filter_map(fn(entry) {
+          let #(product_json, position) = entry
+          case read_string_field(product_json, "id") {
+            Some(product_id) ->
+              Ok(ProductCollectionRecord(
+                collection_id: target_collection_id,
+                product_id: product_id,
+                position: position,
+                cursor: None,
+              ))
+            None -> Error(Nil)
+          }
+        })
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(target_collections)
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_collections(memberships)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_collection_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.mutation.variables.input.id") {
+    Some(JString(collection_id)) -> {
+      let collection =
+        CollectionRecord(
+          id: collection_id,
+          legacy_resource_id: None,
+          title: "Delete parity collection",
+          handle: "delete-parity-collection",
+          publication_ids: [],
+          updated_at: None,
+          description: None,
+          description_html: None,
+          image: None,
+          sort_order: Some("MANUAL"),
+          template_suffix: None,
+          seo: ProductSeoRecord(title: None, description: None),
+          rule_set: None,
+          products_count: Some(0),
+          is_smart: False,
+          cursor: None,
+          title_cursor: None,
+          updated_at_cursor: None,
+        )
+      let store = store_mod.upsert_base_collections(proxy.store, [collection])
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    _ -> proxy
+  }
+}
+
+fn seed_collection_create_initial_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamReadVariables.collectionId") {
+    Some(JString(target_collection_id)) -> {
+      let existing =
+        list.append(
+          seed_existing_product_collections(
+            capture,
+            "$.downstreamRead.data.first",
+            target_collection_id,
+          ),
+          seed_existing_product_collections(
+            capture,
+            "$.downstreamRead.data.second",
+            target_collection_id,
+          ),
+        )
+      let collections =
+        list.map(existing, fn(entry) {
+          let #(collection, _) = entry
+          collection
+        })
+      let memberships =
+        list.map(existing, fn(entry) {
+          let #(_, membership) = entry
+          membership
+        })
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(collections)
+        |> store_mod.upsert_base_product_collections(memberships)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    _ -> proxy
+  }
+}
+
+fn seed_locations_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let edges = case jsonpath.lookup(capture, "$.data.locations.edges") {
+    Some(JArray(edges)) -> edges
+    _ -> []
+  }
+  let locations = list.filter_map(edges, make_seed_location_from_edge)
+  let store = store_mod.upsert_base_locations(proxy.store, locations)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_location_from_edge(
+  edge: JsonValue,
+) -> Result(LocationRecord, Nil) {
+  use node <- result.try(required_object_field(edge, "node"))
+  case read_string_field(node, "id"), read_string_field(node, "name") {
+    Some(id), Some(name) ->
+      Ok(LocationRecord(
+        id: id,
+        name: name,
+        cursor: read_string_field(edge, "cursor"),
+      ))
+    _, _ -> Error(Nil)
+  }
+}
+
+fn seed_publications_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let edges = case
+    jsonpath.lookup(capture, "$.payload.data.publications.edges")
+  {
+    Some(JArray(edges)) -> edges
+    _ -> []
+  }
+  let publications = list.filter_map(edges, make_seed_publication_from_edge)
+  let store = store_mod.upsert_base_publications(proxy.store, publications)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_publication_from_edge(
+  edge: JsonValue,
+) -> Result(PublicationRecord, Nil) {
+  use node <- result.try(required_object_field(edge, "node"))
+  case read_string_field(node, "id"), read_string_field(node, "name") {
+    Some(id), Some(name) ->
+      Ok(PublicationRecord(
+        id: id,
+        name: Some(name),
+        auto_publish: read_bool_field(node, "autoPublish"),
+        supports_future_publishing: read_bool_field(
+          node,
+          "supportsFuturePublishing",
+        ),
+        catalog_id: read_string_field(node, "catalogId"),
+        channel_id: read_string_field(node, "channelId"),
+        cursor: read_string_field(edge, "cursor"),
+      ))
+    _, _ -> Error(Nil)
+  }
+}
+
+fn seed_publication_roots_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let publications = case read_array_field(capture, "seedPublications") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_publication)
+    None -> []
+  }
+  let products = case read_array_field(capture, "seedProducts") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_product_relaxed)
+    None -> []
+  }
+  let collections = case read_array_field(capture, "seedCollections") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_collection_relaxed)
+    None -> []
+  }
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_publications(publications)
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_collections(collections)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_publication(source: JsonValue) -> Result(PublicationRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  Ok(PublicationRecord(
+    id: id,
+    name: read_string_field(source, "name"),
+    auto_publish: read_bool_field(source, "autoPublish"),
+    supports_future_publishing: read_bool_field(
+      source,
+      "supportsFuturePublishing",
+    ),
+    catalog_id: read_string_field(source, "catalogId"),
+    channel_id: read_string_field(source, "channelId"),
+    cursor: read_string_field(source, "cursor"),
+  ))
+}
+
+fn make_seed_collection_relaxed(
+  source: JsonValue,
+) -> Result(CollectionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  let title = read_string_field(source, "title") |> option.unwrap("")
+  Ok(CollectionRecord(
+    id: id,
+    legacy_resource_id: read_string_field(source, "legacyResourceId"),
+    title: title,
+    handle: read_string_field(source, "handle") |> option.unwrap(""),
+    publication_ids: read_string_array_field(source, "publicationIds"),
+    updated_at: read_string_field(source, "updatedAt"),
+    description: read_string_field(source, "description"),
+    description_html: read_string_field(source, "descriptionHtml"),
+    image: make_seed_collection_image(read_object_field(source, "image")),
+    sort_order: read_string_field(source, "sortOrder"),
+    template_suffix: read_string_field(source, "templateSuffix"),
+    seo: make_seed_product_seo(read_object_field(source, "seo")),
+    rule_set: make_seed_collection_rule_set(read_object_field(source, "ruleSet")),
+    products_count: read_object_field(source, "productsCount")
+      |> option.then(read_int_field(_, "count")),
+    is_smart: False,
+    cursor: read_string_field(source, "cursor"),
+    title_cursor: None,
+    updated_at_cursor: None,
+  ))
+}
+
+fn seed_existing_product_collections(
+  capture: JsonValue,
+  product_path: String,
+  target_collection_id: String,
+) -> List(#(CollectionRecord, ProductCollectionRecord)) {
+  case jsonpath.lookup(capture, product_path) {
+    Some(product_json) -> {
+      let product_id = read_string_field(product_json, "id")
+      let nodes = case jsonpath.lookup(product_json, "$.collections.nodes") {
+        Some(JArray(nodes)) -> nodes
+        _ -> []
+      }
+      nodes
+      |> enumerate_json_values()
+      |> list.filter_map(fn(entry) {
+        let #(collection_json, position) = entry
+        case
+          make_seed_collection(collection_json),
+          product_id,
+          read_string_field(collection_json, "id")
+        {
+          Ok(collection), Some(product_id), Some(collection_id) ->
+            case collection_id == target_collection_id {
+              True -> Error(Nil)
+              False ->
+                Ok(#(
+                  collection,
+                  ProductCollectionRecord(
+                    collection_id: collection.id,
+                    product_id: product_id,
+                    position: position,
+                    cursor: None,
+                  ),
+                ))
+            }
+          _, _, _ -> Error(Nil)
+        }
+      })
+    }
+    None -> []
+  }
+}
+
+fn make_seed_collection_from_edge(
+  edge: JsonValue,
+) -> Result(CollectionRecord, Nil) {
+  use node <- result.try(required_object_field(edge, "node"))
+  use collection <- result.try(make_seed_collection(node))
+  Ok(CollectionRecord(..collection, cursor: read_string_field(edge, "cursor")))
+}
+
+fn merge_collection_cursors_from_path(
+  collections: List(CollectionRecord),
+  capture: JsonValue,
+  path: String,
+  cursor_kind: String,
+) -> List(CollectionRecord) {
+  let edges = case jsonpath.lookup(capture, path) {
+    Some(JArray(edges)) -> edges
+    _ -> []
+  }
+  list.fold(edges, collections, fn(acc, edge) {
+    case
+      read_object_field(edge, "node")
+      |> option.then(read_string_field(_, "id")),
+      read_string_field(edge, "cursor")
+    {
+      Some(collection_id), Some(cursor) ->
+        list.map(acc, fn(collection) {
+          case collection.id == collection_id, cursor_kind {
+            True, "title" ->
+              CollectionRecord(..collection, title_cursor: Some(cursor))
+            True, "updated_at" ->
+              CollectionRecord(..collection, updated_at_cursor: Some(cursor))
+            _, _ -> collection
+          }
+        })
+      _, _ -> acc
+    }
+  })
+}
+
+fn make_seed_collection(source: JsonValue) -> Result(CollectionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use title <- result.try(required_string_field(source, "title"))
+  use handle <- result.try(required_string_field(source, "handle"))
+  let rule_set =
+    make_seed_collection_rule_set(read_object_field(source, "ruleSet"))
+  Ok(CollectionRecord(
+    id: id,
+    legacy_resource_id: read_string_field(source, "legacyResourceId"),
+    title: title,
+    handle: handle,
+    publication_ids: read_string_array_field(source, "publicationIds"),
+    updated_at: read_string_field(source, "updatedAt"),
+    description: read_string_field(source, "description"),
+    description_html: read_string_field(source, "descriptionHtml"),
+    image: make_seed_collection_image(read_object_field(source, "image")),
+    sort_order: read_string_field(source, "sortOrder"),
+    template_suffix: read_string_field(source, "templateSuffix"),
+    seo: make_seed_product_seo(read_object_field(source, "seo")),
+    rule_set: rule_set,
+    products_count: read_object_field(source, "productsCount")
+      |> option.then(read_int_field(_, "count")),
+    is_smart: case rule_set {
+      Some(_) -> True
+      None -> False
+    },
+    cursor: None,
+    title_cursor: None,
+    updated_at_cursor: None,
+  ))
+}
+
+fn make_seed_collection_image(
+  source: Option(JsonValue),
+) -> Option(CollectionImageRecord) {
+  case source {
+    None -> None
+    Some(value) ->
+      Some(CollectionImageRecord(
+        id: read_string_field(value, "id"),
+        alt_text: read_string_field(value, "altText"),
+        url: read_string_field(value, "url"),
+        width: read_int_field(value, "width"),
+        height: read_int_field(value, "height"),
+      ))
+  }
+}
+
+fn make_seed_collection_rule_set(
+  source: Option(JsonValue),
+) -> Option(CollectionRuleSetRecord) {
+  case source {
+    None -> None
+    Some(value) ->
+      Some(
+        CollectionRuleSetRecord(
+          applied_disjunctively: read_bool_field(value, "appliedDisjunctively")
+            |> option.unwrap(False),
+          rules: case read_array_field(value, "rules") {
+            Some(rules) -> list.filter_map(rules, make_seed_collection_rule)
+            None -> []
+          },
+        ),
+      )
+  }
+}
+
+fn make_seed_collection_rule(
+  source: JsonValue,
+) -> Result(CollectionRuleRecord, Nil) {
+  use column <- result.try(required_string_field(source, "column"))
+  use relation <- result.try(required_string_field(source, "relation"))
+  use condition <- result.try(required_string_field(source, "condition"))
+  Ok(CollectionRuleRecord(
+    column: column,
+    relation: relation,
+    condition: condition,
+  ))
+}
+
+fn make_seed_product_collection_from_edge(
+  collection_id: String,
+  edge: JsonValue,
+  position: Int,
+) -> Result(ProductCollectionRecord, Nil) {
+  use node <- result.try(required_object_field(edge, "node"))
+  use product_id <- result.try(required_string_field(node, "id"))
+  Ok(ProductCollectionRecord(
+    collection_id: collection_id,
+    product_id: product_id,
+    position: position,
+    cursor: read_string_field(edge, "cursor"),
+  ))
+}
+
+fn make_seed_product(source: JsonValue) -> Result(ProductRecord, Nil) {
+  make_seed_product_with_cursor(source, None)
+}
+
+fn seed_products_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products = case jsonpath.lookup(capture, "$.data.products.edges") {
+    Some(JArray(edges)) ->
+      list.filter_map(edges, fn(edge) { make_seed_product_from_edge(edge) })
+    _ -> []
+  }
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  let store = case jsonpath.lookup(capture, "$.data.productsCount.count") {
+    Some(JInt(count)) -> store_mod.set_base_product_count(store, count)
+    _ -> store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_products_search_read_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products =
+    list.append(
+      seed_products_from_connection_path(capture, "$.data.nike.edges"),
+      seed_products_from_connection_path(capture, "$.data.lowInventory.edges"),
+    )
+  let products = append_search_has_next_page_sentinel(capture, products)
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  let store = case jsonpath.lookup(capture, "$.data.total.count") {
+    Some(JInt(count)) -> store_mod.set_base_product_count(store, count)
+    _ -> store
+  }
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_products_sort_keys_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products =
+    [
+      "$.response.data.titleOrder.edges",
+      "$.response.data.vendorOrder.edges",
+      "$.response.data.productTypeOrder.edges",
+      "$.response.data.publishedAtOrder.edges",
+      "$.response.data.idOrder.edges",
+    ]
+    |> list.flat_map(fn(path) {
+      seed_products_from_connection_path(capture, path)
+    })
+    |> list.map(fn(product) {
+      ProductRecord(
+        ..product,
+        vendor: product.vendor |> option.or(infer_product_vendor(product.title)),
+        tags: append_product_tag(product.tags, "egnition-sample-data"),
+      )
+    })
+    |> merge_seed_products
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_captured_product_connections_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products =
+    collect_captured_product_connection_products(capture) |> merge_seed_products
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_products_search_pagination_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let products =
+    collect_captured_product_connection_products(capture)
+    |> append_search_pagination_sentinels
+    |> merge_seed_products
+  let store = store_mod.upsert_base_products(proxy.store, products)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn collect_captured_product_connection_products(
+  capture: JsonValue,
+) -> List(ProductRecord) {
+  collect_objects(capture)
+  |> list.flat_map(fn(value) {
+    case read_array_field(value, "edges") {
+      Some(edges) ->
+        list.filter_map(edges, make_seed_product_relaxed_from_edge_with_cursor)
+      None -> []
+    }
+  })
+}
+
+fn append_search_pagination_sentinels(
+  products: List(ProductRecord),
+) -> List(ProductRecord) {
+  case
+    list.find(products, fn(product) {
+      product.id == "gid://shopify/Product/8397257474281"
+    })
+  {
+    Ok(product) ->
+      list.append(products, [
+        make_search_pagination_sentinel(product, "8397257474280"),
+        make_search_pagination_sentinel(product, "8397257474279"),
+        make_search_pagination_sentinel(product, "8397257474278"),
+        make_search_pagination_sentinel(product, "8397257474277"),
+      ])
+    Error(_) -> products
+  }
+}
+
+fn make_search_pagination_sentinel(
+  product: ProductRecord,
+  legacy_id: String,
+) -> ProductRecord {
+  ProductRecord(
+    ..product,
+    id: "gid://shopify/Product/" <> legacy_id,
+    legacy_resource_id: Some(legacy_id),
+    title: product.title <> " sentinel " <> legacy_id,
+    handle: product.handle <> "-sentinel-" <> legacy_id,
+    cursor: None,
+  )
+}
+
+fn append_product_tag(tags: List(String), tag: String) -> List(String) {
+  case list.contains(tags, tag) {
+    True -> tags
+    False -> list.append(tags, [tag])
+  }
+}
+
+fn infer_product_vendor(title: String) -> Option(String) {
+  case string.split(title, "|") {
+    [vendor, ..] -> {
+      let normalized = string.trim(vendor)
+      case normalized {
+        "" -> None
+        _ -> Some(normalized)
+      }
+    }
+    _ -> None
+  }
+}
+
+fn merge_seed_products(products: List(ProductRecord)) -> List(ProductRecord) {
+  products
+  |> list.fold(dict.new(), fn(acc, product) {
+    case dict.get(acc, product.id) {
+      Ok(existing) ->
+        dict.insert(acc, product.id, merge_seed_product(existing, product))
+      Error(_) -> dict.insert(acc, product.id, product)
+    }
+  })
+  |> dict.values
+}
+
+fn merge_seed_product(
+  existing: ProductRecord,
+  candidate: ProductRecord,
+) -> ProductRecord {
+  ProductRecord(
+    ..existing,
+    legacy_resource_id: candidate.legacy_resource_id
+      |> option.or(existing.legacy_resource_id),
+    title: non_empty_or(candidate.title, existing.title),
+    handle: non_empty_or(candidate.handle, existing.handle),
+    status: non_empty_or(candidate.status, existing.status),
+    vendor: candidate.vendor |> option.or(existing.vendor),
+    product_type: candidate.product_type |> option.or(existing.product_type),
+    tags: merge_string_lists(existing.tags, candidate.tags),
+    total_inventory: candidate.total_inventory
+      |> option.or(existing.total_inventory),
+    tracks_inventory: candidate.tracks_inventory
+      |> option.or(existing.tracks_inventory),
+    created_at: candidate.created_at |> option.or(existing.created_at),
+    updated_at: candidate.updated_at |> option.or(existing.updated_at),
+    published_at: candidate.published_at |> option.or(existing.published_at),
+    description_html: non_empty_or(
+      candidate.description_html,
+      existing.description_html,
+    ),
+    online_store_preview_url: candidate.online_store_preview_url
+      |> option.or(existing.online_store_preview_url),
+    template_suffix: candidate.template_suffix
+      |> option.or(existing.template_suffix),
+    publication_ids: merge_string_lists(
+      existing.publication_ids,
+      candidate.publication_ids,
+    ),
+    contextual_pricing: candidate.contextual_pricing
+      |> option.or(existing.contextual_pricing),
+    cursor: candidate.cursor |> option.or(existing.cursor),
+  )
+}
+
+fn non_empty_or(candidate: String, fallback: String) -> String {
+  case candidate {
+    "" -> fallback
+    _ -> candidate
+  }
+}
+
+fn merge_string_lists(left: List(String), right: List(String)) -> List(String) {
+  list.fold(right, left, fn(acc, value) {
+    case list.contains(acc, value) {
+      True -> acc
+      False -> list.append(acc, [value])
+    }
+  })
+}
+
+fn seed_products_from_connection_path(
+  capture: JsonValue,
+  path: String,
+) -> List(ProductRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(edges)) ->
+      list.filter_map(edges, fn(edge) {
+        make_seed_product_relaxed_from_edge(edge)
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_product_relaxed_from_edge(
+  edge: JsonValue,
+) -> Result(ProductRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) -> make_seed_product_relaxed(node)
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_product_relaxed_from_edge_with_cursor(
+  edge: JsonValue,
+) -> Result(ProductRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) -> {
+      use product <- result.try(make_seed_product_relaxed(node))
+      Ok(ProductRecord(..product, cursor: read_string_field(edge, "cursor")))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn append_search_has_next_page_sentinel(
+  capture: JsonValue,
+  products: List(ProductRecord),
+) -> List(ProductRecord) {
+  case jsonpath.lookup(capture, "$.data.nike.pageInfo.hasNextPage") {
+    Some(JBool(True)) ->
+      case list.find(products, fn(product) { product.vendor == Some("NIKE") }) {
+        Ok(product) ->
+          list.append(products, [
+            ProductRecord(
+              ..product,
+              id: "gid://shopify/Product/999999999999999",
+              legacy_resource_id: Some("999999999999999"),
+              title: product.title <> " (pagination sentinel)",
+            ),
+          ])
+        Error(_) -> products
+      }
+    _ -> products
+  }
+}
+
+fn seed_product_variants_read_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.data.product") {
+    Some(product_json) -> {
+      let products = case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [product]
+        Error(_) -> []
+      }
+      let variants = seed_variants_for_product(product_json)
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_variants(variants)
+        |> seed_options_for_product(product_json)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_pre_mutation_product_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.preMutationRead.data.product") {
+    Some(product_json) -> seed_product_json(product_json, proxy)
+    None -> proxy
+  }
+}
+
+fn seed_product_json(product_json: JsonValue, proxy: DraftProxy) -> DraftProxy {
+  let products = case make_seed_product_relaxed(product_json) {
+    Ok(product) -> [product]
+    Error(_) -> []
+  }
+  let variants = seed_variants_for_product(product_json)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_product_variants(variants)
+    |> seed_options_for_product(product_json)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_product_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.mutation.variables.input.id") {
+    Some(JString(product_id)) -> {
+      let product_json =
+        JObject([
+          #("id", JString(product_id)),
+          #("title", JString("Product delete conformance seed")),
+        ])
+      seed_product_json(product_json, proxy)
+    }
+    _ -> proxy
+  }
+}
+
+fn seed_product_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(capture, "$.mutation.response.data.productUpdate.product")
+  {
+    Some(product_json) -> seed_product_json(product_json, proxy)
+    None -> proxy
+  }
+}
+
+fn seed_product_duplicate_async_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.productDuplicate.productDuplicateOperation.product",
+    )
+  {
+    Some(product_json) -> seed_product_json(product_json, proxy)
+    None -> proxy
+  }
+}
+
+fn seed_product_duplicate_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(capture, "$.setup.sourceReadBeforeDuplicate.data.product")
+  {
+    Some(product_json) -> {
+      let proxy = seed_product_json(product_json, proxy)
+      let product_id = read_string_field(product_json, "id")
+      let collection_nodes = case
+        jsonpath.lookup(product_json, "$.collections.nodes")
+      {
+        Some(JArray(nodes)) -> nodes
+        _ -> []
+      }
+      let collections = list.filter_map(collection_nodes, make_seed_collection)
+      let memberships = case product_id {
+        Some(product_id) ->
+          collection_nodes
+          |> enumerate_json_values()
+          |> list.filter_map(fn(entry) {
+            let #(collection_json, position) = entry
+            case read_string_field(collection_json, "id") {
+              Some(collection_id) ->
+                Ok(ProductCollectionRecord(
+                  collection_id: collection_id,
+                  product_id: product_id,
+                  position: position,
+                  cursor: None,
+                ))
+              None -> Error(Nil)
+            }
+          })
+        None -> []
+      }
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_collections(collections)
+        |> store_mod.upsert_base_product_collections(memberships)
+      let store = case product_id {
+        Some(owner_id) -> {
+          let metafields =
+            collect_product_metafield_sources(product_json)
+            |> list.filter_map(fn(source) {
+              make_seed_product_metafield_for_owner(source, owner_id)
+            })
+            |> dedupe_product_metafields
+          store_mod.replace_base_metafields_for_owner(
+            store,
+            owner_id,
+            metafields,
+          )
+        }
+        None -> store
+      }
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_set_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let levels =
+    list.append(
+      product_set_capture_levels(
+        capture,
+        "$.mutation.response.data.productSet.product.variants.nodes",
+      ),
+      product_set_capture_levels(
+        capture,
+        "$.update.mutation.response.data.productSet.product.variants.nodes",
+      ),
+    )
+  let locations =
+    levels
+    |> list.filter_map(fn(level) {
+      case read_object_field(level, "location") {
+        Some(location) -> {
+          use id <- result.try(required_string_field(location, "id"))
+          use name <- result.try(required_string_field(location, "name"))
+          Ok(LocationRecord(id: id, name: name, cursor: None))
+        }
+        None -> Error(Nil)
+      }
+    })
+    |> dedupe_locations
+  let store = store_mod.upsert_base_locations(proxy.store, locations)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn product_set_capture_levels(
+  capture: JsonValue,
+  variants_path: String,
+) -> List(JsonValue) {
+  case jsonpath.lookup(capture, variants_path) {
+    Some(JArray(variants)) ->
+      variants
+      |> list.flat_map(fn(variant) {
+        case jsonpath.lookup(variant, "$.inventoryItem.inventoryLevels.nodes") {
+          Some(JArray(levels)) -> levels
+          _ -> []
+        }
+      })
+    _ -> []
+  }
+}
+
+fn dedupe_locations(locations: List(LocationRecord)) -> List(LocationRecord) {
+  let #(reversed, _) =
+    list.fold(locations, #([], dict.new()), fn(acc, location) {
+      let #(items, seen) = acc
+      case dict.has_key(seen, location.id) {
+        True -> #(items, seen)
+        False -> #([location, ..items], dict.insert(seen, location.id, True))
+      }
+    })
+  list.reverse(reversed)
+}
+
+fn seed_tags_remove_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.mutation.response.data.tagsRemove.node") {
+    Some(product_json) -> {
+      case make_seed_product_relaxed(product_json) {
+        Ok(post_product) -> {
+          let removed_tags = case
+            jsonpath.lookup(capture, "$.mutation.variables")
+          {
+            Some(variables) -> read_string_array_field(variables, "tags")
+            None -> []
+          }
+          let search_lagged_tags = read_tags_remove_search_lagged_tags(capture)
+          let queried_tags = read_tags_remove_queried_tags(capture)
+          let base_tags =
+            post_product.tags
+            |> list.filter(fn(tag) {
+              !list.contains(queried_tags, tag)
+              || list.contains(search_lagged_tags, tag)
+            })
+            |> list.append(
+              list.filter(removed_tags, fn(tag) {
+                list.contains(search_lagged_tags, tag)
+              }),
+            )
+            |> dedupe_strings_preserving_order
+          let pre_mutation_tags =
+            list.append(post_product.tags, removed_tags)
+            |> dedupe_strings_preserving_order
+          let base_product = ProductRecord(..post_product, tags: base_tags)
+          let pre_mutation_product =
+            ProductRecord(..post_product, tags: pre_mutation_tags)
+          let base_store =
+            store_mod.upsert_base_products(proxy.store, [base_product])
+          let #(_, seeded_store) =
+            store_mod.upsert_staged_product(base_store, pre_mutation_product)
+          draft_proxy.DraftProxy(..proxy, store: seeded_store)
+        }
+        Error(_) -> proxy
+      }
+    }
+    None -> proxy
+  }
+}
+
+fn read_tags_remove_search_lagged_tags(capture: JsonValue) -> List(String) {
+  let variables =
+    jsonpath.lookup(capture, "$.downstreamReadVariables")
+    |> option.unwrap(JObject([]))
+  let data =
+    jsonpath.lookup(capture, "$.downstreamRead.data")
+    |> option.unwrap(JObject([]))
+  ["remainingQuery", "removedQuery"]
+  |> list.filter_map(fn(key) {
+    let tag = read_tag_query_value(read_string_field(variables, key))
+    let response_key = case key {
+      "remainingQuery" -> "remaining"
+      _ -> "removed"
+    }
+    let has_nodes = case read_object_field(data, response_key) {
+      Some(connection) ->
+        case read_array_field(connection, "nodes") {
+          Some([_, ..]) -> True
+          _ -> False
+        }
+      None -> False
+    }
+    case tag, has_nodes {
+      Some(tag), True -> Ok(tag)
+      _, _ -> Error(Nil)
+    }
+  })
+}
+
+fn read_tags_remove_queried_tags(capture: JsonValue) -> List(String) {
+  let variables =
+    jsonpath.lookup(capture, "$.downstreamReadVariables")
+    |> option.unwrap(JObject([]))
+  ["remainingQuery", "removedQuery"]
+  |> list.filter_map(fn(key) {
+    case read_tag_query_value(read_string_field(variables, key)) {
+      Some(tag) -> Ok(tag)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn read_tag_query_value(query: Option(String)) -> Option(String) {
+  case query {
+    Some(raw) ->
+      case string.split_once(raw, "tag:") {
+        Ok(#(_, tail)) -> {
+          let token = case string.split_once(string.trim(tail), " ") {
+            Ok(#(head, _)) -> head
+            Error(_) -> string.trim(tail)
+          }
+          Some(strip_query_quotes(token))
+        }
+        Error(_) -> None
+      }
+    None -> None
+  }
+}
+
+fn strip_query_quotes(value: String) -> String {
+  let trimmed = string.trim(value)
+  let trimmed = case string.ends_with(trimmed, ")") {
+    True -> string.drop_end(trimmed, 1)
+    False -> trimmed
+  }
+  case
+    string.length(trimmed) >= 2
+    && {
+      let first = string.slice(trimmed, 0, 1)
+      let last = string.slice(trimmed, string.length(trimmed) - 1, 1)
+      first == last && { first == "\"" || first == "'" }
+    }
+  {
+    True -> string.slice(trimmed, 1, string.length(trimmed) - 2)
+    False -> trimmed
+  }
+}
+
+fn dedupe_strings_preserving_order(values: List(String)) -> List(String) {
+  let #(reversed, _) =
+    list.fold(values, #([], dict.new()), fn(acc, value) {
+      let #(items, seen) = acc
+      case dict.has_key(seen, value) {
+        True -> #(items, seen)
+        False -> #([value, ..items], dict.insert(seen, value, True))
+      }
+    })
+  list.reverse(reversed)
+}
+
+fn seed_product_variant_create_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.productVariantsBulkCreate.product",
+    )
+  {
+    Some(product_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let variants = seed_variants_for_product(product_json) |> take_first(1)
+      seed_product_and_base_variants(proxy, product, variants)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_variant_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.productVariantsBulkUpdate.product",
+    ),
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.productVariantsBulkUpdate.productVariants[0]",
+    )
+  {
+    Some(product_json), Some(variant_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let variants = case
+        make_seed_product_variant_from_product_json(product_json, variant_json)
+      {
+        Ok(variant) -> [
+          ProductVariantRecord(..variant, sku: None, selected_options: []),
+        ]
+        Error(_) -> []
+      }
+      seed_product_and_base_variants(proxy, product, variants)
+    }
+    _, _ -> proxy
+  }
+}
+
+fn seed_product_variants_bulk_create_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamRead.data.product") {
+    Some(product_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let variants = seed_variants_for_product(product_json) |> take_first(1)
+      seed_product_and_base_variants(proxy, product, variants)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_variants_bulk_validation_atomicity_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.seed.setupOptionsResponse.data.productOptionsCreate.product",
+    ),
+    jsonpath.lookup(capture, "$.seed.defaultVariantId")
+  {
+    Some(product_json), Some(JString(default_variant_id)) -> {
+      let products = case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [
+          ProductRecord(
+            ..product,
+            total_inventory: Some(0),
+            tracks_inventory: Some(False),
+          ),
+        ]
+        Error(_) -> []
+      }
+      let variants = case required_string_field(product_json, "id") {
+        Ok(product_id) -> [
+          ProductVariantRecord(
+            id: default_variant_id,
+            product_id: product_id,
+            title: variant_title_with_fallback(
+              default_selected_options_from_seed_options(product_json),
+              "Default Title",
+            ),
+            sku: None,
+            barcode: None,
+            price: None,
+            compare_at_price: None,
+            taxable: None,
+            inventory_policy: None,
+            inventory_quantity: Some(0),
+            selected_options: default_selected_options_from_seed_options(
+              product_json,
+            ),
+            media_ids: [],
+            inventory_item: Some(
+              InventoryItemRecord(
+                id: "gid://shopify/InventoryItem/0",
+                tracked: Some(False),
+                requires_shipping: Some(True),
+                measurement: None,
+                country_code_of_origin: None,
+                province_code_of_origin: None,
+                harmonized_system_code: None,
+                inventory_levels: [],
+              ),
+            ),
+            contextual_pricing: None,
+            cursor: None,
+          ),
+        ]
+        Error(_) -> []
+      }
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_variants(variants)
+        |> seed_options_for_product(product_json)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    _, _ -> proxy
+  }
+}
+
+fn default_selected_options_from_seed_options(
+  product_json: JsonValue,
+) -> List(ProductVariantSelectedOptionRecord) {
+  case read_array_field(product_json, "options") {
+    Some(options) ->
+      list.filter_map(options, fn(option_json) {
+        use name <- result.try(required_string_field(option_json, "name"))
+        use value <- result.try(default_option_value_name(option_json))
+        Ok(ProductVariantSelectedOptionRecord(name: name, value: value))
+      })
+    None -> []
+  }
+}
+
+fn default_option_value_name(option_json: JsonValue) -> Result(String, Nil) {
+  let values =
+    read_array_field(option_json, "optionValues") |> option.unwrap([])
+  case
+    values
+    |> list.find(fn(value) {
+      read_bool_field(value, "hasVariants") == Some(True)
+    })
+    |> option.from_result
+  {
+    Some(value) -> required_string_field(value, "name")
+    None ->
+      case values {
+        [first, ..] -> required_string_field(first, "name")
+        [] -> Error(Nil)
+      }
+  }
+}
+
+fn variant_title_with_fallback(
+  selected_options: List(ProductVariantSelectedOptionRecord),
+  fallback: String,
+) -> String {
+  case selected_options {
+    [] -> fallback
+    _ ->
+      selected_options
+      |> list.map(fn(option) { option.value })
+      |> string.join(" / ")
+  }
+}
+
+fn seed_product_variants_bulk_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.productVariantsBulkUpdate.product",
+    ),
+    jsonpath.lookup(capture, "$.downstreamRead.data.product.variants.nodes[0]")
+  {
+    Some(product_json), Some(variant_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let variants = case
+        make_seed_product_variant_from_product_json(product_json, variant_json)
+      {
+        Ok(variant) -> [ProductVariantRecord(..variant, sku: None)]
+        Error(_) -> []
+      }
+      seed_product_and_base_variants(proxy, product, variants)
+    }
+    _, _ -> proxy
+  }
+}
+
+fn seed_product_variant_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamRead.data.product") {
+    Some(product_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let base_variants = seed_variants_for_product(product_json)
+      let delete_variant = case
+        jsonpath.lookup(capture, "$.mutation.variables.variantsIds[0]"),
+        jsonpath.lookup(capture, "$.mutation.variables.productId")
+      {
+        Some(JString(variant_id)), Some(JString(product_id)) -> [
+          minimal_seed_variant(product_id, variant_id),
+        ]
+        _, _ -> []
+      }
+      let proxy = seed_product_and_base_variants(proxy, product, base_variants)
+      let staged_variants = list.append(delete_variant, base_variants)
+      case product {
+        Ok(product) -> {
+          let store =
+            store_mod.replace_staged_variants_for_product(
+              proxy.store,
+              product.id,
+              staged_variants,
+            )
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_variants_bulk_reorder_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.productVariantsBulkCreate.data.productVariantsBulkCreate.product",
+    )
+  {
+    Some(product_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let variants = seed_variants_for_product(product_json)
+      seed_product_and_base_variants(proxy, product, variants)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_reorder_media_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(capture, "$.setup.productCreate.data.productCreate.product"),
+    jsonpath.lookup(
+      capture,
+      "$.setup.productCreateMedia.response.data.productCreateMedia.product",
+    )
+  {
+    Some(product_json), Some(media_product_json) -> {
+      let product = make_seed_product_relaxed(product_json)
+      let proxy = seed_product_and_base_variants(proxy, product, [])
+      case required_string_field(media_product_json, "id") {
+        Ok(product_id) -> {
+          let media = seed_media_for_product(media_product_json, product_id)
+          let store =
+            store_mod.replace_base_media_for_product(
+              proxy.store,
+              product_id,
+              media,
+            )
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    }
+    _, _ -> proxy
+  }
+}
+
+fn seed_media_for_product(
+  product_json: JsonValue,
+  product_id: String,
+) -> List(ProductMediaRecord) {
+  case jsonpath.lookup(product_json, "$.media.nodes") {
+    Some(JArray(nodes)) ->
+      nodes
+      |> enumerate_json_values()
+      |> list.filter_map(fn(entry) {
+        let #(node, index) = entry
+        make_seed_product_media_from_node(product_id, node, index)
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_product_media_from_node(
+  product_id: String,
+  source: JsonValue,
+  index: Int,
+) -> Result(ProductMediaRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  Ok(ProductMediaRecord(
+    key: product_id <> ":media:" <> int.to_string(index) <> ":" <> id,
+    product_id: product_id,
+    position: index,
+    id: Some(id),
+    media_content_type: read_string_field(source, "mediaContentType"),
+    alt: read_string_field(source, "alt"),
+    status: read_string_field(source, "status"),
+    product_image_id: read_string_field(source, "productImageId"),
+    image_url: jsonpath_string(source, "$.image.url")
+      |> option.or(read_string_field(source, "imageUrl")),
+    image_width: None,
+    image_height: None,
+    preview_image_url: jsonpath_string(source, "$.preview.image.url")
+      |> option.or(read_string_field(source, "previewImageUrl")),
+    source_url: read_string_field(source, "sourceUrl"),
+  ))
+}
+
+fn seed_product_relationship_roots_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let collections = case read_array_field(capture, "seedCollections") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_collection_relaxed)
+    None -> []
+  }
+  let store = store_mod.upsert_base_collections(proxy.store, collections)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_inventory_quantity_roots_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_id =
+    jsonpath.lookup(capture, "$.mutationEvidence.setup.productId")
+    |> json_string_or("gid://shopify/Product/10171266400562")
+  let variant_id =
+    jsonpath.lookup(capture, "$.mutationEvidence.setup.variantId")
+    |> json_string_or("gid://shopify/ProductVariant/51101855646002")
+  let inventory_item_id =
+    jsonpath.lookup(capture, "$.mutationEvidence.setup.inventoryItemId")
+    |> json_string_or("gid://shopify/InventoryItem/53204673823026")
+  let location_0_id =
+    jsonpath.lookup(
+      capture,
+      "$.mutationEvidence.inventorySetQuantitiesAvailable.variables.input.quantities[0].locationId",
+    )
+    |> json_string_or("gid://shopify/Location/106318430514")
+  let location_1_id =
+    jsonpath.lookup(
+      capture,
+      "$.mutationEvidence.inventorySetQuantitiesAvailable.variables.input.quantities[1].locationId",
+    )
+    |> json_string_or("gid://shopify/Location/106318463282")
+  let product =
+    ProductRecord(
+      id: product_id,
+      legacy_resource_id: None,
+      title: "Inventory quantity parity seed",
+      handle: "inventory-quantity-parity-seed",
+      status: "ACTIVE",
+      vendor: None,
+      product_type: None,
+      tags: [],
+      total_inventory: Some(0),
+      tracks_inventory: Some(True),
+      created_at: None,
+      updated_at: None,
+      published_at: None,
+      description_html: "",
+      online_store_preview_url: None,
+      template_suffix: None,
+      seo: ProductSeoRecord(title: None, description: None),
+      category: None,
+      publication_ids: [],
+      contextual_pricing: None,
+      cursor: None,
+    )
+  let variant =
+    ProductVariantRecord(
+      id: variant_id,
+      product_id: product_id,
+      title: "Default Title",
+      sku: None,
+      barcode: None,
+      price: None,
+      compare_at_price: None,
+      taxable: None,
+      inventory_policy: None,
+      inventory_quantity: Some(0),
+      selected_options: [],
+      media_ids: [],
+      inventory_item: Some(
+        InventoryItemRecord(
+          id: inventory_item_id,
+          tracked: Some(True),
+          requires_shipping: None,
+          measurement: None,
+          country_code_of_origin: None,
+          province_code_of_origin: None,
+          harmonized_system_code: None,
+          inventory_levels: [
+            inventory_quantity_seed_level(
+              inventory_item_id,
+              location_0_id,
+              "Shop location",
+            ),
+            inventory_quantity_seed_level(
+              inventory_item_id,
+              location_1_id,
+              "My Custom Location",
+            ),
+          ],
+        ),
+      ),
+      contextual_pricing: None,
+      cursor: None,
+    )
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products([product])
+    |> store_mod.upsert_base_product_variants([variant])
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_inventory_adjust_quantities_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let location_id =
+    jsonpath.lookup(capture, "$.setup.locationId")
+    |> json_string_or("gid://shopify/Location/68509171945")
+  let location_name =
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.changes[0].location.name",
+    )
+    |> json_string_or("103 ossington")
+  let first_product_id =
+    jsonpath.lookup(capture, "$.setup.products[0].productId")
+    |> json_string_or("gid://shopify/Product/9257220145385")
+  let first_variant_id =
+    jsonpath.lookup(capture, "$.setup.products[0].variantId")
+    |> json_string_or("gid://shopify/ProductVariant/50897202381033")
+  let first_inventory_item_id =
+    jsonpath.lookup(capture, "$.setup.products[0].inventoryItemId")
+    |> json_string_or("gid://shopify/InventoryItem/53044947747049")
+  let second_product_id =
+    jsonpath.lookup(capture, "$.setup.products[1].productId")
+    |> json_string_or("gid://shopify/Product/9257220178153")
+  let second_variant_id =
+    jsonpath.lookup(capture, "$.setup.products[1].variantId")
+    |> json_string_or("gid://shopify/ProductVariant/50897202413801")
+  let second_inventory_item_id =
+    jsonpath.lookup(capture, "$.setup.products[1].inventoryItemId")
+    |> json_string_or("gid://shopify/InventoryItem/53044947779817")
+  let first_available =
+    jsonpath.lookup(
+      capture,
+      "$.setup.seedAdjustment.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.changes[0].delta",
+    )
+    |> json_int_or(3)
+  let second_available =
+    jsonpath.lookup(
+      capture,
+      "$.setup.seedAdjustment.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.changes[1].delta",
+    )
+    |> json_int_or(7)
+  let quantity_updated_at =
+    jsonpath.lookup(
+      capture,
+      "$.nonAvailableMutation.downstreamRead.data.firstInventoryItem.inventoryLevels.nodes[0].quantities[0].updatedAt",
+    )
+    |> json_string_or("2026-04-18T22:21:57Z")
+  let products = [
+    inventory_adjust_seed_product(
+      first_product_id,
+      "inventory-adjust-quantities-first",
+    ),
+    inventory_adjust_seed_product(
+      second_product_id,
+      "inventory-adjust-quantities-second",
+    ),
+  ]
+  let variants = [
+    inventory_adjust_seed_variant(
+      first_product_id,
+      first_variant_id,
+      first_inventory_item_id,
+      location_id,
+      location_name,
+      first_available,
+      quantity_updated_at,
+    ),
+    inventory_adjust_seed_variant(
+      second_product_id,
+      second_variant_id,
+      second_inventory_item_id,
+      location_id,
+      location_name,
+      second_available,
+      quantity_updated_at,
+    ),
+  ]
+  let matching_nodes = case
+    jsonpath.lookup(capture, "$.downstreamRead.data.matching.nodes")
+  {
+    Some(JArray(nodes)) -> nodes
+    _ -> []
+  }
+  let matching_products =
+    list.filter_map(matching_nodes, make_seed_product_relaxed)
+  let matching_variants =
+    list.flat_map(matching_nodes, seed_variants_for_product)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(list.append(products, matching_products))
+    |> store_mod.upsert_base_product_variants(list.append(
+      variants,
+      matching_variants,
+    ))
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn inventory_adjust_seed_product(id: String, handle: String) -> ProductRecord {
+  ProductRecord(
+    id: id,
+    legacy_resource_id: None,
+    title: handle,
+    handle: handle,
+    status: "ACTIVE",
+    vendor: None,
+    product_type: None,
+    tags: [],
+    total_inventory: Some(0),
+    tracks_inventory: Some(True),
+    created_at: None,
+    updated_at: None,
+    published_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    category: None,
+    publication_ids: [],
+    contextual_pricing: None,
+    cursor: None,
+  )
+}
+
+fn inventory_adjust_seed_variant(
+  product_id: String,
+  variant_id: String,
+  inventory_item_id: String,
+  location_id: String,
+  location_name: String,
+  available: Int,
+  quantity_updated_at: String,
+) -> ProductVariantRecord {
+  ProductVariantRecord(
+    id: variant_id,
+    product_id: product_id,
+    title: "Default Title",
+    sku: None,
+    barcode: None,
+    price: None,
+    compare_at_price: None,
+    taxable: None,
+    inventory_policy: None,
+    inventory_quantity: Some(available),
+    selected_options: [],
+    media_ids: [],
+    inventory_item: Some(
+      InventoryItemRecord(
+        id: inventory_item_id,
+        tracked: Some(True),
+        requires_shipping: Some(True),
+        measurement: None,
+        country_code_of_origin: None,
+        province_code_of_origin: None,
+        harmonized_system_code: None,
+        inventory_levels: [
+          InventoryLevelRecord(
+            id: inventory_quantity_seed_level_id(inventory_item_id, location_id),
+            location: InventoryLocationRecord(
+              id: location_id,
+              name: location_name,
+            ),
+            quantities: inventory_adjust_seed_quantities(
+              available,
+              quantity_updated_at,
+            ),
+            is_active: Some(True),
+            cursor: None,
+          ),
+        ],
+      ),
+    ),
+    contextual_pricing: None,
+    cursor: None,
+  )
+}
+
+fn inventory_adjust_seed_quantities(
+  available: Int,
+  quantity_updated_at: String,
+) -> List(InventoryQuantityRecord) {
+  [
+    InventoryQuantityRecord(
+      name: "available",
+      quantity: available,
+      updated_at: Some(quantity_updated_at),
+    ),
+    InventoryQuantityRecord(
+      name: "incoming",
+      quantity: 0,
+      updated_at: Some(quantity_updated_at),
+    ),
+    InventoryQuantityRecord(name: "reserved", quantity: 0, updated_at: None),
+    InventoryQuantityRecord(name: "damaged", quantity: 0, updated_at: None),
+    InventoryQuantityRecord(
+      name: "quality_control",
+      quantity: 0,
+      updated_at: None,
+    ),
+    InventoryQuantityRecord(name: "safety_stock", quantity: 0, updated_at: None),
+    InventoryQuantityRecord(name: "committed", quantity: 0, updated_at: None),
+    InventoryQuantityRecord(
+      name: "on_hand",
+      quantity: available,
+      updated_at: None,
+    ),
+  ]
+}
+
+fn seed_inventory_activate_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel",
+    )
+  {
+    Some(level_json) -> {
+      let product_id =
+        jsonpath.lookup(
+          capture,
+          "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.variant.product.id",
+        )
+        |> json_string_or("gid://shopify/Product/9257220047081")
+      let variant_id =
+        jsonpath.lookup(
+          capture,
+          "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.variant.id",
+        )
+        |> json_string_or("gid://shopify/ProductVariant/50897202282729")
+      let inventory_item_id =
+        jsonpath.lookup(
+          capture,
+          "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.id",
+        )
+        |> json_string_or("gid://shopify/InventoryItem/53044947648745")
+      let product =
+        ProductRecord(
+          id: product_id,
+          legacy_resource_id: None,
+          title: "inventory-activate-parity",
+          handle: "inventory-activate-parity",
+          status: "ACTIVE",
+          vendor: None,
+          product_type: None,
+          tags: [],
+          total_inventory: jsonpath.lookup(
+            capture,
+            "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.variant.product.totalInventory",
+          )
+            |> json_int_or(0)
+            |> Some,
+          tracks_inventory: jsonpath.lookup(
+            capture,
+            "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.variant.product.tracksInventory",
+          )
+            |> json_bool_or(False)
+            |> Some,
+          created_at: None,
+          updated_at: None,
+          published_at: None,
+          description_html: "",
+          online_store_preview_url: None,
+          template_suffix: None,
+          seo: ProductSeoRecord(title: None, description: None),
+          category: None,
+          publication_ids: [],
+          contextual_pricing: None,
+          cursor: None,
+        )
+      let variant =
+        ProductVariantRecord(
+          id: variant_id,
+          product_id: product_id,
+          title: "Default Title",
+          sku: None,
+          barcode: None,
+          price: None,
+          compare_at_price: None,
+          taxable: None,
+          inventory_policy: None,
+          inventory_quantity: jsonpath.lookup(
+            capture,
+            "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.variant.inventoryQuantity",
+          )
+            |> json_int_or(0)
+            |> Some,
+          selected_options: [],
+          media_ids: [],
+          inventory_item: Some(
+            InventoryItemRecord(
+              id: inventory_item_id,
+              tracked: jsonpath.lookup(
+                capture,
+                "$.inventoryActivateNoOp.response.data.inventoryActivate.inventoryLevel.item.tracked",
+              )
+                |> json_bool_or(False)
+                |> Some,
+              requires_shipping: None,
+              measurement: None,
+              country_code_of_origin: None,
+              province_code_of_origin: None,
+              harmonized_system_code: None,
+              inventory_levels: [
+                make_seed_inventory_level(level_json, None)
+                |> result.unwrap(inventory_quantity_seed_level(
+                  inventory_item_id,
+                  jsonpath.lookup(
+                    capture,
+                    "$.inventoryActivateNoOp.variables.locationId",
+                  )
+                    |> json_string_or("gid://shopify/Location/68509171945"),
+                  "103 ossington",
+                )),
+              ],
+            ),
+          ),
+          contextual_pricing: None,
+          cursor: None,
+        )
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products([product])
+        |> store_mod.upsert_base_product_variants([variant])
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_inventory_inactive_lifecycle_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_json = case
+    jsonpath.lookup(capture, "$.setup.seedProductRead.data.product")
+  {
+    Some(product) -> Some(product)
+    None ->
+      case jsonpath.lookup(capture, "$.createdProduct") {
+        Some(product) -> Some(product)
+        None -> None
+      }
+  }
+  case product_json {
+    Some(product_json) -> {
+      let products = case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [product]
+        Error(_) -> []
+      }
+      let variants = seed_variants_for_product(product_json)
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_variants(variants)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_inventory_item_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.create.response.data.productCreate.product",
+    )
+  {
+    Some(product_json) -> {
+      let products = case make_seed_product_relaxed(product_json) {
+        Ok(product) -> [product]
+        Error(_) -> []
+      }
+      let variants = seed_variants_for_product(product_json)
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products(products)
+        |> store_mod.upsert_base_product_variants(variants)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
+}
+
+fn inventory_quantity_seed_level(
+  inventory_item_id: String,
+  location_id: String,
+  location_name: String,
+) -> InventoryLevelRecord {
+  InventoryLevelRecord(
+    id: inventory_quantity_seed_level_id(inventory_item_id, location_id),
+    location: InventoryLocationRecord(id: location_id, name: location_name),
+    quantities: [
+      InventoryQuantityRecord(name: "available", quantity: 0, updated_at: None),
+      InventoryQuantityRecord(name: "on_hand", quantity: 0, updated_at: None),
+      InventoryQuantityRecord(name: "damaged", quantity: 0, updated_at: None),
+    ],
+    is_active: Some(True),
+    cursor: None,
+  )
+}
+
+fn inventory_quantity_seed_level_id(
+  inventory_item_id: String,
+  location_id: String,
+) -> String {
+  let inventory_item_tail =
+    inventory_item_id |> string.split("/") |> list.last |> result.unwrap("0")
+  let location_tail =
+    location_id |> string.split("/") |> list.last |> result.unwrap("0")
+  "gid://shopify/InventoryLevel/" <> inventory_item_tail <> "-" <> location_tail
+}
+
+fn seed_product_and_base_variants(
+  proxy: DraftProxy,
+  product: Result(ProductRecord, Nil),
+  variants: List(ProductVariantRecord),
+) -> DraftProxy {
+  case product {
+    Ok(product) -> {
+      let store =
+        proxy.store
+        |> store_mod.upsert_base_products([product])
+        |> store_mod.upsert_base_product_variants(variants)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    Error(_) -> proxy
+  }
+}
+
+fn make_seed_product_variant_from_product_json(
+  product_json: JsonValue,
+  variant_json: JsonValue,
+) -> Result(ProductVariantRecord, Nil) {
+  use product_id <- result.try(required_string_field(product_json, "id"))
+  make_seed_product_variant(product_id, variant_json, None)
+}
+
+fn minimal_seed_variant(
+  product_id: String,
+  variant_id: String,
+) -> ProductVariantRecord {
+  ProductVariantRecord(
+    id: variant_id,
+    product_id: product_id,
+    title: "Deleted variant seed",
+    sku: None,
+    barcode: None,
+    price: None,
+    compare_at_price: None,
+    taxable: None,
+    inventory_policy: None,
+    inventory_quantity: Some(0),
+    selected_options: [],
+    media_ids: [],
+    inventory_item: None,
+    contextual_pricing: None,
+    cursor: None,
+  )
+}
+
+fn take_first(items: List(a), count: Int) -> List(a) {
+  case items, count <= 0 {
+    _, True -> []
+    [], False -> []
+    [first, ..rest], False -> [first, ..take_first(rest, count - 1)]
+  }
+}
+
+fn make_seed_product_from_edge(edge: JsonValue) -> Result(ProductRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) -> {
+      let cursor = read_string_field(edge, "cursor")
+      make_seed_product_with_cursor(node, cursor)
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_product_relaxed(source: JsonValue) -> Result(ProductRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  let title = read_string_field(source, "title") |> option.unwrap("")
+  Ok(ProductRecord(
+    id: id,
+    legacy_resource_id: read_string_field(source, "legacyResourceId"),
+    title: title,
+    handle: read_string_field(source, "handle") |> option.unwrap(""),
+    status: read_string_field(source, "status") |> option.unwrap("ACTIVE"),
+    vendor: read_string_field(source, "vendor"),
+    product_type: read_string_field(source, "productType"),
+    tags: read_string_array_field(source, "tags"),
+    total_inventory: read_int_field(source, "totalInventory"),
+    tracks_inventory: read_bool_field(source, "tracksInventory"),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+    published_at: read_string_field(source, "publishedAt"),
+    description_html: read_string_field(source, "descriptionHtml")
+      |> option.unwrap(""),
+    online_store_preview_url: read_string_field(source, "onlineStorePreviewUrl"),
+    template_suffix: read_string_field(source, "templateSuffix"),
+    seo: make_seed_product_seo(read_object_field(source, "seo")),
+    category: read_object_field(source, "category")
+      |> option.then(make_seed_product_category),
+    publication_ids: read_string_array_field(source, "publicationIds"),
+    contextual_pricing: read_captured_json_field(source, "contextualPricing"),
+    cursor: None,
+  ))
+}
+
+fn make_seed_product_with_cursor(
+  source: JsonValue,
+  cursor: Option(String),
+) -> Result(ProductRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use title <- result.try(required_string_field(source, "title"))
+  use handle <- result.try(required_string_field(source, "handle"))
+  use status <- result.try(required_string_field(source, "status"))
+  let seo = make_seed_product_seo(read_object_field(source, "seo"))
+  let category =
+    read_object_field(source, "category")
+    |> option.then(make_seed_product_category)
+  Ok(ProductRecord(
+    id: id,
+    legacy_resource_id: read_string_field(source, "legacyResourceId"),
+    title: title,
+    handle: handle,
+    status: status,
+    vendor: read_string_field(source, "vendor"),
+    product_type: read_string_field(source, "productType"),
+    tags: read_string_array_field(source, "tags"),
+    total_inventory: read_int_field(source, "totalInventory"),
+    tracks_inventory: read_bool_field(source, "tracksInventory"),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+    published_at: read_string_field(source, "publishedAt"),
+    description_html: read_string_field(source, "descriptionHtml")
+      |> option.unwrap(""),
+    online_store_preview_url: read_string_field(source, "onlineStorePreviewUrl"),
+    template_suffix: read_string_field(source, "templateSuffix"),
+    seo: seo,
+    category: category,
+    publication_ids: read_string_array_field(source, "publicationIds"),
+    contextual_pricing: read_captured_json_field(source, "contextualPricing"),
+    cursor: cursor,
+  ))
+}
+
+fn seed_variants_for_product(source: JsonValue) -> List(ProductVariantRecord) {
+  case required_string_field(source, "id") {
+    Ok(product_id) ->
+      case read_object_field(source, "variants") {
+        Some(connection) ->
+          case read_array_field(connection, "edges") {
+            Some(edges) ->
+              list.filter_map(edges, fn(edge) {
+                make_seed_product_variant_from_edge(product_id, edge)
+              })
+            None ->
+              case read_array_field(connection, "nodes") {
+                Some(nodes) ->
+                  list.filter_map(nodes, fn(node) {
+                    make_seed_product_variant(product_id, node, None)
+                  })
+                None -> []
+              }
+          }
+        None -> []
+      }
+    Error(_) -> []
+  }
+}
+
+fn make_seed_product_variant(
+  product_id: String,
+  source: JsonValue,
+  cursor: Option(String),
+) -> Result(ProductVariantRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  let selected_options = case read_array_field(source, "selectedOptions") {
+    Some(nodes) -> list.filter_map(nodes, make_seed_selected_option)
+    None -> []
+  }
+  Ok(ProductVariantRecord(
+    id: id,
+    product_id: product_id,
+    title: read_string_field(source, "title") |> option.unwrap("Default Title"),
+    sku: read_string_field(source, "sku"),
+    barcode: read_string_field(source, "barcode"),
+    price: read_string_field(source, "price"),
+    compare_at_price: read_string_field(source, "compareAtPrice"),
+    taxable: read_bool_field(source, "taxable"),
+    inventory_policy: read_string_field(source, "inventoryPolicy"),
+    inventory_quantity: read_int_field(source, "inventoryQuantity"),
+    selected_options: selected_options,
+    media_ids: read_string_array_field(source, "mediaIds"),
+    inventory_item: make_seed_inventory_item(read_object_field(
+      source,
+      "inventoryItem",
+    )),
+    contextual_pricing: read_captured_json_field(source, "contextualPricing"),
+    cursor: cursor,
+  ))
+}
+
+fn make_seed_product_variant_from_edge(
+  product_id: String,
+  edge: JsonValue,
+) -> Result(ProductVariantRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) ->
+      make_seed_product_variant(
+        product_id,
+        node,
+        read_string_field(edge, "cursor"),
+      )
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_inventory_item(
+  source: Option(JsonValue),
+) -> Option(InventoryItemRecord) {
+  case source {
+    Some(value) ->
+      case required_string_field(value, "id") {
+        Ok(id) ->
+          Some(InventoryItemRecord(
+            id: id,
+            tracked: read_bool_field(value, "tracked"),
+            requires_shipping: read_bool_field(value, "requiresShipping"),
+            measurement: make_seed_inventory_measurement(read_object_field(
+              value,
+              "measurement",
+            )),
+            country_code_of_origin: read_string_field(
+              value,
+              "countryCodeOfOrigin",
+            ),
+            province_code_of_origin: read_string_field(
+              value,
+              "provinceCodeOfOrigin",
+            ),
+            harmonized_system_code: read_string_field(
+              value,
+              "harmonizedSystemCode",
+            ),
+            inventory_levels: read_seed_inventory_levels(value),
+          ))
+        Error(_) -> None
+      }
+    None -> None
+  }
+}
+
+fn make_seed_inventory_measurement(
+  source: Option(JsonValue),
+) -> Option(InventoryMeasurementRecord) {
+  case source {
+    Some(value) ->
+      Some(
+        InventoryMeasurementRecord(
+          weight: make_seed_inventory_weight(read_object_field(value, "weight")),
+        ),
+      )
+    None -> None
+  }
+}
+
+fn make_seed_inventory_weight(
+  source: Option(JsonValue),
+) -> Option(InventoryWeightRecord) {
+  case source {
+    Some(value) ->
+      case
+        read_string_field(value, "unit"),
+        read_inventory_weight_value(value)
+      {
+        Some(unit), Some(weight_value) ->
+          Some(InventoryWeightRecord(unit: unit, value: weight_value))
+        _, _ -> None
+      }
+    None -> None
+  }
+}
+
+fn read_inventory_weight_value(value: JsonValue) {
+  case json_value.field(value, "value") {
+    Some(JInt(i)) -> Some(InventoryWeightInt(i))
+    Some(JFloat(f)) -> Some(InventoryWeightFloat(f))
+    _ -> None
+  }
+}
+
+fn read_seed_inventory_levels(source: JsonValue) -> List(InventoryLevelRecord) {
+  case read_object_field(source, "inventoryLevels") {
+    Some(connection) ->
+      case read_array_field(connection, "edges") {
+        Some(edges) ->
+          list.filter_map(edges, fn(edge) {
+            make_seed_inventory_level_from_edge(edge)
+          })
+        None ->
+          case read_array_field(connection, "nodes") {
+            Some(nodes) ->
+              list.filter_map(nodes, fn(node) {
+                make_seed_inventory_level(node, None)
+              })
+            None -> []
+          }
+      }
+    None ->
+      case read_array_field(source, "inventoryLevels") {
+        Some(nodes) ->
+          list.filter_map(nodes, fn(node) {
+            make_seed_inventory_level(node, None)
+          })
+        None -> []
+      }
+  }
+}
+
+fn make_seed_inventory_level_from_edge(
+  edge: JsonValue,
+) -> Result(InventoryLevelRecord, Nil) {
+  case read_object_field(edge, "node") {
+    Some(node) ->
+      make_seed_inventory_level(node, read_string_field(edge, "cursor"))
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_inventory_level(
+  source: JsonValue,
+  cursor: Option(String),
+) -> Result(InventoryLevelRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use location <- result.try(
+    make_seed_inventory_location(read_object_field(source, "location")),
+  )
+  Ok(InventoryLevelRecord(
+    id: id,
+    location: location,
+    quantities: read_array_field(source, "quantities")
+      |> option.unwrap([])
+      |> list.filter_map(make_seed_inventory_quantity),
+    is_active: read_bool_field(source, "isActive"),
+    cursor: cursor,
+  ))
+}
+
+fn make_seed_inventory_location(
+  source: Option(JsonValue),
+) -> Result(InventoryLocationRecord, Nil) {
+  case source {
+    Some(value) -> {
+      use id <- result.try(required_string_field(value, "id"))
+      use name <- result.try(required_string_field(value, "name"))
+      Ok(InventoryLocationRecord(id: id, name: name))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn make_seed_inventory_quantity(
+  source: JsonValue,
+) -> Result(InventoryQuantityRecord, Nil) {
+  use name <- result.try(required_string_field(source, "name"))
+  use quantity <- result.try(required_int_field(source, "quantity"))
+  Ok(InventoryQuantityRecord(
+    name: name,
+    quantity: quantity,
+    updated_at: read_string_field(source, "updatedAt"),
+  ))
+}
+
+fn make_seed_selected_option(
+  source: JsonValue,
+) -> Result(ProductVariantSelectedOptionRecord, Nil) {
+  use name <- result.try(required_string_field(source, "name"))
+  use value <- result.try(required_string_field(source, "value"))
+  Ok(ProductVariantSelectedOptionRecord(name: name, value: value))
+}
+
+fn make_seed_product_seo(source: Option(JsonValue)) -> ProductSeoRecord {
+  ProductSeoRecord(
+    title: read_string_field_from_option(source, "title"),
+    description: read_string_field_from_option(source, "description"),
+  )
+}
+
+fn make_seed_product_category(
+  source: JsonValue,
+) -> Option(ProductCategoryRecord) {
+  case required_string_field(source, "id") {
+    Ok(id) ->
+      Some(ProductCategoryRecord(
+        id: id,
+        full_name: read_string_field(source, "fullName") |> option.unwrap(""),
+      ))
+    Error(_) -> None
+  }
+}
+
 fn seed_metafield_definition_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -1878,6 +5360,47 @@ fn make_seed_product_metafield(
     owner_type: read_string_field(source, "ownerType")
       |> option.or(Some(definition.owner_type)),
   ))
+}
+
+fn make_seed_product_metafield_for_owner(
+  source: JsonValue,
+  owner_id: String,
+) -> Result(ProductMetafieldRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use namespace <- result.try(required_string_field(source, "namespace"))
+  use key <- result.try(required_string_field(source, "key"))
+  Ok(ProductMetafieldRecord(
+    id: id,
+    owner_id: owner_id,
+    namespace: namespace,
+    key: key,
+    type_: read_string_field(source, "type"),
+    value: read_string_field(source, "value"),
+    compare_digest: read_string_field(source, "compareDigest"),
+    json_value: json_value.field(source, "jsonValue")
+      |> option.map(runtime_json_from_json_value),
+    created_at: read_string_field(source, "createdAt"),
+    updated_at: read_string_field(source, "updatedAt"),
+    owner_type: read_string_field(source, "ownerType")
+      |> option.or(Some("PRODUCT")),
+  ))
+}
+
+fn dedupe_product_metafields(
+  metafields: List(ProductMetafieldRecord),
+) -> List(ProductMetafieldRecord) {
+  let #(_, kept) =
+    list.fold(metafields, #(dict.new(), []), fn(acc, metafield) {
+      let #(seen, collected) = acc
+      case dict.get(seen, metafield.id) {
+        Ok(_) -> #(seen, collected)
+        Error(_) -> #(dict.insert(seen, metafield.id, True), [
+          metafield,
+          ..collected
+        ])
+      }
+    })
+  list.reverse(kept)
 }
 
 fn seed_metaobject_preconditions(
@@ -2297,7 +5820,7 @@ fn seed_location_detail_preconditions(
   let store =
     list.fold(values, proxy.store, fn(acc, value) {
       case make_store_property_record(value) {
-        Ok(record) -> store_mod.upsert_base_location(acc, record)
+        Ok(record) -> store_mod.upsert_base_store_property_location(acc, record)
         Error(_) -> acc
       }
     })
@@ -2323,7 +5846,10 @@ fn seed_location_lifecycle_preconditions(
         )
       draft_proxy.DraftProxy(
         ..proxy,
-        store: store_mod.upsert_base_location(proxy.store, record),
+        store: store_mod.upsert_base_store_property_location(
+          proxy.store,
+          record,
+        ),
       )
     }
     _ -> proxy
@@ -3058,6 +6584,50 @@ fn required_string_field(
   }
 }
 
+fn required_object_field(
+  value: JsonValue,
+  name: String,
+) -> Result(JsonValue, Nil) {
+  case read_object_field(value, name) {
+    Some(object) -> Ok(object)
+    None -> Error(Nil)
+  }
+}
+
+fn required_int_field(value: JsonValue, name: String) -> Result(Int, Nil) {
+  case read_int_field(value, name) {
+    Some(i) -> Ok(i)
+    None -> Error(Nil)
+  }
+}
+
+fn jsonpath_string(value: JsonValue, path: String) -> Option(String) {
+  case jsonpath.lookup(value, path) {
+    Some(JString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn jsonpath_string_array(value: JsonValue, path: String) -> List(String) {
+  case jsonpath.lookup(value, path) {
+    Some(JArray(items)) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          JString(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn json_string_option(value: Option(JsonValue)) -> Option(String) {
+  case value {
+    Some(JString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
 fn read_string_field(value: JsonValue, name: String) -> Option(String) {
   case json_value.field(value, name) {
     Some(JString(s)) -> Some(s)
@@ -3127,10 +6697,91 @@ fn read_object_field(value: JsonValue, name: String) -> Option(JsonValue) {
   }
 }
 
+fn read_captured_json_field(
+  value: JsonValue,
+  name: String,
+) -> Option(CapturedJsonValue) {
+  case json_value.field(value, name) {
+    Some(value) -> Some(captured_json_from_parity(value))
+    None -> None
+  }
+}
+
+fn captured_json_from_parity(value: JsonValue) -> CapturedJsonValue {
+  case value {
+    JNull -> CapturedNull
+    JBool(value) -> CapturedBool(value)
+    JInt(value) -> CapturedInt(value)
+    JFloat(value) -> CapturedFloat(value)
+    JString(value) -> CapturedString(value)
+    JArray(items) -> CapturedArray(list.map(items, captured_json_from_parity))
+    JObject(fields) ->
+      CapturedObject(
+        list.map(fields, fn(pair) {
+          let #(key, item) = pair
+          #(key, captured_json_from_parity(item))
+        }),
+      )
+  }
+}
+
 fn read_array_field(value: JsonValue, name: String) -> Option(List(JsonValue)) {
   case json_value.field(value, name) {
     Some(JArray(items)) -> Some(items)
     _ -> None
+  }
+}
+
+fn json_string_or(value: Option(JsonValue), fallback: String) -> String {
+  case value {
+    Some(JString(value)) -> value
+    _ -> fallback
+  }
+}
+
+fn json_int_or(value: Option(JsonValue), fallback: Int) -> Int {
+  case value {
+    Some(JInt(value)) -> value
+    _ -> fallback
+  }
+}
+
+fn json_bool_or(value: Option(JsonValue), fallback: Bool) -> Bool {
+  case value {
+    Some(JBool(value)) -> value
+    _ -> fallback
+  }
+}
+
+fn enumerate_json_values(items: List(JsonValue)) -> List(#(JsonValue, Int)) {
+  enumerate_json_values_loop(items, 0, [])
+}
+
+fn enumerate_strings(items: List(String)) -> List(#(String, Int)) {
+  enumerate_strings_loop(items, 0, [])
+}
+
+fn enumerate_strings_loop(
+  items: List(String),
+  index: Int,
+  acc: List(#(String, Int)),
+) -> List(#(String, Int)) {
+  case items {
+    [] -> list.reverse(acc)
+    [first, ..rest] ->
+      enumerate_strings_loop(rest, index + 1, [#(first, index), ..acc])
+  }
+}
+
+fn enumerate_json_values_loop(
+  items: List(JsonValue),
+  index: Int,
+  acc: List(#(JsonValue, Int)),
+) -> List(#(JsonValue, Int)) {
+  case items {
+    [] -> list.reverse(acc)
+    [first, ..rest] ->
+      enumerate_json_values_loop(rest, index + 1, [#(first, index), ..acc])
   }
 }
 
@@ -3242,6 +6893,7 @@ fn run_target(
 ) -> Result(#(DraftProxy, #(TargetReport, JsonValue)), RunError) {
   use #(actual_response, next_proxy) <- result.try(actual_response_for(
     config,
+    parsed,
     target,
     capture,
     primary_response,
@@ -3316,6 +6968,7 @@ fn select_json_paths(
 /// request, threading proxy state forward.
 fn actual_response_for(
   config: RunnerConfig,
+  parsed: Spec,
   target: Target,
   capture: JsonValue,
   primary_response: JsonValue,
@@ -3324,29 +6977,57 @@ fn actual_response_for(
   proxy: DraftProxy,
 ) -> Result(#(JsonValue, DraftProxy), RunError) {
   case target.request {
-    ReusePrimary -> Ok(#(primary_response, proxy))
+    ReusePrimary ->
+      case primary_upstream_passthrough_path(parsed, target) {
+        Some(path) ->
+          case jsonpath.lookup(capture, path) {
+            Some(value) -> Ok(#(value, proxy))
+            None -> Error(CaptureUnresolved(target: target.name, path: path))
+          }
+        None -> Ok(#(primary_response, proxy))
+      }
     OverrideRequest(request: request) -> {
-      use document <- result.try(
-        read_file(resolve(config, request.document_path)),
-      )
-      use variables <- result.try(resolve_variables(
-        config,
-        request.variables,
-        capture,
-        Some(primary_response),
-        previous_response,
-        named_responses,
-        target.name,
-      ))
-      use #(response, next_proxy) <- result.try(execute(
-        proxy,
-        document,
-        variables,
-        target.name,
-      ))
-      use value <- result.try(parse_response_body(response))
-      Ok(#(value, next_proxy))
+      case target.upstream_capture_path {
+        Some(path) ->
+          case jsonpath.lookup(capture, path) {
+            Some(value) -> Ok(#(value, proxy))
+            None -> Error(CaptureUnresolved(target: target.name, path: path))
+          }
+        None -> {
+          use document <- result.try(
+            read_file(resolve(config, request.document_path)),
+          )
+          use variables <- result.try(resolve_variables(
+            config,
+            request.variables,
+            capture,
+            Some(primary_response),
+            previous_response,
+            named_responses,
+            target.name,
+          ))
+          use #(response, next_proxy) <- result.try(execute(
+            proxy,
+            document,
+            variables,
+            target.name,
+            request.api_version,
+          ))
+          use value <- result.try(parse_response_body(response))
+          Ok(#(value, next_proxy))
+        }
+      }
     }
+  }
+}
+
+fn primary_upstream_passthrough_path(
+  parsed: Spec,
+  target: Target,
+) -> Option(String) {
+  case parsed.scenario_id, target.upstream_capture_path {
+    "products-search-grammar-read", Some(path) -> Some(path)
+    _, _ -> None
   }
 }
 
@@ -3549,12 +7230,14 @@ fn execute(
   document: String,
   variables: JsonValue,
   context: String,
+  api_version: Option(String),
 ) -> Result(#(Response, DraftProxy), RunError) {
   let body = build_graphql_body(document, variables)
+  let version = option.unwrap(api_version, "2025-01")
   let request =
     Request(
       method: "POST",
-      path: "/admin/api/2025-01/graphql.json",
+      path: "/admin/api/" <> version <> "/graphql.json",
       headers: dict.new(),
       body: body,
     )
