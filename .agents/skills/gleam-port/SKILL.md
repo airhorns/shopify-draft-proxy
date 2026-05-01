@@ -437,6 +437,14 @@ broad synthetic-id/timestamp expected differences.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.
+- Payments and order-payment coverage spans two domains: keep payment-methods,
+  customizations, terms/templates, and no-data payment reads in the Payments
+  module, but put `orderCreate`, `orderCapture`, `transactionVoid`,
+  `orderCreateMandatePayment`, `orderCreateManualPayment`, and `order(id:)`
+  payment projections in an Orders module. The TypeScript order-payment route
+  mints response resource IDs before consuming the mutation-log ID; validation
+  responses still consume the post-handler log ID/timestamp even when no log
+  entry is recorded.
 - Segment catalog-like roots can require captured root payload storage in
   addition to normalized records. Seed `segments-baseline-read` by extracting the
   captured root payloads into base state, then project selected fields from that

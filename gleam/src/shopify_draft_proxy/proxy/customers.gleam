@@ -24,6 +24,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/payments
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -1000,7 +1001,10 @@ fn payment_method_source(
       Some(c) -> customer_owner_source(c)
       None -> SrcNull
     }),
-    #("instrument", SrcNull),
+    #("instrument", case payment_method.instrument {
+      Some(instrument) -> payments.instrument_source(instrument)
+      None -> SrcNull
+    }),
     #("revokedAt", optional_string_source(payment_method.revoked_at)),
     #("revokedReason", optional_string_source(payment_method.revoked_reason)),
     #("subscriptionContracts", empty_connection_source()),
