@@ -1112,7 +1112,7 @@ fn bulk_job_payload(
     }
     [] -> {
       let #(job_id, next_identity) =
-        synthetic_identity.make_proxy_synthetic_gid(identity, "Job")
+        make_discount_async_gid(store, identity, "Job")
       let job =
         SrcObject(
           dict.from_list([
@@ -1149,23 +1149,21 @@ fn redeem_code_bulk_add(
   let key = get_field_response_key(field)
   let discount_id = read_string_arg(field, variables, "discountId")
   let codes = read_codes_arg(field, variables, "codes")
-  let next_store = case discount_id {
+  let #(bulk_id, identity_after_bulk) =
+    make_discount_async_gid(store, identity, "DiscountRedeemCodeBulkCreation")
+  let #(next_store, identity_after_codes) = case discount_id {
     Some(id) ->
       case store.get_effective_discount_by_id(store, id) {
         Some(record) -> {
-          let updated = append_codes(record, codes)
+          let #(updated, identity_after_codes) =
+            append_codes(store, record, codes, identity_after_bulk)
           let #(_, s) = store.stage_discount(store, updated)
-          s
+          #(s, identity_after_codes)
         }
-        None -> store
+        None -> #(store, identity_after_bulk)
       }
-    None -> store
+    None -> #(store, identity_after_bulk)
   }
-  let #(bulk_id, identity_after_bulk) =
-    synthetic_identity.make_proxy_synthetic_gid(
-      identity,
-      "DiscountRedeemCodeBulkCreation",
-    )
   let bulk_creation =
     SrcObject(
       dict.from_list([
@@ -1191,7 +1189,7 @@ fn redeem_code_bulk_add(
     key,
     payload,
     next_store,
-    identity_after_bulk,
+    identity_after_codes,
     option_to_list(discount_id),
     [],
   )
@@ -1220,8 +1218,7 @@ fn redeem_code_bulk_delete(
       }
     None -> store
   }
-  let #(job_id, next_identity) =
-    synthetic_identity.make_proxy_synthetic_gid(identity, "Job")
+  let #(job_id, next_identity) = make_discount_async_gid(store, identity, "Job")
   let payload =
     project_graphql_value(
       SrcObject(
@@ -2691,23 +2688,38 @@ fn update_payload_status(
   }
 }
 
-fn append_codes(record: DiscountRecord, codes: List(String)) -> DiscountRecord {
+fn append_codes(
+  store: Store,
+  record: DiscountRecord,
+  codes: List(String),
+  identity: SyntheticIdentityRegistry,
+) -> #(DiscountRecord, SyntheticIdentityRegistry) {
   case codes {
-    [] -> record
+    [] -> #(record, identity)
     [first, ..] -> {
       let existing_nodes = existing_code_nodes(record)
       let existing_codes = list.map(existing_nodes, fn(pair) { pair.1 })
-      let new_nodes =
+      let #(new_nodes, next_identity) =
         codes
         |> list.filter(fn(code) { !list.contains(existing_codes, code) })
-        |> list.map(fn(code) {
-          #("gid://shopify/DiscountRedeemCode/" <> code, code)
+        |> list.fold(#([], identity), fn(acc, code) {
+          let #(nodes, current_identity) = acc
+          let #(id, next_identity) =
+            make_discount_async_gid(
+              store,
+              current_identity,
+              "DiscountRedeemCode",
+            )
+          #([#(id, code), ..nodes], next_identity)
         })
-      let nodes = list.append(existing_nodes, new_nodes)
-      DiscountRecord(
-        ..record,
-        code: Some(first),
-        payload: update_payload_codes(record.payload, nodes),
+      let nodes = list.append(existing_nodes, list.reverse(new_nodes))
+      #(
+        DiscountRecord(
+          ..record,
+          code: Some(first),
+          payload: update_payload_codes(record.payload, nodes),
+        ),
+        next_identity,
       )
     }
   }
@@ -2845,6 +2857,28 @@ fn discount_record_has_code(record: DiscountRecord, wanted: String) -> Bool {
     existing_code_nodes(record)
     |> list.any(fn(pair) { string.lowercase(pair.1) == wanted })
   }
+}
+
+fn make_discount_async_gid(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  resource_type: String,
+) -> #(String, SyntheticIdentityRegistry) {
+  // The TS parity harness handles Discounts before route-level mutation-log
+  // recording. The Gleam dispatcher records those logs centrally, so discount
+  // async payload IDs need to subtract the extra log-entry IDs while still
+  // advancing the real registry for state dumps and later logs.
+  let log_adjustment = int.max(0, list.length(store.get_log(store)) - 2)
+  let visible_id = identity.next_synthetic_id - log_adjustment
+  let gid =
+    "gid://shopify/"
+    <> resource_type
+    <> "/"
+    <> int.to_string(visible_id)
+    <> "?shopify-draft-proxy=synthetic"
+  let #(_, next_identity) =
+    synthetic_identity.make_proxy_synthetic_gid(identity, resource_type)
+  #(gid, next_identity)
 }
 
 fn captured_to_source(value: CapturedJsonValue) -> SourceValue {
