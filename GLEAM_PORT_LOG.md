@@ -9,6 +9,42 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 114: Admin Platform and Apps merge refresh
+
+Refreshes HAR-498 after `origin/main@ec8452e5` landed the Apps billing/access
+parity cutover. The merge keeps Admin Platform utility/node/taxonomy parity
+ungated while also preserving the new Apps node serializers, app lifecycle
+state behavior, and target-to-target parity variable substitution from main.
+
+| Module                                                     | Change                                                                                                              |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam` | Combines HAR-498 Product/Collection/Customer/Location/taxonomy/generic Node dispatch with mainline App-owned nodes. |
+| `config/gleam-port-ci-gates.json`                          | Leaves both Admin Platform and Apps billing/access scenarios out of the expected-failure gate.                      |
+| `GLEAM_PORT_LOG.md`                                        | Preserves parallel Admin Platform and Apps pass history and records this merge-refresh pass.                        |
+
+Validation:
+`corepack pnpm gleam:port:coverage` is green with 379 specs and 158 expected
+Gleam failures. `gleam test --target javascript` is green at 720 tests. Host
+`gleam test --target erlang` still fails with the known local `undef` runner
+issue; the Docker Erlang fallback with `HOME=/tmp` is green at 716 tests.
+`corepack pnpm lint`, `corepack pnpm gleam:registry:check`, and `git diff
+--check` are green.
+
+### Findings
+
+- Admin Platform and Apps both extend generic Relay Node dispatch in
+  `admin_platform.gleam`; the correct merge result keeps both families and
+  still lets owning resource serializers handle real resource nodes.
+- The expected-failure manifest must remove both the Admin Platform entries
+  completed by HAR-498 and the Apps billing/access entry completed on main.
+
+### Risks / open items
+
+- TypeScript runtime deletion remains deferred to the final all-port cutover
+  under the Gleam port preservation rule.
+
+---
+
 ## 2026-05-01 - Pass 113: Admin Platform mainline refresh
 
 Refreshes HAR-498 after `origin/main` landed the HAR-505 Marketing and
@@ -46,6 +82,75 @@ gleam:port:coverage` is green with 379 specs and 163 expected failures.
 
 - TypeScript runtime deletion remains deferred to the final all-port cutover
   under the Gleam port preservation rule.
+
+---
+
+## 2026-05-01 - Pass 113: apps billing/access parity cutover
+
+Completes the broader Apps billing/access parity scenario in the Gleam runner.
+Both checked-in app parity specs now execute against the Gleam proxy, including
+subscription billing lifecycle, one-time purchases, usage records, access-scope
+revocation, app uninstall read suppression, delegated-token create/destroy, and
+generic Admin Platform `node` reads for locally staged app resources.
+
+The TypeScript app runtime, legacy dispatcher wiring, and TS parity harness
+remain in place for this pass. Apps parity is now executable in Gleam, but the
+public TypeScript/Koa implementation is preserved until a later full-port
+cutover explicitly retires it.
+
+| Module                                                                                                         | Change                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/apps.gleam`                                                               | Exposes app-owned generic Node serializers for App, AppInstallation, AppPurchaseOneTime, AppSubscription, and AppUsageRecord.                |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`                                                     | Routes app-owned GIDs through the Apps serializers so multi-step billing parity can read staged app resources through `node(id:)`.           |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                                                              | Suppresses uninstalled app installations from effective/current reads and hides destroyed delegated tokens from token-hash lookup.           |
+| `gleam/test/parity/runner.gleam`                                                                               | Adds `fromProxyResponse` variable substitution so later targets can reference earlier named target responses, not only the primary response. |
+| `gleam/test/parity/diff.gleam`                                                                                 | Supports expected-difference paths with multiple `[*]` segments, needed for nested app subscription line item IDs.                           |
+| `config/gleam-port-ci-gates.json`, `gleam/test/parity_test.gleam`                                              | Removes Apps billing/access from the expected-failure gate so the discovered parity suite runs it as strict passing evidence.                |
+| `src/proxy/apps.ts`, `src/proxy/routes.ts`, `src/proxy/admin-platform.ts`, `scripts/conformance-parity-lib.ts` | Remains in place as the legacy TypeScript runtime and conformance harness until a later full-port cutover.                                   |
+
+Validation: `gleam test --target javascript` is green at 682 tests.
+`gleam test --target erlang` is green at 678 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container because the host
+lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
+
+### Findings
+
+- Broad app parity needed target-to-target variable references such as
+  `fromProxyResponse`, because delegated-token destroy and app-node reads depend
+  on responses produced by earlier non-primary targets.
+- Apps now exercise multi-wildcard expected-difference paths such as
+  `$.allSubscriptions.nodes[*].lineItems[*].id`; the Gleam diff matcher needed
+  to support more than one wildcard index segment.
+- Shopify-like downstream reads hide uninstalled app installations and destroyed
+  delegated tokens, while still leaving app identity records resolvable where
+  later node reads need them.
+
+### Risks / open items
+
+- The root TypeScript server remains the legacy shell for all runtime domains,
+  including Apps, until the full-port cutover retires TypeScript runtime code.
+- Several previously ported domains still have TypeScript runtime modules in
+  main and should be cut over only when the whole port is ready for that final
+  transition.
+
+### Pass 114 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Start Shipping/Fulfillments substrate so fulfillment-service, carrier-service,
+  delivery-profile, and shipping-settings roots can consume ported Location
+  state without reaching back into the TypeScript module.
+- Start Products publication substrate so Product and Collection publishable
+  projections can move from captured Store Properties rows into typed product
+  and collection records.
+- Continue Markets or Online Store ports where Store Properties shop/location
+  read effects are now available as local Gleam state.
+- Continue Marketing parity-runner seeding so captured Marketing read/update
+  scenarios can execute against the Gleam proxy.
+- Audit already-ported domains for final-cutover readiness without deleting
+  TypeScript runtime modules during incremental parity passes.
 
 ---
 
