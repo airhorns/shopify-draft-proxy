@@ -639,10 +639,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/segments/segments-baseline-read.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/shipping-fulfillments/assigned-fulfillment-orders-filtering-local-runtime.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
