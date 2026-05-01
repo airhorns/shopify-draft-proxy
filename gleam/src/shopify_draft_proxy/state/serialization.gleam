@@ -50,6 +50,9 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
       "deletedSellingPlanGroupIds",
       bool_dict_to_json(state.deleted_selling_plan_group_ids),
     ),
+    #("files", dict_to_json(state.files, file_json)),
+    #("fileOrder", json.array(state.file_order, json.string)),
+    #("deletedFileIds", bool_dict_to_json(state.deleted_file_ids)),
     #(
       "locations",
       dict_to_json(state.store_property_locations, store_property_record_json),
@@ -417,6 +420,9 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
       "deletedSellingPlanGroupIds",
       bool_dict_to_json(state.deleted_selling_plan_group_ids),
     ),
+    #("files", dict_to_json(state.files, file_json)),
+    #("fileOrder", json.array(state.file_order, json.string)),
+    #("deletedFileIds", bool_dict_to_json(state.deleted_file_ids)),
     #(
       "locations",
       dict_to_json(state.store_property_locations, store_property_record_json),
@@ -756,6 +762,25 @@ fn optional_float(value: Option(Float)) -> Json {
 
 fn optional_bool(value: Option(Bool)) -> Json {
   optional_to_json(value, json.bool)
+}
+
+fn file_json(record: types.FileRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("alt", optional_string(record.alt)),
+    #("contentType", optional_string(record.content_type)),
+    #("createdAt", json.string(record.created_at)),
+    #("fileStatus", json.string(record.file_status)),
+    #("filename", optional_string(record.filename)),
+    #("originalSource", json.string(record.original_source)),
+    #("imageUrl", optional_string(record.image_url)),
+    #("imageWidth", optional_int(record.image_width)),
+    #("imageHeight", optional_int(record.image_height)),
+    #(
+      "updateFailureAcknowledgedAt",
+      optional_string(record.update_failure_acknowledged_at),
+    ),
+  ])
 }
 
 fn dict_to_json(records: Dict(String, a), encode: fn(a) -> Json) -> Json {
@@ -2378,6 +2403,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     selling_plan_group_order: empty.selling_plan_group_order,
     deleted_selling_plan_group_ids: empty.deleted_selling_plan_group_ids,
     product_media: empty.product_media,
+    files: empty.files,
+    file_order: empty.file_order,
+    deleted_file_ids: empty.deleted_file_ids,
     collections: empty.collections,
     collection_order: empty.collection_order,
     product_collections: empty.product_collections,
@@ -2699,6 +2727,9 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     selling_plan_group_order: empty.selling_plan_group_order,
     deleted_selling_plan_group_ids: empty.deleted_selling_plan_group_ids,
     product_media: empty.product_media,
+    files: empty.files,
+    file_order: empty.file_order,
+    deleted_file_ids: empty.deleted_file_ids,
     collections: empty.collections,
     collection_order: empty.collection_order,
     product_collections: empty.product_collections,

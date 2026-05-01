@@ -238,6 +238,8 @@ fn seed_capture_preconditions(
       seed_localization_disable_cleanup_preconditions(capture, proxy)
     "marketing-baseline-read" ->
       seed_marketing_baseline_preconditions(capture, proxy)
+    "file-delete-product-media-live-parity" ->
+      seed_file_delete_product_media_preconditions(capture, proxy)
     "store-credit-account-local-staging" ->
       seed_store_credit_preconditions(capture, proxy)
     "customer-create-live-parity" ->
@@ -2014,6 +2016,49 @@ fn seed_product_media_preconditions(
       )
     })
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_file_delete_product_media_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath_string(
+      capture,
+      "$.setup.productCreate.response.data.productCreate.product.id",
+    )
+  {
+    Some(product_id) -> {
+      let product_title =
+        jsonpath_string(
+          capture,
+          "$.setup.productCreate.response.data.productCreate.product.title",
+        )
+        |> option.unwrap("Seed product")
+      let products = case
+        make_seed_product_relaxed(
+          JObject([
+            #("id", JString(product_id)),
+            #("title", JString(product_title)),
+          ]),
+        )
+      {
+        Ok(product) -> [product]
+        Error(_) -> []
+      }
+      let media =
+        seed_media_nodes_at(
+          capture,
+          "$.setup.productReadBeforeDelete.data.product.media.nodes",
+          product_id,
+        )
+      let store =
+        store_mod.upsert_base_products(proxy.store, products)
+        |> store_mod.replace_base_media_for_product(product_id, media)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    None -> proxy
+  }
 }
 
 fn seed_product_create_media_plan_preconditions(

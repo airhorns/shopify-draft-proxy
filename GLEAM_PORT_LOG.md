@@ -9,6 +9,51 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 113: HAR-506 Media files and uploads parity
+
+Promotes the Media parity slice into the Gleam runner. The port now stages
+Files API reads and file create/update/delete/acknowledge-failed mutations
+locally, produces captured staged-upload target shapes, and threads product
+media references through the local product-media overlay so downstream product
+reads observe file reference changes without runtime Shopify writes.
+
+| Module                                                  | Change                                                                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/media.gleam`       | Ports Files API reads, file mutations, staged upload targets, validation branches, and serializers. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes Media queries and mutations through the local Gleam dispatcher.                              |
+| `gleam/src/shopify_draft_proxy/state/*`                 | Adds the file store slice plus state serialization for base/staged files and deletion markers.      |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`    | Aligns product-media cursor serialization with captured Media parity.                               |
+| `gleam/test/parity/runner.gleam`                        | Seeds the captured product/media preconditions for the file-delete product-media parity scenario.   |
+| `config/gleam-port-ci-gates.json`                       | Removes all seven Media parity specs from the expected-failure manifest.                            |
+
+Validation:
+All seven checked-in Media parity specs pass via direct JS parity replay.
+Full JavaScript is green at 718 tests. Host Erlang remains unsuitable in this
+workspace because it is OTP 25 while current dependencies require OTP 27+; the
+established `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container fallback
+is green at 714 tests. `corepack pnpm lint`, `git diff --check`, `corepack pnpm
+gleam:port:coverage`, and `corepack pnpm gleam:registry:check` are green.
+Gleam parity coverage reports 379 checked-in specs and 169 expected failures.
+
+### Findings
+
+- Media expected-failure coverage dropped by seven specs; the remaining gates
+  are outside the Media slice.
+- `stagedUploadsCreate` remains a local target metadata contract in this port;
+  staged-upload HTTP route serving stays in the JavaScript HTTP backlog boundary
+  rather than expanding the Gleam/Elixir server scope.
+- The ticket's TypeScript media runtime deletion criterion is superseded during
+  this incremental pass by the Gleam Port Guardrail: the TypeScript runtime,
+  tests, dispatcher wiring, and conformance runners remain intact until the
+  explicit full-port cutover.
+
+### Risks / open items
+
+- TypeScript Media runtime retirement remains deferred to the final all-port
+  cutover acceptance bar.
+
+---
+
 ## 2026-05-01 - Pass 112: HAR-505 mainline refresh seeding
 
 Refreshes the HAR-505 Marketing branch after `origin/main` promoted the
