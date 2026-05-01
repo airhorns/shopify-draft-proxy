@@ -9,6 +9,46 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 156: return request decline staging
+
+Promotes the local-runtime requested-return decline scenario in the Gleam
+Orders domain. This pass adds `returnDeclineRequest` handling for captured
+requested returns, preserving local-only notification boundaries while staging
+the Shopify-like `DECLINED` return state and decline reason/note payload.
+
+| Module                                             | Change                                          |
+| -------------------------------------------------- | ----------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds `returnDeclineRequest` mutation staging.   |
+| `config/gleam-port-ci-gates.json`                  | Removes the newly passing request-decline spec. |
+| `.agents/skills/gleam-port/SKILL.md`               | Records requested-return decline staging notes. |
+
+Validation:
+
+- Reproduction with `return-request-decline-local-staging` ungated first failed
+  at missing local dispatcher support for `returnDeclineRequest`.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- Decline is a state transition on the existing order-backed return JSON. The
+  handler should reject missing or non-`REQUESTED` returns, then stage
+  `status: DECLINED` with the captured decline `reason` and `note`.
+- Notification side effects are intentionally not modeled; the parity scenario
+  only asserts the local mutation payload and no upstream passthrough.
+
+### Risks / open items
+
+- Reverse-logistics return roots remain gated.
+- Direct order delete success and broader fulfillment creation workflows remain
+  outside the promoted parity set.
+
+### Pass 157 candidates
+
+- Port `return-reverse-logistics-local-staging`; if it proves too broad, split
+  request approval from reverse delivery/disposal/process roots.
+
+---
+
 ## 2026-05-01 - Pass 155: remove from return staging
 
 Promotes the local-runtime `removeFromReturn` scenario in the Gleam Orders

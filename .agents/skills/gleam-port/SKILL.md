@@ -678,6 +678,11 @@ synthetic-id/timestamp expected differences.
   line items. Preserve existing reverse fulfillment line IDs when the
   corresponding return line remains; only mint a new reverse line ID if a
   future fixture introduces a retained return line that lacks a reverse line.
+- `returnDeclineRequest` is a narrow requested-return state transition. Read
+  `input.id`, require the target return's status to be `REQUESTED`, then stage
+  `status: DECLINED` and a `decline` object with nullable captured `reason` and
+  `note`. Do not model notification delivery; the local-runtime parity scenario
+  asserts only the staged return payload and no upstream passthrough.
 
 ## Workflow for a new pass
 

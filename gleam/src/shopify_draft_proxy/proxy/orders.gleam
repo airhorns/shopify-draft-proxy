@@ -122,6 +122,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "orderUpdate",
       "refundCreate",
       "removeFromReturn",
+      "returnDeclineRequest",
       "returnCancel",
       "returnClose",
       "returnCreate",
@@ -1756,6 +1757,7 @@ pub fn process_mutation(
           || name.value == "returnClose"
           || name.value == "returnReopen"
           || name.value == "removeFromReturn"
+          || name.value == "returnDeclineRequest"
         -> {
           let #(
             key,
@@ -4911,6 +4913,40 @@ fn handle_return_lifecycle_mutation(
         return_log_draft(root_name, staged_ids, user_errors),
       ])
     }
+    "returnDeclineRequest" -> {
+      let args = field_arguments(field, variables)
+      let result =
+        apply_return_decline_request(
+          store,
+          identity,
+          read_object(args, "input"),
+        )
+      let ReturnMutationResult(
+        order,
+        order_return,
+        next_store,
+        next_identity,
+        user_errors,
+      ) = result
+      let payload =
+        serialize_return_mutation_payload(
+          field,
+          order_return,
+          order,
+          user_errors,
+          fragments,
+        )
+      let staged_ids = case order_return {
+        Some(value) ->
+          captured_string_field(value, "id")
+          |> option.map(fn(id) { [id] })
+          |> option.unwrap([])
+        None -> []
+      }
+      #(key, payload, next_store, next_identity, staged_ids, [
+        return_log_draft(root_name, staged_ids, user_errors),
+      ])
+    }
     _ -> #(key, json.null(), store, identity, [], [])
   }
 }
@@ -5243,6 +5279,87 @@ fn apply_return_line_item_removal(
       }
     }
   })
+}
+
+fn apply_return_decline_request(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Option(Dict(String, root_field.ResolvedValue)),
+) -> ReturnMutationResult {
+  let return_id = case input {
+    Some(input) -> read_string(input, "id")
+    None -> None
+  }
+  case return_id {
+    None ->
+      ReturnMutationResult(None, None, store, identity, [
+        #(["input", "id"], "Return does not exist."),
+      ])
+    Some(return_id) ->
+      case find_order_return(store, return_id) {
+        None ->
+          ReturnMutationResult(None, None, store, identity, [
+            #(["input", "id"], "Return does not exist."),
+          ])
+        Some(match) -> {
+          let #(order, order_return) = match
+          case captured_string_field(order_return, "status") {
+            Some("REQUESTED") -> {
+              let input_fields = input |> option.unwrap(dict.new())
+              let declined_return =
+                replace_captured_object_fields(order_return, [
+                  #("status", CapturedString("DECLINED")),
+                  #(
+                    "decline",
+                    CapturedObject([
+                      #(
+                        "reason",
+                        optional_captured_string(read_string(
+                          input_fields,
+                          "declineReason",
+                        )),
+                      ),
+                      #(
+                        "note",
+                        optional_captured_string(read_string(
+                          input_fields,
+                          "declineNote",
+                        )),
+                      ),
+                    ]),
+                  ),
+                ])
+              let returns =
+                order_returns(order.data)
+                |> list.map(fn(candidate) {
+                  case
+                    captured_string_field(candidate, "id") == Some(return_id)
+                  {
+                    True -> declined_return
+                    False -> candidate
+                  }
+                })
+              let #(next_store, next_identity, updated_order) =
+                stage_order_with_returns(store, identity, order, returns)
+              ReturnMutationResult(
+                Some(updated_order),
+                Some(declined_return),
+                next_store,
+                next_identity,
+                [],
+              )
+            }
+            _ ->
+              ReturnMutationResult(Some(order), None, store, identity, [
+                #(
+                  ["input", "id"],
+                  "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+                ),
+              ])
+          }
+        }
+      }
+  }
 }
 
 fn build_return_line_items(
