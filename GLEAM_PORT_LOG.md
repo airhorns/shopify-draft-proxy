@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-01 - Pass 115: discounts lifecycle parity
+## 2026-05-01 - Pass 117: discounts lifecycle parity
 
 Promotes the Discounts domain into the Gleam parity suite. The port now stages
 discount catalog/detail reads, automatic and code discount lifecycle mutations,
@@ -56,14 +56,14 @@ final all-port cutover.
   authorize deleting the TypeScript Discounts runtime before the broader
   whole-port cutover acceptance bar is met.
 
-### Pass 116 candidates
+### Pass 118 candidates
 
 - Continue with the next expected-failing non-Product domain from
   `config/gleam-port-ci-gates.json`.
 
 ---
 
-## 2026-05-01 - Pass 114: segments baseline and member parity
+## 2026-05-01 - Pass 116: segments baseline and member parity
 
 Completes the next Segments Gleam parity pass while preserving the TypeScript
 runtime and TypeScript tests for the incremental port. The segment baseline
@@ -109,7 +109,7 @@ the current `origin/main`.
 
 ---
 
-## 2026-05-01 — Pass 113: apps billing/access parity cutover
+## 2026-05-01 — Pass 115: apps billing/access parity cutover
 
 Completes the broader Apps billing/access parity scenario in the Gleam runner.
 Both checked-in app parity specs now execute against the Gleam proxy, including
@@ -157,7 +157,7 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
   main and should be cut over only when the whole port is ready for that final
   transition.
 
-### Pass 115 candidates
+### Pass 116 candidates
 
 - Port product-owned `metafieldDelete` / `metafieldsDelete` and their
   hydrated/downstream deletion flows into Gleam.
@@ -178,7 +178,7 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
 
 ---
 
-## 2026-05-01 - Pass 112: HAR-505 mainline refresh seeding
+## 2026-05-01 - Pass 114: HAR-505 mainline refresh seeding
 
 Refreshes the HAR-505 Marketing branch after `origin/main` promoted the
 remaining Product parity gates. The conflict resolution preserves the branch's
@@ -213,6 +213,113 @@ Gleam parity coverage reports 379 checked-in specs and 176 expected failures.
 
 - TypeScript Marketing runtime deletion remains deferred to HAR-518 under the
   incremental port preservation rule.
+
+---
+
+## 2026-04-30 — Pass 113: state dump completeness proof
+
+Extends the HAR-522 rework so the Gleam dump/restore substrate can answer the
+review question directly: current state dumps now use strict base/staged state
+decoders that require every serialized state bucket to be present. Snapshot
+restore keeps the permissive decoder path because TypeScript snapshots remain
+incremental while the port lands domain-by-domain.
+
+The serializer now exposes field-name inventories derived from the actual
+`baseState` and `stagedState` JSON field lists. Restore tests remove every
+serialized bucket name from a real dump, one by one, and assert restore fails as
+malformed. That makes newly serialized state buckets automatically enter the
+missing-field coverage instead of relying on a manually maintained test list.
+
+| Module                                                        | Change                                                                                                                                           |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`     | Exposes serializer-derived base/staged state dump field inventories and strict current-dump decoders that require each serialized bucket key.    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Uses strict base/staged state decoders for `restore_state` while leaving `restore_snapshot` on the existing permissive snapshot-compatible path. |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | Adds exhaustive missing-bucket tests for every serialized base/staged state field plus a whole-runtime dump round-trip assertion.                |
+
+Validation after merging `origin/main@cf7be0ae`: `corepack pnpm
+gleam:registry:check`, `corepack pnpm gleam:port:coverage`, `corepack pnpm
+lint`, `corepack pnpm typecheck`, `corepack pnpm build`, `corepack pnpm
+conformance:check`, `corepack pnpm conformance:parity`, `corepack pnpm
+conformance:capture:check`, `corepack pnpm gleam:test:js`, `corepack pnpm
+gleam:smoke:js`, and `git diff --check` are green. The JS target is green at
+683 tests. The Erlang target is green at 679 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`.
+
+### Findings
+
+- The previous Pass 112 guard made `baseState`, `stagedState`, and
+  `mutationLog` required top-level store fields, but the base/staged state
+  decoders still shared permissive snapshot defaults for inner buckets.
+- Strictness needs to be scoped to current state dumps. Snapshot restore must
+  keep accepting partial TypeScript snapshot files until the port owns every
+  bucket and fixture shape.
+- The post-merge parity gate showed
+  `localization-disable-clears-translations` now passes in the Gleam suite, so
+  its stale expected-failure entry was removed from the port gate manifest.
+
+### Risks / open items
+
+- This pass guarantees that anything currently serialized as part of
+  `baseState` or `stagedState` is required during dump restore. Gleam has no
+  runtime reflection over record fields, so future state fields still need to be
+  added to the serializer; once serialized, the meta-test makes missing restore
+  coverage automatic.
+
+---
+
+## 2026-04-30 — Pass 112: strict runtime state restore guards
+
+Tightens the runtime state dump/restore substrate added in Pass 36. The Gleam
+restore path now treats the current store field dump as a required structural
+contract: `baseState`, `stagedState`, and `mutationLog` must all be present in
+the versioned store envelope instead of silently defaulting missing fields to an
+empty store. This keeps incomplete dumps from erasing modeled state during
+restore and makes newly modeled store buckets safer because the top-level store
+dump shape cannot drift without a decoder failure.
+
+This pass is also the rework for HAR-522 after reviewer feedback clarified that
+the ticket belongs to the Gleam port, not the legacy TypeScript implementation.
+The earlier TypeScript-only strict-restore patch was reverted on the PR branch;
+the shipping TypeScript runtime remains unchanged while the Gleam port gains
+the missing guard.
+
+| Module                                                        | Change                                                                                                                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Requires `baseState`, `stagedState`, and `mutationLog` when restoring a store field dump instead of applying empty defaults for omitted fields.        |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | Builds negative restore fixtures from a real default dump and adds coverage that each required store field returns `MalformedDumpJson(_)` when absent. |
+
+Validation after merging `origin/main@606459f1`: `corepack pnpm
+gleam:registry:check`, `corepack pnpm gleam:port:coverage`, `corepack pnpm
+lint`, `corepack pnpm typecheck`, `corepack pnpm conformance:check`,
+`corepack pnpm conformance:parity`, `corepack pnpm conformance:capture:check`,
+`corepack pnpm conformance:status -- --output-json
+.conformance/current/conformance-status-report.json --output-markdown
+.conformance/current/conformance-status-comment.md`, `corepack pnpm build`,
+`corepack pnpm gleam:test:js`, `corepack pnpm gleam:smoke:js`, and
+`git diff --check` are green. The JS target is green at 677 tests. The Erlang
+target is green at 673 tests via
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine`, and the Elixir smoke is
+green at 17 tests via `ghcr.io/gleam-lang/gleam:v1.16.0-elixir-alpine`,
+because the host Erlang runtime is OTP 25 and `gleam_json` requires OTP 27+.
+
+### Findings
+
+- The existing Gleam decoder used optional store fields as backwards-compatible
+  defaults, but the current state-dump schema is the active runtime contract;
+  defaulting missing `baseState`, `stagedState`, or `mutationLog` would erase
+  internal state without surfacing a malformed dump.
+- Older malformed-dump tests used hand-written store fragments that omitted the
+  current required fields. Building those fixtures from `dump_state` keeps each
+  test focused on the intended invalid field.
+
+### Risks / open items
+
+- This pass guards the current store envelope shape; per-bucket omission inside
+  `baseState` and `stagedState` remains governed by the incremental snapshot
+  and state serializer decoders from Pass 36.
+- Root-owned Docker validation can leave `gleam/build` owned by root on the
+  host. The local workspace needed ownership repaired before rerunning the JS
+  target after the Erlang container pass.
 
 ---
 
@@ -4289,7 +4396,7 @@ Gleam parity suite after this pass.
 - Only 10 of 115 checked-in product parity specs are enabled by the Gleam
   parity suite after this pass.
 
-### Pass 46 candidates
+### Pass 48 candidates
 
 - Add `ProductOption` / `ProductOptionValue` node resolution for admin-platform
   product option node reads.
@@ -6312,7 +6419,12 @@ TypeScript `gleam-interop` Vitest smoke is green.
 
 - The parity runner can stay spec-compatible without mutating
   `config/parity-specs/**`: seed decisions live in runner code, keyed
-  by scenario id, and decode only data already present in the capture.
+  by capture-shape markers (helpers self-gate on JSON paths that
+  uniquely identify the capture family), and decode only data already
+  present in the capture. Pass 27 originally keyed seeding by scenario
+  id; that approach was retired so new parity specs can land without
+  touching runner dispatch — see SKILL.md "Parity runner capture
+  seeding" for the current contract.
 - Gift-card search must preserve TS's permissive unknown-field
   behavior. Some fields, such as `updated_at`, are intentionally not
   interpreted even when the query uses them.
