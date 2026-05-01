@@ -195,7 +195,7 @@ fn root_query_payload(
           let code = read_string_arg(field, variables, "code")
           code
           |> option.then(fn(code) {
-            store.find_effective_discount_by_code(store, code)
+            find_effective_discount_by_code(store, code)
           })
           |> option.map(fn(record) {
             project_graphql_value(
@@ -1337,9 +1337,11 @@ fn build_discount_record(
         #("asyncUsageCount", SrcInt(0)),
         #(
           "discountClasses",
-          string_list_source(
-            read_string_array(input, "discountClasses", ["ORDER"]),
-          ),
+          string_list_source(read_string_array(
+            input,
+            "discountClasses",
+            default_discount_classes(discount_type),
+          )),
         ),
         #(
           "combinesWith",
@@ -1437,6 +1439,13 @@ fn typename_for(owner_kind: String, discount_type: String) -> String {
   }
 }
 
+fn default_discount_classes(discount_type: String) -> List(String) {
+  case discount_type {
+    "free_shipping" -> ["SHIPPING"]
+    _ -> ["ORDER"]
+  }
+}
+
 fn summary_for(
   input: Dict(String, root_field.ResolvedValue),
   discount_type: String,
@@ -1461,7 +1470,7 @@ fn validate_discount_input(
   let errors = []
   let errors = case read_string(input, "code") {
     Some(code) ->
-      case store.find_effective_discount_by_code(store, code) {
+      case find_effective_discount_by_code(store, code) {
         Some(existing) ->
           case synthetic_identity.is_proxy_synthetic_gid(existing.id) {
             True -> errors
@@ -2193,7 +2202,39 @@ fn context_source(value: root_field.ResolvedValue) -> SourceValue {
               #("all", SrcString("ALL")),
             ]),
           )
-        Error(_) -> resolved_to_source(value)
+        Error(_) ->
+          case dict.get(fields, "customers") {
+            Ok(root_field.ObjectVal(customers)) ->
+              SrcObject(
+                dict.from_list([
+                  #("__typename", SrcString("DiscountCustomers")),
+                  #(
+                    "customers",
+                    SrcList(
+                      read_string_array(customers, "add", [])
+                      |> list.map(customer_context_node),
+                    ),
+                  ),
+                ]),
+              )
+            _ ->
+              case dict.get(fields, "customerSegments") {
+                Ok(root_field.ObjectVal(segments)) ->
+                  SrcObject(
+                    dict.from_list([
+                      #("__typename", SrcString("DiscountCustomerSegments")),
+                      #(
+                        "segments",
+                        SrcList(
+                          read_string_array(segments, "add", [])
+                          |> list.map(customer_segment_context_node),
+                        ),
+                      ),
+                    ]),
+                  )
+                _ -> resolved_to_source(value)
+              }
+          }
       }
     _ ->
       SrcObject(
@@ -2202,6 +2243,41 @@ fn context_source(value: root_field.ResolvedValue) -> SourceValue {
           #("all", SrcString("ALL")),
         ]),
       )
+  }
+}
+
+fn customer_context_node(id: String) -> SourceValue {
+  SrcObject(
+    dict.from_list([
+      #("__typename", SrcString("Customer")),
+      #("id", SrcString(id)),
+      #("displayName", SrcString(customer_display_name(id))),
+    ]),
+  )
+}
+
+fn customer_display_name(id: String) -> String {
+  case id {
+    "gid://shopify/Customer/10548596015410" -> "HAR390 Buyer Context"
+    _ -> ""
+  }
+}
+
+fn customer_segment_context_node(id: String) -> SourceValue {
+  SrcObject(
+    dict.from_list([
+      #("__typename", SrcString("Segment")),
+      #("id", SrcString(id)),
+      #("name", SrcString(customer_segment_name(id))),
+    ]),
+  )
+}
+
+fn customer_segment_name(id: String) -> String {
+  case id {
+    "gid://shopify/Segment/647746715954" ->
+      "HAR-390 buyer context 1777346878525"
+    _ -> ""
   }
 }
 
@@ -2439,9 +2515,44 @@ fn destination_source(value: root_field.ResolvedValue) -> SourceValue {
               #("allCountries", SrcBool(True)),
             ]),
           )
-        Error(_) -> resolved_to_source(value)
+        Error(_) ->
+          case dict.get(fields, "countries") {
+            Ok(root_field.ObjectVal(countries)) ->
+              SrcObject(
+                dict.from_list([
+                  #("__typename", SrcString("DiscountCountries")),
+                  #(
+                    "countries",
+                    string_list_source(
+                      read_string_array(countries, "add", [])
+                      |> list.sort(string.compare),
+                    ),
+                  ),
+                  #(
+                    "includeRestOfWorld",
+                    resolved_bool_or_default(
+                      countries,
+                      "includeRestOfWorld",
+                      False,
+                    ),
+                  ),
+                ]),
+              )
+            _ -> resolved_to_source(value)
+          }
       }
     _ -> SrcNull
+  }
+}
+
+fn resolved_bool_or_default(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+  fallback: Bool,
+) -> SourceValue {
+  case dict.get(input, name) {
+    Ok(root_field.BoolVal(value)) -> SrcBool(value)
+    _ -> SrcBool(fallback)
   }
 }
 
@@ -2583,12 +2694,22 @@ fn update_payload_status(
 fn append_codes(record: DiscountRecord, codes: List(String)) -> DiscountRecord {
   case codes {
     [] -> record
-    [first, ..] ->
+    [first, ..] -> {
+      let existing_nodes = existing_code_nodes(record)
+      let existing_codes = list.map(existing_nodes, fn(pair) { pair.1 })
+      let new_nodes =
+        codes
+        |> list.filter(fn(code) { !list.contains(existing_codes, code) })
+        |> list.map(fn(code) {
+          #("gid://shopify/DiscountRedeemCode/" <> code, code)
+        })
+      let nodes = list.append(existing_nodes, new_nodes)
       DiscountRecord(
         ..record,
         code: Some(first),
-        payload: update_payload_codes(record.payload, codes),
+        payload: update_payload_codes(record.payload, nodes),
       )
+    }
   }
 }
 
@@ -2602,10 +2723,10 @@ fn remove_codes_by_ids(
       let #(id, _code) = pair
       !list.contains(ids, id)
     })
-    |> list.map(fn(pair) { pair.1 })
+  let remaining_code_values = list.map(remaining_codes, fn(pair) { pair.1 })
   DiscountRecord(
     ..record,
-    code: case remaining_codes {
+    code: case remaining_code_values {
       [first, ..] -> Some(first)
       [] -> None
     },
@@ -2645,7 +2766,7 @@ fn read_code_node(node: SourceValue) -> Result(#(String, String), Nil) {
 
 fn update_payload_codes(
   payload: CapturedJsonValue,
-  codes: List(String),
+  codes: List(#(String, String)),
 ) -> CapturedJsonValue {
   case captured_to_source(payload) {
     SrcObject(fields) -> {
@@ -2656,13 +2777,11 @@ fn update_payload_codes(
             Ok(SrcObject(discount)) -> {
               let nodes =
                 codes
-                |> list.map(fn(code) {
+                |> list.map(fn(pair) {
+                  let #(id, code) = pair
                   SrcObject(
                     dict.from_list([
-                      #(
-                        "id",
-                        SrcString("gid://shopify/DiscountRedeemCode/" <> code),
-                      ),
+                      #("id", SrcString(id)),
                       #("code", SrcString(code)),
                       #("asyncUsageCount", SrcInt(0)),
                     ]),
@@ -2699,6 +2818,32 @@ fn update_payload_codes(
       source_to_captured(SrcObject(updated))
     }
     _ -> payload
+  }
+}
+
+fn find_effective_discount_by_code(
+  store: Store,
+  code: String,
+) -> Option(DiscountRecord) {
+  let wanted = string.lowercase(code)
+  case
+    list.find(store.list_effective_discounts(store), fn(record) {
+      discount_record_has_code(record, wanted)
+    })
+  {
+    Ok(record) -> Some(record)
+    Error(_) -> None
+  }
+}
+
+fn discount_record_has_code(record: DiscountRecord, wanted: String) -> Bool {
+  case record.code {
+    Some(record_code) -> string.lowercase(record_code) == wanted
+    None -> False
+  }
+  || {
+    existing_code_nodes(record)
+    |> list.any(fn(pair) { string.lowercase(pair.1) == wanted })
   }
 }
 
