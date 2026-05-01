@@ -109,6 +109,33 @@ pub type CapturedJsonValue {
   CapturedObject(List(#(String, CapturedJsonValue)))
 }
 
+pub type AbandonedCheckoutRecord {
+  AbandonedCheckoutRecord(
+    id: String,
+    cursor: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+pub type AbandonmentDeliveryActivityRecord {
+  AbandonmentDeliveryActivityRecord(
+    marketing_activity_id: String,
+    delivery_status: String,
+    delivered_at: Option(String),
+    delivery_status_change_reason: Option(String),
+  )
+}
+
+pub type AbandonmentRecord {
+  AbandonmentRecord(
+    id: String,
+    abandoned_checkout_id: Option(String),
+    cursor: Option(String),
+    data: CapturedJsonValue,
+    delivery_activities: Dict(String, AbandonmentDeliveryActivityRecord),
+  )
+}
+
 pub type InventoryWeightValue {
   InventoryWeightInt(Int)
   InventoryWeightFloat(Float)

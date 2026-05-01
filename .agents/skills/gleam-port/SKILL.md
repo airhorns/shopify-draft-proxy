@@ -411,6 +411,14 @@ synthetic-id/timestamp expected differences.
   `proxy/privacy.gleam`; seed its parity capture from the downstream customer
   read so the proxy returns the captured customer id without broadening shop
   privacy settings support.
+- Orders abandonment parity can start with the safe abandoned-checkout slice:
+  `abandonedCheckouts`, `abandonedCheckoutsCount`, `abandonment`,
+  `abandonmentByAbandonedCheckoutId`, and
+  `abandonmentUpdateActivitiesDeliveryStatuses`. Keep this dispatch predicate
+  narrow until draft orders, order lifecycle, fulfillments, refunds, and returns
+  have their own executable parity. Unknown-abandonment delivery status updates
+  are a handled local validation branch with a `Failed` mutation-log draft, not
+  a reason to claim broader orders mutation support.
 
 ## Workflow for a new pass
 

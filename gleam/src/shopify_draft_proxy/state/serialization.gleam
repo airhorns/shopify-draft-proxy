@@ -28,6 +28,16 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #(
+      "abandonedCheckouts",
+      dict_to_json(state.abandoned_checkouts, abandoned_checkout_json),
+    ),
+    #(
+      "abandonedCheckoutOrder",
+      json.array(state.abandoned_checkout_order, json.string),
+    ),
+    #("abandonments", dict_to_json(state.abandonments, abandonment_json)),
+    #("abandonmentOrder", json.array(state.abandonment_order, json.string)),
     #("products", dict_to_json(state.products, product_json)),
     #("productOrder", json.array(state.product_order, json.string)),
     #(
@@ -395,6 +405,16 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #(
+      "abandonedCheckouts",
+      dict_to_json(state.abandoned_checkouts, abandoned_checkout_json),
+    ),
+    #(
+      "abandonedCheckoutOrder",
+      json.array(state.abandoned_checkout_order, json.string),
+    ),
+    #("abandonments", dict_to_json(state.abandonments, abandonment_json)),
+    #("abandonmentOrder", json.array(state.abandonment_order, json.string)),
     #("products", dict_to_json(state.products, product_json)),
     #("productOrder", json.array(state.product_order, json.string)),
     #(
@@ -1099,6 +1119,44 @@ fn product_category_json(record: types.ProductCategoryRecord) -> Json {
   json.object([
     #("id", json.string(record.id)),
     #("fullName", json.string(record.full_name)),
+  ])
+}
+
+fn abandoned_checkout_json(record: types.AbandonedCheckoutRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn abandonment_delivery_activity_json(
+  record: types.AbandonmentDeliveryActivityRecord,
+) -> Json {
+  json.object([
+    #("marketingActivityId", json.string(record.marketing_activity_id)),
+    #("deliveryStatus", json.string(record.delivery_status)),
+    #("deliveredAt", optional_string(record.delivered_at)),
+    #(
+      "deliveryStatusChangeReason",
+      optional_string(record.delivery_status_change_reason),
+    ),
+  ])
+}
+
+fn abandonment_json(record: types.AbandonmentRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("abandonedCheckoutId", optional_string(record.abandoned_checkout_id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+    #(
+      "deliveryActivities",
+      dict_to_json(
+        record.delivery_activities,
+        abandonment_delivery_activity_json,
+      ),
+    ),
   ])
 }
 
@@ -2201,6 +2259,13 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     empty.shop,
     decode.optional(shop_decoder()),
   )
+  use abandoned_checkouts <- dict_field(
+    "abandonedCheckouts",
+    abandoned_checkout_decoder(),
+  )
+  use abandoned_checkout_order <- string_list_field("abandonedCheckoutOrder")
+  use abandonments <- dict_field("abandonments", abandonment_decoder())
+  use abandonment_order <- string_list_field("abandonmentOrder")
   use store_property_locations <- dict_field(
     "locations",
     store_property_record_decoder(),
@@ -2394,6 +2459,10 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     deleted_product_feed_ids: empty.deleted_product_feed_ids,
     product_resource_feedback: empty.product_resource_feedback,
     shop_resource_feedback: empty.shop_resource_feedback,
+    abandoned_checkouts: abandoned_checkouts,
+    abandoned_checkout_order: abandoned_checkout_order,
+    abandonments: abandonments,
+    abandonment_order: abandonment_order,
     inventory_transfers: empty.inventory_transfers,
     inventory_transfer_order: empty.inventory_transfer_order,
     deleted_inventory_transfer_ids: empty.deleted_inventory_transfer_ids,
@@ -2525,6 +2594,13 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     empty.shop,
     decode.optional(shop_decoder()),
   )
+  use abandoned_checkouts <- dict_field(
+    "abandonedCheckouts",
+    abandoned_checkout_decoder(),
+  )
+  use abandoned_checkout_order <- string_list_field("abandonedCheckoutOrder")
+  use abandonments <- dict_field("abandonments", abandonment_decoder())
+  use abandonment_order <- string_list_field("abandonmentOrder")
   use store_property_locations <- dict_field(
     "locations",
     store_property_record_decoder(),
@@ -2712,6 +2788,10 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     deleted_product_feed_ids: empty.deleted_product_feed_ids,
     product_resource_feedback: empty.product_resource_feedback,
     shop_resource_feedback: empty.shop_resource_feedback,
+    abandoned_checkouts: abandoned_checkouts,
+    abandoned_checkout_order: abandoned_checkout_order,
+    abandonments: abandonments,
+    abandonment_order: abandonment_order,
     inventory_transfers: empty.inventory_transfers,
     inventory_transfer_order: empty.inventory_transfer_order,
     deleted_inventory_transfer_ids: empty.deleted_inventory_transfer_ids,
@@ -2866,6 +2946,67 @@ fn runtime_json_decoder() -> Decoder(Json) {
   decode.dynamic |> decode.map(runtime_json_from_dynamic)
 }
 
+fn captured_json_value_decoder() -> Decoder(types.CapturedJsonValue) {
+  decode.dynamic |> decode.map(captured_json_value_from_dynamic)
+}
+
+fn captured_json_value_from_dynamic(value: Dynamic) -> types.CapturedJsonValue {
+  case decode.run(value, decode.bool) {
+    Ok(b) -> types.CapturedBool(b)
+    Error(_) -> captured_json_value_from_non_bool_dynamic(value)
+  }
+}
+
+fn captured_json_value_from_non_bool_dynamic(
+  value: Dynamic,
+) -> types.CapturedJsonValue {
+  case decode.run(value, decode.optional(decode.dynamic)) {
+    Ok(None) -> types.CapturedNull
+    _ -> captured_json_value_from_present_dynamic(value)
+  }
+}
+
+fn captured_json_value_from_present_dynamic(
+  value: Dynamic,
+) -> types.CapturedJsonValue {
+  case decode.run(value, decode.int) {
+    Ok(i) -> types.CapturedInt(i)
+    Error(_) ->
+      case decode.run(value, decode.float) {
+        Ok(f) -> types.CapturedFloat(f)
+        Error(_) ->
+          case decode.run(value, decode.string) {
+            Ok(s) -> types.CapturedString(s)
+            Error(_) ->
+              case decode.run(value, decode.list(decode.dynamic)) {
+                Ok(items) ->
+                  types.CapturedArray(list.map(
+                    items,
+                    captured_json_value_from_dynamic,
+                  ))
+                Error(_) ->
+                  case
+                    decode.run(
+                      value,
+                      decode.dict(decode.string, decode.dynamic),
+                    )
+                  {
+                    Ok(fields) ->
+                      types.CapturedObject(
+                        fields
+                        |> dict.to_list()
+                        |> list.map(fn(pair) {
+                          #(pair.0, captured_json_value_from_dynamic(pair.1))
+                        }),
+                      )
+                    Error(_) -> types.CapturedNull
+                  }
+              }
+          }
+      }
+  }
+}
+
 fn runtime_json_from_dynamic(value: Dynamic) -> Json {
   case decode.run(value, decode.bool) {
     Ok(b) -> json.bool(b)
@@ -2911,6 +3052,56 @@ fn runtime_json_from_present_dynamic(value: Dynamic) -> Json {
 
 fn float_decoder() -> Decoder(Float) {
   decode.one_of(decode.float, or: [decode.int |> decode.map(int.to_float)])
+}
+
+fn abandoned_checkout_decoder() -> Decoder(types.AbandonedCheckoutRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  decode.success(types.AbandonedCheckoutRecord(
+    id: id,
+    cursor: cursor,
+    data: data,
+  ))
+}
+
+fn abandonment_delivery_activity_decoder() -> Decoder(
+  types.AbandonmentDeliveryActivityRecord,
+) {
+  use marketing_activity_id <- decode.field(
+    "marketingActivityId",
+    decode.string,
+  )
+  use delivery_status <- decode.field("deliveryStatus", decode.string)
+  use delivered_at <- optional_string_field("deliveredAt")
+  use delivery_status_change_reason <- optional_string_field(
+    "deliveryStatusChangeReason",
+  )
+  decode.success(types.AbandonmentDeliveryActivityRecord(
+    marketing_activity_id: marketing_activity_id,
+    delivery_status: delivery_status,
+    delivered_at: delivered_at,
+    delivery_status_change_reason: delivery_status_change_reason,
+  ))
+}
+
+fn abandonment_decoder() -> Decoder(types.AbandonmentRecord) {
+  use id <- decode.field("id", decode.string)
+  use abandoned_checkout_id <- optional_string_field("abandonedCheckoutId")
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  use delivery_activities <- optional_field(
+    "deliveryActivities",
+    dict.new(),
+    decode.dict(decode.string, abandonment_delivery_activity_decoder()),
+  )
+  decode.success(types.AbandonmentRecord(
+    id: id,
+    abandoned_checkout_id: abandoned_checkout_id,
+    cursor: cursor,
+    data: data,
+    delivery_activities: delivery_activities,
+  ))
 }
 
 fn backup_region_decoder() -> Decoder(types.BackupRegionRecord) {

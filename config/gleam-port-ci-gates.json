@@ -323,14 +323,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/orders/abandoned-checkout-empty-read.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/orders/abandonment-delivery-status-unknown.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/orders/draft-order-by-id-not-found-read.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },

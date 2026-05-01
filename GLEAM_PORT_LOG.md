@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 112: orders abandonment no-data parity
+
+Starts the Orders Gleam domain with the narrow abandoned-checkout and
+abandonment slice backed by checked-in parity evidence. The dispatcher now
+claims only `abandonedCheckouts`, `abandonedCheckoutsCount`, `abandonment`,
+`abandonmentByAbandonedCheckoutId`, and
+`abandonmentUpdateActivitiesDeliveryStatuses`; all broader orders, draft-order,
+fulfillment, refund, and return roots stay gated until their lifecycle behavior
+is ported.
+
+| Module                                                    | Change                                                                                                       |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`        | Adds abandoned-checkout empty reads/counts, abandonment lookup reads, and unknown-id delivery-status errors. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`   | Wires the narrow Orders dispatch roots without claiming the rest of the domain.                              |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds captured abandoned-checkout and abandonment state records.                                              |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds instance-owned abandoned-checkout/abandonment base and staged slices plus delivery activity staging.    |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries the new slices through state dump serialization and restore.                                         |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`  | Covers the empty read roots and the unknown-id mutation branch.                                              |
+| `config/gleam-port-ci-gates.json`                         | Removes the two newly passing Orders parity specs.                                                           |
+
+Validation:
+Full JavaScript is green at 718 tests. Host Erlang still fails because local
+OTP 25 cannot run `gleam_json`, matching the known workstation limitation; the
+Docker Erlang fallback with `HOME=/tmp` is green at 714 tests. `corepack pnpm
+gleam:format:check`, `corepack pnpm gleam:port:coverage`, and `corepack pnpm
+conformance:check` are green. The port coverage gate now reports 379 parity
+specs with 175 expected Gleam parity failures, meaning 2 of the 78 Orders specs
+are executable in Gleam and 76 remain gated.
+
+### Findings
+
+- The abandonment delivery-status unknown-id branch is a useful first Orders
+  mutation because it is side-effect-free but still exercises local mutation
+  dispatch, selected payload projection, userErrors, and a failed mutation-log
+  draft.
+- Captured abandoned checkout and abandonment payloads are best stored as raw
+  captured JSON values so future non-empty fixtures can project Shopify fields
+  without a premature bespoke record model.
+- The TypeScript order runtime remains intact under the active port guardrail;
+  this pass does not authorize TypeScript runtime retirement.
+
+### Risks / open items
+
+- The current Orders module intentionally does not claim order, draft-order,
+  fulfillment, refund, return, or broad search/count behavior yet.
+- Seeded non-empty abandoned-checkout search/filter parity still needs more
+  fixture-backed work before it should be ungated beyond the two safe specs.
+
+### Pass 113 candidates
+
+- Continue Orders with the next evidence-backed slice that can be ported
+  without claiming unsupported roots, preferably a complete draft-order or
+  order lifecycle cluster rather than validation-only roots.
+
+---
+
 ## 2026-04-30 - Pass 111: product search grammar parity
 
 Promotes the final gated Product parity spec,

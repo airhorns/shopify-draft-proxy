@@ -46,6 +46,7 @@ import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/operation_registry_data
+import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/saved_searches
@@ -1036,6 +1037,28 @@ fn route_mutation(
         )
         Error(_) -> #(bad_request("Failed to handle customers mutation"), proxy)
       }
+    Ok(OrdersDomain) ->
+      case
+        orders.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle orders mutation"), proxy)
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -1154,6 +1177,12 @@ fn route_query(
         customers.process(proxy.store, query, variables),
         "Failed to handle customers query",
       )
+    Ok(OrdersDomain) ->
+      respond(
+        proxy,
+        orders.process(proxy.store, query, variables),
+        "Failed to handle orders query",
+      )
     Ok(PrivacyDomain) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -1191,6 +1220,7 @@ type Domain {
   StorePropertiesDomain
   PrivacyDomain
   CustomersDomain
+  OrdersDomain
 }
 
 /// Resolve a query operation's domain. The registry decides whether a
@@ -1395,16 +1425,29 @@ fn local_query_dispatch_domain(
                                                                   )
                                                                 False ->
                                                                   case
-                                                                    store_properties.is_store_properties_query_root(
+                                                                    orders.is_orders_query_root(
                                                                       name,
                                                                     )
                                                                   {
                                                                     True ->
                                                                       Ok(
-                                                                        StorePropertiesDomain,
+                                                                        OrdersDomain,
                                                                       )
                                                                     False ->
-                                                                      Error(Nil)
+                                                                      case
+                                                                        store_properties.is_store_properties_query_root(
+                                                                          name,
+                                                                        )
+                                                                      {
+                                                                        True ->
+                                                                          Ok(
+                                                                            StorePropertiesDomain,
+                                                                          )
+                                                                        False ->
+                                                                          Error(
+                                                                            Nil,
+                                                                          )
+                                                                      }
                                                                   }
                                                               }
                                                           }
@@ -1569,7 +1612,18 @@ fn local_non_store_publishable_mutation_dispatch_domain(
                                                                     CustomersDomain,
                                                                   )
                                                                 False ->
-                                                                  Error(Nil)
+                                                                  case
+                                                                    orders.is_orders_mutation_root(
+                                                                      name,
+                                                                    )
+                                                                  {
+                                                                    True ->
+                                                                      Ok(
+                                                                        OrdersDomain,
+                                                                      )
+                                                                    False ->
+                                                                      Error(Nil)
+                                                                  }
                                                               }
                                                           }
                                                       }
