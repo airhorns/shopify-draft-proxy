@@ -192,15 +192,22 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productVariantAppendMedia"
     | "productVariantDetachMedia"
     | "bulkProductResourceFeedbackCreate"
+    | "inventoryShipmentCreate"
     | "inventoryShipmentCreateInTransit"
+    | "inventoryShipmentAddItems"
+    | "inventoryShipmentRemoveItems"
     | "inventoryShipmentReceive"
     | "inventoryShipmentUpdateItemQuantities"
+    | "inventoryShipmentSetTracking"
+    | "inventoryShipmentMarkInTransit"
     | "inventoryShipmentDelete"
     | "inventoryTransferCreate"
     | "inventoryTransferCreateAsReadyToShip"
+    | "inventoryTransferEdit"
     | "inventoryTransferSetItems"
     | "inventoryTransferRemoveItems"
     | "inventoryTransferMarkAsReadyToShip"
+    | "inventoryTransferDuplicate"
     | "inventoryTransferCancel"
     | "inventoryTransferDelete"
     | "shopResourceFeedbackCreate"
@@ -6457,9 +6464,37 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
-            "inventoryShipmentCreateInTransit" -> {
+            "inventoryShipmentCreate" | "inventoryShipmentCreateInTransit" -> {
               let result =
-                handle_inventory_shipment_create_in_transit(
+                handle_inventory_shipment_create(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged " <> name.value <> " locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "inventoryShipmentSetTracking" -> {
+              let result =
+                handle_inventory_shipment_set_tracking(
                   current_store,
                   current_identity,
                   field,
@@ -6473,7 +6508,88 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryShipmentCreateInTransit locally."),
+                  Some("Gleam staged inventoryShipmentSetTracking locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "inventoryShipmentMarkInTransit" -> {
+              let result =
+                handle_inventory_shipment_mark_in_transit(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged inventoryShipmentMarkInTransit locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "inventoryShipmentAddItems" -> {
+              let result =
+                handle_inventory_shipment_add_items(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged inventoryShipmentAddItems locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "inventoryShipmentRemoveItems" -> {
+              let result =
+                handle_inventory_shipment_remove_items(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged inventoryShipmentRemoveItems locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -6569,9 +6685,11 @@ fn handle_mutation_fields(
             }
             "inventoryTransferCreate"
             | "inventoryTransferCreateAsReadyToShip"
+            | "inventoryTransferEdit"
             | "inventoryTransferSetItems"
             | "inventoryTransferRemoveItems"
             | "inventoryTransferMarkAsReadyToShip"
+            | "inventoryTransferDuplicate"
             | "inventoryTransferCancel"
             | "inventoryTransferDelete" -> {
               let result =
@@ -10283,6 +10401,14 @@ fn handle_inventory_transfer_mutation(
         fragments,
         variables,
       )
+    "inventoryTransferEdit" ->
+      handle_inventory_transfer_edit(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      )
     "inventoryTransferSetItems" ->
       handle_inventory_transfer_set_items(
         store,
@@ -10301,6 +10427,14 @@ fn handle_inventory_transfer_mutation(
       )
     "inventoryTransferMarkAsReadyToShip" ->
       handle_inventory_transfer_mark_ready(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      )
+    "inventoryTransferDuplicate" ->
+      handle_inventory_transfer_duplicate(
         store,
         identity,
         field,
@@ -10417,6 +10551,92 @@ fn handle_inventory_transfer_create(
         identity_after_transfer,
         [],
       )
+  }
+}
+
+fn handle_inventory_transfer_edit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let transfer_id = read_arg_string(args, "id")
+  case get_inventory_transfer_by_optional_id(store, transfer_id) {
+    None ->
+      mutation_result(
+        key,
+        inventory_transfer_payload(
+          store,
+          "InventoryTransferEditPayload",
+          "inventoryTransfer",
+          None,
+          [],
+          [inventory_transfer_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(transfer) -> {
+      let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+      let next_transfer =
+        InventoryTransferRecord(
+          ..transfer,
+          reference_name: case read_string_field(input, "referenceName") {
+            Some(value) -> Some(value)
+            None -> transfer.reference_name
+          },
+          note: case read_string_field(input, "note") {
+            Some(value) -> Some(value)
+            None -> transfer.note
+          },
+          tags: read_string_list_field(input, "tags")
+            |> option.unwrap(transfer.tags),
+          date_created: read_string_field(input, "dateCreated")
+            |> option.unwrap(transfer.date_created),
+          origin: case read_string_field(input, "originId") {
+            Some(id) ->
+              make_inventory_transfer_location_snapshot(
+                store,
+                Some(id),
+                identity,
+              )
+            None -> transfer.origin
+          },
+          destination: case read_string_field(input, "destinationId") {
+            Some(id) ->
+              make_inventory_transfer_location_snapshot(
+                store,
+                Some(id),
+                identity,
+              )
+            None -> transfer.destination
+          },
+        )
+      let #(_, next_store) =
+        store.upsert_staged_inventory_transfer(store, next_transfer)
+      mutation_result(
+        key,
+        inventory_transfer_payload(
+          next_store,
+          "InventoryTransferEditPayload",
+          "inventoryTransfer",
+          Some(next_transfer),
+          [],
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        identity,
+        inventory_transfer_staged_ids(next_transfer),
+      )
+    }
   }
 }
 
@@ -10854,6 +11074,73 @@ fn handle_inventory_transfer_cancel(
   }
 }
 
+fn handle_inventory_transfer_duplicate(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let transfer_id = read_arg_string(field_args(field, variables), "id")
+  case get_inventory_transfer_by_optional_id(store, transfer_id) {
+    None ->
+      mutation_result(
+        key,
+        inventory_transfer_payload(
+          store,
+          "InventoryTransferDuplicatePayload",
+          "inventoryTransfer",
+          None,
+          [],
+          [inventory_transfer_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(transfer) -> {
+      let #(id, identity_after_id) =
+        synthetic_identity.make_synthetic_gid(identity, "InventoryTransfer")
+      let #(line_items, next_identity) =
+        duplicate_inventory_transfer_line_items(
+          transfer.line_items,
+          identity_after_id,
+        )
+      let transfer_index =
+        list.length(store.list_effective_inventory_transfers(store)) + 1
+      let duplicated =
+        InventoryTransferRecord(
+          ..transfer,
+          id: id,
+          name: "#T" <> pad_start_zero(int.to_string(transfer_index), 4),
+          status: "DRAFT",
+          line_items: line_items,
+        )
+      let #(_, next_store) =
+        store.upsert_staged_inventory_transfer(store, duplicated)
+      mutation_result(
+        key,
+        inventory_transfer_payload(
+          next_store,
+          "InventoryTransferDuplicatePayload",
+          "inventoryTransfer",
+          Some(duplicated),
+          [],
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        next_identity,
+        inventory_transfer_staged_ids(duplicated),
+      )
+    }
+  }
+}
+
 fn handle_inventory_transfer_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -11155,6 +11442,26 @@ fn make_inventory_transfer_line_item(
   }
 }
 
+fn duplicate_inventory_transfer_line_items(
+  line_items: List(InventoryTransferLineItemRecord),
+  identity: SyntheticIdentityRegistry,
+) -> #(List(InventoryTransferLineItemRecord), SyntheticIdentityRegistry) {
+  let #(reversed, next_identity) =
+    list.fold(line_items, #([], identity), fn(acc, line_item) {
+      let #(records, current_identity) = acc
+      let #(id, identity_after_id) =
+        synthetic_identity.make_proxy_synthetic_gid(
+          current_identity,
+          "InventoryTransferLineItem",
+        )
+      #(
+        [InventoryTransferLineItemRecord(..line_item, id: id), ..records],
+        identity_after_id,
+      )
+    })
+  #(list.reverse(reversed), next_identity)
+}
+
 fn inventory_transfer_set_item_deltas(
   prior_items: List(InventoryTransferLineItemRecord),
   updated_items: List(InventoryTransferLineItemRecord),
@@ -11372,14 +11679,24 @@ fn pad_start_zero(value: String, width: Int) -> String {
   }
 }
 
-fn handle_inventory_shipment_create_in_transit(
+fn handle_inventory_shipment_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  root_name: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
+  let status = case root_name {
+    "inventoryShipmentCreateInTransit" -> "IN_TRANSIT"
+    _ -> "DRAFT"
+  }
+  let typename = case root_name {
+    "inventoryShipmentCreateInTransit" ->
+      "InventoryShipmentCreateInTransitPayload"
+    _ -> "InventoryShipmentCreatePayload"
+  }
   let args = field_args(field, variables)
   let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
   let movement_id = read_string_field(input, "movementId")
@@ -11419,22 +11736,30 @@ fn handle_inventory_shipment_create_in_transit(
             <> int.to_string(
             list.length(store.list_effective_inventory_shipments(store)) + 1,
           ),
-          status: "IN_TRANSIT",
+          status: status,
           created_at: now,
           updated_at: now,
           tracking: inventory_shipment_tracking_from_input(input),
           line_items: line_items,
         )
-      let #(staged_shipment, staged_store, next_identity) =
-        stage_inventory_shipment_with_incoming(
-          store,
-          identity_after_line_items,
-          shipment,
-        )
+      let #(staged_shipment, staged_store, next_identity) = case status {
+        "IN_TRANSIT" ->
+          stage_inventory_shipment_with_incoming(
+            store,
+            identity_after_line_items,
+            shipment,
+          )
+        _ -> {
+          let #(staged, staged_store) =
+            store.upsert_staged_inventory_shipment(store, shipment)
+          #(staged, staged_store, identity_after_line_items)
+        }
+      }
       mutation_result(
         key,
-        inventory_shipment_create_in_transit_payload(
+        inventory_shipment_create_payload(
           staged_store,
+          typename,
           Some(staged_shipment),
           [],
           field,
@@ -11451,8 +11776,9 @@ fn handle_inventory_shipment_create_in_transit(
     _, _ ->
       mutation_result(
         key,
-        inventory_shipment_create_in_transit_payload(
+        inventory_shipment_create_payload(
           store,
+          typename,
           None,
           user_errors,
           field,
@@ -11462,6 +11788,416 @@ fn handle_inventory_shipment_create_in_transit(
         identity,
         [],
       )
+  }
+}
+
+fn handle_inventory_shipment_set_tracking(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let id = read_arg_string(args, "id")
+  let existing =
+    option.then(id, fn(id) {
+      store.get_effective_inventory_shipment_by_id(store, id)
+    })
+  case existing {
+    None ->
+      mutation_result(
+        key,
+        inventory_shipment_payload(
+          store,
+          "InventoryShipmentSetTrackingPayload",
+          None,
+          [inventory_shipment_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(shipment) -> {
+      let user_errors = case shipment.status == "RECEIVED" {
+        True -> [
+          ProductUserError(
+            ["id"],
+            "Received shipments cannot be updated.",
+            Some("INVALID_STATUS"),
+          ),
+        ]
+        False -> []
+      }
+      case user_errors {
+        [] -> {
+          let #(now, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let next_shipment =
+            InventoryShipmentRecord(
+              ..shipment,
+              tracking: inventory_shipment_tracking_from_argument(args),
+              updated_at: now,
+            )
+          let #(staged, staged_store) =
+            store.upsert_staged_inventory_shipment(store, next_shipment)
+          mutation_result(
+            key,
+            inventory_shipment_payload(
+              staged_store,
+              "InventoryShipmentSetTrackingPayload",
+              Some(staged),
+              [],
+              field,
+              fragments,
+            ),
+            staged_store,
+            next_identity,
+            [staged.id],
+          )
+        }
+        _ ->
+          mutation_result(
+            key,
+            inventory_shipment_payload(
+              store,
+              "InventoryShipmentSetTrackingPayload",
+              None,
+              user_errors,
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+      }
+    }
+  }
+}
+
+fn handle_inventory_shipment_mark_in_transit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let id = read_arg_string(args, "id")
+  let existing =
+    option.then(id, fn(id) {
+      store.get_effective_inventory_shipment_by_id(store, id)
+    })
+  case existing {
+    None ->
+      mutation_result(
+        key,
+        inventory_shipment_payload(
+          store,
+          "InventoryShipmentMarkInTransitPayload",
+          None,
+          [inventory_shipment_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(shipment) ->
+      case shipment.status == "DRAFT" {
+        False ->
+          mutation_result(
+            key,
+            inventory_shipment_payload(
+              store,
+              "InventoryShipmentMarkInTransitPayload",
+              None,
+              [
+                ProductUserError(
+                  ["id"],
+                  "Only draft shipments can be marked in transit.",
+                  Some("INVALID_STATUS"),
+                ),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        True -> {
+          let #(now, identity_after_timestamp) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let next_shipment =
+            InventoryShipmentRecord(
+              ..shipment,
+              status: "IN_TRANSIT",
+              updated_at: now,
+            )
+          let #(staged, staged_store, next_identity) =
+            stage_inventory_shipment_with_incoming(
+              store,
+              identity_after_timestamp,
+              next_shipment,
+            )
+          mutation_result(
+            key,
+            inventory_shipment_payload(
+              staged_store,
+              "InventoryShipmentMarkInTransitPayload",
+              Some(staged),
+              [],
+              field,
+              fragments,
+            ),
+            staged_store,
+            next_identity,
+            [staged.id],
+          )
+        }
+      }
+  }
+}
+
+fn handle_inventory_shipment_add_items(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let id = read_arg_string(args, "id")
+  let existing =
+    option.then(id, fn(id) {
+      store.get_effective_inventory_shipment_by_id(store, id)
+    })
+  case existing {
+    None ->
+      mutation_result(
+        key,
+        inventory_shipment_add_items_payload(
+          store,
+          None,
+          [],
+          [inventory_shipment_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(shipment) -> {
+      let line_item_inputs = read_arg_object_list(args, "lineItems")
+      let user_errors = case shipment.status == "RECEIVED" {
+        True -> [
+          ProductUserError(
+            ["id"],
+            "Received shipments cannot be updated.",
+            Some("INVALID_STATUS"),
+          ),
+        ]
+        False ->
+          validate_inventory_shipment_line_item_inputs(store, line_item_inputs, [
+            "lineItems",
+          ])
+      }
+      case user_errors {
+        [] -> {
+          let #(now, identity_after_timestamp) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let #(added_items, identity_after_items) =
+            make_inventory_shipment_line_items(
+              identity_after_timestamp,
+              line_item_inputs,
+            )
+          let next_shipment =
+            InventoryShipmentRecord(
+              ..shipment,
+              updated_at: now,
+              line_items: list.append(shipment.line_items, added_items),
+            )
+          let deltas = case shipment_has_unreceived_incoming(shipment) {
+            True ->
+              added_items
+              |> list.map(fn(line_item) {
+                InventoryShipmentDelta(
+                  inventory_item_id: line_item.inventory_item_id,
+                  incoming: line_item.quantity,
+                  available: None,
+                )
+              })
+            False -> []
+          }
+          let #(next_store, next_identity) =
+            apply_inventory_shipment_deltas(store, identity_after_items, deltas)
+          let #(staged, staged_store) =
+            store.upsert_staged_inventory_shipment(next_store, next_shipment)
+          mutation_result(
+            key,
+            inventory_shipment_add_items_payload(
+              staged_store,
+              Some(staged),
+              added_items,
+              [],
+              field,
+              fragments,
+            ),
+            staged_store,
+            next_identity,
+            [staged.id, ..list.map(added_items, fn(item) { item.id })],
+          )
+        }
+        _ ->
+          mutation_result(
+            key,
+            inventory_shipment_add_items_payload(
+              store,
+              None,
+              [],
+              user_errors,
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+      }
+    }
+  }
+}
+
+fn handle_inventory_shipment_remove_items(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let id = read_arg_string(args, "id")
+  let existing =
+    option.then(id, fn(id) {
+      store.get_effective_inventory_shipment_by_id(store, id)
+    })
+  case existing {
+    None ->
+      mutation_result(
+        key,
+        inventory_shipment_payload(
+          store,
+          "InventoryShipmentRemoveItemsPayload",
+          None,
+          [inventory_shipment_not_found_error()],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    Some(shipment) -> {
+      let ids = read_arg_string_list(args, "lineItems")
+      let has_unknown =
+        list.any(ids, fn(id) {
+          find_inventory_shipment_line_item(shipment.line_items, id) == None
+        })
+      let user_errors = case has_unknown, shipment.status == "RECEIVED" {
+        True, _ -> [
+          ProductUserError(
+            ["lineItems"],
+            "One or more shipment line items could not be found.",
+            Some("NOT_FOUND"),
+          ),
+        ]
+        _, True -> [
+          ProductUserError(
+            ["id"],
+            "Received shipments cannot be updated.",
+            Some("INVALID_STATUS"),
+          ),
+        ]
+        _, _ -> []
+      }
+      case user_errors {
+        [] -> {
+          let #(now, identity_after_timestamp) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let removed =
+            shipment.line_items
+            |> list.filter(fn(line_item) { list.contains(ids, line_item.id) })
+          let remaining =
+            shipment.line_items
+            |> list.filter(fn(line_item) { !list.contains(ids, line_item.id) })
+          let next_shipment =
+            InventoryShipmentRecord(
+              ..shipment,
+              updated_at: now,
+              line_items: remaining,
+            )
+          let deltas = case shipment_has_unreceived_incoming(shipment) {
+            True ->
+              removed
+              |> list.map(fn(line_item) {
+                InventoryShipmentDelta(
+                  inventory_item_id: line_item.inventory_item_id,
+                  incoming: 0 - shipment_line_item_unreceived(line_item),
+                  available: None,
+                )
+              })
+            False -> []
+          }
+          let #(next_store, next_identity) =
+            apply_inventory_shipment_deltas(
+              store,
+              identity_after_timestamp,
+              deltas,
+            )
+          let #(staged, staged_store) =
+            store.upsert_staged_inventory_shipment(next_store, next_shipment)
+          mutation_result(
+            key,
+            inventory_shipment_payload(
+              staged_store,
+              "InventoryShipmentRemoveItemsPayload",
+              Some(staged),
+              [],
+              field,
+              fragments,
+            ),
+            staged_store,
+            next_identity,
+            [staged.id],
+          )
+        }
+        _ ->
+          mutation_result(
+            key,
+            inventory_shipment_payload(
+              store,
+              "InventoryShipmentRemoveItemsPayload",
+              None,
+              user_errors,
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+      }
+    }
   }
 }
 
@@ -11842,15 +12578,29 @@ fn inventory_shipment_tracking_from_input(
   input: Dict(String, ResolvedValue),
 ) -> Option(InventoryShipmentTrackingRecord) {
   case dict.get(input, "trackingInput") {
-    Ok(ObjectVal(tracking)) ->
-      Some(InventoryShipmentTrackingRecord(
-        tracking_number: read_string_field(tracking, "trackingNumber"),
-        company: read_string_field(tracking, "company"),
-        tracking_url: read_string_field(tracking, "trackingUrl"),
-        arrives_at: read_string_field(tracking, "arrivesAt"),
-      ))
+    Ok(ObjectVal(tracking)) -> inventory_shipment_tracking_from_fields(tracking)
     _ -> None
   }
+}
+
+fn inventory_shipment_tracking_from_argument(
+  args: Dict(String, ResolvedValue),
+) -> Option(InventoryShipmentTrackingRecord) {
+  case dict.get(args, "tracking") {
+    Ok(ObjectVal(tracking)) -> inventory_shipment_tracking_from_fields(tracking)
+    _ -> None
+  }
+}
+
+fn inventory_shipment_tracking_from_fields(
+  tracking: Dict(String, ResolvedValue),
+) -> Option(InventoryShipmentTrackingRecord) {
+  Some(InventoryShipmentTrackingRecord(
+    tracking_number: read_string_field(tracking, "trackingNumber"),
+    company: read_string_field(tracking, "company"),
+    tracking_url: read_string_field(tracking, "trackingUrl"),
+    arrives_at: read_string_field(tracking, "arrivesAt"),
+  ))
 }
 
 fn stage_inventory_shipment_with_incoming(
@@ -12117,6 +12867,14 @@ fn inventory_shipment_status_after_receive(
 
 fn shipment_has_unreceived_incoming(shipment: InventoryShipmentRecord) -> Bool {
   shipment.status == "IN_TRANSIT" || shipment.status == "PARTIALLY_RECEIVED"
+}
+
+fn inventory_shipment_not_found_error() -> ProductUserError {
+  ProductUserError(
+    ["id"],
+    "The specified inventory shipment could not be found.",
+    Some("NOT_FOUND"),
+  )
 }
 
 fn apply_inventory_shipment_deltas(
@@ -17549,8 +18307,9 @@ fn shop_resource_feedback_create_payload(
   )
 }
 
-fn inventory_shipment_create_in_transit_payload(
+fn inventory_shipment_create_payload(
   store: Store,
+  typename: String,
   shipment: Option(InventoryShipmentRecord),
   user_errors: List(ProductUserError),
   field: Selection,
@@ -17562,7 +18321,7 @@ fn inventory_shipment_create_in_transit_payload(
   }
   project_graphql_value(
     src_object([
-      #("__typename", SrcString("InventoryShipmentCreateInTransitPayload")),
+      #("__typename", SrcString(typename)),
       #("inventoryShipment", shipment_value),
       #("userErrors", user_errors_source(user_errors)),
     ]),
@@ -17644,6 +18403,60 @@ fn inventory_shipment_receive_payload(
   project_graphql_value(
     src_object([
       #("__typename", SrcString("InventoryShipmentReceivePayload")),
+      #("inventoryShipment", shipment_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn inventory_shipment_payload(
+  store: Store,
+  typename: String,
+  shipment: Option(InventoryShipmentRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let shipment_value = case shipment {
+    Some(record) -> inventory_shipment_source(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString(typename)),
+      #("inventoryShipment", shipment_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn inventory_shipment_add_items_payload(
+  store: Store,
+  shipment: Option(InventoryShipmentRecord),
+  added_items: List(InventoryShipmentLineItemRecord),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let shipment_value = case shipment {
+    Some(record) -> inventory_shipment_source(store, record)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("InventoryShipmentAddItemsPayload")),
+      #(
+        "addedItems",
+        SrcList(
+          list.map(added_items, fn(line_item) {
+            inventory_shipment_line_item_source(store, line_item)
+          }),
+        ),
+      ),
       #("inventoryShipment", shipment_value),
       #("userErrors", user_errors_source(user_errors)),
     ]),

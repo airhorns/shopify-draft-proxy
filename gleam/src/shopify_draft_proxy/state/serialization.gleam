@@ -423,6 +423,91 @@ fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
       "taxAppConfiguration",
       optional_to_json(state.tax_app_configuration, tax_app_configuration_json),
     ),
+    #(
+      "carrierServices",
+      dict_to_json(state.carrier_services, carrier_service_json),
+    ),
+    #(
+      "carrierServiceOrder",
+      json.array(state.carrier_service_order, json.string),
+    ),
+    #(
+      "deletedCarrierServiceIds",
+      bool_dict_to_json(state.deleted_carrier_service_ids),
+    ),
+    #(
+      "fulfillmentServices",
+      dict_to_json(state.fulfillment_services, fulfillment_service_json),
+    ),
+    #(
+      "fulfillmentServiceOrder",
+      json.array(state.fulfillment_service_order, json.string),
+    ),
+    #(
+      "deletedFulfillmentServiceIds",
+      bool_dict_to_json(state.deleted_fulfillment_service_ids),
+    ),
+    #("fulfillments", dict_to_json(state.fulfillments, fulfillment_json)),
+    #("fulfillmentOrder", json.array(state.fulfillment_order, json.string)),
+    #(
+      "fulfillmentOrders",
+      dict_to_json(state.fulfillment_orders, fulfillment_order_json),
+    ),
+    #(
+      "fulfillmentOrderOrder",
+      json.array(state.fulfillment_order_order, json.string),
+    ),
+    #(
+      "shippingOrders",
+      dict_to_json(state.shipping_orders, shipping_order_json),
+    ),
+    #(
+      "reverseFulfillmentOrders",
+      dict_to_json(
+        state.reverse_fulfillment_orders,
+        reverse_fulfillment_order_json,
+      ),
+    ),
+    #(
+      "reverseFulfillmentOrderOrder",
+      json.array(state.reverse_fulfillment_order_order, json.string),
+    ),
+    #(
+      "reverseDeliveries",
+      dict_to_json(state.reverse_deliveries, reverse_delivery_json),
+    ),
+    #(
+      "reverseDeliveryOrder",
+      json.array(state.reverse_delivery_order, json.string),
+    ),
+    #(
+      "calculatedOrders",
+      dict_to_json(state.calculated_orders, calculated_order_json),
+    ),
+    #(
+      "deliveryProfiles",
+      dict_to_json(state.delivery_profiles, delivery_profile_json),
+    ),
+    #(
+      "deliveryProfileOrder",
+      json.array(state.delivery_profile_order, json.string),
+    ),
+    #(
+      "deletedDeliveryProfileIds",
+      bool_dict_to_json(state.deleted_delivery_profile_ids),
+    ),
+    #(
+      "shippingPackages",
+      dict_to_json(state.shipping_packages, shipping_package_json),
+    ),
+    #(
+      "shippingPackageOrder",
+      json.array(state.shipping_package_order, json.string),
+    ),
+    #(
+      "deletedShippingPackageIds",
+      bool_dict_to_json(state.deleted_shipping_package_ids),
+    ),
     #("discounts", dict_to_json(state.discounts, discount_json)),
     #("discountOrder", json.array(state.discount_order, json.string)),
     #("deletedDiscountIds", bool_dict_to_json(state.deleted_discount_ids)),
@@ -1077,6 +1162,91 @@ fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
       "taxAppConfiguration",
       optional_to_json(state.tax_app_configuration, tax_app_configuration_json),
     ),
+    #(
+      "carrierServices",
+      dict_to_json(state.carrier_services, carrier_service_json),
+    ),
+    #(
+      "carrierServiceOrder",
+      json.array(state.carrier_service_order, json.string),
+    ),
+    #(
+      "deletedCarrierServiceIds",
+      bool_dict_to_json(state.deleted_carrier_service_ids),
+    ),
+    #(
+      "fulfillmentServices",
+      dict_to_json(state.fulfillment_services, fulfillment_service_json),
+    ),
+    #(
+      "fulfillmentServiceOrder",
+      json.array(state.fulfillment_service_order, json.string),
+    ),
+    #(
+      "deletedFulfillmentServiceIds",
+      bool_dict_to_json(state.deleted_fulfillment_service_ids),
+    ),
+    #("fulfillments", dict_to_json(state.fulfillments, fulfillment_json)),
+    #("fulfillmentOrder", json.array(state.fulfillment_order, json.string)),
+    #(
+      "fulfillmentOrders",
+      dict_to_json(state.fulfillment_orders, fulfillment_order_json),
+    ),
+    #(
+      "fulfillmentOrderOrder",
+      json.array(state.fulfillment_order_order, json.string),
+    ),
+    #(
+      "shippingOrders",
+      dict_to_json(state.shipping_orders, shipping_order_json),
+    ),
+    #(
+      "reverseFulfillmentOrders",
+      dict_to_json(
+        state.reverse_fulfillment_orders,
+        reverse_fulfillment_order_json,
+      ),
+    ),
+    #(
+      "reverseFulfillmentOrderOrder",
+      json.array(state.reverse_fulfillment_order_order, json.string),
+    ),
+    #(
+      "reverseDeliveries",
+      dict_to_json(state.reverse_deliveries, reverse_delivery_json),
+    ),
+    #(
+      "reverseDeliveryOrder",
+      json.array(state.reverse_delivery_order, json.string),
+    ),
+    #(
+      "calculatedOrders",
+      dict_to_json(state.calculated_orders, calculated_order_json),
+    ),
+    #(
+      "deliveryProfiles",
+      dict_to_json(state.delivery_profiles, delivery_profile_json),
+    ),
+    #(
+      "deliveryProfileOrder",
+      json.array(state.delivery_profile_order, json.string),
+    ),
+    #(
+      "deletedDeliveryProfileIds",
+      bool_dict_to_json(state.deleted_delivery_profile_ids),
+    ),
+    #(
+      "shippingPackages",
+      dict_to_json(state.shipping_packages, shipping_package_json),
+    ),
+    #(
+      "shippingPackageOrder",
+      json.array(state.shipping_package_order, json.string),
+    ),
+    #(
+      "deletedShippingPackageIds",
+      bool_dict_to_json(state.deleted_shipping_package_ids),
+    ),
     #("discounts", dict_to_json(state.discounts, discount_json)),
     #("discountOrder", json.array(state.discount_order, json.string)),
     #("deletedDiscountIds", bool_dict_to_json(state.deleted_discount_ids)),
@@ -1662,6 +1832,15 @@ fn selling_plan_group_json(record: types.SellingPlanGroupRecord) -> Json {
 fn selling_plan_json(record: types.SellingPlanRecord) -> Json {
   json.object([
     #("id", json.string(record.id)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn delivery_profile_json(record: types.DeliveryProfileRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("merchantOwned", json.bool(record.merchant_owned)),
     #("data", captured_json_value_json(record.data)),
   ])
 }
@@ -2549,6 +2728,124 @@ fn tax_app_configuration_json(record: types.TaxAppConfigurationRecord) -> Json {
   ])
 }
 
+fn shipping_package_weight_json(
+  record: types.ShippingPackageWeightRecord,
+) -> Json {
+  json.object([
+    #("value", optional_float(record.value)),
+    #("unit", optional_string(record.unit)),
+  ])
+}
+
+fn shipping_package_dimensions_json(
+  record: types.ShippingPackageDimensionsRecord,
+) -> Json {
+  json.object([
+    #("length", optional_float(record.length)),
+    #("width", optional_float(record.width)),
+    #("height", optional_float(record.height)),
+    #("unit", optional_string(record.unit)),
+  ])
+}
+
+fn shipping_package_json(record: types.ShippingPackageRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("name", optional_string(record.name)),
+    #("type", optional_string(record.type_)),
+    #("default", json.bool(record.default)),
+    #("weight", optional_to_json(record.weight, shipping_package_weight_json)),
+    #(
+      "dimensions",
+      optional_to_json(record.dimensions, shipping_package_dimensions_json),
+    ),
+    #("createdAt", json.string(record.created_at)),
+    #("updatedAt", json.string(record.updated_at)),
+  ])
+}
+
+fn carrier_service_json(record: types.CarrierServiceRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("name", optional_string(record.name)),
+    #("formattedName", optional_string(record.formatted_name)),
+    #("callbackUrl", optional_string(record.callback_url)),
+    #("active", json.bool(record.active)),
+    #("supportsServiceDiscovery", json.bool(record.supports_service_discovery)),
+    #("createdAt", json.string(record.created_at)),
+    #("updatedAt", json.string(record.updated_at)),
+  ])
+}
+
+fn fulfillment_service_json(record: types.FulfillmentServiceRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("handle", json.string(record.handle)),
+    #("serviceName", json.string(record.service_name)),
+    #("callbackUrl", optional_string(record.callback_url)),
+    #("inventoryManagement", json.bool(record.inventory_management)),
+    #("locationId", optional_string(record.location_id)),
+    #("requiresShippingMethod", json.bool(record.requires_shipping_method)),
+    #("trackingSupport", json.bool(record.tracking_support)),
+    #("type", json.string(record.type_)),
+  ])
+}
+
+fn fulfillment_json(record: types.FulfillmentRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("orderId", optional_string(record.order_id)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn fulfillment_order_json(record: types.FulfillmentOrderRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("orderId", optional_string(record.order_id)),
+    #("status", json.string(record.status)),
+    #("requestStatus", json.string(record.request_status)),
+    #("assignedLocationId", optional_string(record.assigned_location_id)),
+    #("assignmentStatus", optional_string(record.assignment_status)),
+    #("manuallyHeld", json.bool(record.manually_held)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn shipping_order_json(record: types.ShippingOrderRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn reverse_fulfillment_order_json(
+  record: types.ReverseFulfillmentOrderRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn reverse_delivery_json(record: types.ReverseDeliveryRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #(
+      "reverseFulfillmentOrderId",
+      json.string(record.reverse_fulfillment_order_id),
+    ),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn calculated_order_json(record: types.CalculatedOrderRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
 fn gift_card_transaction_json(record: types.GiftCardTransactionRecord) -> Json {
   json.object([
     #("id", json.string(record.id)),
@@ -3368,6 +3665,28 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     inventory_shipments: empty.inventory_shipments,
     inventory_shipment_order: empty.inventory_shipment_order,
     deleted_inventory_shipment_ids: empty.deleted_inventory_shipment_ids,
+    carrier_services: empty.carrier_services,
+    carrier_service_order: empty.carrier_service_order,
+    deleted_carrier_service_ids: empty.deleted_carrier_service_ids,
+    fulfillment_services: empty.fulfillment_services,
+    fulfillment_service_order: empty.fulfillment_service_order,
+    deleted_fulfillment_service_ids: empty.deleted_fulfillment_service_ids,
+    fulfillments: empty.fulfillments,
+    fulfillment_order: empty.fulfillment_order,
+    fulfillment_orders: empty.fulfillment_orders,
+    fulfillment_order_order: empty.fulfillment_order_order,
+    shipping_orders: empty.shipping_orders,
+    reverse_fulfillment_orders: empty.reverse_fulfillment_orders,
+    reverse_fulfillment_order_order: empty.reverse_fulfillment_order_order,
+    reverse_deliveries: empty.reverse_deliveries,
+    reverse_delivery_order: empty.reverse_delivery_order,
+    calculated_orders: empty.calculated_orders,
+    delivery_profiles: empty.delivery_profiles,
+    delivery_profile_order: empty.delivery_profile_order,
+    deleted_delivery_profile_ids: empty.deleted_delivery_profile_ids,
+    shipping_packages: empty.shipping_packages,
+    shipping_package_order: empty.shipping_package_order,
+    deleted_shipping_package_ids: empty.deleted_shipping_package_ids,
     backup_region: backup_region,
     admin_platform_generic_nodes: empty.admin_platform_generic_nodes,
     admin_platform_taxonomy_categories: empty.admin_platform_taxonomy_categories,
@@ -3791,6 +4110,28 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     inventory_shipments: empty.inventory_shipments,
     inventory_shipment_order: empty.inventory_shipment_order,
     deleted_inventory_shipment_ids: empty.deleted_inventory_shipment_ids,
+    carrier_services: empty.carrier_services,
+    carrier_service_order: empty.carrier_service_order,
+    deleted_carrier_service_ids: empty.deleted_carrier_service_ids,
+    fulfillment_services: empty.fulfillment_services,
+    fulfillment_service_order: empty.fulfillment_service_order,
+    deleted_fulfillment_service_ids: empty.deleted_fulfillment_service_ids,
+    fulfillments: empty.fulfillments,
+    fulfillment_order: empty.fulfillment_order,
+    fulfillment_orders: empty.fulfillment_orders,
+    fulfillment_order_order: empty.fulfillment_order_order,
+    shipping_orders: empty.shipping_orders,
+    reverse_fulfillment_orders: empty.reverse_fulfillment_orders,
+    reverse_fulfillment_order_order: empty.reverse_fulfillment_order_order,
+    reverse_deliveries: empty.reverse_deliveries,
+    reverse_delivery_order: empty.reverse_delivery_order,
+    calculated_orders: empty.calculated_orders,
+    delivery_profiles: empty.delivery_profiles,
+    delivery_profile_order: empty.delivery_profile_order,
+    deleted_delivery_profile_ids: empty.deleted_delivery_profile_ids,
+    shipping_packages: empty.shipping_packages,
+    shipping_package_order: empty.shipping_package_order,
+    deleted_shipping_package_ids: empty.deleted_shipping_package_ids,
     backup_region: backup_region,
     admin_platform_generic_nodes: empty.admin_platform_generic_nodes,
     admin_platform_taxonomy_categories: empty.admin_platform_taxonomy_categories,
@@ -3854,6 +4195,7 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     shopify_function_order: shopify_function_order,
     bulk_operations: bulk_operations,
     bulk_operation_order: bulk_operation_order,
+    staged_upload_contents: empty.staged_upload_contents,
     metaobject_definitions: metaobject_definitions,
     metaobject_definition_order: metaobject_definition_order,
     deleted_metaobject_definition_ids: deleted_metaobject_definition_ids,

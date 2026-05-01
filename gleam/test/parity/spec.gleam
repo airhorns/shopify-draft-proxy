@@ -72,11 +72,18 @@ pub type TargetRequest {
   OverrideRequest(request: ProxyRequest)
 }
 
+pub type ProxySource {
+  ProxyResponse
+  ProxyState
+  ProxyLog
+}
+
 pub type Target {
   Target(
     name: String,
     capture_path: String,
     proxy_path: String,
+    proxy_source: ProxySource,
     upstream_capture_path: Option(String),
     selected_paths: List(String),
     expected_differences: List(ExpectedDifference),
@@ -211,7 +218,21 @@ fn comparison_decoder() -> Decoder(#(List(Target), List(ExpectedDifference))) {
 fn target_decoder() -> Decoder(Target) {
   use name <- decode.field("name", decode.string)
   use capture_path <- decode.field("capturePath", decode.string)
-  use proxy_path <- decode.field("proxyPath", decode.string)
+  use proxy_path <- decode.optional_field(
+    "proxyPath",
+    None,
+    decode.optional(decode.string),
+  )
+  use proxy_state_path <- decode.optional_field(
+    "proxyStatePath",
+    None,
+    decode.optional(decode.string),
+  )
+  use proxy_log_path <- decode.optional_field(
+    "proxyLogPath",
+    None,
+    decode.optional(decode.string),
+  )
   use upstream_capture_path <- decode.optional_field(
     "upstreamCapturePath",
     None,
@@ -242,16 +263,59 @@ fn target_decoder() -> Decoder(Target) {
       expected_differences,
       list.map(excluded_paths, diff.expected_ignore),
     )
-  decode.success(Target(
-    name: name,
-    capture_path: capture_path,
-    proxy_path: proxy_path,
-    upstream_capture_path: upstream_capture_path,
-    selected_paths: selected_paths,
-    expected_differences: expected_differences,
-    excluded_paths: excluded_paths,
-    request: request,
-  ))
+  case proxy_path, proxy_state_path, proxy_log_path {
+    Some(path), _, _ ->
+      decode.success(Target(
+        name: name,
+        capture_path: capture_path,
+        proxy_path: path,
+        proxy_source: ProxyResponse,
+        upstream_capture_path: upstream_capture_path,
+        selected_paths: selected_paths,
+        expected_differences: expected_differences,
+        excluded_paths: excluded_paths,
+        request: request,
+      ))
+    None, Some(path), _ ->
+      decode.success(Target(
+        name: name,
+        capture_path: capture_path,
+        proxy_path: path,
+        proxy_source: ProxyState,
+        upstream_capture_path: upstream_capture_path,
+        selected_paths: selected_paths,
+        expected_differences: expected_differences,
+        excluded_paths: excluded_paths,
+        request: request,
+      ))
+    None, None, Some(path) ->
+      decode.success(Target(
+        name: name,
+        capture_path: capture_path,
+        proxy_path: path,
+        proxy_source: ProxyLog,
+        upstream_capture_path: upstream_capture_path,
+        selected_paths: selected_paths,
+        expected_differences: expected_differences,
+        excluded_paths: excluded_paths,
+        request: request,
+      ))
+    None, None, None ->
+      decode.failure(
+        Target(
+          name: name,
+          capture_path: capture_path,
+          proxy_path: "$",
+          proxy_source: ProxyResponse,
+          upstream_capture_path: upstream_capture_path,
+          selected_paths: selected_paths,
+          expected_differences: expected_differences,
+          excluded_paths: excluded_paths,
+          request: request,
+        ),
+        "target must define proxyPath, proxyStatePath, or proxyLogPath",
+      )
+  }
 }
 
 fn expected_difference_decoder() -> Decoder(ExpectedDifference) {

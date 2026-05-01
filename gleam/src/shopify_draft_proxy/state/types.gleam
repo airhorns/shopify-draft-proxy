@@ -394,6 +394,109 @@ pub type InventoryShipmentRecord {
   )
 }
 
+pub type ShippingPackageWeightRecord {
+  ShippingPackageWeightRecord(value: Option(Float), unit: Option(String))
+}
+
+pub type ShippingPackageDimensionsRecord {
+  ShippingPackageDimensionsRecord(
+    length: Option(Float),
+    width: Option(Float),
+    height: Option(Float),
+    unit: Option(String),
+  )
+}
+
+pub type ShippingPackageRecord {
+  ShippingPackageRecord(
+    id: String,
+    name: Option(String),
+    type_: Option(String),
+    default: Bool,
+    weight: Option(ShippingPackageWeightRecord),
+    dimensions: Option(ShippingPackageDimensionsRecord),
+    created_at: String,
+    updated_at: String,
+  )
+}
+
+pub type CarrierServiceRecord {
+  CarrierServiceRecord(
+    id: String,
+    name: Option(String),
+    formatted_name: Option(String),
+    callback_url: Option(String),
+    active: Bool,
+    supports_service_discovery: Bool,
+    created_at: String,
+    updated_at: String,
+  )
+}
+
+pub type FulfillmentServiceRecord {
+  FulfillmentServiceRecord(
+    id: String,
+    handle: String,
+    service_name: String,
+    callback_url: Option(String),
+    inventory_management: Bool,
+    location_id: Option(String),
+    requires_shipping_method: Bool,
+    tracking_support: Bool,
+    type_: String,
+  )
+}
+
+pub type FulfillmentRecord {
+  FulfillmentRecord(
+    id: String,
+    order_id: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+pub type FulfillmentOrderRecord {
+  FulfillmentOrderRecord(
+    id: String,
+    order_id: Option(String),
+    status: String,
+    request_status: String,
+    assigned_location_id: Option(String),
+    assignment_status: Option(String),
+    manually_held: Bool,
+    data: CapturedJsonValue,
+  )
+}
+
+pub type ShippingOrderRecord {
+  ShippingOrderRecord(id: String, data: CapturedJsonValue)
+}
+
+pub type ReverseFulfillmentOrderRecord {
+  ReverseFulfillmentOrderRecord(id: String, data: CapturedJsonValue)
+}
+
+pub type ReverseDeliveryRecord {
+  ReverseDeliveryRecord(
+    id: String,
+    reverse_fulfillment_order_id: String,
+    data: CapturedJsonValue,
+  )
+}
+
+pub type CalculatedOrderRecord {
+  CalculatedOrderRecord(id: String, data: CapturedJsonValue)
+}
+
+pub type DeliveryProfileRecord {
+  DeliveryProfileRecord(
+    id: String,
+    cursor: Option(String),
+    merchant_owned: Bool,
+    data: CapturedJsonValue,
+  )
+}
+
 pub type ProductVariantRecord {
   ProductVariantRecord(
     id: String,

@@ -1,13 +1,13 @@
 //// Mirrors the locally staged foundation of `src/proxy/bulk-operations.ts`.
 ////
-//// This pass ports the BulkOperation state/read/cancel/run-query shell:
-//// singular reads, catalog reads with cursor windows, current operation
-//// derivation, local `bulkOperationCancel`, and local
-//// `bulkOperationRunQuery` staging. Product JSONL export contents and
-//// `bulkOperationRunMutation` import replay remain deferred until the
-//// product/bulk-import substrate lands in Gleam.
+//// This pass ports the BulkOperation state/read/cancel/run-query/import
+//// foundation: singular reads, catalog reads with cursor windows, current
+//// operation derivation, local `bulkOperationCancel`, product/productVariant
+//// JSONL query exports, and local `bulkOperationRunMutation` replay for
+//// product-domain inner mutations.
 
 import gleam/dict.{type Dict}
+import gleam/dynamic/decode
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
@@ -16,23 +16,26 @@ import gleam/order
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionWindow,
-  SerializeConnectionConfig, SrcNull, SrcString,
+  SerializeConnectionConfig, SrcInt, SrcList, SrcNull, SrcString,
   default_connection_page_info_options, default_connection_window_options,
   default_selected_field_options, get_document_fragments, get_field_response_key,
   get_selected_child_fields, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type BulkOperationRecord, BulkOperationRecord,
+  type BulkOperationRecord, type ProductRecord, type ProductVariantRecord,
+  BulkOperationRecord,
 }
 
 pub type BulkOperationsError {
@@ -51,6 +54,7 @@ pub fn is_bulk_operations_query_root(name: String) -> Bool {
 pub fn is_bulk_operations_mutation_root(name: String) -> Bool {
   case name {
     "bulkOperationRunQuery" -> True
+    "bulkOperationRunMutation" -> True
     "bulkOperationCancel" -> True
     _ -> False
   }
@@ -394,13 +398,14 @@ type MutationFieldResult {
     key: String,
     payload: Json,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  _request_path: String,
+  request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(MutationOutcome, BulkOperationsError) {
@@ -408,7 +413,14 @@ pub fn process_mutation(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
+      Ok(handle_mutation_fields(
+        store,
+        identity,
+        request_path,
+        fields,
+        fragments,
+        variables,
+      ))
     }
   }
 }
@@ -416,14 +428,15 @@ pub fn process_mutation(
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  request_path: String,
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [])
-  let #(data_entries, final_store, final_identity, all_staged) =
+  let initial = #([], store, identity, [], [])
+  let #(data_entries, final_store, final_identity, all_staged, field_drafts) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids) = acc
+      let #(entries, current_store, current_identity, staged_ids, drafts) = acc
       case field {
         Field(name: name, ..) -> {
           let dispatch = case name.value {
@@ -431,6 +444,15 @@ fn handle_mutation_fields(
               Some(handle_bulk_operation_run_query(
                 current_store,
                 current_identity,
+                field,
+                fragments,
+                variables,
+              ))
+            "bulkOperationRunMutation" ->
+              Some(handle_bulk_operation_run_mutation(
+                current_store,
+                current_identity,
+                request_path,
                 field,
                 fragments,
                 variables,
@@ -452,6 +474,7 @@ fn handle_mutation_fields(
               next_store,
               next_identity,
               list.append(staged_ids, result.staged_resource_ids),
+              list.append(drafts, result.log_drafts),
             )
           }
         }
@@ -463,20 +486,30 @@ fn handle_mutation_fields(
     Ok(name) -> Some(name)
     Error(_) -> None
   }
-  let log_drafts = [
+  let outer_status = case primary_root, field_drafts {
+    Some("bulkOperationRunMutation"), [] -> store.Failed
+    _, _ -> store.Staged
+  }
+  let outer_log_drafts = [
     LogDraft(
       operation_name: primary_root,
       root_fields: root_names,
       primary_root_field: primary_root,
       domain: "bulk-operations",
       execution: "stage-locally",
+      query: None,
+      variables: None,
       staged_resource_ids: all_staged,
-      status: store.Staged,
+      status: outer_status,
       notes: Some(
         "Handled BulkOperation mutation locally against the in-memory BulkOperation job store.",
       ),
     ),
   ]
+  let log_drafts = case primary_root, field_drafts {
+    Some("bulkOperationRunMutation"), [_, ..] -> field_drafts
+    _, _ -> outer_log_drafts
+  }
   MutationOutcome(
     data: json.object([#("data", json.object(data_entries))]),
     store: final_store,
@@ -523,6 +556,7 @@ fn handle_bulk_operation_run_query(
           fragments,
         ),
         staged_resource_ids: [],
+        log_drafts: [],
       ),
       store,
       identity,
@@ -543,53 +577,722 @@ fn handle_bulk_operation_run_query(
           fragments,
         ),
         staged_resource_ids: [],
+        log_drafts: [],
       ),
       store,
       identity,
     )
-    Some(query_string), False -> {
-      let #(operation_id, identity_after_id) =
-        synthetic_identity.make_synthetic_gid(identity, "BulkOperation")
-      let #(created_at, identity_after_created) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let #(completed_at, identity_after_completed) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_created)
-      let result_jsonl = ""
-      let operation =
-        BulkOperationRecord(
-          id: operation_id,
-          status: "COMPLETED",
-          type_: "QUERY",
-          error_code: None,
-          created_at: created_at,
-          completed_at: Some(completed_at),
-          object_count: "0",
-          root_object_count: "0",
-          file_size: Some(int.to_string(string.length(result_jsonl))),
-          url: Some(build_bulk_operation_result_url(operation_id)),
-          partial_data_url: None,
-          query: Some(query_string),
-          cursor: None,
-          result_jsonl: Some(result_jsonl),
-        )
-      let #(staged, next_store) =
-        store.stage_bulk_operation_result(store, operation, result_jsonl)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: serialize_run_query_payload(
-            field,
-            Some(staged),
-            [],
-            fragments,
+    Some(query_string), False ->
+      case build_run_query_jsonl(store, query_string) {
+        Error(error) -> #(
+          MutationFieldResult(
+            key: key,
+            payload: serialize_run_query_payload(
+              field,
+              None,
+              [error],
+              fragments,
+            ),
+            staged_resource_ids: [],
+            log_drafts: [],
           ),
-          staged_resource_ids: [staged.id],
+          store,
+          identity,
+        )
+        Ok(result) -> {
+          let BulkQueryResult(result_jsonl: result_jsonl, object_count: count) =
+            result
+          let #(operation_id, identity_after_id) =
+            synthetic_identity.make_synthetic_gid(identity, "BulkOperation")
+          let #(created_at, identity_after_created) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_id)
+          let #(completed_at, identity_after_completed) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_created)
+          let operation =
+            BulkOperationRecord(
+              id: operation_id,
+              status: "COMPLETED",
+              type_: "QUERY",
+              error_code: None,
+              created_at: created_at,
+              completed_at: Some(completed_at),
+              object_count: int.to_string(count),
+              root_object_count: int.to_string(count),
+              file_size: Some(int.to_string(string.length(result_jsonl))),
+              url: Some(build_bulk_operation_result_url(operation_id)),
+              partial_data_url: None,
+              query: Some(query_string),
+              cursor: None,
+              result_jsonl: Some(result_jsonl),
+            )
+          let #(staged, next_store) =
+            store.stage_bulk_operation_result(store, operation, result_jsonl)
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: serialize_run_query_payload(
+                field,
+                Some(staged),
+                [],
+                fragments,
+              ),
+              staged_resource_ids: [staged.id],
+              log_drafts: [],
+            ),
+            next_store,
+            identity_after_completed,
+          )
+        }
+      }
+  }
+}
+
+type BulkQueryResult {
+  BulkQueryResult(result_jsonl: String, object_count: Int)
+}
+
+fn build_run_query_jsonl(
+  store: Store,
+  query_string: String,
+) -> Result(BulkQueryResult, UserError) {
+  case root_field.get_root_fields(query_string) {
+    Ok([root]) ->
+      case selected_bulk_query_node_fields(root) {
+        Some(node_fields) ->
+          case root_field_name(root) {
+            Some("products") -> {
+              let fragments = get_document_fragments(query_string)
+              let products = store.list_effective_products(store)
+              Ok(BulkQueryResult(
+                result_jsonl: make_jsonl(
+                  list.map(products, fn(product) {
+                    project_graphql_value(
+                      product_export_source(product),
+                      node_fields,
+                      fragments,
+                    )
+                  }),
+                ),
+                object_count: list.length(products),
+              ))
+            }
+            Some("productVariants") -> {
+              let fragments = get_document_fragments(query_string)
+              let variants = store.list_effective_product_variants(store)
+              Ok(BulkQueryResult(
+                result_jsonl: make_jsonl(
+                  list.map(variants, fn(variant) {
+                    project_graphql_value(
+                      product_variant_export_source(store, variant),
+                      node_fields,
+                      fragments,
+                    )
+                  }),
+                ),
+                object_count: list.length(variants),
+              ))
+            }
+            _ -> Error(no_connection_bulk_query_error())
+          }
+        None -> Error(no_connection_bulk_query_error())
+      }
+    Ok(_) ->
+      Error(UserError(
+        field: Some(["query"]),
+        message: "Bulk queries must contain exactly one top-level field.",
+        code: Some("INVALID"),
+      ))
+    Error(_) -> Error(no_connection_bulk_query_error())
+  }
+}
+
+fn no_connection_bulk_query_error() -> UserError {
+  UserError(
+    field: Some(["query"]),
+    message: "Bulk queries must contain at least one connection.",
+    code: Some("INVALID"),
+  )
+}
+
+fn selected_bulk_query_node_fields(root: Selection) -> Option(List(Selection)) {
+  let children =
+    get_selected_child_fields(root, default_selected_field_options())
+  case find_child_field(children, "nodes") {
+    Some(nodes_field) ->
+      Some(get_selected_child_fields(
+        nodes_field,
+        default_selected_field_options(),
+      ))
+    None ->
+      case find_child_field(children, "edges") {
+        Some(edges_field) ->
+          find_child_field(
+            get_selected_child_fields(
+              edges_field,
+              default_selected_field_options(),
+            ),
+            "node",
+          )
+          |> option.map(fn(node_field) {
+            get_selected_child_fields(
+              node_field,
+              default_selected_field_options(),
+            )
+          })
+        None -> None
+      }
+  }
+}
+
+fn find_child_field(
+  fields: List(Selection),
+  name: String,
+) -> Option(Selection) {
+  list.find_map(fields, fn(field) {
+    case field {
+      Field(name: field_name, ..) if field_name.value == name -> Ok(field)
+      _ -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn root_field_name(field: Selection) -> Option(String) {
+  case field {
+    Field(name: name, ..) -> Some(name.value)
+    _ -> None
+  }
+}
+
+fn product_export_source(product: ProductRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Product")),
+    #("id", SrcString(product.id)),
+    #("title", SrcString(product.title)),
+    #("handle", SrcString(product.handle)),
+    #("status", SrcString(product.status)),
+    #("vendor", optional_string_to_source(product.vendor)),
+    #("productType", optional_string_to_source(product.product_type)),
+    #("tags", SrcList(list.map(product.tags, SrcString))),
+    #("totalInventory", optional_int_to_source(product.total_inventory)),
+    #("createdAt", optional_string_to_source(product.created_at)),
+    #("updatedAt", optional_string_to_source(product.updated_at)),
+    #("publishedAt", optional_string_to_source(product.published_at)),
+    #("descriptionHtml", SrcString(product.description_html)),
+  ])
+}
+
+fn product_variant_export_source(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  let product_source = case
+    store.get_effective_product_by_id(store, variant.product_id)
+  {
+    Some(product) -> product_export_source(product)
+    None -> SrcNull
+  }
+  src_object([
+    #("__typename", SrcString("ProductVariant")),
+    #("id", SrcString(variant.id)),
+    #("title", SrcString(variant.title)),
+    #("sku", optional_string_to_source(variant.sku)),
+    #("barcode", optional_string_to_source(variant.barcode)),
+    #("price", optional_string_to_source(variant.price)),
+    #("compareAtPrice", optional_string_to_source(variant.compare_at_price)),
+    #("inventoryQuantity", optional_int_to_source(variant.inventory_quantity)),
+    #("product", product_source),
+  ])
+}
+
+fn optional_int_to_source(value: Option(Int)) -> SourceValue {
+  case value {
+    Some(i) -> SrcInt(i)
+    None -> SrcNull
+  }
+}
+
+fn make_jsonl(rows: List(Json)) -> String {
+  case rows {
+    [] -> ""
+    _ -> string.join(list.map(rows, json.to_string), "\n") <> "\n"
+  }
+}
+
+fn handle_bulk_operation_run_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let mutation = read_arg_string(args, "mutation")
+  let staged_upload_path = read_arg_string(args, "stagedUploadPath")
+  case mutation, staged_upload_path {
+    None, _ -> #(
+      MutationFieldResult(
+        key: key,
+        payload: serialize_run_mutation_payload(
+          field,
+          None,
+          [
+            UserError(
+              field: Some(["mutation"]),
+              message: "Bulk mutation is required.",
+              code: Some("INVALID"),
+            ),
+          ],
+          fragments,
         ),
-        next_store,
-        identity_after_completed,
+        staged_resource_ids: [],
+        log_drafts: [],
+      ),
+      store,
+      identity,
+    )
+    _, None -> #(
+      MutationFieldResult(
+        key: key,
+        payload: serialize_run_mutation_payload(
+          field,
+          None,
+          [
+            UserError(
+              field: Some(["stagedUploadPath"]),
+              message: "Staged upload path is required.",
+              code: Some("INVALID"),
+            ),
+          ],
+          fragments,
+        ),
+        staged_resource_ids: [],
+        log_drafts: [],
+      ),
+      store,
+      identity,
+    )
+    Some(mutation_string), Some(path) ->
+      case store.get_staged_upload_content(store, path) {
+        None ->
+          stage_failed_run_mutation(
+            store,
+            identity,
+            field,
+            fragments,
+            key,
+            mutation_string,
+            "",
+            [
+              UserError(
+                field: Some(["stagedUploadPath"]),
+                message: "Staged upload content was not found for the provided stagedUploadPath.",
+                code: None,
+              ),
+            ],
+          )
+        Some(content) ->
+          case supported_inner_mutation_root(mutation_string) {
+            None ->
+              stage_failed_run_mutation(
+                store,
+                identity,
+                field,
+                fragments,
+                key,
+                mutation_string,
+                make_jsonl([
+                  json.object([
+                    #("line", json.null()),
+                    #(
+                      "errors",
+                      json.array(
+                        [
+                          json.object([
+                            #(
+                              "message",
+                              json.string(
+                                "bulkOperationRunMutation locally supports only single-root Admin mutations with local staging support in the proxy.",
+                              ),
+                            ),
+                          ]),
+                        ],
+                        fn(row) { row },
+                      ),
+                    ),
+                  ]),
+                ]),
+                [
+                  UserError(
+                    field: Some(["mutation"]),
+                    message: "Unsupported bulk mutation import root. The proxy did not send this bulk import upstream at runtime.",
+                    code: None,
+                  ),
+                ],
+              )
+            Some(_inner_root) ->
+              stage_supported_run_mutation(
+                store,
+                identity,
+                request_path,
+                field,
+                fragments,
+                key,
+                mutation_string,
+                content,
+              )
+          }
+      }
+  }
+}
+
+fn stage_failed_run_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+  mutation: String,
+  result_jsonl: String,
+  user_errors: List(UserError),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let #(operation, next_store, next_identity) =
+    build_and_stage_mutation_operation(
+      store,
+      identity,
+      "FAILED",
+      mutation,
+      result_jsonl,
+      0,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: serialize_run_mutation_payload(
+        field,
+        Some(operation),
+        user_errors,
+        fragments,
+      ),
+      staged_resource_ids: [operation.id],
+      log_drafts: [],
+    ),
+    next_store,
+    next_identity,
+  )
+}
+
+fn stage_supported_run_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+  mutation: String,
+  upload_content: String,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let result =
+    process_import_lines(
+      string.split(upload_content, "\n"),
+      1,
+      store,
+      identity,
+      request_path,
+      mutation,
+      [],
+      [],
+      [],
+      0,
+      False,
+    )
+  let BulkImportResult(
+    store: imported_store,
+    identity: imported_identity,
+    rows: rows,
+    staged_resource_ids: imported_ids,
+    log_drafts: log_drafts,
+    object_count: object_count,
+    failed: failed,
+  ) = result
+  let result_jsonl = make_jsonl(list.reverse(rows))
+  let #(operation, next_store, next_identity) =
+    build_and_stage_mutation_operation(
+      imported_store,
+      imported_identity,
+      case failed {
+        True -> "FAILED"
+        False -> "COMPLETED"
+      },
+      mutation,
+      result_jsonl,
+      object_count,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: serialize_run_mutation_payload(
+        field,
+        Some(operation),
+        [],
+        fragments,
+      ),
+      staged_resource_ids: [operation.id, ..imported_ids],
+      log_drafts: log_drafts,
+    ),
+    next_store,
+    next_identity,
+  )
+}
+
+type BulkImportResult {
+  BulkImportResult(
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    rows: List(Json),
+    staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
+    object_count: Int,
+    failed: Bool,
+  )
+}
+
+fn process_import_lines(
+  lines: List(String),
+  line_number: Int,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  mutation: String,
+  rows: List(Json),
+  staged_ids: List(String),
+  log_drafts: List(LogDraft),
+  object_count: Int,
+  failed: Bool,
+) -> BulkImportResult {
+  case lines {
+    [] ->
+      BulkImportResult(
+        store: store,
+        identity: identity,
+        rows: rows,
+        staged_resource_ids: list.reverse(staged_ids),
+        log_drafts: list.reverse(log_drafts),
+        object_count: object_count,
+        failed: failed,
       )
+    [line, ..rest] -> {
+      let trimmed = string.trim(line)
+      case trimmed {
+        "" ->
+          process_import_lines(
+            rest,
+            line_number + 1,
+            store,
+            identity,
+            request_path,
+            mutation,
+            rows,
+            staged_ids,
+            log_drafts,
+            object_count,
+            failed,
+          )
+        _ ->
+          case json.parse(trimmed, variables_dict_decoder()) {
+            Error(_) ->
+              process_import_lines(
+                rest,
+                line_number + 1,
+                store,
+                identity,
+                request_path,
+                mutation,
+                [
+                  import_error_row(line_number, "Invalid JSONL variables line."),
+                  ..rows
+                ],
+                staged_ids,
+                log_drafts,
+                object_count,
+                True,
+              )
+            Ok(line_variables) ->
+              case
+                products.process_mutation(
+                  store,
+                  identity,
+                  request_path,
+                  mutation,
+                  line_variables,
+                )
+              {
+                Error(_) ->
+                  process_import_lines(
+                    rest,
+                    line_number + 1,
+                    store,
+                    identity,
+                    request_path,
+                    mutation,
+                    [
+                      import_error_row(
+                        line_number,
+                        "bulkOperationRunMutation could not locally execute the registered inner mutation handler for this line.",
+                      ),
+                      ..rows
+                    ],
+                    staged_ids,
+                    log_drafts,
+                    object_count,
+                    True,
+                  )
+                Ok(outcome) -> {
+                  let staged_this_line = outcome.staged_resource_ids
+                  let next_log_drafts = case staged_this_line {
+                    [] -> log_drafts
+                    _ -> [
+                      bulk_import_log_draft(
+                        mutation,
+                        line_variables,
+                        staged_this_line,
+                      ),
+                      ..log_drafts
+                    ]
+                  }
+                  let next_object_count = case staged_this_line {
+                    [] -> object_count
+                    _ -> object_count + 1
+                  }
+                  process_import_lines(
+                    rest,
+                    line_number + 1,
+                    outcome.store,
+                    outcome.identity,
+                    request_path,
+                    mutation,
+                    [
+                      json.object([
+                        #("line", json.int(line_number)),
+                        #("response", outcome.data),
+                      ]),
+                      ..rows
+                    ],
+                    list.append(outcome.staged_resource_ids, staged_ids),
+                    next_log_drafts,
+                    next_object_count,
+                    failed,
+                  )
+                }
+              }
+          }
+      }
     }
   }
+}
+
+fn bulk_import_log_draft(
+  mutation: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  staged_resource_ids: List(String),
+) -> LogDraft {
+  let parsed = parse_operation.parse_operation(mutation)
+  let #(operation_name, root_fields, primary_root_field) = case parsed {
+    Ok(parse_operation.ParsedOperation(name: name, root_fields: roots, ..)) -> {
+      let primary = case list.first(roots) {
+        Ok(root) -> Some(root)
+        Error(_) -> None
+      }
+      #(name, roots, primary)
+    }
+    Error(_) -> #(None, [], None)
+  }
+  LogDraft(
+    operation_name: operation_name,
+    root_fields: root_fields,
+    primary_root_field: primary_root_field,
+    domain: "products",
+    execution: "stage-locally",
+    query: Some(mutation),
+    variables: Some(variables),
+    staged_resource_ids: staged_resource_ids,
+    status: store.Staged,
+    notes: Some(
+      "Staged locally from bulkOperationRunMutation JSONL import; commit replay uses this original inner mutation and line variables.",
+    ),
+  )
+}
+
+fn import_error_row(line_number: Int, message: String) -> Json {
+  json.object([
+    #("line", json.int(line_number)),
+    #(
+      "errors",
+      json.array([json.object([#("message", json.string(message))])], fn(row) {
+        row
+      }),
+    ),
+  ])
+}
+
+fn supported_inner_mutation_root(mutation: String) -> Option(String) {
+  case root_field.get_root_fields(mutation) {
+    Ok([field]) ->
+      case root_field_name(field) {
+        Some(name) ->
+          case products.is_products_mutation_root(name) {
+            True -> Some(name)
+            False -> None
+          }
+        None -> None
+      }
+    _ -> None
+  }
+}
+
+fn build_and_stage_mutation_operation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  status: String,
+  mutation: String,
+  result_jsonl: String,
+  object_count: Int,
+) -> #(BulkOperationRecord, Store, SyntheticIdentityRegistry) {
+  let #(completed_at, identity_after_completed) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let #(operation_id, identity_after_id) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_completed,
+      "BulkOperation",
+    )
+  let operation =
+    BulkOperationRecord(
+      id: operation_id,
+      status: status,
+      type_: "MUTATION",
+      error_code: None,
+      created_at: completed_at,
+      completed_at: Some(completed_at),
+      object_count: int.to_string(object_count),
+      root_object_count: int.to_string(object_count),
+      file_size: Some(int.to_string(string.length(result_jsonl))),
+      url: Some(build_bulk_operation_result_url(operation_id)),
+      partial_data_url: None,
+      query: Some(mutation),
+      cursor: None,
+      result_jsonl: Some(result_jsonl),
+    )
+  let #(staged, next_store) =
+    store.stage_bulk_operation_result(store, operation, result_jsonl)
+  #(staged, next_store, identity_after_id)
+}
+
+fn variables_dict_decoder() -> decode.Decoder(
+  Dict(String, root_field.ResolvedValue),
+) {
+  decode.dict(decode.string, root_field.resolved_value_decoder())
 }
 
 fn handle_bulk_operation_cancel(
@@ -614,6 +1317,7 @@ fn handle_bulk_operation_cancel(
           fragments,
         ),
         staged_resource_ids: [],
+        log_drafts: [],
       ),
       store,
       identity,
@@ -637,6 +1341,7 @@ fn handle_bulk_operation_cancel(
               fragments,
             ),
             staged_resource_ids: [],
+            log_drafts: [],
           ),
           store,
           identity,
@@ -655,6 +1360,7 @@ fn handle_bulk_operation_cancel(
                   fragments,
                 ),
                 staged_resource_ids: [operation.id],
+                log_drafts: [],
               ),
               store,
               identity,
@@ -673,6 +1379,7 @@ fn handle_bulk_operation_cancel(
                       fragments,
                     ),
                     staged_resource_ids: [],
+                    log_drafts: [],
                   ),
                   store,
                   identity,
@@ -694,6 +1401,7 @@ fn handle_bulk_operation_cancel(
                         fragments,
                       ),
                       staged_resource_ids: staged_id,
+                      log_drafts: [],
                     ),
                     next_store,
                     identity,
@@ -707,6 +1415,15 @@ fn handle_bulk_operation_cancel(
 }
 
 fn serialize_run_query_payload(
+  field: Selection,
+  operation: Option(BulkOperationRecord),
+  user_errors: List(UserError),
+  fragments: FragmentMap,
+) -> Json {
+  serialize_operation_payload(field, operation, user_errors, fragments)
+}
+
+fn serialize_run_mutation_payload(
   field: Selection,
   operation: Option(BulkOperationRecord),
   user_errors: List(UserError),

@@ -335,6 +335,20 @@ broad synthetic-id/timestamp expected differences.
   before staging, return top-level GraphQL errors with `{data: {root: null}}`,
   and use `changeFromQuantity` as the compare value for successful set/adjust
   mutations.
+- Product inventory shipment roots share one shipment store model but have
+  status-specific inventory side effects. `inventoryShipmentCreate` stages a
+  DRAFT shipment without incoming quantity changes; `inventoryShipmentCreateInTransit`
+  and `inventoryShipmentMarkInTransit` add unreceived quantities to
+  `incoming`; add/remove/update quantity roots adjust only the unreceived
+  incoming delta while received accepted quantities move into `available` and
+  `on_hand`. Keep `InventoryShipmentLineItem` IDs as real synthetic GIDs, not
+  proxy-synthetic GIDs.
+- Product inventory transfer `edit` and `duplicate` roots build on the normal
+  transfer store slice. Edit changes only metadata/location snapshots and
+  preserves line items/reservations. Duplicate mints a fresh transfer GID, a
+  `#T####` name from the effective transfer count, resets status to `DRAFT`,
+  and remints proxy-synthetic transfer line-item IDs without copying ready
+  inventory reservations.
 - Product media validation scenarios need explicit `seedProductMedia`
   hydration in the parity runner before the primary request. Model
   `productCreateMedia` as partial for valid create inputs plus

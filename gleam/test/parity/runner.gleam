@@ -30,8 +30,9 @@ import parity/json_value.{
 }
 import parity/jsonpath
 import parity/spec.{
-  type Spec, type Target, NoVariables, OverrideRequest, ReusePrimary,
-  VariablesFromCapture, VariablesFromFile, VariablesInline,
+  type Spec, type Target, NoVariables, OverrideRequest, ProxyLog, ProxyResponse,
+  ProxyState, ReusePrimary, VariablesFromCapture, VariablesFromFile,
+  VariablesInline,
 }
 import shopify_draft_proxy/proxy/draft_proxy.{
   type DraftProxy, type Response, Request,
@@ -41,19 +42,20 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type AdminPlatformGenericNodeRecord, type AdminPlatformTaxonomyCategoryRecord,
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
-  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
-  type CatalogRecord, type CollectionImageRecord, type CollectionRecord,
-  type CollectionRuleRecord, type CollectionRuleSetRecord,
-  type CustomerAccountPageRecord, type CustomerAddressRecord,
-  type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
-  type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
-  type CustomerDefaultPhoneNumberRecord,
+  type B2BCompanyLocationRecord, type B2BCompanyRecord, type BulkOperationRecord,
+  type CapturedJsonValue, type CarrierServiceRecord, type CatalogRecord,
+  type CollectionImageRecord, type CollectionRecord, type CollectionRuleRecord,
+  type CollectionRuleSetRecord, type CustomerAccountPageRecord,
+  type CustomerAddressRecord, type CustomerCatalogConnectionRecord,
+  type CustomerCatalogPageInfoRecord, type CustomerDefaultAddressRecord,
+  type CustomerDefaultEmailAddressRecord, type CustomerDefaultPhoneNumberRecord,
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
   type CustomerPaymentMethodInstrumentRecord, type CustomerPaymentMethodRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord,
-  type DiscountRecord, type DraftOrderRecord,
-  type DraftOrderVariantCatalogRecord, type GiftCardConfigurationRecord,
+  type DeliveryProfileRecord, type DiscountRecord, type DraftOrderRecord,
+  type DraftOrderVariantCatalogRecord, type FulfillmentOrderRecord,
+  type FulfillmentRecord, type GiftCardConfigurationRecord,
   type GiftCardRecipientAttributesRecord, type GiftCardRecord,
   type GiftCardTransactionRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
@@ -77,39 +79,43 @@ import shopify_draft_proxy/state/types.{
   type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
   type PublicationRecord, type SegmentRecord, type SellingPlanGroupRecord,
-  type SellingPlanRecord, type ShopAddressRecord, type ShopDomainRecord,
-  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
-  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
-  type ShopifyFunctionRecord, type StoreCreditAccountRecord,
-  type StorePropertyRecord, type StorePropertyValue, type TranslationRecord,
-  type WebPresenceRecord, AdminPlatformGenericNodeRecord,
-  AdminPlatformTaxonomyCategoryRecord, B2BCompanyContactRecord,
-  B2BCompanyContactRoleRecord, B2BCompanyLocationRecord, B2BCompanyRecord,
-  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
-  CapturedObject, CapturedString, CatalogRecord, CollectionImageRecord,
-  CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
-  CustomerAccountPageRecord, CustomerAddressRecord,
-  CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
-  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
-  CustomerEventSummaryRecord, CustomerMetafieldRecord,
-  CustomerOrderSummaryRecord, CustomerPaymentMethodInstrumentRecord,
-  CustomerPaymentMethodRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
+  type SellingPlanRecord, type ShippingOrderRecord,
+  type ShippingPackageDimensionsRecord, type ShippingPackageRecord,
+  type ShippingPackageWeightRecord, type ShopAddressRecord,
+  type ShopDomainRecord, type ShopFeaturesRecord, type ShopPlanRecord,
+  type ShopPolicyRecord, type ShopRecord, type ShopResourceLimitsRecord,
+  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
+  type StoreCreditAccountRecord, type StorePropertyRecord,
+  type StorePropertyValue, type TranslationRecord, type WebPresenceRecord,
+  AdminPlatformGenericNodeRecord, AdminPlatformTaxonomyCategoryRecord,
+  B2BCompanyContactRecord, B2BCompanyContactRoleRecord, B2BCompanyLocationRecord,
+  B2BCompanyRecord, BulkOperationRecord, CapturedArray, CapturedBool,
+  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  CarrierServiceRecord, CatalogRecord, CollectionImageRecord, CollectionRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, CustomerAccountPageRecord,
+  CustomerAddressRecord, CustomerCatalogConnectionRecord,
+  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerEmailMarketingConsentRecord, CustomerEventSummaryRecord,
+  CustomerMetafieldRecord, CustomerOrderSummaryRecord,
+  CustomerPaymentMethodInstrumentRecord, CustomerPaymentMethodRecord,
+  CustomerRecord, CustomerSmsMarketingConsentRecord, DeliveryProfileRecord,
   DiscountRecord, DraftOrderRecord, DraftOrderVariantCatalogRecord,
-  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
-  GiftCardTransactionRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
-  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord, LocaleRecord,
-  LocationRecord, MarketRecord, MarketingBool, MarketingFloat, MarketingInt,
-  MarketingList, MarketingNull, MarketingObject, MarketingRecord,
-  MarketingString, MetafieldDefinitionCapabilitiesRecord,
-  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintValueRecord,
-  MetafieldDefinitionConstraintsRecord, MetafieldDefinitionRecord,
-  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
-  MetaobjectBool, MetaobjectCapabilitiesRecord,
-  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
-  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
-  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
+  FulfillmentOrderRecord, FulfillmentRecord, GiftCardConfigurationRecord,
+  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
+  InventoryWeightInt, InventoryWeightRecord, LocaleRecord, LocationRecord,
+  MarketRecord, MarketingBool, MarketingFloat, MarketingInt, MarketingList,
+  MarketingNull, MarketingObject, MarketingRecord, MarketingString,
+  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
+  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
+  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
+  MetafieldDefinitionValidationRecord, MetaobjectBool,
+  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
+  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
+  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
+  MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
@@ -120,12 +126,14 @@ import shopify_draft_proxy/state/types.{
   ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
   ProductRecord, ProductSeoRecord, ProductVariantRecord,
   ProductVariantSelectedOptionRecord, PublicationRecord, SegmentRecord,
-  SellingPlanGroupRecord, SellingPlanRecord, ShopAddressRecord,
-  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
-  ShopifyFunctionAppRecord, ShopifyFunctionRecord, StoreCreditAccountRecord,
-  StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
+  SellingPlanGroupRecord, SellingPlanRecord, ShippingOrderRecord,
+  ShippingPackageDimensionsRecord, ShippingPackageRecord,
+  ShippingPackageWeightRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
+  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
+  ShopifyFunctionRecord, StoreCreditAccountRecord, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList,
   StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
   StorePropertyRecord, StorePropertyString, TranslationRecord, WebPresenceRecord,
 }
@@ -308,7 +316,29 @@ fn seed_capture_preconditions(
     seed_metafield_definition_preconditions,
     seed_metaobject_preconditions,
     seed_marketing_baseline_preconditions,
+    seed_bulk_operation_status_preconditions,
     seed_online_store_content_preconditions,
+    fn(c, p) {
+      case parsed.scenario_id {
+        "shipping-package-default-lifecycle-local-runtime" ->
+          seed_shipping_package_preconditions(c, p)
+        "shipping-settings-package-pickup-constraints" ->
+          seed_shipping_settings_package_pickup_preconditions(c, p)
+        "delivery-profile-read" ->
+          seed_delivery_profile_read_preconditions(c, p)
+        "delivery-profile-lifecycle" ->
+          seed_delivery_profile_lifecycle_preconditions(c, p)
+        "fulfillment-top-level-reads" | "fulfillment-detail-events-lifecycle" ->
+          seed_fulfillment_read_preconditions(c, p)
+        "assigned-fulfillment-orders-filtering-local-runtime" ->
+          seed_assigned_fulfillment_orders_preconditions(c, p)
+        "fulfillment-order-request-lifecycle" ->
+          seed_fulfillment_order_request_preconditions(c, p)
+        "fulfillment-order-lifecycle-local-staging" ->
+          seed_fulfillment_order_lifecycle_preconditions(c, p)
+        _ -> p
+      }
+    },
     fn(c, p) {
       case parsed.scenario_id {
         "segments-baseline-read" -> seed_segments_baseline_preconditions(c, p)
@@ -331,6 +361,148 @@ fn seed_capture_preconditions(
     fn(c, p) { seed_orders_capture_preconditions(parsed.scenario_id, c, p) },
   ]
   list.fold(helpers, proxy, fn(p, helper) { helper(capture, p) })
+}
+
+fn seed_bulk_operation_status_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_records = case
+    jsonpath.lookup(capture, "$.lifecycle.queryExportToTerminal.result.records")
+  {
+    Some(JArray(records)) -> list.filter_map(records, make_seed_product_relaxed)
+    _ -> []
+  }
+
+  let base_operations =
+    list.flatten([
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogDefault.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogEmptyRunningQuery.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogEmptyRunningMutation.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.lifecycle.queryExportToTerminal.catalogById.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_options_at(capture, [
+        "$.reads.currentQuery.response.data.currentBulkOperation",
+        "$.reads.currentMutation.response.data.currentBulkOperation",
+        "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.bulkOperation",
+        "$.lifecycle.queryExportToTerminal.terminalOperation",
+        "$.lifecycle.queryExportToTerminal.currentQueryOperation.response.data.currentBulkOperation",
+        "$.lifecycle.queryExportToTerminal.terminalCancelAttempt.response.data.bulkOperationCancel.bulkOperation",
+      ]),
+    ])
+
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(product_records)
+    |> store_mod.upsert_base_bulk_operations(base_operations)
+    |> restrict_products_to_bulk_result(product_records)
+
+  let store = case
+    bulk_operation_at(
+      capture,
+      "$.lifecycle.queryExportImmediateCancel.run.response.data.bulkOperationRunQuery.bulkOperation",
+    )
+  {
+    Some(operation) -> {
+      let #(_, staged_store) = store_mod.stage_bulk_operation(store, operation)
+      staged_store
+    }
+    None -> store
+  }
+
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn restrict_products_to_bulk_result(
+  store: store_mod.Store,
+  product_records: List(ProductRecord),
+) -> store_mod.Store {
+  case product_records {
+    [] -> store
+    _ -> {
+      let captured_ids = list.map(product_records, fn(product) { product.id })
+      store_mod.list_effective_products(store)
+      |> list.fold(store, fn(current, product) {
+        case list.contains(captured_ids, product.id) {
+          True -> current
+          False -> store_mod.delete_staged_product(current, product.id)
+        }
+      })
+    }
+  }
+}
+
+fn bulk_operation_array_at(
+  capture: JsonValue,
+  path: String,
+) -> List(BulkOperationRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(nodes)) -> list.filter_map(nodes, make_seed_bulk_operation)
+    _ -> []
+  }
+}
+
+fn bulk_operation_options_at(
+  capture: JsonValue,
+  paths: List(String),
+) -> List(BulkOperationRecord) {
+  list.filter_map(paths, fn(path) {
+    case bulk_operation_at(capture, path) {
+      Some(operation) -> Ok(operation)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn bulk_operation_at(
+  capture: JsonValue,
+  path: String,
+) -> Option(BulkOperationRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(source) ->
+      case make_seed_bulk_operation(source) {
+        Ok(operation) -> Some(operation)
+        Error(_) -> None
+      }
+    _ -> None
+  }
+}
+
+fn make_seed_bulk_operation(
+  source: JsonValue,
+) -> Result(BulkOperationRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use status <- result.try(required_string_field(source, "status"))
+  use type_ <- result.try(required_string_field(source, "type"))
+  use created_at <- result.try(required_string_field(source, "createdAt"))
+  Ok(BulkOperationRecord(
+    id: id,
+    status: status,
+    type_: type_,
+    error_code: read_string_field(source, "errorCode"),
+    created_at: created_at,
+    completed_at: read_string_field(source, "completedAt"),
+    object_count: read_string_field(source, "objectCount") |> option.unwrap("0"),
+    root_object_count: read_string_field(source, "rootObjectCount")
+      |> option.unwrap("0"),
+    file_size: read_string_field(source, "fileSize"),
+    url: read_string_field(source, "url"),
+    partial_data_url: read_string_field(source, "partialDataUrl"),
+    query: read_string_field(source, "query"),
+    cursor: read_string_field(source, "cursor"),
+    result_jsonl: None,
+  ))
 }
 
 fn seed_admin_platform_node_preconditions(
@@ -8829,6 +9001,593 @@ fn make_seed_shopify_function_app(
   )
 }
 
+fn seed_shipping_package_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let packages = case jsonpath.lookup(capture, "$.seed.shippingPackages") {
+    Some(JArray(nodes)) -> list.filter_map(nodes, make_seed_shipping_package)
+    _ -> []
+  }
+  let store = store_mod.upsert_base_shipping_packages(proxy.store, packages)
+  let #(_, identity_after_seed) =
+    synthetic_identity.make_synthetic_timestamp(proxy.synthetic_identity)
+  draft_proxy.DraftProxy(
+    ..proxy,
+    store: store,
+    synthetic_identity: identity_after_seed,
+  )
+}
+
+fn seed_shipping_settings_package_pickup_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let carrier_services = case
+    jsonpath.lookup(capture, "$.seed.carrierServices")
+  {
+    Some(JArray(nodes)) -> list.filter_map(nodes, make_seed_carrier_service)
+    _ -> []
+  }
+  let locations = case jsonpath.lookup(capture, "$.seed.locations") {
+    Some(JArray(nodes)) -> list.filter_map(nodes, make_store_property_record)
+    _ -> []
+  }
+  let store =
+    store_mod.upsert_base_carrier_services(proxy.store, carrier_services)
+  let store =
+    list.fold(locations, store, fn(acc, location) {
+      store_mod.upsert_base_store_property_location(acc, location)
+    })
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_delivery_profile_read_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let profiles = case
+    jsonpath.lookup(
+      capture,
+      "$.queries.detail.result.payload.data.deliveryProfile",
+    )
+  {
+    Some(profile_source) ->
+      case make_seed_delivery_profile(profile_source, capture) {
+        Ok(profile) -> [profile]
+        Error(_) -> []
+      }
+    None -> []
+  }
+  let store = store_mod.upsert_base_delivery_profiles(proxy.store, profiles)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_delivery_profile_lifecycle_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let profile_items = case
+    jsonpath.lookup(
+      capture,
+      "$.mutations.nestedCreate.result.payload.data.deliveryProfileCreate.profile.profileItems.nodes",
+    )
+  {
+    Some(JArray(nodes)) -> nodes
+    _ -> []
+  }
+  let products =
+    profile_items
+    |> list.filter_map(fn(item) {
+      case read_object_field(item, "product") {
+        Some(product) -> make_seed_product_relaxed(product)
+        None -> Error(Nil)
+      }
+    })
+  let variants =
+    profile_items
+    |> list.flat_map(fn(item) {
+      let product_id =
+        read_object_field(item, "product")
+        |> option.then(fn(product) { read_string_field(product, "id") })
+      case product_id, read_object_field(item, "variants") {
+        Some(id), Some(connection) ->
+          case read_array_field(connection, "nodes") {
+            Some(nodes) ->
+              list.filter_map(nodes, fn(node) {
+                make_seed_product_variant(id, node, None)
+              })
+            None -> []
+          }
+        _, _ -> []
+      }
+    })
+  let default_profiles = case
+    jsonpath.lookup(capture, "$.mutations.defaultRemove.variables.id")
+  {
+    Some(JString(id)) -> [default_delivery_profile_seed(id)]
+    _ -> []
+  }
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(products)
+    |> store_mod.upsert_base_product_variants(variants)
+    |> store_mod.upsert_base_delivery_profiles(default_profiles)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_fulfillment_read_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let detail_order =
+    jsonpath.lookup(capture, "$.detailRead.response.data.order")
+  let detail_order_id =
+    detail_order
+    |> option.then(fn(order) { read_string_field(order, "id") })
+  let shipping_orders =
+    detail_order
+    |> option.map(fn(order) { [make_seed_shipping_order(order)] })
+    |> option.unwrap([])
+  let order_records =
+    detail_order
+    |> option.map(make_seed_order_list)
+    |> option.unwrap([])
+  let direct_fulfillments = case
+    jsonpath.lookup(capture, "$.detailRead.response.data.fulfillment")
+  {
+    Some(value) -> [make_seed_fulfillment(value, detail_order_id)]
+    None -> []
+  }
+  let order_fulfillments = case
+    jsonpath.lookup(capture, "$.detailRead.response.data.order.fulfillments")
+  {
+    Some(JArray(nodes)) ->
+      nodes
+      |> list.map(fn(node) { make_seed_fulfillment(node, detail_order_id) })
+    _ -> []
+  }
+  let direct_fulfillment_orders = case
+    jsonpath.lookup(capture, "$.detailRead.response.data.fulfillmentOrder")
+  {
+    Some(value) -> [make_seed_fulfillment_order(value, detail_order_id)]
+    None -> []
+  }
+  let nested_fulfillment_orders = case
+    jsonpath.lookup(
+      capture,
+      "$.detailRead.response.data.order.fulfillmentOrders.nodes",
+    )
+  {
+    Some(JArray(nodes)) ->
+      nodes
+      |> list.map(fn(node) {
+        make_seed_fulfillment_order(node, detail_order_id)
+      })
+    _ -> []
+  }
+  let catalog_fulfillment_orders = case
+    jsonpath.lookup(
+      capture,
+      "$.catalogRead.response.data.allFulfillmentOrders.nodes",
+    )
+  {
+    Some(JArray(nodes)) ->
+      nodes
+      |> list.map(fn(node) {
+        make_seed_fulfillment_order(node, detail_order_id)
+      })
+    _ -> []
+  }
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_orders(order_records)
+    |> store_mod.upsert_base_shipping_orders(shipping_orders)
+    |> store_mod.upsert_base_fulfillments(
+      merge_fulfillments(list.append(direct_fulfillments, order_fulfillments)),
+    )
+    |> store_mod.upsert_base_fulfillment_orders(
+      merge_fulfillment_orders(list.append(
+        direct_fulfillment_orders,
+        list.append(nested_fulfillment_orders, catalog_fulfillment_orders),
+      )),
+    )
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_assigned_fulfillment_orders_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let order = jsonpath.lookup(capture, "$.seedOrder")
+  let order_id =
+    order
+    |> option.then(fn(value) { read_string_field(value, "id") })
+  let shipping_orders =
+    order
+    |> option.map(fn(value) { [make_seed_shipping_order(value)] })
+    |> option.unwrap([])
+  let order_records =
+    order
+    |> option.map(make_seed_order_list)
+    |> option.unwrap([])
+  let fulfillment_orders = case
+    jsonpath.lookup(capture, "$.seedOrder.fulfillmentOrders.nodes")
+  {
+    Some(JArray(nodes)) ->
+      nodes
+      |> list.map(fn(node) { make_seed_fulfillment_order(node, order_id) })
+    _ -> []
+  }
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_orders(order_records)
+    |> store_mod.upsert_base_shipping_orders(shipping_orders)
+    |> store_mod.upsert_base_fulfillment_orders(fulfillment_orders)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_fulfillment_order_request_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let fulfillment_orders =
+    [
+      "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder",
+      "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.unsubmittedFulfillmentOrder",
+      "$.rejectFulfillmentRequest.response.data.fulfillmentOrderRejectFulfillmentRequest.fulfillmentOrder",
+      "$.rejectCancellationRequest.response.data.fulfillmentOrderRejectCancellationRequest.fulfillmentOrder",
+    ]
+    |> list.filter_map(fn(path) {
+      case jsonpath.lookup(capture, path) {
+        Some(value) -> Ok(make_seed_fulfillment_order(value, None))
+        None -> Error(Nil)
+      }
+    })
+  let order_records = case fulfillment_orders {
+    [] -> []
+    _ -> [
+      order_record_from_fulfillment_orders(
+        "gid://shopify/Order/shipping-fulfillment-order-request-seed",
+        fulfillment_orders,
+      ),
+    ]
+  }
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_orders(order_records)
+    |> store_mod.upsert_base_fulfillment_orders(fulfillment_orders)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_fulfillment_order_lifecycle_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let create_paths = [
+    "$.workflows.holdRelease.create.response.payload.data.orderCreate.order",
+    "$.workflows.move.create.response.payload.data.orderCreate.order",
+    "$.workflows.scheduleProgressOpenClose.create.response.payload.data.orderCreate.order",
+    "$.workflows.reroute.create.response.payload.data.orderCreate.order",
+    "$.workflows.residualSplitDeadlineMerge.create.response.payload.data.orderCreate.order",
+  ]
+  let order_sources =
+    create_paths
+    |> list.filter_map(fn(path) {
+      case jsonpath.lookup(capture, path) {
+        Some(order) -> Ok(order)
+        None -> Error(Nil)
+      }
+    })
+  let shipping_orders = list.map(order_sources, make_seed_shipping_order)
+  let order_records = list.flat_map(order_sources, make_seed_order_list)
+  let fulfillment_orders =
+    order_sources
+    |> list.flat_map(fn(path) {
+      let order_id = read_string_field(path, "id")
+      case read_object_field(path, "fulfillmentOrders") {
+        Some(connection) ->
+          case read_array_field(connection, "nodes") {
+            Some(nodes) ->
+              list.map(nodes, fn(node) {
+                make_seed_fulfillment_order(node, order_id)
+              })
+            None -> []
+          }
+        None -> []
+      }
+    })
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_orders(order_records)
+    |> store_mod.upsert_base_shipping_orders(shipping_orders)
+    |> store_mod.upsert_base_fulfillment_orders(fulfillment_orders)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_order_list(source: JsonValue) -> List(OrderRecord) {
+  case make_seed_order(source) {
+    Ok(record) -> [record]
+    Error(_) -> []
+  }
+}
+
+fn order_record_from_fulfillment_orders(
+  id: String,
+  fulfillment_orders: List(FulfillmentOrderRecord),
+) -> OrderRecord {
+  OrderRecord(
+    id: id,
+    cursor: None,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("fulfillments", CapturedArray([])),
+      #(
+        "fulfillmentOrders",
+        CapturedArray(list.map(fulfillment_orders, fn(record) { record.data })),
+      ),
+    ]),
+  )
+}
+
+fn make_seed_shipping_order(source: JsonValue) -> ShippingOrderRecord {
+  ShippingOrderRecord(
+    id: read_string_field(source, "id") |> option.unwrap(""),
+    data: captured_json_from_parity(source),
+  )
+}
+
+fn make_seed_fulfillment(
+  source: JsonValue,
+  order_id: Option(String),
+) -> FulfillmentRecord {
+  FulfillmentRecord(
+    id: read_string_field(source, "id") |> option.unwrap(""),
+    order_id: order_id,
+    data: captured_json_from_parity(source),
+  )
+}
+
+fn make_seed_fulfillment_order(
+  source: JsonValue,
+  order_id: Option(String),
+) -> FulfillmentOrderRecord {
+  let request_status =
+    read_string_field(source, "requestStatus") |> option.unwrap("UNSUBMITTED")
+  FulfillmentOrderRecord(
+    id: read_string_field(source, "id") |> option.unwrap(""),
+    order_id: order_id,
+    status: read_string_field(source, "status") |> option.unwrap("OPEN"),
+    request_status: request_status,
+    assigned_location_id: read_assigned_location_id(source),
+    assignment_status: infer_assignment_status(source, request_status),
+    manually_held: read_bool_field(source, "manuallyHeld")
+      |> option.unwrap(False),
+    data: captured_json_from_parity(source),
+  )
+}
+
+fn read_assigned_location_id(source: JsonValue) -> Option(String) {
+  read_object_field(source, "assignedLocation")
+  |> option.then(fn(assigned_location) {
+    read_object_field(assigned_location, "location")
+    |> option.then(fn(location) { read_string_field(location, "id") })
+  })
+}
+
+fn infer_assignment_status(
+  source: JsonValue,
+  request_status: String,
+) -> Option(String) {
+  case fulfillment_order_source_has_cancellation_request(source) {
+    True -> Some("CANCELLATION_REQUESTED")
+    False ->
+      case request_status {
+        "SUBMITTED" -> Some("FULFILLMENT_REQUESTED")
+        "ACCEPTED" -> Some("FULFILLMENT_ACCEPTED")
+        _ -> None
+      }
+  }
+}
+
+fn fulfillment_order_source_has_cancellation_request(
+  source: JsonValue,
+) -> Bool {
+  case read_object_field(source, "merchantRequests") {
+    Some(requests) ->
+      case read_array_field(requests, "nodes") {
+        Some(nodes) ->
+          list.any(nodes, fn(node) {
+            read_string_field(node, "kind") == Some("CANCELLATION_REQUEST")
+          })
+        None -> False
+      }
+    None -> False
+  }
+}
+
+fn merge_fulfillments(
+  records: List(FulfillmentRecord),
+) -> List(FulfillmentRecord) {
+  let initial: List(FulfillmentRecord) = []
+  records
+  |> list.fold(initial, fn(seen, record) {
+    case list.any(seen, fn(existing) { existing.id == record.id }) {
+      True -> seen
+      False -> list.append(seen, [record])
+    }
+  })
+}
+
+fn merge_fulfillment_orders(
+  records: List(FulfillmentOrderRecord),
+) -> List(FulfillmentOrderRecord) {
+  let initial: List(FulfillmentOrderRecord) = []
+  records
+  |> list.fold(initial, fn(seen, record) {
+    case list.any(seen, fn(existing) { existing.id == record.id }) {
+      True -> seen
+      False -> list.append(seen, [record])
+    }
+  })
+}
+
+fn make_seed_delivery_profile(
+  source: JsonValue,
+  capture: JsonValue,
+) -> Result(DeliveryProfileRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  Ok(DeliveryProfileRecord(
+    id: id,
+    cursor: find_delivery_profile_cursor(capture, id),
+    merchant_owned: read_bool_field(source, "merchantOwned")
+      |> option.unwrap(True),
+    data: captured_json_from_parity(source),
+  ))
+}
+
+fn default_delivery_profile_seed(id: String) -> DeliveryProfileRecord {
+  DeliveryProfileRecord(
+    id: id,
+    cursor: None,
+    merchant_owned: True,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("name", CapturedString("General profile")),
+      #("default", CapturedBool(True)),
+      #("merchantOwned", CapturedBool(True)),
+      #("version", CapturedInt(1)),
+      #("activeMethodDefinitionsCount", CapturedInt(0)),
+      #("locationsWithoutRatesCount", CapturedInt(0)),
+      #("originLocationCount", CapturedInt(0)),
+      #("zoneCountryCount", CapturedInt(0)),
+      #(
+        "productVariantsCount",
+        CapturedObject([
+          #("count", CapturedInt(0)),
+          #("precision", CapturedString("EXACT")),
+        ]),
+      ),
+      #("profileItems", captured_empty_connection()),
+      #("profileLocationGroups", CapturedArray([])),
+    ]),
+  )
+}
+
+fn captured_empty_connection() -> CapturedJsonValue {
+  CapturedObject([
+    #("nodes", CapturedArray([])),
+    #(
+      "pageInfo",
+      CapturedObject([
+        #("hasNextPage", CapturedBool(False)),
+        #("hasPreviousPage", CapturedBool(False)),
+        #("startCursor", CapturedNull),
+        #("endCursor", CapturedNull),
+      ]),
+    ),
+  ])
+}
+
+fn find_delivery_profile_cursor(
+  capture: JsonValue,
+  profile_id: String,
+) -> Option(String) {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.queries.catalogFirst.result.payload.data.deliveryProfiles.edges",
+    )
+  {
+    Some(JArray(edges)) ->
+      edges
+      |> list.find_map(fn(edge) {
+        case read_object_field(edge, "node") {
+          Some(node) ->
+            case required_string_field(node, "id") {
+              Ok(id) if id == profile_id ->
+                read_string_field(edge, "cursor") |> option.to_result(Nil)
+              _ -> Error(Nil)
+            }
+          None -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn make_seed_carrier_service(
+  source: JsonValue,
+) -> Result(CarrierServiceRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  Ok(CarrierServiceRecord(
+    id: id,
+    name: read_string_field(source, "name"),
+    formatted_name: read_string_field(source, "formattedName"),
+    callback_url: read_string_field(source, "callbackUrl"),
+    active: read_bool_field(source, "active") |> option.unwrap(False),
+    supports_service_discovery: read_bool_field(
+      source,
+      "supportsServiceDiscovery",
+    )
+      |> option.unwrap(False),
+    created_at: read_string_field(source, "createdAt")
+      |> option.unwrap("2024-01-01T00:00:00.000Z"),
+    updated_at: read_string_field(source, "updatedAt")
+      |> option.unwrap("2024-01-01T00:00:00.000Z"),
+  ))
+}
+
+fn make_seed_shipping_package(
+  source: JsonValue,
+) -> Result(ShippingPackageRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use created_at <- result.try(required_string_field(source, "createdAt"))
+  use updated_at <- result.try(required_string_field(source, "updatedAt"))
+  Ok(ShippingPackageRecord(
+    id: id,
+    name: read_string_field(source, "name"),
+    type_: read_string_field(source, "type"),
+    default: read_bool_field(source, "default") |> option.unwrap(False),
+    weight: read_shipping_package_weight(read_object_field(source, "weight")),
+    dimensions: read_shipping_package_dimensions(read_object_field(
+      source,
+      "dimensions",
+    )),
+    created_at: created_at,
+    updated_at: updated_at,
+  ))
+}
+
+fn read_shipping_package_weight(
+  source: Option(JsonValue),
+) -> Option(ShippingPackageWeightRecord) {
+  case source {
+    Some(value) ->
+      Some(ShippingPackageWeightRecord(
+        value: read_float_field(value, "value"),
+        unit: read_string_field(value, "unit"),
+      ))
+    None -> None
+  }
+}
+
+fn read_shipping_package_dimensions(
+  source: Option(JsonValue),
+) -> Option(ShippingPackageDimensionsRecord) {
+  case source {
+    Some(value) ->
+      Some(ShippingPackageDimensionsRecord(
+        length: read_float_field(value, "length"),
+        width: read_float_field(value, "width"),
+        height: read_float_field(value, "height"),
+        unit: read_string_field(value, "unit"),
+      ))
+    None -> None
+  }
+}
+
 fn seed_gift_card_lifecycle_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -9574,7 +10333,7 @@ fn actual_response_for(
   proxy: DraftProxy,
 ) -> Result(#(JsonValue, DraftProxy), RunError) {
   case target.request {
-    ReusePrimary -> Ok(#(primary_response, proxy))
+    ReusePrimary -> proxy_source_value(target, primary_response, proxy)
     OverrideRequest(request: request) -> {
       case
         target.upstream_capture_path,
@@ -9606,11 +10365,41 @@ fn actual_response_for(
             request.api_version,
           ))
           use value <- result.try(parse_response_body(response))
-          Ok(#(value, next_proxy))
+          proxy_source_value(target, value, next_proxy)
         }
       }
     }
   }
+}
+
+fn proxy_source_value(
+  target: Target,
+  response_value: JsonValue,
+  proxy: DraftProxy,
+) -> Result(#(JsonValue, DraftProxy), RunError) {
+  case target.proxy_source {
+    ProxyResponse -> Ok(#(response_value, proxy))
+    ProxyState -> {
+      use state_value <- result.try(meta_response_value(proxy, "/__meta/state"))
+      Ok(#(state_value, proxy))
+    }
+    ProxyLog -> {
+      use log_value <- result.try(meta_response_value(proxy, "/__meta/log"))
+      Ok(#(log_value, proxy))
+    }
+  }
+}
+
+fn meta_response_value(
+  proxy: DraftProxy,
+  path: String,
+) -> Result(JsonValue, RunError) {
+  let #(response, _) =
+    draft_proxy.process_request(
+      proxy,
+      Request(method: "GET", path: path, headers: dict.new(), body: ""),
+    )
+  parse_response_body(response)
 }
 
 fn override_request_uses_upstream_capture(scenario_id: String) -> Bool {
