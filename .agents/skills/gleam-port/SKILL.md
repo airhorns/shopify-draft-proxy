@@ -227,11 +227,26 @@ hit this.
 Some parity specs use a setup mutation against an upstream resource
 that already exists in the live capture. Do not edit those specs or
 rewrite the setup request. Seed the Gleam proxy from capture data in
-`test/parity/runner.gleam` before executing the primary request, keyed
-by scenario id, mirroring the TS parity harness. Pass 27's
-`gift-card-search-filters` seeding is the current template: decode only
-fields present in the capture, upsert them into base state, then let
-the setup mutation produce the staged read-after-write state.
+`test/parity/runner.gleam` before executing the primary request,
+mirroring the TS parity harness.
+
+`seed_capture_preconditions` folds over a flat list of helper
+functions, each of which self-gates on JSON path markers (e.g.
+`$.mutation.response.data.<operationName>`, `$.precondition`,
+`$.seedShopifyFunctions`) and is a no-op when its markers aren't
+present. **Never branch on `parsed.scenario_id`** — new parity specs
+must land without runner edits if their capture exposes the markers
+existing helpers already check. To add a helper, append it to the
+list and gate it on a capture path that uniquely identifies the
+family of captures it should fire for.
+
+A long pipe chain in this position used to break the Erlang compiler
+(20+ minute hang on the optimizer); the list+fold form keeps build
+time under a second on both targets.
+
+Decode only fields present in the capture, upsert them into base
+state, then let the setup mutation produce the staged read-after-write
+state.
 
 If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
@@ -268,12 +283,15 @@ matches the JSON source.
 
 ### Functions parity note
 
-Captures with `seedShopifyFunctions` can share one runner seeding helper for
-local staging and live read-only scenarios. When a local-runtime Functions
-fixture appears one synthetic id/timestamp step ahead, check whether the
-TypeScript conformance harness seeds the synthetic registry before the primary
-request; mirror that seed in the Gleam runner rather than adding broad
-synthetic-id/timestamp expected differences.
+Captures with `seedShopifyFunctions` share one runner seeding helper for
+local staging and live read-only scenarios. The helper is gated on the
+presence of `$.seedShopifyFunctions` or the captured Functions-flavoured
+mutations (`cartTransformCreate`, `validationCreate`, `taxAppConfigure`)
+in `$.primary.response.data`. When a local-runtime Functions fixture
+appears one synthetic id/timestamp step ahead, check whether the
+TypeScript conformance harness seeds the synthetic registry before the
+primary request; mirror that seed in the Gleam runner rather than adding
+broad synthetic-id/timestamp expected differences.
 
 ### Porting notes
 

@@ -327,6 +327,10 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
+      "specPath": "config/parity-specs/products/products-search-grammar-read.json",
+      "reason": "Captured upstream response is the only ground truth — needs proxy seeding for the search-grammar product slice before parity can compare proxy vs upstream."
+    },
+    {
       "specPath": "config/parity-specs/shipping-fulfillments/assigned-fulfillment-orders-filtering-local-runtime.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
