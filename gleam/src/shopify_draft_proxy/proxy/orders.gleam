@@ -75,6 +75,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "abandonmentUpdateActivitiesDeliveryStatuses",
       "draftOrderComplete",
       "draftOrderCreate",
+      "draftOrderDelete",
       "fulfillmentCancel",
       "fulfillmentCreate",
       "fulfillmentTrackingInfoUpdate",
@@ -478,6 +479,35 @@ pub fn process_mutation(
             )
           }
         }
+        Field(name: name, ..) if name.value == "draftOrderDelete" -> {
+          let result =
+            handle_draft_order_delete(
+              current_store,
+              document,
+              operation_path,
+              field,
+              variables,
+            )
+          let #(key, payload, next_store, next_errors, next_drafts) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              current_identity,
+              ids,
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              next_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
         Field(name: name, ..)
           if name.value == "fulfillmentCancel"
           || name.value == "fulfillmentTrackingInfoUpdate"
@@ -666,6 +696,104 @@ fn handle_draft_order_complete_guardrail(
     [_, ..] -> #(key, json.null(), validation_errors)
     [] -> #(key, json.null(), [])
   }
+}
+
+fn handle_draft_order_delete(
+  store: Store,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, Store, List(Json), List(LogDraft)) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "draftOrderDelete",
+      [RequiredArgument(name: "input", expected_type: "DraftOrderDeleteInput!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, validation_errors, [])
+    [] -> {
+      let input = field_arguments(field, variables) |> read_object("input")
+      let id = case input {
+        Some(input) -> read_string_arg(input, "id")
+        None -> None
+      }
+      case id {
+        Some(id) ->
+          case store.get_draft_order_by_id(store, id) {
+            Some(_) -> {
+              let next_store = store.delete_staged_draft_order(store, id)
+              let payload =
+                serialize_draft_order_delete_payload(field, Some(id), [])
+              let draft =
+                single_root_log_draft(
+                  "draftOrderDelete",
+                  [id],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some(
+                    "Locally staged draftOrderDelete in shopify-draft-proxy.",
+                  ),
+                )
+              #(key, payload, next_store, [], [draft])
+            }
+            None -> #(
+              key,
+              serialize_draft_order_delete_payload(field, None, [
+                #(["id"], "Draft order does not exist"),
+              ]),
+              store,
+              [],
+              [],
+            )
+          }
+        None -> #(
+          key,
+          serialize_draft_order_delete_payload(field, None, [
+            #(["id"], "Draft order does not exist"),
+          ]),
+          store,
+          [],
+          [],
+        )
+      }
+    }
+  }
+}
+
+fn serialize_draft_order_delete_payload(
+  field: Selection,
+  deleted_id: Option(String),
+  user_errors: List(#(List(String), String)),
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "deletedId" -> #(key, case deleted_id {
+              Some(id) -> json.string(id)
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 fn handle_order_edit_validation_guardrail(

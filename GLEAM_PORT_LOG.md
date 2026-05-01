@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 123: draft order delete lifecycle
+
+Promotes the captured `draftOrderDelete` parity plan in the Gleam Orders domain.
+This pass stages a local draft-order deletion, returns the selected `deletedId`
+and empty `userErrors`, and preserves Shopify-like downstream `draftOrder(id:)`
+null behavior through the deleted-id marker.
+
+| Module                                                   | Change                                                                        |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderDelete` mutation handling and selected payload serialization. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`        | Adds staged draft-order deletion with a deleted-id marker.                    |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured draft order before replaying the delete parity plan.       |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers delete payload and downstream local read suppression directly.         |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderDelete-parity-plan` spec.                |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (731 passed).
+- Docker Erlang fallback:
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (727 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 parity specs; 145 expected Gleam
+  parity failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Draft-order state already carried deleted-id markers, but the Gleam store did
+  not yet expose a helper to stage draft-order deletion.
+- The Shopify capture verifies downstream `draftOrder(id:)` returns null after
+  delete; the local helper marks deletes instead of only removing staged data so
+  seeded base records are also suppressed.
+
+### Risks / open items
+
+- `draftOrderUpdate`, `draftOrderDuplicate`, `draftOrderComplete` success, and
+  invoice/helper roots remain gated.
+- Order lifecycle, order editing success paths, fulfillment success paths,
+  refunds, and returns remain unported.
+
+### Pass 124 candidates
+
+- Continue draft-order lifecycle with update/delete siblings, or move to a
+  small read/count/search slice backed by checked-in parity evidence.
+
+---
+
 ## 2026-05-01 - Pass 122: fulfillment create invalid-id guardrail
 
 Promotes the captured `fulfillmentCreate` invalid fulfillment-order id branch

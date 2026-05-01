@@ -1,11 +1,13 @@
 import gleam/dict.{type Dict}
 import gleam/json
 import gleam/list
+import gleam/option.{None}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
+import shopify_draft_proxy/state/types
 
 pub fn orders_abandoned_checkout_empty_read_test() {
   let query =
@@ -480,6 +482,52 @@ pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
     )
   assert json.to_string(outcome.data)
     == "{\"errors\":[{\"message\":\"invalid id\",\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"},\"path\":[\"fulfillmentCreate\"]}],\"data\":{\"fulfillmentCreate\":null}}"
+}
+
+pub fn orders_draft_order_delete_read_after_write_test() {
+  let draft_order_id = "gid://shopify/DraftOrder/10079785100"
+  let seeded =
+    store.new()
+    |> store.stage_draft_order(types.DraftOrderRecord(
+      id: draft_order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(draft_order_id)),
+        #("name", types.CapturedString("#D1")),
+      ]),
+    ))
+  let mutation =
+    "
+    mutation DraftOrderDeleteParityPlan($input: DraftOrderDeleteInput!) {
+      draftOrderDelete(input: $input) {
+        deletedId
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([#("id", root_field.StringVal(draft_order_id))]),
+        ),
+      ),
+    ])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"draftOrderDelete\":{\"deletedId\":\"gid://shopify/DraftOrder/10079785100\",\"userErrors\":[]}}}"
+  assert store.get_draft_order_by_id(outcome.store, draft_order_id) == None
 }
 
 pub fn orders_order_create_validation_guardrails_test() {

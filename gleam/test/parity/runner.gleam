@@ -260,6 +260,8 @@ fn seed_capture_preconditions(
       seed_draft_order_detail_preconditions(capture, proxy)
     "draft-order-create-live-parity" ->
       seed_draft_order_create_preconditions(capture, proxy)
+    "draft-order-delete-live-parity" ->
+      seed_draft_order_delete_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "location-detail-read" -> seed_location_detail_preconditions(capture, proxy)
@@ -541,6 +543,25 @@ fn seed_draft_order_detail_preconditions(
         Error(_) -> proxy
       }
     None -> proxy
+  }
+}
+
+fn seed_draft_order_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.variables.input.id") {
+    Some(JString(id)) -> {
+      let record =
+        DraftOrderRecord(
+          id: id,
+          cursor: None,
+          data: CapturedObject([#("id", CapturedString(id))]),
+        )
+      let store = proxy.store |> store_mod.upsert_base_draft_orders([record])
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    _ -> proxy
   }
 }
 

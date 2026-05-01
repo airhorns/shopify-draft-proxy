@@ -462,6 +462,10 @@ synthetic-id/timestamp expected differences.
   `userErrors` payload. Treat this as a guardrail only; successful fulfillment
   creation still needs local fulfillment-order state and downstream order
   fulfillment visibility.
+- `draftOrderDelete` should delete from staged draft-order state and add a
+  deleted-id marker so downstream `draftOrder(id:)` reads return null even when
+  the draft was seeded in base state. Keep duplicate/update/complete success
+  paths separate until their own parity fixtures are executable.
 
 ## Workflow for a new pass
 
