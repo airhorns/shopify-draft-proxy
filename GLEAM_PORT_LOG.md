@@ -9,6 +9,54 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 167: HAR-496 payments branch localization refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+HAR-504 localization parity completion. The merge keeps Payments and
+order-payment parity ungated while preserving mainline localization source
+marker seeding, available-locale excerpt seeding, and the localization gate
+removal.
+
+| Module                                                         | Change                                                                                                 |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `gleam/test/parity/runner.gleam`                               | Keeps payment precondition seeding alongside mainline localization source-marker and locale seeding.   |
+| `gleam/src/shopify_draft_proxy/proxy/localization.gleam`       | Preserves mainline Product and Metafield translatable-resource localization behavior.                  |
+| `gleam/test/shopify_draft_proxy/proxy/localization_test.gleam` | Preserves mainline localization coverage for Product-backed and source-marker-backed resources.        |
+| `config/gleam-port-ci-gates.json`                              | Keeps Payments/order-payment, Online Store, and mainline localization paths ungated after the refresh. |
+| `.agents/skills/gleam-port/SKILL.md`                           | Preserves mainline localization seeding guidance alongside the HAR-496 payments port guidance.         |
+
+Validation:
+
+- `git diff --cached --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (773 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (769 passed)
+- `corepack pnpm gleam:port:coverage` (379 specs; 52 expected failures; passed)
+- `corepack pnpm gleam:registry:check`
+- Targeted expected-failure scan for payments/order-payment, finance-risk,
+  product grammar, Segments, Discounts, Media, Online Store, and Localization
+  paths returned no matches.
+
+### Findings
+
+- Mainline now promotes the remaining localization parity fixture through
+  runner-side source-content markers and captured available-locale excerpts.
+  The runner conflict is additive with HAR-496's customer payment method and
+  payment terms seeders, so both seed families remain in the generic
+  capture-precondition chain.
+- The expected-failure gate conflict resolves by keeping the HAR-496
+  payments/order-payment removals plus the mainline localization removal.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
+
+---
+
 ## 2026-05-01 - Pass 165: HAR-504 localization parity completion
 
 Promotes the remaining localization parity fixture into the Gleam parity suite.
@@ -46,6 +94,93 @@ Validation:
 
 - Final deletion of TypeScript localization runtime remains deferred until the
   whole-port cutover acceptance bar is met.
+
+---
+
+## 2026-05-01 - Pass 166: HAR-496 payments branch online-store refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+Online Store parity port. The merge keeps Payments and order-payment parity
+ungated while preserving mainline Online Store, Media, Discounts, and Orders
+dispatch, store, serialization, and parity runner coverage.
+
+| Module                                                  | Change                                                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Payments dispatch alongside mainline Online Store, Media, Discounts, and Orders dispatch.         |
+| `gleam/src/shopify_draft_proxy/state/*`                 | Combines mainline Online Store/Media/Discounts state with HAR-496 payment customization/terms state.    |
+| `gleam/test/parity/runner.gleam`                        | Keeps payment precondition seeding alongside mainline online-store, media, and discount seeding.        |
+| `config/gleam-port-ci-gates.json`                       | Keeps Payments/order-payment and mainline Online Store/Media/Discounts paths ungated after the refresh. |
+
+Validation:
+
+- `git diff --check`
+- `cd gleam && gleam format --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (771 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (767 passed)
+- `corepack pnpm gleam:port:coverage` (379 specs; 53 expected failures; passed)
+- Targeted expected-failure scan for payments/order-payment, finance-risk,
+  product grammar, Segments, Discounts, Media, and Online Store paths returned
+  no matches.
+
+### Findings
+
+- Mainline now owns Online Store dispatch and state, including `shop` field
+  routing for storefront tokens. This refresh preserves that routing while
+  keeping HAR-496's `draftOrder` payment-terms and order-payment dispatch.
+- The expected-failure gate conflict resolves by removing both HAR-496
+  payments/order-payment paths and mainline Online Store paths.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
+
+---
+
+## 2026-05-01 - Pass 165: HAR-496 payments branch media refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+HAR-506 Media files and uploads refresh. The merge keeps Payments and
+order-payment parity ungated while preserving mainline Discounts and Media
+dispatch, store, serialization, and parity runner coverage.
+
+| Module                                                  | Change                                                                                  |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Payments dispatch alongside mainline Discounts, Media, and Orders dispatch.       |
+| `gleam/src/shopify_draft_proxy/state/*`                 | Combines mainline Media/Discounts state with HAR-496 payment customization/terms state. |
+| `gleam/test/parity/runner.gleam`                        | Keeps payment precondition seeding alongside mainline media and discount seeding.       |
+| `config/gleam-port-ci-gates.json`                       | Keeps Payments/order-payment and mainline Media/Discounts paths ungated.                |
+
+Validation:
+
+- `git diff --check`
+- `cd gleam && gleam format --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (771 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (767 passed)
+- `corepack pnpm gleam:port:coverage` (379 specs; 59 expected failures; passed)
+- Targeted expected-failure scan for payments/order-payment, finance-risk,
+  product grammar, Segments, Discounts, and Media paths returned no matches.
+
+### Findings
+
+- Mainline now owns Media mutation routing, so this refresh preserves it and
+  keeps the HAR-496 Payments dispatch, state, seed, and gate removals layered
+  into the same dispatcher/store surface.
+- The dispatcher conflict resolves to the compact `first_matching_domain`
+  helpers while keeping Payments, Discounts, Media, and Orders roots.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
 
 ---
 
@@ -2506,6 +2641,50 @@ Orders now has 19 executable/pass specs and 59 gated specs out of 78.
 
 ---
 
+## 2026-05-01 - Pass 117: HAR-496 payments branch state-dump refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+HAR-522 state dump/restore verification and seed-dispatch cleanup. The merge
+keeps branch-local Payments and order-payment coverage ungated while preserving
+mainline serialization and parity-runner dispatch changes.
+
+| Module                                                           | Change                                                                                   |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`          | Preserves mainline state dump/restore behavior.                                          |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`        | Preserves mainline serialized-state coverage.                                            |
+| `gleam/test/parity/runner.gleam`                                 | Keeps HAR-496 Payments/order-payment seeding inside mainline shape-gated seed dispatch.  |
+| `config/parity-specs/products/products-search-grammar-read.json` | Compares only the phrase-query paths present in the checked-in capture.                  |
+| `config/gleam-port-ci-gates.json`                                | Keeps Payments/order-payment, finance-risk, product grammar, and Segments paths ungated. |
+
+Validation:
+
+- `git diff --check`
+- `cd gleam && gleam format --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (726 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (722 passed)
+- `corepack pnpm gleam:port:coverage`
+- Targeted expected-failure scan for payments/order-payment, finance-risk,
+  product grammar, and Segments paths returned no matches.
+
+### Findings
+
+- The runner conflict was resolved by keeping mainline's shape-gated helper
+  dispatch and adding the HAR-496 payment seeding helpers to that dispatch.
+- The product search grammar fixture only contains the phrase-query Shopify
+  response payload, so retry #7 keeps that scenario executable by selecting the
+  captured phrase paths rather than comparing unrecorded request fields.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
+
+---
+
 ## 2026-05-01 - Pass 117: draft-order complete validation guardrails
 
 Promotes the captured `draftOrderComplete` required-`id` validation branches in
@@ -2585,6 +2764,50 @@ executable/pass specs and 68 gated specs out of 78.
 - Continue the draft-order cluster with validation branches for
   `draftOrderComplete`, `draftOrderDelete`, or the residual helper roots only
   when each branch has executable parity evidence.
+
+---
+
+## 2026-05-01 - Pass 115: HAR-496 payments branch segments refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+HAR-510 Segments parity completion. The merge keeps the branch-local Payments
+and order-payment coverage ungated while bringing in mainline Segments payload
+seeding, member filtering, serialization, and expected-failure removal.
+
+| Module                                                    | Change                                                                                   |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `.agents/skills/gleam-port/SKILL.md`                      | Keeps Payments/order-payment notes alongside the mainline Segments root-payload note.    |
+| `gleam/src/shopify_draft_proxy/proxy/segments.gleam`      | Preserves the mainline Segments baseline and customer member parity implementation.      |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Preserves mainline captured segment root payload storage.                                |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Preserves segment root payload state dump round-tripping.                                |
+| `gleam/test/parity/runner.gleam`                          | Keeps HAR-496 Payments/order-payment seeding alongside mainline Segments parity seeding. |
+| `config/gleam-port-ci-gates.json`                         | Keeps Payments/order-payment ungated and incorporates the Segments gate removal.         |
+
+Validation:
+
+- `git diff --check`
+- `cd gleam && gleam format --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (722 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (718 passed)
+- `corepack pnpm gleam:port:coverage`
+- Targeted expected-failure scan for payments/order-payment/product
+  grammar/Segments paths returned no matches.
+
+### Findings
+
+- The merge required conflict resolution only in the Gleam-port skill notes and
+  expected-failure gate inventory. The intended gate result is to leave both
+  HAR-496 Payments/order-payment paths and mainline `segments-baseline-read`
+  ungated.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
 
 ---
 
@@ -2678,6 +2901,47 @@ green with 379 parity specs and 172 expected Gleam parity failures.
 - Continue Orders with a complete draft-order create/read lifecycle slice that
   seeds or models the ProductVariant and Customer data required by the captured
   merchant-realistic fixture.
+
+---
+
+## 2026-05-01 - Pass 113: HAR-496 payments branch mainline refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+HAR-499 Apps parity completion. The merge applied cleanly and keeps the
+branch-local Payments and narrow order-payment dispatch, state, and parity
+seeding while bringing in the mainline Apps/Admin Platform handlers, store
+helpers, and updated expected-failure inventory.
+
+| Module                                           | Change                                                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `.agents/skills/gleam-port/SKILL.md`             | Brings in the mainline Apps port notes for future domain passes.                       |
+| `gleam/src/shopify_draft_proxy/proxy/apps.gleam` | Preserves the mainline Apps lifecycle and subscription/delegate-token parity support.  |
+| `gleam/test/parity/runner.gleam`                 | Keeps HAR-496 Payments/order-payment seeding alongside the mainline Apps parity paths. |
+| `config/gleam-port-ci-gates.json`                | Keeps Payments/order-payment ungated and incorporates the mainline Apps gate removals. |
+
+Validation:
+
+- `git diff --check`
+- `cd gleam && gleam format --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (720 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (716 passed)
+- `corepack pnpm gleam:port:coverage`
+- Targeted expected-failure scan for payments/order-payment/product grammar
+  paths returned no matches.
+
+### Findings
+
+- The sync did not require conflict resolution; the previous HAR-496 Payments
+  and order-payment changes remained intact across the HAR-499 Apps merge.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
 
 ---
 
@@ -3266,6 +3530,70 @@ specs expected-failing. `corepack pnpm lint` and whitespace checks are green.
 - Continue with the next non-Product expected-failing domain from
   `config/gleam-port-ci-gates.json`, or start the explicit final-cutover plan
   once the whole-port acceptance criteria bind.
+
+---
+
+## 2026-04-30 — Pass 46: payments and order-payment parity completion
+
+Ports the parity-backed Payments surface plus the order-payment slice that is
+owned by Orders roots into the Gleam draft proxy. Payments now stages customer
+payment-method lifecycle mutations, payment customizations, payment reminder
+intent, and payment terms locally while answering captured no-data/read-only
+payment roots for finance risk, disputes/POS/Shop Pay receipts, Shopify
+Payments account, and payment terms templates. A narrow Orders payment domain
+stages local order creation, capture, transaction void, mandate payment,
+manual-payment access-denied responses, and downstream `order(id:)` payment
+reads without claiming broader Orders coverage.
+
+| Module                                                                  | Change                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/payments.gleam`                    | Adds Payments query/mutation handling with local staging, customer payment-method payload projection, static payment terms templates, payment terms read-after-write, and Shopify-like no-data roots.                         |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                      | Adds the narrow Orders payment lifecycle model for synthetic order creation, authorization/capture/void/mandate/manual-payment behavior, derived financial fields, transaction serialization, and mutation-log timing parity. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Wires Payments and Orders into explicit local query/mutation dispatch alongside mainline Products smoke and Privacy dispatch.                                                                                                 |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds payment customization, reminder, terms, order payment, and mandate-payment state slices plus observable meta-state serialization.                                                                                        |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`                   | Projects customer payment-method instruments from staged/base state for downstream reads.                                                                                                                                     |
+| `gleam/test/parity/runner.gleam` / `config/gleam-port-ci-gates.json`    | Seeds captured payment preconditions and removes the Payments and order-payment expected failures once existing captured parity specs pass on both targets.                                                                   |
+
+Validation before the sync rework: `gleam format --check`, `git diff --check`,
+`gleam check --target javascript`, `gleam check --target erlang`, JavaScript
+`gleam test --target javascript -- --seed 0`, and an OTP 28 container
+`gleam test --target erlang -- --seed 0` were green. The payments/order-payment
+parity scenario report is represented by the full parity gate: no
+`config/parity-specs/payments/*` or order-payment entries remain in
+`expectedGleamParityFailures`.
+
+### Findings
+
+- The customer payment-method fixture intentionally starts synthetic
+  payment-method IDs at `2`; the Gleam runner mirrors the TypeScript harness by
+  reserving the first synthetic ID during fixture seeding.
+- Order payment roots in the TypeScript route mint response IDs before consuming
+  the mutation-log ID; validation-only order-payment responses still consume the
+  post-handler log ID/timestamp even when no log entry is recorded.
+- Successful `transactionVoid` payloads need the updated order context when
+  serializing `parentTransaction`, while validation payloads still return null
+  transactions.
+
+### Risks / open items
+
+- The pass deliberately ports only the Orders payment roots needed by the
+  existing executable payment/order-payment parity specs. Broader Orders roots
+  remain on the expected-failure list until their owning domain lands.
+- The TypeScript Payments and Orders runtimes remain in place. Per
+  `GLEAM_PORT_INTENT.md`, domain-local parity is not authority to delete TS
+  runtime code before the final all-port cutover.
+- Payment terms schedule totals use the captured local draft-order total shape
+  needed by current parity; a future Orders/DraftOrder state slice should own
+  draft-order totals before broadening payment terms beyond the captured fixture.
+
+### Pass 47 candidates
+
+- Continue broader Orders lifecycle parity now that a minimal order payment
+  state slice exists.
+- Add proper DraftOrder state ownership for payment terms totals before
+  broadening payment terms beyond the captured fixture.
+- Continue Payments registry roots not backed by checked-in parity, such as
+  tender transactions and dispute evidence, once executable captures exist.
 
 ---
 

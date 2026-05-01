@@ -20,6 +20,7 @@
         "name": "products-search-grammar-data",
         "capturePath": "$.response.data",
         "proxyPath": "$.data",
+        "selectedPaths": ["$.phraseCount", "$.phraseMatches"],
         "upstreamCapturePath": "$.response"
       }
     ]
