@@ -139,11 +139,15 @@ fn is_expected(
 }
 
 fn path_is_child_of(parent: String, child: String) -> Bool {
+  let parent = normalize_path(parent)
+  let child = normalize_path(child)
   string.starts_with(child, parent <> ".")
   || string.starts_with(child, parent <> "[")
 }
 
 fn path_matches(pattern: String, path: String) -> Bool {
+  let pattern = normalize_path(pattern)
+  let path = normalize_path(path)
   case pattern == path {
     True -> True
     False ->
@@ -151,6 +155,12 @@ fn path_matches(pattern: String, path: String) -> Bool {
       || string.starts_with(path, pattern <> "[")
       || wildcard_path_matches(pattern, path)
   }
+}
+
+fn normalize_path(path: String) -> String {
+  path
+  |> string.replace("[\"nodes\"]", ".nodes")
+  |> string.replace("[\"edges\"]", ".edges")
 }
 
 fn wildcard_path_matches(pattern: String, path: String) -> Bool {

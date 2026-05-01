@@ -13,8 +13,8 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Definition, type Selection, Field, FragmentDefinition, FragmentSpread,
-  InlineFragment, NamedType, SelectionSet,
+  type Definition, type Selection, Argument, Field, FragmentDefinition,
+  FragmentSpread, InlineFragment, IntValue, NamedType, SelectionSet,
 }
 import shopify_draft_proxy/graphql/parser
 import shopify_draft_proxy/graphql/root_field
@@ -346,22 +346,92 @@ fn project_field(
   fragments: FragmentMap,
 ) -> #(String, Json) {
   let key = get_field_response_key(field)
+  #(key, project_graphql_object_field_value(source, field, fragments))
+}
+
+/// Project one selected field from a `SourceValue`, returning the field value
+/// rather than an enclosing object. Domain-specific projectors can use this
+/// when a few argument-aware fields need custom handling while all sibling
+/// fields should retain the shared projection semantics.
+pub fn project_graphql_field_value(
+  value: SourceValue,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case value {
+    SrcObject(source) ->
+      project_graphql_object_field_value(source, field, fragments)
+    _ -> source_to_json(value)
+  }
+}
+
+fn project_graphql_object_field_value(
+  source: Dict(String, SourceValue),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
   case field {
     Field(name: name, selection_set: ss, ..) ->
       case name.value {
-        "__typename" -> #(key, lookup_typename(source))
+        "__typename" -> lookup_typename(source)
         field_name -> {
           let raw = lookup_or_synthesise(source, field_name)
+          let raw = apply_literal_first_window(raw, field)
           case ss {
-            Some(SelectionSet(selections: selections, ..)) -> #(
-              key,
-              project_graphql_value(raw, selections, fragments),
-            )
-            None -> #(key, source_to_json(raw))
+            Some(SelectionSet(selections: selections, ..)) ->
+              project_graphql_value(raw, selections, fragments)
+            None -> source_to_json(raw)
           }
         }
       }
-    _ -> #(key, json.null())
+    _ -> json.null()
+  }
+}
+
+fn apply_literal_first_window(
+  value: SourceValue,
+  field: Selection,
+) -> SourceValue {
+  case value, literal_first_arg(field) {
+    SrcObject(source), Some(first) -> {
+      let source = limit_source_list(source, "nodes", first)
+      let source = limit_source_list(source, "edges", first)
+      SrcObject(source)
+    }
+    _, _ -> value
+  }
+}
+
+fn literal_first_arg(field: Selection) -> Option(Int) {
+  case field {
+    Field(arguments: arguments, ..) ->
+      arguments
+      |> list.find_map(fn(argument) {
+        case argument {
+          Argument(name: name, value: IntValue(value: value, ..), ..)
+            if name.value == "first"
+          ->
+            case int.parse(value) {
+              Ok(parsed) -> Ok(parsed)
+              Error(_) -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn limit_source_list(
+  source: Dict(String, SourceValue),
+  key: String,
+  first: Int,
+) -> Dict(String, SourceValue) {
+  case dict.get(source, key) {
+    Ok(SrcList(items)) ->
+      dict.insert(source, key, SrcList(list.take(items, int.max(0, first))))
+    _ -> source
   }
 }
 

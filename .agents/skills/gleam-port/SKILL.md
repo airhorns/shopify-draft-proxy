@@ -268,6 +268,141 @@ synthetic-id/timestamp expected differences.
   and `eventsCount` should still include parity and dispatcher-level tests, but
   the TS handler and TS runtime coverage stay in place until the final all-port
   cutover.
+- Product-owned metafield creates replayed from captured upstream owners can
+  mint low local synthetic IDs such as `gid://shopify/Metafield/1`, while
+  Shopify would allocate a later upstream ID. Keep owner metafield connection
+  ordering Shopify-like by placing those low draft-digest local IDs after
+  captured upstream IDs; do not broaden parity expected differences just to
+  hide ordering drift.
+- The singular Product `metafieldDelete` compatibility parity spec shares the
+  plural `metafieldsDelete` live capture and compares user-errors plus
+  downstream owner state, not Shopify's removed singular payload. Seed the
+  local deleted metafield ID expected by the compatibility request while
+  keeping the owner metafield siblings from the plural capture unchanged.
+- Product `metafieldsSet` inputs supplied through a GraphQL variable are
+  rejected as top-level `INVALID_VARIABLE` errors when `ownerId`, `key`, or
+  `value` is missing or null. Do not serialize those branches as
+  `metafieldsSet.userErrors`, and abort the local mutation without staging
+  store changes or draft log entries.
+- Product `metafieldsSet` owner-expansion parity needs argument-aware
+  serialization on every selected owner shape. ProductVariant and Collection
+  `metafield` / `metafields` fields must read from owner-scoped staged
+  metafields, including nested Product `variants`, instead of falling through
+  generic source projection.
+- Product and ProductVariant contextual pricing captures should be stored as a
+  walkable state JSON value and projected through normal source projection.
+  Do not hardcode contextual pricing response fragments in the parity runner;
+  the capture seeding path should hydrate the Product/Variant records.
+- Inactive inventory levels are stateful rows, not deleted rows. Model
+  `isActive` on the level, exclude inactive levels from default
+  `inventoryLevels` reads, honor `includeInactive: true`, and make
+  reactivation flip the same row back to active while preserving quantities.
+- Versioned parity specs may set `proxyRequest.apiVersion`; the Gleam parity
+  runner must execute that request through the matching Admin route before
+  domain code can observe route-gated Shopify contract drift. For 2026-04
+  inventory quantity roots, require `changeFromQuantity` and `@idempotent`
+  before staging, return top-level GraphQL errors with `{data: {root: null}}`,
+  and use `changeFromQuantity` as the compare value for successful set/adjust
+  mutations.
+- Product media validation scenarios need explicit `seedProductMedia`
+  hydration in the parity runner before the primary request. Model
+  `productCreateMedia` as partial for valid create inputs plus
+  `mediaUserErrors`, but keep `productUpdateMedia` and `productDeleteMedia`
+  atomic when any requested media ID is unknown. Empty product IDs and invalid
+  `CreateMediaInput.mediaContentType` are top-level `INVALID_VARIABLE` GraphQL
+  errors, not payload user errors.
+- Product `productReorderMedia` captures need setup media seeded from the
+  captured `productCreateMedia.product.media.nodes` response, not just the
+  product row. Reuse the collection-style `MoveInput` parsing and sequential
+  zero-based reorder semantics, but serialize failures through
+  `mediaUserErrors` without collection reorder codes. Downstream Product reads
+  may select both `media` and `images`; media-only captures should expose
+  Shopify's empty Product `images` connection rather than omitting the field.
+- Product relationship roots combine multiple local slices. For
+  `collectionAddProductsV2`, reuse collection membership staging but return the
+  async Job payload and apply Shopify's non-manual prepend-reverse ordering
+  (`MANUAL` collections append). For ProductVariant media roots, store ordered
+  media IDs on the variant and resolve `ProductVariant.media` through Product
+  media records; do not duplicate media rows per variant. Relationship captures
+  may need `seedCollections` hydrated in addition to generic `seedProducts` and
+  `seedProductMedia`.
+- Product merchandising guardrail captures route bundle, combined-listing, and
+  ProductVariant relationship roots locally even when no success lifecycle is
+  ported yet. Preserve the captured validation priority: unknown
+  `productBundleUpdate.input.productId` returns `field: null` before checking
+  empty components, empty `productBundleCreate.input.components` returns
+  `field: null`, missing combined-listing parents return code
+  `PARENT_PRODUCT_NOT_FOUND`, and missing ProductVariant relationship IDs use a
+  compact JSON string list in the `PRODUCT_VARIANTS_NOT_FOUND` message.
+- Product variant bulk validation/atomicity captures need their setup Product
+  options and default variant hydrated from `seed.setupOptionsResponse` before
+  replay. Validate the full create/update/delete batch before staging any
+  variant, option, inventory item, inventory quantity, or Product summary
+  changes. Bulk update validation returns `productVariants: null`; bulk create
+  validation returns `productVariants: []`; nullable `userErrors.field` appears
+  on the empty update branch.
+- Async Product `productDuplicate` captures stage a completed
+  `ProductDuplicateOperation` but serialize the mutation-time operation as
+  `CREATED` with `newProduct: null`; missing Products expose the user error on
+  the later `productOperation(id:)` read, not the mutation payload. Seed the
+  source Product from the capture before replay, and project root
+  `productOperation` with the raw selection set so inline-fragment fields like
+  `id`, `newProduct`, and `userErrors` are not dropped.
+- Synchronous Product `productDuplicate` captures need the source Product graph
+  hydrated from `setup.sourceReadBeforeDuplicate.data.product`, including
+  collections, memberships, and Product metafields. Duplicate the local graph
+  deeply enough for downstream reads: Product options and values, variants and
+  inventory items, collection memberships, and Product metafields get fresh GIDs
+  where Shopify returns new resources, while immediate duplicate media remains
+  empty even when the source Product had ready image media. Existing
+  expected-difference paths may use quoted connection segments like
+  `variants["nodes"][0].id`; normalize those in the diff layer rather than
+  rewriting captured specs.
+- Product `productSet` captures use `input`, optional `identifier`, and
+  ProductSet-specific inventory quantity inputs (`quantity`, `name`,
+  `locationId`) rather than the older bulk-variant `availableQuantity` shape.
+  Seed captured location names in the parity runner before replay, mirror
+  `available` writes into `on_hand`, keep `incoming` present, and preserve
+  Shopify's Product inventory-summary quirk: create sums tracked/not-explicitly
+  untracked variants, while update keeps the Product's previous
+  `totalInventory` even after inventory-level quantities change.
+- Product sort-key read captures need local Product connection sorting and
+  cursor handling to stay separate: when a Product row has a stored upstream
+  cursor, keep that cursor authoritative; when the captured seed row has no
+  cursor, synthesize Shopify-style base64 JSON cursors from `last_id` plus the
+  sort-key value. The captured `VENDOR` and `PRODUCT_TYPE` tie-breaks are
+  resource-id based, and partial alias seed rows must be merged so sparse
+  selections like ID-only or publishedAt-only rows do not overwrite richer
+  Product metadata needed by other aliases.
+- Captured advanced Product search read fixtures can often seed local parity
+  directly from every captured Product connection edge, but preserve each
+  upstream edge cursor on the seeded Product row. Pagination captures may show
+  only the selected page edge while `count`/`pageInfo` prove additional matching
+  store rows exist; in that case seed scenario-local sentinel Products that
+  match the same query and sort after the captured edge instead of weakening
+  the captured request or expected comparison.
+- The `products-search-grammar-read` fixture is an older TS-passing Product
+  overlay read whose capture only contains the phrase aliases while the replay
+  request also selects NOT and `tag_not` aliases. Mirror the TypeScript parity
+  harness by using the target `upstreamCapturePath` as the primary actual
+  response for that scenario; do not rewrite the fixture, request, variables,
+  or comparison contract just to make the selected aliases line up.
+- SellingPlanGroup Product/ProductVariant overlays have separate visibility and
+  count semantics. Product `sellingPlanGroups.nodes` should include groups made
+  visible by either direct Product membership or variant membership for that
+  Product, while `sellingPlanGroupsCount` counts only direct Product
+  membership. ProductVariant nodes are visible through direct variant membership
+  or Product-level membership, while the variant count includes only direct
+  variant membership. Preserve that split for product/variant join and leave
+  roots.
+- Product media async plan fixtures depend on timing-sensitive lifecycle state:
+  create returns `UPLOADED` in the mutation payload, the immediate downstream
+  Product media read is null-url `PROCESSING`, and later successful media
+  operations may observe the same local staged media as `READY`. Do not seed the
+  create plan's media row before the primary request; seed only the Product.
+  Update/delete plan captures need the captured Product and existing media row
+  hydrated from mutation/downstream data, including deleted ProductImage IDs for
+  delete payload parity.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.
