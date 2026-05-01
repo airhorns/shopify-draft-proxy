@@ -38,9 +38,30 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
       "productVariantOrder",
       json.array(state.product_variant_order, json.string),
     ),
-    #("locations", dict_to_json(state.locations, store_property_record_json)),
-    #("locationOrder", json.array(state.location_order, json.string)),
-    #("deletedLocationIds", bool_dict_to_json(state.deleted_location_ids)),
+    #(
+      "sellingPlanGroups",
+      dict_to_json(state.selling_plan_groups, selling_plan_group_json),
+    ),
+    #(
+      "sellingPlanGroupOrder",
+      json.array(state.selling_plan_group_order, json.string),
+    ),
+    #(
+      "deletedSellingPlanGroupIds",
+      bool_dict_to_json(state.deleted_selling_plan_group_ids),
+    ),
+    #(
+      "locations",
+      dict_to_json(state.store_property_locations, store_property_record_json),
+    ),
+    #(
+      "locationOrder",
+      json.array(state.store_property_location_order, json.string),
+    ),
+    #(
+      "deletedLocationIds",
+      bool_dict_to_json(state.deleted_store_property_location_ids),
+    ),
     #(
       "businessEntities",
       dict_to_json(state.business_entities, store_property_record_json),
@@ -417,9 +438,30 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
       "productVariantOrder",
       json.array(state.product_variant_order, json.string),
     ),
-    #("locations", dict_to_json(state.locations, store_property_record_json)),
-    #("locationOrder", json.array(state.location_order, json.string)),
-    #("deletedLocationIds", bool_dict_to_json(state.deleted_location_ids)),
+    #(
+      "sellingPlanGroups",
+      dict_to_json(state.selling_plan_groups, selling_plan_group_json),
+    ),
+    #(
+      "sellingPlanGroupOrder",
+      json.array(state.selling_plan_group_order, json.string),
+    ),
+    #(
+      "deletedSellingPlanGroupIds",
+      bool_dict_to_json(state.deleted_selling_plan_group_ids),
+    ),
+    #(
+      "locations",
+      dict_to_json(state.store_property_locations, store_property_record_json),
+    ),
+    #(
+      "locationOrder",
+      json.array(state.store_property_location_order, json.string),
+    ),
+    #(
+      "deletedLocationIds",
+      bool_dict_to_json(state.deleted_store_property_location_ids),
+    ),
     #(
       "businessEntities",
       dict_to_json(state.business_entities, store_property_record_json),
@@ -984,30 +1026,6 @@ fn shop_policy_json(record: types.ShopPolicyRecord) -> Json {
   ])
 }
 
-fn product_json(record: types.ProductRecord) -> Json {
-  json.object([
-    #("id", json.string(record.id)),
-    #("legacyResourceId", json.string(record.legacy_resource_id)),
-    #("title", json.string(record.title)),
-    #("handle", json.string(record.handle)),
-    #("status", json.string(record.status)),
-    #("createdAt", json.string(record.created_at)),
-    #("updatedAt", json.string(record.updated_at)),
-    #("defaultVariantId", json.string(record.default_variant_id)),
-  ])
-}
-
-fn product_variant_json(record: types.ProductVariantRecord) -> Json {
-  json.object([
-    #("id", json.string(record.id)),
-    #("legacyResourceId", json.string(record.legacy_resource_id)),
-    #("productId", json.string(record.product_id)),
-    #("title", json.string(record.title)),
-    #("inventoryQuantity", json.int(record.inventory_quantity)),
-    #("inventoryItemId", json.string(record.inventory_item_id)),
-  ])
-}
-
 fn store_property_record_json(record: types.StorePropertyRecord) -> Json {
   json.object([
     #("id", json.string(record.id)),
@@ -1041,6 +1059,131 @@ fn store_property_value_json(value: types.StorePropertyValue) -> Json {
     types.StorePropertyList(items) ->
       json.array(items, store_property_value_json)
     types.StorePropertyObject(fields) -> store_property_data_json(fields)
+  }
+}
+
+fn product_json(record: types.ProductRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("legacyResourceId", optional_string(record.legacy_resource_id)),
+    #("title", json.string(record.title)),
+    #("handle", json.string(record.handle)),
+    #("status", json.string(record.status)),
+    #("vendor", optional_string(record.vendor)),
+    #("productType", optional_string(record.product_type)),
+    #("tags", json.array(record.tags, json.string)),
+    #("totalInventory", optional_int(record.total_inventory)),
+    #("tracksInventory", optional_bool(record.tracks_inventory)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("publishedAt", optional_string(record.published_at)),
+    #("descriptionHtml", json.string(record.description_html)),
+    #("onlineStorePreviewUrl", optional_string(record.online_store_preview_url)),
+    #("templateSuffix", optional_string(record.template_suffix)),
+    #("seo", product_seo_json(record.seo)),
+    #("category", optional_to_json(record.category, product_category_json)),
+    #("publicationIds", json.array(record.publication_ids, json.string)),
+    #(
+      "contextualPricing",
+      optional_to_json(record.contextual_pricing, captured_json_value_json),
+    ),
+    #("cursor", optional_string(record.cursor)),
+  ])
+}
+
+fn product_variant_json(record: types.ProductVariantRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("productId", json.string(record.product_id)),
+    #("title", json.string(record.title)),
+    #("sku", optional_string(record.sku)),
+    #("barcode", optional_string(record.barcode)),
+    #("price", optional_string(record.price)),
+    #("compareAtPrice", optional_string(record.compare_at_price)),
+    #("taxable", optional_bool(record.taxable)),
+    #("inventoryPolicy", optional_string(record.inventory_policy)),
+    #("inventoryQuantity", optional_int(record.inventory_quantity)),
+    #(
+      "selectedOptions",
+      json.array(record.selected_options, selected_option_json),
+    ),
+    #("mediaIds", json.array(record.media_ids, json.string)),
+    #(
+      "inventoryItemId",
+      optional_to_json(record.inventory_item, fn(item) { json.string(item.id) }),
+    ),
+    #(
+      "contextualPricing",
+      optional_to_json(record.contextual_pricing, captured_json_value_json),
+    ),
+    #("cursor", optional_string(record.cursor)),
+  ])
+}
+
+fn selling_plan_group_json(record: types.SellingPlanGroupRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("appId", optional_string(record.app_id)),
+    #("name", json.string(record.name)),
+    #("merchantCode", json.string(record.merchant_code)),
+    #("description", optional_string(record.description)),
+    #("options", json.array(record.options, json.string)),
+    #("position", optional_int(record.position)),
+    #("summary", optional_string(record.summary)),
+    #("createdAt", optional_string(record.created_at)),
+    #("productIds", json.array(record.product_ids, json.string)),
+    #("productVariantIds", json.array(record.product_variant_ids, json.string)),
+    #("sellingPlans", json.array(record.selling_plans, selling_plan_json)),
+    #("cursor", optional_string(record.cursor)),
+  ])
+}
+
+fn selling_plan_json(record: types.SellingPlanRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn selected_option_json(
+  record: types.ProductVariantSelectedOptionRecord,
+) -> Json {
+  json.object([
+    #("name", json.string(record.name)),
+    #("value", json.string(record.value)),
+  ])
+}
+
+fn product_seo_json(record: types.ProductSeoRecord) -> Json {
+  json.object([
+    #("title", optional_string(record.title)),
+    #("description", optional_string(record.description)),
+  ])
+}
+
+fn product_category_json(record: types.ProductCategoryRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("fullName", json.string(record.full_name)),
+  ])
+}
+
+fn captured_json_value_json(value: types.CapturedJsonValue) -> Json {
+  case value {
+    types.CapturedNull -> json.null()
+    types.CapturedBool(value) -> json.bool(value)
+    types.CapturedInt(value) -> json.int(value)
+    types.CapturedFloat(value) -> json.float(value)
+    types.CapturedString(value) -> json.string(value)
+    types.CapturedArray(items) -> json.array(items, captured_json_value_json)
+    types.CapturedObject(fields) ->
+      json.object(
+        fields
+        |> list.map(fn(pair) {
+          let #(key, item) = pair
+          #(key, captured_json_value_json(item))
+        }),
+      )
   }
 }
 
@@ -2237,16 +2380,14 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     empty.shop,
     decode.optional(shop_decoder()),
   )
-  use products <- dict_field("products", product_decoder())
-  use product_order <- string_list_field("productOrder")
-  use product_variants <- dict_field(
-    "productVariants",
-    product_variant_decoder(),
+  use store_property_locations <- dict_field(
+    "locations",
+    store_property_record_decoder(),
   )
-  use product_variant_order <- string_list_field("productVariantOrder")
-  use locations <- dict_field("locations", store_property_record_decoder())
-  use location_order <- string_list_field("locationOrder")
-  use deleted_location_ids <- bool_dict_field("deletedLocationIds")
+  use store_property_location_order <- string_list_field("locationOrder")
+  use deleted_store_property_location_ids <- bool_dict_field(
+    "deletedLocationIds",
+  )
   use business_entities <- dict_field(
     "businessEntities",
     store_property_record_decoder(),
@@ -2403,19 +2544,50 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
   use shop_locales <- dict_field("shopLocales", shop_locale_decoder())
   use translations <- dict_field("translations", translation_decoder())
   decode.success(store.BaseState(
+    products: empty.products,
+    product_order: empty.product_order,
+    deleted_product_ids: empty.deleted_product_ids,
+    product_count: empty.product_count,
+    product_variants: empty.product_variants,
+    product_variant_order: empty.product_variant_order,
+    product_variant_count: empty.product_variant_count,
+    product_options: empty.product_options,
+    product_operations: empty.product_operations,
+    selling_plan_groups: empty.selling_plan_groups,
+    selling_plan_group_order: empty.selling_plan_group_order,
+    deleted_selling_plan_group_ids: empty.deleted_selling_plan_group_ids,
+    product_media: empty.product_media,
+    collections: empty.collections,
+    collection_order: empty.collection_order,
+    product_collections: empty.product_collections,
+    deleted_collection_ids: empty.deleted_collection_ids,
+    locations: empty.locations,
+    location_order: empty.location_order,
+    publications: empty.publications,
+    publication_order: empty.publication_order,
+    deleted_publication_ids: empty.deleted_publication_ids,
+    channels: empty.channels,
+    channel_order: empty.channel_order,
+    product_feeds: empty.product_feeds,
+    product_feed_order: empty.product_feed_order,
+    deleted_product_feed_ids: empty.deleted_product_feed_ids,
+    product_resource_feedback: empty.product_resource_feedback,
+    shop_resource_feedback: empty.shop_resource_feedback,
+    inventory_transfers: empty.inventory_transfers,
+    inventory_transfer_order: empty.inventory_transfer_order,
+    deleted_inventory_transfer_ids: empty.deleted_inventory_transfer_ids,
+    inventory_shipments: empty.inventory_shipments,
+    inventory_shipment_order: empty.inventory_shipment_order,
+    deleted_inventory_shipment_ids: empty.deleted_inventory_shipment_ids,
     backup_region: backup_region,
     admin_platform_flow_signatures: flow_signatures,
     admin_platform_flow_signature_order: flow_signature_order,
     admin_platform_flow_triggers: flow_triggers,
     admin_platform_flow_trigger_order: flow_trigger_order,
     shop: shop,
-    products: products,
-    product_order: product_order,
-    product_variants: product_variants,
-    product_variant_order: product_variant_order,
-    locations: locations,
-    location_order: location_order,
-    deleted_location_ids: deleted_location_ids,
+    store_property_locations: store_property_locations,
+    store_property_location_order: store_property_location_order,
+    deleted_store_property_location_ids: deleted_store_property_location_ids,
     business_entities: business_entities,
     business_entity_order: business_entity_order,
     publishables: publishables,
@@ -2544,16 +2716,14 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     empty.shop,
     decode.optional(shop_decoder()),
   )
-  use products <- dict_field("products", product_decoder())
-  use product_order <- string_list_field("productOrder")
-  use product_variants <- dict_field(
-    "productVariants",
-    product_variant_decoder(),
+  use store_property_locations <- dict_field(
+    "locations",
+    store_property_record_decoder(),
   )
-  use product_variant_order <- string_list_field("productVariantOrder")
-  use locations <- dict_field("locations", store_property_record_decoder())
-  use location_order <- string_list_field("locationOrder")
-  use deleted_location_ids <- bool_dict_field("deletedLocationIds")
+  use store_property_location_order <- string_list_field("locationOrder")
+  use deleted_store_property_location_ids <- bool_dict_field(
+    "deletedLocationIds",
+  )
   use business_entities <- dict_field(
     "businessEntities",
     store_property_record_decoder(),
@@ -2707,19 +2877,47 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
   use translations <- dict_field("translations", translation_decoder())
   use deleted_translations <- bool_dict_field("deletedTranslations")
   decode.success(store.StagedState(
+    products: empty.products,
+    product_order: empty.product_order,
+    deleted_product_ids: empty.deleted_product_ids,
+    product_count: empty.product_count,
+    product_variants: empty.product_variants,
+    product_variant_order: empty.product_variant_order,
+    product_variant_count: empty.product_variant_count,
+    product_options: empty.product_options,
+    product_operations: empty.product_operations,
+    selling_plan_groups: empty.selling_plan_groups,
+    selling_plan_group_order: empty.selling_plan_group_order,
+    deleted_selling_plan_group_ids: empty.deleted_selling_plan_group_ids,
+    product_media: empty.product_media,
+    collections: empty.collections,
+    collection_order: empty.collection_order,
+    product_collections: empty.product_collections,
+    staged_product_collection_families: empty.staged_product_collection_families,
+    deleted_collection_ids: empty.deleted_collection_ids,
+    publications: empty.publications,
+    publication_order: empty.publication_order,
+    deleted_publication_ids: empty.deleted_publication_ids,
+    product_feeds: empty.product_feeds,
+    product_feed_order: empty.product_feed_order,
+    deleted_product_feed_ids: empty.deleted_product_feed_ids,
+    product_resource_feedback: empty.product_resource_feedback,
+    shop_resource_feedback: empty.shop_resource_feedback,
+    inventory_transfers: empty.inventory_transfers,
+    inventory_transfer_order: empty.inventory_transfer_order,
+    deleted_inventory_transfer_ids: empty.deleted_inventory_transfer_ids,
+    inventory_shipments: empty.inventory_shipments,
+    inventory_shipment_order: empty.inventory_shipment_order,
+    deleted_inventory_shipment_ids: empty.deleted_inventory_shipment_ids,
     backup_region: backup_region,
     admin_platform_flow_signatures: flow_signatures,
     admin_platform_flow_signature_order: flow_signature_order,
     admin_platform_flow_triggers: flow_triggers,
     admin_platform_flow_trigger_order: flow_trigger_order,
     shop: shop,
-    products: products,
-    product_order: product_order,
-    product_variants: product_variants,
-    product_variant_order: product_variant_order,
-    locations: locations,
-    location_order: location_order,
-    deleted_location_ids: deleted_location_ids,
+    store_property_locations: store_property_locations,
+    store_property_location_order: store_property_location_order,
+    deleted_store_property_location_ids: deleted_store_property_location_ids,
     business_entities: business_entities,
     business_entity_order: business_entity_order,
     publishables: publishables,
@@ -3230,44 +3428,6 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
     url: url,
     created_at: created_at,
     updated_at: updated_at,
-  ))
-}
-
-fn product_decoder() -> Decoder(types.ProductRecord) {
-  use id <- decode.field("id", decode.string)
-  use legacy_resource_id <- decode.field("legacyResourceId", decode.string)
-  use title <- decode.field("title", decode.string)
-  use handle <- decode.field("handle", decode.string)
-  use status <- decode.field("status", decode.string)
-  use created_at <- decode.field("createdAt", decode.string)
-  use updated_at <- decode.field("updatedAt", decode.string)
-  use default_variant_id <- decode.field("defaultVariantId", decode.string)
-  decode.success(types.ProductRecord(
-    id: id,
-    legacy_resource_id: legacy_resource_id,
-    title: title,
-    handle: handle,
-    status: status,
-    created_at: created_at,
-    updated_at: updated_at,
-    default_variant_id: default_variant_id,
-  ))
-}
-
-fn product_variant_decoder() -> Decoder(types.ProductVariantRecord) {
-  use id <- decode.field("id", decode.string)
-  use legacy_resource_id <- decode.field("legacyResourceId", decode.string)
-  use product_id <- decode.field("productId", decode.string)
-  use title <- decode.field("title", decode.string)
-  use inventory_quantity <- decode.field("inventoryQuantity", decode.int)
-  use inventory_item_id <- decode.field("inventoryItemId", decode.string)
-  decode.success(types.ProductVariantRecord(
-    id: id,
-    legacy_resource_id: legacy_resource_id,
-    product_id: product_id,
-    title: title,
-    inventory_quantity: inventory_quantity,
-    inventory_item_id: inventory_item_id,
   ))
 }
 
