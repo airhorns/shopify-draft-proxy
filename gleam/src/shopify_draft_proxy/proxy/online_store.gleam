@@ -1,0 +1,2902 @@
+import gleam/dict.{type Dict}
+import gleam/int
+import gleam/json.{type Json}
+import gleam/list
+import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/string
+import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/graphql_helpers.{
+  type FragmentMap, ConnectionPageInfoOptions, SerializeConnectionConfig,
+  SrcBool, SrcInt, SrcList, SrcNull, SrcObject, SrcString,
+  default_connection_window_options, get_document_fragments,
+  get_field_response_key, get_selected_child_fields, paginate_connection_items,
+  project_graphql_value, serialize_connection, source_to_json, src_object,
+}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, single_root_log_draft,
+}
+import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/synthetic_identity.{
+  type SyntheticIdentityRegistry,
+}
+import shopify_draft_proxy/state/types.{
+  type CapturedJsonValue, type OnlineStoreContentRecord,
+  type OnlineStoreIntegrationRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  OnlineStoreContentRecord, OnlineStoreIntegrationRecord,
+}
+
+const synthetic_shop_id: String = "gid://shopify/Shop/92891250994"
+
+pub type OnlineStoreError {
+  ParseFailed(root_field.RootFieldError)
+}
+
+pub type MutationOutcome {
+  MutationOutcome(
+    data: Json,
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
+  )
+}
+
+pub fn is_online_store_query_root(name: String, query: String) -> Bool {
+  case name {
+    "article"
+    | "articleAuthors"
+    | "articles"
+    | "articleTags"
+    | "blog"
+    | "blogs"
+    | "blogsCount"
+    | "page"
+    | "pages"
+    | "pagesCount"
+    | "comment"
+    | "comments"
+    | "theme"
+    | "themes"
+    | "scriptTag"
+    | "scriptTags"
+    | "webPixel"
+    | "serverPixel"
+    | "mobilePlatformApplication"
+    | "mobilePlatformApplications" -> True
+    "shop" -> string.contains(query, "storefrontAccessTokens")
+    _ -> False
+  }
+}
+
+pub fn is_online_store_mutation_root(name: String) -> Bool {
+  case name {
+    "articleCreate"
+    | "articleUpdate"
+    | "articleDelete"
+    | "blogCreate"
+    | "blogUpdate"
+    | "blogDelete"
+    | "pageCreate"
+    | "pageUpdate"
+    | "pageDelete"
+    | "commentApprove"
+    | "commentSpam"
+    | "commentNotSpam"
+    | "commentDelete"
+    | "themeCreate"
+    | "themeUpdate"
+    | "themeDelete"
+    | "themePublish"
+    | "themeFilesCopy"
+    | "themeFilesUpsert"
+    | "themeFilesDelete"
+    | "scriptTagCreate"
+    | "scriptTagUpdate"
+    | "scriptTagDelete"
+    | "webPixelCreate"
+    | "webPixelUpdate"
+    | "webPixelDelete"
+    | "serverPixelCreate"
+    | "serverPixelDelete"
+    | "eventBridgeServerPixelUpdate"
+    | "pubSubServerPixelUpdate"
+    | "storefrontAccessTokenCreate"
+    | "storefrontAccessTokenDelete"
+    | "mobilePlatformApplicationCreate"
+    | "mobilePlatformApplicationUpdate"
+    | "mobilePlatformApplicationDelete" -> True
+    _ -> False
+  }
+}
+
+pub fn wrap_data(data: Json) -> Json {
+  json.object([#("data", data)])
+}
+
+pub fn process(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(Json, OnlineStoreError) {
+  use fields <- result.try(
+    root_field.get_root_fields(document)
+    |> result.map_error(ParseFailed),
+  )
+  let fragments = get_document_fragments(document)
+  let entries =
+    list.map(fields, fn(field) {
+      #(
+        get_field_response_key(field),
+        handle_query_field(store, field, fragments, variables),
+      )
+    })
+  Ok(wrap_data(json.object(entries)))
+}
+
+pub fn process_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  _request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, OnlineStoreError) {
+  use fields <- result.try(
+    root_field.get_root_fields(document)
+    |> result.map_error(ParseFailed),
+  )
+  let fragments = get_document_fragments(document)
+  let initial =
+    MutationOutcome(
+      data: json.object([]),
+      store: store,
+      identity: identity,
+      staged_resource_ids: [],
+      log_drafts: [],
+    )
+  let #(entries, outcome) =
+    list.fold(fields, #([], initial), fn(acc, field) {
+      let #(pairs, current) = acc
+      let #(key, payload, next) =
+        handle_mutation_field(current, field, fragments, variables)
+      let merged =
+        MutationOutcome(
+          ..next,
+          staged_resource_ids: list.append(
+            current.staged_resource_ids,
+            next.staged_resource_ids,
+          ),
+          log_drafts: list.append(current.log_drafts, next.log_drafts),
+        )
+      #(list.append(pairs, [#(key, payload)]), merged)
+    })
+  Ok(MutationOutcome(..outcome, data: wrap_data(json.object(entries))))
+}
+
+fn handle_mutation_field(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  case field {
+    Field(name: name, ..) -> {
+      let root = name.value
+      case root {
+        "blogCreate" ->
+          create_content(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "blog",
+            "blog",
+          )
+        "pageCreate" ->
+          create_content(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "page",
+            "page",
+          )
+        "articleCreate" -> create_article(outcome, field, fragments, variables)
+        "blogUpdate" ->
+          update_content(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "blog",
+            "blog",
+          )
+        "pageUpdate" ->
+          update_content(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "page",
+            "page",
+          )
+        "articleUpdate" ->
+          update_content(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "article",
+            "article",
+          )
+        "blogDelete" ->
+          delete_content(
+            outcome,
+            field,
+            variables,
+            root,
+            "blog",
+            "deletedBlogId",
+          )
+        "pageDelete" ->
+          delete_content(
+            outcome,
+            field,
+            variables,
+            root,
+            "page",
+            "deletedPageId",
+          )
+        "articleDelete" ->
+          delete_content(
+            outcome,
+            field,
+            variables,
+            root,
+            "article",
+            "deletedArticleId",
+          )
+        "commentApprove" | "commentSpam" | "commentNotSpam" ->
+          moderate_comment(outcome, field, variables, root)
+        "commentDelete" -> delete_comment(outcome, field, variables)
+        "themeCreate" -> create_theme(outcome, field, fragments, variables)
+        "themeUpdate" ->
+          update_theme(outcome, field, fragments, variables, "themeUpdate")
+        "themePublish" ->
+          update_theme(outcome, field, fragments, variables, "themePublish")
+        "themeDelete" ->
+          delete_integration(
+            outcome,
+            field,
+            variables,
+            root,
+            "theme",
+            "deletedThemeId",
+          )
+        "themeFilesUpsert" -> theme_files_upsert(outcome, field, variables)
+        "themeFilesCopy" -> theme_files_copy(outcome, field, variables)
+        "themeFilesDelete" -> theme_files_delete(outcome, field, variables)
+        "scriptTagCreate" ->
+          create_script_tag(outcome, field, fragments, variables)
+        "scriptTagUpdate" ->
+          update_script_tag(outcome, field, fragments, variables)
+        "scriptTagDelete" ->
+          delete_integration(
+            outcome,
+            field,
+            variables,
+            root,
+            "scriptTag",
+            "deletedScriptTagId",
+          )
+        "webPixelCreate" ->
+          create_pixel(
+            outcome,
+            field,
+            fragments,
+            variables,
+            "webPixelCreate",
+            "webPixel",
+          )
+        "webPixelUpdate" ->
+          update_pixel(
+            outcome,
+            field,
+            fragments,
+            variables,
+            "webPixelUpdate",
+            "webPixel",
+          )
+        "webPixelDelete" ->
+          delete_integration(
+            outcome,
+            field,
+            variables,
+            root,
+            "webPixel",
+            "deletedWebPixelId",
+          )
+        "serverPixelCreate" ->
+          create_pixel(
+            outcome,
+            field,
+            fragments,
+            variables,
+            "serverPixelCreate",
+            "serverPixel",
+          )
+        "serverPixelDelete" ->
+          delete_integration(
+            outcome,
+            field,
+            variables,
+            root,
+            "serverPixel",
+            "deletedServerPixelId",
+          )
+        "eventBridgeServerPixelUpdate" ->
+          update_server_pixel_endpoint(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "arn",
+          )
+        "pubSubServerPixelUpdate" ->
+          update_server_pixel_endpoint(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "pubsub",
+          )
+        "storefrontAccessTokenCreate" ->
+          create_storefront_token(outcome, field, fragments, variables)
+        "storefrontAccessTokenDelete" ->
+          delete_storefront_token(outcome, field, variables)
+        "mobilePlatformApplicationCreate" ->
+          create_mobile_app(outcome, field, fragments, variables)
+        "mobilePlatformApplicationUpdate" ->
+          update_mobile_app(outcome, field, fragments, variables)
+        "mobilePlatformApplicationDelete" ->
+          delete_integration(
+            outcome,
+            field,
+            variables,
+            root,
+            "mobilePlatformApplication",
+            "deletedMobilePlatformApplicationId",
+          )
+        _ -> #(key, json.null(), outcome)
+      }
+    }
+    _ -> #(key, json.null(), outcome)
+  }
+}
+
+fn handle_query_field(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  case field {
+    Field(name: name, ..) -> {
+      case name.value {
+        "article" ->
+          singular_content(store, field, fragments, variables, "article")
+        "blog" -> singular_content(store, field, fragments, variables, "blog")
+        "page" -> singular_content(store, field, fragments, variables, "page")
+        "comment" ->
+          singular_content(store, field, fragments, variables, "comment")
+        "articles" ->
+          content_connection(store, field, fragments, variables, "article")
+        "blogs" ->
+          content_connection(store, field, fragments, variables, "blog")
+        "pages" ->
+          content_connection(store, field, fragments, variables, "page")
+        "comments" ->
+          content_connection(store, field, fragments, variables, "comment")
+        "articleAuthors" ->
+          article_authors_connection(store, field, fragments, variables)
+        "articleTags" -> json.array(article_tags(store), json.string)
+        "blogsCount" ->
+          count_json(
+            list.length(store.list_effective_online_store_content(store, "blog")),
+          )
+        "pagesCount" ->
+          count_json(
+            list.length(store.list_effective_online_store_content(store, "page")),
+          )
+        "theme" ->
+          singular_integration(store, field, fragments, variables, "theme")
+        "themes" ->
+          integration_connection(store, field, fragments, variables, "theme")
+        "scriptTag" ->
+          singular_integration(store, field, fragments, variables, "scriptTag")
+        "scriptTags" ->
+          integration_connection(
+            store,
+            field,
+            fragments,
+            variables,
+            "scriptTag",
+          )
+        "webPixel" -> first_integration(store, field, fragments, "webPixel")
+        "serverPixel" ->
+          first_integration(store, field, fragments, "serverPixel")
+        "mobilePlatformApplication" ->
+          singular_integration(
+            store,
+            field,
+            fragments,
+            variables,
+            "mobilePlatformApplication",
+          )
+        "mobilePlatformApplications" ->
+          integration_connection(
+            store,
+            field,
+            fragments,
+            variables,
+            "mobilePlatformApplication",
+          )
+        "shop" -> project_shop(store, field, fragments, variables)
+        _ -> json.null()
+      }
+    }
+    _ -> json.null()
+  }
+}
+
+fn create_content(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+  kind: String,
+  payload_key: String,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let input = input_object(field_args(field, variables), payload_key)
+  let #(record, identity) =
+    make_content(outcome.identity, kind, input, None, None)
+  let #(_, store) =
+    store.upsert_staged_online_store_content(outcome.store, record)
+  let payload =
+    mutation_payload(
+      field,
+      fragments,
+      payload_key,
+      project_content_payload(
+        store,
+        record,
+        field,
+        fragments,
+        variables,
+        payload_key,
+      ),
+      [],
+    )
+  #(key, payload, mutation_outcome(outcome, store, identity, root, [record.id]))
+}
+
+fn create_article(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let article_input = input_object(args, "article")
+  let blog_from_arg = input_object(args, "blog")
+  let #(blog_id, store, identity, staged_blog_ids) = case
+    input_string(article_input, "blogId")
+  {
+    Some(id) -> #(id, outcome.store, outcome.identity, [])
+    None -> {
+      let #(blog, next_identity) =
+        make_content(outcome.identity, "blog", blog_from_arg, None, None)
+      let #(_, next_store) =
+        store.upsert_staged_online_store_content(outcome.store, blog)
+      #(blog.id, next_store, next_identity, [blog.id])
+    }
+  }
+  let #(record, identity) =
+    make_content(identity, "article", article_input, Some(blog_id), None)
+  let #(_, store) = store.upsert_staged_online_store_content(store, record)
+  let payload =
+    mutation_payload(
+      field,
+      fragments,
+      "article",
+      project_content_payload(
+        store,
+        record,
+        field,
+        fragments,
+        variables,
+        "article",
+      ),
+      [],
+    )
+  #(
+    key,
+    payload,
+    mutation_outcome(
+      outcome,
+      store,
+      identity,
+      "articleCreate",
+      list.append(staged_blog_ids, [record.id]),
+    ),
+  )
+}
+
+fn update_content(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+  kind: String,
+  payload_key: String,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let id = input_string(args, "id")
+  let input = input_object(args, payload_key)
+  case id {
+    Some(id) ->
+      case store.get_effective_online_store_content_by_id(outcome.store, id) {
+        Some(existing) -> {
+          let #(record, identity) =
+            make_content(
+              outcome.identity,
+              kind,
+              input,
+              existing.parent_id,
+              Some(existing),
+            )
+          let #(_, store) =
+            store.upsert_staged_online_store_content(outcome.store, record)
+          let payload =
+            mutation_payload(
+              field,
+              fragments,
+              payload_key,
+              project_content_payload(
+                store,
+                record,
+                field,
+                fragments,
+                variables,
+                payload_key,
+              ),
+              [],
+            )
+          #(
+            key,
+            payload,
+            mutation_outcome(outcome, store, identity, root, [id]),
+          )
+        }
+        None ->
+          not_found_payload(
+            outcome,
+            field,
+            root,
+            payload_key,
+            "Content does not exist",
+          )
+      }
+    None ->
+      not_found_payload(
+        outcome,
+        field,
+        root,
+        payload_key,
+        "Content does not exist",
+      )
+  }
+}
+
+fn delete_content(
+  outcome: MutationOutcome,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+  _kind: String,
+  deleted_key: String,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let id = input_string(field_args(field, variables), "id")
+  let #(deleted, errors, store) = case id {
+    Some(id) ->
+      case store.get_effective_online_store_content_by_id(outcome.store, id) {
+        Some(_) -> #(
+          SrcString(id),
+          [],
+          store.delete_staged_online_store_content(outcome.store, id),
+        )
+        None -> #(
+          SrcNull,
+          [user_error(["id"], "Content does not exist")],
+          outcome.store,
+        )
+      }
+    None -> #(
+      SrcNull,
+      [user_error(["id"], "Content does not exist")],
+      outcome.store,
+    )
+  }
+  let payload =
+    project_payload_source(
+      field,
+      src_object([
+        #(deleted_key, deleted),
+        #("userErrors", user_errors_source(errors)),
+      ]),
+      dict.new(),
+    )
+  #(
+    key,
+    payload,
+    mutation_outcome(outcome, store, outcome.identity, root, case errors {
+      [] -> option_list(id)
+      _ -> []
+    }),
+  )
+}
+
+fn moderate_comment(
+  outcome: MutationOutcome,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let id = input_string(field_args(field, variables), "id")
+  let status = case root {
+    "commentApprove" -> "PUBLISHED"
+    "commentSpam" -> "SPAM"
+    _ -> "PENDING"
+  }
+  let #(comment, errors, store) = case id {
+    Some(id) ->
+      case store.get_effective_online_store_content_by_id(outcome.store, id) {
+        Some(existing) if existing.kind == "comment" -> {
+          let data =
+            captured_object_insert(
+              existing.data,
+              "status",
+              CapturedString(status),
+            )
+          let record = OnlineStoreContentRecord(..existing, data: data)
+          let #(_, next_store) =
+            store.upsert_staged_online_store_content(outcome.store, record)
+          #(content_payload_source(next_store, record), [], next_store)
+        }
+        _ -> #(
+          SrcNull,
+          [user_error(["id"], "Comment does not exist")],
+          outcome.store,
+        )
+      }
+    None -> #(
+      SrcNull,
+      [user_error(["id"], "Comment does not exist")],
+      outcome.store,
+    )
+  }
+  let payload =
+    project_payload_source(
+      field,
+      src_object([
+        #("comment", comment),
+        #("userErrors", user_errors_source(errors)),
+      ]),
+      dict.new(),
+    )
+  #(key, payload, mutation_outcome(outcome, store, outcome.identity, root, []))
+}
+
+fn delete_comment(
+  outcome: MutationOutcome,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let id = input_string(field_args(field, variables), "id")
+  let #(deleted, errors, store) = case id {
+    Some(id) ->
+      case store.get_effective_online_store_content_by_id(outcome.store, id) {
+        Some(existing) if existing.kind == "comment" -> #(
+          SrcString(id),
+          [],
+          store.delete_staged_online_store_content(outcome.store, id),
+        )
+        _ -> #(
+          SrcNull,
+          [user_error(["id"], "Comment does not exist")],
+          outcome.store,
+        )
+      }
+    None -> #(
+      SrcNull,
+      [user_error(["id"], "Comment does not exist")],
+      outcome.store,
+    )
+  }
+  let payload =
+    project_payload_source(
+      field,
+      src_object([
+        #("deletedCommentId", deleted),
+        #("userErrors", user_errors_source(errors)),
+      ]),
+      dict.new(),
+    )
+  #(
+    key,
+    payload,
+    mutation_outcome(outcome, store, outcome.identity, "commentDelete", []),
+  )
+}
+
+fn create_theme(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  let args = field_args(field, variables)
+  let source = input_string(args, "source")
+  let errors = case source {
+    Some(_) -> []
+    None -> [user_error(["source"], "Source can't be blank")]
+  }
+  let #(record, identity, store, staged_ids) = case errors {
+    [] -> {
+      let #(record, identity) =
+        make_integration(outcome.identity, "theme", [
+          #("__typename", SrcString("OnlineStoreTheme")),
+          #(
+            "name",
+            option_source(input_string(args, "name"), "Draft proxy theme"),
+          ),
+          #("role", option_source(input_string(args, "role"), "UNPUBLISHED")),
+          #("processing", SrcBool(False)),
+          #("processingFailed", SrcBool(False)),
+          #("files", SrcList([])),
+        ])
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(outcome.store, record)
+      #(Some(record), identity, store, [record.id])
+    }
+    _ -> #(None, outcome.identity, outcome.store, [])
+  }
+  integration_payload_result(
+    outcome,
+    field,
+    fragments,
+    variables,
+    "themeCreate",
+    "theme",
+    record,
+    errors,
+    store,
+    identity,
+    staged_ids,
+  )
+}
+
+fn update_theme(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+) -> #(String, Json, MutationOutcome) {
+  let args = field_args(field, variables)
+  let id = input_string(args, "id")
+  case id {
+    Some(id) ->
+      case
+        store.get_effective_online_store_integration_by_id(outcome.store, id)
+      {
+        Some(existing) -> {
+          let input = input_object(args, "input")
+          let role = case root {
+            "themePublish" -> Some("MAIN")
+            _ -> input_string(input, "role")
+          }
+          let name = input_string(input, "name")
+          let data =
+            existing.data
+            |> maybe_insert_string("name", name)
+            |> maybe_insert_string("role", role)
+          let record = OnlineStoreIntegrationRecord(..existing, data: data)
+          let #(_, store) =
+            store.upsert_staged_online_store_integration(outcome.store, record)
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "theme",
+            Some(record),
+            [],
+            store,
+            outcome.identity,
+            [id],
+          )
+        }
+        None ->
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "theme",
+            None,
+            [user_error(["id"], "Theme does not exist")],
+            outcome.store,
+            outcome.identity,
+            [],
+          )
+      }
+    None ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        root,
+        "theme",
+        None,
+        [user_error(["id"], "Theme does not exist")],
+        outcome.store,
+        outcome.identity,
+        [],
+      )
+  }
+}
+
+fn theme_files_upsert(
+  outcome: MutationOutcome,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  theme_files_change(outcome, field, variables, "themeFilesUpsert")
+}
+
+fn theme_files_copy(
+  outcome: MutationOutcome,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  theme_files_change(outcome, field, variables, "themeFilesCopy")
+}
+
+fn theme_files_delete(
+  outcome: MutationOutcome,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  theme_files_change(outcome, field, variables, "themeFilesDelete")
+}
+
+fn theme_files_change(
+  outcome: MutationOutcome,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let theme_id = case input_string(args, "themeId") {
+    Some(id) -> Some(id)
+    None -> input_string(args, "id")
+  }
+  let existing =
+    option_then(theme_id, fn(id) {
+      store.get_effective_online_store_integration_by_id(outcome.store, id)
+    })
+  let errors = case existing {
+    Some(_) -> []
+    None -> [user_error(["themeId"], "Theme does not exist")]
+  }
+  let files = case root {
+    "themeFilesDelete" -> []
+    _ -> make_theme_files(input_list(args, "files"))
+  }
+  let payload = case root {
+    "themeFilesUpsert" ->
+      src_object([
+        #(
+          "job",
+          src_object([
+            #("id", SrcString("gid://shopify/Job/online-store-theme-files")),
+            #("done", SrcBool(True)),
+          ]),
+        ),
+        #("upsertedThemeFiles", SrcList(files)),
+        #("userErrors", user_errors_source(errors)),
+      ])
+    "themeFilesCopy" ->
+      src_object([
+        #(
+          "job",
+          src_object([
+            #("id", SrcString("gid://shopify/Job/online-store-theme-files")),
+            #("done", SrcBool(True)),
+          ]),
+        ),
+        #("copiedThemeFiles", SrcList(files)),
+        #("userErrors", user_errors_source(errors)),
+      ])
+    _ ->
+      src_object([
+        #(
+          "job",
+          src_object([
+            #("id", SrcString("gid://shopify/Job/online-store-theme-files")),
+            #("done", SrcBool(True)),
+          ]),
+        ),
+        #("deletedThemeFiles", SrcList([])),
+        #("userErrors", user_errors_source(errors)),
+      ])
+  }
+  #(
+    key,
+    project_payload_source(field, payload, dict.new()),
+    mutation_outcome(outcome, outcome.store, outcome.identity, root, []),
+  )
+}
+
+fn create_script_tag(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  let input = input_object(field_args(field, variables), "input")
+  let #(record, identity) =
+    make_integration(outcome.identity, "scriptTag", [
+      #("__typename", SrcString("ScriptTag")),
+      #("src", option_source(input_string(input, "src"), "")),
+      #(
+        "displayScope",
+        option_source(input_string(input, "displayScope"), "ONLINE_STORE"),
+      ),
+      #("cache", bool_source(input_bool(input, "cache"), False)),
+    ])
+  let #(_, store) =
+    store.upsert_staged_online_store_integration(outcome.store, record)
+  integration_payload_result(
+    outcome,
+    field,
+    fragments,
+    variables,
+    "scriptTagCreate",
+    "scriptTag",
+    Some(record),
+    [],
+    store,
+    identity,
+    [record.id],
+  )
+}
+
+fn update_script_tag(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  let args = field_args(field, variables)
+  let id = input_string(args, "id")
+  let input = input_object(args, "input")
+  case id {
+    Some(id) ->
+      case
+        store.get_effective_online_store_integration_by_id(outcome.store, id)
+      {
+        Some(existing) -> {
+          let data =
+            existing.data
+            |> maybe_insert_string("src", input_string(input, "src"))
+            |> maybe_insert_string(
+              "displayScope",
+              input_string(input, "displayScope"),
+            )
+            |> maybe_insert_bool("cache", input_bool(input, "cache"))
+          let record = OnlineStoreIntegrationRecord(..existing, data: data)
+          let #(_, store) =
+            store.upsert_staged_online_store_integration(outcome.store, record)
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            "scriptTagUpdate",
+            "scriptTag",
+            Some(record),
+            [],
+            store,
+            outcome.identity,
+            [record.id],
+          )
+        }
+        None ->
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            "scriptTagUpdate",
+            "scriptTag",
+            None,
+            [user_error(["id"], "Script tag does not exist")],
+            outcome.store,
+            outcome.identity,
+            [],
+          )
+      }
+    None ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        "scriptTagUpdate",
+        "scriptTag",
+        None,
+        [user_error(["id"], "Script tag does not exist")],
+        outcome.store,
+        outcome.identity,
+        [],
+      )
+  }
+}
+
+fn create_pixel(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+  kind: String,
+) -> #(String, Json, MutationOutcome) {
+  let args = field_args(field, variables)
+  let settings = case kind {
+    "webPixel" ->
+      value_source_from_dict(input_object(args, "webPixel"), "settings")
+    _ -> SrcNull
+  }
+  let #(record, identity) =
+    make_integration(outcome.identity, kind, [
+      #(
+        "__typename",
+        SrcString(case kind {
+          "webPixel" -> "WebPixel"
+          _ -> "ServerPixel"
+        }),
+      ),
+      #("settings", settings),
+      #("status", SrcString("CONNECTED")),
+      #("webhookEndpointAddress", SrcNull),
+    ])
+  let #(_, store) =
+    store.upsert_staged_online_store_integration(outcome.store, record)
+  integration_payload_result(
+    outcome,
+    field,
+    fragments,
+    variables,
+    root,
+    kind,
+    Some(record),
+    [],
+    store,
+    identity,
+    [record.id],
+  )
+}
+
+fn update_pixel(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+  kind: String,
+) -> #(String, Json, MutationOutcome) {
+  let args = field_args(field, variables)
+  let id = input_string(args, "id")
+  let existing = case id {
+    Some(id) ->
+      store.get_effective_online_store_integration_by_id(outcome.store, id)
+    None ->
+      first_option(store.list_effective_online_store_integrations(
+        outcome.store,
+        kind,
+      ))
+  }
+  case existing {
+    Some(record) ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        root,
+        kind,
+        Some(record),
+        [],
+        outcome.store,
+        outcome.identity,
+        [record.id],
+      )
+    None ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        root,
+        kind,
+        None,
+        [user_error(["id"], "Pixel does not exist")],
+        outcome.store,
+        outcome.identity,
+        [],
+      )
+  }
+}
+
+fn update_server_pixel_endpoint(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+  mode: String,
+) -> #(String, Json, MutationOutcome) {
+  let existing =
+    first_option(store.list_effective_online_store_integrations(
+      outcome.store,
+      "serverPixel",
+    ))
+  let args = field_args(field, variables)
+  let address = case mode {
+    "arn" -> input_string(args, "arn")
+    _ ->
+      case
+        input_string(args, "pubSubProject"),
+        input_string(args, "pubSubTopic")
+      {
+        Some(p), Some(t) -> Some(p <> "/" <> t)
+        _, _ -> None
+      }
+  }
+  case existing {
+    Some(existing) -> {
+      let record =
+        OnlineStoreIntegrationRecord(
+          ..existing,
+          data: maybe_insert_string(
+            existing.data,
+            "webhookEndpointAddress",
+            address,
+          ),
+        )
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(outcome.store, record)
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        root,
+        "serverPixel",
+        Some(record),
+        [],
+        store,
+        outcome.identity,
+        [record.id],
+      )
+    }
+    None ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        root,
+        "serverPixel",
+        None,
+        [user_error([], "Server pixel does not exist")],
+        outcome.store,
+        outcome.identity,
+        [],
+      )
+  }
+}
+
+fn create_storefront_token(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  let input = input_object(field_args(field, variables), "input")
+  let #(record, identity) =
+    make_integration(outcome.identity, "storefrontAccessToken", [
+      #("__typename", SrcString("StorefrontAccessToken")),
+      #(
+        "title",
+        option_source(input_string(input, "title"), "Headless preview"),
+      ),
+      #("accessToken", SrcString("shpat_redacted")),
+      #("accessScopes", SrcList([])),
+    ])
+  let #(_, store) =
+    store.upsert_staged_online_store_integration(outcome.store, record)
+  integration_payload_result(
+    outcome,
+    field,
+    fragments,
+    variables,
+    "storefrontAccessTokenCreate",
+    "storefrontAccessToken",
+    Some(record),
+    [],
+    store,
+    identity,
+    [record.id],
+  )
+}
+
+fn delete_storefront_token(
+  outcome: MutationOutcome,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  let args = field_args(field, variables)
+  let input = input_object(args, "input")
+  let id = input_string(input, "id")
+  let key = get_field_response_key(field)
+  let #(deleted, errors, store) = case id {
+    Some(id) ->
+      case
+        store.get_effective_online_store_integration_by_id(outcome.store, id)
+      {
+        Some(_) -> #(
+          SrcString(id),
+          [],
+          store.delete_staged_online_store_integration(outcome.store, id),
+        )
+        None -> #(
+          SrcNull,
+          [user_error(["id"], "Storefront access token does not exist")],
+          outcome.store,
+        )
+      }
+    None -> #(
+      SrcNull,
+      [user_error(["id"], "Storefront access token does not exist")],
+      outcome.store,
+    )
+  }
+  let payload =
+    project_payload_source(
+      field,
+      src_object([
+        #("deletedStorefrontAccessTokenId", deleted),
+        #("userErrors", user_errors_source(errors)),
+      ]),
+      dict.new(),
+    )
+  #(
+    key,
+    payload,
+    mutation_outcome(
+      outcome,
+      store,
+      outcome.identity,
+      "storefrontAccessTokenDelete",
+      case errors {
+        [] -> option_list(id)
+        _ -> []
+      },
+    ),
+  )
+}
+
+fn create_mobile_app(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  let input = input_object(field_args(field, variables), "input")
+  let app_type =
+    option_string(input_string(input, "applicationType"), "ANDROID")
+  let typename = case app_type {
+    "APPLE" -> "AppleApplication"
+    _ -> "AndroidApplication"
+  }
+  let app_input = mobile_platform_payload(input)
+  let #(record, identity) =
+    make_integration(outcome.identity, "mobilePlatformApplication", [
+      #("__typename", SrcString(typename)),
+      #(
+        "applicationId",
+        option_source(
+          input_string(app_input, "applicationId"),
+          "com.example.local",
+        ),
+      ),
+      #(
+        "appId",
+        option_source(input_string(app_input, "appId"), "com.example.local"),
+      ),
+      #(
+        "appLinksEnabled",
+        bool_source(input_bool(app_input, "appLinksEnabled"), True),
+      ),
+      #(
+        "sha256CertFingerprints",
+        value_source_from_dict(app_input, "sha256CertFingerprints"),
+      ),
+    ])
+  let #(_, store) =
+    store.upsert_staged_online_store_integration(outcome.store, record)
+  integration_payload_result(
+    outcome,
+    field,
+    fragments,
+    variables,
+    "mobilePlatformApplicationCreate",
+    "mobilePlatformApplication",
+    Some(record),
+    [],
+    store,
+    identity,
+    [record.id],
+  )
+}
+
+fn update_mobile_app(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, MutationOutcome) {
+  let args = field_args(field, variables)
+  let id = input_string(args, "id")
+  case id {
+    Some(id) ->
+      case
+        store.get_effective_online_store_integration_by_id(outcome.store, id)
+      {
+        Some(record) ->
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            "mobilePlatformApplicationUpdate",
+            "mobilePlatformApplication",
+            Some(record),
+            [],
+            outcome.store,
+            outcome.identity,
+            [record.id],
+          )
+        None ->
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            "mobilePlatformApplicationUpdate",
+            "mobilePlatformApplication",
+            None,
+            [user_error(["id"], "Mobile platform application does not exist")],
+            outcome.store,
+            outcome.identity,
+            [],
+          )
+      }
+    None ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        "mobilePlatformApplicationUpdate",
+        "mobilePlatformApplication",
+        None,
+        [user_error(["id"], "Mobile platform application does not exist")],
+        outcome.store,
+        outcome.identity,
+        [],
+      )
+  }
+}
+
+fn delete_integration(
+  outcome: MutationOutcome,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+  _kind: String,
+  deleted_key: String,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let id = input_string(field_args(field, variables), "id")
+  let #(deleted, errors, store) = case id {
+    Some(id) ->
+      case
+        store.get_effective_online_store_integration_by_id(outcome.store, id)
+      {
+        Some(_) -> #(
+          SrcString(id),
+          [],
+          store.delete_staged_online_store_integration(outcome.store, id),
+        )
+        None -> #(
+          SrcNull,
+          [user_error(["id"], "Integration does not exist")],
+          outcome.store,
+        )
+      }
+    None -> #(
+      SrcNull,
+      [user_error(["id"], "Integration does not exist")],
+      outcome.store,
+    )
+  }
+  let payload =
+    project_payload_source(
+      field,
+      src_object([
+        #(deleted_key, deleted),
+        #("userErrors", user_errors_source(errors)),
+      ]),
+      dict.new(),
+    )
+  #(
+    key,
+    payload,
+    mutation_outcome(outcome, store, outcome.identity, root, case errors {
+      [] -> option_list(id)
+      _ -> []
+    }),
+  )
+}
+
+fn integration_payload_result(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+  payload_key: String,
+  record: Option(OnlineStoreIntegrationRecord),
+  errors: List(graphql_helpers.SourceValue),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  staged_ids: List(String),
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let value = case record {
+    Some(record) ->
+      project_integration_payload(
+        record,
+        field,
+        fragments,
+        variables,
+        payload_key,
+      )
+    None -> json.null()
+  }
+  let payload = mutation_payload(field, fragments, payload_key, value, errors)
+  #(key, payload, mutation_outcome(outcome, store, identity, root, staged_ids))
+}
+
+fn mutation_outcome(
+  _outcome: MutationOutcome,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root: String,
+  staged_ids: List(String),
+) -> MutationOutcome {
+  MutationOutcome(
+    data: json.object([]),
+    store: store,
+    identity: identity,
+    staged_resource_ids: staged_ids,
+    log_drafts: [
+      single_root_log_draft(
+        root,
+        staged_ids,
+        store.Staged,
+        "online-store",
+        "stage-locally",
+        Some("Locally staged " <> root <> " in shopify-draft-proxy."),
+      ),
+    ],
+  )
+}
+
+fn not_found_payload(
+  outcome: MutationOutcome,
+  field: Selection,
+  root: String,
+  payload_key: String,
+  message: String,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let errors = [user_error(["id"], message)]
+  let payload =
+    mutation_payload(field, dict.new(), payload_key, json.null(), errors)
+  #(
+    key,
+    payload,
+    mutation_outcome(outcome, outcome.store, outcome.identity, root, []),
+  )
+}
+
+fn make_content(
+  identity: SyntheticIdentityRegistry,
+  kind: String,
+  input: Dict(String, root_field.ResolvedValue),
+  parent_id: Option(String),
+  existing: Option(OnlineStoreContentRecord),
+) -> #(OnlineStoreContentRecord, SyntheticIdentityRegistry) {
+  let gid_type = content_gid_type(kind)
+  let #(id, identity) = case existing {
+    Some(record) -> #(record.id, identity)
+    None -> synthetic_identity.make_proxy_synthetic_gid(identity, gid_type)
+  }
+  let #(timestamp, identity) = case existing {
+    Some(record) -> #(
+      option_string(record.updated_at, "2024-01-01T00:00:00.000Z"),
+      identity,
+    )
+    None -> synthetic_identity.make_synthetic_timestamp(identity)
+  }
+  let prior = case existing {
+    Some(record) -> captured_to_source(record.data)
+    None -> src_object([])
+  }
+  let title =
+    option_string(
+      input_string(input, "title"),
+      source_string_field(prior, "title", ""),
+    )
+  let body =
+    option_string(
+      input_string(input, "body"),
+      source_string_field(prior, "body", ""),
+    )
+  let is_published =
+    option_bool(
+      input_bool(input, "isPublished"),
+      source_bool_field(prior, "isPublished", True),
+    )
+  let published_at = case is_published {
+    True ->
+      option_string(
+        source_optional_string_field(prior, "publishedAt"),
+        timestamp,
+      )
+    False -> ""
+  }
+  let source =
+    base_source(prior, [
+      #("__typename", SrcString(content_typename(kind))),
+      #("id", SrcString(id)),
+      #("title", SrcString(title)),
+      #(
+        "handle",
+        SrcString(option_string(
+          source_optional_string_field(prior, "handle"),
+          slugify(title),
+        )),
+      ),
+      #("body", SrcString(body)),
+      #("bodySummary", SrcString(strip_html(body))),
+      #(
+        "summary",
+        option_source(
+          input_string(input, "summary"),
+          source_string_field(prior, "summary", ""),
+        ),
+      ),
+      #(
+        "tags",
+        value_or_default(
+          input,
+          "tags",
+          source_field(prior, "tags", SrcList([])),
+        ),
+      ),
+      #(
+        "author",
+        value_or_default(
+          input,
+          "author",
+          source_field(prior, "author", src_object([#("name", SrcString(""))])),
+        ),
+      ),
+      #(
+        "commentPolicy",
+        option_source(
+          input_string(input, "commentPolicy"),
+          source_string_field(prior, "commentPolicy", "MODERATED"),
+        ),
+      ),
+      #("isPublished", SrcBool(is_published)),
+      #("publishedAt", case is_published {
+        True -> SrcString(published_at)
+        False -> SrcNull
+      }),
+      #("templateSuffix", source_field(prior, "templateSuffix", SrcNull)),
+      #("createdAt", source_field(prior, "createdAt", SrcString(timestamp))),
+      #("updatedAt", SrcString(timestamp)),
+      #("blogId", case parent_id {
+        Some(id) -> SrcString(id)
+        None -> source_field(prior, "blogId", SrcNull)
+      }),
+      #(
+        "image",
+        value_or_default(input, "image", source_field(prior, "image", SrcNull)),
+      ),
+      #("metafields", content_metafields_source(kind, input, prior)),
+    ])
+  #(
+    OnlineStoreContentRecord(
+      id: id,
+      kind: kind,
+      cursor: None,
+      parent_id: parent_id,
+      created_at: source_optional_string_field(source, "createdAt"),
+      updated_at: Some(timestamp),
+      data: source_to_captured(source),
+    ),
+    identity,
+  )
+}
+
+fn make_integration(
+  identity: SyntheticIdentityRegistry,
+  kind: String,
+  entries: List(#(String, graphql_helpers.SourceValue)),
+) -> #(OnlineStoreIntegrationRecord, SyntheticIdentityRegistry) {
+  let #(id, identity) =
+    synthetic_identity.make_proxy_synthetic_gid(
+      identity,
+      integration_gid_type(kind),
+    )
+  let source = src_object([#("id", SrcString(id)), ..entries])
+  #(
+    OnlineStoreIntegrationRecord(
+      id: id,
+      kind: kind,
+      cursor: None,
+      created_at: None,
+      updated_at: None,
+      data: source_to_captured(source),
+    ),
+    identity,
+  )
+}
+
+fn mobile_platform_payload(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case dict.get(input, "android") {
+    Ok(root_field.ObjectVal(fields)) -> fields
+    _ ->
+      case dict.get(input, "apple") {
+        Ok(root_field.ObjectVal(fields)) -> fields
+        _ -> input
+      }
+  }
+}
+
+fn content_metafields_source(
+  kind: String,
+  input: Dict(String, root_field.ResolvedValue),
+  prior: graphql_helpers.SourceValue,
+) -> graphql_helpers.SourceValue {
+  let raw =
+    value_or_default(
+      input,
+      "metafields",
+      source_field(prior, "metafields", SrcList([])),
+    )
+  case owner_type_for_content(kind) {
+    Some(owner_type) -> enrich_metafields(raw, owner_type)
+    None -> raw
+  }
+}
+
+fn owner_type_for_content(kind: String) -> Option(String) {
+  case kind {
+    "article" -> Some("ARTICLE")
+    "blog" -> Some("BLOG")
+    "page" -> Some("PAGE")
+    "comment" -> Some("COMMENT")
+    _ -> None
+  }
+}
+
+fn enrich_metafields(
+  value: graphql_helpers.SourceValue,
+  owner_type: String,
+) -> graphql_helpers.SourceValue {
+  case value {
+    SrcList(items) -> SrcList(list.map(items, enrich_metafield(_, owner_type)))
+    _ -> value
+  }
+}
+
+fn enrich_metafield(
+  value: graphql_helpers.SourceValue,
+  owner_type: String,
+) -> graphql_helpers.SourceValue {
+  case value {
+    SrcObject(fields) -> {
+      let json_value = case dict.get(fields, "jsonValue") {
+        Ok(existing) -> existing
+        Error(_) ->
+          case dict.get(fields, "value") {
+            Ok(raw_value) -> raw_value
+            Error(_) -> SrcNull
+          }
+      }
+      SrcObject(
+        fields
+        |> dict.insert("ownerType", SrcString(owner_type))
+        |> dict.insert("jsonValue", json_value),
+      )
+    }
+    _ -> value
+  }
+}
+
+fn singular_content(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  kind: String,
+) -> Json {
+  let id = input_string(field_args(field, variables), "id")
+  case id {
+    Some(id) ->
+      case store.get_effective_online_store_content_by_id(store, id) {
+        Some(record) if record.kind == kind ->
+          project_content_record(store, record, field, fragments, variables)
+        _ -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn content_connection(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  kind: String,
+) -> Json {
+  let records =
+    store.list_effective_online_store_content(store, kind)
+    |> list.filter(root_connection_visible(kind, _))
+    |> filter_content_by_query(field, variables)
+  let window =
+    paginate_connection_items(
+      records,
+      field,
+      variables,
+      fn(record, _index) { option_string(record.cursor, record.id) },
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: fn(record, _index) {
+        option_string(record.cursor, record.id)
+      },
+      serialize_node: fn(record, node_field, _index) {
+        project_content_record(store, record, node_field, fragments, variables)
+      },
+      selected_field_options: graphql_helpers.SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(True, True, True, None, None),
+    ),
+  )
+}
+
+fn singular_integration(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  kind: String,
+) -> Json {
+  let id = input_string(field_args(field, variables), "id")
+  case id {
+    Some(id) ->
+      case store.get_effective_online_store_integration_by_id(store, id) {
+        Some(record) if record.kind == kind ->
+          project_integration_record(record, field, fragments, variables)
+        _ -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn first_integration(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  kind: String,
+) -> Json {
+  case list.first(store.list_effective_online_store_integrations(store, kind)) {
+    Ok(record) ->
+      project_integration_record(record, field, fragments, dict.new())
+    Error(_) -> json.null()
+  }
+}
+
+fn integration_connection(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  kind: String,
+) -> Json {
+  let records = store.list_effective_online_store_integrations(store, kind)
+  let window =
+    paginate_connection_items(
+      records,
+      field,
+      variables,
+      fn(record, _index) { option_string(record.cursor, record.id) },
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: fn(record, _index) {
+        option_string(record.cursor, record.id)
+      },
+      serialize_node: fn(record, node_field, _index) {
+        project_integration_record(record, node_field, fragments, variables)
+      },
+      selected_field_options: graphql_helpers.SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(True, True, True, None, None),
+    ),
+  )
+}
+
+fn project_content_record(
+  store: Store,
+  record: OnlineStoreContentRecord,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let source = captured_to_source(record.data)
+  let entries =
+    list.map(
+      get_selected_child_fields(
+        field,
+        graphql_helpers.SelectedFieldOptions(True),
+      ),
+      fn(child) {
+        let key = get_field_response_key(child)
+        case child {
+          Field(name: name, ..) ->
+            case name.value {
+              "articles" -> #(
+                key,
+                nested_content_connection(
+                  store,
+                  child,
+                  fragments,
+                  variables,
+                  "article",
+                  record.id,
+                ),
+              )
+              "comments" -> #(
+                key,
+                nested_content_connection(
+                  store,
+                  child,
+                  fragments,
+                  variables,
+                  "comment",
+                  record.id,
+                ),
+              )
+              "articlesCount" -> #(
+                key,
+                count_json(
+                  list.length(children_for_parent(store, "article", record.id)),
+                ),
+              )
+              "commentsCount" -> #(
+                key,
+                count_json(
+                  list.length(children_for_parent(store, "comment", record.id)),
+                ),
+              )
+              "blog" -> #(key, case record.parent_id {
+                Some(id) ->
+                  case
+                    store.get_effective_online_store_content_by_id(store, id)
+                  {
+                    Some(blog) ->
+                      project_content_record(
+                        store,
+                        blog,
+                        child,
+                        fragments,
+                        variables,
+                      )
+                    None -> json.null()
+                  }
+                None -> json.null()
+              })
+              "article" -> #(key, case record.parent_id {
+                Some(id) ->
+                  case
+                    store.get_effective_online_store_content_by_id(store, id)
+                  {
+                    Some(article) ->
+                      project_content_record(
+                        store,
+                        article,
+                        child,
+                        fragments,
+                        variables,
+                      )
+                    None -> json.null()
+                  }
+                None -> json.null()
+              })
+              "metafield" -> #(
+                key,
+                project_first_metafield(source, child, fragments),
+              )
+              "metafields" -> #(
+                key,
+                project_metafields_connection(
+                  source,
+                  child,
+                  fragments,
+                  variables,
+                ),
+              )
+              _ -> #(
+                key,
+                project_graphql_value(
+                  source_field(source, name.value, SrcNull),
+                  child_selections(child),
+                  fragments,
+                ),
+              )
+            }
+          _ -> #(key, json.null())
+        }
+      },
+    )
+  json.object(entries)
+}
+
+fn project_integration_record(
+  record: OnlineStoreIntegrationRecord,
+  field: Selection,
+  fragments: FragmentMap,
+  _variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let source = captured_to_source(record.data)
+  let entries =
+    list.map(
+      get_selected_child_fields(
+        field,
+        graphql_helpers.SelectedFieldOptions(True),
+      ),
+      fn(child) {
+        let key = get_field_response_key(child)
+        case child {
+          Field(name: name, ..) ->
+            case name.value {
+              "files" -> #(
+                key,
+                theme_files_connection(source, child, fragments),
+              )
+              "settings" -> #(
+                key,
+                source_to_json(source_field(source, "settings", SrcNull)),
+              )
+              _ -> #(
+                key,
+                project_graphql_value(
+                  source_field(source, name.value, SrcNull),
+                  child_selections(child),
+                  fragments,
+                ),
+              )
+            }
+          _ -> #(key, json.null())
+        }
+      },
+    )
+  json.object(entries)
+}
+
+fn project_content_payload(
+  store: Store,
+  record: OnlineStoreContentRecord,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  payload_key: String,
+) -> Json {
+  project_content_record(
+    store,
+    record,
+    payload_field_selection(field, payload_key),
+    fragments,
+    variables,
+  )
+}
+
+fn project_integration_payload(
+  record: OnlineStoreIntegrationRecord,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  payload_key: String,
+) -> Json {
+  project_integration_record(
+    record,
+    payload_field_selection(field, payload_key),
+    fragments,
+    variables,
+  )
+}
+
+fn payload_field_selection(field: Selection, payload_key: String) -> Selection {
+  case
+    get_selected_child_fields(field, graphql_helpers.SelectedFieldOptions(True))
+    |> list.find(fn(child) {
+      case child {
+        Field(name: name, ..) -> name.value == payload_key
+        _ -> False
+      }
+    })
+  {
+    Ok(child) -> child
+    Error(_) -> field
+  }
+}
+
+fn content_payload_source(
+  store: Store,
+  record: OnlineStoreContentRecord,
+) -> graphql_helpers.SourceValue {
+  let source = captured_to_source(record.data)
+  let extras = case record.kind {
+    "blog" -> [
+      #(
+        "articlesCount",
+        count_source(
+          list.length(children_for_parent(store, "article", record.id)),
+        ),
+      ),
+    ]
+    "article" -> [
+      #(
+        "commentsCount",
+        count_source(
+          list.length(children_for_parent(store, "comment", record.id)),
+        ),
+      ),
+      #("blog", case record.parent_id {
+        Some(id) ->
+          case store.get_effective_online_store_content_by_id(store, id) {
+            Some(blog) -> captured_to_source(blog.data)
+            None -> SrcNull
+          }
+        None -> SrcNull
+      }),
+      #("metafield", case source_field(source, "metafields", SrcList([])) {
+        SrcList([first, ..]) -> first
+        _ -> SrcNull
+      }),
+    ]
+    _ -> []
+  }
+  base_source(source, extras)
+}
+
+fn nested_content_connection(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  kind: String,
+  parent_id: String,
+) -> Json {
+  let records = children_for_parent(store, kind, parent_id)
+  let window =
+    paginate_connection_items(
+      records,
+      field,
+      variables,
+      fn(record, _index) { option_string(record.cursor, record.id) },
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: fn(record, _index) {
+        option_string(record.cursor, record.id)
+      },
+      serialize_node: fn(record, node_field, _index) {
+        project_content_record(store, record, node_field, fragments, variables)
+      },
+      selected_field_options: graphql_helpers.SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(True, True, True, None, None),
+    ),
+  )
+}
+
+fn root_connection_visible(
+  kind: String,
+  record: OnlineStoreContentRecord,
+) -> Bool {
+  case kind {
+    "article" ->
+      source_bool_field(captured_to_source(record.data), "isPublished", False)
+    _ -> True
+  }
+}
+
+fn children_for_parent(
+  store: Store,
+  kind: String,
+  parent_id: String,
+) -> List(OnlineStoreContentRecord) {
+  store.list_effective_online_store_content(store, kind)
+  |> list.filter(fn(record) { record.parent_id == Some(parent_id) })
+}
+
+fn article_authors_connection(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let authors =
+    store.list_effective_online_store_content(store, "article")
+    |> list.filter_map(fn(record) {
+      case source_field(captured_to_source(record.data), "author", SrcNull) {
+        SrcObject(author) ->
+          case dict.get(author, "name") {
+            Ok(SrcString(name)) -> Ok(src_object([#("name", SrcString(name))]))
+            _ -> Error(Nil)
+          }
+        _ -> Error(Nil)
+      }
+    })
+  let window =
+    paginate_connection_items(
+      authors,
+      field,
+      variables,
+      fn(author, _index) { source_string_field(author, "name", "") },
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: fn(author, _index) {
+        source_string_field(author, "name", "")
+      },
+      serialize_node: fn(author, node_field, _index) {
+        project_graphql_value(author, child_selections(node_field), fragments)
+      },
+      selected_field_options: graphql_helpers.SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(True, True, True, None, None),
+    ),
+  )
+}
+
+fn article_tags(store: Store) -> List(String) {
+  store.list_effective_online_store_content(store, "article")
+  |> list.flat_map(fn(record) {
+    case source_field(captured_to_source(record.data), "tags", SrcList([])) {
+      SrcList(items) ->
+        list.filter_map(items, fn(item) {
+          case item {
+            SrcString(tag) -> Ok(tag)
+            _ -> Error(Nil)
+          }
+        })
+      _ -> []
+    }
+  })
+  |> dedupe()
+}
+
+fn project_shop(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let source = src_object([#("id", SrcString(synthetic_shop_id))])
+  let entries =
+    list.map(
+      get_selected_child_fields(
+        field,
+        graphql_helpers.SelectedFieldOptions(True),
+      ),
+      fn(child) {
+        let key = get_field_response_key(child)
+        case child {
+          Field(name: name, ..) ->
+            case name.value {
+              "storefrontAccessTokens" -> #(
+                key,
+                integration_connection(
+                  store,
+                  child,
+                  fragments,
+                  variables,
+                  "storefrontAccessToken",
+                ),
+              )
+              _ -> #(
+                key,
+                project_graphql_value(
+                  source_field(source, name.value, SrcNull),
+                  child_selections(child),
+                  fragments,
+                ),
+              )
+            }
+          _ -> #(key, json.null())
+        }
+      },
+    )
+  json.object(entries)
+}
+
+fn filter_content_by_query(
+  records: List(OnlineStoreContentRecord),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(OnlineStoreContentRecord) {
+  let query = input_string(field_args(field, variables), "query")
+  case query {
+    None -> records
+    Some(query) ->
+      list.filter(records, fn(record) {
+        matches_query(captured_to_source(record.data), query)
+      })
+  }
+}
+
+fn matches_query(source: graphql_helpers.SourceValue, query: String) -> Bool {
+  let q = string.lowercase(query)
+  let title = string.lowercase(source_string_field(source, "title", ""))
+  let body = string.lowercase(source_string_field(source, "body", ""))
+  let author = string.lowercase(nested_string(source, "author", "name"))
+  let tags =
+    string.lowercase(string.join(source_string_list(source, "tags"), " "))
+  let published = source_bool_field(source, "isPublished", False)
+  let text_match =
+    string.contains(title, unquote_query_value(q))
+    || string.contains(body, unquote_query_value(q))
+    || string.contains(tags, unquote_query_value(q))
+  case string.contains(q, "published_status:published") && !published {
+    True -> False
+    False ->
+      case string.contains(q, "published_status:unpublished") && published {
+        True -> False
+        False ->
+          case string.contains(q, "tag:") {
+            True -> string.contains(tags, value_after(q, "tag:"))
+            False ->
+              case string.contains(q, "author:") {
+                True ->
+                  string.contains(
+                    author,
+                    unquote_query_value(value_after(q, "author:")),
+                  )
+                False ->
+                  case string.contains(q, "title:") {
+                    True ->
+                      string.contains(
+                        title,
+                        unquote_query_value(value_after(q, "title:")),
+                      )
+                    False -> text_match
+                  }
+              }
+          }
+      }
+  }
+}
+
+fn mutation_payload(
+  field: Selection,
+  fragments: FragmentMap,
+  payload_key: String,
+  value: Json,
+  errors: List(graphql_helpers.SourceValue),
+) -> Json {
+  json.object(
+    child_selections(field)
+    |> list.map(fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            name if name == payload_key -> #(key, value)
+            "userErrors" -> #(
+              key,
+              project_graphql_value(
+                user_errors_source(errors),
+                child_selections(child),
+                fragments,
+              ),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    }),
+  )
+}
+
+fn project_payload_source(
+  field: Selection,
+  source: graphql_helpers.SourceValue,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(source, child_selections(field), fragments)
+}
+
+fn count_json(count: Int) -> Json {
+  json.object([
+    #("count", json.int(count)),
+    #("precision", json.string("EXACT")),
+  ])
+}
+
+fn count_source(count: Int) -> graphql_helpers.SourceValue {
+  src_object([
+    #("count", SrcInt(count)),
+    #("precision", SrcString("EXACT")),
+  ])
+}
+
+fn user_error(
+  field: List(String),
+  message: String,
+) -> graphql_helpers.SourceValue {
+  src_object([
+    #("field", SrcList(list.map(field, SrcString))),
+    #("message", SrcString(message)),
+  ])
+}
+
+fn user_errors_source(
+  errors: List(graphql_helpers.SourceValue),
+) -> graphql_helpers.SourceValue {
+  SrcList(errors)
+}
+
+fn field_args(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case root_field.get_field_arguments(field, variables) {
+    Ok(args) -> args
+    Error(_) -> dict.new()
+  }
+}
+
+fn input_object(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  case dict.get(args, name) {
+    Ok(root_field.ObjectVal(fields)) -> fields
+    _ -> dict.new()
+  }
+}
+
+fn input_list(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> List(root_field.ResolvedValue) {
+  case dict.get(args, name) {
+    Ok(root_field.ListVal(items)) -> items
+    _ -> []
+  }
+}
+
+fn input_string(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(args, name) {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn input_bool(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case dict.get(args, name) {
+    Ok(root_field.BoolVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn value_source_from_dict(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> graphql_helpers.SourceValue {
+  case dict.get(args, name) {
+    Ok(value) -> graphql_helpers.resolved_value_to_source(value)
+    Error(_) -> SrcNull
+  }
+}
+
+fn value_or_default(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+  default: graphql_helpers.SourceValue,
+) -> graphql_helpers.SourceValue {
+  case dict.get(args, name) {
+    Ok(value) -> graphql_helpers.resolved_value_to_source(value)
+    Error(_) -> default
+  }
+}
+
+fn option_source(
+  value: Option(String),
+  default: String,
+) -> graphql_helpers.SourceValue {
+  SrcString(option_string(value, default))
+}
+
+fn bool_source(
+  value: Option(Bool),
+  default: Bool,
+) -> graphql_helpers.SourceValue {
+  SrcBool(option_bool(value, default))
+}
+
+fn option_string(value: Option(String), default: String) -> String {
+  case value {
+    Some(value) -> value
+    None -> default
+  }
+}
+
+fn option_bool(value: Option(Bool), default: Bool) -> Bool {
+  case value {
+    Some(value) -> value
+    None -> default
+  }
+}
+
+fn option_list(value: Option(a)) -> List(a) {
+  case value {
+    Some(value) -> [value]
+    None -> []
+  }
+}
+
+fn first_option(items: List(a)) -> Option(a) {
+  case items {
+    [first, ..] -> Some(first)
+    [] -> None
+  }
+}
+
+fn option_then(value: Option(a), fun: fn(a) -> Option(b)) -> Option(b) {
+  case value {
+    Some(value) -> fun(value)
+    None -> None
+  }
+}
+
+fn child_selections(field: Selection) -> List(Selection) {
+  get_selected_child_fields(field, graphql_helpers.SelectedFieldOptions(True))
+}
+
+fn source_field(
+  source: graphql_helpers.SourceValue,
+  name: String,
+  default: graphql_helpers.SourceValue,
+) -> graphql_helpers.SourceValue {
+  case source {
+    SrcObject(fields) ->
+      case dict.get(fields, name) {
+        Ok(value) -> value
+        Error(_) -> default
+      }
+    _ -> default
+  }
+}
+
+fn source_string_field(
+  source: graphql_helpers.SourceValue,
+  name: String,
+  default: String,
+) -> String {
+  case source_field(source, name, SrcNull) {
+    SrcString(value) -> value
+    _ -> default
+  }
+}
+
+fn source_optional_string_field(
+  source: graphql_helpers.SourceValue,
+  name: String,
+) -> Option(String) {
+  case source_field(source, name, SrcNull) {
+    SrcString(value) -> Some(value)
+    _ -> None
+  }
+}
+
+fn source_bool_field(
+  source: graphql_helpers.SourceValue,
+  name: String,
+  default: Bool,
+) -> Bool {
+  case source_field(source, name, SrcNull) {
+    SrcBool(value) -> value
+    _ -> default
+  }
+}
+
+fn source_string_list(
+  source: graphql_helpers.SourceValue,
+  name: String,
+) -> List(String) {
+  case source_field(source, name, SrcList([])) {
+    SrcList(items) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          SrcString(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn nested_string(
+  source: graphql_helpers.SourceValue,
+  object_key: String,
+  key: String,
+) -> String {
+  case source_field(source, object_key, SrcNull) {
+    SrcObject(fields) ->
+      case dict.get(fields, key) {
+        Ok(SrcString(value)) -> value
+        _ -> ""
+      }
+    _ -> ""
+  }
+}
+
+fn maybe_insert_string(
+  data: CapturedJsonValue,
+  key: String,
+  value: Option(String),
+) -> CapturedJsonValue {
+  case value {
+    Some(value) -> captured_object_insert(data, key, CapturedString(value))
+    None -> data
+  }
+}
+
+fn maybe_insert_bool(
+  data: CapturedJsonValue,
+  key: String,
+  value: Option(Bool),
+) -> CapturedJsonValue {
+  case value {
+    Some(value) -> captured_object_insert(data, key, CapturedBool(value))
+    None -> data
+  }
+}
+
+fn captured_object_insert(
+  data: CapturedJsonValue,
+  key: String,
+  value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case data {
+    CapturedObject(entries) ->
+      CapturedObject([
+        #(key, value),
+        ..list.filter(entries, fn(pair) { pair.0 != key })
+      ])
+    _ -> CapturedObject([#(key, value)])
+  }
+}
+
+fn base_source(
+  prior: graphql_helpers.SourceValue,
+  entries: List(#(String, graphql_helpers.SourceValue)),
+) -> graphql_helpers.SourceValue {
+  let base = case prior {
+    SrcObject(fields) -> fields
+    _ -> dict.new()
+  }
+  SrcObject(
+    list.fold(entries, base, fn(acc, entry) {
+      dict.insert(acc, entry.0, entry.1)
+    }),
+  )
+}
+
+fn captured_to_source(value: CapturedJsonValue) -> graphql_helpers.SourceValue {
+  case value {
+    CapturedNull -> SrcNull
+    CapturedBool(value) -> SrcBool(value)
+    CapturedInt(value) -> SrcInt(value)
+    CapturedFloat(value) -> graphql_helpers.SrcFloat(value)
+    CapturedString(value) -> SrcString(value)
+    CapturedArray(items) -> SrcList(list.map(items, captured_to_source))
+    CapturedObject(entries) ->
+      SrcObject(
+        list.fold(entries, dict.new(), fn(acc, entry) {
+          dict.insert(acc, entry.0, captured_to_source(entry.1))
+        }),
+      )
+  }
+}
+
+fn source_to_captured(value: graphql_helpers.SourceValue) -> CapturedJsonValue {
+  case value {
+    SrcNull -> CapturedNull
+    SrcBool(value) -> CapturedBool(value)
+    SrcInt(value) -> CapturedInt(value)
+    graphql_helpers.SrcFloat(value) -> CapturedFloat(value)
+    SrcString(value) -> CapturedString(value)
+    SrcList(items) -> CapturedArray(list.map(items, source_to_captured))
+    SrcObject(fields) ->
+      CapturedObject(
+        dict.to_list(fields)
+        |> list.map(fn(pair) { #(pair.0, source_to_captured(pair.1)) }),
+      )
+  }
+}
+
+fn project_first_metafield(
+  source: graphql_helpers.SourceValue,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case source_field(source, "metafields", SrcList([])) {
+    SrcList([first, ..]) ->
+      project_graphql_value(first, child_selections(field), fragments)
+    _ -> json.null()
+  }
+}
+
+fn project_metafields_connection(
+  source: graphql_helpers.SourceValue,
+  field: Selection,
+  fragments: FragmentMap,
+  _variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let items = case source_field(source, "metafields", SrcList([])) {
+    SrcList(items) -> items
+    _ -> []
+  }
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: items,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(_item, index) { int.to_string(index) },
+      serialize_node: fn(item, node_field, _index) {
+        project_graphql_value(item, child_selections(node_field), fragments)
+      },
+      selected_field_options: graphql_helpers.SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(True, True, True, None, None),
+    ),
+  )
+}
+
+fn theme_files_connection(
+  source: graphql_helpers.SourceValue,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let items = case source_field(source, "files", SrcList([])) {
+    SrcList(items) -> items
+    _ -> []
+  }
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: items,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(_item, index) { int.to_string(index) },
+      serialize_node: fn(item, node_field, _index) {
+        project_graphql_value(item, child_selections(node_field), fragments)
+      },
+      selected_field_options: graphql_helpers.SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(True, True, True, None, None),
+    ),
+  )
+}
+
+fn make_theme_files(
+  files: List(root_field.ResolvedValue),
+) -> List(graphql_helpers.SourceValue) {
+  list.map(files, fn(file) {
+    case file {
+      root_field.ObjectVal(fields) -> {
+        let filename = option_string(input_string(fields, "filename"), "")
+        let body = input_object(fields, "body")
+        let content = option_string(input_string(body, "value"), "")
+        src_object([
+          #("__typename", SrcString("OnlineStoreThemeFile")),
+          #("filename", SrcString(filename)),
+          #("size", SrcInt(string.length(content))),
+          #("checksumMd5", SrcString("draft-proxy")),
+          #(
+            "body",
+            src_object([
+              #("__typename", SrcString("OnlineStoreThemeFileBodyText")),
+              #("content", SrcString(content)),
+            ]),
+          ),
+        ])
+      }
+      _ -> src_object([])
+    }
+  })
+}
+
+fn content_gid_type(kind: String) -> String {
+  case kind {
+    "blog" -> "Blog"
+    "page" -> "Page"
+    "comment" -> "Comment"
+    _ -> "Article"
+  }
+}
+
+fn content_typename(kind: String) -> String {
+  content_gid_type(kind)
+}
+
+fn integration_gid_type(kind: String) -> String {
+  case kind {
+    "theme" -> "OnlineStoreTheme"
+    "scriptTag" -> "ScriptTag"
+    "webPixel" -> "WebPixel"
+    "serverPixel" -> "ServerPixel"
+    "storefrontAccessToken" -> "StorefrontAccessToken"
+    _ -> "MobilePlatformApplication"
+  }
+}
+
+fn slugify(title: String) -> String {
+  title
+  |> string.lowercase
+  |> string.replace(" ", "-")
+  |> string.replace("'", "")
+  |> string.replace(":", "")
+  |> string.replace("/", "-")
+}
+
+fn strip_html(value: String) -> String {
+  strip_html_loop(string.to_graphemes(value), False, [])
+}
+
+fn strip_html_loop(
+  chars: List(String),
+  in_tag: Bool,
+  acc: List(String),
+) -> String {
+  case chars {
+    [] -> string.join(list.reverse(acc), "")
+    [first, ..rest] ->
+      case first {
+        "<" -> strip_html_loop(rest, True, acc)
+        ">" -> strip_html_loop(rest, False, acc)
+        _ ->
+          case in_tag {
+            True -> strip_html_loop(rest, in_tag, acc)
+            False -> strip_html_loop(rest, in_tag, [first, ..acc])
+          }
+      }
+  }
+}
+
+fn value_after(query: String, prefix: String) -> String {
+  case string.split_once(query, prefix) {
+    Ok(#(_, tail)) ->
+      case string.split(tail, " ") {
+        [first, ..] -> first
+        [] -> tail
+      }
+    Error(_) -> query
+  }
+}
+
+fn unquote_query_value(value: String) -> String {
+  value
+  |> string.replace("\"", "")
+  |> string.replace("'", "")
+}
+
+fn dedupe(values: List(String)) -> List(String) {
+  values
+  |> list.fold([], fn(acc, value) {
+    case list.contains(acc, value) {
+      True -> acc
+      False -> list.append(acc, [value])
+    }
+  })
+}
