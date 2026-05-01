@@ -6,17 +6,16 @@
 ////   hydrated.
 //// - `translatableResource(s)` / `translatableResourcesByIds` reads.
 ////   Without a Products domain in the Gleam port the only resources
-////   that can be discovered are translation entries already staged in
-////   the store — the resource is reconstructed from those translations
-////   so a register-then-read round-trip works end-to-end.
+////   that can be discovered are translation/source-content entries
+////   already staged in the store — the resource is reconstructed from
+////   those records so captured register-then-read lifecycles can run
+////   end-to-end.
 //// - `shopLocaleEnable/Update/Disable` mutations, including the
 ////   "disabling clears translations for that locale" cleanup.
 //// - `translationsRegister/Remove` mutations with the same validation
-////   structure as the TS handler. With no Products in the store,
-////   `validateResource` always returns `RESOURCE_NOT_FOUND` for unknown
-////   gids — matching the captured `unknown-resource-validation` parity
-////   target. The success path that registers translations against a
-////   real Product is deferred until the Products domain ports.
+////   structure as the TS handler. With no Products in the store, unknown
+////   gids still return `RESOURCE_NOT_FOUND`; captured resources can be
+////   seeded with source-content markers until the Products domain ports.
 
 import gleam/dict.{type Dict}
 import gleam/int
@@ -72,13 +71,7 @@ type AnyUserError {
 }
 
 /// One translatable content slot on a translatable resource. `digest`
-/// is `None` for resources reconstructed from the store (no source
-/// product available), which short-circuits the digest comparison
-/// during validation. The constructor is currently unbuilt because the
-/// Products domain hasn't ported — `find_resource` is always `None`,
-/// so the type stays dormant until then. Marked `@internal` to silence
-/// the unused-constructor warning while leaving the shape ready for
-/// the Products pass.
+/// is `None` when no captured source digest is available.
 @internal
 pub type TranslatableContent {
   TranslatableContent(
@@ -454,13 +447,10 @@ fn serialize_translatable_resource_root(
   }
 }
 
-/// Synthesize a translatable resource from in-store translations even
-/// when the underlying Product/Metafield record isn't available. This
-/// lets register-then-read parity work without a Products domain — at
-/// the cost of returning the registered translations only (no
-/// translatable content slots, since the source content isn't in the
-/// store). Returns `None` only when the resourceId has zero matching
-/// translations and zero matching products/metafields.
+/// Synthesize a translatable resource from in-store translation/source
+/// markers even when the underlying Product/Metafield record isn't
+/// available. Parity seeding can provide a captured source digest as a
+/// non-target-locale marker; ordinary unknown ids still return `None`.
 fn find_resource_or_synthesize(
   store_in: Store,
   resource_id: String,
@@ -468,25 +458,87 @@ fn find_resource_or_synthesize(
   case find_resource(store_in, resource_id) {
     Some(record) -> Some(record)
     None -> {
-      let any_translation =
-        list.any(dict.values(store_in.staged_state.translations), fn(t) {
-          t.resource_id == resource_id
-        })
-        || list.any(dict.values(store_in.base_state.translations), fn(t) {
-          t.resource_id == resource_id
-        })
-      case any_translation {
-        True ->
-          Some(
-            TranslatableResource(
-              resource_id: resource_id,
-              resource_type: synthetic_resource_type(resource_id),
-              content: [],
-            ),
-          )
-        False -> None
+      let content = synthesized_content_from_translations(store_in, resource_id)
+      case list.is_empty(content) {
+        False ->
+          Some(TranslatableResource(
+            resource_id: resource_id,
+            resource_type: synthetic_resource_type(resource_id),
+            content: content,
+          ))
+        True -> None
       }
     }
+  }
+}
+
+fn synthesized_content_from_translations(
+  store_in: Store,
+  resource_id: String,
+) -> List(TranslatableContent) {
+  let translations =
+    list.append(
+      dict.values(store_in.base_state.translations),
+      dict.values(store_in.staged_state.translations),
+    )
+    |> list.filter(fn(t) { t.resource_id == resource_id })
+  translations
+  |> list.map(fn(translation) {
+    content_from_translation(
+      translation,
+      translation.translatable_content_digest,
+    )
+  })
+  |> dedupe_content_by_key([])
+  |> list.sort(fn(left, right) { string.compare(left.key, right.key) })
+}
+
+fn dedupe_content_by_key(
+  content: List(TranslatableContent),
+  seen: List(String),
+) -> List(TranslatableContent) {
+  case content {
+    [] -> []
+    [entry, ..rest] ->
+      case list.contains(seen, entry.key) {
+        True -> dedupe_content_by_key(rest, seen)
+        False -> [entry, ..dedupe_content_by_key(rest, [entry.key, ..seen])]
+      }
+  }
+}
+
+fn content_from_translation(
+  translation: TranslationRecord,
+  digest: String,
+) -> TranslatableContent {
+  TranslatableContent(
+    key: translation.key,
+    value: None,
+    digest: case digest {
+      "" -> None
+      value -> Some(value)
+    },
+    locale: "en",
+    type_: content_type_for_key(translation.key),
+  )
+}
+
+fn content_type_for_key(key: String) -> String {
+  case key {
+    "body_html" -> "HTML"
+    "handle" -> "URI"
+    "meta_description" -> "MULTI_LINE_TEXT_FIELD"
+    _ -> "SINGLE_LINE_TEXT_FIELD"
+  }
+}
+
+fn resource_exists_for_validation(
+  store_in: Store,
+  resource_id: String,
+) -> Option(TranslatableResource) {
+  case find_resource(store_in, resource_id) {
+    Some(resource) -> Some(resource)
+    None -> find_resource_or_synthesize(store_in, resource_id)
   }
 }
 
@@ -1392,7 +1444,7 @@ fn validate_resource(
       ),
     ])
     Some(resource_id) ->
-      case find_resource(store_in, resource_id) {
+      case resource_exists_for_validation(store_in, resource_id) {
         None -> #(None, [
           TranslationError(
             field: ["resourceId"],

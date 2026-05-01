@@ -1815,6 +1815,7 @@ fn content_connection(
 ) -> Json {
   let records =
     store.list_effective_online_store_content(store, kind)
+    |> list.filter(root_connection_visible(kind, _))
     |> filter_content_by_query(field, variables)
   let window =
     paginate_connection_items(
@@ -2185,6 +2186,17 @@ fn nested_content_connection(
       page_info_options: ConnectionPageInfoOptions(True, True, True, None, None),
     ),
   )
+}
+
+fn root_connection_visible(
+  kind: String,
+  record: OnlineStoreContentRecord,
+) -> Bool {
+  case kind {
+    "article" ->
+      source_bool_field(captured_to_source(record.data), "isPublished", False)
+    _ -> True
+  }
 }
 
 fn children_for_parent(

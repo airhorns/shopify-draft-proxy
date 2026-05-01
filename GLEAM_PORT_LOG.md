@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-01 - Pass 112: online-store content and integration parity
+## 2026-05-01 - Pass 113: online-store content and integration parity
 
 Promotes the online-store content, integrations, storefront token, default page
 publish, and article media/navigation fixtures into the Gleam parity suite. The
@@ -22,11 +22,11 @@ handler.
 | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `gleam/src/shopify_draft_proxy/proxy/online_store.gleam`  | Adds online-store query/mutation handling for content, themes/files, script tags, pixels, tokens, and apps. |
 | `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`   | Wires online-store query/mutation dispatch, including `shop { storefrontAccessTokens }` routing.            |
-| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds captured-json-backed online-store content and integration records.                                      |
-| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds effective/staged online-store content and integration store helpers.                                    |
-| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries online-store content/integration buckets through state dump serialization.                           |
-| `gleam/test/parity/runner.gleam`                          | Executes the storefront-token read-after-create override instead of substituting the safe upstream read.     |
-| `config/gleam-port-ci-gates.json`                         | Removes the six newly passing online-store parity specs.                                                     |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds captured-json-backed online-store content and integration records.                                     |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds effective/staged online-store content and integration store helpers.                                   |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries online-store content/integration buckets through state dump serialization.                          |
+| `gleam/test/parity/runner.gleam`                          | Executes the storefront-token read-after-create override instead of substituting the safe upstream read.    |
+| `config/gleam-port-ci-gates.json`                         | Removes the six newly passing online-store parity specs.                                                    |
 
 Validation:
 Focused JavaScript parity is green for all six online-store specs:
@@ -62,10 +62,48 @@ gleam:port:coverage` is green with 379 specs and 171 expected failures.
   runtime and TypeScript integration tests remain intact until the final
   all-port cutover.
 
-### Pass 113 candidates
+### Pass 114 candidates
 
 - Continue with the next expected-failing non-online-store domain from
   `config/gleam-port-ci-gates.json`.
+
+---
+
+## 2026-05-01 - Pass 112: HAR-505 mainline refresh seeding
+
+Refreshes the HAR-505 Marketing branch after `origin/main` promoted the
+remaining Product parity gates. The conflict resolution preserves the branch's
+Marketing and localization parity seeding while keeping the mainline
+Products/Inventory runner additions. The merged runner now explicitly seeds the
+captured `inventory-quantity-contracts-2026-04` disposable product from the
+fixture's `setup.product` block before replaying the 2026-04 set/adjust/read
+flow.
+
+| Module                           | Change                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `gleam/test/parity/runner.gleam` | Keeps Marketing capture seeding and seeds the 2026-04 inventory quantity contract fixture. |
+| `gleam/test/parity/spec.gleam`   | Keeps both `selectedPaths` and `upstreamCapturePath` parity target documentation.          |
+| `GLEAM_PORT_LOG.md`              | Preserves mainline Product pass history and the branch-local localization seeding entry.   |
+
+Validation:
+Full JavaScript is green at 718 tests. Docker Erlang is green at 714 tests.
+`corepack pnpm lint`, `git diff --check`, `corepack pnpm
+gleam:port:coverage`, and `corepack pnpm gleam:registry:check` are green.
+Gleam parity coverage reports 379 checked-in specs and 176 expected failures.
+
+### Findings
+
+- The 2026-04 inventory quantity contract fixture stores its disposable Product,
+  Variant, and InventoryItem ids under `setup.product`; without that seed, the
+  success mutation branches correctly reject the unknown inventory item instead
+  of exercising the captured contract path.
+- The Marketing branch did not need parity fixture or request changes for this
+  refresh; the required work was runner seeding and conflict reconciliation.
+
+### Risks / open items
+
+- TypeScript Marketing runtime deletion remains deferred to HAR-518 under the
+  incremental port preservation rule.
 
 ---
 
@@ -121,6 +159,46 @@ specs expected-failing. `corepack pnpm lint` and whitespace checks are green.
 - Continue with the next non-Product expected-failing domain from
   `config/gleam-port-ci-gates.json`, or start the explicit final-cutover plan
   once the whole-port acceptance criteria bind.
+
+---
+
+## 2026-04-30 — Pass 46: localization source-content parity seeding
+
+Keeps the latest mainline localization parity gate green after the HAR-505
+branch was refreshed with webhook evidence. The checked-in
+`localization-disable-clears-translations` capture registers a translation
+against an existing Shopify product, but the Gleam port still lacks the Products
+domain. This pass seeds the captured source title digest into the parity runner
+as a non-target-locale source marker, then lets the localization runtime
+reconstruct the minimal translatable content slot needed for Shopify-like
+`translationsRegister` validation.
+
+| Module                                                                  | Change                                                                                                                                    |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`                                        | Seeds the captured product title digest for `localization-disable-clears-translations` before replaying the enable/register/disable flow. |
+| `gleam/src/shopify_draft_proxy/proxy/localization.gleam`                | Reconstructs translatable content slots from seeded translation/source markers while preserving `RESOURCE_NOT_FOUND` for unknown ids.     |
+| `gleam/test/shopify_draft_proxy/proxy/localization_mutation_test.gleam` | Covers the seeded source marker register-disable-read lifecycle directly.                                                                 |
+
+Validation after the `origin/main@3e99c073` merge: `gleam test --target
+javascript` passed at 681 tests, Erlang passed at 677 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container, `corepack pnpm
+lint`, `git diff --check`, `corepack pnpm gleam:port:coverage`, and `corepack
+pnpm gleam:registry:check` are green.
+
+### Findings
+
+- The source digest already exists in the live capture, so no parity request or
+  fixture shape needed to change.
+- Unknown localization resource ids still fail unless a product/metafield
+  domain record or a capture-seeded source marker exists.
+- The expected Gleam parity-failure manifest now reports 292 remaining failures
+  after this localization scenario passes.
+
+### Risks / open items
+
+- The real Product-backed `find_resource` path remains deferred until the
+  Products domain ports; this seed is only the parity runner bridge for captured
+  upstream resources that already exist.
 
 ---
 
