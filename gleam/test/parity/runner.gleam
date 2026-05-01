@@ -52,8 +52,8 @@ import shopify_draft_proxy/state/types.{
   type GiftCardRecord, type GiftCardTransactionRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
-  type InventoryWeightRecord, type LocationRecord,
-  type MetafieldDefinitionCapabilitiesRecord,
+  type InventoryWeightRecord, type LocationRecord, type MarketingRecord,
+  type MarketingValue, type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord,
   type MetafieldDefinitionConstraintsRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type MetaobjectCapabilitiesRecord,
@@ -86,14 +86,16 @@ import shopify_draft_proxy/state/types.{
   GiftCardTransactionRecord, InventoryItemRecord, InventoryLevelRecord,
   InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
   InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
-  LocationRecord, MetafieldDefinitionCapabilitiesRecord,
-  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintValueRecord,
-  MetafieldDefinitionConstraintsRecord, MetafieldDefinitionRecord,
-  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
-  MetaobjectBool, MetaobjectCapabilitiesRecord,
-  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
-  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
-  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
+  LocationRecord, MarketingBool, MarketingFloat, MarketingInt, MarketingList,
+  MarketingNull, MarketingObject, MarketingRecord, MarketingString,
+  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
+  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
+  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
+  MetafieldDefinitionValidationRecord, MetaobjectBool,
+  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
+  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
+  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
+  MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
@@ -110,7 +112,7 @@ import shopify_draft_proxy/state/types.{
   ShopifyFunctionAppRecord, ShopifyFunctionRecord, StoreCreditAccountRecord,
   StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
   StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
-  StorePropertyRecord, StorePropertyString,
+  StorePropertyRecord, StorePropertyString, TranslationRecord,
 }
 import simplifile
 
@@ -154,6 +156,13 @@ pub type Report {
 
 pub type RunnerConfig {
   RunnerConfig(repo_root: String)
+}
+
+type SeedMarketingRecords {
+  SeedMarketingRecords(
+    activities: List(MarketingRecord),
+    events: List(MarketingRecord),
+  )
 }
 
 pub fn default_config() -> RunnerConfig {
@@ -225,6 +234,10 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
+    "localization-disable-clears-translations" ->
+      seed_localization_disable_cleanup_preconditions(capture, proxy)
+    "marketing-baseline-read" ->
+      seed_marketing_baseline_preconditions(capture, proxy)
     "store-credit-account-local-staging" ->
       seed_store_credit_preconditions(capture, proxy)
     "customer-create-live-parity" ->
@@ -337,6 +350,8 @@ fn seed_capture_preconditions(
       seed_product_variant_delete_preconditions(capture, proxy)
     "inventory-quantity-roots-parity" ->
       seed_inventory_quantity_roots_preconditions(capture, proxy)
+    "inventory-quantity-contracts-2026-04" ->
+      seed_inventory_quantity_contracts_preconditions(capture, proxy)
     "inventory-adjust-quantities-live-parity" ->
       seed_inventory_adjust_quantities_preconditions(capture, proxy)
     "inventory-activate-live-parity" ->
@@ -419,6 +434,41 @@ fn is_customer_seeded_scenario(scenario_id: String) -> Bool {
     _ ->
       string.starts_with(scenario_id, "customer")
       || string.starts_with(scenario_id, "customers")
+  }
+}
+
+fn seed_localization_disable_cleanup_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.disableCleanupLifecycle") {
+    Some(source) -> {
+      case
+        read_string_field(source, "resourceId"),
+        read_string_field(source, "titleDigest")
+      {
+        Some(resource_id), Some(title_digest) -> {
+          let #(_, seeded_store) =
+            store_mod.stage_translation(
+              proxy.store,
+              TranslationRecord(
+                resource_id: resource_id,
+                key: "title",
+                locale: "__source",
+                value: "",
+                translatable_content_digest: title_digest,
+                market_id: None,
+                updated_at: read_string_field(capture, "capturedAt")
+                  |> option.unwrap("1970-01-01T00:00:00Z"),
+                outdated: False,
+              ),
+            )
+          draft_proxy.DraftProxy(..proxy, store: seeded_store)
+        }
+        _, _ -> proxy
+      }
+    }
+    None -> proxy
   }
 }
 
@@ -4340,6 +4390,97 @@ fn seed_inventory_quantity_roots_preconditions(
   draft_proxy.DraftProxy(..proxy, store: store)
 }
 
+fn seed_inventory_quantity_contracts_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_id =
+    jsonpath.lookup(capture, "$.setup.product.productId")
+    |> json_string_or("gid://shopify/Product/10172136718642")
+  let variant_id =
+    jsonpath.lookup(capture, "$.setup.product.variantId")
+    |> json_string_or("gid://shopify/ProductVariant/51105380008242")
+  let inventory_item_id =
+    jsonpath.lookup(capture, "$.setup.product.inventoryItemId")
+    |> json_string_or("gid://shopify/InventoryItem/53208220533042")
+  let location_id =
+    jsonpath.lookup(
+      capture,
+      "$.inventorySetQuantities.variables.input.quantities[0].locationId",
+    )
+    |> json_string_or("gid://shopify/Location/106318430514")
+  let location_name =
+    jsonpath.lookup(
+      capture,
+      "$.downstreamRead.data.inventoryItem.inventoryLevels.nodes[0].location.name",
+    )
+    |> json_string_or("Shop location")
+  let product =
+    ProductRecord(
+      id: product_id,
+      legacy_resource_id: None,
+      title: "Inventory quantity 2026-04 contract seed",
+      handle: "inventory-quantity-2026-04-contract-seed",
+      status: "ACTIVE",
+      vendor: None,
+      product_type: None,
+      tags: [],
+      total_inventory: Some(0),
+      tracks_inventory: Some(True),
+      created_at: None,
+      updated_at: None,
+      published_at: None,
+      description_html: "",
+      online_store_preview_url: None,
+      template_suffix: None,
+      seo: ProductSeoRecord(title: None, description: None),
+      category: None,
+      publication_ids: [],
+      contextual_pricing: None,
+      cursor: None,
+    )
+  let variant =
+    ProductVariantRecord(
+      id: variant_id,
+      product_id: product_id,
+      title: "Default Title",
+      sku: None,
+      barcode: None,
+      price: None,
+      compare_at_price: None,
+      taxable: None,
+      inventory_policy: None,
+      inventory_quantity: Some(0),
+      selected_options: [],
+      media_ids: [],
+      inventory_item: Some(
+        InventoryItemRecord(
+          id: inventory_item_id,
+          tracked: Some(True),
+          requires_shipping: None,
+          measurement: None,
+          country_code_of_origin: None,
+          province_code_of_origin: None,
+          harmonized_system_code: None,
+          inventory_levels: [
+            inventory_quantity_seed_level(
+              inventory_item_id,
+              location_id,
+              location_name,
+            ),
+          ],
+        ),
+      ),
+      contextual_pricing: None,
+      cursor: None,
+    )
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products([product])
+    |> store_mod.upsert_base_product_variants([variant])
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
 fn seed_inventory_adjust_quantities_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -5360,6 +5501,134 @@ fn make_seed_product_metafield(
     owner_type: read_string_field(source, "ownerType")
       |> option.or(Some(definition.owner_type)),
   ))
+}
+
+fn seed_marketing_baseline_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.data") {
+    Some(data) -> {
+      let SeedMarketingRecords(activities: activities, events: events) =
+        collect_seed_marketing_records(data, None, empty_seed_marketing())
+      let seeded_store =
+        proxy.store
+        |> store_mod.upsert_base_marketing_activities(activities)
+        |> store_mod.upsert_base_marketing_events(events)
+      draft_proxy.DraftProxy(..proxy, store: seeded_store)
+    }
+    None -> proxy
+  }
+}
+
+fn empty_seed_marketing() -> SeedMarketingRecords {
+  SeedMarketingRecords(activities: [], events: [])
+}
+
+fn collect_seed_marketing_records(
+  value: JsonValue,
+  cursor: Option(String),
+  collected: SeedMarketingRecords,
+) -> SeedMarketingRecords {
+  case value {
+    JArray(items) ->
+      list.fold(items, collected, fn(acc, item) {
+        collect_seed_marketing_records(item, cursor, acc)
+      })
+    JObject(fields) -> collect_seed_marketing_object(fields, cursor, collected)
+    _ -> collected
+  }
+}
+
+fn collect_seed_marketing_object(
+  fields: List(#(String, JsonValue)),
+  cursor: Option(String),
+  collected: SeedMarketingRecords,
+) -> SeedMarketingRecords {
+  let edge_cursor = read_string_from_fields(fields, "cursor")
+  let collected = case read_value_from_fields(fields, "node"), edge_cursor {
+    Some(node), Some(node_cursor) ->
+      collect_seed_marketing_records(node, Some(node_cursor), collected)
+    _, _ -> collected
+  }
+  let collected = case read_string_from_fields(fields, "id") {
+    Some(id) ->
+      case string.starts_with(id, "gid://shopify/MarketingActivity/") {
+        True ->
+          SeedMarketingRecords(..collected, activities: [
+            MarketingRecord(
+              id: id,
+              cursor: cursor,
+              data: seed_marketing_data(fields),
+            ),
+            ..collected.activities
+          ])
+        False ->
+          case string.starts_with(id, "gid://shopify/MarketingEvent/") {
+            True ->
+              SeedMarketingRecords(..collected, events: [
+                MarketingRecord(
+                  id: id,
+                  cursor: cursor,
+                  data: seed_marketing_data(fields),
+                ),
+                ..collected.events
+              ])
+            False -> collected
+          }
+      }
+    None -> collected
+  }
+  list.fold(fields, collected, fn(acc, pair) {
+    let #(name, child) = pair
+    case name {
+      "node" -> acc
+      _ -> collect_seed_marketing_records(child, None, acc)
+    }
+  })
+}
+
+fn seed_marketing_data(
+  fields: List(#(String, JsonValue)),
+) -> Dict(String, MarketingValue) {
+  fields
+  |> list.map(fn(pair) {
+    let #(key, value) = pair
+    #(key, seed_marketing_value(value))
+  })
+  |> dict.from_list
+}
+
+fn seed_marketing_value(value: JsonValue) -> MarketingValue {
+  case value {
+    JNull -> MarketingNull
+    JString(value) -> MarketingString(value)
+    JBool(value) -> MarketingBool(value)
+    JInt(value) -> MarketingInt(value)
+    JFloat(value) -> MarketingFloat(value)
+    JArray(items) -> MarketingList(list.map(items, seed_marketing_value))
+    JObject(fields) -> MarketingObject(seed_marketing_data(fields))
+  }
+}
+
+fn read_value_from_fields(
+  fields: List(#(String, JsonValue)),
+  name: String,
+) -> Option(JsonValue) {
+  fields
+  |> list.find(fn(pair) { pair.0 == name })
+  |> result.map(fn(pair) { pair.1 })
+  |> option.from_result
+}
+
+fn read_string_from_fields(
+  fields: List(#(String, JsonValue)),
+  name: String,
+) -> Option(String) {
+  case read_value_from_fields(fields, name) {
+    Some(JString(value)) -> Some(value)
+    _ -> None
+  }
 }
 
 fn make_seed_product_metafield_for_owner(
@@ -6904,13 +7173,24 @@ fn run_target(
   let expected_opt = jsonpath.lookup(capture, target.capture_path)
   let actual_opt = jsonpath.lookup(actual_response, target.proxy_path)
   case expected_opt, actual_opt {
+    None, None ->
+      Ok(#(
+        next_proxy,
+        #(
+          TargetReport(
+            name: target.name,
+            capture_path: target.capture_path,
+            proxy_path: target.proxy_path,
+            mismatches: [],
+          ),
+          actual_response,
+        ),
+      ))
     None, _ ->
       Error(CaptureUnresolved(target: target.name, path: target.capture_path))
     _, None ->
       Error(ProxyUnresolved(target: target.name, path: target.proxy_path))
     Some(expected), Some(actual) -> {
-      let #(expected, actual) =
-        apply_selected_paths(expected, actual, target.selected_paths)
       let rules = spec.rules_for(parsed, target)
       let mismatches = case target.selected_paths {
         [] -> diff.diff_with_expected(expected, actual, rules)
@@ -6931,35 +7211,6 @@ fn run_target(
       ))
     }
   }
-}
-
-fn apply_selected_paths(
-  expected: JsonValue,
-  actual: JsonValue,
-  selected_paths: List(String),
-) -> #(JsonValue, JsonValue) {
-  case selected_paths {
-    [] -> #(expected, actual)
-    _ -> #(
-      select_json_paths(expected, selected_paths),
-      select_json_paths(actual, selected_paths),
-    )
-  }
-}
-
-fn select_json_paths(
-  value: JsonValue,
-  selected_paths: List(String),
-) -> JsonValue {
-  JObject(
-    selected_paths
-    |> list.filter_map(fn(path) {
-      case jsonpath.lookup(value, path) {
-        Some(found) -> Ok(#(path, found))
-        None -> Error(Nil)
-      }
-    }),
-  )
 }
 
 /// Resolve which JsonValue tree to use as the proxy-side response for
