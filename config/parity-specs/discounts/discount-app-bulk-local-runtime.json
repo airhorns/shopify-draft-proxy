@@ -38,7 +38,38 @@
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.activate.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Gleam records mutation-log drafts through the centralized dispatcher, so async job id counter positions can differ while preserving proxy-synthetic Job identity shape."
+      },
+      {
+        "path": "$.deactivate.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Gleam records mutation-log drafts through the centralized dispatcher, so async job id counter positions can differ while preserving proxy-synthetic Job identity shape."
+      },
+      {
+        "path": "$.deleteCode.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Gleam records mutation-log drafts through the centralized dispatcher, so async job id counter positions can differ while preserving proxy-synthetic Job identity shape."
+      },
+      {
+        "path": "$.deleteAutomatic.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Gleam records mutation-log drafts through the centralized dispatcher, so async job id counter positions can differ while preserving proxy-synthetic Job identity shape."
+      },
+      {
+        "path": "$.addCodes.bulkCreation.id",
+        "matcher": "shopify-gid:DiscountRedeemCodeBulkCreation",
+        "reason": "Gleam records mutation-log drafts through the centralized dispatcher, so redeem-code bulk operation id counter positions can differ while preserving proxy-synthetic identity shape."
+      },
+      {
+        "path": "$.deleteCodes.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Gleam records mutation-log drafts through the centralized dispatcher, so redeem-code bulk job id counter positions can differ while preserving proxy-synthetic Job identity shape."
+      }
+    ],
     "targets": [
       {
         "name": "app-discount-create-payloads",

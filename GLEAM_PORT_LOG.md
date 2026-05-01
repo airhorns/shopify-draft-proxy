@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 112: discounts lifecycle parity
+
+Promotes the Discounts domain into the Gleam parity suite. The port now stages
+discount catalog/detail reads, automatic and code discount lifecycle mutations,
+app discounts, BXGY, free shipping, bulk activate/deactivate/delete jobs, and
+redeem-code bulk add/delete flows locally while preserving captured buyer
+context, status filtering, validation, and downstream read-after-write behavior.
+
+| Module                                                      | Change                                                                                                                |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/discounts.gleam`       | Adds Discounts query/mutation root handling, normalized projection, validation, staged lifecycle, jobs, and codes.    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`     | Routes Discounts query and mutation roots to the new local domain dispatcher.                                         |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`           | Adds normalized discount records, typed discount kinds, redeem codes, async jobs, and bulk-creation records.          |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`           | Adds effective/staged discount helpers, deletion markers, bulk job helpers, and redeem-code lookup/update operations. |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`   | Carries discount state through dump/restore.                                                                          |
+| `gleam/test/parity/runner.gleam`                            | Seeds captured discount catalog/detail records for parity replay.                                                     |
+| `gleam/test/shopify_draft_proxy/proxy/discounts_test.gleam` | Adds focused lifecycle, validation, buyer-context, status-filter, and redeem-code behavior tests.                     |
+| `config/gleam-port-ci-gates.json`                           | Removes all 18 checked-in Discounts parity specs from the expected-failure gate.                                      |
+
+Validation:
+Focused Discounts parity is green for all 18 checked-in specs. `gleam check`
+is green. Full JavaScript is green at 719 tests. Host `gleam test --target
+erlang` still fails before executing the suite because the local Erlang runtime
+is OTP 25 while current `gleam_json` requires OTP 27+; the established Docker
+Erlang fallback uses Gleam 1.16 and is green at 715 tests. The TypeScript
+discount runtime remains intact under the port preservation rule until the
+final all-port cutover.
+
+### Findings
+
+- Discounts reuse more of Shopify's captured async-job surface than earlier
+  domains: app bulk activation/deactivation/delete and redeem-code deletes
+  return synthetic `Job` IDs, while redeem-code adds return a synthetic
+  `DiscountRedeemCodeBulkCreation` ID.
+- Captured discount catalog reads depend on both `status:` filters and code
+  query behavior. The Gleam port keeps those decisions in the Discounts module
+  instead of adding a resource-local generic search parser.
+- Buyer-context fields are preserved as captured payload fragments so automatic
+  and code discount detail reads round-trip stable Shopify-selected slices
+  after local mutation staging.
+
+### Risks / open items
+
+- This pass removes the Discounts parity gate for Gleam, but it does not
+  authorize deleting the TypeScript Discounts runtime before the broader
+  whole-port cutover acceptance bar is met.
+
+### Pass 113 candidates
+
+- Continue with the next expected-failing non-Product domain from
+  `config/gleam-port-ci-gates.json`.
+
+---
+
 ## 2026-04-30 - Pass 111: product search grammar parity
 
 Promotes the final gated Product parity spec,
