@@ -53,10 +53,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/localization/localization-locale-translation-fixture.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/markets/catalog-context-update-unknown-id-validation.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
