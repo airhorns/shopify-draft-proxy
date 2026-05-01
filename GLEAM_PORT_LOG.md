@@ -9,6 +9,48 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 118: fulfillment validation guardrails
+
+Promotes the captured `fulfillmentCancel` and
+`fulfillmentTrackingInfoUpdate` required-id validation branches in the Gleam
+Orders domain. This pass mirrors Shopify's top-level GraphQL validation errors
+for omitted, inline-null, and missing variable fulfillment identifiers without
+claiming fulfillment lifecycle staging, cancellation, or tracking update
+success semantics.
+
+| Module                                                   | Change                                                                                   |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds narrow fulfillment required-id validation guardrails for two mutation roots.        |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers inline missing-id and inline null-id shapes for cancel and tracking update roots. |
+| `config/gleam-port-ci-gates.json`                        | Removes six newly passing fulfillment validation parity specs.                           |
+
+Validation:
+Full JavaScript is green at 726 tests; Docker Erlang is green at 722 tests.
+Orders now has 19 executable/pass specs and 59 gated specs out of 78.
+
+### Findings
+
+- `fulfillmentCancel` validates a required `id: ID!` argument, while
+  `fulfillmentTrackingInfoUpdate` validates `fulfillmentId: ID!`; both fit the
+  existing shared mutation validation helper.
+- These are guardrails only. The happy-path fulfillment cancel/tracking specs
+  still need order fulfillment state, downstream visibility, and local mutation
+  log effects before they can be ungated.
+
+### Risks / open items
+
+- `fulfillmentCreate-invalid-id-parity`, `fulfillmentCancel-parity-plan`, and
+  `fulfillmentTrackingInfoUpdate-parity-plan` remain gated.
+- Draft-order lifecycle, order editing, refunds, and returns remain unported.
+
+### Pass 119 candidates
+
+- Continue validation branches for `orderUpdate`/`orderCreate`, or start a
+  durable lifecycle slice for draft-order update/delete if it can be backed by
+  checked-in executable parity.
+
+---
+
 ## 2026-05-01 - Pass 117: draft-order complete validation guardrails
 
 Promotes the captured `draftOrderComplete` required-`id` validation branches in

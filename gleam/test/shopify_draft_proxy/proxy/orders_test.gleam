@@ -1,6 +1,7 @@
 import gleam/dict
 import gleam/json
 import gleam/list
+import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
@@ -267,6 +268,144 @@ pub fn orders_draft_order_complete_validation_guardrails_test() {
     )
   assert json.to_string(null_outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'id' on Field 'draftOrderComplete' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation DraftOrderCompleteInlineNullIdParity\",\"draftOrderComplete\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"id\"}}]}"
+}
+
+pub fn orders_fulfillment_validation_guardrails_test() {
+  let cancel_missing_id =
+    "
+    mutation FulfillmentCancelInlineMissingId {
+      fulfillmentCancel {
+        fulfillment {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(cancel_missing_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      cancel_missing_id,
+      dict.new(),
+    )
+  assert json.to_string(cancel_missing_outcome.data)
+    == "{\"errors\":[{\"message\":\"Field 'fulfillmentCancel' is missing required arguments: id\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation FulfillmentCancelInlineMissingId\",\"fulfillmentCancel\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"fulfillmentCancel\",\"arguments\":\"id\"}}]}"
+
+  let cancel_null_id =
+    "
+    mutation FulfillmentCancelInlineNullId {
+      fulfillmentCancel(id: null) {
+        fulfillment {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(cancel_null_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      cancel_null_id,
+      dict.new(),
+    )
+  assert json.to_string(cancel_null_outcome.data)
+    == "{\"errors\":[{\"message\":\"Argument 'id' on Field 'fulfillmentCancel' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation FulfillmentCancelInlineNullId\",\"fulfillmentCancel\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"id\"}}]}"
+
+  let tracking_missing_id =
+    "
+    mutation FulfillmentTrackingInfoUpdateInlineMissingId(
+      $trackingInfoInput: FulfillmentTrackingInput!
+      $notifyCustomer: Boolean
+    ) {
+      fulfillmentTrackingInfoUpdate(
+        trackingInfoInput: $trackingInfoInput
+        notifyCustomer: $notifyCustomer
+      ) {
+        fulfillment {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let tracking_variables =
+    dict.from_list([
+      #(
+        "trackingInfoInput",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("number", root_field.StringVal("HERMES-TRACK-UPDATE")),
+            #(
+              "url",
+              root_field.StringVal(
+                "https://example.com/track/HERMES-TRACK-UPDATE",
+              ),
+            ),
+            #("company", root_field.StringVal("Hermes")),
+          ]),
+        ),
+      ),
+      #("notifyCustomer", root_field.BoolVal(False)),
+    ])
+  let assert Ok(tracking_missing_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      tracking_missing_id,
+      tracking_variables,
+    )
+  assert json.to_string(tracking_missing_outcome.data)
+    == "{\"errors\":[{\"message\":\"Field 'fulfillmentTrackingInfoUpdate' is missing required arguments: fulfillmentId\",\"locations\":[{\"line\":6,\"column\":7}],\"path\":[\"mutation FulfillmentTrackingInfoUpdateInlineMissingId\",\"fulfillmentTrackingInfoUpdate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"fulfillmentTrackingInfoUpdate\",\"arguments\":\"fulfillmentId\"}}]}"
+
+  let tracking_null_id =
+    "
+    mutation FulfillmentTrackingInfoUpdateInlineNullId(
+      $trackingInfoInput: FulfillmentTrackingInput!
+      $notifyCustomer: Boolean
+    ) {
+      fulfillmentTrackingInfoUpdate(
+        fulfillmentId: null
+        trackingInfoInput: $trackingInfoInput
+        notifyCustomer: $notifyCustomer
+      ) {
+        fulfillment {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(tracking_null_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      tracking_null_id,
+      tracking_variables,
+    )
+  assert json.to_string(tracking_null_outcome.data)
+    == "{\"errors\":[{\"message\":\"Argument 'fulfillmentId' on Field 'fulfillmentTrackingInfoUpdate' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":6,\"column\":7}],\"path\":[\"mutation FulfillmentTrackingInfoUpdateInlineNullId\",\"fulfillmentTrackingInfoUpdate\",\"fulfillmentId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"fulfillmentId\"}}]}"
 }
 
 pub fn orders_draft_order_create_custom_item_read_after_write_test() {

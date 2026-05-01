@@ -72,6 +72,8 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "abandonmentUpdateActivitiesDeliveryStatuses",
       "draftOrderComplete",
       "draftOrderCreate",
+      "fulfillmentCancel",
+      "fulfillmentTrackingInfoUpdate",
       "orderCreateManualPayment",
       "taxSummaryCreate",
     ],
@@ -467,6 +469,37 @@ pub fn process_mutation(
           }
         }
         Field(name: name, ..)
+          if name.value == "fulfillmentCancel"
+          || name.value == "fulfillmentTrackingInfoUpdate"
+        -> {
+          let #(key, payload, next_errors) =
+            handle_fulfillment_validation_guardrail(
+              name.value,
+              document,
+              operation_path,
+              field,
+              variables,
+            )
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
+        Field(name: name, ..)
           if name.value == "orderCreateManualPayment"
           || name.value == "taxSummaryCreate"
         -> {
@@ -518,6 +551,35 @@ fn handle_draft_order_complete_guardrail(
       variables,
       "draftOrderComplete",
       [RequiredArgument(name: "id", expected_type: "ID!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), validation_errors)
+    [] -> #(key, json.null(), [])
+  }
+}
+
+fn handle_fulfillment_validation_guardrail(
+  root_name: String,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, List(Json)) {
+  let key = get_field_response_key(field)
+  let required = case root_name {
+    "fulfillmentTrackingInfoUpdate" -> [
+      RequiredArgument(name: "fulfillmentId", expected_type: "ID!"),
+    ]
+    _ -> [RequiredArgument(name: "id", expected_type: "ID!")]
+  }
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      root_name,
+      required,
       operation_path,
       document,
     )

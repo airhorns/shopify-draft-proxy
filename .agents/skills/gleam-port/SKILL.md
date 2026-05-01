@@ -439,6 +439,11 @@ synthetic-id/timestamp expected differences.
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or
   downstream Order materialization is ported.
+- Fulfillment validation guardrails for `fulfillmentCancel` and
+  `fulfillmentTrackingInfoUpdate` can share the required-argument validator, but
+  keep the root-specific argument name exact (`id` vs. `fulfillmentId`). Do not
+  treat these branches as fulfillment lifecycle support; happy paths still need
+  local fulfillment state, order downstream visibility, and mutation-log effects.
 
 ## Workflow for a new pass
 
