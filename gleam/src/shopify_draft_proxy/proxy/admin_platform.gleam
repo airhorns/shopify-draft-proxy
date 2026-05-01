@@ -17,6 +17,7 @@ import gleam/string
 import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/b2b
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcString,
@@ -253,6 +254,35 @@ fn serialize_node_by_id(
   fragments: FragmentMap,
 ) -> Json {
   case gid_resource_type(id) {
+    "App" -> apps.serialize_app_node_by_id(store, id, selections, fragments)
+    "AppInstallation" ->
+      apps.serialize_app_installation_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
+    "AppPurchaseOneTime" ->
+      apps.serialize_app_one_time_purchase_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
+    "AppSubscription" ->
+      apps.serialize_app_subscription_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
+    "AppUsageRecord" ->
+      apps.serialize_app_usage_record_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
     "Shop" ->
       store_properties.serialize_shop_node_by_id(
         store,

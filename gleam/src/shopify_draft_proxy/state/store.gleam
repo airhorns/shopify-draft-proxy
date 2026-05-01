@@ -4384,12 +4384,21 @@ pub fn get_effective_app_installation_by_id(
   id: String,
 ) -> Option(AppInstallationRecord) {
   case dict.get(store.staged_state.app_installations, id) {
-    Ok(record) -> Some(record)
+    Ok(record) -> visible_app_installation(record)
     Error(_) ->
       case dict.get(store.base_state.app_installations, id) {
-        Ok(record) -> Some(record)
+        Ok(record) -> visible_app_installation(record)
         Error(_) -> None
       }
+  }
+}
+
+fn visible_app_installation(
+  record: AppInstallationRecord,
+) -> Option(AppInstallationRecord) {
+  case record.uninstalled_at {
+    Some(_) -> None
+    None -> Some(record)
   }
 }
 
@@ -4632,13 +4641,13 @@ pub fn find_delegated_access_token_by_hash(
 ) -> Option(DelegatedAccessTokenRecord) {
   case
     find_token_in_dict(store.staged_state.delegated_access_tokens, fn(t) {
-      t.access_token_sha256 == hash
+      t.access_token_sha256 == hash && t.destroyed_at == None
     })
   {
     Some(record) -> Some(record)
     None ->
       find_token_in_dict(store.base_state.delegated_access_tokens, fn(t) {
-        t.access_token_sha256 == hash
+        t.access_token_sha256 == hash && t.destroyed_at == None
       })
   }
 }
