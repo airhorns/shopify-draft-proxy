@@ -9,6 +9,40 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 164: HAR-506 post-approval mainline refresh
+
+Refreshes the approved HAR-506 Media files and uploads branch after
+`origin/main` added the Discounts lifecycle port. The merge keeps the mainline
+Discounts dispatcher and state slices while preserving the HAR-506 Media
+dispatcher, file state slice, staged-upload behavior, and file-delete
+product-media seed.
+
+| Module                                                  | Change                                                                                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Media mutation routing alongside mainline Discounts, Bulk Operations, Admin Platform, Privacy, Orders, and Customers dispatch. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`       | Combines the Media `FileRecord` import with mainline Discount, Draft Order, abandonment, and store-property state imports.           |
+| `GLEAM_PORT_LOG.md`                                     | Records the post-approval mainline refresh evidence for HAR-506.                                                                     |
+
+Validation:
+JavaScript target is green at 771 tests. Docker Erlang target is green at 767
+tests. `corepack pnpm gleam:port:coverage`, `corepack pnpm
+gleam:registry:check`, `corepack pnpm lint`, and `git diff --check` are green.
+Gleam parity coverage now reports 379 checked-in specs and 68 expected failures.
+
+### Findings
+
+- The conflict was additive: Discounts from `main` and Media from HAR-506 both
+  remain explicitly routed locally.
+- The ticket's TypeScript media runtime retirement remains deferred under the
+  Gleam Port Guardrail until the final all-port cutover.
+
+### Risks / open items
+
+- TypeScript Media runtime retirement remains deferred to the final all-port
+  cutover acceptance bar.
+
+---
+
 ## 2026-05-01 - Pass 163: discounts lifecycle parity
 
 Promotes the Discounts domain into the Gleam parity suite. The port now stages

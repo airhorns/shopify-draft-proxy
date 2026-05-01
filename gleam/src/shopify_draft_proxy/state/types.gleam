@@ -95,6 +95,22 @@ pub type ProductMediaRecord {
   )
 }
 
+pub type FileRecord {
+  FileRecord(
+    id: String,
+    alt: Option(String),
+    content_type: Option(String),
+    created_at: String,
+    file_status: String,
+    filename: Option(String),
+    original_source: String,
+    image_url: Option(String),
+    image_width: Option(Int),
+    image_height: Option(Int),
+    update_failure_acknowledged_at: Option(String),
+  )
+}
+
 pub type ProductVariantSelectedOptionRecord {
   ProductVariantSelectedOptionRecord(name: String, value: String)
 }
