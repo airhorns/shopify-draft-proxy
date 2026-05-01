@@ -9,6 +9,113 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 — Pass 115: apps billing/access parity cutover
+
+Completes the broader Apps billing/access parity scenario in the Gleam runner.
+Both checked-in app parity specs now execute against the Gleam proxy, including
+subscription billing lifecycle, one-time purchases, usage records, access-scope
+revocation, app uninstall read suppression, delegated-token create/destroy, and
+generic Admin Platform `node` reads for locally staged app resources.
+
+The TypeScript app runtime, legacy dispatcher wiring, and TS parity harness
+remain in place for this pass. Apps parity is now executable in Gleam, but the
+public TypeScript/Koa implementation is preserved until a later full-port
+cutover explicitly retires it.
+
+| Module                                                                                                         | Change                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/apps.gleam`                                                               | Exposes app-owned generic Node serializers for App, AppInstallation, AppPurchaseOneTime, AppSubscription, and AppUsageRecord.                |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`                                                     | Routes app-owned GIDs through the Apps serializers so multi-step billing parity can read staged app resources through `node(id:)`.           |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                                                              | Suppresses uninstalled app installations from effective/current reads and hides destroyed delegated tokens from token-hash lookup.           |
+| `gleam/test/parity/runner.gleam`                                                                               | Adds `fromProxyResponse` variable substitution so later targets can reference earlier named target responses, not only the primary response. |
+| `gleam/test/parity/diff.gleam`                                                                                 | Supports expected-difference paths with multiple `[*]` segments, needed for nested app subscription line item IDs.                           |
+| `config/gleam-port-ci-gates.json`, `gleam/test/parity_test.gleam`                                              | Removes Apps billing/access from the expected-failure gate so the discovered parity suite runs it as strict passing evidence.                |
+| `src/proxy/apps.ts`, `src/proxy/routes.ts`, `src/proxy/admin-platform.ts`, `scripts/conformance-parity-lib.ts` | Remains in place as the legacy TypeScript runtime and conformance harness until a later full-port cutover.                                   |
+
+Validation: `gleam test --target javascript` is green at 682 tests.
+`gleam test --target erlang` is green at 678 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container because the host
+lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
+
+### Findings
+
+- Broad app parity needed target-to-target variable references such as
+  `fromProxyResponse`, because delegated-token destroy and app-node reads depend
+  on responses produced by earlier non-primary targets.
+- Apps now exercise multi-wildcard expected-difference paths such as
+  `$.allSubscriptions.nodes[*].lineItems[*].id`; the Gleam diff matcher needed
+  to support more than one wildcard index segment.
+- Shopify-like downstream reads hide uninstalled app installations and destroyed
+  delegated tokens, while still leaving app identity records resolvable where
+  later node reads need them.
+
+### Risks / open items
+
+- The root TypeScript server remains the legacy shell for all runtime domains,
+  including Apps, until the full-port cutover retires TypeScript runtime code.
+- Several previously ported domains still have TypeScript runtime modules in
+  main and should be cut over only when the whole port is ready for that final
+  transition.
+
+### Pass 116 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+- Start Shipping/Fulfillments substrate so fulfillment-service, carrier-service,
+  delivery-profile, and shipping-settings roots can consume ported Location
+  state without reaching back into the TypeScript module.
+- Start Products publication substrate so Product and Collection publishable
+  projections can move from captured Store Properties rows into typed product
+  and collection records.
+- Continue Markets or Online Store ports where Store Properties shop/location
+  read effects are now available as local Gleam state.
+- Continue Marketing parity-runner seeding so captured Marketing read/update
+  scenarios can execute against the Gleam proxy.
+- Audit already-ported domains for final-cutover readiness without deleting
+  TypeScript runtime modules during incremental parity passes.
+
+---
+
+## 2026-05-01 - Pass 114: HAR-505 mainline refresh seeding
+
+Refreshes the HAR-505 Marketing branch after `origin/main` promoted the
+remaining Product parity gates. The conflict resolution preserves the branch's
+Marketing and localization parity seeding while keeping the mainline
+Products/Inventory runner additions. The merged runner now explicitly seeds the
+captured `inventory-quantity-contracts-2026-04` disposable product from the
+fixture's `setup.product` block before replaying the 2026-04 set/adjust/read
+flow.
+
+| Module                           | Change                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `gleam/test/parity/runner.gleam` | Keeps Marketing capture seeding and seeds the 2026-04 inventory quantity contract fixture. |
+| `gleam/test/parity/spec.gleam`   | Keeps both `selectedPaths` and `upstreamCapturePath` parity target documentation.          |
+| `GLEAM_PORT_LOG.md`              | Preserves mainline Product pass history and the branch-local localization seeding entry.   |
+
+Validation:
+Full JavaScript is green at 718 tests. Docker Erlang is green at 714 tests.
+`corepack pnpm lint`, `git diff --check`, `corepack pnpm
+gleam:port:coverage`, and `corepack pnpm gleam:registry:check` are green.
+Gleam parity coverage reports 379 checked-in specs and 176 expected failures.
+
+### Findings
+
+- The 2026-04 inventory quantity contract fixture stores its disposable Product,
+  Variant, and InventoryItem ids under `setup.product`; without that seed, the
+  success mutation branches correctly reject the unknown inventory item instead
+  of exercising the captured contract path.
+- The Marketing branch did not need parity fixture or request changes for this
+  refresh; the required work was runner seeding and conflict reconciliation.
+
+### Risks / open items
+
+- TypeScript Marketing runtime deletion remains deferred to HAR-518 under the
+  incremental port preservation rule.
+
+---
+
 ## 2026-04-30 — Pass 113: state dump completeness proof
 
 Extends the HAR-522 rework so the Gleam dump/restore substrate can answer the
@@ -168,6 +275,46 @@ specs expected-failing. `corepack pnpm lint` and whitespace checks are green.
 - Continue with the next non-Product expected-failing domain from
   `config/gleam-port-ci-gates.json`, or start the explicit final-cutover plan
   once the whole-port acceptance criteria bind.
+
+---
+
+## 2026-04-30 — Pass 46: localization source-content parity seeding
+
+Keeps the latest mainline localization parity gate green after the HAR-505
+branch was refreshed with webhook evidence. The checked-in
+`localization-disable-clears-translations` capture registers a translation
+against an existing Shopify product, but the Gleam port still lacks the Products
+domain. This pass seeds the captured source title digest into the parity runner
+as a non-target-locale source marker, then lets the localization runtime
+reconstruct the minimal translatable content slot needed for Shopify-like
+`translationsRegister` validation.
+
+| Module                                                                  | Change                                                                                                                                    |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`                                        | Seeds the captured product title digest for `localization-disable-clears-translations` before replaying the enable/register/disable flow. |
+| `gleam/src/shopify_draft_proxy/proxy/localization.gleam`                | Reconstructs translatable content slots from seeded translation/source markers while preserving `RESOURCE_NOT_FOUND` for unknown ids.     |
+| `gleam/test/shopify_draft_proxy/proxy/localization_mutation_test.gleam` | Covers the seeded source marker register-disable-read lifecycle directly.                                                                 |
+
+Validation after the `origin/main@3e99c073` merge: `gleam test --target
+javascript` passed at 681 tests, Erlang passed at 677 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container, `corepack pnpm
+lint`, `git diff --check`, `corepack pnpm gleam:port:coverage`, and `corepack
+pnpm gleam:registry:check` are green.
+
+### Findings
+
+- The source digest already exists in the live capture, so no parity request or
+  fixture shape needed to change.
+- Unknown localization resource ids still fail unless a product/metafield
+  domain record or a capture-seeded source marker exists.
+- The expected Gleam parity-failure manifest now reports 292 remaining failures
+  after this localization scenario passes.
+
+### Risks / open items
+
+- The real Product-backed `find_resource` path remains deferred until the
+  Products domain ports; this seed is only the parity runner bridge for captured
+  upstream resources that already exist.
 
 ---
 
@@ -4954,6 +5101,64 @@ Validation: `gleam test --target javascript` is green at 684 tests. The host
   captured template-catalog fixture exists.
 - Continue Store Properties locations and fulfillment/carrier-service lifecycle
   roots, reusing the existing shop state slice.
+
+---
+
+## 2026-04-30 — Pass 44: B2B company lifecycle parity
+
+Ports the B2B Admin GraphQL domain into the Gleam runtime while preserving the
+TypeScript B2B runtime and tests for the incremental port. Companies, contacts,
+locations, roles, role assignments, address assignments, staff assignments, and
+tax settings now have normalized Gleam state, local mutation staging, downstream
+read-after-write behavior, Relay node coverage for B2B-owned records, and
+parity-runner fixture seeding for the checked-in B2B captures. Email-delivery
+behavior remains outside local B2B support rather than inventing local side
+effects.
+
+| Module                                                                   | Change                                                                                                                    |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/b2b.gleam`                          | Adds B2B query and mutation handling for company/contact/location/role lifecycle flows and relationship/tax updates.      |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam`  | Adds B2B normalized records, effective-state helpers, delete markers, and state dump buckets with empty restore defaults. |
+| `gleam/src/shopify_draft_proxy/proxy/{draft_proxy,admin_platform}.gleam` | Wires B2B query/mutation dispatch and B2B Relay node reads without broadening unsupported roots.                          |
+| `gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam`                    | Adds targeted Gleam coverage for B2B lifecycle mutations, downstream reads, and unsupported email-delivery boundaries.    |
+| `gleam/test/parity/{runner,diff,spec}.gleam`                             | Seeds B2B read fixtures and fixes nested wildcard diff matching needed by the B2B parity specs.                           |
+| `config/gleam-port-ci-gates.json`                                        | Removes the now-passing B2B specs, plus a stale passing localization spec, from expected Gleam parity failures.           |
+
+Validation: `gleam test --target javascript` was green at 681 tests. `gleam
+test --target erlang` was green at 677 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container because the host
+Erlang/OTP 25 installation is too old for the current `gleam_json`
+requirement. The direct B2B parity scenario report was green for all four B2B
+specs: `b2b-company-contact-main-delete`, `b2b-company-create-lifecycle`,
+`b2b-company-roots-read`, and `b2b-contact-location-assignments-tax`.
+`git diff --check` was also green.
+
+### Findings
+
+- The B2B read fixture has enough captured baseline data to seed root catalog
+  reads directly in the Gleam parity runner.
+- Nested wildcard expected-difference paths need to match more than one list
+  segment; the previous diff helper only handled the first wildcard cleanly.
+- The generated ticket text mentions deleting the TypeScript B2B runtime after
+  parity, but the port guardrail keeps TypeScript runtime and test coverage in
+  place until the final full-port cutover.
+
+### Risks / open items
+
+- B2B state restore currently defaults newly ported B2B buckets to empty when
+  older dumps omit them; a future snapshot compatibility pass can decode stored
+  B2B buckets once real Gleam-authored dumps need round-trip restore coverage.
+- Final TypeScript B2B runtime retirement remains a whole-port cutover concern,
+  not a per-domain pass action.
+
+### Pass 45 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
 
 ---
 

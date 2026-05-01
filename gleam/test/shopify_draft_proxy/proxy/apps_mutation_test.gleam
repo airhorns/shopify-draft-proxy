@@ -129,8 +129,10 @@ pub fn app_uninstall_creates_default_when_no_installation_test() {
   let body = json.to_string(outcome.data)
   assert body
     == "{\"data\":{\"appUninstall\":{\"app\":{\"id\":\"gid://shopify/App/1\",\"handle\":\"shopify-draft-proxy\"},\"userErrors\":[]}}}"
-  // Default app + installation should now be in the store.
-  let assert Some(_) = store.get_current_app_installation(outcome.store)
+  // Staged uninstall suppresses the current installation from downstream reads.
+  assert store.get_current_app_installation(outcome.store) == None
+  let assert Some(_) =
+    store.get_effective_app_by_id(outcome.store, "gid://shopify/App/1")
 }
 
 pub fn app_uninstall_marks_installation_uninstalled_test() {
@@ -139,13 +141,11 @@ pub fn app_uninstall_marks_installation_uninstalled_test() {
       seeded_with_installation(),
       "mutation { appUninstall { app { id } userErrors { field } } }",
     )
-  let assert Some(install) =
-    store.get_effective_app_installation_by_id(
+  assert store.get_effective_app_installation_by_id(
       outcome.store,
       "gid://shopify/AppInstallation/100",
     )
-  // The seeded installation now carries an uninstalled_at timestamp.
-  assert install.uninstalled_at == Some("2024-01-01T00:00:00.000Z")
+    == None
   assert outcome.staged_resource_ids == ["gid://shopify/AppInstallation/100"]
 }
 
@@ -222,13 +222,12 @@ pub fn delegate_token_destroy_marks_destroyed_test() {
   let outcome = run_mutation_outcome(s, document)
   assert json.to_string(outcome.data)
     == "{\"data\":{\"delegateAccessTokenDestroy\":{\"status\":true,\"userErrors\":[]}}}"
-  let assert Some(found) =
-    store.find_delegated_access_token_by_hash(
+  // Destroyed delegated tokens are no longer discoverable by raw token hash.
+  assert store.find_delegated_access_token_by_hash(
       outcome.store,
       shopify_sha256_of(raw),
     )
-  // destroyed_at is now set (concrete value depends on timestamp counter).
-  assert found.destroyed_at != None
+    == None
 }
 
 pub fn delegate_token_destroy_unknown_emits_user_error_test() {
