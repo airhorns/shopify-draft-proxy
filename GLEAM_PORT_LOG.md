@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 162: fulfillment-order request lifecycle staging
+
+Ports the remaining implemented fulfillment-order request roots from the
+legacy Orders integration flow. This pass stages
+`fulfillmentOrderSubmitFulfillmentRequest`,
+`fulfillmentOrderAcceptFulfillmentRequest`,
+`fulfillmentOrderRejectFulfillmentRequest`,
+`fulfillmentOrderSubmitCancellationRequest`,
+`fulfillmentOrderAcceptCancellationRequest`, and
+`fulfillmentOrderRejectCancellationRequest`, plus
+`assignedFulfillmentOrders` readback. It keeps `fulfillmentOrdersReroute`
+unclaimed because the operation registry still marks it `implemented: false`
+with HAR-234 capture blockers.
+
+| Module                                                               | Change                                                   |
+| -------------------------------------------------------------------- | -------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                   | Adds request/cancellation staging and assigned readback. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`             | Covers request/cancellation read-after-write.            |
+| `gleam/test/shopify_draft_proxy/proxy/operation_registry_test.gleam` | Moves the unported-root sentinel to service reads.       |
+| `gleam/test/shopify_draft_proxy/proxy/passthrough_test.gleam`        | Keeps live-hybrid passthrough coverage unported.         |
+| `GLEAM_PORT_LOG.md`                                                  | Records pass 162 evidence.                               |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Records request lifecycle patterns.                      |
+
+Validation:
+
+- Reproduction signal before porting: request/cancellation roots were absent
+  from `is_orders_mutation_root` and local mutation dispatch, while
+  `assignedFulfillmentOrders` was the explicit implemented-but-unported
+  sentinel.
+- `cd gleam && gleam test --target javascript
+orders_fulfillment_order_request_cancellation_read_after_write_test`
+  (762 passed).
+
+### Findings
+
+- Submit-fulfillment-request staging must split partially requested line-item
+  quantities into submitted and unsubmitted fulfillment orders, minting fresh
+  unsubmitted fulfillment-order and line-item IDs while keeping the submitted
+  fulfillment order at the original ID.
+- Merchant requests need a connection-shaped serializer, not raw JSON
+  projection, so `merchantRequests(first:) { nodes { ... } }` behaves like the
+  TypeScript flow.
+- `assignedFulfillmentOrders` is now local readback. The passthrough sentinel
+  moved to `fulfillmentService`, which remains implemented in TypeScript but
+  outside the current Gleam dispatch table.
+
+### Risks / open items
+
+- `fulfillmentOrdersReroute`, `fulfillmentOrderReschedule`, and
+  `fulfillmentOrderClose` remain registry-unimplemented beyond captured
+  guardrail behavior; do not claim lifecycle support for those roots without
+  successful conformance evidence.
+
+### Pass 163 candidates
+
+- Run the full two-target/repo validation gate and re-check HAR-492 for any
+  remaining executable Orders integration-flow gaps before deciding whether the
+  draft PR can leave active implementation.
+
+---
+
 ## 2026-05-01 - Pass 161: fulfillment-order split/deadline/merge staging
 
 Extends the fulfillment-order lifecycle slice with the residual local staging

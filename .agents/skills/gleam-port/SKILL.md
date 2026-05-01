@@ -730,6 +730,18 @@ synthetic-id/timestamp expected differences.
   the first merge intent, sums quantities by source line item, preserves the
   target line-item ID, carries forward the first `fulfillBy`, and closes merged
   sibling fulfillment orders with zeroed line items.
+- Fulfillment-order request lifecycle roots are also order-backed.
+  `fulfillmentOrderSubmitFulfillmentRequest` splits partially requested
+  line-item quantities, stores a `FULFILLMENT_REQUEST` merchant request,
+  leaves the submitted fulfillment order at the original ID, and mints a new
+  unsubmitted fulfillment order for leftovers. Accept/reject fulfillment
+  requests transition `requestStatus`; cancellation submit appends a
+  `CANCELLATION_REQUEST`; cancellation accept closes and zeroes line items;
+  cancellation reject returns to `IN_PROGRESS` with
+  `CANCELLATION_REJECTED`. Serialize `merchantRequests` as a connection, not
+  as a raw captured array. `assignedFulfillmentOrders` is now local readback;
+  use a different implemented-but-unported sentinel such as
+  `fulfillmentService`.
 
 ## Workflow for a new pass
 

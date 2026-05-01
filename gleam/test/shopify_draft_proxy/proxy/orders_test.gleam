@@ -2402,6 +2402,304 @@ pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
     == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/residual\",\"fulfillBy\":\"2026-05-02T02:16:59Z\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/residual\",\"totalQuantity\":3,\"remainingQuantity\":3}]}},{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"fulfillBy\":\"2026-05-02T02:16:59Z\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/1\",\"totalQuantity\":0,\"remainingQuantity\":0}]}}]}}}}"
 }
 
+pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-requests"
+  let partial_id = "gid://shopify/FulfillmentOrder/partial"
+  let partial_line_item_id = "gid://shopify/FulfillmentOrderLineItem/partial"
+  let reject_id = "gid://shopify/FulfillmentOrder/reject"
+  let cancel_id = "gid://shopify/FulfillmentOrder/cancel"
+  let unsubmitted_id = "gid://shopify/FulfillmentOrder/3"
+  let seeded = fulfillment_request_store(order_id)
+  let fields =
+    "
+      id
+      status
+      requestStatus
+      merchantRequests(first: 10) {
+        nodes { kind message requestOptions responseData }
+      }
+      lineItems(first: 5) {
+        nodes { id totalQuantity remainingQuantity lineItem { id title } }
+      }
+    "
+  let submit_mutation = "
+    mutation SubmitRequest($id: ID!, $lineItems: [FulfillmentOrderLineItemInput!]) {
+      fulfillmentOrderSubmitFulfillmentRequest(
+        id: $id
+        message: \"submit partial\"
+        notifyCustomer: false
+        fulfillmentOrderLineItems: $lineItems
+      ) {
+        submittedFulfillmentOrder { " <> fields <> " }
+        unsubmittedFulfillmentOrder { " <> fields <> " }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(submit_outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      submit_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(partial_id)),
+        #(
+          "lineItems",
+          root_field.ListVal([
+            root_field.ObjectVal(
+              dict.from_list([
+                #("id", root_field.StringVal(partial_line_item_id)),
+                #("quantity", root_field.IntVal(1)),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    )
+  assert json.to_string(submit_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderSubmitFulfillmentRequest\":{\"submittedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"OPEN\",\"requestStatus\":\"SUBMITTED\",\"merchantRequests\":{\"nodes\":[{\"kind\":\"FULFILLMENT_REQUEST\",\"message\":\"submit partial\",\"requestOptions\":{\"notify_customer\":false},\"responseData\":null}]},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/partial\",\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/partial\",\"title\":\"Partial request item\"}}]}},\"unsubmittedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/3\",\"status\":\"OPEN\",\"requestStatus\":\"UNSUBMITTED\",\"merchantRequests\":{\"nodes\":[]},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/1\",\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/partial\",\"title\":\"Partial request item\"}}]}},\"userErrors\":[]}}}"
+
+  let accept_mutation =
+    "
+    mutation AcceptRequest($id: ID!) {
+      fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: \"accepted\") {
+        fulfillmentOrder { id status requestStatus }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(accept_outcome) =
+    orders.process_mutation(
+      submit_outcome.store,
+      submit_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      accept_mutation,
+      dict.from_list([#("id", root_field.StringVal(partial_id))]),
+    )
+  assert json.to_string(accept_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderAcceptFulfillmentRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"ACCEPTED\"},\"userErrors\":[]}}}"
+
+  let submit_cancel_mutation =
+    "
+    mutation SubmitCancellation($id: ID!) {
+      fulfillmentOrderSubmitCancellationRequest(id: $id, message: \"cancel requested\") {
+        fulfillmentOrder {
+          id
+          status
+          requestStatus
+          merchantRequests(first: 10) {
+            nodes { kind message }
+          }
+        }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(submit_cancel_outcome) =
+    orders.process_mutation(
+      accept_outcome.store,
+      accept_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      submit_cancel_mutation,
+      dict.from_list([#("id", root_field.StringVal(partial_id))]),
+    )
+  assert json.to_string(submit_cancel_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderSubmitCancellationRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"ACCEPTED\",\"merchantRequests\":{\"nodes\":[{\"kind\":\"FULFILLMENT_REQUEST\",\"message\":\"submit partial\"},{\"kind\":\"CANCELLATION_REQUEST\",\"message\":\"cancel requested\"}]}},\"userErrors\":[]}}}"
+
+  let reject_cancel_mutation =
+    "
+    mutation RejectCancellation($id: ID!) {
+      fulfillmentOrderRejectCancellationRequest(id: $id, message: \"cancel rejected\") {
+        fulfillmentOrder { id status requestStatus }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(reject_cancel_outcome) =
+    orders.process_mutation(
+      submit_cancel_outcome.store,
+      submit_cancel_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      reject_cancel_mutation,
+      dict.from_list([#("id", root_field.StringVal(partial_id))]),
+    )
+  assert json.to_string(reject_cancel_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderRejectCancellationRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"CANCELLATION_REJECTED\"},\"userErrors\":[]}}}"
+
+  let assert Ok(submit_reject_outcome) =
+    orders.process_mutation(
+      reject_cancel_outcome.store,
+      reject_cancel_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      submit_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(reject_id)),
+        #("lineItems", root_field.NullVal),
+      ]),
+    )
+  let reject_mutation =
+    "
+    mutation RejectRequest($id: ID!) {
+      fulfillmentOrderRejectFulfillmentRequest(id: $id, reason: OTHER, message: \"rejected\") {
+        fulfillmentOrder { id status requestStatus }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(reject_outcome) =
+    orders.process_mutation(
+      submit_reject_outcome.store,
+      submit_reject_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      reject_mutation,
+      dict.from_list([#("id", root_field.StringVal(reject_id))]),
+    )
+  assert json.to_string(reject_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderRejectFulfillmentRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/reject\",\"status\":\"OPEN\",\"requestStatus\":\"REJECTED\"},\"userErrors\":[]}}}"
+
+  let assert Ok(submit_cancel_request_outcome) =
+    orders.process_mutation(
+      reject_outcome.store,
+      reject_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      submit_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(cancel_id)),
+        #("lineItems", root_field.NullVal),
+      ]),
+    )
+  let assert Ok(accept_cancel_request_outcome) =
+    orders.process_mutation(
+      submit_cancel_request_outcome.store,
+      submit_cancel_request_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      accept_mutation,
+      dict.from_list([#("id", root_field.StringVal(cancel_id))]),
+    )
+  let assert Ok(submit_cancel_accept_outcome) =
+    orders.process_mutation(
+      accept_cancel_request_outcome.store,
+      accept_cancel_request_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      submit_cancel_mutation,
+      dict.from_list([#("id", root_field.StringVal(cancel_id))]),
+    )
+  let accept_cancel_mutation =
+    "
+    mutation AcceptCancellation($id: ID!) {
+      fulfillmentOrderAcceptCancellationRequest(id: $id, message: \"cancel accepted\") {
+        fulfillmentOrder {
+          id
+          status
+          requestStatus
+          lineItems(first: 5) { nodes { totalQuantity remainingQuantity } }
+        }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(accept_cancel_outcome) =
+    orders.process_mutation(
+      submit_cancel_accept_outcome.store,
+      submit_cancel_accept_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      accept_cancel_mutation,
+      dict.from_list([#("id", root_field.StringVal(cancel_id))]),
+    )
+  assert json.to_string(accept_cancel_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderAcceptCancellationRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/cancel\",\"status\":\"CLOSED\",\"requestStatus\":\"CANCELLATION_ACCEPTED\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":0,\"remainingQuantity\":0}]}},\"userErrors\":[]}}}"
+
+  let downstream_query =
+    "
+    query Downstream($orderId: ID!, $submittedId: ID!, $unsubmittedId: ID!) {
+      submitted: fulfillmentOrder(id: $submittedId) { id requestStatus }
+      unsubmitted: fulfillmentOrder(id: $unsubmittedId) { id requestStatus }
+      assignedFulfillmentOrders(first: 10) {
+        nodes { id status requestStatus }
+      }
+      order(id: $orderId) {
+        fulfillmentOrders(first: 10) {
+          nodes { id status requestStatus }
+        }
+      }
+    }
+  "
+  let assert Ok(downstream) =
+    orders.process(
+      accept_cancel_outcome.store,
+      downstream_query,
+      dict.from_list([
+        #("orderId", root_field.StringVal(order_id)),
+        #("submittedId", root_field.StringVal(partial_id)),
+        #("unsubmittedId", root_field.StringVal(unsubmitted_id)),
+      ]),
+    )
+  assert json.to_string(downstream)
+    == "{\"data\":{\"submitted\":{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"requestStatus\":\"CANCELLATION_REJECTED\"},\"unsubmitted\":{\"id\":\"gid://shopify/FulfillmentOrder/3\",\"requestStatus\":\"UNSUBMITTED\"},\"assignedFulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"CANCELLATION_REJECTED\"},{\"id\":\"gid://shopify/FulfillmentOrder/3\",\"status\":\"OPEN\",\"requestStatus\":\"UNSUBMITTED\"},{\"id\":\"gid://shopify/FulfillmentOrder/reject\",\"status\":\"OPEN\",\"requestStatus\":\"REJECTED\"}]},\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"CANCELLATION_REJECTED\"},{\"id\":\"gid://shopify/FulfillmentOrder/3\",\"status\":\"OPEN\",\"requestStatus\":\"UNSUBMITTED\"},{\"id\":\"gid://shopify/FulfillmentOrder/reject\",\"status\":\"OPEN\",\"requestStatus\":\"REJECTED\"},{\"id\":\"gid://shopify/FulfillmentOrder/cancel\",\"status\":\"CLOSED\",\"requestStatus\":\"CANCELLATION_ACCEPTED\"}]}}}}"
+}
+
+fn fulfillment_request_store(order_id: String) -> store.Store {
+  let fulfillment_order = fn(suffix: String, title: String, quantity: Int) {
+    types.CapturedObject([
+      #("id", types.CapturedString("gid://shopify/FulfillmentOrder/" <> suffix)),
+      #("status", types.CapturedString("OPEN")),
+      #("requestStatus", types.CapturedString("UNSUBMITTED")),
+      #(
+        "assignedLocation",
+        types.CapturedObject([
+          #("name", types.CapturedString("HAR233 Local Service")),
+          #("locationId", types.CapturedString("gid://shopify/Location/har233")),
+        ]),
+      ),
+      #("merchantRequests", types.CapturedArray([])),
+      #(
+        "lineItems",
+        types.CapturedArray([
+          types.CapturedObject([
+            #(
+              "id",
+              types.CapturedString(
+                "gid://shopify/FulfillmentOrderLineItem/" <> suffix,
+              ),
+            ),
+            #(
+              "lineItemId",
+              types.CapturedString("gid://shopify/LineItem/" <> suffix),
+            ),
+            #("title", types.CapturedString(title)),
+            #("lineItemQuantity", types.CapturedInt(quantity)),
+            #("lineItemFulfillableQuantity", types.CapturedInt(quantity)),
+            #("totalQuantity", types.CapturedInt(quantity)),
+            #("remainingQuantity", types.CapturedInt(quantity)),
+          ]),
+        ]),
+      ),
+    ])
+  }
+  store.new()
+  |> store.upsert_base_orders([
+    types.OrderRecord(
+      id: order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("name", types.CapturedString("#FO-REQUESTS")),
+        #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+        #("fulfillments", types.CapturedArray([])),
+        #(
+          "fulfillmentOrders",
+          types.CapturedArray([
+            fulfillment_order("partial", "Partial request item", 2),
+            fulfillment_order("reject", "Reject request item", 1),
+            fulfillment_order("cancel", "Cancel request item", 1),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
 fn fulfillment_order_lifecycle_store(
   order_id: String,
   fulfillment_order_id: String,

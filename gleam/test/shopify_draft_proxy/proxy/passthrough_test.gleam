@@ -43,15 +43,15 @@ fn passthrough_request() -> Request {
 
 @target(javascript)
 fn unported_registry_request() -> Request {
-  // `assignedFulfillmentOrders` is an implemented TypeScript registry root,
-  // but the shipping-fulfillments domain is not yet ported to Gleam.
+  // `fulfillmentService` is an implemented TypeScript registry root, but the
+  // shipping-fulfillments service catalog is not yet ported to Gleam.
   // Live-hybrid dispatch must therefore use the unsupported passthrough
   // branch instead of claiming a local dispatcher exists.
   Request(
     method: "POST",
     path: "/admin/api/2025-01/graphql.json",
     headers: dict.new(),
-    body: "{\"query\":\"{ assignedFulfillmentOrders(first: 1) { nodes { id } } }\"}",
+    body: "{\"query\":\"{ fulfillmentService(id: \\\"gid://shopify/FulfillmentService/1\\\") { id } }\"}",
   )
 }
 
