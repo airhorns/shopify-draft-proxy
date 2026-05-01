@@ -1451,9 +1451,46 @@ pub fn process_mutation(
             )
           }
         }
+        Field(name: name, ..) if name.value == "orderEditBegin" -> {
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            staged_ids,
+            next_errors,
+            next_drafts,
+          ) =
+            handle_order_edit_begin_mutation(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, staged_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
         Field(name: name, ..)
           if name.value == "orderEditAddVariant"
-          || name.value == "orderEditBegin"
           || name.value == "orderEditCommit"
           || name.value == "orderEditSetQuantity"
         -> {
@@ -3047,6 +3084,178 @@ fn handle_order_edit_validation_guardrail(
     [_, ..] -> #(key, json.null(), validation_errors)
     [] -> #(key, json.null(), [])
   }
+}
+
+fn handle_order_edit_begin_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "orderEditBegin",
+      [RequiredArgument(name: "id", expected_type: "ID!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      let order =
+        read_string(args, "id")
+        |> option.then(fn(id) { store.get_order_by_id(store, id) })
+      case order {
+        Some(order) -> {
+          let #(calculated_order, next_identity) =
+            build_calculated_order_from_order(order, identity)
+          let payload =
+            serialize_order_edit_begin_payload(
+              field,
+              calculated_order,
+              fragments,
+            )
+          #(key, payload, store, next_identity, [], [], [])
+        }
+        None -> #(key, json.null(), store, identity, [], [], [])
+      }
+    }
+  }
+}
+
+fn build_calculated_order_from_order(
+  order: OrderRecord,
+  identity: SyntheticIdentityRegistry,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(id, identity_after_order) =
+    synthetic_identity.make_synthetic_gid(identity, "CalculatedOrder")
+  let #(line_items, next_identity) =
+    build_calculated_line_items(
+      order_line_items(order.data),
+      identity_after_order,
+    )
+  #(
+    CapturedObject([
+      #("id", CapturedString(id)),
+      #(
+        "originalOrder",
+        CapturedObject([
+          #("id", CapturedString(order.id)),
+          #(
+            "name",
+            optional_captured_string(captured_string_field(order.data, "name")),
+          ),
+        ]),
+      ),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
+      #("addedLineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+    ]),
+    next_identity,
+  )
+}
+
+fn build_calculated_line_items(
+  line_items: List(CapturedJsonValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  line_items
+  |> list.fold(#([], identity), fn(acc, item) {
+    let #(items, current_identity) = acc
+    let #(id, next_identity) =
+      synthetic_identity.make_synthetic_gid(
+        current_identity,
+        "CalculatedLineItem",
+      )
+    let quantity = captured_int_field(item, "quantity") |> option.unwrap(0)
+    let current_quantity =
+      captured_int_field(item, "currentQuantity") |> option.unwrap(quantity)
+    let calculated_item =
+      CapturedObject([
+        #("id", CapturedString(id)),
+        #("title", captured_field_or_null(item, "title")),
+        #("quantity", CapturedInt(quantity)),
+        #("currentQuantity", CapturedInt(current_quantity)),
+        #("sku", captured_field_or_null(item, "sku")),
+        #("variant", captured_field_or_null(item, "variant")),
+        #(
+          "originalUnitPriceSet",
+          captured_field_or_money(item, "originalUnitPriceSet", "CAD"),
+        ),
+      ])
+    #(list.append(items, [calculated_item]), next_identity)
+  })
+}
+
+fn serialize_order_edit_begin_payload(
+  field: Selection,
+  calculated_order: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "calculatedOrder" -> #(
+              key,
+              project_graphql_value(
+                captured_json_source(calculated_order),
+                selection_children(child),
+                fragments,
+              ),
+            )
+            "orderEditSession" -> #(
+              key,
+              serialize_order_edit_session(child, calculated_order),
+            )
+            "userErrors" -> #(key, json.array([], fn(error) { error }))
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_order_edit_session(
+  field: Selection,
+  calculated_order: CapturedJsonValue,
+) -> Json {
+  let session_id =
+    captured_string_field(calculated_order, "id")
+    |> option.map(fn(id) {
+      string.replace(id, "/CalculatedOrder/", "/OrderEditSession/")
+    })
+    |> option.unwrap("")
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "id" -> #(key, json.string(session_id))
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 fn handle_fulfillment_create_invalid_id_guardrail(

@@ -336,6 +336,128 @@ pub fn orders_access_denied_guardrails_test() {
   assert list.length(outcome.log_drafts) == 2
 }
 
+pub fn orders_order_edit_begin_existing_order_payload_test() {
+  let order_id = "gid://shopify/Order/6834565087465"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1331")),
+          #(
+            "lineItems",
+            types.CapturedObject([
+              #(
+                "nodes",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #(
+                      "id",
+                      types.CapturedString(
+                        "gid://shopify/LineItem/16209970561257",
+                      ),
+                    ),
+                    #(
+                      "title",
+                      types.CapturedString("Custom installation service"),
+                    ),
+                    #("quantity", types.CapturedInt(2)),
+                    #("currentQuantity", types.CapturedInt(2)),
+                    #(
+                      "sku",
+                      types.CapturedString(
+                        "hermes-custom-service-1777076856718",
+                      ),
+                    ),
+                    #("variant", types.CapturedNull),
+                    #(
+                      "originalUnitPriceSet",
+                      types.CapturedObject([
+                        #(
+                          "shopMoney",
+                          types.CapturedObject([
+                            #("amount", types.CapturedString("20.0")),
+                            #("currencyCode", types.CapturedString("CAD")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderEditExistingWorkflowBegin($id: ID!) {
+      orderEditBegin(id: $id) {
+        calculatedOrder {
+          id
+          originalOrder {
+            id
+            name
+          }
+          lineItems(first: 10) {
+            nodes {
+              id
+              title
+              quantity
+              currentQuantity
+              sku
+              variant {
+                id
+              }
+              originalUnitPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+          addedLineItems(first: 10) {
+            nodes {
+              id
+              title
+              quantity
+              sku
+              variant {
+                id
+              }
+            }
+          }
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables = dict.from_list([#("id", root_field.StringVal(order_id))])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":{\"id\":\"gid://shopify/CalculatedOrder/1\",\"originalOrder\":{\"id\":\"gid://shopify/Order/6834565087465\",\"name\":\"#1331\"},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/CalculatedLineItem/2\",\"title\":\"Custom installation service\",\"quantity\":2,\"currentQuantity\":2,\"sku\":\"hermes-custom-service-1777076856718\",\"variant\":null,\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}}}]},\"addedLineItems\":{\"nodes\":[]}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/1\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
 pub fn orders_draft_order_not_found_read_test() {
   let query =
     "

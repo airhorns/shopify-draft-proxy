@@ -239,6 +239,8 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
+    "order-edit-begin-live-parity" ->
+      seed_order_edit_existing_order_preconditions(capture, proxy)
     "localization-disable-clears-translations" ->
       seed_localization_disable_cleanup_preconditions(capture, proxy)
     "marketing-baseline-read" ->
@@ -988,6 +990,23 @@ fn seed_order_create_setup_preconditions(
         Error(_) -> proxy
       }
     None -> seed_order_downstream_preconditions(capture, proxy)
+  }
+}
+
+fn seed_order_edit_existing_order_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.seedOrder") {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
   }
 }
 

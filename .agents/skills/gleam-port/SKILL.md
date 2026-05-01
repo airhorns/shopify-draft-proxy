@@ -601,6 +601,14 @@ synthetic-id/timestamp expected differences.
   to order transactions, append the refund to `order.refunds`, preserve the
   empty returns connection, and mark the order `REFUNDED` only once the total
   refunded amount reaches the order total.
+- `orderEditBegin` existing-order parity can be promoted independently from
+  add/set/commit only because the checked-in begin spec compares the stable
+  `calculatedOrder.originalOrder` and empty `userErrors` target. Seed from
+  `$.seedOrder`, mint a synthetic `CalculatedOrder` id and derived
+  `OrderEditSession` id, and clone selected order line-item fields for payload
+  shape. Do not treat this as calculated-order session lifecycle support until
+  add-variant, set-quantity, commit, and downstream order effects persist
+  through local state.
 
 ## Workflow for a new pass
 

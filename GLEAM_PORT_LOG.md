@@ -9,6 +9,65 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 146: order edit begin parity
+
+Promotes the checked-in `orderEditBegin` existing-order parity scenario in the
+Gleam Orders domain. This pass seeds the captured source order, builds a
+synthetic calculated order/session payload locally, and preserves the captured
+`originalOrder` and empty `userErrors` behavior without claiming add/set/commit
+order-edit workflow support.
+
+| Module                                                   | Change                                                       |
+| -------------------------------------------------------- | ------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `orderEditBegin` existing-order calculated payloads.    |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured order-edit source orders from `$.seedOrder`.  |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers begin payload, line-item clone, and session id shape. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `orderEditBegin` parity spec.      |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records order-edit begin porting notes.                      |
+
+Validation:
+
+- Reproduction with only `orderEditBegin-parity-plan.json` ungated failed on
+  `$.data.orderEditBegin.calculatedOrder.originalOrder` before implementation.
+- `cd gleam && gleam test --target javascript` (752 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (748 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 110 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The begin parity spec compares only the stable calculated order
+  `originalOrder` and empty `userErrors`; session ids and calculated-line ids
+  are synthetic and intentionally not used as strict fixture equality.
+- `orderEditBegin` needs the fixture's `$.seedOrder` payload, not a downstream
+  read, because that is where the source line items for calculated-order
+  cloning live.
+- Begin can mint the calculated order/session shape without mutating order
+  state. Add-variant, set-quantity, commit, and calculated edit persistence
+  remain separate gated lifecycle work.
+
+### Risks / open items
+
+- Order-edit add/set/commit sessions, direct order creation/delete, payment
+  transaction and mandate roots, fulfillment creation/fulfillment-order
+  workflows, and returns remain gated.
+
+### Pass 147 candidates
+
+- Continue order-edit sessions by adding persistent calculated-order state for
+  add/set/commit, or switch to another bounded existing-order/payment/return
+  fixture if it can be modeled without partial support.
+
+---
+
 ## 2026-05-01 - Pass 145: refund success parity
 
 Promotes the checked-in full and partial `refundCreate` success parity
