@@ -501,6 +501,11 @@ synthetic-id/timestamp expected differences.
   comparison only asserts returned order id and empty user errors. Seed from
   `$.mutation.response.data.orderInvoiceSend.order`, serialize the captured
   order, and do not claim email delivery semantics or notification side effects.
+- `orderCustomerSet`/`orderCustomerRemove` are owned by the Customers domain in
+  the current Gleam port because they drive Customer.orders/lastOrder summary
+  effects. For Orders parity specs, seed customers plus customer order summaries
+  from the capture; do not also register these roots in the Orders dispatch
+  table or customer order-summary parity will route to the wrong domain.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or

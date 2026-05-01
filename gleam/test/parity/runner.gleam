@@ -293,6 +293,8 @@ fn seed_capture_preconditions(
       seed_order_management_preconditions(capture, proxy, "orderClose")
     "orderInvoiceSend-live-parity" ->
       seed_order_management_preconditions(capture, proxy, "orderInvoiceSend")
+    "orderCustomerSet-live-parity" | "orderCustomerRemove-live-parity" ->
+      seed_order_customer_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "b2b-company-roots-read" ->
@@ -1422,6 +1424,14 @@ fn seed_customer_order_summary_preconditions(
     ..proxy,
     store: store_mod.upsert_base_customer_order_summaries(proxy.store, orders),
   )
+}
+
+fn seed_order_customer_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let seeded = seed_customer_preconditions(capture, proxy)
+  seed_customer_order_summary_preconditions(capture, seeded)
 }
 
 fn seed_customer_metafields(

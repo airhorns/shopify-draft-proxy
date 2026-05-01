@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 140: order customer association parity
+
+Promotes the checked-in `orderCustomerSet` and `orderCustomerRemove` parity
+scenarios in the Gleam Orders gate without moving root ownership away from the
+Customers domain. This pass seeds the captured customers and customer order
+summaries required by the existing Customers-domain handlers, then ungates the
+two Orders parity specs.
+
+| Module                            | Change                                                        |
+| --------------------------------- | ------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`  | Seeds order-customer parity from customer/order summary data. |
+| `config/gleam-port-ci-gates.json` | Removes the two newly passing order-customer parity specs.    |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (746 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (742 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 119 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The Gleam Customers domain already owns `orderCustomerSet` and
+  `orderCustomerRemove` because those roots update Customer.orders summary
+  state. Registering them in Orders would route customer order-summary parity to
+  the wrong domain.
+- The standalone Orders parity captures only need the mutation's selected
+  `order.customer` payload and empty user errors. Seeding customer records plus
+  customer order summaries from the capture lets the existing local handler
+  satisfy those targets without duplicating order-customer logic.
+
+### Risks / open items
+
+- Direct order creation/update/delete success, payment mutations, fulfillment,
+  refunds, returns, and order-edit sessions remain gated.
+- Broader customer/order lifecycle edge cases stay with the Customers-domain
+  parity coverage until a later whole-domain cutover reconciles ownership.
+
+### Pass 141 candidates
+
+- Continue with another narrow existing handler/seeding promotion if available,
+  or start a coherent payment lifecycle slice such as `orderMarkAsPaid`.
+
+---
+
 ## 2026-05-01 - Pass 139: order invoice send payload parity
 
 Promotes the checked-in `orderInvoiceSend` parity scenario in the Gleam Orders
