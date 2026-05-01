@@ -76,6 +76,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "draftOrderComplete",
       "draftOrderCreate",
       "draftOrderDelete",
+      "draftOrderDuplicate",
       "draftOrderUpdate",
       "fulfillmentCancel",
       "fulfillmentCreate",
@@ -509,6 +510,26 @@ pub fn process_mutation(
             )
           }
         }
+        Field(name: name, ..) if name.value == "draftOrderDuplicate" -> {
+          let result =
+            handle_draft_order_duplicate(
+              current_store,
+              current_identity,
+              field,
+              fragments,
+              variables,
+            )
+          let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
+            result
+          #(
+            list.append(entries, [#(key, payload)]),
+            errors,
+            next_store,
+            next_identity,
+            list.append(ids, next_ids),
+            list.append(drafts, next_drafts),
+          )
+        }
         Field(name: name, ..) if name.value == "draftOrderUpdate" -> {
           let result =
             handle_draft_order_update(
@@ -834,6 +855,104 @@ fn serialize_draft_order_delete_payload(
       }
     })
   json.object(entries)
+}
+
+fn handle_draft_order_duplicate(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let args = field_arguments(field, variables)
+  let id =
+    read_string_arg(args, "id")
+    |> option.or(read_string_arg(args, "draftOrderId"))
+  case id {
+    Some(id) ->
+      case store.get_draft_order_by_id(store, id) {
+        Some(draft_order) -> {
+          let #(duplicated_draft_order, next_identity) =
+            duplicate_draft_order(store, identity, draft_order)
+          let next_store =
+            store.stage_draft_order(store, duplicated_draft_order)
+          let payload =
+            serialize_draft_order_mutation_payload(
+              field,
+              Some(duplicated_draft_order),
+              [],
+              fragments,
+            )
+          let draft =
+            single_root_log_draft(
+              "draftOrderDuplicate",
+              [duplicated_draft_order.id],
+              store.Staged,
+              "orders",
+              "stage-locally",
+              Some("Locally staged draftOrderDuplicate in shopify-draft-proxy."),
+            )
+          #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            [duplicated_draft_order.id],
+            [draft],
+          )
+        }
+        None ->
+          unknown_draft_order_duplicate_result(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+          )
+      }
+    None ->
+      unknown_draft_order_duplicate_result(
+        key,
+        store,
+        identity,
+        field,
+        fragments,
+      )
+  }
+}
+
+fn unknown_draft_order_duplicate_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(LogDraft),
+) {
+  let payload =
+    serialize_draft_order_mutation_payload(
+      field,
+      None,
+      [
+        #(["id"], "Draft order does not exist"),
+      ],
+      fragments,
+    )
+  #(key, payload, store, identity, [], [])
 }
 
 fn handle_draft_order_update(
@@ -1362,6 +1481,113 @@ fn build_updated_draft_order(
     |> replace_captured_object_fields(replacements)
     |> recalculate_draft_order_totals(currency_code)
   #(DraftOrderRecord(..draft_order, data: updated_data), next_identity)
+}
+
+fn duplicate_draft_order(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  draft_order: DraftOrderRecord,
+) -> #(DraftOrderRecord, SyntheticIdentityRegistry) {
+  let #(draft_order_id, identity_after_id) =
+    synthetic_identity.make_synthetic_gid(identity, "DraftOrder")
+  let #(created_at, identity_after_time) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let currency_code = captured_order_currency(draft_order.data)
+  let #(line_items, next_identity) =
+    duplicate_draft_order_line_items(
+      identity_after_time,
+      draft_order_line_items(draft_order.data),
+      currency_code,
+    )
+  let data =
+    draft_order.data
+    |> replace_captured_object_fields([
+      #("id", CapturedString(draft_order_id)),
+      #(
+        "name",
+        CapturedString(
+          "#D"
+          <> int.to_string(
+            list.length(store.list_effective_draft_orders(store)) + 1,
+          ),
+        ),
+      ),
+      #(
+        "invoiceUrl",
+        CapturedString(
+          "https://shopify-draft-proxy.local/draft_orders/"
+          <> draft_order_id
+          <> "/invoice",
+        ),
+      ),
+      #("orderId", CapturedNull),
+      #("completedAt", CapturedNull),
+      #("status", CapturedString("OPEN")),
+      #("ready", CapturedBool(True)),
+      #("taxExempt", CapturedBool(False)),
+      #("reserveInventoryUntil", CapturedNull),
+      #("paymentTerms", CapturedNull),
+      #("appliedDiscount", CapturedNull),
+      #("shippingLine", CapturedNull),
+      #("createdAt", CapturedString(created_at)),
+      #("updatedAt", CapturedString(created_at)),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
+    ])
+    |> recalculate_draft_order_totals(currency_code)
+  #(
+    DraftOrderRecord(id: draft_order_id, cursor: None, data: data),
+    next_identity,
+  )
+}
+
+fn duplicate_draft_order_line_items(
+  identity: SyntheticIdentityRegistry,
+  line_items: List(CapturedJsonValue),
+  currency_code: String,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  let initial: #(List(CapturedJsonValue), SyntheticIdentityRegistry) = #(
+    [],
+    identity,
+  )
+  line_items
+  |> list.fold(initial, fn(acc, item) {
+    let #(items, current_identity) = acc
+    let #(id, next_identity) =
+      synthetic_identity.make_synthetic_gid(
+        current_identity,
+        "DraftOrderLineItem",
+      )
+    #(
+      list.append(items, [
+        duplicate_draft_order_line_item(id, item, currency_code),
+      ]),
+      next_identity,
+    )
+  })
+}
+
+fn duplicate_draft_order_line_item(
+  id: String,
+  item: CapturedJsonValue,
+  currency_code: String,
+) -> CapturedJsonValue {
+  let quantity = captured_int_field(item, "quantity") |> option.unwrap(0)
+  let original_total = case captured_object_field(item, "originalTotalSet") {
+    Some(total) -> total
+    None ->
+      money_set(
+        captured_money_amount(item, "originalUnitPriceSet")
+          *. int.to_float(quantity),
+        currency_code,
+      )
+  }
+  item
+  |> replace_captured_object_fields([
+    #("id", CapturedString(id)),
+    #("appliedDiscount", CapturedNull),
+    #("discountedTotalSet", original_total),
+    #("totalDiscountSet", money_set(0.0, currency_code)),
+  ])
 }
 
 fn replace_if_present(

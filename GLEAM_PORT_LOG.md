@@ -9,6 +9,61 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 125: draft order duplicate lifecycle
+
+Promotes the captured `draftOrderDuplicate` parity plan in the Gleam Orders
+domain. This pass stages a local duplicate with fresh draft-order and line-item
+IDs, preserves the copied customer/address/tag/custom-attribute fields, clears
+the Shopify-cleared shipping and discount fields, recalculates totals, and keeps
+the duplicate visible through downstream `draftOrder(id:)` reads.
+
+| Module                                                   | Change                                                                           |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderDuplicate` mutation handling and duplicate graph normalization.  |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured setup draft order before replaying the duplicate parity plan. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers duplicate payload normalization and downstream reads directly.            |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderDuplicate-parity-plan` spec.                |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (733 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (729 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 143 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify duplicate preserves identifying customer/address/tag/custom-attribute
+  data from the source draft, but it clears `taxExempt`,
+  `reserveInventoryUntil`, order-level discount, shipping line, and line-item
+  discounts before recalculating totals.
+- The parity spec already treats duplicate draft ids, names, invoice URLs, and
+  line-item ids as expected differences, so the port can use deterministic
+  synthetic ids while strictly comparing the stable duplicated graph.
+
+### Risks / open items
+
+- `draftOrderComplete` success, invoice, bulk/helper roots, and broader
+  draft-order search/count reads remain gated.
+- Order lifecycle, order editing success paths, fulfillment success paths,
+  refunds, and returns remain unported.
+
+### Pass 126 candidates
+
+- Continue draft-order lifecycle with `draftOrderComplete` success if the
+  checked-in fixture can be modeled safely, or move to a small draft-order
+  read/count/search slice backed by checked-in parity evidence.
+
+---
+
 ## 2026-05-01 - Pass 124: draft order update lifecycle
 
 Promotes the captured `draftOrderUpdate` parity plan in the Gleam Orders

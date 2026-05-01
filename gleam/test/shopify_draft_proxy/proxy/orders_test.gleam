@@ -1127,3 +1127,159 @@ pub fn orders_draft_order_update_read_after_write_test() {
   assert json.to_string(read_result)
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"email\":\"updated-draft@example.test\",\"note\":\"Updated note\",\"tags\":[\"draft\",\"updated\"],\"totalQuantityOfLineItems\":2,\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"30.0\",\"currencyCode\":\"CAD\"}}}}}"
 }
+
+pub fn orders_draft_order_duplicate_read_after_write_test() {
+  let create_mutation =
+    "
+    mutation {
+      draftOrderCreate(input: {
+        email: \"duplicate-source@example.test\"
+        tags: [\"duplicate\", \"source\"]
+        lineItems: [{
+          title: \"Custom service\"
+          quantity: 2
+          originalUnitPrice: \"20.00\"
+          requiresShipping: false
+          taxable: false
+          sku: \"CUSTOM\"
+          appliedDiscount: {
+            title: \"Service discount\"
+            description: \"10 percent off\"
+            value: 10
+            amount: 4
+            valueType: PERCENTAGE
+          }
+        }]
+        shippingLine: {
+          title: \"Courier\"
+          priceWithCurrency: { amount: \"7.25\", currencyCode: CAD }
+        }
+      }) {
+        draftOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(create_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      create_mutation,
+      dict.new(),
+    )
+
+  let duplicate_mutation =
+    "
+    mutation DraftOrderDuplicate($id: ID) {
+      draftOrderDuplicate(id: $id) {
+        draftOrder {
+          id
+          name
+          invoiceUrl
+          status
+          ready
+          email
+          tags
+          shippingLine {
+            title
+          }
+          subtotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalDiscountsSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalShippingPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          lineItems {
+            nodes {
+              id
+              title
+              quantity
+              sku
+              appliedDiscount {
+                title
+              }
+              discountedTotalSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              totalDiscountSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(duplicate_outcome) =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      duplicate_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+      ]),
+    )
+
+  assert json.to_string(duplicate_outcome.data)
+    == "{\"data\":{\"draftOrderDuplicate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/3\",\"name\":\"#D2\",\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/3/invoice\",\"status\":\"OPEN\",\"ready\":true,\"email\":\"duplicate-source@example.test\",\"tags\":[\"duplicate\",\"source\"],\"shippingLine\":null,\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"40.0\",\"currencyCode\":\"CAD\"}},\"totalDiscountsSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"totalShippingPriceSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"40.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/DraftOrderLineItem/4\",\"title\":\"Custom service\",\"quantity\":2,\"sku\":\"CUSTOM\",\"appliedDiscount\":null,\"discountedTotalSet\":{\"shopMoney\":{\"amount\":\"40.0\",\"currencyCode\":\"CAD\"}},\"totalDiscountSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}}}]}},\"userErrors\":[]}}}"
+  assert duplicate_outcome.staged_resource_ids == ["gid://shopify/DraftOrder/3"]
+  assert list.length(duplicate_outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query {
+      draftOrder(id: \"gid://shopify/DraftOrder/3\") {
+        id
+        email
+        shippingLine {
+          title
+        }
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read_result) =
+    orders.process(duplicate_outcome.store, read_query, dict.new())
+  assert json.to_string(read_result)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/3\",\"email\":\"duplicate-source@example.test\",\"shippingLine\":null,\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"40.0\",\"currencyCode\":\"CAD\"}}}}}"
+}

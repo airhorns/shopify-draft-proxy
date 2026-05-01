@@ -472,6 +472,11 @@ synthetic-id/timestamp expected differences.
   captured stable fields such as id/name/invoice URL/customer/addresses, and
   recalculate money totals from effective line items, order discount, and
   shipping line before serializing downstream `draftOrder(id:)` reads.
+- `draftOrderDuplicate` parity uses the same captured setup draft-order seed
+  path, then creates a new staged draft and fresh line-item ids. Shopify's
+  duplicate clears source shipping, order-level discount, line-item discounts,
+  `taxExempt`, and `reserveInventoryUntil`; recalculate totals from the
+  cleared duplicate rather than copying source totals.
 
 ## Workflow for a new pass
 
