@@ -107,6 +107,7 @@ Koa server -> DraftProxy instance
 - mutation pipeline
 - response overlay engine
 - GraphQL route dispatch keeps HTTP validation, auth/upstream wiring, and unsupported fallback passthrough in `routes.ts`; domain behavior is selected through a `DomainDispatcher` table whose entries own `canHandle`, mutation handling, query handling, and live-hybrid hydration decisions for their resource area.
+- The Functions domain is cut over through `functions-gleam-bridge.ts`: the TypeScript dispatcher, admin-platform `Validation` Node resolver, bulk-operation inner mutation executor, and parity harness keep their TypeScript call surfaces while delegating Functions query/mutation execution to the Gleam JavaScript build. The bridge copies only Functions-owned state buckets plus the synthetic identity registry into a Gleam proxy dump, runs the Gleam Functions handler, and copies those owned buckets back into the instance-owned TypeScript runtime state.
 
 ### `src/shopify/`
 

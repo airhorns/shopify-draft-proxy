@@ -218,6 +218,51 @@ describe('Shopify Function metadata flow', () => {
       },
     });
 
+    const nodeRead = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadValidationNode($id: ID!) {
+          node(id: $id) {
+            id
+            __typename
+            ... on Validation {
+              title
+              enable
+              shopifyFunction { id handle apiType }
+            }
+          }
+          nodes(ids: [$id, "gid://shopify/Validation/404"]) {
+            id
+            __typename
+            ... on Validation { title }
+          }
+        }`,
+        variables: { id: validation.id },
+      });
+
+    expect(nodeRead.status).toBe(200);
+    expect(nodeRead.body.data).toEqual({
+      node: {
+        id: validation.id,
+        __typename: 'Validation',
+        title: 'Updated validation',
+        enable: false,
+        shopifyFunction: {
+          id: 'gid://shopify/ShopifyFunction/validation-local',
+          handle: 'validation-local',
+          apiType: 'VALIDATION',
+        },
+      },
+      nodes: [
+        {
+          id: validation.id,
+          __typename: 'Validation',
+          title: 'Updated validation',
+        },
+        null,
+      ],
+    });
+
     const taxAppConfigure = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
@@ -313,6 +358,139 @@ describe('Shopify Function metadata flow', () => {
     expect(store.getLog()[0]?.requestBody).toEqual(createValidationBody);
     expect(store.getLog()[2]?.requestBody).toEqual(createCartTransformBody);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages Functions inner mutations through bulkOperationRunMutation', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('bulkOperationRunMutation Functions imports should stay local'));
+    const app = createApp(config).callback();
+    const stagedUploadPath = 'shopify-draft-proxy/gid://shopify/StagedUploadTarget0/functions-validation-create.jsonl';
+    const validVariables = {
+      validation: {
+        functionHandle: 'bulk-validation',
+        title: 'Bulk validation',
+        enable: true,
+      },
+    };
+    const invalidVariables = {
+      validation: {
+        title: 'Missing function metadata',
+      },
+    };
+    store.stageUploadContent(
+      [stagedUploadPath],
+      `${JSON.stringify(validVariables)}\n${JSON.stringify(invalidVariables)}\n`,
+    );
+
+    const innerMutation = `mutation BulkValidationCreate($validation: ValidationCreateInput!) {
+      validationCreate(validation: $validation) {
+        validation { id title enable functionHandle }
+        userErrors { field message code }
+      }
+    }`;
+    const bulkResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+            bulkOperation { id status type objectCount rootObjectCount url query }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          mutation: innerMutation,
+          stagedUploadPath,
+        },
+      });
+
+    expect(bulkResponse.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(bulkResponse.body.data.bulkOperationRunMutation.userErrors).toEqual([]);
+    expect(bulkResponse.body.data.bulkOperationRunMutation.bulkOperation).toMatchObject({
+      status: 'COMPLETED',
+      type: 'MUTATION',
+      objectCount: '1',
+      rootObjectCount: '1',
+      query: innerMutation,
+    });
+
+    const operationId = bulkResponse.body.data.bulkOperationRunMutation.bulkOperation.id as string;
+    const resultResponse = await request(app).get(
+      `/__meta/bulk-operations/${encodeURIComponent(operationId)}/result.jsonl`,
+    );
+    const resultRows = resultResponse.text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    expect(resultResponse.status).toBe(200);
+    expect(resultRows).toHaveLength(2);
+    expect(resultRows[0]).toMatchObject({
+      line: 1,
+      response: {
+        data: {
+          validationCreate: {
+            validation: {
+              title: 'Bulk validation',
+              enable: true,
+              functionHandle: 'bulk-validation',
+            },
+            userErrors: [],
+          },
+        },
+      },
+    });
+    const firstResultRow = resultRows[0];
+    if (!firstResultRow) {
+      throw new Error('Expected bulkOperationRunMutation to write a first result row.');
+    }
+    const firstResultResponse = firstResultRow['response'] as {
+      data?: { validationCreate?: { validation?: { id?: unknown } } };
+    };
+    const bulkValidationId = firstResultResponse.data?.validationCreate?.validation?.id;
+    expect(bulkValidationId).toEqual(expect.stringMatching(/^gid:\/\/shopify\/Validation\/[0-9]+$/u));
+    expect(resultRows[1]).toEqual({
+      line: 2,
+      response: {
+        data: {
+          validationCreate: {
+            validation: null,
+            userErrors: [
+              {
+                field: ['validation', 'functionHandle'],
+                message: 'Function handle or function ID must be provided',
+                code: 'MISSING_FUNCTION',
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const readValidation = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadBulkValidation($id: ID!) {
+          validation(id: $id) { id title enable functionHandle }
+          shopifyFunction(id: "gid://shopify/ShopifyFunction/bulk-validation") { id handle apiType }
+        }`,
+        variables: { id: bulkValidationId },
+      });
+
+    expect(readValidation.body.data).toEqual({
+      validation: {
+        id: bulkValidationId,
+        title: 'Bulk validation',
+        enable: true,
+        functionHandle: 'bulk-validation',
+      },
+      shopifyFunction: {
+        id: 'gid://shopify/ShopifyFunction/bulk-validation',
+        handle: 'bulk-validation',
+        apiType: 'VALIDATION',
+      },
+    });
   });
 
   it('preserves app ownership metadata when function-backed resources reference known Functions', async () => {

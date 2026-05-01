@@ -17,7 +17,7 @@ import { isProxySyntheticGid } from '../state/synthetic-identity.js';
 import type { BulkOperationRecord } from '../state/types.js';
 import { handleDeliveryProfileMutation } from './delivery-profiles.js';
 import { handleDiscountMutation } from './discounts.js';
-import { handleFunctionMutation } from './functions.js';
+import { handleFunctionMutation } from './functions-gleam-bridge.js';
 import { handleGiftCardMutation } from './gift-cards.js';
 import { handleInventoryShipmentMutation } from './inventory-shipments.js';
 import { handleLocalizationMutation } from './localization.js';
@@ -954,13 +954,13 @@ const ORDER_BACKED_SHIPPING_FULFILLMENT_MUTATION_ROOTS = new Set([
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTermsUpdate', 'paymentTermsDelete']);
 
-function handleSupportedBulkImportInnerMutation(
+async function handleSupportedBulkImportInnerMutation(
   runtime: ProxyRuntimeContext,
   innerMutation: { rootField: string; capability: OperationCapability },
   mutation: string,
   variables: Record<string, unknown>,
   options: BulkOperationMutationOptions,
-): { responseBody: GraphqlResponseBody; stagedResourceIds: string[] } | null {
+): Promise<{ responseBody: GraphqlResponseBody; stagedResourceIds: string[] } | null> {
   const { rootField, capability } = innerMutation;
   const stagedResourceIds: string[] = [];
   let responseBody: GraphqlResponseBody | null = null;
@@ -980,7 +980,10 @@ function handleSupportedBulkImportInnerMutation(
       break;
     }
     case 'functions':
-      responseBody = handleFunctionMutation(runtime, mutation, variables) as GraphqlResponseBody;
+      responseBody = (await handleFunctionMutation(runtime, mutation, variables, {
+        readMode: options.readMode,
+        shopifyAdminOrigin: options.shopifyAdminOrigin,
+      })) as GraphqlResponseBody;
       break;
     case 'gift-cards':
       responseBody = handleGiftCardMutation(runtime, mutation, variables) as GraphqlResponseBody;
@@ -1125,12 +1128,12 @@ function makeJsonl(rows: Array<Record<string, unknown>>): string {
   return rows.map((row) => JSON.stringify(row)).join('\n') + (rows.length > 0 ? '\n' : '');
 }
 
-function handleBulkOperationRunMutation(
+async function handleBulkOperationRunMutation(
   runtime: ProxyRuntimeContext,
   field: FieldNode,
   args: Record<string, unknown>,
   options: BulkOperationMutationOptions,
-): BulkOperationMutationResult {
+): Promise<BulkOperationMutationResult> {
   const key = getFieldResponseKey(field);
   const mutation = readStringArgument(args, 'mutation');
   const stagedUploadPath = readStringArgument(args, 'stagedUploadPath');
@@ -1227,7 +1230,7 @@ function handleBulkOperationRunMutation(
       continue;
     }
 
-    const executionResult = handleSupportedBulkImportInnerMutation(
+    const executionResult = await handleSupportedBulkImportInnerMutation(
       runtime,
       innerMutation,
       mutation,
@@ -1347,12 +1350,12 @@ export function handleBulkOperationQuery(
   return { data };
 }
 
-export function handleBulkOperationMutation(
+export async function handleBulkOperationMutation(
   runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   options: BulkOperationMutationOptions,
-): BulkOperationMutationResult | null {
+): Promise<BulkOperationMutationResult | null> {
   const data: Record<string, unknown> = {};
   const stagedResourceIds: string[] = [];
   let handled = false;

@@ -22,7 +22,7 @@ import { handleBulkOperationQuery } from './bulk-operations.js';
 import { handleCustomerQuery } from './customers.js';
 import { handleDeliveryProfileQuery, serializeDeliveryProfileNestedNodeById } from './delivery-profiles.js';
 import { handleDiscountQuery } from './discounts.js';
-import { handleFunctionQuery } from './functions.js';
+import { handleFunctionQuery } from './functions-gleam-bridge.js';
 import { handleGiftCardQuery } from './gift-cards.js';
 import {
   getDocumentFragments,
@@ -673,7 +673,7 @@ type LocalNodeQueryHandler = (
   runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
-) => unknown;
+) => unknown | Promise<unknown>;
 
 interface LocalNodeResolver {
   rootField: string;
@@ -1108,14 +1108,14 @@ function applySelectedTypename(
   return payload;
 }
 
-function serializeLocalNodeWithResolver(
+async function serializeLocalNodeWithResolver(
   runtime: ProxyRuntimeContext,
   id: string,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
   fragments: FragmentMap,
   resolver: AdminPlatformNodeResolver,
-): Record<string, unknown> | null {
+): Promise<Record<string, unknown> | null> {
   const selectedFields = collectApplicableNodeFields(selections, resolver, fragments);
   if (selectedFields.length === 0) {
     return {};
@@ -1126,7 +1126,7 @@ function serializeLocalNodeWithResolver(
   }
 
   const syntheticDocument = `query ProxyNodeLookup { ${PROXY_NODE_RESPONSE_KEY}: ${resolver.rootField}(id: $${PROXY_NODE_ID_VARIABLE}) { ${selectedFields.map((field) => print(field)).join('\n')} } }`;
-  const response = resolver.handler(runtime, syntheticDocument, {
+  const response = await resolver.handler(runtime, syntheticDocument, {
     ...variables,
     [PROXY_NODE_ID_VARIABLE]: id,
   });
@@ -1137,13 +1137,13 @@ function serializeLocalNodeWithResolver(
   return isPlainObject(payload) ? applySelectedTypename(payload, selectedFields, resolver.typename) : null;
 }
 
-function serializeLocalNodeById(
+async function serializeLocalNodeById(
   runtime: ProxyRuntimeContext,
   id: string,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
   fragments: FragmentMap,
-): Record<string, unknown> | null {
+): Promise<Record<string, unknown> | null> {
   if (id.startsWith('gid://shopify/Domain/')) {
     const primaryDomain = runtime.store.getEffectiveShop()?.primaryDomain ?? null;
     return primaryDomain?.id === id ? serializeDomain(primaryDomain, selections) : null;
@@ -1160,19 +1160,19 @@ function serializeLocalNodeById(
     hasExplicitNodeTypeSelection(selections, 'DiscountNode', fragments)
   ) {
     return DISCOUNT_NODE_RESOLVER
-      ? serializeLocalNodeWithResolver(runtime, id, selections, variables, fragments, DISCOUNT_NODE_RESOLVER)
+      ? await serializeLocalNodeWithResolver(runtime, id, selections, variables, fragments, DISCOUNT_NODE_RESOLVER)
       : null;
   }
 
   return serializeLocalNodeWithResolver(runtime, id, selections, variables, fragments, resolver);
 }
 
-function serializeNode(
+async function serializeNode(
   runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
-): Record<string, unknown> | null {
+): Promise<Record<string, unknown> | null> {
   const id = readIdArgument(field, variables);
   if (!id) {
     return null;
@@ -1401,11 +1401,11 @@ export interface AdminPlatformMutationResult {
   notes?: string;
 }
 
-export function handleAdminPlatformQuery(
+export async function handleAdminPlatformQuery(
   runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   const fields = getRootFields(document);
   const fragments = getDocumentFragments(document);
   const context: SerializationContext = { errors: [] };
@@ -1420,11 +1420,13 @@ export function handleAdminPlatformQuery(
         );
         break;
       case 'node':
-        data[key] = serializeNode(runtime, field, variables, fragments);
+        data[key] = await serializeNode(runtime, field, variables, fragments);
         break;
       case 'nodes':
-        data[key] = readIdListArgument(field, variables).map((id) =>
-          serializeLocalNodeById(runtime, id, field.selectionSet?.selections ?? [], variables, fragments),
+        data[key] = await Promise.all(
+          readIdListArgument(field, variables).map((id) =>
+            serializeLocalNodeById(runtime, id, field.selectionSet?.selections ?? [], variables, fragments),
+          ),
         );
         break;
       case 'job':

@@ -293,6 +293,16 @@ TypeScript conformance harness seeds the synthetic registry before the
 primary request; mirror that seed in the Gleam runner rather than adding
 broad synthetic-id/timestamp expected differences.
 
+HAR-517 added the first domain runtime cutover bridge from the TypeScript
+dispatcher into a Gleam-emitted JS domain module. Keep the public TypeScript
+handler surface stable, copy only the domain-owned state buckets plus synthetic
+identity through the shared state-dump shape, and preserve the legacy
+TypeScript domain module/tests until final all-port retirement. When loading
+multiple generated Gleam ESM modules from a Vitest-covered TypeScript bridge,
+load them sequentially; concurrent `Promise.all` imports of the generated
+module graph can deadlock under vite-node even though Node imports work
+outside Vitest.
+
 ### Porting notes
 
 - Events is a read-only, no-data domain. Gleam coverage for `event`, `events`,

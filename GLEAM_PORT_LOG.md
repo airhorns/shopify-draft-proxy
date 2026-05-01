@@ -9,6 +9,54 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 168: HAR-517 Functions runtime bridge cutover
+
+Cuts the shipping TypeScript Functions dispatch path over to the Gleam
+Functions runtime while preserving the existing TypeScript public handler
+surface and keeping the legacy TypeScript Functions module/tests intact under
+the incremental-port guardrail.
+
+| Module                                                | Change                                                                                                      |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `src/proxy/functions-gleam-bridge.ts`                 | Adds the TS-to-Gleam bridge that snapshots Functions-owned state buckets and synthetic identity into Gleam. |
+| `src/proxy/routes.ts`                                 | Routes Functions queries/mutations through the Gleam bridge.                                                |
+| `src/proxy/admin-platform.ts`                         | Awaits async local Node resolution so `Validation` nodes resolve through the bridge.                        |
+| `src/proxy/bulk-operations.ts`                        | Awaits Functions-owned inner mutation handling for local bulk imports.                                      |
+| `scripts/conformance-parity-lib.ts`                   | Executes Functions parity scenarios through the same bridge path.                                           |
+| `tests/integration/functions-flow.test.ts`            | Covers direct Functions lifecycle, `Validation` Node reads, and Functions inner bulk mutation imports.      |
+| `docs/architecture.md`, `docs/endpoints/functions.md` | Documents the bridge and cutover boundary.                                                                  |
+| `.agents/skills/gleam-port/SKILL.md`                  | Records the sequential generated-ESM import note for future TS bridge work.                                 |
+
+Validation:
+
+- `corepack pnpm typecheck`
+- `corepack pnpm lint`
+- `corepack pnpm vitest run tests/integration/functions-flow.test.ts tests/unit/conformance-parity-scenarios.test.ts`
+  (388 passed)
+- `cd gleam && gleam test --target javascript` (773 passed)
+- `cd gleam && gleam test --target erlang` on the host fails because host
+  Erlang/OTP is 25 and `gleam_json` requires OTP 27+.
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`
+  after clearing the stale host Erlang build cache (769 passed)
+
+### Findings
+
+- Vite/Vitest can deadlock when a TypeScript bridge imports several generated
+  Gleam ESM modules concurrently with `Promise.all`; sequential absolute-path
+  imports avoid the deadlock and keep the bridge lazy-buildable when
+  `gleam/build` is absent.
+- The bridge can reuse the stable state-dump envelope and copy only the
+  Functions-owned store buckets plus synthetic identity, avoiding a new
+  runtime singleton or broad state mapper.
+
+### Risks / open items
+
+- `src/proxy/functions.ts` remains in place as the legacy TypeScript reference
+  module under the incremental-port preservation rule. Final deletion is still
+  deferred until the whole-port cutover acceptance bar is met.
+
+---
+
 ## 2026-05-01 - Pass 167: HAR-496 payments branch localization refresh
 
 Refreshes the HAR-496 Payments branch after `origin/main` advanced with the

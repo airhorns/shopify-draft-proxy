@@ -46,7 +46,7 @@ import {
   FUNCTION_QUERY_ROOTS,
   handleFunctionMutation,
   handleFunctionQuery,
-} from './functions.js';
+} from './functions-gleam-bridge.js';
 import { handleGiftCardMutation, handleGiftCardQuery } from './gift-cards.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import {
@@ -877,7 +877,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       return false;
     },
-    handleMutation(request) {
+    async handleMutation(request) {
       if (
         request.primaryRootField === null ||
         !APP_MUTATION_ROOTS.has(request.primaryRootField) ||
@@ -910,7 +910,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     canHandle: (request) =>
       request.parsed.type === 'mutation' ||
       (request.capability.execution === 'overlay-read' && request.capability.domain === 'discounts'),
-    handleMutation(request) {
+    async handleMutation(request) {
       const discountMutation = handleDiscountMutation(request.runtime, request.body.query, request.variables);
       if (!discountMutation) {
         return false;
@@ -957,7 +957,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
   {
     name: 'bulk-operations',
     canHandle: (request) => request.capability.domain === 'bulk-operations',
-    handleMutation(request) {
+    async handleMutation(request) {
       if (
         request.capability.execution !== 'stage-locally' ||
         (request.primaryRootField !== 'bulkOperationCancel' &&
@@ -967,7 +967,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const bulkOperationMutation = handleBulkOperationMutation(
+      const bulkOperationMutation = await handleBulkOperationMutation(
         request.runtime,
         request.body.query,
         request.variables,
@@ -1429,7 +1429,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
   {
     name: 'media',
     canHandle: (request) => request.capability.domain === 'media',
-    handleMutation(request) {
+    async handleMutation(request) {
       if (request.capability.execution !== 'stage-locally') {
         return false;
       }
@@ -1531,7 +1531,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       return false;
     },
-    handleMutation(request) {
+    async handleMutation(request) {
       if (request.capability.execution !== 'stage-locally') {
         return false;
       }
@@ -2212,13 +2212,21 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleFunctionQuery(request.runtime, request.body.query, request.variables));
+        setGraphQLResponse(
+          request,
+          200,
+          await handleFunctionQuery(request.runtime, request.body.query, request.variables, request.config),
+        );
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         if (request.runtimeStore.hasFunctionMetadata()) {
-          setGraphQLResponse(request, 200, handleFunctionQuery(request.runtime, request.body.query, request.variables));
+          setGraphQLResponse(
+            request,
+            200,
+            await handleFunctionQuery(request.runtime, request.body.query, request.variables, request.config),
+          );
           return true;
         }
 
@@ -2229,12 +2237,18 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       return false;
     },
-    handleMutation(request) {
+    async handleMutation(request) {
       if (request.capability.execution !== 'stage-locally') {
         return false;
       }
 
-      const responseBody = handleFunctionMutation(request.runtime, request.body.query, request.variables);
+      const responseBody = await handleFunctionMutation(
+        request.runtime,
+        request.body.query,
+        request.variables,
+        request.config,
+        request.ctx.path,
+      );
       recordStagedMutation(request, {
         responseBody,
         notes:
@@ -2488,11 +2502,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       (request.parsed.type === 'mutation' &&
         request.capability.execution === 'stage-locally' &&
         request.parsed.rootFields.some((rootField) => ADMIN_PLATFORM_MUTATION_ROOTS.has(rootField))),
-    handleQuery(request) {
+    async handleQuery(request) {
       setGraphQLResponse(
         request,
         200,
-        handleAdminPlatformQuery(request.runtime, request.body.query, request.variables),
+        await handleAdminPlatformQuery(request.runtime, request.body.query, request.variables),
       );
       return true;
     },

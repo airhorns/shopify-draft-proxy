@@ -38,7 +38,7 @@ import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/pr
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDeliverySettingsQuery } from '../src/proxy/delivery-settings.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
-import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions.js';
+import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions-gleam-bridge.js';
 import { handleGiftCardMutation, handleGiftCardQuery } from '../src/proxy/gift-cards.js';
 import { getFieldResponseKey, getSelectedChildFields, serializeConnection } from '../src/proxy/graphql-helpers.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
@@ -1273,7 +1273,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleFunctionMutation(runtime, document, variables),
+      body: await handleFunctionMutation(runtime, document, variables),
     };
   }
 
@@ -1462,7 +1462,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'bulk-operations') {
-    const bulkOperationMutation = handleBulkOperationMutation(runtime, document, variables, {
+    const bulkOperationMutation = await handleBulkOperationMutation(runtime, document, variables, {
       readMode: 'snapshot',
       shopifyAdminOrigin: 'https://example.myshopify.com',
     });
@@ -1756,7 +1756,7 @@ async function executeGraphQLAgainstLocalProxy(
   if (capability.execution === 'overlay-read' && capability.domain === 'admin-platform') {
     return {
       status: 200,
-      body: handleAdminPlatformQuery(runtime, document, variables),
+      body: await handleAdminPlatformQuery(runtime, document, variables),
     };
   }
 
@@ -1808,7 +1808,7 @@ async function executeGraphQLAgainstLocalProxy(
   if (capability.execution === 'overlay-read' && capability.domain === 'functions') {
     return {
       status: 200,
-      body: handleFunctionQuery(runtime, document, variables),
+      body: await handleFunctionQuery(runtime, document, variables),
     };
   }
 
