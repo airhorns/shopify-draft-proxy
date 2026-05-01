@@ -39,6 +39,7 @@ import shopify_draft_proxy/proxy/draft_proxy.{
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
+  type AdminPlatformGenericNodeRecord, type AdminPlatformTaxonomyCategoryRecord,
   type CapturedJsonValue, type CollectionImageRecord, type CollectionRecord,
   type CollectionRuleRecord, type CollectionRuleSetRecord,
   type CustomerAccountPageRecord, type CustomerAddressRecord,
@@ -73,27 +74,29 @@ import shopify_draft_proxy/state/types.{
   type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
   type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, type StoreCreditAccountRecord,
-  type StorePropertyRecord, type StorePropertyValue, CapturedArray, CapturedBool,
-  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
-  CollectionRuleSetRecord, CustomerAccountPageRecord, CustomerAddressRecord,
-  CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
-  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
-  CustomerEventSummaryRecord, CustomerMetafieldRecord,
-  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
-  GiftCardTransactionRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
-  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
-  LocationRecord, MetafieldDefinitionCapabilitiesRecord,
-  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintValueRecord,
-  MetafieldDefinitionConstraintsRecord, MetafieldDefinitionRecord,
-  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
-  MetaobjectBool, MetaobjectCapabilitiesRecord,
-  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
-  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
-  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
+  type StorePropertyRecord, type StorePropertyValue,
+  AdminPlatformGenericNodeRecord, AdminPlatformTaxonomyCategoryRecord,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, CollectionImageRecord, CollectionRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, CustomerAccountPageRecord,
+  CustomerAddressRecord, CustomerCatalogConnectionRecord,
+  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerEmailMarketingConsentRecord, CustomerEventSummaryRecord,
+  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
+  CustomerSmsMarketingConsentRecord, GiftCardConfigurationRecord,
+  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
+  InventoryWeightInt, InventoryWeightRecord, LocationRecord,
+  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
+  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
+  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
+  MetafieldDefinitionValidationRecord, MetaobjectBool,
+  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
+  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
+  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
+  MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
@@ -212,6 +215,7 @@ fn seed_capture_preconditions(
   let proxy = seed_captured_products_preconditions(capture, proxy)
   let proxy = seed_selling_plan_group_preconditions(capture, proxy)
   let proxy = seed_product_media_preconditions(capture, proxy)
+  let proxy = seed_admin_platform_node_preconditions(capture, proxy)
   case parsed.scenario_id {
     "gift-card-search-filters" ->
       seed_gift_card_lifecycle_preconditions(capture, proxy)
@@ -419,6 +423,208 @@ fn is_customer_seeded_scenario(scenario_id: String) -> Bool {
     _ ->
       string.starts_with(scenario_id, "customer")
       || string.starts_with(scenario_id, "customers")
+  }
+}
+
+fn seed_admin_platform_node_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let generic_nodes = collect_admin_platform_generic_nodes(capture)
+  let taxonomy_categories = collect_admin_platform_taxonomy_categories(capture)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_admin_platform_generic_nodes(generic_nodes)
+    |> store_mod.upsert_base_admin_platform_taxonomy_categories(
+      taxonomy_categories,
+    )
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn collect_admin_platform_generic_nodes(
+  capture: JsonValue,
+) -> List(AdminPlatformGenericNodeRecord) {
+  collect_objects(capture)
+  |> list.filter_map(fn(object) {
+    use id <- result.try(read_string_field(object, "id") |> option_to_result())
+    case string.starts_with(id, "gid://shopify/") {
+      False -> Error(Nil)
+      True -> {
+        let typename =
+          read_string_field(object, "__typename")
+          |> option.or(gid_resource_type(id))
+        case typename {
+          Some(typename) ->
+            Ok(AdminPlatformGenericNodeRecord(
+              id: id,
+              typename: typename,
+              data: captured_json_from_parity(object),
+            ))
+          None -> Error(Nil)
+        }
+      }
+    }
+  })
+  |> dedupe_generic_admin_nodes(dict.new(), [])
+}
+
+fn dedupe_generic_admin_nodes(
+  records: List(AdminPlatformGenericNodeRecord),
+  seen: Dict(String, AdminPlatformGenericNodeRecord),
+  order: List(String),
+) -> List(AdminPlatformGenericNodeRecord) {
+  case records {
+    [] ->
+      order
+      |> list.reverse
+      |> list.filter_map(fn(id) {
+        case dict.get(seen, id) {
+          Ok(record) -> Ok(record)
+          Error(_) -> Error(Nil)
+        }
+      })
+    [record, ..rest] -> {
+      let current = dict.get(seen, record.id)
+      let next_seen = case current {
+        Ok(existing) ->
+          case
+            captured_object_field_count(record.data)
+            > captured_object_field_count(existing.data)
+          {
+            True -> dict.insert(seen, record.id, record)
+            False -> seen
+          }
+        Error(_) -> dict.insert(seen, record.id, record)
+      }
+      let next_order = case current {
+        Ok(_) -> order
+        Error(_) -> [record.id, ..order]
+      }
+      dedupe_generic_admin_nodes(rest, next_seen, next_order)
+    }
+  }
+}
+
+fn collect_admin_platform_taxonomy_categories(
+  capture: JsonValue,
+) -> List(AdminPlatformTaxonomyCategoryRecord) {
+  let objects = collect_objects(capture)
+  let edge_ids_and_cursors =
+    objects
+    |> list.filter_map(fn(object) {
+      use cursor <- result.try(
+        read_string_field(object, "cursor") |> option_to_result(),
+      )
+      use node <- result.try(
+        read_object_field(object, "node") |> option_to_result(),
+      )
+      use id <- result.try(read_string_field(node, "id") |> option_to_result())
+      case string.starts_with(id, "gid://shopify/TaxonomyCategory/") {
+        True -> Ok(#(id, cursor))
+        False -> Error(Nil)
+      }
+    })
+  let edge_order =
+    edge_ids_and_cursors
+    |> list.map(fn(pair) { pair.0 })
+    |> dedupe_strings_preserving_order
+  let cursors =
+    edge_ids_and_cursors
+    |> dict.from_list
+  objects
+  |> list.filter_map(fn(object) {
+    use id <- result.try(read_string_field(object, "id") |> option_to_result())
+    case string.starts_with(id, "gid://shopify/TaxonomyCategory/") {
+      True ->
+        Ok(AdminPlatformTaxonomyCategoryRecord(
+          id: id,
+          cursor: dict.get(cursors, id) |> option.from_result,
+          data: captured_json_from_parity(object),
+        ))
+      False -> Error(Nil)
+    }
+  })
+  |> dedupe_taxonomy_categories(dict.new(), [])
+  |> order_taxonomy_categories_by_edge_order(edge_order)
+}
+
+fn order_taxonomy_categories_by_edge_order(
+  records: List(AdminPlatformTaxonomyCategoryRecord),
+  edge_order: List(String),
+) -> List(AdminPlatformTaxonomyCategoryRecord) {
+  let by_id =
+    records
+    |> list.map(fn(record) { #(record.id, record) })
+    |> dict.from_list
+  let ordered = edge_order |> list.filter_map(fn(id) { dict.get(by_id, id) })
+  let ordered_lookup =
+    ordered
+    |> list.map(fn(record) { #(record.id, True) })
+    |> dict.from_list
+  let remaining =
+    records
+    |> list.filter(fn(record) { !dict.has_key(ordered_lookup, record.id) })
+  list.append(ordered, remaining)
+}
+
+fn dedupe_taxonomy_categories(
+  records: List(AdminPlatformTaxonomyCategoryRecord),
+  seen: Dict(String, AdminPlatformTaxonomyCategoryRecord),
+  order: List(String),
+) -> List(AdminPlatformTaxonomyCategoryRecord) {
+  case records {
+    [] ->
+      order
+      |> list.reverse
+      |> list.filter_map(fn(id) {
+        case dict.get(seen, id) {
+          Ok(record) -> Ok(record)
+          Error(_) -> Error(Nil)
+        }
+      })
+    [record, ..rest] -> {
+      let current = dict.get(seen, record.id)
+      let next_seen = case current {
+        Ok(existing) -> {
+          let data = case
+            captured_object_field_count(record.data)
+            > captured_object_field_count(existing.data)
+          {
+            True -> record.data
+            False -> existing.data
+          }
+          dict.insert(
+            seen,
+            record.id,
+            AdminPlatformTaxonomyCategoryRecord(
+              ..record,
+              cursor: record.cursor |> option.or(existing.cursor),
+              data: data,
+            ),
+          )
+        }
+        Error(_) -> dict.insert(seen, record.id, record)
+      }
+      let next_order = case current {
+        Ok(_) -> order
+        Error(_) -> [record.id, ..order]
+      }
+      dedupe_taxonomy_categories(rest, next_seen, next_order)
+    }
+  }
+}
+
+fn captured_object_field_count(value: CapturedJsonValue) -> Int {
+  case value {
+    CapturedObject(fields) -> list.length(fields)
+    _ -> 0
+  }
+}
+
+fn gid_resource_type(id: String) -> Option(String) {
+  case string.split(id, on: "/") {
+    ["gid:", "", "shopify", resource_type, ..] -> Some(resource_type)
+    _ -> None
   }
 }
 
@@ -7073,7 +7279,14 @@ fn resolve_variables(
     VariablesFromFile(path: path) -> {
       let resolved = resolve(config, path)
       use source <- result.try(read_file(resolved))
-      parse_json(resolved, source)
+      use template <- result.try(parse_json(resolved, source))
+      substitute(
+        template,
+        primary_response,
+        previous_response,
+        named_responses,
+        capture,
+      )
     }
     VariablesInline(template: template) -> {
       let _ = context

@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 112: Admin Platform utility and node parity
+
+Promotes the remaining Admin Platform parity specs into the Gleam parity suite.
+The port now handles Admin Platform utility roots, staff access blockers, Flow
+utility mutations, backup-region reads/mutations, taxonomy catalog/search/
+hierarchy reads, captured no-data roots, and local Relay `node`/`nodes` reads
+for the ported resource families covered by the fixtures.
+
+| Module                                                       | Change                                                                                                                           |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`   | Adds Admin-specific Node fragment flattening, taxonomy connection parity, no-data roots, staff locations, and Flow error parity. |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`         | Exposes Product, Collection, and SellingPlan node serializers for Admin Platform dispatch.                                       |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`        | Exposes Customer node serialization for Admin Platform dispatch.                                                                 |
+| `gleam/src/shopify_draft_proxy/proxy/store_properties.gleam` | Exposes Location node serialization for Admin Platform dispatch.                                                                 |
+| `gleam/src/shopify_draft_proxy/state/*`                      | Adds Admin Platform generic-node and taxonomy-category seed buckets to instance-owned state/dumps.                               |
+| `gleam/test/parity/runner.gleam`                             | Seeds captured Admin Platform nodes/taxonomy categories and substitutes capture refs in variables files.                         |
+| `config/gleam-port-ci-gates.json`                            | Removes all Admin Platform expected failures plus the shared finance-risk no-data spec unlocked by this pass.                    |
+
+Validation:
+Admin Platform parity inventory is 15 checked-in specs with 0 expected failures.
+`gleam test --target javascript` is green at 716 tests. Host
+`gleam test --target erlang` still fails under Erlang/OTP 25 because
+`gleam_json` requires OTP 27+; the established Docker Erlang fallback with
+`HOME=/tmp` is green at 712 tests. `corepack pnpm gleam:port:coverage` is green
+with 379 specs and 164 expected failures.
+
+### Findings
+
+- Captured Admin Platform node fixtures need Admin-specific handling for the
+  Relay `Node` interface and the `MarketRegion` / `MarketRegionCountry`
+  compatibility branch before dispatching into owning resource serializers.
+- Taxonomy parity depends on preserving captured edge order for catalog/search
+  seeding, using raw Shopify cursors, and sorting hierarchy slices by the
+  decoded cursor id.
+- Variables files can contain `fromCapturePath` placeholders, so the Gleam
+  parity runner now applies the same substitution pass to file-backed variables
+  that it already applied to inline templates.
+
+### Risks / open items
+
+- The TypeScript Admin Platform runtime remains intact under the incremental
+  port preservation rule. Removing TypeScript runtime code is still deferred to
+  the final full-repository cutover.
+- Host Erlang validation needs OTP 27+; this workspace's OTP 25 host remains a
+  validation-environment limitation rather than a code failure.
+
+### Pass 113 candidates
+
+- Continue with the next expected-failing non-Admin Platform domain in
+  `config/gleam-port-ci-gates.json`.
+
+---
+
 ## 2026-04-30 - Pass 111: product search grammar parity
 
 Promotes the final gated Product parity spec,

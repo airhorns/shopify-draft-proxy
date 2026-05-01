@@ -1057,6 +1057,23 @@ fn project_customer(
   }
 }
 
+pub fn serialize_customer_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_customer_by_id(store, id) {
+    Some(customer) ->
+      project_graphql_value(
+        customer_to_source(store, customer),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
 fn serialize_customer_by_id(
   store: Store,
   field: Selection,
