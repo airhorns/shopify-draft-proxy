@@ -2,11 +2,13 @@
 //// `files` connection root returns the empty-connection shape — this
 //// guards that contract on both compile targets.
 
+import gleam/dict
 import gleam/json
 import shopify_draft_proxy/proxy/media
+import shopify_draft_proxy/state/store
 
 fn run(query: String) -> String {
-  let assert Ok(data) = media.handle_media_query(query)
+  let assert Ok(data) = media.handle_media_query(store.new(), query, dict.new())
   json.to_string(data)
 }
 
@@ -32,6 +34,11 @@ pub fn files_with_edges_returns_empty_test() {
 }
 
 pub fn process_wraps_in_data_envelope_test() {
-  let assert Ok(data) = media.process("{ files(first: 10) { nodes { id } } }")
+  let assert Ok(data) =
+    media.process(
+      store.new(),
+      "{ files(first: 10) { nodes { id } } }",
+      dict.new(),
+    )
   assert json.to_string(data) == "{\"data\":{\"files\":{\"nodes\":[]}}}"
 }
