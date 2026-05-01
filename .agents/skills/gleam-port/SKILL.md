@@ -453,6 +453,13 @@ broad synthetic-id/timestamp expected differences.
   data, preserve Shopify's content order (`title`, `handle`, `body_html`,
   `product_type`, SEO fields), and keep real Product/ProductMetafield store
   derivation as the primary runtime path.
+- Online-store is a mixed content/integration domain. Keep staged content
+  records and integration records separate, but route `shop` to online-store
+  only when the selection asks for `storefrontAccessTokens`. JSON scalar fields
+  such as `WebPixel.settings` must project the raw object even with no child
+  selection, and mobile app create inputs may be nested under `android`.
+  Article metafield inputs need Shopify-shaped `ownerType` and `jsonValue`
+  fields for read-after-write parity.
 - Orders abandonment parity can start with the safe abandoned-checkout slice:
   `abandonedCheckouts`, `abandonedCheckoutsCount`, `abandonment`,
   `abandonmentByAbandonedCheckoutId`, and
