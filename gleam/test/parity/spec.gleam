@@ -99,6 +99,7 @@ pub type Spec {
     proxy_request: ProxyRequest,
     targets: List(Target),
     expected_differences: List(ExpectedDifference),
+    operation_names: List(String),
   )
 }
 
@@ -118,6 +119,11 @@ fn spec_decoder() -> Decoder(Spec) {
   use captures <- decode.field("liveCaptureFiles", decode.list(decode.string))
   use proxy_request <- decode.field("proxyRequest", proxy_request_decoder())
   use comparison <- decode.field("comparison", comparison_decoder())
+  use operation_names <- decode.optional_field(
+    "operationNames",
+    [],
+    decode.list(decode.string),
+  )
   case captures {
     [first, ..] ->
       decode.success(Spec(
@@ -126,6 +132,7 @@ fn spec_decoder() -> Decoder(Spec) {
         proxy_request: proxy_request,
         targets: comparison.0,
         expected_differences: comparison.1,
+        operation_names: operation_names,
       ))
     [] -> decode.failure(empty_spec(), "liveCaptureFiles cannot be empty")
   }
@@ -142,6 +149,7 @@ fn empty_spec() -> Spec {
     ),
     targets: [],
     expected_differences: [],
+    operation_names: [],
   )
 }
 
