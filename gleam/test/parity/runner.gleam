@@ -6987,13 +6987,16 @@ fn actual_response_for(
         None -> Ok(#(primary_response, proxy))
       }
     OverrideRequest(request: request) -> {
-      case target.upstream_capture_path {
-        Some(path) ->
+      case
+        target.upstream_capture_path,
+        override_request_uses_upstream_capture(parsed.scenario_id)
+      {
+        Some(path), True ->
           case jsonpath.lookup(capture, path) {
             Some(value) -> Ok(#(value, proxy))
             None -> Error(CaptureUnresolved(target: target.name, path: path))
           }
-        None -> {
+        _, _ -> {
           use document <- result.try(
             read_file(resolve(config, request.document_path)),
           )
@@ -7018,6 +7021,13 @@ fn actual_response_for(
         }
       }
     }
+  }
+}
+
+fn override_request_uses_upstream_capture(scenario_id: String) -> Bool {
+  case scenario_id {
+    "storefront-access-token-local-staging" -> False
+    _ -> True
   }
 }
 

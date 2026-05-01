@@ -5,6 +5,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types
 
@@ -111,6 +112,64 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
     #(
       "deletedWebhookSubscriptionIds",
       bool_dict_to_json(state.deleted_webhook_subscription_ids),
+    ),
+    #(
+      "onlineStoreArticles",
+      online_store_content_kind_json(state.online_store_content, "article"),
+    ),
+    #(
+      "onlineStoreBlogs",
+      online_store_content_kind_json(state.online_store_content, "blog"),
+    ),
+    #(
+      "onlineStorePages",
+      online_store_content_kind_json(state.online_store_content, "page"),
+    ),
+    #(
+      "onlineStoreComments",
+      online_store_content_kind_json(state.online_store_content, "comment"),
+    ),
+    #(
+      "onlineStoreThemes",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "theme",
+      ),
+    ),
+    #(
+      "onlineStoreScriptTags",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "scriptTag",
+      ),
+    ),
+    #(
+      "onlineStoreWebPixels",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "webPixel",
+      ),
+    ),
+    #(
+      "onlineStoreServerPixels",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "serverPixel",
+      ),
+    ),
+    #(
+      "onlineStoreStorefrontAccessTokens",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "storefrontAccessToken",
+      ),
+    ),
+    #(
+      "onlineStoreMobilePlatformApplications",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "mobilePlatformApplication",
+      ),
     ),
     #("apps", dict_to_json(state.apps, app_json)),
     #("appOrder", json.array(state.app_order, json.string)),
@@ -478,6 +537,134 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
     #(
       "deletedWebhookSubscriptionIds",
       bool_dict_to_json(state.deleted_webhook_subscription_ids),
+    ),
+    #(
+      "onlineStoreArticles",
+      online_store_content_kind_json(state.online_store_content, "article"),
+    ),
+    #(
+      "onlineStoreBlogs",
+      online_store_content_kind_json(state.online_store_content, "blog"),
+    ),
+    #(
+      "onlineStorePages",
+      online_store_content_kind_json(state.online_store_content, "page"),
+    ),
+    #(
+      "onlineStoreComments",
+      online_store_content_kind_json(state.online_store_content, "comment"),
+    ),
+    #(
+      "deletedOnlineStoreArticleIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_content_ids,
+        "Article",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreBlogIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_content_ids,
+        "Blog",
+      ),
+    ),
+    #(
+      "deletedOnlineStorePageIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_content_ids,
+        "Page",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreCommentIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_content_ids,
+        "Comment",
+      ),
+    ),
+    #(
+      "onlineStoreThemes",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "theme",
+      ),
+    ),
+    #(
+      "onlineStoreScriptTags",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "scriptTag",
+      ),
+    ),
+    #(
+      "onlineStoreWebPixels",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "webPixel",
+      ),
+    ),
+    #(
+      "onlineStoreServerPixels",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "serverPixel",
+      ),
+    ),
+    #(
+      "onlineStoreStorefrontAccessTokens",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "storefrontAccessToken",
+      ),
+    ),
+    #(
+      "onlineStoreMobilePlatformApplications",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "mobilePlatformApplication",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreThemeIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "OnlineStoreTheme",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreScriptTagIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "ScriptTag",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreWebPixelIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "WebPixel",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreServerPixelIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "ServerPixel",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreStorefrontAccessTokenIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "StorefrontAccessToken",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreMobilePlatformApplicationIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "MobilePlatformApplication",
+      ),
     ),
     #("apps", dict_to_json(state.apps, app_json)),
     #("appOrder", json.array(state.app_order, json.string)),
@@ -1179,6 +1366,86 @@ fn webhook_endpoint_json(record: types.WebhookSubscriptionEndpoint) -> Json {
         #("pubSubTopic", optional_string(pub_sub_topic)),
       ])
   }
+}
+
+fn online_store_content_kind_json(
+  records: Dict(String, types.OnlineStoreContentRecord),
+  kind: String,
+) -> Json {
+  json.object(
+    records
+    |> dict.to_list()
+    |> list.filter_map(fn(pair) {
+      let #(id, record) = pair
+      case record.kind == kind {
+        True -> Ok(#(id, online_store_content_json(record)))
+        False -> Error(Nil)
+      }
+    }),
+  )
+}
+
+fn online_store_content_json(record: types.OnlineStoreContentRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("kind", json.string(record.kind)),
+    #("cursor", optional_string(record.cursor)),
+    #("parentId", optional_string(record.parent_id)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn online_store_integration_kind_json(
+  records: Dict(String, types.OnlineStoreIntegrationRecord),
+  kind: String,
+) -> Json {
+  json.object(
+    records
+    |> dict.to_list()
+    |> list.filter_map(fn(pair) {
+      let #(id, record) = pair
+      case record.kind == kind {
+        True -> Ok(#(id, online_store_integration_json(record)))
+        False -> Error(Nil)
+      }
+    }),
+  )
+}
+
+fn online_store_integration_json(
+  record: types.OnlineStoreIntegrationRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("kind", json.string(record.kind)),
+    #("cursor", optional_string(record.cursor)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn deleted_online_store_ids_json(
+  records: Dict(String, Bool),
+  gid_type: String,
+) -> Json {
+  json.object(
+    records
+    |> dict.to_list()
+    |> list.filter_map(fn(pair) {
+      let #(id, deleted) = pair
+      case deleted && string_contains_gid_type(id, gid_type) {
+        True -> Ok(#(id, json.bool(True)))
+        False -> Error(Nil)
+      }
+    }),
+  )
+}
+
+fn string_contains_gid_type(id: String, gid_type: String) -> Bool {
+  string.contains(id, "gid://shopify/" <> gid_type <> "/")
 }
 
 fn money_json(record: types.Money) -> Json {
@@ -2423,6 +2690,12 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     webhook_subscriptions: webhook_subscriptions,
     webhook_subscription_order: webhook_subscription_order,
     deleted_webhook_subscription_ids: deleted_webhook_subscription_ids,
+    online_store_content: empty.online_store_content,
+    online_store_content_order: empty.online_store_content_order,
+    deleted_online_store_content_ids: empty.deleted_online_store_content_ids,
+    online_store_integrations: empty.online_store_integrations,
+    online_store_integration_order: empty.online_store_integration_order,
+    deleted_online_store_integration_ids: empty.deleted_online_store_integration_ids,
     apps: apps,
     app_order: app_order,
     app_installations: app_installations,
@@ -2741,6 +3014,12 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     webhook_subscriptions: webhook_subscriptions,
     webhook_subscription_order: webhook_subscription_order,
     deleted_webhook_subscription_ids: deleted_webhook_subscription_ids,
+    online_store_content: empty.online_store_content,
+    online_store_content_order: empty.online_store_content_order,
+    deleted_online_store_content_ids: empty.deleted_online_store_content_ids,
+    online_store_integrations: empty.online_store_integrations,
+    online_store_integration_order: empty.online_store_integration_order,
+    deleted_online_store_integration_ids: empty.deleted_online_store_integration_ids,
     apps: apps,
     app_order: app_order,
     app_installations: app_installations,

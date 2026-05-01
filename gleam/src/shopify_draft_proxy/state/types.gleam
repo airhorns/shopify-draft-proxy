@@ -109,6 +109,29 @@ pub type CapturedJsonValue {
   CapturedObject(List(#(String, CapturedJsonValue)))
 }
 
+pub type OnlineStoreContentRecord {
+  OnlineStoreContentRecord(
+    id: String,
+    kind: String,
+    cursor: Option(String),
+    parent_id: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+pub type OnlineStoreIntegrationRecord {
+  OnlineStoreIntegrationRecord(
+    id: String,
+    kind: String,
+    cursor: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
 pub type InventoryWeightValue {
   InventoryWeightInt(Int)
   InventoryWeightFloat(Float)
