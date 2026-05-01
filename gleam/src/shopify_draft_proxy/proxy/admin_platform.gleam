@@ -68,6 +68,42 @@ pub type MutationOutcome {
   )
 }
 
+pub fn list_supported_admin_platform_node_types() -> List(String) {
+  [
+    "App",
+    "AppInstallation",
+    "AppPurchaseOneTime",
+    "AppSubscription",
+    "AppUsageRecord",
+    "Collection",
+    "CompanyAddress",
+    "CompanyContactRoleAssignment",
+    "Customer",
+    "DeliveryCondition",
+    "DeliveryCountry",
+    "DeliveryLocationGroup",
+    "DeliveryMethodDefinition",
+    "DeliveryParticipant",
+    "DeliveryProvince",
+    "DeliveryRateDefinition",
+    "DeliveryZone",
+    "Domain",
+    "Location",
+    "MarketRegionCountry",
+    "MarketWebPresence",
+    "Metafield",
+    "Product",
+    "ProductOption",
+    "ProductOptionValue",
+    "SellingPlan",
+    "Shop",
+    "ShopAddress",
+    "ShopPolicy",
+    "TaxonomyCategory",
+  ]
+  |> list.sort(by: string.compare)
+}
+
 pub fn is_admin_platform_query_root(name: String) -> Bool {
   list.contains(
     [
@@ -458,6 +494,7 @@ fn serialize_node_by_id(
           )
         None -> serialize_generic_node_by_id(store, id, selections, fragments)
       }
+    "Domain" -> serialize_domain_node_by_id(store, id, selections, fragments)
     "App" -> apps.serialize_app_node_by_id(store, id, selections, fragments)
     "AppInstallation" ->
       apps.serialize_app_installation_node_by_id(
@@ -560,6 +597,23 @@ fn serialize_node_by_id(
         fragments,
       )
     _ -> json.null()
+  }
+}
+
+fn serialize_domain_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store_properties.primary_domain_for_id(store, id) {
+    Some(domain) ->
+      project_graphql_value(
+        store_properties.shop_domain_source(domain),
+        admin_node_selected_fields(selections, "Domain", fragments),
+        fragments,
+      )
+    None -> json.null()
   }
 }
 
