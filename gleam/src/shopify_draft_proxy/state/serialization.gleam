@@ -466,6 +466,36 @@ fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
       bool_dict_to_json(state.deleted_customer_payment_method_ids),
     ),
     #(
+      "paymentReminderSends",
+      dict_to_json(state.payment_reminder_sends, payment_reminder_send_json),
+    ),
+    #(
+      "paymentCustomizations",
+      dict_to_json(state.payment_customizations, payment_customization_json),
+    ),
+    #(
+      "paymentCustomizationOrder",
+      json.array(state.payment_customization_order, json.string),
+    ),
+    #(
+      "deletedPaymentCustomizationIds",
+      bool_dict_to_json(state.deleted_payment_customization_ids),
+    ),
+    #("paymentTerms", dict_to_json(state.payment_terms, payment_terms_json)),
+    #("paymentTermsOwnerIds", bool_dict_to_json(state.payment_terms_owner_ids)),
+    #(
+      "paymentTermsByOwnerId",
+      dict_to_json(state.payment_terms_by_owner_id, json.string),
+    ),
+    #(
+      "deletedPaymentTermsIds",
+      bool_dict_to_json(state.deleted_payment_terms_ids),
+    ),
+    #(
+      "orderMandatePayments",
+      dict_to_json(state.order_mandate_payments, order_mandate_payment_json),
+    ),
+    #(
       "storeCreditAccounts",
       dict_to_json(state.store_credit_accounts, store_credit_account_json),
     ),
@@ -1040,6 +1070,36 @@ fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
     #(
       "deletedCustomerPaymentMethodIds",
       bool_dict_to_json(state.deleted_customer_payment_method_ids),
+    ),
+    #(
+      "paymentReminderSends",
+      dict_to_json(state.payment_reminder_sends, payment_reminder_send_json),
+    ),
+    #(
+      "paymentCustomizations",
+      dict_to_json(state.payment_customizations, payment_customization_json),
+    ),
+    #(
+      "paymentCustomizationOrder",
+      json.array(state.payment_customization_order, json.string),
+    ),
+    #(
+      "deletedPaymentCustomizationIds",
+      bool_dict_to_json(state.deleted_payment_customization_ids),
+    ),
+    #("paymentTerms", dict_to_json(state.payment_terms, payment_terms_json)),
+    #("paymentTermsOwnerIds", bool_dict_to_json(state.payment_terms_owner_ids)),
+    #(
+      "paymentTermsByOwnerId",
+      dict_to_json(state.payment_terms_by_owner_id, json.string),
+    ),
+    #(
+      "deletedPaymentTermsIds",
+      bool_dict_to_json(state.deleted_payment_terms_ids),
+    ),
+    #(
+      "orderMandatePayments",
+      dict_to_json(state.order_mandate_payments, order_mandate_payment_json),
     ),
     #(
       "storeCreditAccounts",
@@ -2685,6 +2745,87 @@ fn customer_payment_method_update_url_json(
   ])
 }
 
+fn payment_reminder_send_json(record: types.PaymentReminderSendRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("paymentScheduleId", json.string(record.payment_schedule_id)),
+    #("sentAt", json.string(record.sent_at)),
+  ])
+}
+
+fn payment_customization_json(
+  record: types.PaymentCustomizationRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("title", optional_string(record.title)),
+    #("enabled", optional_bool(record.enabled)),
+    #("functionId", optional_string(record.function_id)),
+    #("functionHandle", optional_string(record.function_handle)),
+    #(
+      "metafields",
+      json.array(record.metafields, payment_customization_metafield_json),
+    ),
+  ])
+}
+
+fn payment_customization_metafield_json(
+  record: types.PaymentCustomizationMetafieldRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("paymentCustomizationId", json.string(record.payment_customization_id)),
+    #("namespace", json.string(record.namespace)),
+    #("key", json.string(record.key)),
+    #("type", optional_string(record.type_)),
+    #("value", optional_string(record.value)),
+    #("compareDigest", optional_string(record.compare_digest)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("ownerType", optional_string(record.owner_type)),
+  ])
+}
+
+fn payment_schedule_json(record: types.PaymentScheduleRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("dueAt", optional_string(record.due_at)),
+    #("issuedAt", optional_string(record.issued_at)),
+    #("completedAt", optional_string(record.completed_at)),
+    #("due", optional_bool(record.due)),
+    #("amount", optional_to_json(record.amount, money_json)),
+    #("balanceDue", optional_to_json(record.balance_due, money_json)),
+    #("totalBalance", optional_to_json(record.total_balance, money_json)),
+  ])
+}
+
+fn payment_terms_json(record: types.PaymentTermsRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("ownerId", json.string(record.owner_id)),
+    #("due", json.bool(record.due)),
+    #("overdue", json.bool(record.overdue)),
+    #("dueInDays", optional_int(record.due_in_days)),
+    #("paymentTermsName", json.string(record.payment_terms_name)),
+    #("paymentTermsType", json.string(record.payment_terms_type)),
+    #("translatedName", json.string(record.translated_name)),
+    #(
+      "paymentSchedules",
+      json.array(record.payment_schedules, payment_schedule_json),
+    ),
+  ])
+}
+
+fn order_mandate_payment_json(record: types.OrderMandatePaymentRecord) -> Json {
+  json.object([
+    #("orderId", json.string(record.order_id)),
+    #("idempotencyKey", json.string(record.idempotency_key)),
+    #("jobId", json.string(record.job_id)),
+    #("paymentReferenceId", json.string(record.payment_reference_id)),
+    #("transactionId", json.string(record.transaction_id)),
+  ])
+}
+
 fn store_credit_account_json(record: types.StoreCreditAccountRecord) -> Json {
   json.object([
     #("id", json.string(record.id)),
@@ -3153,6 +3294,15 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     customer_payment_methods: empty.customer_payment_methods,
     customer_payment_method_update_urls: empty.customer_payment_method_update_urls,
     deleted_customer_payment_method_ids: empty.deleted_customer_payment_method_ids,
+    payment_reminder_sends: empty.payment_reminder_sends,
+    payment_customizations: empty.payment_customizations,
+    payment_customization_order: empty.payment_customization_order,
+    deleted_payment_customization_ids: empty.deleted_payment_customization_ids,
+    payment_terms: empty.payment_terms,
+    payment_terms_owner_ids: empty.payment_terms_owner_ids,
+    payment_terms_by_owner_id: empty.payment_terms_by_owner_id,
+    deleted_payment_terms_ids: empty.deleted_payment_terms_ids,
+    order_mandate_payments: empty.order_mandate_payments,
     store_credit_accounts: empty.store_credit_accounts,
     store_credit_account_transactions: empty.store_credit_account_transactions,
     customer_account_pages: empty.customer_account_pages,
@@ -3530,6 +3680,15 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     customer_payment_methods: empty.customer_payment_methods,
     customer_payment_method_update_urls: empty.customer_payment_method_update_urls,
     deleted_customer_payment_method_ids: empty.deleted_customer_payment_method_ids,
+    payment_reminder_sends: empty.payment_reminder_sends,
+    payment_customizations: empty.payment_customizations,
+    payment_customization_order: empty.payment_customization_order,
+    deleted_payment_customization_ids: empty.deleted_payment_customization_ids,
+    payment_terms: empty.payment_terms,
+    payment_terms_owner_ids: empty.payment_terms_owner_ids,
+    payment_terms_by_owner_id: empty.payment_terms_by_owner_id,
+    deleted_payment_terms_ids: empty.deleted_payment_terms_ids,
+    order_mandate_payments: empty.order_mandate_payments,
     store_credit_accounts: empty.store_credit_accounts,
     store_credit_account_transactions: empty.store_credit_account_transactions,
     customer_account_pages: empty.customer_account_pages,
