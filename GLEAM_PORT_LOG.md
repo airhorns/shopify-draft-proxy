@@ -9,6 +9,53 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 168: HAR-515 Products inventory shipment and transfer root completion
+
+Completes the remaining Products local-dispatch gap for implemented inventory
+shipment and inventory transfer mutation roots in the Gleam port. The Products
+domain now routes the shipment create/add/remove/tracking/transit roots and
+transfer edit/duplicate roots locally, stages their effects in memory, and keeps
+the original mutation requests in the draft log for commit replay.
+
+| Module                                                            | Change                                                                                                      |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`              | Adds Products dispatch and local handlers for inventory shipment create/add/remove/tracking/transit roots.  |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`              | Adds inventory transfer edit/duplicate staging, including metadata edits and reminted duplicate line items. |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Covers the new shipment and transfer roots with downstream read-after-write and mutation-log assertions.    |
+| `.agents/skills/gleam-port/SKILL.md`                              | Records product-specific shipment and transfer porting notes for future Products work.                      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- --module shopify_draft_proxy/proxy/products_mutation_test`
+  (775 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (771 passed)
+- `cd gleam && gleam test --target javascript` (775 passed)
+- `cd gleam && gleam format --check`
+- `corepack pnpm gleam:port:coverage` (379 specs; 25 expected failures; passed)
+- `corepack pnpm gleam:registry:check`
+- `git diff --check`
+
+### Findings
+
+- The registry/dispatch inventory showed no Product query gaps and narrowed the
+  mutation gap to implemented inventory shipment/transfer roots; product-owned
+  metafield mutation roots continue to route through the shared metafield
+  handler while Product read serializers expose downstream owner state.
+- Shipment draft creation differs from create-in-transit: DRAFT creation must
+  not adjust incoming inventory until `inventoryShipmentMarkInTransit` runs.
+- Transfer duplication must not copy ready-reservation side effects; it creates
+  a DRAFT duplicate with fresh line-item IDs.
+- Host Erlang is OTP 25, so Erlang validation needs a clean build cache and the
+  OTP 28 Gleam container until the host runtime is upgraded.
+
+### Risks / open items
+
+- TypeScript Products runtime deletion remains deferred under the incremental
+  port preservation rule until the final all-port cutover.
+
+---
+
 ## 2026-05-01 - Pass 167: HAR-496 payments branch localization refresh
 
 Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
