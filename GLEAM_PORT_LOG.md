@@ -9,33 +9,30 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-01 - Pass 163: HAR-506 media mainline refresh
+## 2026-05-01 - Pass 164: HAR-506 post-approval mainline refresh
 
-Refreshes the HAR-506 Media files and uploads port after `origin/main` advanced
-through the Orders, B2B, Bulk Operations, Apps, and Segments Gleam passes. The
-merge keeps the generalized mainline parity seeding helper chain and dispatch
-additions while preserving the HAR-506 Media dispatcher, file state slice,
-staged-upload behavior, and file-delete product-media seed.
+Refreshes the approved HAR-506 Media files and uploads branch after
+`origin/main` added the Discounts lifecycle port. The merge keeps the mainline
+Discounts dispatcher and state slices while preserving the HAR-506 Media
+dispatcher, file state slice, staged-upload behavior, and file-delete
+product-media seed.
 
-| Module                                                  | Change                                                                                                                    |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Media mutation routing alongside mainline Bulk Operations, Admin Platform, Privacy, Orders, and Customers dispatch. |
-| `gleam/src/shopify_draft_proxy/state/store.gleam`       | Combines the Media `FileRecord` import with mainline Draft Order and abandonment/store-property state imports.            |
-| `gleam/test/parity/runner.gleam`                        | Keeps the mainline helper-chain seeding model and adds the Media file-delete/product-media seed helper.                   |
-| `GLEAM_PORT_LOG.md`                                     | Records the mainline refresh evidence for HAR-506.                                                                        |
+| Module                                                  | Change                                                                                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Media mutation routing alongside mainline Discounts, Bulk Operations, Admin Platform, Privacy, Orders, and Customers dispatch. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`       | Combines the Media `FileRecord` import with mainline Discount, Draft Order, abandonment, and store-property state imports.           |
+| `GLEAM_PORT_LOG.md`                                     | Records the post-approval mainline refresh evidence for HAR-506.                                                                     |
 
 Validation:
-JavaScript target is green at 768 tests. Docker Erlang target is green at 764
+JavaScript target is green at 771 tests. Docker Erlang target is green at 767
 tests. `corepack pnpm gleam:port:coverage`, `corepack pnpm
 gleam:registry:check`, `corepack pnpm lint`, and `git diff --check` are green.
-Gleam parity coverage now reports 379 checked-in specs and 86 expected failures.
+Gleam parity coverage now reports 379 checked-in specs and 68 expected failures.
 
 ### Findings
 
-- The conflicting parity runner hunk was a structural refactor on `main`; the
-  correct merge base is the helper-chain model plus the HAR-506 media seed.
-- The dispatch conflict was additive: Media, Bulk Operations, Orders, Admin
-  Platform, Privacy, and Customers all remain explicitly routed locally.
+- The conflict was additive: Discounts from `main` and Media from HAR-506 both
+  remain explicitly routed locally.
 - The ticket's TypeScript media runtime retirement remains deferred under the
   Gleam Port Guardrail until the final all-port cutover.
 
@@ -43,6 +40,57 @@ Gleam parity coverage now reports 379 checked-in specs and 86 expected failures.
 
 - TypeScript Media runtime retirement remains deferred to the final all-port
   cutover acceptance bar.
+
+---
+
+## 2026-05-01 - Pass 163: discounts lifecycle parity
+
+Promotes the Discounts domain into the Gleam parity suite. The port now stages
+discount catalog/detail reads, automatic and code discount lifecycle mutations,
+app discounts, BXGY, free shipping, bulk activate/deactivate/delete jobs, and
+redeem-code bulk add/delete flows locally while preserving captured buyer
+context, status filtering, validation, and downstream read-after-write behavior.
+
+| Module                                                      | Change                                                                                                                |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/discounts.gleam`       | Adds Discounts query/mutation root handling, normalized projection, validation, staged lifecycle, jobs, and codes.    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`     | Routes Discounts query and mutation roots to the new local domain dispatcher.                                         |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`           | Adds normalized discount records, typed discount kinds, redeem codes, async jobs, and bulk-creation records.          |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`           | Adds effective/staged discount helpers, deletion markers, bulk job helpers, and redeem-code lookup/update operations. |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`   | Carries discount state through dump/restore.                                                                          |
+| `gleam/test/parity/runner.gleam`                            | Seeds captured discount catalog/detail records for parity replay.                                                     |
+| `gleam/test/shopify_draft_proxy/proxy/discounts_test.gleam` | Adds focused lifecycle, validation, buyer-context, status-filter, and redeem-code behavior tests.                     |
+| `config/gleam-port-ci-gates.json`                           | Removes all 18 checked-in Discounts parity specs from the expected-failure gate.                                      |
+
+Validation:
+Focused Discounts parity is green for all 18 checked-in specs. `gleam check`
+is green. Full JavaScript target and the established Docker Erlang fallback are
+green on the HAR-491 branch. The TypeScript discount runtime remains intact
+under the port preservation rule until the final all-port cutover.
+
+### Findings
+
+- Discounts reuse more of Shopify's captured async-job surface than earlier
+  domains: app bulk activation/deactivation/delete and redeem-code deletes
+  return synthetic `Job` IDs, while redeem-code adds return a synthetic
+  `DiscountRedeemCodeBulkCreation` ID.
+- Captured discount catalog reads depend on both `status:` filters and code
+  query behavior. The Gleam port keeps those decisions in the Discounts module
+  instead of adding a resource-local generic search parser.
+- Buyer-context fields are preserved as captured payload fragments so automatic
+  and code discount detail reads round-trip stable Shopify-selected slices
+  after local mutation staging.
+
+### Risks / open items
+
+- This pass removes the Discounts parity gate for Gleam, but it does not
+  authorize deleting the TypeScript Discounts runtime before the broader
+  whole-port cutover acceptance bar is met.
+
+### Pass 164 candidates
+
+- Continue with the next expected-failing non-Product domain from
+  `config/gleam-port-ci-gates.json`.
 
 ---
 
