@@ -78,6 +78,47 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
 
 ---
 
+## 2026-05-01 - Pass 113: HAR-496 payments branch mainline refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+HAR-499 Apps parity completion. The merge applied cleanly and keeps the
+branch-local Payments and narrow order-payment dispatch, state, and parity
+seeding while bringing in the mainline Apps/Admin Platform handlers, store
+helpers, and updated expected-failure inventory.
+
+| Module                                           | Change                                                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `.agents/skills/gleam-port/SKILL.md`             | Brings in the mainline Apps port notes for future domain passes.                       |
+| `gleam/src/shopify_draft_proxy/proxy/apps.gleam` | Preserves the mainline Apps lifecycle and subscription/delegate-token parity support.  |
+| `gleam/test/parity/runner.gleam`                 | Keeps HAR-496 Payments/order-payment seeding alongside the mainline Apps parity paths. |
+| `config/gleam-port-ci-gates.json`                | Keeps Payments/order-payment ungated and incorporates the mainline Apps gate removals. |
+
+Validation:
+
+- `git diff --check`
+- `cd gleam && gleam format --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (720 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (716 passed)
+- `corepack pnpm gleam:port:coverage`
+- Targeted expected-failure scan for payments/order-payment/product grammar
+  paths returned no matches.
+
+### Findings
+
+- The sync did not require conflict resolution; the previous HAR-496 Payments
+  and order-payment changes remained intact across the HAR-499 Apps merge.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
+
+---
+
 ## 2026-05-01 - Pass 112: HAR-505 mainline refresh seeding
 
 Refreshes the HAR-505 Marketing branch after `origin/main` promoted the
