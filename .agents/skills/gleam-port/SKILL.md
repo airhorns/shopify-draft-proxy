@@ -419,6 +419,12 @@ synthetic-id/timestamp expected differences.
   have their own executable parity. Unknown-abandonment delivery status updates
   are a handled local validation branch with a `Failed` mutation-log draft, not
   a reason to claim broader orders mutation support.
+- Orders access-denied guardrails may be ported when the checked-in capture
+  proves Shopify returns a top-level `ACCESS_DENIED` error plus a selected null
+  root payload. Keep these documented as guardrails, not full lifecycle support:
+  `orderCreateManualPayment` unknown/non-local order access denial does not
+  imply local synthetic-order payment success is ported, and `taxSummaryCreate`
+  access denial does not imply tax-app success semantics are ported.
 
 ## Workflow for a new pass
 

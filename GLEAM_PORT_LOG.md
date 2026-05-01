@@ -9,6 +9,47 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 114: orders access-denied guardrail parity
+
+Promotes two captured Orders access-denied guardrail fixtures into the Gleam
+parity suite without claiming broader order payment or tax-summary lifecycle
+support. The Orders dispatcher now handles only the documented safe
+`orderCreateManualPayment` unknown/non-local order branch and
+`taxSummaryCreate` access-denied branch locally, returning Shopify-shaped
+top-level `ACCESS_DENIED` errors with the selected root payload set to null.
+
+| Module                                                   | Change                                                                                       |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds captured access-denied error payloads and failed mutation-log drafts for the two roots. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers both access-denied guardrails directly.                                               |
+| `config/gleam-port-ci-gates.json`                        | Removes the two newly passing Orders access-denied parity specs.                             |
+
+Validation:
+Full JavaScript is green at 721 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 parity specs and 172 expected Gleam parity failures.
+
+### Findings
+
+- `ACCESS_DENIED` GraphQL errors preserve both `errors` and `data` in the same
+  response envelope; the Orders mutation accumulator now keeps selected null
+  root payloads when a handled branch also returns top-level errors.
+- These roots remain guardrail-only in Gleam. `orderCreateManualPayment` does
+  not yet model local synthetic-order success, and `taxSummaryCreate` does not
+  model tax-app success semantics.
+
+### Risks / open items
+
+- The remaining Orders parity gaps still include draft-order lifecycle,
+  regular order lifecycle, order editing, fulfillments, refunds, and returns.
+
+### Pass 115 candidates
+
+- Continue Orders with a complete draft-order create/read lifecycle slice that
+  seeds or models the ProductVariant and Customer data required by the captured
+  merchant-realistic fixture.
+
+---
+
 ## 2026-05-01 - Pass 113: orders abandonment no-data parity
 
 Starts the Orders Gleam domain with the narrow abandoned-checkout and

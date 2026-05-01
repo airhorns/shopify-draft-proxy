@@ -92,3 +92,50 @@ pub fn orders_abandonment_delivery_status_unknown_test() {
   assert outcome.staged_resource_ids == []
   assert list.length(outcome.log_drafts) == 1
 }
+
+pub fn orders_access_denied_guardrails_test() {
+  let query =
+    "
+    mutation {
+      orderCreateManualPayment(
+        id: \"gid://shopify/Order/6830646264041\"
+        amount: { amount: \"14.00\", currencyCode: CAD }
+        paymentMethodName: \"HAR-120 manual payment\"
+        processedAt: \"2026-04-22T23:29:02.002Z\"
+      ) {
+        order {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+      taxSummaryCreate(
+        orderId: \"gid://shopify/Order/6830646296809\"
+        startTime: \"2026-04-22T22:29:03.293Z\"
+        endTime: \"2026-04-22T23:29:03.293Z\"
+      ) {
+        enqueuedOrders {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      query,
+      dict.new(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"errors\":[{\"message\":\"Access denied for orderCreateManualPayment field. Required access: `write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.\",\"extensions\":{\"code\":\"ACCESS_DENIED\",\"documentation\":\"https://shopify.dev/api/usage/access-scopes\",\"requiredAccess\":\"`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.\"},\"path\":[\"orderCreateManualPayment\"]},{\"message\":\"Access denied for taxSummaryCreate field. Required access: `write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on.\",\"extensions\":{\"code\":\"ACCESS_DENIED\",\"documentation\":\"https://shopify.dev/api/usage/access-scopes\",\"requiredAccess\":\"`write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on.\"},\"path\":[\"taxSummaryCreate\"]}],\"data\":{\"orderCreateManualPayment\":null,\"taxSummaryCreate\":null}}"
+  assert outcome.staged_resource_ids == []
+  assert list.length(outcome.log_drafts) == 2
+}

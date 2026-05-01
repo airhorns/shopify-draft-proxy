@@ -62,7 +62,14 @@ pub fn is_orders_query_root(name: String) -> Bool {
 }
 
 pub fn is_orders_mutation_root(name: String) -> Bool {
-  name == "abandonmentUpdateActivitiesDeliveryStatuses"
+  list.contains(
+    [
+      "abandonmentUpdateActivitiesDeliveryStatuses",
+      "orderCreateManualPayment",
+      "taxSummaryCreate",
+    ],
+    name,
+  )
 }
 
 pub fn process(
@@ -362,12 +369,35 @@ pub fn process_mutation(
             )
           }
         }
+        Field(name: name, ..)
+          if name.value == "orderCreateManualPayment"
+          || name.value == "taxSummaryCreate"
+        -> {
+          let #(key, payload, next_errors, next_drafts) =
+            handle_access_denied_guardrail(name.value, field)
+          #(
+            list.append(entries, [#(key, payload)]),
+            list.append(errors, next_errors),
+            current_store,
+            current_identity,
+            ids,
+            list.append(drafts, next_drafts),
+          )
+        }
         _ -> acc
       }
     })
   let envelope = case all_errors {
     [] -> json.object([#("data", json.object(data_entries))])
-    _ -> json.object([#("errors", json.preprocessed_array(all_errors))])
+    _ ->
+      case data_entries {
+        [] -> json.object([#("errors", json.preprocessed_array(all_errors))])
+        _ ->
+          json.object([
+            #("errors", json.preprocessed_array(all_errors)),
+            #("data", json.object(data_entries)),
+          ])
+      }
   }
   Ok(MutationOutcome(
     data: envelope,
@@ -376,6 +406,61 @@ pub fn process_mutation(
     staged_resource_ids: staged_ids,
     log_drafts: log_drafts,
   ))
+}
+
+fn handle_access_denied_guardrail(
+  root_name: String,
+  field: Selection,
+) -> #(String, Json, List(Json), List(LogDraft)) {
+  let key = get_field_response_key(field)
+  let required_access = access_denied_required_access(root_name)
+  let error = access_denied_error(root_name, required_access)
+  let draft =
+    single_root_log_draft(
+      root_name,
+      [],
+      store.Failed,
+      "orders",
+      "stage-locally",
+      Some(root_name <> " failed local access-denied guardrail."),
+    )
+  #(key, json.null(), [error], [draft])
+}
+
+fn access_denied_required_access(root_name: String) -> String {
+  case root_name {
+    "orderCreateManualPayment" ->
+      "`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field."
+    "taxSummaryCreate" ->
+      "`write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on."
+    _ -> "`write_orders` access scope."
+  }
+}
+
+fn access_denied_error(root_name: String, required_access: String) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Access denied for "
+        <> root_name
+        <> " field. Required access: "
+        <> required_access,
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("ACCESS_DENIED")),
+        #(
+          "documentation",
+          json.string("https://shopify.dev/api/usage/access-scopes"),
+        ),
+        #("requiredAccess", json.string(required_access)),
+      ]),
+    ),
+    #("path", json.array([root_name], json.string)),
+  ])
 }
 
 fn handle_abandonment_delivery_status(

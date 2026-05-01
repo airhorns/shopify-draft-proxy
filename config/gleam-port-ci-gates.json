@@ -491,10 +491,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/orders/orderCreateManualPayment-access-denied-parity.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/orders/orderCustomerRemove-parity.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
@@ -616,10 +612,6 @@
     },
     {
       "specPath": "config/parity-specs/orders/return-reverse-logistics-recorded.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/orders/taxSummaryCreate-access-denied-parity.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
