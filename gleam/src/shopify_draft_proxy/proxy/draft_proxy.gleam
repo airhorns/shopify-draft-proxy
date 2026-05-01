@@ -971,6 +971,28 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(MediaDomain) ->
+      case
+        media.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle media mutation"), proxy)
+      }
     Ok(AdminPlatformDomain) ->
       case
         admin_platform.process_mutation(
@@ -1210,7 +1232,11 @@ fn route_query(
         "Failed to handle bulk operations query",
       )
     Ok(MediaDomain) ->
-      respond(proxy, media.process(query), "Failed to handle media query")
+      respond(
+        proxy,
+        media.process(proxy.store, query, variables),
+        "Failed to handle media query",
+      )
     Ok(ProductsDomain) ->
       respond(
         proxy,
@@ -1680,48 +1706,59 @@ fn local_non_store_publishable_mutation_dispatch_domain(
                                                               )
                                                             False ->
                                                               case
-                                                                admin_platform.is_admin_platform_mutation_root(
+                                                                media.is_media_mutation_root(
                                                                   name,
                                                                 )
                                                               {
                                                                 True ->
                                                                   Ok(
-                                                                    AdminPlatformDomain,
+                                                                    MediaDomain,
                                                                   )
                                                                 False ->
                                                                   case
-                                                                    privacy.is_privacy_mutation_root(
+                                                                    admin_platform.is_admin_platform_mutation_root(
                                                                       name,
                                                                     )
                                                                   {
                                                                     True ->
                                                                       Ok(
-                                                                        PrivacyDomain,
+                                                                        AdminPlatformDomain,
                                                                       )
                                                                     False ->
                                                                       case
-                                                                        orders.is_orders_mutation_root(
+                                                                        privacy.is_privacy_mutation_root(
                                                                           name,
                                                                         )
                                                                       {
                                                                         True ->
                                                                           Ok(
-                                                                            OrdersDomain,
+                                                                            PrivacyDomain,
                                                                           )
                                                                         False ->
                                                                           case
-                                                                            customers.is_customer_mutation_root(
+                                                                            orders.is_orders_mutation_root(
                                                                               name,
                                                                             )
                                                                           {
                                                                             True ->
                                                                               Ok(
-                                                                                CustomersDomain,
+                                                                                OrdersDomain,
                                                                               )
                                                                             False ->
-                                                                              Error(
-                                                                                Nil,
-                                                                              )
+                                                                              case
+                                                                                customers.is_customer_mutation_root(
+                                                                                  name,
+                                                                                )
+                                                                              {
+                                                                                True ->
+                                                                                  Ok(
+                                                                                    CustomersDomain,
+                                                                                  )
+                                                                                False ->
+                                                                                  Error(
+                                                                                    Nil,
+                                                                                  )
+                                                                              }
                                                                           }
                                                                       }
                                                                   }
