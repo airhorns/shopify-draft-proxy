@@ -1,12 +1,16 @@
 import gleam/dict
 import gleam/json
 import gleam/list
+import gleam/option.{None}
 import gleam/string
 import shopify_draft_proxy/proxy/admin_platform
 import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
+import shopify_draft_proxy/state/types.{
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+}
 
 fn empty_vars() {
   dict.new()
@@ -86,6 +90,36 @@ pub fn utility_reads_return_local_no_data_shapes_test() {
   )
 }
 
+pub fn product_option_node_reads_resolve_from_product_state_test() {
+  let body =
+    run_query(
+      seeded_product_option_store(),
+      "query {
+        nodes(ids: [
+          \"gid://shopify/ProductOption/color\",
+          \"gid://shopify/ProductOptionValue/blue\",
+          \"gid://shopify/ProductOption/missing\"
+        ]) {
+          __typename
+          id
+          ... on ProductOption {
+            name
+            position
+            values
+            optionValues { id name hasVariants }
+          }
+          ... on ProductOptionValue {
+            name
+            hasVariants
+          }
+        }
+      }",
+    )
+
+  assert body
+    == "{\"data\":{\"nodes\":[{\"__typename\":\"ProductOption\",\"id\":\"gid://shopify/ProductOption/color\",\"name\":\"Color\",\"position\":1,\"values\":[\"Red\"],\"optionValues\":[{\"id\":\"gid://shopify/ProductOptionValue/red\",\"name\":\"Red\",\"hasVariants\":true},{\"id\":\"gid://shopify/ProductOptionValue/blue\",\"name\":\"Blue\",\"hasVariants\":false}]},{\"__typename\":\"ProductOptionValue\",\"id\":\"gid://shopify/ProductOptionValue/blue\",\"name\":\"Blue\",\"hasVariants\":false},null]}}"
+}
+
 pub fn staff_roots_return_access_denied_errors_test() {
   let body =
     run_query(
@@ -98,6 +132,55 @@ pub fn staff_roots_return_access_denied_errors_test() {
   assert string.contains(body, "Access denied for staffMember field.")
   assert string.contains(body, "Access denied for staffMembers field.")
   assert string.contains(body, "\"code\":\"ACCESS_DENIED\"")
+}
+
+fn seeded_product_option_store() {
+  store.new()
+  |> store.upsert_base_products([
+    ProductRecord(
+      id: "gid://shopify/Product/optioned",
+      legacy_resource_id: None,
+      title: "Optioned Board",
+      handle: "optioned-board",
+      status: "ACTIVE",
+      vendor: None,
+      product_type: None,
+      tags: [],
+      total_inventory: None,
+      tracks_inventory: None,
+      created_at: None,
+      updated_at: None,
+      published_at: None,
+      description_html: "",
+      online_store_preview_url: None,
+      template_suffix: None,
+      seo: ProductSeoRecord(title: None, description: None),
+      category: None,
+      publication_ids: [],
+      contextual_pricing: None,
+      cursor: None,
+    ),
+  ])
+  |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/color",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Color",
+      position: 1,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/red",
+          name: "Red",
+          has_variants: True,
+        ),
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/blue",
+          name: "Blue",
+          has_variants: False,
+        ),
+      ],
+    ),
+  ])
 }
 
 pub fn backup_region_update_stages_and_reads_back_test() {

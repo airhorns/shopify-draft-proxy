@@ -662,7 +662,7 @@ fn route_mutation(
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case mutation_domain_for(proxy, parsed, primary_root_field) {
+  case mutation_domain_for(proxy, parsed, query, primary_root_field) {
     Ok(SavedSearchesDomain) ->
       case
         saved_searches.process_mutation(
@@ -982,14 +982,16 @@ fn route_mutation(
           variables,
         )
       {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
         Error(_) -> #(bad_request("Failed to handle products mutation"), proxy)
       }
     Ok(PrivacyDomain) ->
@@ -1045,27 +1047,6 @@ fn route_mutation(
 }
 
 fn route_query(
-  proxy: DraftProxy,
-  parsed: ParsedOperation,
-  query: String,
-  primary_root_field: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> #(Response, DraftProxy) {
-  case
-    primary_root_field == "product" && products.is_product_smoke_query(query)
-  {
-    True ->
-      respond(
-        proxy,
-        products.process(proxy.store, query, variables),
-        "Failed to handle products query",
-      )
-    False ->
-      route_domain_query(proxy, parsed, query, primary_root_field, variables)
-  }
-}
-
-fn route_domain_query(
   proxy: DraftProxy,
   parsed: ParsedOperation,
   query: String,
@@ -1149,6 +1130,12 @@ fn route_domain_query(
       )
     Ok(MediaDomain) ->
       respond(proxy, media.process(query), "Failed to handle media query")
+    Ok(ProductsDomain) ->
+      respond(
+        proxy,
+        products.process(proxy.store, query, variables),
+        "Failed to handle products query",
+      )
     Ok(AdminPlatformDomain) ->
       respond(
         proxy,
@@ -1160,12 +1147,6 @@ fn route_domain_query(
         proxy,
         store_properties.process(proxy.store, query, variables),
         "Failed to handle store properties query",
-      )
-    Ok(ProductsDomain) ->
-      respond(
-        proxy,
-        products.process(proxy.store, query, variables),
-        "Failed to handle products query",
       )
     Ok(CustomersDomain) ->
       respond(
@@ -1205,9 +1186,9 @@ type Domain {
   MarketingDomain
   BulkOperationsDomain
   MediaDomain
+  ProductsDomain
   AdminPlatformDomain
   StorePropertiesDomain
-  ProductsDomain
   PrivacyDomain
   CustomersDomain
 }
@@ -1243,6 +1224,7 @@ fn query_domain_for(
 fn mutation_domain_for(
   proxy: DraftProxy,
   parsed: ParsedOperation,
+  query: String,
   primary_root_field: String,
 ) -> Result(Domain, Nil) {
   case parsed.type_ {
@@ -1258,10 +1240,10 @@ fn mutation_domain_for(
       {
         Some(entry) ->
           case entry.implemented {
-            True -> local_mutation_dispatch_domain(primary_root_field)
+            True -> local_mutation_dispatch_domain(primary_root_field, query)
             False -> Error(Nil)
           }
-        None -> local_mutation_dispatch_domain(primary_root_field)
+        None -> local_mutation_dispatch_domain(primary_root_field, query)
       }
     }
     _ -> Error(Nil)
@@ -1290,7 +1272,7 @@ fn local_dispatch_supported(type_: GraphQLOperationType, name: String) -> Bool {
         Error(_) -> False
       }
     MutationOperation ->
-      case local_mutation_dispatch_domain(name) {
+      case local_mutation_dispatch_domain(name, "") {
         Ok(_) -> True
         Error(_) -> False
       }
@@ -1308,7 +1290,7 @@ fn local_registry_dispatch_supported(
         Error(_) -> False
       }
     operation_registry.Mutation ->
-      case local_mutation_dispatch_domain(name) {
+      case local_mutation_dispatch_domain(name, "") {
         Ok(_) -> True
         Error(_) -> False
       }
@@ -1326,7 +1308,7 @@ fn local_query_dispatch_domain(
     "product" | "collection" ->
       case store_publishable_owner_query(name, query) {
         True -> Ok(StorePropertiesDomain)
-        False -> Ok(MetafieldDefinitionsDomain)
+        False -> Ok(ProductsDomain)
       }
     _ ->
       case saved_searches.is_saved_search_query_root(name) {
@@ -1347,74 +1329,83 @@ fn local_query_dispatch_domain(
                           case segments.is_segment_query_root(name) {
                             True -> Ok(SegmentsDomain)
                             False ->
-                              case customers.is_customer_query_root(name) {
-                                True -> Ok(CustomersDomain)
+                              case products.is_products_query_root(name) {
+                                True -> Ok(ProductsDomain)
                                 False ->
-                                  case
-                                    metafield_definitions.is_metafield_definitions_query_root(
-                                      name,
-                                    )
-                                  {
-                                    True -> Ok(MetafieldDefinitionsDomain)
+                                  case customers.is_customer_query_root(name) {
+                                    True -> Ok(CustomersDomain)
                                     False ->
                                       case
-                                        localization.is_localization_query_root(
+                                        metafield_definitions.is_metafield_definitions_query_root(
                                           name,
                                         )
                                       {
-                                        True -> Ok(LocalizationDomain)
+                                        True -> Ok(MetafieldDefinitionsDomain)
                                         False ->
                                           case
-                                            metaobject_definitions.is_metaobject_definitions_query_root(
+                                            localization.is_localization_query_root(
                                               name,
                                             )
                                           {
-                                            True ->
-                                              Ok(MetaobjectDefinitionsDomain)
+                                            True -> Ok(LocalizationDomain)
                                             False ->
                                               case
-                                                marketing.is_marketing_query_root(
+                                                metaobject_definitions.is_metaobject_definitions_query_root(
                                                   name,
                                                 )
                                               {
-                                                True -> Ok(MarketingDomain)
+                                                True ->
+                                                  Ok(
+                                                    MetaobjectDefinitionsDomain,
+                                                  )
                                                 False ->
                                                   case
-                                                    bulk_operations.is_bulk_operations_query_root(
+                                                    marketing.is_marketing_query_root(
                                                       name,
                                                     )
                                                   {
-                                                    True ->
-                                                      Ok(BulkOperationsDomain)
+                                                    True -> Ok(MarketingDomain)
                                                     False ->
                                                       case
-                                                        media.is_media_query_root(
+                                                        bulk_operations.is_bulk_operations_query_root(
                                                           name,
                                                         )
                                                       {
-                                                        True -> Ok(MediaDomain)
+                                                        True ->
+                                                          Ok(
+                                                            BulkOperationsDomain,
+                                                          )
                                                         False ->
                                                           case
-                                                            admin_platform.is_admin_platform_query_root(
+                                                            media.is_media_query_root(
                                                               name,
                                                             )
                                                           {
                                                             True ->
-                                                              Ok(
-                                                                AdminPlatformDomain,
-                                                              )
+                                                              Ok(MediaDomain)
                                                             False ->
                                                               case
-                                                                store_properties.is_store_properties_query_root(
+                                                                admin_platform.is_admin_platform_query_root(
                                                                   name,
                                                                 )
                                                               {
                                                                 True ->
                                                                   Ok(
-                                                                    StorePropertiesDomain,
+                                                                    AdminPlatformDomain,
                                                                   )
                                                                 False ->
-                                                                  Error(Nil)
+                                                                  case
+                                                                    store_properties.is_store_properties_query_root(
+                                                                      name,
+                                                                    )
+                                                                  {
+                                                                    True ->
+                                                                      Ok(
+                                                                        StorePropertiesDomain,
+                                                                      )
+                                                                    False ->
+                                                                      Error(Nil)
+                                                                  }
                                                               }
                                                           }
                                                       }
@@ -1442,6 +1433,7 @@ fn store_publishable_owner_query(name: String, query: String) -> Bool {
         case field {
           Field(name: field_name, ..) if field_name.value == name ->
             selection_names_request_store_publishable_fields(
+              name,
               root_field.get_selection_names(field),
             )
           _ -> False
@@ -1451,9 +1443,10 @@ fn store_publishable_owner_query(name: String, query: String) -> Bool {
 }
 
 fn selection_names_request_store_publishable_fields(
+  root_name: String,
   names: List(String),
 ) -> Bool {
-  let has_publishable_field =
+  let has_store_properties_publication_field =
     list.any(names, fn(name) {
       case name {
         "publishedOnCurrentPublication"
@@ -1463,125 +1456,120 @@ fn selection_names_request_store_publishable_fields(
         _ -> False
       }
     })
-  let has_store_identity_field =
-    list.any(names, fn(name) {
-      case name {
-        "title" | "handle" -> True
-        _ -> False
-      }
-    })
-  let has_metafield_owner_field =
-    list.any(names, fn(name) {
-      case name {
-        "metafield" | "metafields" | "variants" -> True
-        _ -> False
-      }
-    })
-
-  has_publishable_field
-  || { has_store_identity_field && !has_metafield_owner_field }
+  case root_name {
+    "collection" ->
+      has_store_properties_publication_field
+      && list.any(names, fn(name) {
+        name == "availablePublicationsCount"
+        || name == "resourcePublicationsCount"
+      })
+    _ -> False
+  }
 }
 
-fn local_mutation_dispatch_domain(name: String) -> Result(Domain, Nil) {
-  case name {
-    _ ->
+fn local_mutation_dispatch_domain(
+  name: String,
+  query: String,
+) -> Result(Domain, Nil) {
+  case publishable_mutation_requests_store_properties(name, query) {
+    True -> Ok(StorePropertiesDomain)
+    False -> local_non_store_publishable_mutation_dispatch_domain(name)
+  }
+}
+
+fn local_non_store_publishable_mutation_dispatch_domain(
+  name: String,
+) -> Result(Domain, Nil) {
+  case products.is_products_mutation_root(name) {
+    True -> Ok(ProductsDomain)
+    False ->
       case store_properties.is_store_properties_mutation_root(name) {
         True -> Ok(StorePropertiesDomain)
         False ->
-          case products.is_product_mutation_root(name) {
-            True -> Ok(ProductsDomain)
+          case saved_searches.is_saved_search_mutation_root(name) {
+            True -> Ok(SavedSearchesDomain)
             False ->
-              case saved_searches.is_saved_search_mutation_root(name) {
-                True -> Ok(SavedSearchesDomain)
+              case webhooks.is_webhook_subscription_mutation_root(name) {
+                True -> Ok(WebhooksDomain)
                 False ->
-                  case webhooks.is_webhook_subscription_mutation_root(name) {
-                    True -> Ok(WebhooksDomain)
+                  case apps.is_app_mutation_root(name) {
+                    True -> Ok(AppsDomain)
                     False ->
-                      case apps.is_app_mutation_root(name) {
-                        True -> Ok(AppsDomain)
+                      case functions.is_function_mutation_root(name) {
+                        True -> Ok(FunctionsDomain)
                         False ->
-                          case functions.is_function_mutation_root(name) {
-                            True -> Ok(FunctionsDomain)
+                          case gift_cards.is_gift_card_mutation_root(name) {
+                            True -> Ok(GiftCardsDomain)
                             False ->
-                              case gift_cards.is_gift_card_mutation_root(name) {
-                                True -> Ok(GiftCardsDomain)
+                              case segments.is_segment_mutation_root(name) {
+                                True -> Ok(SegmentsDomain)
                                 False ->
-                                  case segments.is_segment_mutation_root(name) {
-                                    True -> Ok(SegmentsDomain)
+                                  case
+                                    metafield_definitions.is_metafield_definitions_mutation_root(
+                                      name,
+                                    )
+                                  {
+                                    True -> Ok(MetafieldDefinitionsDomain)
                                     False ->
                                       case
-                                        metafield_definitions.is_metafield_definitions_mutation_root(
+                                        localization.is_localization_mutation_root(
                                           name,
                                         )
                                       {
-                                        True -> Ok(MetafieldDefinitionsDomain)
+                                        True -> Ok(LocalizationDomain)
                                         False ->
                                           case
-                                            localization.is_localization_mutation_root(
+                                            metaobject_definitions.is_metaobject_definitions_mutation_root(
                                               name,
                                             )
                                           {
-                                            True -> Ok(LocalizationDomain)
+                                            True ->
+                                              Ok(MetaobjectDefinitionsDomain)
                                             False ->
                                               case
-                                                metaobject_definitions.is_metaobject_definitions_mutation_root(
+                                                marketing.is_marketing_mutation_root(
                                                   name,
                                                 )
                                               {
-                                                True ->
-                                                  Ok(
-                                                    MetaobjectDefinitionsDomain,
-                                                  )
+                                                True -> Ok(MarketingDomain)
                                                 False ->
                                                   case
-                                                    marketing.is_marketing_mutation_root(
+                                                    bulk_operations.is_bulk_operations_mutation_root(
                                                       name,
                                                     )
                                                   {
-                                                    True -> Ok(MarketingDomain)
+                                                    True ->
+                                                      Ok(BulkOperationsDomain)
                                                     False ->
                                                       case
-                                                        bulk_operations.is_bulk_operations_mutation_root(
+                                                        admin_platform.is_admin_platform_mutation_root(
                                                           name,
                                                         )
                                                       {
                                                         True ->
                                                           Ok(
-                                                            BulkOperationsDomain,
+                                                            AdminPlatformDomain,
                                                           )
                                                         False ->
                                                           case
-                                                            admin_platform.is_admin_platform_mutation_root(
+                                                            privacy.is_privacy_mutation_root(
                                                               name,
                                                             )
                                                           {
                                                             True ->
-                                                              Ok(
-                                                                AdminPlatformDomain,
-                                                              )
+                                                              Ok(PrivacyDomain)
                                                             False ->
                                                               case
-                                                                privacy.is_privacy_mutation_root(
+                                                                customers.is_customer_mutation_root(
                                                                   name,
                                                                 )
                                                               {
                                                                 True ->
                                                                   Ok(
-                                                                    PrivacyDomain,
+                                                                    CustomersDomain,
                                                                   )
                                                                 False ->
-                                                                  case
-                                                                    customers.is_customer_mutation_root(
-                                                                      name,
-                                                                    )
-                                                                  {
-                                                                    True ->
-                                                                      Ok(
-                                                                        CustomersDomain,
-                                                                      )
-                                                                    False ->
-                                                                      Error(Nil)
-                                                                  }
+                                                                  Error(Nil)
                                                               }
                                                           }
                                                       }
@@ -1597,6 +1585,20 @@ fn local_mutation_dispatch_domain(name: String) -> Result(Domain, Nil) {
               }
           }
       }
+  }
+}
+
+fn publishable_mutation_requests_store_properties(
+  name: String,
+  query: String,
+) -> Bool {
+  case name {
+    "publishablePublish" | "publishableUnpublish" ->
+      string.contains(query, "publishedOnCurrentPublication")
+      || string.contains(query, "availablePublicationsCount")
+      || string.contains(query, " shop ")
+      || string.contains(query, "shop {")
+    _ -> False
   }
 }
 
