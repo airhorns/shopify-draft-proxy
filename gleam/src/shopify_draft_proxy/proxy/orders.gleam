@@ -1213,6 +1213,7 @@ pub fn process_mutation(
         Field(name: name, ..) if name.value == "orderUpdate" -> {
           let #(key, payload, next_errors) =
             handle_order_update_validation_guardrail(
+              current_store,
               operation_path,
               field,
               variables,
@@ -2320,6 +2321,7 @@ fn handle_fulfillment_create_invalid_id_guardrail(
 }
 
 fn handle_order_update_validation_guardrail(
+  store: Store,
   operation_path: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
@@ -2345,7 +2347,27 @@ fn handle_order_update_validation_guardrail(
   }
   case errors {
     [_, ..] -> #(key, json.null(), errors)
-    [] -> #(key, json.null(), [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      case dict.get(args, "input") {
+        Ok(root_field.ObjectVal(input)) ->
+          case read_string(input, "id") {
+            Some(id) ->
+              case store.get_order_by_id(store, id) {
+                None -> #(
+                  key,
+                  serialize_order_mutation_error_payload(field, [
+                    #(["id"], "Order does not exist"),
+                  ]),
+                  [],
+                )
+                Some(_) -> #(key, json.null(), [])
+              }
+            None -> #(key, json.null(), [])
+          }
+        _ -> #(key, json.null(), [])
+      }
+    }
   }
 }
 
@@ -2508,7 +2530,7 @@ fn handle_order_create_validation_guardrail(
             [] -> #(key, json.null(), [])
             _ -> #(
               key,
-              serialize_order_create_validation_payload(field, user_errors),
+              serialize_order_mutation_error_payload(field, user_errors),
               [],
             )
           }
@@ -2530,7 +2552,7 @@ fn validate_order_create_input(
   }
 }
 
-fn serialize_order_create_validation_payload(
+fn serialize_order_mutation_error_payload(
   field: Selection,
   user_errors: List(#(List(String), String)),
 ) -> Json {

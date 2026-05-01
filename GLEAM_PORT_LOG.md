@@ -9,6 +9,57 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 136: order update unknown-id validation
+
+Promotes the checked-in `orderUpdate-parity-plan` scenario in the Gleam Orders
+domain. This pass extends the existing `orderUpdate` validation guardrail from
+missing/null nested IDs to Shopify's captured unknown-order payload branch,
+returning `order: null` and the `Order does not exist` user error without
+staging state or claiming update success behavior.
+
+| Module                                                   | Change                                                      |
+| -------------------------------------------------------- | ----------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds store-aware unknown-order `orderUpdate` user errors.   |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers unknown-id response plus no staging/logging effects. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing order update validation spec.     |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (743 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (739 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 125 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Unknown-order `orderUpdate` is a payload user-error branch, not a top-level
+  GraphQL error: `order: null`, `field: ["id"]`, and message
+  `Order does not exist`.
+- The guardrail needs access to effective order state so future successful
+  `orderUpdate` support can distinguish unknown upstream IDs from local staged
+  orders.
+
+### Risks / open items
+
+- Successful `orderUpdate` field changes, timestamp behavior, downstream reads,
+  and lifecycle interactions remain gated.
+
+### Pass 137 candidates
+
+- Either continue with another captured validation guardrail, or begin the
+  direct order lifecycle substrate when the order, payment, customer, inventory,
+  fulfillment, refund, and return effects can be modeled coherently.
+
+---
+
 ## 2026-05-01 - Pass 135: order create no-line-items validation
 
 Promotes the checked-in `orderCreate-validation-matrix` scenario in the Gleam

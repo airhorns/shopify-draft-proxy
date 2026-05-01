@@ -1006,6 +1006,57 @@ pub fn orders_order_update_validation_guardrails_test() {
     missing_variable_json,
     "\"tags\":[\"parity-probe\",\"order-update\",\"missing-id\"]",
   )
+
+  let unknown_id =
+    "
+    mutation OrderUpdateParityPlan($input: OrderInput!) {
+      orderUpdate(input: $input) {
+        order {
+          id
+          name
+          updatedAt
+          note
+          tags
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let unknown_variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("id", root_field.StringVal("gid://shopify/Order/0")),
+            #("note", root_field.StringVal("order update parity plan")),
+            #(
+              "tags",
+              root_field.ListVal([
+                root_field.StringVal("parity-plan"),
+                root_field.StringVal("order-update"),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(unknown_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      unknown_id,
+      unknown_variables,
+    )
+  assert json.to_string(unknown_outcome.data)
+    == "{\"data\":{\"orderUpdate\":{\"order\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Order does not exist\"}]}}}"
+  assert unknown_outcome.staged_resource_ids == []
+  assert unknown_outcome.log_drafts == []
+  assert store.list_effective_orders(unknown_outcome.store) == []
 }
 
 pub fn orders_order_edit_missing_id_validation_guardrails_test() {

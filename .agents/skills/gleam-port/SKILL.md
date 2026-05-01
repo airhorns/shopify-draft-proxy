@@ -481,6 +481,10 @@ synthetic-id/timestamp expected differences.
   `["order", "lineItems"]`, and do not stage an order, mint IDs, or append a
   mutation-log draft. Keep this as a guardrail until successful direct-order
   creation and downstream state effects are ported together.
+- `orderUpdate` unknown-id validation is also a payload user-error branch:
+  return `order: null`, field `["id"]`, and message `Order does not exist`.
+  Make the guardrail effective-store aware so it can later distinguish missing
+  orders from locally staged orders when success behavior is ported.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or
