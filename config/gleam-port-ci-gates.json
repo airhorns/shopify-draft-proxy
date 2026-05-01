@@ -287,16 +287,12 @@
     {
       "specPath": "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json",
       "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
-      "targets": [
-        "erlang"
-      ]
+      "targets": ["erlang"]
     },
     {
       "specPath": "config/parity-specs/metaobjects/metaobject-definitions-read.json",
       "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
-      "targets": [
-        "erlang"
-      ]
+      "targets": ["erlang"]
     },
     {
       "specPath": "config/parity-specs/online-store-article-media-navigation-follow-through.json",
