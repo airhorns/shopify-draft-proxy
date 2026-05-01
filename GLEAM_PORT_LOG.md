@@ -17,12 +17,12 @@ domain now routes the shipment create/add/remove/tracking/transit roots and
 transfer edit/duplicate roots locally, stages their effects in memory, and keeps
 the original mutation requests in the draft log for commit replay.
 
-| Module                                                            | Change                                                                                                      |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/products.gleam`              | Adds Products dispatch and local handlers for inventory shipment create/add/remove/tracking/transit roots.  |
-| `gleam/src/shopify_draft_proxy/proxy/products.gleam`              | Adds inventory transfer edit/duplicate staging, including metadata edits and reminted duplicate line items. |
+| Module                                                              | Change                                                                                                      |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds Products dispatch and local handlers for inventory shipment create/add/remove/tracking/transit roots.  |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                | Adds inventory transfer edit/duplicate staging, including metadata edits and reminted duplicate line items. |
 | `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Covers the new shipment and transfer roots with downstream read-after-write and mutation-log assertions.    |
-| `.agents/skills/gleam-port/SKILL.md`                              | Records product-specific shipment and transfer porting notes for future Products work.                      |
+| `.agents/skills/gleam-port/SKILL.md`                                | Records product-specific shipment and transfer porting notes for future Products work.                      |
 
 Validation:
 
