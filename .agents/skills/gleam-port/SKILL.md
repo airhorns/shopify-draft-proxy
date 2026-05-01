@@ -698,6 +698,15 @@ synthetic-id/timestamp expected differences.
   records. The mutation payload has only `deletedId` and `userErrors`; a repeat
   delete returns `deletedId: null` with `field: ["orderId"]` rather than
   throwing or proxying upstream.
+- Fulfillment creation/event support is order-backed. Resolve
+  `lineItemsByFulfillmentOrder.fulfillmentOrderId` against the local order's
+  captured `fulfillmentOrders`, mint a `Fulfillment`, mint selected
+  `FulfillmentLineItem` nodes from the fulfillment-order line items, close the
+  source fulfillment order locally, and append the fulfillment to the owning
+  order. `fulfillmentEventCreate` appends event nodes to the fulfillment's
+  connection-shaped `events` field and updates display/timestamp fields such as
+  `IN_TRANSIT`/`inTransitAt`. Keep external shipping notifications and carrier
+  side effects out of the local model.
 
 ## Workflow for a new pass
 

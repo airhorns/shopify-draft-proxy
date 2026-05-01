@@ -1318,6 +1318,335 @@ pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
     == "{\"errors\":[{\"message\":\"invalid id\",\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"},\"path\":[\"fulfillmentCreate\"]}],\"data\":{\"fulfillmentCreate\":null}}"
 }
 
+pub fn orders_fulfillment_create_event_and_detail_read_test() {
+  let order_id = "gid://shopify/Order/fulfillment-create"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/fulfillment-create"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create"
+  let unrequested_fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-unrequested"
+  let second_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-second"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-create"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#FULFILL-CREATE")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+          #("fulfillments", types.CapturedArray([])),
+          #(
+            "fulfillmentOrders",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString(fulfillment_order_id)),
+                #("status", types.CapturedString("OPEN")),
+                #("requestStatus", types.CapturedString("UNSUBMITTED")),
+                #(
+                  "lineItems",
+                  types.CapturedArray([
+                    types.CapturedObject([
+                      #(
+                        "id",
+                        types.CapturedString(fulfillment_order_line_item_id),
+                      ),
+                      #(
+                        "lineItem",
+                        types.CapturedObject([
+                          #("id", types.CapturedString(line_item_id)),
+                          #("title", types.CapturedString("Fulfillment item")),
+                        ]),
+                      ),
+                      #("totalQuantity", types.CapturedInt(2)),
+                      #("remainingQuantity", types.CapturedInt(2)),
+                    ]),
+                    types.CapturedObject([
+                      #(
+                        "id",
+                        types.CapturedString(
+                          unrequested_fulfillment_order_line_item_id,
+                        ),
+                      ),
+                      #(
+                        "lineItem",
+                        types.CapturedObject([
+                          #(
+                            "id",
+                            types.CapturedString(
+                              "gid://shopify/LineItem/fulfillment-create-unrequested",
+                            ),
+                          ),
+                          #("title", types.CapturedString("Unrequested item")),
+                        ]),
+                      ),
+                      #("totalQuantity", types.CapturedInt(5)),
+                      #("remainingQuantity", types.CapturedInt(5)),
+                    ]),
+                  ]),
+                ),
+              ]),
+              types.CapturedObject([
+                #("id", types.CapturedString(second_fulfillment_order_id)),
+                #("status", types.CapturedString("OPEN")),
+                #("requestStatus", types.CapturedString("UNSUBMITTED")),
+                #(
+                  "lineItems",
+                  types.CapturedArray([
+                    types.CapturedObject([
+                      #(
+                        "id",
+                        types.CapturedString(
+                          "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-second",
+                        ),
+                      ),
+                      #(
+                        "lineItemId",
+                        types.CapturedString(
+                          "gid://shopify/LineItem/fulfillment-create-second",
+                        ),
+                      ),
+                      #("title", types.CapturedString("Second item")),
+                      #("totalQuantity", types.CapturedInt(1)),
+                      #("remainingQuantity", types.CapturedInt(1)),
+                    ]),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let create_mutation =
+    "
+    mutation FulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {
+      fulfillmentCreate(fulfillment: $fulfillment, message: $message) {
+        fulfillment {
+          id
+          status
+          displayStatus
+          trackingInfo(first: 1) {
+            number
+            url
+            company
+          }
+          fulfillmentLineItems(first: 5) {
+            nodes {
+              id
+              quantity
+              lineItem {
+                id
+                title
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let create_variables =
+    dict.from_list([
+      #(
+        "fulfillment",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("notifyCustomer", root_field.BoolVal(False)),
+            #(
+              "trackingInfo",
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("number", root_field.StringVal("HAR159-CREATE")),
+                  #(
+                    "url",
+                    root_field.StringVal(
+                      "https://example.com/track/HAR159-CREATE",
+                    ),
+                  ),
+                  #("company", root_field.StringVal("Hermes")),
+                ]),
+              ),
+            ),
+            #(
+              "lineItemsByFulfillmentOrder",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #(
+                      "fulfillmentOrderId",
+                      root_field.StringVal(fulfillment_order_id),
+                    ),
+                    #(
+                      "fulfillmentOrderLineItems",
+                      root_field.ListVal([
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #(
+                              "id",
+                              root_field.StringVal(
+                                fulfillment_order_line_item_id,
+                              ),
+                            ),
+                            #("quantity", root_field.IntVal(1)),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+      #("message", root_field.StringVal("HAR-159 create")),
+    ])
+  let assert Ok(create_outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      create_mutation,
+      create_variables,
+    )
+  assert json.to_string(create_outcome.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\",\"status\":\"SUCCESS\",\"displayStatus\":\"FULFILLED\",\"trackingInfo\":[{\"number\":\"HAR159-CREATE\",\"url\":\"https://example.com/track/HAR159-CREATE\",\"company\":\"Hermes\"}],\"fulfillmentLineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentLineItem/2\",\"quantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-create\",\"title\":\"Fulfillment item\"}}]}},\"userErrors\":[]}}}"
+
+  let event_mutation =
+    "
+    mutation FulfillmentEventCreate($fulfillmentEvent: FulfillmentEventInput!) {
+      fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+          fulfillmentEvent {
+            id
+            status
+            message
+            happenedAt
+            estimatedDeliveryAt
+            city
+            province
+            country
+            zip
+            address1
+            latitude
+            longitude
+          }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let event_variables =
+    dict.from_list([
+      #(
+        "fulfillmentEvent",
+        root_field.ObjectVal(
+          dict.from_list([
+            #(
+              "fulfillmentId",
+              root_field.StringVal("gid://shopify/Fulfillment/1"),
+            ),
+            #("status", root_field.StringVal("IN_TRANSIT")),
+            #("message", root_field.StringVal("HAR-159 package scanned")),
+            #("happenedAt", root_field.StringVal("2026-04-25T22:25:00Z")),
+            #(
+              "estimatedDeliveryAt",
+              root_field.StringVal("2026-04-27T18:00:00Z"),
+            ),
+            #("city", root_field.StringVal("Toronto")),
+            #("province", root_field.StringVal("Ontario")),
+            #("country", root_field.StringVal("Canada")),
+            #("zip", root_field.StringVal("M5H 2M9")),
+            #("address1", root_field.StringVal("123 Queen St W")),
+            #("latitude", root_field.FloatVal(43.6532)),
+            #("longitude", root_field.FloatVal(-79.3832)),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(event_outcome) =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      event_mutation,
+      event_variables,
+    )
+  assert json.to_string(event_outcome.data)
+    == "{\"data\":{\"fulfillmentEventCreate\":{\"fulfillmentEvent\":{\"id\":\"gid://shopify/FulfillmentEvent/3\",\"status\":\"IN_TRANSIT\",\"message\":\"HAR-159 package scanned\",\"happenedAt\":\"2026-04-25T22:25:00Z\",\"estimatedDeliveryAt\":\"2026-04-27T18:00:00Z\",\"city\":\"Toronto\",\"province\":\"Ontario\",\"country\":\"Canada\",\"zip\":\"M5H 2M9\",\"address1\":\"123 Queen St W\",\"latitude\":43.6532,\"longitude\":-79.3832},\"userErrors\":[]}}}"
+
+  let detail_query =
+    "
+    query FulfillmentDetail($orderId: ID!, $fulfillmentId: ID!) {
+      fulfillment(id: $fulfillmentId) {
+        id
+        displayStatus
+        estimatedDeliveryAt
+        inTransitAt
+        events(first: 5) {
+          nodes {
+            id
+            status
+            message
+            happenedAt
+            estimatedDeliveryAt
+            city
+            province
+            country
+            zip
+            address1
+            latitude
+            longitude
+          }
+        }
+      }
+      order(id: $orderId) {
+        id
+        displayFulfillmentStatus
+        fulfillments(first: 5) {
+          id
+          displayStatus
+          events(first: 5) {
+            nodes {
+              id
+              status
+            }
+          }
+        }
+        fulfillmentOrders(first: 5) {
+          nodes {
+            id
+            status
+            lineItems(first: 5) {
+              nodes {
+                id
+                remainingQuantity
+              }
+            }
+          }
+        }
+      }
+    }
+  "
+  let detail_variables =
+    dict.from_list([
+      #("orderId", root_field.StringVal(order_id)),
+      #("fulfillmentId", root_field.StringVal("gid://shopify/Fulfillment/1")),
+    ])
+  let assert Ok(detail) =
+    orders.process(event_outcome.store, detail_query, detail_variables)
+  assert json.to_string(detail)
+    == "{\"data\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\",\"displayStatus\":\"IN_TRANSIT\",\"estimatedDeliveryAt\":\"2026-04-27T18:00:00Z\",\"inTransitAt\":\"2026-04-25T22:25:00Z\",\"events\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentEvent/3\",\"status\":\"IN_TRANSIT\",\"message\":\"HAR-159 package scanned\",\"happenedAt\":\"2026-04-25T22:25:00Z\",\"estimatedDeliveryAt\":\"2026-04-27T18:00:00Z\",\"city\":\"Toronto\",\"province\":\"Ontario\",\"country\":\"Canada\",\"zip\":\"M5H 2M9\",\"address1\":\"123 Queen St W\",\"latitude\":43.6532,\"longitude\":-79.3832}]}},\"order\":{\"id\":\"gid://shopify/Order/fulfillment-create\",\"displayFulfillmentStatus\":\"PARTIALLY_FULFILLED\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/1\",\"displayStatus\":\"IN_TRANSIT\",\"events\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentEvent/3\",\"status\":\"IN_TRANSIT\"}]}}],\"fulfillmentOrders\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrder/fulfillment-create\",\"status\":\"CLOSED\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create\",\"remainingQuantity\":1},{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create-unrequested\",\"remainingQuantity\":5}]}},{\"id\":\"gid://shopify/FulfillmentOrder/fulfillment-create-second\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/fulfillment-create-second\",\"remainingQuantity\":1}]}}]}}}}"
+}
+
 pub fn orders_refund_create_over_refund_validation_keeps_order_unchanged_test() {
   let order_id = "gid://shopify/Order/6830465417449"
   let line_item_id = "gid://shopify/LineItem/16202166632681"

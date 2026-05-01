@@ -9,6 +9,50 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 159: fulfillment create and event staging
+
+Adds a bounded fulfillment creation/event lifecycle slice to the Gleam Orders
+domain. This pass stages `fulfillmentCreate` against order-backed local
+fulfillment orders, exposes the new fulfillment through top-level and nested
+reads, and stages `fulfillmentEventCreate` event history without invoking
+external carrier, notification, or fulfillment-service side effects.
+
+| Module                                                   | Change                                     |
+| -------------------------------------------------------- | ------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds fulfillment create/event handling.    |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers create, event, and detail readback. |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records fulfillment create/event patterns. |
+
+Validation:
+
+- Reproduction with the new fulfillment create/event proof first failed because
+  `fulfillmentCreate` always returned the captured invalid-id branch, even for a
+  local order-backed fulfillment order.
+- `cd gleam && gleam test --target javascript orders_fulfillment_create_event_and_detail_read_test`
+  (758 passed).
+
+### Findings
+
+- The existing fulfillment cancel/tracking path already projected fulfillment
+  JSON well enough for both mutation payloads and nested `Order.fulfillments`;
+  the missing piece was creating and appending order-backed fulfillment JSON.
+- Fulfillment events need connection-shaped storage (`events.nodes` plus
+  `pageInfo`) so top-level `fulfillment(id:)` and nested order reads can use the
+  shared GraphQL projector.
+
+### Risks / open items
+
+- Broader fulfillment-order request/move/hold/split/merge workflows remain
+  outside this pass.
+
+### Pass 160 candidates
+
+- Port the fulfillment-order lifecycle roots still covered only by the legacy
+  TypeScript Orders module, or decide whether they belong in a separate
+  shipping-fulfillments ticket.
+
+---
+
 ## 2026-05-01 - Pass 158: order delete tombstone staging
 
 Adds direct `orderDelete` handling to the Gleam Orders domain. This pass

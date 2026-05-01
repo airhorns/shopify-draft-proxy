@@ -72,6 +72,7 @@ pub fn is_orders_query_root(name: String) -> Bool {
       "draftOrderAvailableDeliveryOptions",
       "draftOrders",
       "draftOrdersCount",
+      "fulfillment",
       "order",
       "orders",
       "ordersCount",
@@ -101,6 +102,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "draftOrderUpdate",
       "fulfillmentCancel",
       "fulfillmentCreate",
+      "fulfillmentEventCreate",
       "fulfillmentTrackingInfoUpdate",
       "orderCancel",
       "orderCapture",
@@ -318,6 +320,20 @@ fn serialize_query_field(
       serialize_draft_order_available_delivery_options(field, fragments)
     "draftOrders" -> serialize_draft_orders(store, field, fragments, variables)
     "draftOrdersCount" -> serialize_draft_orders_count(store, field, fragments)
+    "fulfillment" -> {
+      let id = read_string_argument(field, "id", variables)
+      case id {
+        Some(id) ->
+          case find_order_with_fulfillment(store, id) {
+            Some(match) -> {
+              let #(_, fulfillment) = match
+              serialize_captured_selection(field, Some(fulfillment), fragments)
+            }
+            None -> json.null()
+          }
+        None -> json.null()
+      }
+    }
     "order" -> {
       let id = read_string_argument(field, "id", variables)
       case id {
@@ -412,12 +428,110 @@ fn serialize_order_node(
                 fragments,
               ),
             )
+            "fulfillmentOrders" -> #(
+              key,
+              serialize_order_fulfillment_orders_connection(
+                child,
+                order_fulfillment_orders(order.data),
+                fragments,
+              ),
+            )
             _ -> #(key, project_graphql_field_value(source, child, fragments))
           }
         _ -> #(key, json.null())
       }
     })
   json.object(entries)
+}
+
+fn serialize_order_fulfillment_orders_connection(
+  field: Selection,
+  fulfillment_orders: List(CapturedJsonValue),
+  fragments: FragmentMap,
+) -> Json {
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: fulfillment_orders,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(fulfillment_order, _index) {
+        captured_string_field(fulfillment_order, "id") |> option.unwrap("")
+      },
+      serialize_node: fn(fulfillment_order, selection, _index) {
+        serialize_order_fulfillment_order(
+          selection,
+          fulfillment_order,
+          fragments,
+        )
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: True,
+        prefix_cursors: False,
+        include_cursors: False,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn serialize_order_fulfillment_order(
+  field: Selection,
+  fulfillment_order: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  let source = captured_json_source(fulfillment_order)
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "lineItems" -> #(
+              key,
+              serialize_order_fulfillment_order_line_items_connection(
+                child,
+                fulfillment_order_line_items(fulfillment_order),
+                fragments,
+              ),
+            )
+            _ -> #(key, project_graphql_field_value(source, child, fragments))
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_order_fulfillment_order_line_items_connection(
+  field: Selection,
+  line_items: List(CapturedJsonValue),
+  fragments: FragmentMap,
+) -> Json {
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: line_items,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(line_item, _index) {
+        captured_string_field(line_item, "id") |> option.unwrap("")
+      },
+      serialize_node: fn(line_item, selection, _index) {
+        serialize_captured_selection(selection, Some(line_item), fragments)
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: True,
+        prefix_cursors: False,
+        include_cursors: False,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
 }
 
 fn serialize_orders(
@@ -1290,16 +1404,82 @@ pub fn process_mutation(
           }
         }
         Field(name: name, ..) if name.value == "fulfillmentCreate" -> {
-          let #(key, payload, next_errors) =
-            handle_fulfillment_create_invalid_id_guardrail(name.value)
-          #(
-            list.append(entries, [#(key, payload)]),
-            list.append(errors, next_errors),
-            current_store,
-            current_identity,
-            ids,
-            drafts,
-          )
+          let result =
+            handle_fulfillment_create_mutation(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            next_ids,
+            next_errors,
+            next_drafts,
+          ) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, next_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              list.append(entries, [#(key, payload)]),
+              list.append(errors, next_errors),
+              next_store,
+              next_identity,
+              ids,
+              list.append(drafts, next_drafts),
+            )
+          }
+        }
+        Field(name: name, ..) if name.value == "fulfillmentEventCreate" -> {
+          let result =
+            handle_fulfillment_event_create_mutation(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            next_ids,
+            next_errors,
+            next_drafts,
+          ) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, next_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              list.append(entries, [#(key, payload)]),
+              list.append(errors, next_errors),
+              next_store,
+              next_identity,
+              ids,
+              list.append(drafts, next_drafts),
+            )
+          }
         }
         Field(name: name, ..) if name.value == "orderCreate" -> {
           let result =
@@ -9166,6 +9346,777 @@ fn handle_fulfillment_create_invalid_id_guardrail(
   ])
 }
 
+fn handle_fulfillment_create_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "fulfillmentCreate",
+      [
+        RequiredArgument(
+          name: "fulfillment",
+          expected_type: "FulfillmentInput!",
+        ),
+      ],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      case read_object(args, "fulfillment") {
+        Some(input) -> {
+          let fulfillment_order_id =
+            read_object_list(input, "lineItemsByFulfillmentOrder")
+            |> list.find_map(fn(item) {
+              read_string(item, "fulfillmentOrderId") |> option_to_result
+            })
+            |> option.from_result
+          case fulfillment_order_id {
+            Some(fulfillment_order_id) ->
+              case
+                find_order_with_fulfillment_order(store, fulfillment_order_id)
+              {
+                Some(match) -> {
+                  let #(order, fulfillment_order) = match
+                  let requested_line_items =
+                    requested_fulfillment_line_items(input)
+                  let #(fulfillment, next_identity) =
+                    build_fulfillment_from_order(
+                      identity,
+                      input,
+                      fulfillment_order,
+                    )
+                  let updated_order =
+                    order
+                    |> replace_order_fulfillment_order(
+                      fulfillment_order_id,
+                      close_fulfillment_order(
+                        fulfillment_order,
+                        requested_line_items,
+                      ),
+                    )
+                    |> append_order_fulfillment(fulfillment)
+                  let next_store = store.stage_order(store, updated_order)
+                  let payload =
+                    serialize_fulfillment_create_payload(
+                      field,
+                      Some(fulfillment),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "fulfillmentCreate",
+                      [
+                        captured_string_field(fulfillment, "id")
+                        |> option.unwrap(""),
+                      ],
+                      store.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged fulfillmentCreate in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(
+                    key,
+                    payload,
+                    next_store,
+                    next_identity,
+                    [updated_order.id],
+                    [],
+                    [draft],
+                  )
+                }
+                None -> fulfillment_create_invalid_result(key, store, identity)
+              }
+            None -> fulfillment_create_invalid_result(key, store, identity)
+          }
+        }
+        None -> fulfillment_create_invalid_result(key, store, identity)
+      }
+    }
+  }
+}
+
+fn fulfillment_create_invalid_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let #(_, payload, errors) =
+    handle_fulfillment_create_invalid_id_guardrail("fulfillmentCreate")
+  #(key, payload, store, identity, [], errors, [])
+}
+
+fn handle_fulfillment_event_create_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "fulfillmentEventCreate",
+      [
+        RequiredArgument(
+          name: "fulfillmentEvent",
+          expected_type: "FulfillmentEventInput!",
+        ),
+      ],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      case read_object(args, "fulfillmentEvent") {
+        Some(input) -> {
+          let fulfillment_id = read_string(input, "fulfillmentId")
+          case fulfillment_id {
+            Some(fulfillment_id) ->
+              case find_order_with_fulfillment(store, fulfillment_id) {
+                Some(match) -> {
+                  let #(order, fulfillment) = match
+                  let #(event, next_identity) =
+                    build_fulfillment_event(identity, input)
+                  let updated_fulfillment =
+                    append_fulfillment_event(fulfillment, event)
+                  let updated_order =
+                    update_order_fulfillment(
+                      order,
+                      fulfillment_id,
+                      updated_fulfillment,
+                    )
+                  let next_store = store.stage_order(store, updated_order)
+                  let payload =
+                    serialize_fulfillment_event_create_payload(
+                      field,
+                      Some(event),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "fulfillmentEventCreate",
+                      [captured_string_field(event, "id") |> option.unwrap("")],
+                      store.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged fulfillmentEventCreate in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(
+                    key,
+                    payload,
+                    next_store,
+                    next_identity,
+                    [updated_order.id],
+                    [],
+                    [draft],
+                  )
+                }
+                None -> fulfillment_event_invalid_result(key, store, identity)
+              }
+            None -> fulfillment_event_invalid_result(key, store, identity)
+          }
+        }
+        None -> fulfillment_event_invalid_result(key, store, identity)
+      }
+    }
+  }
+}
+
+fn fulfillment_event_invalid_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  #(
+    key,
+    json.null(),
+    store,
+    identity,
+    [],
+    [
+      json.object([
+        #("message", json.string("invalid id")),
+        #(
+          "extensions",
+          json.object([#("code", json.string("RESOURCE_NOT_FOUND"))]),
+        ),
+        #("path", json.array(["fulfillmentEventCreate"], json.string)),
+      ]),
+    ],
+    [],
+  )
+}
+
+fn find_order_with_fulfillment_order(
+  store: Store,
+  fulfillment_order_id: String,
+) -> Option(#(OrderRecord, CapturedJsonValue)) {
+  store.list_effective_orders(store)
+  |> list.find_map(fn(order) {
+    case
+      order_fulfillment_orders(order.data)
+      |> list.find(fn(fulfillment_order) {
+        captured_string_field(fulfillment_order, "id")
+        == Some(fulfillment_order_id)
+      })
+      |> option.from_result
+    {
+      Some(fulfillment_order) -> Ok(#(order, fulfillment_order))
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn order_fulfillment_orders(
+  order_data: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(order_data, "fulfillmentOrders") {
+    Some(CapturedArray(fulfillment_orders)) -> fulfillment_orders
+    Some(value) -> connection_nodes(value)
+    _ -> []
+  }
+}
+
+type RequestedFulfillmentLineItem {
+  RequestedFulfillmentLineItem(id: String, quantity: Option(Int))
+}
+
+fn build_fulfillment_from_order(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+  fulfillment_order: CapturedJsonValue,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(fulfillment_id, identity_after_fulfillment) =
+    synthetic_identity.make_synthetic_gid(identity, "Fulfillment")
+  let #(line_items, identity_after_line_items) =
+    build_fulfillment_line_items(
+      identity_after_fulfillment,
+      fulfillment_order_line_items(fulfillment_order),
+      requested_fulfillment_line_items(input),
+    )
+  let #(timestamp, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_line_items)
+  #(
+    CapturedObject([
+      #("id", CapturedString(fulfillment_id)),
+      #("status", CapturedString("SUCCESS")),
+      #("displayStatus", CapturedString("FULFILLED")),
+      #("createdAt", CapturedString(timestamp)),
+      #("updatedAt", CapturedString(timestamp)),
+      #("trackingInfo", fulfillment_tracking_info_from_input(input)),
+      #(
+        "fulfillmentLineItems",
+        CapturedObject([#("nodes", CapturedArray(line_items))]),
+      ),
+      #("events", fulfillment_events_connection([])),
+    ]),
+    next_identity,
+  )
+}
+
+fn build_fulfillment_line_items(
+  identity: SyntheticIdentityRegistry,
+  line_items: List(CapturedJsonValue),
+  requested: List(RequestedFulfillmentLineItem),
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  line_items
+  |> list.filter(fn(line_item) {
+    should_fulfill_line_item(line_item, requested)
+  })
+  |> list.fold(#([], identity), fn(acc, line_item) {
+    let #(items, current_identity) = acc
+    let #(id, next_identity) =
+      synthetic_identity.make_synthetic_gid(
+        current_identity,
+        "FulfillmentLineItem",
+      )
+    let fulfillment_order_line_item_id =
+      captured_string_field(line_item, "id") |> option.unwrap("")
+    let quantity =
+      requested_fulfillment_quantity(fulfillment_order_line_item_id, requested)
+      |> option.or(captured_int_field(line_item, "remainingQuantity"))
+      |> option.or(captured_int_field(line_item, "totalQuantity"))
+      |> option.unwrap(0)
+    let source_line_item_id = fulfillment_source_line_item_id(line_item)
+    let title = fulfillment_source_line_item_title(line_item)
+    #(
+      list.append(items, [
+        CapturedObject([
+          #("id", CapturedString(id)),
+          #("quantity", CapturedInt(quantity)),
+          #(
+            "lineItem",
+            CapturedObject([
+              #("id", CapturedString(source_line_item_id)),
+              #("title", CapturedString(title)),
+            ]),
+          ),
+        ]),
+      ]),
+      next_identity,
+    )
+  })
+}
+
+fn requested_fulfillment_line_items(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(RequestedFulfillmentLineItem) {
+  read_object_list(input, "lineItemsByFulfillmentOrder")
+  |> list.flat_map(fn(group) {
+    read_object_list(group, "fulfillmentOrderLineItems")
+  })
+  |> list.filter_map(fn(item) {
+    case read_string(item, "id") {
+      Some(id) ->
+        Ok(RequestedFulfillmentLineItem(
+          id: id,
+          quantity: read_optional_int(item, "quantity"),
+        ))
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn should_fulfill_line_item(
+  line_item: CapturedJsonValue,
+  requested: List(RequestedFulfillmentLineItem),
+) -> Bool {
+  case requested {
+    [] -> True
+    [_, ..] -> {
+      let line_item_id = captured_string_field(line_item, "id")
+      requested
+      |> list.any(fn(request) {
+        case request, line_item_id {
+          RequestedFulfillmentLineItem(id: requested_id, ..), Some(id) ->
+            requested_id == id
+          _, _ -> False
+        }
+      })
+    }
+  }
+}
+
+fn requested_fulfillment_quantity(
+  line_item_id: String,
+  requested: List(RequestedFulfillmentLineItem),
+) -> Option(Int) {
+  requested
+  |> list.find_map(fn(request) {
+    case request {
+      RequestedFulfillmentLineItem(id: requested_id, quantity:)
+        if requested_id == line_item_id
+      ->
+        case quantity {
+          Some(quantity) -> Ok(quantity)
+          None -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn fulfillment_source_line_item_id(line_item: CapturedJsonValue) -> String {
+  captured_string_field(line_item, "lineItemId")
+  |> option.or({
+    case captured_object_field(line_item, "lineItem") {
+      Some(line_item) -> captured_string_field(line_item, "id")
+      None -> None
+    }
+  })
+  |> option.unwrap("")
+}
+
+fn fulfillment_source_line_item_title(line_item: CapturedJsonValue) -> String {
+  captured_string_field(line_item, "title")
+  |> option.or({
+    case captured_object_field(line_item, "lineItem") {
+      Some(line_item) -> captured_string_field(line_item, "title")
+      None -> None
+    }
+  })
+  |> option.unwrap("")
+}
+
+fn fulfillment_tracking_info_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  case read_object(input, "trackingInfo") {
+    Some(tracking) ->
+      CapturedArray([
+        CapturedObject([
+          #("number", optional_captured_string(read_string(tracking, "number"))),
+          #("url", optional_captured_string(read_string(tracking, "url"))),
+          #(
+            "company",
+            optional_captured_string(read_string(tracking, "company")),
+          ),
+        ]),
+      ])
+    None -> CapturedArray([])
+  }
+}
+
+fn fulfillment_order_line_items(
+  fulfillment_order: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(fulfillment_order, "lineItems") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> connection_nodes(value)
+    None -> []
+  }
+}
+
+fn close_fulfillment_order(
+  fulfillment_order: CapturedJsonValue,
+  requested: List(RequestedFulfillmentLineItem),
+) -> CapturedJsonValue {
+  let updated_line_items =
+    fulfillment_order_line_items(fulfillment_order)
+    |> list.map(fn(line_item) {
+      case should_fulfill_line_item(line_item, requested) {
+        True -> {
+          let fulfillment_order_line_item_id =
+            captured_string_field(line_item, "id") |> option.unwrap("")
+          let current_remaining =
+            captured_int_field(line_item, "remainingQuantity")
+            |> option.or(captured_int_field(line_item, "totalQuantity"))
+            |> option.unwrap(0)
+          let fulfilled_quantity =
+            requested_fulfillment_quantity(
+              fulfillment_order_line_item_id,
+              requested,
+            )
+            |> option.unwrap(current_remaining)
+          replace_captured_object_fields(line_item, [
+            #(
+              "remainingQuantity",
+              CapturedInt(int.max(0, current_remaining - fulfilled_quantity)),
+            ),
+          ])
+        }
+        False -> line_item
+      }
+    })
+  let updated_line_items_value =
+    replace_fulfillment_order_line_items(fulfillment_order, updated_line_items)
+  replace_captured_object_fields(updated_line_items_value, [
+    #("status", CapturedString("CLOSED")),
+  ])
+}
+
+fn replace_fulfillment_order_line_items(
+  fulfillment_order: CapturedJsonValue,
+  line_items: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  let replacement = case captured_object_field(fulfillment_order, "lineItems") {
+    Some(CapturedObject(fields)) ->
+      CapturedObject(
+        upsert_captured_fields(fields, [
+          #("nodes", CapturedArray(line_items)),
+        ]),
+      )
+    _ -> CapturedArray(line_items)
+  }
+  replace_captured_object_fields(fulfillment_order, [
+    #("lineItems", replacement),
+  ])
+}
+
+fn replace_order_fulfillment_order(
+  order: OrderRecord,
+  fulfillment_order_id: String,
+  updated_fulfillment_order: CapturedJsonValue,
+) -> OrderRecord {
+  let updated_fulfillment_orders =
+    order_fulfillment_orders(order.data)
+    |> list.map(fn(fulfillment_order) {
+      case
+        captured_string_field(fulfillment_order, "id")
+        == Some(fulfillment_order_id)
+      {
+        True -> updated_fulfillment_order
+        False -> fulfillment_order
+      }
+    })
+  OrderRecord(
+    ..order,
+    data: replace_captured_object_fields(order.data, [
+      #("fulfillmentOrders", CapturedArray(updated_fulfillment_orders)),
+    ]),
+  )
+}
+
+fn append_order_fulfillment(
+  order: OrderRecord,
+  fulfillment: CapturedJsonValue,
+) -> OrderRecord {
+  let fulfillments = [fulfillment, ..order_fulfillments(order.data)]
+  OrderRecord(
+    ..order,
+    data: replace_captured_object_fields(order.data, [
+      #("fulfillments", CapturedArray(fulfillments)),
+      #(
+        "displayFulfillmentStatus",
+        CapturedString(order_display_fulfillment_status_after_create(order)),
+      ),
+    ]),
+  )
+}
+
+fn order_display_fulfillment_status_after_create(order: OrderRecord) -> String {
+  let has_open_fulfillment_order =
+    order_fulfillment_orders(order.data)
+    |> list.any(fn(fulfillment_order) {
+      captured_string_field(fulfillment_order, "status") != Some("CLOSED")
+      && {
+        fulfillment_order_line_items(fulfillment_order)
+        |> list.any(fn(line_item) {
+          captured_int_field(line_item, "remainingQuantity")
+          |> option.unwrap(0)
+          > 0
+        })
+      }
+    })
+  case has_open_fulfillment_order {
+    True -> "PARTIALLY_FULFILLED"
+    False -> "FULFILLED"
+  }
+}
+
+fn build_fulfillment_event(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(event_id, identity_after_event) =
+    synthetic_identity.make_synthetic_gid(identity, "FulfillmentEvent")
+  let #(created_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_event)
+  let happened_at =
+    read_string(input, "happenedAt") |> option.unwrap(created_at)
+  #(
+    CapturedObject([
+      #("id", CapturedString(event_id)),
+      #("status", optional_captured_string(read_string(input, "status"))),
+      #("message", optional_captured_string(read_string(input, "message"))),
+      #("happenedAt", CapturedString(happened_at)),
+      #("createdAt", CapturedString(created_at)),
+      #(
+        "estimatedDeliveryAt",
+        optional_captured_string(read_string(input, "estimatedDeliveryAt")),
+      ),
+      #("city", optional_captured_string(read_string(input, "city"))),
+      #("province", optional_captured_string(read_string(input, "province"))),
+      #("country", optional_captured_string(read_string(input, "country"))),
+      #("zip", optional_captured_string(read_string(input, "zip"))),
+      #("address1", optional_captured_string(read_string(input, "address1"))),
+      #("latitude", optional_captured_number(input, "latitude")),
+      #("longitude", optional_captured_number(input, "longitude")),
+    ]),
+    next_identity,
+  )
+}
+
+fn append_fulfillment_event(
+  fulfillment: CapturedJsonValue,
+  event: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let events =
+    case captured_object_field(fulfillment, "events") {
+      Some(value) -> connection_nodes(value)
+      None -> []
+    }
+    |> list.append([event])
+  let happened_at = captured_string_field(event, "happenedAt")
+  let event_status = captured_string_field(event, "status")
+  let event_replacements =
+    [
+      #("updatedAt", event_created_at(event)),
+      #(
+        "estimatedDeliveryAt",
+        captured_object_field(event, "estimatedDeliveryAt")
+          |> option.unwrap(CapturedNull),
+      ),
+    ]
+    |> append_status_display_replacement(event_status)
+    |> append_event_status_timestamp_replacement(event_status, happened_at)
+  replace_captured_object_fields(
+    fulfillment,
+    list.append(
+      [#("events", fulfillment_events_connection(events))],
+      event_replacements,
+    ),
+  )
+}
+
+fn append_status_display_replacement(
+  replacements: List(#(String, CapturedJsonValue)),
+  event_status: Option(String),
+) -> List(#(String, CapturedJsonValue)) {
+  case event_status {
+    Some(status) ->
+      list.append(replacements, [
+        #("displayStatus", CapturedString(status)),
+      ])
+    None -> replacements
+  }
+}
+
+fn append_event_status_timestamp_replacement(
+  replacements: List(#(String, CapturedJsonValue)),
+  event_status: Option(String),
+  happened_at: Option(String),
+) -> List(#(String, CapturedJsonValue)) {
+  case event_status {
+    Some("IN_TRANSIT") ->
+      list.append(replacements, [
+        #("inTransitAt", optional_captured_string(happened_at)),
+      ])
+    Some("DELIVERED") ->
+      list.append(replacements, [
+        #("deliveredAt", optional_captured_string(happened_at)),
+      ])
+    _ -> replacements
+  }
+}
+
+fn event_created_at(event: CapturedJsonValue) -> CapturedJsonValue {
+  captured_object_field(event, "createdAt") |> option.unwrap(CapturedNull)
+}
+
+fn fulfillment_events_connection(
+  events: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  let cursor = case events {
+    [] -> CapturedNull
+    [_, ..] -> {
+      let last_event =
+        events
+        |> list.reverse
+        |> list.first
+        |> result.unwrap(CapturedNull)
+      case captured_string_field(last_event, "id") {
+        Some(id) -> CapturedString("cursor:" <> id)
+        None -> CapturedNull
+      }
+    }
+  }
+  CapturedObject([
+    #("nodes", CapturedArray(events)),
+    #(
+      "pageInfo",
+      CapturedObject([
+        #("hasNextPage", CapturedBool(False)),
+        #("hasPreviousPage", CapturedBool(False)),
+        #("startCursor", cursor),
+        #("endCursor", cursor),
+      ]),
+    ),
+  ])
+}
+
+fn serialize_fulfillment_create_payload(
+  field: Selection,
+  fulfillment: Option(CapturedJsonValue),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  serialize_fulfillment_mutation_payload(
+    field,
+    fulfillment,
+    user_errors,
+    fragments,
+  )
+}
+
+fn serialize_fulfillment_event_create_payload(
+  field: Selection,
+  event: Option(CapturedJsonValue),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "fulfillmentEvent" -> #(
+              key,
+              serialize_captured_selection(child, event, fragments),
+            )
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
 fn handle_order_update_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -12985,6 +13936,16 @@ fn read_int(
   }
 }
 
+fn read_optional_int(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Int) {
+  case dict.get(input, name) {
+    Ok(root_field.IntVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
 fn read_bool(
   input: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -13028,6 +13989,17 @@ fn optional_captured_string(value: Option(String)) -> CapturedJsonValue {
   case value {
     Some(value) -> CapturedString(value)
     None -> CapturedNull
+  }
+}
+
+fn optional_captured_number(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> CapturedJsonValue {
+  case dict.get(input, name) {
+    Ok(root_field.IntVal(value)) -> CapturedInt(value)
+    Ok(root_field.FloatVal(value)) -> CapturedFloat(value)
+    _ -> CapturedNull
   }
 }
 
