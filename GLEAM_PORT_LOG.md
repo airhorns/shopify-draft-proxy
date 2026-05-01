@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 143: fulfillment cancel and tracking parity
+
+Promotes the checked-in `fulfillmentCancel` and
+`fulfillmentTrackingInfoUpdate` parity scenarios in the Gleam Orders domain.
+This pass stages updates to existing fulfillments embedded in captured order
+state and preserves immediate downstream `order(id:)` fulfillment reads.
+
+| Module                                                   | Change                                                    |
+| -------------------------------------------------------- | --------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Stages fulfillment cancel/tracking updates inside orders. |
+| `gleam/test/parity/runner.gleam`                         | Seeds fulfillment parity from captured downstream orders. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers tracking, cancel, and downstream reads.            |
+| `config/gleam-port-ci-gates.json`                        | Removes the two newly passing fulfillment parity specs.   |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (749 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (745 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 114 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured fulfillment success specs are existing-fulfillment state updates:
+  tracking replacement for `fulfillmentTrackingInfoUpdate`, and
+  `CANCELLED`/`CANCELED` status fields for `fulfillmentCancel`. They can be
+  staged locally over captured order JSON without claiming fulfillment creation
+  or fulfillment-order workflows.
+- Seeding from the captured downstream order keeps fulfillment line items and
+  fulfillment-order snapshots available for strict downstream comparisons while
+  the mutation handler touches only the matching fulfillment.
+
+### Risks / open items
+
+- Fulfillment creation, fulfillment-order lifecycle roots, direct order
+  creation/delete, payment transaction and mandate roots, refunds, returns, and
+  order-edit sessions remain gated.
+
+### Pass 144 candidates
+
+- Continue with another narrow existing-resource validation or lifecycle
+  fixture, or start the larger direct-order creation/payment/refund slices only
+  with coherent downstream state modeling.
+
+---
+
 ## 2026-05-01 - Pass 142: order update field parity
 
 Promotes the checked-in simple and expanded `orderUpdate` parity scenarios in

@@ -672,6 +672,159 @@ pub fn orders_fulfillment_validation_guardrails_test() {
     == "{\"errors\":[{\"message\":\"Argument 'fulfillmentId' on Field 'fulfillmentTrackingInfoUpdate' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":6,\"column\":7}],\"path\":[\"mutation FulfillmentTrackingInfoUpdateInlineNullId\",\"fulfillmentTrackingInfoUpdate\",\"fulfillmentId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"fulfillmentId\"}}]}"
 }
 
+pub fn orders_fulfillment_cancel_tracking_read_after_write_test() {
+  let order_id = "gid://shopify/Order/6834528944361"
+  let fulfillment_id = "gid://shopify/Fulfillment/6189151518953"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1330")),
+          #(
+            "displayFulfillmentStatus",
+            types.CapturedString("PARTIALLY_FULFILLED"),
+          ),
+          #(
+            "fulfillments",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString(fulfillment_id)),
+                #("status", types.CapturedString("SUCCESS")),
+                #("displayStatus", types.CapturedString("FULFILLED")),
+                #("createdAt", types.CapturedString("2026-04-25T00:06:31Z")),
+                #("updatedAt", types.CapturedString("2026-04-25T00:06:31Z")),
+                #("trackingInfo", types.CapturedArray([])),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let tracking_mutation =
+    "
+    mutation FulfillmentTrackingInfoUpdateParityPlan(
+      $fulfillmentId: ID!
+      $trackingInfoInput: FulfillmentTrackingInput!
+      $notifyCustomer: Boolean
+    ) {
+      fulfillmentTrackingInfoUpdate(
+        fulfillmentId: $fulfillmentId
+        trackingInfoInput: $trackingInfoInput
+        notifyCustomer: $notifyCustomer
+      ) {
+        fulfillment {
+          id
+          status
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let tracking_variables =
+    dict.from_list([
+      #("fulfillmentId", root_field.StringVal(fulfillment_id)),
+      #("notifyCustomer", root_field.BoolVal(False)),
+      #(
+        "trackingInfoInput",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("number", root_field.StringVal("HERMES-UPDATE-20260425000631")),
+            #(
+              "url",
+              root_field.StringVal(
+                "https://example.com/track/HERMES-UPDATE-20260425000631",
+              ),
+            ),
+            #("company", root_field.StringVal("Hermes")),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(tracking_outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      tracking_mutation,
+      tracking_variables,
+    )
+  assert json.to_string(tracking_outcome.data)
+    == "{\"data\":{\"fulfillmentTrackingInfoUpdate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"status\":\"SUCCESS\",\"trackingInfo\":[{\"number\":\"HERMES-UPDATE-20260425000631\",\"url\":\"https://example.com/track/HERMES-UPDATE-20260425000631\",\"company\":\"Hermes\"}]},\"userErrors\":[]}}}"
+  assert tracking_outcome.staged_resource_ids == [order_id]
+  assert list.length(tracking_outcome.log_drafts) == 1
+
+  let cancel_mutation =
+    "
+    mutation FulfillmentCancelParityPlan($id: ID!) {
+      fulfillmentCancel(id: $id) {
+        fulfillment {
+          id
+          status
+          displayStatus
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let cancel_variables =
+    dict.from_list([#("id", root_field.StringVal(fulfillment_id))])
+  let assert Ok(cancel_outcome) =
+    orders.process_mutation(
+      tracking_outcome.store,
+      tracking_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      cancel_mutation,
+      cancel_variables,
+    )
+  assert json.to_string(cancel_outcome.data)
+    == "{\"data\":{\"fulfillmentCancel\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"status\":\"CANCELLED\",\"displayStatus\":\"CANCELED\",\"trackingInfo\":[{\"number\":\"HERMES-UPDATE-20260425000631\",\"url\":\"https://example.com/track/HERMES-UPDATE-20260425000631\",\"company\":\"Hermes\"}]},\"userErrors\":[]}}}"
+
+  let read_query =
+    "
+    query OrderFulfillmentLifecycleRead($id: ID!) {
+      order(id: $id) {
+        id
+        displayFulfillmentStatus
+        fulfillments(first: 5) {
+          id
+          status
+          displayStatus
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+      }
+    }
+  "
+  let read_variables = dict.from_list([#("id", root_field.StringVal(order_id))])
+  let assert Ok(read) =
+    orders.process(cancel_outcome.store, read_query, read_variables)
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6834528944361\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"fulfillments\":[{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"status\":\"CANCELLED\",\"displayStatus\":\"CANCELED\",\"trackingInfo\":[{\"number\":\"HERMES-UPDATE-20260425000631\",\"url\":\"https://example.com/track/HERMES-UPDATE-20260425000631\",\"company\":\"Hermes\"}]}]}}}"
+}
+
 pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
   let mutation =
     "

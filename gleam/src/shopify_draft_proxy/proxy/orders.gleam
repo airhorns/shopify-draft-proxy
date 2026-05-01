@@ -1150,22 +1150,33 @@ pub fn process_mutation(
           if name.value == "fulfillmentCancel"
           || name.value == "fulfillmentTrackingInfoUpdate"
         -> {
-          let #(key, payload, next_errors) =
-            handle_fulfillment_validation_guardrail(
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            staged_ids,
+            next_errors,
+            next_drafts,
+          ) =
+            handle_fulfillment_mutation(
               name.value,
+              current_store,
+              current_identity,
               document,
               operation_path,
               field,
+              fragments,
               variables,
             )
           case next_errors {
             [] -> #(
               list.append(entries, [#(key, payload)]),
               errors,
-              current_store,
-              current_identity,
-              ids,
-              drafts,
+              next_store,
+              next_identity,
+              list.append(ids, staged_ids),
+              list.append(drafts, next_drafts),
             )
             _ -> #(
               entries,
@@ -3505,13 +3516,24 @@ fn serialize_order_mutation_error_payload(
   json.object(entries)
 }
 
-fn handle_fulfillment_validation_guardrail(
+fn handle_fulfillment_mutation(
   root_name: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   document: String,
   operation_path: String,
   field: Selection,
+  fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(String, Json, List(Json)) {
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
   let key = get_field_response_key(field)
   let required = case root_name {
     "fulfillmentTrackingInfoUpdate" -> [
@@ -3529,9 +3551,213 @@ fn handle_fulfillment_validation_guardrail(
       document,
     )
   case validation_errors {
-    [_, ..] -> #(key, json.null(), validation_errors)
-    [] -> #(key, json.null(), [])
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      let fulfillment_id = case root_name {
+        "fulfillmentTrackingInfoUpdate" ->
+          read_string_arg(args, "fulfillmentId")
+        _ -> read_string_arg(args, "id")
+      }
+      case fulfillment_id {
+        None -> #(key, json.null(), store, identity, [], [], [])
+        Some(id) ->
+          case find_order_with_fulfillment(store, id) {
+            None -> {
+              let payload =
+                serialize_fulfillment_mutation_payload(
+                  field,
+                  None,
+                  [
+                    #(
+                      case root_name {
+                        "fulfillmentTrackingInfoUpdate" -> ["fulfillmentId"]
+                        _ -> ["id"]
+                      },
+                      case root_name {
+                        "fulfillmentTrackingInfoUpdate" ->
+                          "Fulfillment does not exist."
+                        _ -> "Fulfillment not found."
+                      },
+                    ),
+                  ],
+                  fragments,
+                )
+              #(key, payload, store, identity, [], [], [])
+            }
+            Some(match) -> {
+              let #(order, fulfillment) = match
+              let #(updated_fulfillment, next_identity) =
+                update_fulfillment_for_root(
+                  root_name,
+                  fulfillment,
+                  args,
+                  identity,
+                )
+              let updated_order =
+                update_order_fulfillment(order, id, updated_fulfillment)
+              let next_store = store.stage_order(store, updated_order)
+              let payload =
+                serialize_fulfillment_mutation_payload(
+                  field,
+                  Some(updated_fulfillment),
+                  [],
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  root_name,
+                  [id],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some(
+                    "Locally staged " <> root_name <> " in shopify-draft-proxy.",
+                  ),
+                )
+              #(key, payload, next_store, next_identity, [order.id], [], [draft])
+            }
+          }
+      }
+    }
   }
+}
+
+fn find_order_with_fulfillment(
+  store: Store,
+  fulfillment_id: String,
+) -> Option(#(OrderRecord, CapturedJsonValue)) {
+  store.list_effective_orders(store)
+  |> list.find_map(fn(order) {
+    case find_fulfillment(order_fulfillments(order.data), fulfillment_id) {
+      Some(fulfillment) -> Ok(#(order, fulfillment))
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn find_fulfillment(
+  fulfillments: List(CapturedJsonValue),
+  fulfillment_id: String,
+) -> Option(CapturedJsonValue) {
+  fulfillments
+  |> list.find(fn(fulfillment) {
+    captured_string_field(fulfillment, "id") == Some(fulfillment_id)
+  })
+  |> option.from_result
+}
+
+fn order_fulfillments(
+  order_data: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(order_data, "fulfillments") {
+    Some(CapturedArray(fulfillments)) -> fulfillments
+    _ -> []
+  }
+}
+
+fn update_fulfillment_for_root(
+  root_name: String,
+  fulfillment: CapturedJsonValue,
+  args: Dict(String, root_field.ResolvedValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let replacements = case root_name {
+    "fulfillmentTrackingInfoUpdate" -> [
+      #("updatedAt", CapturedString(updated_at)),
+      #("trackingInfo", tracking_info_from_args(args)),
+    ]
+    _ -> [
+      #("updatedAt", CapturedString(updated_at)),
+      #("status", CapturedString("CANCELLED")),
+      #("displayStatus", CapturedString("CANCELED")),
+    ]
+  }
+  #(replace_captured_object_fields(fulfillment, replacements), next_identity)
+}
+
+fn tracking_info_from_args(
+  args: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  case dict.get(args, "trackingInfoInput") {
+    Ok(root_field.ObjectVal(input)) ->
+      CapturedArray([
+        CapturedObject([
+          #("number", optional_captured_string(read_string(input, "number"))),
+          #("url", optional_captured_string(read_string(input, "url"))),
+          #("company", optional_captured_string(read_string(input, "company"))),
+        ]),
+      ])
+    _ -> CapturedArray([])
+  }
+}
+
+fn update_order_fulfillment(
+  order: OrderRecord,
+  fulfillment_id: String,
+  updated_fulfillment: CapturedJsonValue,
+) -> OrderRecord {
+  let updated_fulfillments =
+    order_fulfillments(order.data)
+    |> list.map(fn(fulfillment) {
+      case captured_string_field(fulfillment, "id") == Some(fulfillment_id) {
+        True -> updated_fulfillment
+        False -> fulfillment
+      }
+    })
+  let display_status = case
+    captured_string_field(updated_fulfillment, "status")
+  {
+    Some("CANCELLED") -> [
+      #("displayFulfillmentStatus", CapturedString("UNFULFILLED")),
+    ]
+    _ -> []
+  }
+  let updated_data =
+    order.data
+    |> replace_captured_object_fields(list.append(
+      [#("fulfillments", CapturedArray(updated_fulfillments))],
+      display_status,
+    ))
+  OrderRecord(..order, data: updated_data)
+}
+
+fn serialize_fulfillment_mutation_payload(
+  field: Selection,
+  fulfillment: Option(CapturedJsonValue),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "fulfillment" -> #(key, case fulfillment {
+              Some(value) ->
+                project_graphql_value(
+                  captured_json_source(value),
+                  selection_children(child),
+                  fragments,
+                )
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 fn handle_draft_order_create(

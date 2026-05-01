@@ -285,6 +285,9 @@ fn seed_capture_preconditions(
     "order-empty-state-read" -> seed_order_catalog_preconditions(capture, proxy)
     "order-catalog-count-read" ->
       seed_order_catalog_count_preconditions(capture, proxy)
+    "fulfillment-cancel-live-parity"
+    | "fulfillment-tracking-info-update-live-parity" ->
+      seed_order_downstream_preconditions(capture, proxy)
     "orderCancel-live-parity" ->
       seed_order_downstream_preconditions(capture, proxy)
     "orderOpen-live-parity" ->

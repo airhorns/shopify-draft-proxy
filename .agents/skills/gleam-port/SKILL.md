@@ -519,6 +519,12 @@ synthetic-id/timestamp expected differences.
   `note`, sorted `tags`, `customAttributes`, `shippingAddress`, and order
   metafields), and preserve existing metafield ids by namespace/key when the
   capture updates an already-present metafield.
+- Fulfillment cancel/tracking update success parity can be handled as
+  existing-fulfillment updates inside captured Order state. Seed from
+  `$.downstreamRead.response.data.order`, preserve the existing validation
+  guardrails, stage tracking-info replacement or cancel status/display status
+  on the matching fulfillment, and keep fulfillment creation/fulfillment-order
+  workflows gated until their full state effects are modeled.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or
