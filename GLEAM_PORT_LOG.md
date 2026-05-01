@@ -457,6 +457,139 @@ Validation:
 
 ---
 
+## 2026-05-01 - Pass 164: Admin Platform node coverage proof
+
+Addresses HAR-498 review feedback by adding the Gleam equivalent of the
+TypeScript Admin Platform Node coverage snapshot. The test now reads the
+captured Shopify `Node` interface introspection fixture, subtracts the
+Gleam-supported `node(id:)` / `nodes(ids:)` types, and snapshots the remaining
+unsupported implementors in executable Gleam coverage. The pass also wires
+primary `Domain` GIDs through the existing store-properties domain serializer so
+the supported list reflects actual local `node` behavior.
+
+| Module                                                           | Change                                                                                          |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`       | Exposes the supported Node type list and resolves primary `Domain` IDs through store state.     |
+| `gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam` | Adds the introspection-backed unsupported Node snapshot and focused Domain node readback.       |
+| `.agents/skills/gleam-port/SKILL.md`                             | Records the Admin Platform Node coverage pattern for future domain ports that add node support. |
+| `GLEAM_PORT_LOG.md`                                              | Records the HAR-498 review-feedback rework.                                                     |
+
+Validation: the TypeScript Vitest Node coverage test is green. Targeted
+`gleam test --target javascript admin_platform` is green at 773 tests, and the
+targeted Docker Erlang fallback is green at 769 tests. Full
+`gleam test --target javascript` is green at 773 tests. Host
+`gleam test --target erlang admin_platform` still reproduces the known local
+`undef` runner issue; the full established Docker Erlang fallback with
+`HOME=/tmp` is green at 769 tests. `corepack pnpm gleam:port:coverage` is green
+with 379 specs and 62 expected Gleam failures. `corepack pnpm
+gleam:registry:check`, `corepack pnpm lint`, and `git diff --check` are green.
+
+### Findings
+
+- The unsupported Node coverage proof belongs in Gleam tests, not only in the
+  TypeScript fixture snapshot, because the Gleam node dispatch table is smaller
+  while the incremental port is still in progress.
+- `Domain` is a Shopify `Node` implementor and can resolve safely through the
+  already-ported store-properties primary-domain serializer. Unsupported or
+  missing Domain IDs still return `null`.
+
+### Risks / open items
+
+- Many implemented singular roots from other ported domains still need owning
+  resource serializers before they can be removed from the unsupported Node
+  list; this pass records that truth instead of claiming support early.
+- TypeScript runtime deletion remains deferred to the final all-port cutover
+  under the Gleam port preservation rule.
+
+---
+
+## 2026-05-01 - Pass 166: HAR-496 payments branch online-store refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+Online Store parity port. The merge keeps Payments and order-payment parity
+ungated while preserving mainline Online Store, Media, Discounts, and Orders
+dispatch, store, serialization, and parity runner coverage.
+
+| Module                                                  | Change                                                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Payments dispatch alongside mainline Online Store, Media, Discounts, and Orders dispatch.         |
+| `gleam/src/shopify_draft_proxy/state/*`                 | Combines mainline Online Store/Media/Discounts state with HAR-496 payment customization/terms state.    |
+| `gleam/test/parity/runner.gleam`                        | Keeps payment precondition seeding alongside mainline online-store, media, and discount seeding.        |
+| `config/gleam-port-ci-gates.json`                       | Keeps Payments/order-payment and mainline Online Store/Media/Discounts paths ungated after the refresh. |
+
+Validation:
+
+- `git diff --check`
+- `cd gleam && gleam format --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (771 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (767 passed)
+- `corepack pnpm gleam:port:coverage` (379 specs; 53 expected failures; passed)
+- Targeted expected-failure scan for payments/order-payment, finance-risk,
+  product grammar, Segments, Discounts, Media, and Online Store paths returned
+  no matches.
+
+### Findings
+
+- Mainline now owns Online Store dispatch and state, including `shop` field
+  routing for storefront tokens. This refresh preserves that routing while
+  keeping HAR-496's `draftOrder` payment-terms and order-payment dispatch.
+- The expected-failure gate conflict resolves by removing both HAR-496
+  payments/order-payment paths and mainline Online Store paths.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
+
+---
+
+## 2026-05-01 - Pass 165: HAR-496 payments branch media refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+HAR-506 Media files and uploads refresh. The merge keeps Payments and
+order-payment parity ungated while preserving mainline Discounts and Media
+dispatch, store, serialization, and parity runner coverage.
+
+| Module                                                  | Change                                                                                  |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Payments dispatch alongside mainline Discounts, Media, and Orders dispatch.       |
+| `gleam/src/shopify_draft_proxy/state/*`                 | Combines mainline Media/Discounts state with HAR-496 payment customization/terms state. |
+| `gleam/test/parity/runner.gleam`                        | Keeps payment precondition seeding alongside mainline media and discount seeding.       |
+| `config/gleam-port-ci-gates.json`                       | Keeps Payments/order-payment and mainline Media/Discounts paths ungated.                |
+
+Validation:
+
+- `git diff --check`
+- `cd gleam && gleam format --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (771 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (767 passed)
+- `corepack pnpm gleam:port:coverage` (379 specs; 59 expected failures; passed)
+- Targeted expected-failure scan for payments/order-payment, finance-risk,
+  product grammar, Segments, Discounts, and Media paths returned no matches.
+
+### Findings
+
+- Mainline now owns Media mutation routing, so this refresh preserves it and
+  keeps the HAR-496 Payments dispatch, state, seed, and gate removals layered
+  into the same dispatcher/store surface.
+- The dispatcher conflict resolves to the compact `first_matching_domain`
+  helpers while keeping Payments, Discounts, Media, and Orders roots.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
+
+---
+
 ## 2026-05-01 - Pass 164: HAR-506 post-approval mainline refresh
 
 Refreshes the approved HAR-506 Media files and uploads branch after

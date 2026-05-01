@@ -5,6 +5,7 @@ import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/state/store
@@ -637,6 +638,41 @@ pub fn delivery_profile_read_projects_detail_catalog_and_missing_test() {
 
   assert json.to_string(response)
     == "{\"data\":{\"deliveryProfile\":{\"id\":\"gid://shopify/DeliveryProfile/125254992178\",\"name\":\"General profile\",\"default\":true,\"version\":1,\"activeMethodDefinitionsCount\":12,\"locationsWithoutRatesCount\":2,\"originLocationCount\":1,\"zoneCountryCount\":28,\"productVariantsCount\":{\"count\":500,\"precision\":\"AT_LEAST\"},\"sellingPlanGroups\":{\"nodes\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}}},\"deliveryProfiles\":{\"edges\":[{\"cursor\":\"delivery-profile-cursor\",\"node\":{\"id\":\"gid://shopify/DeliveryProfile/125254992178\",\"name\":\"General profile\",\"default\":true}}],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":\"delivery-profile-cursor\",\"endCursor\":\"delivery-profile-cursor\"}},\"missing\":null}}"
+}
+
+pub fn draft_proxy_routes_delivery_profile_to_shipping_domain_test() {
+  let proxy =
+    draft_proxy.DraftProxy(..draft_proxy.new(), store: delivery_profile_store())
+  let body =
+    json.object([
+      #(
+        "query",
+        json.string(
+          "query DeliveryProfile($id: ID!) { deliveryProfile(id: $id) { id name } }",
+        ),
+      ),
+      #(
+        "variables",
+        json.object([
+          #("id", json.string("gid://shopify/DeliveryProfile/125254992178")),
+        ]),
+      ),
+    ])
+    |> json.to_string
+  let #(response, _) =
+    draft_proxy.process_request(
+      proxy,
+      draft_proxy.Request(
+        method: "POST",
+        path: "/admin/api/2026-04/graphql.json",
+        headers: dict.new(),
+        body: body,
+      ),
+    )
+
+  assert response.status == 200
+  assert json.to_string(response.body)
+    == "{\"data\":{\"deliveryProfile\":{\"id\":\"gid://shopify/DeliveryProfile/125254992178\",\"name\":\"General profile\"}}}"
 }
 
 pub fn delivery_profile_lifecycle_stages_create_update_remove_test() {

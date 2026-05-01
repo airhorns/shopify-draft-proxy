@@ -22,6 +22,24 @@ fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
   [
     #("backupRegion", optional_to_json(state.backup_region, backup_region_json)),
     #(
+      "adminPlatformGenericNodes",
+      dict_to_json(
+        state.admin_platform_generic_nodes,
+        admin_platform_generic_node_json,
+      ),
+    ),
+    #(
+      "adminPlatformTaxonomyCategories",
+      dict_to_json(
+        state.admin_platform_taxonomy_categories,
+        admin_platform_taxonomy_category_json,
+      ),
+    ),
+    #(
+      "adminPlatformTaxonomyCategoryOrder",
+      json.array(state.admin_platform_taxonomy_category_order, json.string),
+    ),
+    #(
       "adminPlatformFlowSignatures",
       dict_to_json(state.admin_platform_flow_signatures, flow_signature_json),
     ),
@@ -672,6 +690,24 @@ pub fn staged_state_dump_field_names() -> List(String) {
 fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
   [
     #("backupRegion", optional_to_json(state.backup_region, backup_region_json)),
+    #(
+      "adminPlatformGenericNodes",
+      dict_to_json(
+        state.admin_platform_generic_nodes,
+        admin_platform_generic_node_json,
+      ),
+    ),
+    #(
+      "adminPlatformTaxonomyCategories",
+      dict_to_json(
+        state.admin_platform_taxonomy_categories,
+        admin_platform_taxonomy_category_json,
+      ),
+    ),
+    #(
+      "adminPlatformTaxonomyCategoryOrder",
+      json.array(state.admin_platform_taxonomy_category_order, json.string),
+    ),
     #(
       "adminPlatformFlowSignatures",
       dict_to_json(state.admin_platform_flow_signatures, flow_signature_json),
@@ -1438,6 +1474,26 @@ fn backup_region_json(record: types.BackupRegionRecord) -> Json {
     #("id", json.string(record.id)),
     #("name", json.string(record.name)),
     #("code", json.string(record.code)),
+  ])
+}
+
+fn admin_platform_generic_node_json(
+  record: types.AdminPlatformGenericNodeRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("typename", json.string(record.typename)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn admin_platform_taxonomy_category_json(
+  record: types.AdminPlatformTaxonomyCategoryRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
   ])
 }
 
@@ -3632,6 +3688,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     shipping_package_order: empty.shipping_package_order,
     deleted_shipping_package_ids: empty.deleted_shipping_package_ids,
     backup_region: backup_region,
+    admin_platform_generic_nodes: empty.admin_platform_generic_nodes,
+    admin_platform_taxonomy_categories: empty.admin_platform_taxonomy_categories,
+    admin_platform_taxonomy_category_order: empty.admin_platform_taxonomy_category_order,
     admin_platform_flow_signatures: flow_signatures,
     admin_platform_flow_signature_order: flow_signature_order,
     admin_platform_flow_triggers: flow_triggers,
@@ -4074,6 +4133,9 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     shipping_package_order: empty.shipping_package_order,
     deleted_shipping_package_ids: empty.deleted_shipping_package_ids,
     backup_region: backup_region,
+    admin_platform_generic_nodes: empty.admin_platform_generic_nodes,
+    admin_platform_taxonomy_categories: empty.admin_platform_taxonomy_categories,
+    admin_platform_taxonomy_category_order: empty.admin_platform_taxonomy_category_order,
     admin_platform_flow_signatures: flow_signatures,
     admin_platform_flow_signature_order: flow_signature_order,
     admin_platform_flow_triggers: flow_triggers,

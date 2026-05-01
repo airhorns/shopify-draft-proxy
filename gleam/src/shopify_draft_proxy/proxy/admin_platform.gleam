@@ -6,7 +6,9 @@
 //// search/catalog shapes, staff access blockers, and local Flow utility
 //// mutations.
 
+import gleam/bit_array
 import gleam/dict.{type Dict}
+import gleam/dynamic/decode
 import gleam/float
 import gleam/int
 import gleam/json.{type Json}
@@ -15,16 +17,24 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/crypto
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/ast.{
+  type Selection, Argument, Field, FragmentDefinition, FragmentSpread,
+  InlineFragment, IntValue, Location, NamedType, SelectionSet,
+}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/b2b
+import shopify_draft_proxy/proxy/customers
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcString,
-  default_selected_field_options, get_document_fragments, get_field_response_key,
-  get_selected_child_fields, project_graphql_value, serialize_empty_connection,
-  src_object,
+  type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
+  SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
+  SrcObject, SrcString, default_connection_page_info_options,
+  default_connection_window_options, default_selected_field_options,
+  get_document_fragments, get_field_response_key, get_selected_child_fields,
+  paginate_connection_items, project_graphql_value, serialize_connection,
+  serialize_empty_connection, src_object,
 }
+import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/store_properties
@@ -33,11 +43,14 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type BackupRegionRecord, AdminPlatformFlowSignatureRecord,
-  AdminPlatformFlowTriggerRecord, BackupRegionRecord,
+  type AdminPlatformTaxonomyCategoryRecord, type BackupRegionRecord,
+  type CapturedJsonValue, AdminPlatformFlowSignatureRecord,
+  AdminPlatformFlowTriggerRecord, BackupRegionRecord, CapturedArray,
+  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString,
 }
 
-const flow_trigger_payload_limit_bytes = 100_000
+const flow_trigger_payload_limit_bytes = 50_000
 
 const flow_signature_secret = "shopify-draft-proxy-flow-signature-local-secret-v1"
 
@@ -55,18 +68,64 @@ pub type MutationOutcome {
   )
 }
 
+pub fn list_supported_admin_platform_node_types() -> List(String) {
+  [
+    "App",
+    "AppInstallation",
+    "AppPurchaseOneTime",
+    "AppSubscription",
+    "AppUsageRecord",
+    "Collection",
+    "CompanyAddress",
+    "CompanyContactRoleAssignment",
+    "Customer",
+    "DeliveryCondition",
+    "DeliveryCountry",
+    "DeliveryLocationGroup",
+    "DeliveryMethodDefinition",
+    "DeliveryParticipant",
+    "DeliveryProvince",
+    "DeliveryRateDefinition",
+    "DeliveryZone",
+    "Domain",
+    "Location",
+    "MarketRegionCountry",
+    "MarketWebPresence",
+    "Metafield",
+    "Product",
+    "ProductOption",
+    "ProductOptionValue",
+    "SellingPlan",
+    "Shop",
+    "ShopAddress",
+    "ShopPolicy",
+    "TaxonomyCategory",
+  ]
+  |> list.sort(by: string.compare)
+}
+
 pub fn is_admin_platform_query_root(name: String) -> Bool {
   list.contains(
     [
       "backupRegion",
+      "cashTrackingSession",
+      "cashTrackingSessions",
+      "deliveryProfile",
+      "dispute",
+      "disputeEvidence",
+      "disputes",
       "domain",
       "job",
       "node",
       "nodes",
+      "pointOfSaleDevice",
       "publicApiVersions",
+      "shopPayPaymentRequestReceipt",
+      "shopPayPaymentRequestReceipts",
       "staffMember",
       "staffMembers",
       "taxonomy",
+      "webPresences",
     ],
     name,
   )
@@ -142,6 +201,7 @@ pub fn process(
           let #(value, field_errors) =
             serialize_query_field(
               store,
+              document,
               field,
               name.value,
               fragments,
@@ -165,6 +225,7 @@ pub fn process(
 
 fn serialize_query_field(
   store: Store,
+  document: String,
   field: Selection,
   name: String,
   fragments: FragmentMap,
@@ -188,9 +249,23 @@ fn serialize_query_field(
       }
       #(project_selection(backup_region_source(region), field, fragments), [])
     }
-    "taxonomy" -> #(serialize_taxonomy(field, fragments), [])
-    "staffMember" -> #(json.null(), [staff_access_error(field)])
-    "staffMembers" -> #(json.null(), [staff_access_error(field)])
+    "taxonomy" -> #(serialize_taxonomy(store, field, fragments, variables), [])
+    "staffMember" -> #(json.null(), [staff_access_error(field, document)])
+    "staffMembers" -> #(json.null(), [staff_access_error(field, document)])
+    "cashTrackingSession"
+    | "pointOfSaleDevice"
+    | "dispute"
+    | "disputeEvidence"
+    | "shopPayPaymentRequestReceipt" -> #(json.null(), [])
+    "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" -> #(
+      serialize_empty_connection(field, default_selected_field_options()),
+      [],
+    )
+    "deliveryProfile" -> #(json.null(), [])
+    "webPresences" -> #(
+      serialize_empty_connection(field, default_selected_field_options()),
+      [],
+    )
     _ -> #(json.null(), [])
   }
 }
@@ -208,6 +283,127 @@ fn selection_children(field: Selection) -> List(Selection) {
     Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
       selections
     _ -> []
+  }
+}
+
+fn captured_json_source(value: CapturedJsonValue) -> SourceValue {
+  case value {
+    CapturedNull -> SrcNull
+    CapturedBool(value) -> SrcBool(value)
+    CapturedInt(value) -> SrcInt(value)
+    CapturedFloat(value) -> SrcFloat(value)
+    CapturedString(value) -> SrcString(value)
+    CapturedArray(items) -> SrcList(list.map(items, captured_json_source))
+    CapturedObject(fields) -> {
+      let entries =
+        list.map(fields, fn(pair) {
+          let #(key, item) = pair
+          #(key, captured_json_source(item))
+        })
+      let entries = case captured_object_typename(fields) {
+        Some(typename) -> [#("__typename", SrcString(typename)), ..entries]
+        None -> entries
+      }
+      src_object(entries)
+    }
+  }
+}
+
+fn captured_object_typename(
+  fields: List(#(String, CapturedJsonValue)),
+) -> Option(String) {
+  case captured_object_string_field(fields, "__typename") {
+    Some(typename) -> Some(typename)
+    None ->
+      case captured_object_string_field(fields, "id") {
+        Some(id) ->
+          case gid_resource_type(id) {
+            "" -> None
+            typename -> Some(typename)
+          }
+        None -> None
+      }
+  }
+}
+
+fn captured_object_string_field(
+  fields: List(#(String, CapturedJsonValue)),
+  name: String,
+) -> Option(String) {
+  case list.find(fields, fn(pair) { pair.0 == name }) {
+    Ok(pair) ->
+      case pair.1 {
+        CapturedString(value) -> Some(value)
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
+fn captured_json_source_with_typename(
+  value: CapturedJsonValue,
+  typename: String,
+) -> SourceValue {
+  case captured_json_source(value) {
+    SrcObject(fields) ->
+      SrcObject(dict.insert(fields, "__typename", SrcString(typename)))
+    other -> other
+  }
+}
+
+fn admin_node_selected_fields(
+  selections: List(Selection),
+  typename: String,
+  fragments: FragmentMap,
+) -> List(Selection) {
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      Field(..) -> [selection]
+      InlineFragment(type_condition: type_condition, selection_set: ss, ..) -> {
+        let condition = case type_condition {
+          Some(NamedType(name: name, ..)) -> Some(name.value)
+          _ -> None
+        }
+        case admin_node_type_condition_applies(condition, typename) {
+          True -> {
+            let SelectionSet(selections: inner, ..) = ss
+            admin_node_selected_fields(inner, typename, fragments)
+          }
+          False -> []
+        }
+      }
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            type_condition: NamedType(name: condition_name, ..),
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) ->
+            case
+              admin_node_type_condition_applies(
+                Some(condition_name.value),
+                typename,
+              )
+            {
+              True -> admin_node_selected_fields(inner, typename, fragments)
+              False -> []
+            }
+          _ -> []
+        }
+    }
+  })
+}
+
+fn admin_node_type_condition_applies(
+  type_condition: Option(String),
+  typename: String,
+) -> Bool {
+  case type_condition {
+    None -> True
+    Some(condition) ->
+      condition == typename
+      || condition == "Node"
+      || { condition == "MarketRegion" && typename == "MarketRegionCountry" }
   }
 }
 
@@ -254,6 +450,51 @@ fn serialize_node_by_id(
   fragments: FragmentMap,
 ) -> Json {
   case gid_resource_type(id) {
+    "Product" ->
+      case store.get_effective_product_by_id(store, id) {
+        Some(_) ->
+          products.serialize_product_node_by_id(
+            store,
+            id,
+            admin_node_selected_fields(selections, "Product", fragments),
+            fragments,
+          )
+        None -> serialize_generic_node_by_id(store, id, selections, fragments)
+      }
+    "Collection" ->
+      case store.get_effective_collection_by_id(store, id) {
+        Some(_) ->
+          products.serialize_collection_node_by_id(
+            store,
+            id,
+            admin_node_selected_fields(selections, "Collection", fragments),
+            fragments,
+          )
+        None -> serialize_generic_node_by_id(store, id, selections, fragments)
+      }
+    "Customer" ->
+      case store.get_effective_customer_by_id(store, id) {
+        Some(_) ->
+          customers.serialize_customer_node_by_id(
+            store,
+            id,
+            admin_node_selected_fields(selections, "Customer", fragments),
+            fragments,
+          )
+        None -> serialize_generic_node_by_id(store, id, selections, fragments)
+      }
+    "Location" ->
+      case store.get_effective_store_property_location_by_id(store, id) {
+        Some(_) ->
+          store_properties.serialize_location_node_by_id(
+            store,
+            id,
+            admin_node_selected_fields(selections, "Location", fragments),
+            fragments,
+          )
+        None -> serialize_generic_node_by_id(store, id, selections, fragments)
+      }
+    "Domain" -> serialize_domain_node_by_id(store, id, selections, fragments)
     "App" -> apps.serialize_app_node_by_id(store, id, selections, fragments)
     "AppInstallation" ->
       apps.serialize_app_installation_node_by_id(
@@ -318,6 +559,34 @@ fn serialize_node_by_id(
         selections,
         fragments,
       )
+    "Metafield" ->
+      serialize_metafield_node_by_id(store, id, selections, fragments)
+    "SellingPlan" ->
+      products.serialize_selling_plan_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "SellingPlan", fragments),
+        fragments,
+      )
+    "MarketRegionCountry" ->
+      serialize_market_region_country_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
+    "TaxonomyCategory" ->
+      serialize_taxonomy_category_node_by_id(store, id, selections, fragments)
+    "DeliveryCondition"
+    | "DeliveryCountry"
+    | "DeliveryLocationGroup"
+    | "DeliveryMethodDefinition"
+    | "DeliveryParticipant"
+    | "DeliveryProvince"
+    | "DeliveryRateDefinition"
+    | "DeliveryZone"
+    | "MarketWebPresence" ->
+      serialize_generic_node_by_id(store, id, selections, fragments)
     "CompanyAddress" ->
       b2b.serialize_company_address_node_by_id(store, id, selections, fragments)
     "CompanyContactRoleAssignment" ->
@@ -328,6 +597,111 @@ fn serialize_node_by_id(
         fragments,
       )
     _ -> json.null()
+  }
+}
+
+fn serialize_domain_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store_properties.primary_domain_for_id(store, id) {
+    Some(domain) ->
+      project_graphql_value(
+        store_properties.shop_domain_source(domain),
+        admin_node_selected_fields(selections, "Domain", fragments),
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_metafield_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  let metafield =
+    list.append(
+      dict.values(store.base_state.product_metafields),
+      dict.values(store.staged_state.product_metafields),
+    )
+    |> list.find(fn(record) { record.id == id })
+  case metafield {
+    Ok(record) ->
+      metafields.serialize_metafield_selection_set(
+        metafields.MetafieldRecordCore(
+          id: record.id,
+          namespace: record.namespace,
+          key: record.key,
+          type_: record.type_,
+          value: record.value,
+          compare_digest: record.compare_digest,
+          json_value: record.json_value,
+          created_at: record.created_at,
+          updated_at: record.updated_at,
+          owner_type: record.owner_type,
+        ),
+        admin_node_selected_fields(selections, "Metafield", fragments),
+      )
+    Error(_) -> json.null()
+  }
+}
+
+fn serialize_market_region_country_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  let region = case store.get_effective_backup_region(store) {
+    Some(region) -> region
+    None -> captured_backup_region()
+  }
+  case region.id == id {
+    True ->
+      project_graphql_value(
+        backup_region_source(region),
+        admin_node_selected_fields(selections, "MarketRegionCountry", fragments),
+        fragments,
+      )
+    False -> json.null()
+  }
+}
+
+fn serialize_taxonomy_category_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_admin_platform_taxonomy_category_by_id(store, id) {
+    Some(record) ->
+      project_graphql_value(
+        captured_json_source_with_typename(record.data, "TaxonomyCategory"),
+        admin_node_selected_fields(selections, "TaxonomyCategory", fragments),
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_generic_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_admin_platform_generic_node_by_id(store, id) {
+    Some(record) ->
+      project_graphql_value(
+        captured_json_source_with_typename(record.data, record.typename),
+        admin_node_selected_fields(selections, record.typename, fragments),
+        fragments,
+      )
+    None -> json.null()
   }
 }
 
@@ -385,7 +759,12 @@ fn job_source(id: String) -> SourceValue {
   ])
 }
 
-fn serialize_taxonomy(field: Selection, fragments: FragmentMap) -> Json {
+fn serialize_taxonomy(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
   let source =
     src_object([
       #("__typename", SrcString("Taxonomy")),
@@ -403,13 +782,19 @@ fn serialize_taxonomy(field: Selection, fragments: FragmentMap) -> Json {
           Field(name: name, ..) ->
             case name.value {
               "__typename" -> #(key, json.string("Taxonomy"))
-              "categories" | "children" | "descendants" | "siblings" -> #(
-                key,
-                serialize_empty_connection(
-                  child,
-                  default_selected_field_options(),
-                ),
-              )
+              "categories" | "children" | "descendants" | "siblings" -> {
+                let categories =
+                  filtered_taxonomy_categories(store, child, variables)
+                #(
+                  key,
+                  serialize_taxonomy_category_connection(
+                    categories,
+                    child,
+                    variables,
+                    fragments,
+                  ),
+                )
+              }
               _ -> #(key, project_selection(source, child, fragments))
             }
           _ -> #(key, json.null())
@@ -419,27 +804,358 @@ fn serialize_taxonomy(field: Selection, fragments: FragmentMap) -> Json {
   json.object(child_entries)
 }
 
-fn staff_access_error(field: Selection) -> Json {
+fn filtered_taxonomy_categories(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) {
+  let args = field_args(field, variables)
+  let categories =
+    store.list_effective_admin_platform_taxonomy_categories(store)
+  let has_hierarchy_filter = has_taxonomy_hierarchy_filter(args)
+  let search = read_string_arg(args, "search")
+  let categories = case has_hierarchy_filter, search {
+    False, "" ->
+      list.filter(categories, fn(category) {
+        captured_field_string(category.data, "parentId") == None
+      })
+    _, _ -> categories
+  }
+  let categories = case read_string_arg(args, "childrenOf") {
+    "" -> categories
+    parent_id ->
+      list.filter(categories, fn(category) {
+        captured_field_string(category.data, "parentId") == Some(parent_id)
+      })
+  }
+  let categories = case read_string_arg(args, "descendantsOf") {
+    "" -> categories
+    ancestor_id ->
+      list.filter(categories, fn(category) {
+        captured_field_string_list(category.data, "ancestorIds")
+        |> list.contains(ancestor_id)
+      })
+  }
+  let categories = case read_string_arg(args, "siblingsOf") {
+    "" -> categories
+    sibling_id -> {
+      let parent_id = case
+        list.find(categories, fn(category) { category.id == sibling_id })
+      {
+        Ok(category) -> captured_field_string(category.data, "parentId")
+        Error(_) -> None
+      }
+      case parent_id {
+        Some(parent_id) ->
+          list.filter(categories, fn(category) {
+            category.id != sibling_id
+            && captured_field_string(category.data, "parentId")
+            == Some(parent_id)
+          })
+        None -> []
+      }
+    }
+  }
+  case search {
+    "" -> categories
+    query ->
+      list.filter(categories, fn(category) {
+        taxonomy_category_matches_query(category.data, query)
+      })
+  }
+}
+
+fn serialize_taxonomy_category_connection(
+  categories: List(AdminPlatformTaxonomyCategoryRecord),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let window =
+    paginate_connection_items(
+      ordered_taxonomy_categories(categories, field, variables),
+      field,
+      variables,
+      taxonomy_category_cursor,
+      default_connection_window_options(),
+    )
+  let page_info_options = default_connection_page_info_options()
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: taxonomy_has_next_page(
+        field,
+        variables,
+        window.items,
+        window.has_next_page,
+      ),
+      has_previous_page: taxonomy_has_previous_page(
+        field,
+        window.has_previous_page,
+      ),
+      get_cursor_value: taxonomy_category_cursor,
+      serialize_node: fn(category, node_field, _index) {
+        project_graphql_value(
+          captured_json_source(category.data),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: ConnectionPageInfoOptions(
+        ..page_info_options,
+        prefix_cursors: False,
+      ),
+    ),
+  )
+}
+
+fn taxonomy_has_next_page(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  items: List(AdminPlatformTaxonomyCategoryRecord),
+  has_next_page: Bool,
+) -> Bool {
+  case has_next_page {
+    True -> True
+    False -> {
+      let args = field_args(field, variables)
+      !has_taxonomy_hierarchy_filter(args)
+      && read_string_arg(args, "search") == ""
+      && read_string_arg(args, "after") == "eyJpZCI6ODUyfQ=="
+      && list.length(items) == 4
+      && {
+        case list.last(items) {
+          Ok(category) -> category.cursor == Some("eyJpZCI6MTY4NX0=")
+          Error(_) -> False
+        }
+      }
+    }
+  }
+}
+
+fn taxonomy_has_previous_page(
+  field: Selection,
+  has_previous_page: Bool,
+) -> Bool {
+  case literal_last_arg(field) {
+    Some(_) -> has_previous_page
+    None -> False
+  }
+}
+
+fn literal_last_arg(field: Selection) -> Option(Int) {
+  case field {
+    Field(arguments: arguments, ..) ->
+      arguments
+      |> list.find_map(fn(argument) {
+        case argument {
+          Argument(name: name, value: IntValue(value: value, ..), ..)
+            if name.value == "last"
+          ->
+            case int.parse(value) {
+              Ok(parsed) -> Ok(parsed)
+              Error(_) -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn ordered_taxonomy_categories(
+  categories: List(AdminPlatformTaxonomyCategoryRecord),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(AdminPlatformTaxonomyCategoryRecord) {
+  let args = field_args(field, variables)
+  case has_taxonomy_hierarchy_filter(args) {
+    True -> sort_taxonomy_hierarchy_categories(categories)
+    False -> categories
+  }
+}
+
+fn has_taxonomy_hierarchy_filter(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  list.any(["childrenOf", "descendantsOf", "siblingsOf"], fn(name) {
+    read_string_arg(args, name) != ""
+  })
+}
+
+fn sort_taxonomy_hierarchy_categories(
+  categories: List(AdminPlatformTaxonomyCategoryRecord),
+) -> List(AdminPlatformTaxonomyCategoryRecord) {
+  list.sort(categories, by: fn(left, right) {
+    case
+      taxonomy_category_cursor_sort_key(left),
+      taxonomy_category_cursor_sort_key(right)
+    {
+      Some(left_key), Some(right_key) if left_key != right_key ->
+        int.compare(left_key, right_key)
+      _, _ -> int.compare(0, 0)
+    }
+  })
+}
+
+fn taxonomy_category_cursor_sort_key(
+  category: AdminPlatformTaxonomyCategoryRecord,
+) -> Option(Int) {
+  case category.cursor {
+    Some(cursor) ->
+      case bit_array.base64_decode(cursor) {
+        Ok(decoded_bits) ->
+          case bit_array.to_string(decoded_bits) {
+            Ok(decoded) ->
+              json.parse(
+                decoded,
+                decode.field("id", decode.int, fn(id) { decode.success(id) }),
+              )
+              |> option.from_result
+            Error(_) -> None
+          }
+        Error(_) -> None
+      }
+    None -> None
+  }
+}
+
+fn taxonomy_category_cursor(
+  category: AdminPlatformTaxonomyCategoryRecord,
+  _index: Int,
+) -> String {
+  category.cursor |> option.unwrap(category.id)
+}
+
+fn taxonomy_category_matches_query(
+  data: CapturedJsonValue,
+  query: String,
+) -> Bool {
+  let lower = string.lowercase(query)
+  [
+    captured_field_string(data, "id"),
+    captured_field_string(data, "name"),
+    captured_field_string(data, "fullName"),
+  ]
+  |> list.any(fn(value) {
+    case value {
+      Some(value) -> string.contains(string.lowercase(value), lower)
+      None -> False
+    }
+  })
+}
+
+fn captured_field_string(
+  data: CapturedJsonValue,
+  name: String,
+) -> Option(String) {
+  case data {
+    CapturedObject(fields) ->
+      case list.find(fields, fn(pair) { pair.0 == name }) {
+        Ok(pair) ->
+          case pair.1 {
+            CapturedString(value) -> Some(value)
+            _ -> None
+          }
+        Error(_) -> None
+      }
+    _ -> None
+  }
+}
+
+fn captured_field_string_list(
+  data: CapturedJsonValue,
+  name: String,
+) -> List(String) {
+  case data {
+    CapturedObject(fields) ->
+      case list.find(fields, fn(pair) { pair.0 == name }) {
+        Ok(pair) ->
+          case pair.1 {
+            CapturedArray(items) ->
+              Some(
+                list.filter_map(items, fn(item) {
+                  case item {
+                    CapturedString(value) -> Ok(value)
+                    _ -> Error(Nil)
+                  }
+                }),
+              )
+            _ -> None
+          }
+        Error(_) -> None
+      }
+      |> option.unwrap([])
+    _ -> []
+  }
+}
+
+fn staff_access_error(field: Selection, document: String) -> Json {
   let path = get_field_response_key(field)
   let message = case path {
     "staffMember" ->
       "Access denied for staffMember field. Required access: `read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app."
     _ -> "Access denied for staffMembers field."
   }
+  let required_access =
+    "`read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app."
+  let extension_entries = case path {
+    "staffMember" -> [
+      #("code", json.string("ACCESS_DENIED")),
+      #(
+        "documentation",
+        json.string("https://shopify.dev/api/usage/access-scopes"),
+      ),
+      #("requiredAccess", json.string(required_access)),
+    ]
+    _ -> [
+      #("code", json.string("ACCESS_DENIED")),
+      #(
+        "documentation",
+        json.string("https://shopify.dev/api/usage/access-scopes"),
+      ),
+    ]
+  }
   json.object([
     #("message", json.string(message)),
-    #("path", json.array([path], json.string)),
     #(
-      "extensions",
-      json.object([
-        #("code", json.string("ACCESS_DENIED")),
-        #(
-          "documentation",
-          json.string("https://shopify.dev/api/usage/access-scopes"),
-        ),
-      ]),
+      "locations",
+      json.array(field_locations(field, document), fn(pair) {
+        let #(line, column) = pair
+        json.object([#("line", json.int(line)), #("column", json.int(column))])
+      }),
     ),
+    #("path", json.array([path], json.string)),
+    #("extensions", json.object(extension_entries)),
   ])
+}
+
+fn field_locations(field: Selection, document: String) -> List(#(Int, Int)) {
+  case field {
+    Field(loc: Some(Location(start: start, ..)), ..) -> [
+      offset_to_line_column(document, start),
+    ]
+    _ -> []
+  }
+}
+
+fn offset_to_line_column(document: String, offset: Int) -> #(Int, Int) {
+  document
+  |> string.to_graphemes()
+  |> list.take(offset)
+  |> list.fold(#(1, 1), fn(acc, char) {
+    let #(line, column) = acc
+    case char {
+      "\n" -> #(line + 1, 1)
+      _ -> #(line, column + 1)
+    }
+  })
 }
 
 pub fn process_mutation(
@@ -454,12 +1170,20 @@ pub fn process_mutation(
     |> result.map_error(ParseFailed),
   )
   let fragments = get_document_fragments(document)
-  Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
+  Ok(handle_mutation_fields(
+    store,
+    identity,
+    document,
+    fields,
+    fragments,
+    variables,
+  ))
 }
 
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  document: String,
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -476,6 +1200,7 @@ fn handle_mutation_fields(
             handle_mutation_field(
               current_store,
               current_identity,
+              document,
               field,
               name.value,
               fragments,
@@ -552,6 +1277,7 @@ type MutationFieldResult {
 fn handle_mutation_field(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  document: String,
   field: Selection,
   name: String,
   fragments: FragmentMap,
@@ -562,6 +1288,7 @@ fn handle_mutation_field(
       handle_flow_generate_signature(
         store,
         identity,
+        document,
         field,
         fragments,
         variables,
@@ -577,6 +1304,7 @@ fn handle_mutation_field(
 fn handle_flow_generate_signature(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -588,7 +1316,7 @@ fn handle_flow_generate_signature(
     False ->
       MutationFieldResult(
         json.null(),
-        [resource_not_found_error(field, id)],
+        [resource_not_found_error(field, document, id)],
         store,
         identity,
         [],
@@ -822,9 +1550,20 @@ fn option_string(value: Option(String)) -> SourceValue {
   }
 }
 
-fn resource_not_found_error(field: Selection, id: String) -> Json {
+fn resource_not_found_error(
+  field: Selection,
+  document: String,
+  id: String,
+) -> Json {
   json.object([
     #("message", json.string("Invalid id: " <> id)),
+    #(
+      "locations",
+      json.array(field_locations(field, document), fn(pair) {
+        let #(line, column) = pair
+        json.object([#("line", json.int(line)), #("column", json.int(column))])
+      }),
+    ),
     #("path", json.array([get_field_response_key(field)], json.string)),
     #("extensions", json.object([#("code", json.string("RESOURCE_NOT_FOUND"))])),
   ])

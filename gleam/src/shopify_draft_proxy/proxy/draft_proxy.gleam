@@ -1706,7 +1706,9 @@ fn selection_names_request_store_publishable_fields(
 
 fn shipping_fulfillment_priority_query_root(name: String) -> Bool {
   case name {
-    "fulfillment"
+    "deliveryProfile"
+    | "deliveryProfiles"
+    | "fulfillment"
     | "fulfillmentOrder"
     | "fulfillmentOrders"
     | "assignedFulfillmentOrders"
