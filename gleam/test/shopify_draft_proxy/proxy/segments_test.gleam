@@ -12,7 +12,10 @@ import gleam/json
 import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/types.{type SegmentRecord, SegmentRecord}
+import shopify_draft_proxy/state/types.{
+  type CustomerRecord, type SegmentRecord, CustomerDefaultEmailAddressRecord,
+  CustomerRecord, Money, SegmentRecord,
+}
 
 // ----------- Helpers -----------
 
@@ -37,17 +40,64 @@ fn seed(store_in: store.Store, record: SegmentRecord) -> store.Store {
   s
 }
 
+fn customer(
+  id: String,
+  first_name: String,
+  tags: List(String),
+  number_of_orders: String,
+) -> CustomerRecord {
+  CustomerRecord(
+    id: id,
+    first_name: Some(first_name),
+    last_name: None,
+    display_name: Some(first_name),
+    email: Some(first_name <> "@example.com"),
+    legacy_resource_id: None,
+    locale: Some("en"),
+    note: None,
+    can_delete: Some(True),
+    verified_email: Some(True),
+    data_sale_opt_out: False,
+    tax_exempt: Some(False),
+    tax_exemptions: [],
+    state: Some("DISABLED"),
+    tags: tags,
+    number_of_orders: Some(number_of_orders),
+    amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
+    default_email_address: Some(CustomerDefaultEmailAddressRecord(
+      email_address: Some(first_name <> "@example.com"),
+      marketing_state: None,
+      marketing_opt_in_level: None,
+      marketing_updated_at: None,
+    )),
+    default_phone_number: None,
+    email_marketing_consent: None,
+    sms_marketing_consent: None,
+    default_address: None,
+    created_at: None,
+    updated_at: None,
+  )
+}
+
+fn seed_customer(store_in: store.Store, record: CustomerRecord) -> store.Store {
+  let #(_, s) = store.stage_create_customer(store_in, record)
+  s
+}
+
 // ----------- Predicates -----------
 
 pub fn is_segment_query_root_test() {
   assert segments.is_segment_query_root("segment")
   assert segments.is_segment_query_root("segments")
   assert segments.is_segment_query_root("segmentsCount")
+  assert segments.is_segment_query_root("segmentFilters")
+  assert segments.is_segment_query_root("segmentFilterSuggestions")
+  assert segments.is_segment_query_root("segmentValueSuggestions")
+  assert segments.is_segment_query_root("segmentMigrations")
   assert segments.is_segment_query_root("customerSegmentMembers")
   assert segments.is_segment_query_root("customerSegmentMembersQuery")
   assert segments.is_segment_query_root("customerSegmentMembership")
   assert !segments.is_segment_query_root("segmentCreate")
-  assert !segments.is_segment_query_root("segmentFilters")
 }
 
 pub fn is_segment_mutation_root_test() {
@@ -146,4 +196,51 @@ pub fn segments_count_seeded_test() {
     |> seed(r2)
   let result = run(s, "{ segmentsCount { count precision } }")
   assert result == "{\"segmentsCount\":{\"count\":2,\"precision\":\"EXACT\"}}"
+}
+
+// ----------- customerSegmentMembers / customerSegmentMembership -----------
+
+pub fn customer_segment_members_filters_staged_customers_test() {
+  let s =
+    store.new()
+    |> seed_customer(customer(
+      "gid://shopify/Customer/1",
+      "Tagged",
+      ["vip"],
+      "0",
+    ))
+    |> seed_customer(customer("gid://shopify/Customer/2", "Untagged", [], "3"))
+
+  let contains =
+    run(
+      s,
+      "{ customerSegmentMembers(query: \"customer_tags CONTAINS 'vip'\", first: 5) { totalCount edges { node { firstName numberOfOrders defaultEmailAddress { emailAddress } amountSpent { amount currencyCode } } } } }",
+    )
+  assert contains
+    == "{\"customerSegmentMembers\":{\"totalCount\":1,\"edges\":[{\"node\":{\"firstName\":\"Tagged\",\"numberOfOrders\":\"0\",\"defaultEmailAddress\":{\"emailAddress\":\"Tagged@example.com\"},\"amountSpent\":{\"amount\":\"0.0\",\"currencyCode\":\"USD\"}}}]}}"
+
+  let not_contains =
+    run(
+      s,
+      "{ customerSegmentMembers(query: \"customer_tags NOT CONTAINS 'vip'\", first: 5) { totalCount edges { node { firstName } } } }",
+    )
+  assert not_contains
+    == "{\"customerSegmentMembers\":{\"totalCount\":1,\"edges\":[{\"node\":{\"firstName\":\"Untagged\"}}]}}"
+}
+
+pub fn customer_segment_membership_evaluates_known_segments_test() {
+  let segment_id = "gid://shopify/Segment/30"
+  let s =
+    store.new()
+    |> seed(segment(segment_id, "Zero orders", "number_of_orders = 0"))
+    |> seed_customer(customer("gid://shopify/Customer/1", "Zero", [], "0"))
+    |> seed_customer(customer("gid://shopify/Customer/2", "Three", [], "3"))
+
+  let result =
+    run(
+      s,
+      "{ yes: customerSegmentMembership(customerId: \"gid://shopify/Customer/1\", segmentIds: [\"gid://shopify/Segment/30\"]) { memberships { segmentId isMember } } no: customerSegmentMembership(customerId: \"gid://shopify/Customer/2\", segmentIds: [\"gid://shopify/Segment/30\", \"gid://shopify/Segment/missing\"]) { memberships { segmentId isMember } } }",
+    )
+  assert result
+    == "{\"yes\":{\"memberships\":[{\"segmentId\":\"gid://shopify/Segment/30\",\"isMember\":true}]},\"no\":{\"memberships\":[{\"segmentId\":\"gid://shopify/Segment/30\",\"isMember\":false}]}}"
 }
