@@ -30,6 +30,7 @@ import shopify_draft_proxy/graphql/parse_operation.{
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/admin_platform
 import shopify_draft_proxy/proxy/apps
+import shopify_draft_proxy/proxy/b2b
 import shopify_draft_proxy/proxy/bulk_operations
 import shopify_draft_proxy/proxy/capabilities
 import shopify_draft_proxy/proxy/commit
@@ -782,6 +783,28 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(B2BDomain) ->
+      case
+        b2b.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle B2B mutation"), proxy)
+      }
     Ok(SegmentsDomain) ->
       case
         segments.process_mutation(
@@ -1138,6 +1161,12 @@ fn route_query(
         gift_cards.process(proxy.store, query, variables),
         "Failed to handle gift cards query",
       )
+    Ok(B2BDomain) ->
+      respond(
+        proxy,
+        b2b.process(proxy.store, query, variables),
+        "Failed to handle B2B query",
+      )
     Ok(SegmentsDomain) ->
       respond(
         proxy,
@@ -1237,6 +1266,7 @@ type Domain {
   AppsDomain
   FunctionsDomain
   GiftCardsDomain
+  B2BDomain
   SegmentsDomain
   MetafieldDefinitionsDomain
   LocalizationDomain
@@ -1372,128 +1402,51 @@ fn local_query_dispatch_domain(
         False -> Ok(ProductsDomain)
       }
     _ ->
-      case payments.is_payments_query_root(name) {
-        True -> Ok(PaymentsDomain)
-        False ->
-          case saved_searches.is_saved_search_query_root(name) {
-            True -> Ok(SavedSearchesDomain)
-            False ->
-              case webhooks.is_webhook_subscription_query_root(name) {
-                True -> Ok(WebhooksDomain)
-                False ->
-                  case apps.is_app_query_root(name) {
-                    True -> Ok(AppsDomain)
-                    False ->
-                      case functions.is_function_query_root(name) {
-                        True -> Ok(FunctionsDomain)
-                        False ->
-                          case gift_cards.is_gift_card_query_root(name) {
-                            True -> Ok(GiftCardsDomain)
-                            False ->
-                              case products.is_products_query_root(name) {
-                                True -> Ok(ProductsDomain)
-                                False ->
-                                  case segments.is_segment_query_root(name) {
-                                    True -> Ok(SegmentsDomain)
-                                    False ->
-                                      case
-                                        customers.is_customer_query_root(name)
-                                      {
-                                        True -> Ok(CustomersDomain)
-                                        False ->
-                                          case
-                                            metafield_definitions.is_metafield_definitions_query_root(
-                                              name,
-                                            )
-                                          {
-                                            True ->
-                                              Ok(MetafieldDefinitionsDomain)
-                                            False ->
-                                              case
-                                                localization.is_localization_query_root(
-                                                  name,
-                                                )
-                                              {
-                                                True -> Ok(LocalizationDomain)
-                                                False ->
-                                                  case
-                                                    metaobject_definitions.is_metaobject_definitions_query_root(
-                                                      name,
-                                                    )
-                                                  {
-                                                    True ->
-                                                      Ok(
-                                                        MetaobjectDefinitionsDomain,
-                                                      )
-                                                    False ->
-                                                      case
-                                                        marketing.is_marketing_query_root(
-                                                          name,
-                                                        )
-                                                      {
-                                                        True ->
-                                                          Ok(MarketingDomain)
-                                                        False ->
-                                                          case
-                                                            bulk_operations.is_bulk_operations_query_root(
-                                                              name,
-                                                            )
-                                                          {
-                                                            True ->
-                                                              Ok(
-                                                                BulkOperationsDomain,
-                                                              )
-                                                            False ->
-                                                              case
-                                                                media.is_media_query_root(
-                                                                  name,
-                                                                )
-                                                              {
-                                                                True ->
-                                                                  Ok(
-                                                                    MediaDomain,
-                                                                  )
-                                                                False ->
-                                                                  case
-                                                                    admin_platform.is_admin_platform_query_root(
-                                                                      name,
-                                                                    )
-                                                                  {
-                                                                    True ->
-                                                                      Ok(
-                                                                        AdminPlatformDomain,
-                                                                      )
-                                                                    False ->
-                                                                      case
-                                                                        store_properties.is_store_properties_query_root(
-                                                                          name,
-                                                                        )
-                                                                      {
-                                                                        True ->
-                                                                          Ok(
-                                                                            StorePropertiesDomain,
-                                                                          )
-                                                                        False ->
-                                                                          Error(
-                                                                            Nil,
-                                                                          )
-                                                                      }
-                                                                  }
-                                                              }
-                                                          }
-                                                      }
-                                                  }
-                                              }
-                                          }
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  }
-              }
-          }
-      }
+      first_matching_domain([
+        #(payments.is_payments_query_root(name), PaymentsDomain),
+        #(saved_searches.is_saved_search_query_root(name), SavedSearchesDomain),
+        #(webhooks.is_webhook_subscription_query_root(name), WebhooksDomain),
+        #(apps.is_app_query_root(name), AppsDomain),
+        #(functions.is_function_query_root(name), FunctionsDomain),
+        #(gift_cards.is_gift_card_query_root(name), GiftCardsDomain),
+        #(b2b.is_b2b_query_root(name), B2BDomain),
+        #(products.is_products_query_root(name), ProductsDomain),
+        #(segments.is_segment_query_root(name), SegmentsDomain),
+        #(customers.is_customer_query_root(name), CustomersDomain),
+        #(
+          metafield_definitions.is_metafield_definitions_query_root(name),
+          MetafieldDefinitionsDomain,
+        ),
+        #(localization.is_localization_query_root(name), LocalizationDomain),
+        #(
+          metaobject_definitions.is_metaobject_definitions_query_root(name),
+          MetaobjectDefinitionsDomain,
+        ),
+        #(marketing.is_marketing_query_root(name), MarketingDomain),
+        #(
+          bulk_operations.is_bulk_operations_query_root(name),
+          BulkOperationsDomain,
+        ),
+        #(media.is_media_query_root(name), MediaDomain),
+        #(
+          admin_platform.is_admin_platform_query_root(name),
+          AdminPlatformDomain,
+        ),
+        #(
+          store_properties.is_store_properties_query_root(name),
+          StorePropertiesDomain,
+        ),
+      ])
+  }
+}
+
+fn first_matching_domain(
+  candidates: List(#(Bool, Domain)),
+) -> Result(Domain, Nil) {
+  case candidates {
+    [] -> Error(Nil)
+    [#(True, domain), ..] -> Ok(domain)
+    [_, ..rest] -> first_matching_domain(rest)
   }
 }
 
@@ -1553,136 +1506,39 @@ fn local_mutation_dispatch_domain(
 fn local_non_store_publishable_mutation_dispatch_domain(
   name: String,
 ) -> Result(Domain, Nil) {
-  case orders.is_orders_mutation_root(name) {
-    True -> Ok(OrdersDomain)
-    False ->
-      case payments.is_payments_mutation_root(name) {
-        True -> Ok(PaymentsDomain)
-        False ->
-          case products.is_products_mutation_root(name) {
-            True -> Ok(ProductsDomain)
-            False ->
-              case store_properties.is_store_properties_mutation_root(name) {
-                True -> Ok(StorePropertiesDomain)
-                False ->
-                  case saved_searches.is_saved_search_mutation_root(name) {
-                    True -> Ok(SavedSearchesDomain)
-                    False ->
-                      case
-                        webhooks.is_webhook_subscription_mutation_root(name)
-                      {
-                        True -> Ok(WebhooksDomain)
-                        False ->
-                          case apps.is_app_mutation_root(name) {
-                            True -> Ok(AppsDomain)
-                            False ->
-                              case functions.is_function_mutation_root(name) {
-                                True -> Ok(FunctionsDomain)
-                                False ->
-                                  case
-                                    gift_cards.is_gift_card_mutation_root(name)
-                                  {
-                                    True -> Ok(GiftCardsDomain)
-                                    False ->
-                                      case
-                                        segments.is_segment_mutation_root(name)
-                                      {
-                                        True -> Ok(SegmentsDomain)
-                                        False ->
-                                          case
-                                            metafield_definitions.is_metafield_definitions_mutation_root(
-                                              name,
-                                            )
-                                          {
-                                            True ->
-                                              Ok(MetafieldDefinitionsDomain)
-                                            False ->
-                                              case
-                                                localization.is_localization_mutation_root(
-                                                  name,
-                                                )
-                                              {
-                                                True -> Ok(LocalizationDomain)
-                                                False ->
-                                                  case
-                                                    metaobject_definitions.is_metaobject_definitions_mutation_root(
-                                                      name,
-                                                    )
-                                                  {
-                                                    True ->
-                                                      Ok(
-                                                        MetaobjectDefinitionsDomain,
-                                                      )
-                                                    False ->
-                                                      case
-                                                        marketing.is_marketing_mutation_root(
-                                                          name,
-                                                        )
-                                                      {
-                                                        True ->
-                                                          Ok(MarketingDomain)
-                                                        False ->
-                                                          case
-                                                            bulk_operations.is_bulk_operations_mutation_root(
-                                                              name,
-                                                            )
-                                                          {
-                                                            True ->
-                                                              Ok(
-                                                                BulkOperationsDomain,
-                                                              )
-                                                            False ->
-                                                              case
-                                                                admin_platform.is_admin_platform_mutation_root(
-                                                                  name,
-                                                                )
-                                                              {
-                                                                True ->
-                                                                  Ok(
-                                                                    AdminPlatformDomain,
-                                                                  )
-                                                                False ->
-                                                                  case
-                                                                    privacy.is_privacy_mutation_root(
-                                                                      name,
-                                                                    )
-                                                                  {
-                                                                    True ->
-                                                                      Ok(
-                                                                        PrivacyDomain,
-                                                                      )
-                                                                    False ->
-                                                                      case
-                                                                        customers.is_customer_mutation_root(
-                                                                          name,
-                                                                        )
-                                                                      {
-                                                                        True ->
-                                                                          Ok(
-                                                                            CustomersDomain,
-                                                                          )
-                                                                        False ->
-                                                                          Error(
-                                                                            Nil,
-                                                                          )
-                                                                      }
-                                                                  }
-                                                              }
-                                                          }
-                                                      }
-                                                  }
-                                              }
-                                          }
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  }
-              }
-          }
-      }
-  }
+  first_matching_domain([
+    #(orders.is_orders_mutation_root(name), OrdersDomain),
+    #(payments.is_payments_mutation_root(name), PaymentsDomain),
+    #(products.is_products_mutation_root(name), ProductsDomain),
+    #(
+      store_properties.is_store_properties_mutation_root(name),
+      StorePropertiesDomain,
+    ),
+    #(saved_searches.is_saved_search_mutation_root(name), SavedSearchesDomain),
+    #(webhooks.is_webhook_subscription_mutation_root(name), WebhooksDomain),
+    #(apps.is_app_mutation_root(name), AppsDomain),
+    #(functions.is_function_mutation_root(name), FunctionsDomain),
+    #(gift_cards.is_gift_card_mutation_root(name), GiftCardsDomain),
+    #(b2b.is_b2b_mutation_root(name), B2BDomain),
+    #(segments.is_segment_mutation_root(name), SegmentsDomain),
+    #(
+      metafield_definitions.is_metafield_definitions_mutation_root(name),
+      MetafieldDefinitionsDomain,
+    ),
+    #(localization.is_localization_mutation_root(name), LocalizationDomain),
+    #(
+      metaobject_definitions.is_metaobject_definitions_mutation_root(name),
+      MetaobjectDefinitionsDomain,
+    ),
+    #(marketing.is_marketing_mutation_root(name), MarketingDomain),
+    #(
+      bulk_operations.is_bulk_operations_mutation_root(name),
+      BulkOperationsDomain,
+    ),
+    #(admin_platform.is_admin_platform_mutation_root(name), AdminPlatformDomain),
+    #(privacy.is_privacy_mutation_root(name), PrivacyDomain),
+    #(customers.is_customer_mutation_root(name), CustomersDomain),
+  ])
 }
 
 fn publishable_mutation_requests_store_properties(

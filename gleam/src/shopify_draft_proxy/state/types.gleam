@@ -640,6 +640,50 @@ pub type StorePropertyRecord {
   )
 }
 
+// ---------------------------------------------------------------------------
+// B2B company domain
+// ---------------------------------------------------------------------------
+
+/// JSON-shaped B2B company row. Relationships are normalized as Shopify GIDs
+/// so contacts, locations, and roles can be updated independently.
+pub type B2BCompanyRecord {
+  B2BCompanyRecord(
+    id: String,
+    cursor: Option(String),
+    data: Dict(String, StorePropertyValue),
+    contact_ids: List(String),
+    location_ids: List(String),
+    contact_role_ids: List(String),
+  )
+}
+
+pub type B2BCompanyContactRecord {
+  B2BCompanyContactRecord(
+    id: String,
+    cursor: Option(String),
+    company_id: String,
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+pub type B2BCompanyContactRoleRecord {
+  B2BCompanyContactRoleRecord(
+    id: String,
+    cursor: Option(String),
+    company_id: String,
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+pub type B2BCompanyLocationRecord {
+  B2BCompanyLocationRecord(
+    id: String,
+    cursor: Option(String),
+    company_id: String,
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
 /// Locally staged publishable mutation payload for the minimal Product /
 /// Collection publication projection used by Store Properties parity.
 pub type StorePropertyMutationPayloadRecord {
