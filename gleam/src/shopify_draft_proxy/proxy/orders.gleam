@@ -455,27 +455,39 @@ pub fn process_mutation(
           }
         }
         Field(name: name, ..) if name.value == "draftOrderComplete" -> {
-          let #(key, payload, next_errors) =
-            handle_draft_order_complete_guardrail(
+          let result =
+            handle_draft_order_complete(
+              current_store,
+              current_identity,
               document,
               operation_path,
               field,
+              fragments,
               variables,
             )
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            next_ids,
+            next_errors,
+            next_drafts,
+          ) = result
           case next_errors {
             [] -> #(
               list.append(entries, [#(key, payload)]),
               errors,
-              current_store,
-              current_identity,
-              ids,
-              drafts,
+              next_store,
+              next_identity,
+              list.append(ids, next_ids),
+              list.append(drafts, next_drafts),
             )
             _ -> #(
               entries,
               list.append(errors, next_errors),
-              current_store,
-              current_identity,
+              next_store,
+              next_identity,
               ids,
               drafts,
             )
@@ -737,12 +749,23 @@ pub fn process_mutation(
   ))
 }
 
-fn handle_draft_order_complete_guardrail(
+fn handle_draft_order_complete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   document: String,
   operation_path: String,
   field: Selection,
+  fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(String, Json, List(Json)) {
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
   let key = get_field_response_key(field)
   let validation_errors =
     validate_required_field_arguments(
@@ -754,8 +777,80 @@ fn handle_draft_order_complete_guardrail(
       document,
     )
   case validation_errors {
-    [_, ..] -> #(key, json.null(), validation_errors)
-    [] -> #(key, json.null(), [])
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      let id = read_string_arg(args, "id")
+      case id {
+        Some(id) ->
+          case store.get_draft_order_by_id(store, id) {
+            Some(draft_order) -> {
+              case read_string_arg(args, "paymentGatewayId") {
+                Some(_) -> {
+                  let payload =
+                    serialize_draft_order_mutation_payload(
+                      field,
+                      None,
+                      [#([], "Invalid payment gateway")],
+                      fragments,
+                    )
+                  #(key, payload, store, identity, [], [], [])
+                }
+                None -> {
+                  let #(completed_draft_order, next_identity) =
+                    complete_draft_order(
+                      store,
+                      identity,
+                      draft_order,
+                      read_string_arg(args, "sourceName"),
+                      read_bool(args, "paymentPending", False),
+                    )
+                  let next_store =
+                    store.stage_draft_order(store, completed_draft_order)
+                  let payload =
+                    serialize_draft_order_mutation_payload(
+                      field,
+                      Some(completed_draft_order),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "draftOrderComplete",
+                      [completed_draft_order.id],
+                      store.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged draftOrderComplete in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(
+                    key,
+                    payload,
+                    next_store,
+                    next_identity,
+                    [completed_draft_order.id],
+                    [],
+                    [draft],
+                  )
+                }
+              }
+            }
+            None -> {
+              let payload =
+                serialize_draft_order_mutation_payload(
+                  field,
+                  None,
+                  [#(["id"], "Draft order does not exist")],
+                  fragments,
+                )
+              #(key, payload, store, identity, [], [], [])
+            }
+          }
+        None -> #(key, json.null(), store, identity, [], [], [])
+      }
+    }
   }
 }
 
@@ -1588,6 +1683,285 @@ fn duplicate_draft_order_line_item(
     #("discountedTotalSet", original_total),
     #("totalDiscountSet", money_set(0.0, currency_code)),
   ])
+}
+
+fn complete_draft_order(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  draft_order: DraftOrderRecord,
+  source_name: Option(String),
+  payment_pending: Bool,
+) -> #(DraftOrderRecord, SyntheticIdentityRegistry) {
+  let #(completed_at, identity_after_time) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let #(order, next_identity) =
+    build_order_from_completed_draft_order(
+      store,
+      identity_after_time,
+      draft_order,
+      completed_at,
+      source_name,
+      payment_pending,
+    )
+  let order_id = captured_string_field(order, "id")
+  let data =
+    draft_order.data
+    |> replace_captured_object_fields([
+      #("status", CapturedString("COMPLETED")),
+      #("ready", CapturedBool(True)),
+      #("completedAt", CapturedString(completed_at)),
+      #("updatedAt", CapturedString(completed_at)),
+      #("orderId", optional_captured_string(order_id)),
+      #("order", order),
+    ])
+  #(DraftOrderRecord(..draft_order, data: data), next_identity)
+}
+
+fn build_order_from_completed_draft_order(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  draft_order: DraftOrderRecord,
+  completed_at: String,
+  source_name: Option(String),
+  payment_pending: Bool,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(order_id, identity_after_order) =
+    synthetic_identity.make_synthetic_gid(identity, "Order")
+  let #(line_items, next_identity) =
+    build_order_line_items_from_draft_order(
+      identity_after_order,
+      draft_order_line_items(draft_order.data),
+    )
+  let currency_code = captured_order_currency(draft_order.data)
+  let payment_gateway_names = case payment_pending {
+    True -> []
+    False -> [CapturedString("manual")]
+  }
+  let financial_status = case payment_pending {
+    True -> "PENDING"
+    False -> "PAID"
+  }
+  #(
+    CapturedObject([
+      #("id", CapturedString(order_id)),
+      #(
+        "name",
+        CapturedString("#" <> int.to_string(completed_order_count(store) + 1)),
+      ),
+      #("createdAt", CapturedString(completed_at)),
+      #("updatedAt", CapturedString(completed_at)),
+      #("email", captured_field_or_null(draft_order.data, "email")),
+      #("phone", CapturedNull),
+      #("poNumber", CapturedNull),
+      #("closed", CapturedBool(False)),
+      #("closedAt", CapturedNull),
+      #("cancelledAt", CapturedNull),
+      #("cancelReason", CapturedNull),
+      #("sourceName", normalized_completed_order_source_name(source_name)),
+      #("paymentGatewayNames", CapturedArray(payment_gateway_names)),
+      #("displayFinancialStatus", CapturedString(financial_status)),
+      #("displayFulfillmentStatus", CapturedString("UNFULFILLED")),
+      #("note", captured_field_or_null(draft_order.data, "note")),
+      #("tags", captured_field_or_empty_array(draft_order.data, "tags")),
+      #(
+        "customAttributes",
+        captured_field_or_empty_array(draft_order.data, "customAttributes"),
+      ),
+      #("metafields", CapturedArray([])),
+      #(
+        "billingAddress",
+        captured_field_or_null(draft_order.data, "billingAddress"),
+      ),
+      #(
+        "shippingAddress",
+        captured_field_or_null(draft_order.data, "shippingAddress"),
+      ),
+      #(
+        "subtotalPriceSet",
+        captured_field_or_money(
+          draft_order.data,
+          "subtotalPriceSet",
+          currency_code,
+        ),
+      ),
+      #(
+        "currentTotalPriceSet",
+        captured_field_or_money(
+          draft_order.data,
+          "totalPriceSet",
+          currency_code,
+        ),
+      ),
+      #(
+        "totalPriceSet",
+        captured_field_or_money(
+          draft_order.data,
+          "totalPriceSet",
+          currency_code,
+        ),
+      ),
+      #(
+        "totalOutstandingSet",
+        money_set(
+          case payment_pending {
+            True -> captured_money_amount(draft_order.data, "totalPriceSet")
+            False -> 0.0
+          },
+          currency_code,
+        ),
+      ),
+      #("totalRefundedSet", money_set(0.0, currency_code)),
+      #("totalTaxSet", money_set(0.0, currency_code)),
+      #("totalDiscountsSet", money_set(0.0, currency_code)),
+      #("discountCodes", CapturedArray([])),
+      #("discountApplications", CapturedArray([])),
+      #("taxLines", CapturedArray([])),
+      #("taxesIncluded", CapturedBool(False)),
+      #("customer", captured_field_or_null(draft_order.data, "customer")),
+      #("shippingLines", completed_order_shipping_lines(draft_order.data)),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
+      #(
+        "paymentTerms",
+        captured_field_or_null(draft_order.data, "paymentTerms"),
+      ),
+      #("transactions", CapturedArray([])),
+      #("refunds", CapturedArray([])),
+      #("returns", CapturedArray([])),
+    ]),
+    next_identity,
+  )
+}
+
+fn build_order_line_items_from_draft_order(
+  identity: SyntheticIdentityRegistry,
+  line_items: List(CapturedJsonValue),
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  let initial: #(List(CapturedJsonValue), SyntheticIdentityRegistry) = #(
+    [],
+    identity,
+  )
+  line_items
+  |> list.fold(initial, fn(acc, item) {
+    let #(items, current_identity) = acc
+    let #(id, next_identity) =
+      synthetic_identity.make_synthetic_gid(current_identity, "LineItem")
+    #(
+      list.append(items, [build_order_line_item_from_draft_order(id, item)]),
+      next_identity,
+    )
+  })
+}
+
+fn build_order_line_item_from_draft_order(
+  id: String,
+  item: CapturedJsonValue,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("id", CapturedString(id)),
+    #("title", captured_field_or_null(item, "title")),
+    #("quantity", captured_field_or_int(item, "quantity", 0)),
+    #("sku", nullable_empty_captured_string(item, "sku")),
+    #("variantId", CapturedNull),
+    #("variantTitle", nullable_default_title(item)),
+    #(
+      "originalUnitPriceSet",
+      captured_field_or_money(
+        item,
+        "originalUnitPriceSet",
+        captured_order_currency(item),
+      ),
+    ),
+    #("taxLines", CapturedArray([])),
+  ])
+}
+
+fn completed_order_shipping_lines(
+  data: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case captured_object_field(data, "shippingLine") {
+    Some(CapturedObject(fields)) ->
+      CapturedArray([
+        CapturedObject(
+          upsert_captured_fields(fields, [
+            #("source", CapturedNull),
+            #("taxLines", CapturedArray([])),
+          ]),
+        ),
+      ])
+    _ -> CapturedArray([])
+  }
+}
+
+fn completed_order_count(store: Store) -> Int {
+  store.list_effective_draft_orders(store)
+  |> list.fold(0, fn(count, record) {
+    case captured_object_field(record.data, "order") {
+      Some(CapturedObject(_)) -> count + 1
+      _ -> count
+    }
+  })
+}
+
+fn normalized_completed_order_source_name(
+  source_name: Option(String),
+) -> CapturedJsonValue {
+  case source_name {
+    Some(_) -> CapturedString("347082227713")
+    None -> CapturedNull
+  }
+}
+
+fn captured_field_or_null(
+  value: CapturedJsonValue,
+  name: String,
+) -> CapturedJsonValue {
+  captured_object_field(value, name) |> option.unwrap(CapturedNull)
+}
+
+fn captured_field_or_empty_array(
+  value: CapturedJsonValue,
+  name: String,
+) -> CapturedJsonValue {
+  captured_object_field(value, name) |> option.unwrap(CapturedArray([]))
+}
+
+fn captured_field_or_money(
+  value: CapturedJsonValue,
+  name: String,
+  currency_code: String,
+) -> CapturedJsonValue {
+  captured_object_field(value, name)
+  |> option.unwrap(money_set(0.0, currency_code))
+}
+
+fn captured_field_or_int(
+  value: CapturedJsonValue,
+  name: String,
+  fallback: Int,
+) -> CapturedJsonValue {
+  case captured_object_field(value, name) {
+    Some(CapturedInt(value)) -> CapturedInt(value)
+    _ -> CapturedInt(fallback)
+  }
+}
+
+fn nullable_empty_captured_string(
+  value: CapturedJsonValue,
+  name: String,
+) -> CapturedJsonValue {
+  case captured_string_field(value, name) {
+    Some("") -> CapturedNull
+    Some(value) -> CapturedString(value)
+    None -> CapturedNull
+  }
+}
+
+fn nullable_default_title(item: CapturedJsonValue) -> CapturedJsonValue {
+  case captured_string_field(item, "variantTitle") {
+    Some("Default Title") -> CapturedNull
+    Some(value) -> CapturedString(value)
+    None -> CapturedNull
+  }
 }
 
 fn replace_if_present(

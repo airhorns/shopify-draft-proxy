@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 126: draft order complete lifecycle
+
+Promotes the captured `draftOrderComplete` parity plan in the Gleam Orders
+domain. This pass keeps the required-id validation guardrails, completes a
+seeded/staged draft locally, attaches a synthetic nested order to the completed
+draft, preserves downstream `draftOrder(id:)` visibility, and keeps root order
+reads/counts gated until the order store slice is ported.
+
+| Module                                                   | Change                                                                                  |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderComplete` success handling, completed draft mutation, and nested order. |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured setup draft and setup input note before replaying completion.        |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers completion payload normalization and downstream reads directly.                  |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderComplete-parity-plan` spec.                        |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (734 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (730 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 142 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify completes the same draft-order id rather than allocating a new draft;
+  draft line-item ids remain stable while the linked order receives fresh order
+  and order line-item ids.
+- The captured Shopify order normalizes any non-null completion `sourceName` to
+  `347082227713`, records `manual` as the payment gateway when
+  `paymentPending` is false, and copies the setup input note into the completed
+  order even though the setup draft-order response did not select `note`.
+
+### Risks / open items
+
+- Root `order(id:)`, `orders`, and `ordersCount` visibility for completed draft
+  orders remains gated until the Gleam order store slice exists.
+- Draft-order invoice/helper roots, order editing, fulfillment success paths,
+  refunds, and returns remain unported.
+
+### Pass 127 candidates
+
+- Continue with draft-order read/count/search parity or a narrow invoice/helper
+  root if the checked-in fixture can be modeled without broad order-store work.
+
+---
+
 ## 2026-05-01 - Pass 125: draft order duplicate lifecycle
 
 Promotes the captured `draftOrderDuplicate` parity plan in the Gleam Orders

@@ -477,6 +477,13 @@ synthetic-id/timestamp expected differences.
   duplicate clears source shipping, order-level discount, line-item discounts,
   `taxExempt`, and `reserveInventoryUntil`; recalculate totals from the
   cleared duplicate rather than copying source totals.
+- `draftOrderComplete` parity seeds the captured setup draft-order, then marks
+  that same draft `COMPLETED` and attaches a nested synthetic order on the
+  staged draft. Preserve the TS normalization where any non-null completion
+  `sourceName` becomes `347082227713`, `paymentPending: false` maps to
+  `paymentGatewayNames: ["manual"]` and `displayFinancialStatus: "PAID"`, and
+  order line-item ids are fresh `LineItem` gids while draft line-item ids remain
+  unchanged.
 
 ## Workflow for a new pass
 

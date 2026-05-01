@@ -260,6 +260,8 @@ fn seed_capture_preconditions(
       seed_draft_order_detail_preconditions(capture, proxy)
     "draft-order-create-live-parity" ->
       seed_draft_order_create_preconditions(capture, proxy)
+    "draft-order-complete-live-parity" ->
+      seed_draft_order_complete_preconditions(capture, proxy)
     "draft-order-delete-live-parity" ->
       seed_draft_order_delete_preconditions(capture, proxy)
     "draft-order-duplicate-live-parity" ->
@@ -592,6 +594,30 @@ fn seed_draft_order_update_preconditions(
   }
 }
 
+fn seed_draft_order_complete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.draftOrderCreate.mutation.response.data.draftOrderCreate.draftOrder",
+    )
+  {
+    Some(source) ->
+      case make_seed_draft_order(source) {
+        Ok(record) -> {
+          let record = draft_order_with_setup_note(capture, record)
+          let store =
+            proxy.store |> store_mod.upsert_base_draft_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
 fn seed_draft_order_duplicate_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -622,6 +648,55 @@ fn make_seed_draft_order(source: JsonValue) -> Result(DraftOrderRecord, Nil) {
     cursor: None,
     data: captured_json_from_parity(source),
   ))
+}
+
+fn draft_order_with_setup_note(
+  capture: JsonValue,
+  record: DraftOrderRecord,
+) -> DraftOrderRecord {
+  case
+    jsonpath.lookup(capture, "$.setup.draftOrderCreate.variables.input.note")
+  {
+    Some(JString(note)) ->
+      DraftOrderRecord(
+        ..record,
+        data: upsert_captured_json_field(
+          record.data,
+          "note",
+          CapturedString(note),
+        ),
+      )
+    _ -> record
+  }
+}
+
+fn upsert_captured_json_field(
+  value: CapturedJsonValue,
+  name: String,
+  replacement: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case value {
+    CapturedObject(fields) ->
+      CapturedObject(upsert_captured_json_fields(fields, name, replacement))
+    _ -> CapturedObject([#(name, replacement)])
+  }
+}
+
+fn upsert_captured_json_fields(
+  fields: List(#(String, CapturedJsonValue)),
+  name: String,
+  replacement: CapturedJsonValue,
+) -> List(#(String, CapturedJsonValue)) {
+  case list.any(fields, fn(pair) { pair.0 == name }) {
+    True ->
+      list.map(fields, fn(pair) {
+        case pair.0 == name {
+          True -> #(name, replacement)
+          False -> pair
+        }
+      })
+    False -> list.append(fields, [#(name, replacement)])
+  }
 }
 
 fn collect_draft_order_variant_catalog(

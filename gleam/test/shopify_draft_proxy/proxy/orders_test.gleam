@@ -1283,3 +1283,167 @@ pub fn orders_draft_order_duplicate_read_after_write_test() {
   assert json.to_string(read_result)
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/3\",\"email\":\"duplicate-source@example.test\",\"shippingLine\":null,\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"40.0\",\"currencyCode\":\"CAD\"}}}}}"
 }
+
+pub fn orders_draft_order_complete_read_after_write_test() {
+  let create_mutation =
+    "
+    mutation {
+      draftOrderCreate(input: {
+        email: \"complete-source@example.test\"
+        note: \"complete this staged draft locally\"
+        tags: [\"draft-complete\", \"gleam\"]
+        customAttributes: [{ key: \"source\", value: \"direct-test\" }]
+        billingAddress: {
+          firstName: \"Hermes\"
+          lastName: \"Closer\"
+          address1: \"123 Queen St W\"
+          city: \"Toronto\"
+          provinceCode: \"ON\"
+          countryCode: \"CA\"
+          zip: \"M5H 2M9\"
+        }
+        lineItems: [{
+          title: \"Completion service\"
+          quantity: 2
+          originalUnitPrice: \"12.50\"
+          sku: \"COMPLETE\"
+        }]
+      }) {
+        draftOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(create_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      create_mutation,
+      dict.new(),
+    )
+
+  let complete_mutation =
+    "
+    mutation DraftOrderComplete($id: ID!, $sourceName: String, $paymentPending: Boolean) {
+      draftOrderComplete(
+        id: $id
+        sourceName: $sourceName
+        paymentPending: $paymentPending
+      ) {
+        draftOrder {
+          id
+          name
+          status
+          ready
+          completedAt
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          lineItems {
+            nodes {
+              id
+              title
+              quantity
+              sku
+            }
+          }
+          order {
+            id
+            name
+            sourceName
+            paymentGatewayNames
+            displayFinancialStatus
+            displayFulfillmentStatus
+            note
+            tags
+            customAttributes {
+              key
+              value
+            }
+            billingAddress {
+              firstName
+              lastName
+              address1
+              city
+              provinceCode
+              countryCodeV2
+              zip
+            }
+            currentTotalPriceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            lineItems {
+              nodes {
+                id
+                title
+                quantity
+                sku
+                variantTitle
+                originalUnitPriceSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(complete_outcome) =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      complete_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+        #("sourceName", root_field.StringVal("hermes-cron-orders")),
+        #("paymentPending", root_field.BoolVal(False)),
+      ]),
+    )
+
+  assert json.to_string(complete_outcome.data)
+    == "{\"data\":{\"draftOrderComplete\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D1\",\"status\":\"COMPLETED\",\"ready\":true,\"completedAt\":\"2024-01-01T00:00:01.000Z\",\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/DraftOrderLineItem/2\",\"title\":\"Completion service\",\"quantity\":2,\"sku\":\"COMPLETE\"}]},\"order\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"paymentGatewayNames\":[\"manual\"],\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"note\":\"complete this staged draft locally\",\"tags\":[\"draft-complete\",\"gleam\"],\"customAttributes\":[{\"key\":\"source\",\"value\":\"direct-test\"}],\"billingAddress\":{\"firstName\":\"Hermes\",\"lastName\":\"Closer\",\"address1\":\"123 Queen St W\",\"city\":\"Toronto\",\"provinceCode\":\"ON\",\"countryCodeV2\":\"CA\",\"zip\":\"M5H 2M9\"},\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/LineItem/4\",\"title\":\"Completion service\",\"quantity\":2,\"sku\":\"COMPLETE\",\"variantTitle\":null,\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}]}}},\"userErrors\":[]}}}"
+  assert complete_outcome.staged_resource_ids == ["gid://shopify/DraftOrder/1"]
+  assert list.length(complete_outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query {
+      draftOrder(id: \"gid://shopify/DraftOrder/1\") {
+        id
+        status
+        completedAt
+        order {
+          id
+          name
+          sourceName
+          displayFinancialStatus
+        }
+      }
+    }
+  "
+  let assert Ok(read_result) =
+    orders.process(complete_outcome.store, read_query, dict.new())
+  assert json.to_string(read_result)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"COMPLETED\",\"completedAt\":\"2024-01-01T00:00:01.000Z\",\"order\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\"}}}}"
+}
