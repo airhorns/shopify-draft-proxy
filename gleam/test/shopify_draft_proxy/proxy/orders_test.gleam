@@ -1059,6 +1059,142 @@ pub fn orders_order_update_validation_guardrails_test() {
   assert store.list_effective_orders(unknown_outcome.store) == []
 }
 
+pub fn orders_order_open_close_read_after_write_test() {
+  let order_id = "gid://shopify/Order/6830646198505"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1324")),
+          #("closed", types.CapturedBool(False)),
+          #("closedAt", types.CapturedNull),
+          #("cancelledAt", types.CapturedNull),
+          #("cancelReason", types.CapturedNull),
+          #("displayFinancialStatus", types.CapturedNull),
+          #("paymentGatewayNames", types.CapturedArray([])),
+          #(
+            "totalOutstandingSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("12.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "currentTotalPriceSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("12.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #("customer", types.CapturedNull),
+          #("transactions", types.CapturedArray([])),
+        ]),
+      ),
+    ])
+  let selection =
+    "
+      {
+        id
+        name
+        closed
+        closedAt
+        cancelledAt
+        cancelReason
+        displayFinancialStatus
+        paymentGatewayNames
+        totalOutstandingSet { shopMoney { amount currencyCode } }
+        currentTotalPriceSet { shopMoney { amount currencyCode } }
+        customer { id email displayName }
+        transactions {
+          kind
+          status
+          gateway
+          amountSet { shopMoney { amount currencyCode } }
+        }
+      }
+    "
+  let close_mutation = "
+    mutation {
+      orderClose(input: { id: \"gid://shopify/Order/6830646198505\" }) {
+        order " <> selection <> "
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(close_outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      close_mutation,
+      dict.new(),
+    )
+  assert json.to_string(close_outcome.data)
+    == "{\"data\":{\"orderClose\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"name\":\"#1324\",\"closed\":true,\"closedAt\":\"2024-01-01T00:00:00.000Z\",\"cancelledAt\":null,\"cancelReason\":null,\"displayFinancialStatus\":null,\"paymentGatewayNames\":[],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"12.0\",\"currencyCode\":\"CAD\"}},\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"12.0\",\"currencyCode\":\"CAD\"}},\"customer\":null,\"transactions\":[]},\"userErrors\":[]}}}"
+  assert close_outcome.staged_resource_ids == [order_id]
+  assert list.length(close_outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/6830646198505\") {
+        id
+        closed
+        closedAt
+      }
+    }
+  "
+  let assert Ok(closed_read) =
+    orders.process(close_outcome.store, read_query, dict.new())
+  assert json.to_string(closed_read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":true,\"closedAt\":\"2024-01-01T00:00:00.000Z\"}}}"
+
+  let open_mutation =
+    "
+    mutation {
+      orderOpen(input: { id: \"gid://shopify/Order/6830646198505\" }) {
+        order {
+          id
+          closed
+          closedAt
+        }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(open_outcome) =
+    orders.process_mutation(
+      close_outcome.store,
+      close_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      open_mutation,
+      dict.new(),
+    )
+  assert json.to_string(open_outcome.data)
+    == "{\"data\":{\"orderOpen\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":false,\"closedAt\":null},\"userErrors\":[]}}}"
+  assert open_outcome.staged_resource_ids == [order_id]
+  assert list.length(open_outcome.log_drafts) == 1
+
+  let assert Ok(open_read) =
+    orders.process(open_outcome.store, read_query, dict.new())
+  assert json.to_string(open_read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":false,\"closedAt\":null}}}"
+}
+
 pub fn orders_order_edit_missing_id_validation_guardrails_test() {
   let expected =
     "{\"errors\":[{\"message\":\"Variable $id of type ID! was provided invalid value\",\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":null,\"problems\":[{\"path\":[],\"explanation\":\"Expected value to not be null\"}]}}]}"

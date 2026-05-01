@@ -42,6 +42,7 @@ import shopify_draft_proxy/state/types.{
   type DraftOrderRecord, type DraftOrderVariantCatalogRecord, type OrderRecord,
   AbandonmentDeliveryActivityRecord, CapturedArray, CapturedBool, CapturedFloat,
   CapturedInt, CapturedNull, CapturedObject, CapturedString, DraftOrderRecord,
+  OrderRecord,
 }
 
 pub type OrdersError {
@@ -96,12 +97,14 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "fulfillmentCancel",
       "fulfillmentCreate",
       "fulfillmentTrackingInfoUpdate",
+      "orderClose",
       "orderCreate",
       "orderCreateManualPayment",
       "orderEditAddVariant",
       "orderEditBegin",
       "orderEditCommit",
       "orderEditSetQuantity",
+      "orderOpen",
       "orderUpdate",
       "taxSummaryCreate",
     ],
@@ -1210,6 +1213,48 @@ pub fn process_mutation(
             )
           }
         }
+        Field(name: name, ..)
+          if name.value == "orderClose" || name.value == "orderOpen"
+        -> {
+          let result =
+            handle_order_lifecycle_mutation(
+              current_store,
+              current_identity,
+              name.value,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            next_ids,
+            next_errors,
+            next_drafts,
+          ) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, next_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              next_store,
+              next_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
         Field(name: name, ..) if name.value == "orderUpdate" -> {
           let #(key, payload, next_errors) =
             handle_order_update_validation_guardrail(
@@ -2280,6 +2325,163 @@ fn unknown_draft_order_update_result(
       fragments,
     )
   #(key, payload, store, identity, [], [], [])
+}
+
+fn handle_order_lifecycle_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let input_type = case root_name {
+    "orderClose" -> "OrderCloseInput!"
+    "orderOpen" -> "OrderOpenInput!"
+    _ -> "OrderInput!"
+  }
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      root_name,
+      [RequiredArgument(name: "input", expected_type: input_type)],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      let order_id = case dict.get(args, "input") {
+        Ok(root_field.ObjectVal(input)) -> read_string(input, "id")
+        _ -> None
+      }
+      case order_id {
+        None -> {
+          let payload =
+            serialize_order_mutation_payload(
+              field,
+              None,
+              [
+                #(["id"], "Order does not exist"),
+              ],
+              fragments,
+            )
+          #(key, payload, store, identity, [], [], [])
+        }
+        Some(id) ->
+          case store.get_order_by_id(store, id) {
+            None -> {
+              let payload =
+                serialize_order_mutation_payload(
+                  field,
+                  None,
+                  [
+                    #(["id"], "Order does not exist"),
+                  ],
+                  fragments,
+                )
+              #(key, payload, store, identity, [], [], [])
+            }
+            Some(order) -> {
+              let #(updated_order, next_identity) =
+                apply_order_lifecycle_update(order, identity, root_name)
+              let next_store = store.stage_order(store, updated_order)
+              let payload =
+                serialize_order_mutation_payload(
+                  field,
+                  Some(updated_order),
+                  [],
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  root_name,
+                  [id],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some(
+                    "Locally staged " <> root_name <> " in shopify-draft-proxy.",
+                  ),
+                )
+              #(key, payload, next_store, next_identity, [id], [], [draft])
+            }
+          }
+      }
+    }
+  }
+}
+
+fn apply_order_lifecycle_update(
+  order: OrderRecord,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+) -> #(OrderRecord, SyntheticIdentityRegistry) {
+  let #(timestamp, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let replacements = case root_name {
+    "orderClose" -> [
+      #("closed", CapturedBool(True)),
+      #("closedAt", CapturedString(timestamp)),
+      #("updatedAt", CapturedString(timestamp)),
+    ]
+    "orderOpen" -> [
+      #("closed", CapturedBool(False)),
+      #("closedAt", CapturedNull),
+      #("updatedAt", CapturedString(timestamp)),
+    ]
+    _ -> []
+  }
+  #(
+    OrderRecord(
+      ..order,
+      data: replace_captured_object_fields(order.data, replacements),
+    ),
+    next_identity,
+  )
+}
+
+fn serialize_order_mutation_payload(
+  field: Selection,
+  order: Option(OrderRecord),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "order" -> #(key, case order {
+              Some(record) -> serialize_order_node(child, record, fragments)
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 fn handle_order_edit_validation_guardrail(

@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 137: order open/close lifecycle parity
+
+Promotes the checked-in `orderOpen` and `orderClose` parity scenarios in the
+Gleam Orders domain. This pass adds narrow existing-order lifecycle staging for
+open/close mutations, preserves selected captured order fields, writes the
+staged order back into downstream reads, records local mutation-log drafts, and
+seeds the two parity fixtures from their captured order payloads.
+
+| Module                                                   | Change                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds local `orderOpen`/`orderClose` mutation staging.         |
+| `gleam/test/parity/runner.gleam`                         | Seeds order-management parity scenarios from captured orders. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers close/open read-after-write lifecycle behavior.        |
+| `config/gleam-port-ci-gates.json`                        | Removes the two newly passing order lifecycle specs.          |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (744 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (740 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 123 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured `orderOpen`/`orderClose` scenarios only need existing-order
+  lifecycle fields and selected downstream order reads; they can stage over a
+  captured `OrderRecord` without claiming direct `orderCreate` success support.
+- `orderClose` can use the synthetic timestamp for local `closedAt` and
+  `updatedAt`; the checked-in comparison targets assert closed state and
+  downstream read effects, not the captured live timestamp value.
+- The parity runner should seed these scenarios from
+  `$.mutation.response.data.<root>.order`, matching the captured order payload
+  shape that the mutation and downstream read select.
+
+### Risks / open items
+
+- Repeated open/close user-error branches, canceled-order constraints, direct
+  order creation/update success, payment/customer effects, fulfillment,
+  refunds, returns, and order-edit sessions remain gated.
+
+### Pass 138 candidates
+
+- Continue with another narrow order-management validation/lifecycle fixture, or
+  start a coherent order create/update/payment slice only when the required
+  downstream state effects can be modeled together.
+
+---
+
 ## 2026-05-01 - Pass 136: order update unknown-id validation
 
 Promotes the checked-in `orderUpdate-parity-plan` scenario in the Gleam Orders

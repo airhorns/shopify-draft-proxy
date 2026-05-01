@@ -485,6 +485,12 @@ synthetic-id/timestamp expected differences.
   return `order: null`, field `["id"]`, and message `Order does not exist`.
   Make the guardrail effective-store aware so it can later distinguish missing
   orders from locally staged orders when success behavior is ported.
+- Existing-order lifecycle roots `orderOpen` and `orderClose` can stage over a
+  captured `OrderRecord` without claiming direct `orderCreate` support. Preserve
+  captured order fields, update only lifecycle timestamps/closed state, append a
+  mutation-log draft, and seed parity fixtures from
+  `$.mutation.response.data.<root>.order` so downstream `order(id:)` reads see
+  the staged state.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or

@@ -285,6 +285,10 @@ fn seed_capture_preconditions(
     "order-empty-state-read" -> seed_order_catalog_preconditions(capture, proxy)
     "order-catalog-count-read" ->
       seed_order_catalog_count_preconditions(capture, proxy)
+    "orderOpen-live-parity" ->
+      seed_order_management_preconditions(capture, proxy, "orderOpen")
+    "orderClose-live-parity" ->
+      seed_order_management_preconditions(capture, proxy, "orderClose")
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "b2b-company-roots-read" ->
@@ -906,6 +910,29 @@ fn seed_order_merchant_detail_preconditions(
 fn make_seed_order(source: JsonValue) -> Result(OrderRecord, Nil) {
   use id <- result.try(required_gid(source, "id", "Order"))
   Ok(OrderRecord(id: id, cursor: None, data: captured_json_from_parity(source)))
+}
+
+fn seed_order_management_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+  root_name: String,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data." <> root_name <> ".order",
+    )
+  {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
 }
 
 fn seed_order_catalog_preconditions(
