@@ -9,6 +9,65 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 149: order edit validation parity
+
+Promotes the checked-in `orderEditExistingOrder-validation` parity scenario in
+the Gleam Orders domain. This pass seeds the captured validation source order,
+keeps duplicate-variant add payloads on the local calculated-line path, and
+adds Shopify's captured invalid-variant user error for `ProductVariant/0`.
+
+| Module                                                   | Change                                                         |
+| -------------------------------------------------------- | -------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds captured invalid-variant `orderEditAddVariant` payloads.  |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured order-edit source orders for validation parity. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers invalid variant null payload and user error shape.      |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing validation parity spec.              |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records order-edit validation porting notes.                   |
+
+Validation:
+
+- Reproduction with only `orderEditExistingOrder-validation.json` ungated first
+  failed because `$.data.orderEditBegin.userErrors` did not resolve before the
+  validation scenario seeded `$.seedOrder`.
+- `cd gleam && gleam test --target javascript` (755 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (751 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 107 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The validation scenario uses the same begin seed path as other order-edit
+  existing-order specs.
+- Shopify's captured invalid variant id `gid://shopify/ProductVariant/0`
+  returns a payload object with null calculated objects/session and a
+  `variantId` user error, not a top-level GraphQL error.
+- Duplicate existing variants with `allowDuplicates: false` still return a
+  calculated line item in the captured scenario, so the existing add-variant
+  calculated-line path covers that target once the product/variant seed is
+  loaded.
+
+### Risks / open items
+
+- Order-edit commit sessions, direct order creation/delete, payment transaction
+  and mandate roots, fulfillment creation/fulfillment-order workflows, and
+  returns remain gated.
+
+### Pass 150 candidates
+
+- Continue order-edit by adding commit persistence for the captured add/remove
+  workflows, or switch to another bounded existing-order, payment, fulfillment,
+  or return fixture if it can be modeled without partial support.
+
+---
+
 ## 2026-05-01 - Pass 148: order edit set quantity parity
 
 Promotes the checked-in `orderEditSetQuantity` existing-order parity scenario

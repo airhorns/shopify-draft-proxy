@@ -574,6 +574,64 @@ pub fn orders_order_edit_add_variant_payload_test() {
   assert outcome.log_drafts == []
 }
 
+pub fn orders_order_edit_add_variant_invalid_variant_payload_test() {
+  let mutation =
+    "
+    mutation OrderEditExistingWorkflowAddVariant(
+      $id: ID!
+      $variantId: ID!
+      $quantity: Int!
+      $locationId: ID
+      $allowDuplicates: Boolean
+    ) {
+      orderEditAddVariant(
+        id: $id
+        variantId: $variantId
+        quantity: $quantity
+        locationId: $locationId
+        allowDuplicates: $allowDuplicates
+      ) {
+        calculatedOrder {
+          id
+        }
+        calculatedLineItem {
+          title
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+      #("variantId", root_field.StringVal("gid://shopify/ProductVariant/0")),
+      #("quantity", root_field.IntVal(1)),
+      #(
+        "locationId",
+        root_field.StringVal("gid://shopify/Location/68509171945"),
+      ),
+      #("allowDuplicates", root_field.BoolVal(False)),
+    ])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"variantId\"],\"message\":\"can't convert Integer[0] to a positive Integer to use as an untrusted id\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
 pub fn orders_order_edit_set_quantity_payload_test() {
   let order_id = "gid://shopify/Order/6834565087465"
   let seeded =

@@ -241,7 +241,8 @@ fn seed_capture_preconditions(
       seed_shop_preconditions(capture, proxy)
     "order-edit-begin-live-parity"
     | "order-edit-add-variant-live-parity"
-    | "order-edit-set-quantity-live-parity" ->
+    | "order-edit-set-quantity-live-parity"
+    | "order-edit-existing-order-validation" ->
       seed_order_edit_existing_order_preconditions(capture, proxy)
     "localization-disable-clears-translations" ->
       seed_localization_disable_cleanup_preconditions(capture, proxy)

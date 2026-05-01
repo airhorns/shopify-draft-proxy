@@ -624,6 +624,12 @@ synthetic-id/timestamp expected differences.
   line item by index; override `quantity` and `currentQuantity` in the payload.
   Treat this as a bridge for the checked-in payload spec, not persistent
   calculated-edit state or commit/downstream order support.
+- `orderEditAddVariant` validation parity uses the same `$.seedOrder` begin
+  precondition plus captured `seedProducts`. Shopify returns an in-payload
+  `variantId` user error for `gid://shopify/ProductVariant/0` with null
+  calculated objects/session, while the captured duplicate existing variant
+  path still returns a calculated line item. Keep this as validation/payload
+  coverage, not commit support.
 
 ## Workflow for a new pass
 

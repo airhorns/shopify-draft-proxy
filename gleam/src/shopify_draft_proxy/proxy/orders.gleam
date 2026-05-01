@@ -3242,8 +3242,9 @@ fn handle_order_edit_add_variant_mutation(
     [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
     [] -> {
       let args = field_arguments(field, variables)
+      let variant_id = read_string(args, "variantId")
       let variant =
-        read_string(args, "variantId")
+        variant_id
         |> option.then(fn(id) { store.get_effective_variant_by_id(store, id) })
       case variant {
         Some(variant) -> {
@@ -3270,7 +3271,20 @@ fn handle_order_edit_add_variant_mutation(
             )
           #(key, payload, store, next_identity, [], [], [])
         }
-        None -> #(key, json.null(), store, identity, [], [], [])
+        None -> {
+          let payload = case variant_id {
+            Some(id) ->
+              case draft_order_gid_tail(id) == "0" {
+                True ->
+                  serialize_order_edit_add_variant_invalid_variant_payload(
+                    field,
+                  )
+                False -> json.null()
+              }
+            _ -> json.null()
+          }
+          #(key, payload, store, identity, [], [], [])
+        }
       }
     }
   }
@@ -3551,6 +3565,44 @@ fn serialize_order_edit_add_variant_payload(
       }
     })
   json.object(entries)
+}
+
+fn serialize_order_edit_add_variant_invalid_variant_payload(
+  field: Selection,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "calculatedOrder" -> #(key, json.null())
+            "calculatedLineItem" -> #(key, json.null())
+            "orderEditSession" -> #(key, json.null())
+            "userErrors" -> #(
+              key,
+              json.array([order_edit_invalid_variant_user_error()], fn(error) {
+                error
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn order_edit_invalid_variant_user_error() -> Json {
+  json.object([
+    #("field", json.array(["variantId"], json.string)),
+    #(
+      "message",
+      json.string(
+        "can't convert Integer[0] to a positive Integer to use as an untrusted id",
+      ),
+    ),
+  ])
 }
 
 fn serialize_order_edit_set_quantity_payload(
