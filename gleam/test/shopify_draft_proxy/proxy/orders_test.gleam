@@ -924,3 +924,206 @@ pub fn orders_draft_order_create_custom_item_read_after_write_test() {
   assert json.to_string(read_result)
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D1\",\"status\":\"OPEN\",\"email\":\"draft@example.test\",\"note\":\"Phone order\",\"tags\":[\"alpha\",\"beta\"],\"totalQuantityOfLineItems\":2,\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"43.25\",\"currencyCode\":\"CAD\"}}}}}"
 }
+
+pub fn orders_draft_order_update_read_after_write_test() {
+  let create_mutation =
+    "
+    mutation {
+      draftOrderCreate(input: {
+        email: \"draft@example.test\"
+        note: \"Phone order\"
+        tags: [\"initial\"]
+        lineItems: [{
+          title: \"Custom service\"
+          quantity: 1
+          originalUnitPrice: \"20.00\"
+          sku: \"CUSTOM\"
+        }]
+        shippingLine: {
+          title: \"Courier\"
+          priceWithCurrency: { amount: \"7.25\", currencyCode: CAD }
+        }
+      }) {
+        draftOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(create_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      create_mutation,
+      dict.new(),
+    )
+
+  let update_mutation =
+    "
+    mutation DraftOrderUpdate($id: ID!, $input: DraftOrderInput!) {
+      draftOrderUpdate(id: $id, input: $input) {
+        draftOrder {
+          id
+          name
+          status
+          email
+          note
+          tags
+          customAttributes {
+            key
+            value
+          }
+          shippingLine {
+            title
+            code
+            originalPriceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+          subtotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalShippingPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalQuantityOfLineItems
+          lineItems {
+            nodes {
+              id
+              title
+              quantity
+              sku
+              originalUnitPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let update_variables =
+    dict.from_list([
+      #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("email", root_field.StringVal("updated-draft@example.test")),
+            #("note", root_field.StringVal("Updated note")),
+            #(
+              "tags",
+              root_field.ListVal([
+                root_field.StringVal("updated"),
+                root_field.StringVal("draft"),
+              ]),
+            ),
+            #(
+              "customAttributes",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("key", root_field.StringVal("source")),
+                    #("value", root_field.StringVal("har-492-update")),
+                  ]),
+                ),
+              ]),
+            ),
+            #(
+              "shippingLine",
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("title", root_field.StringVal("Standard")),
+                  #(
+                    "priceWithCurrency",
+                    root_field.ObjectVal(
+                      dict.from_list([
+                        #("amount", root_field.StringVal("5.00")),
+                        #("currencyCode", root_field.StringVal("CAD")),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+            #(
+              "lineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("title", root_field.StringVal("Updated custom item")),
+                    #("quantity", root_field.IntVal(2)),
+                    #("originalUnitPrice", root_field.StringVal("12.50")),
+                    #("sku", root_field.StringVal("HAR-492-UPDATED")),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(update_outcome) =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      update_mutation,
+      update_variables,
+    )
+
+  assert json.to_string(update_outcome.data)
+    == "{\"data\":{\"draftOrderUpdate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D1\",\"status\":\"OPEN\",\"email\":\"updated-draft@example.test\",\"note\":\"Updated note\",\"tags\":[\"draft\",\"updated\"],\"customAttributes\":[{\"key\":\"source\",\"value\":\"har-492-update\"}],\"shippingLine\":{\"title\":\"Standard\",\"code\":\"custom\",\"originalPriceSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"CAD\"}}},\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"totalShippingPriceSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"CAD\"}},\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"30.0\",\"currencyCode\":\"CAD\"}},\"totalQuantityOfLineItems\":2,\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/DraftOrderLineItem/3\",\"title\":\"Updated custom item\",\"quantity\":2,\"sku\":\"HAR-492-UPDATED\",\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}]}},\"userErrors\":[]}}}"
+  assert update_outcome.staged_resource_ids == ["gid://shopify/DraftOrder/1"]
+  assert list.length(update_outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query {
+      draftOrder(id: \"gid://shopify/DraftOrder/1\") {
+        id
+        email
+        note
+        tags
+        totalQuantityOfLineItems
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read_result) =
+    orders.process(update_outcome.store, read_query, dict.new())
+  assert json.to_string(read_result)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"email\":\"updated-draft@example.test\",\"note\":\"Updated note\",\"tags\":[\"draft\",\"updated\"],\"totalQuantityOfLineItems\":2,\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"30.0\",\"currencyCode\":\"CAD\"}}}}}"
+}

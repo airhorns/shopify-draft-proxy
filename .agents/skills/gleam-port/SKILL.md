@@ -466,6 +466,12 @@ synthetic-id/timestamp expected differences.
   deleted-id marker so downstream `draftOrder(id:)` reads return null even when
   the draft was seeded in base state. Keep duplicate/update/complete success
   paths separate until their own parity fixtures are executable.
+- `draftOrderUpdate` parity can seed the setup draft order from
+  `$.setup.draftOrderCreate.mutation.response.data.draftOrderCreate.draftOrder`
+  as captured JSON, then stage field-level updates over that record. Preserve
+  captured stable fields such as id/name/invoice URL/customer/addresses, and
+  recalculate money totals from effective line items, order discount, and
+  shipping line before serializing downstream `draftOrder(id:)` reads.
 
 ## Workflow for a new pass
 

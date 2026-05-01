@@ -76,6 +76,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "draftOrderComplete",
       "draftOrderCreate",
       "draftOrderDelete",
+      "draftOrderUpdate",
       "fulfillmentCancel",
       "fulfillmentCreate",
       "fulfillmentTrackingInfoUpdate",
@@ -508,6 +509,45 @@ pub fn process_mutation(
             )
           }
         }
+        Field(name: name, ..) if name.value == "draftOrderUpdate" -> {
+          let result =
+            handle_draft_order_update(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            next_ids,
+            next_errors,
+            next_drafts,
+          ) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, next_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              next_store,
+              next_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
         Field(name: name, ..)
           if name.value == "fulfillmentCancel"
           || name.value == "fulfillmentTrackingInfoUpdate"
@@ -794,6 +834,119 @@ fn serialize_draft_order_delete_payload(
       }
     })
   json.object(entries)
+}
+
+fn handle_draft_order_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "draftOrderUpdate",
+      [
+        RequiredArgument(name: "id", expected_type: "ID!"),
+        RequiredArgument(name: "input", expected_type: "DraftOrderInput!"),
+      ],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      let id = read_string_arg(args, "id")
+      let input = read_object(args, "input")
+      case id, input {
+        Some(id), Some(input) ->
+          case store.get_draft_order_by_id(store, id) {
+            Some(draft_order) -> {
+              let #(updated_draft_order, next_identity) =
+                build_updated_draft_order(store, identity, draft_order, input)
+              let next_store =
+                store.stage_draft_order(store, updated_draft_order)
+              let payload =
+                serialize_draft_order_mutation_payload(
+                  field,
+                  Some(updated_draft_order),
+                  [],
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  "draftOrderUpdate",
+                  [id],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some(
+                    "Locally staged draftOrderUpdate in shopify-draft-proxy.",
+                  ),
+                )
+              #(key, payload, next_store, next_identity, [id], [], [draft])
+            }
+            None ->
+              unknown_draft_order_update_result(
+                key,
+                store,
+                identity,
+                field,
+                fragments,
+              )
+          }
+        _, _ ->
+          unknown_draft_order_update_result(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+          )
+      }
+    }
+  }
+}
+
+fn unknown_draft_order_update_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let payload =
+    serialize_draft_order_mutation_payload(
+      field,
+      None,
+      [
+        #(["id"], "Draft order does not exist"),
+      ],
+      fragments,
+    )
+  #(key, payload, store, identity, [], [], [])
 }
 
 fn handle_order_edit_validation_guardrail(
@@ -1084,7 +1237,7 @@ fn handle_draft_order_create(
             build_draft_order_from_input(store, identity, input)
           let next_store = store.stage_draft_order(store, draft_order)
           let payload =
-            serialize_draft_order_create_payload(
+            serialize_draft_order_mutation_payload(
               field,
               Some(draft_order),
               [],
@@ -1109,7 +1262,7 @@ fn handle_draft_order_create(
   }
 }
 
-fn serialize_draft_order_create_payload(
+fn serialize_draft_order_mutation_payload(
   field: Selection,
   draft_order: Option(DraftOrderRecord),
   user_errors: List(#(List(String), String)),
@@ -1138,6 +1291,225 @@ fn serialize_draft_order_create_payload(
       }
     })
   json.object(entries)
+}
+
+fn build_updated_draft_order(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  draft_order: DraftOrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(DraftOrderRecord, SyntheticIdentityRegistry) {
+  let #(updated_at, identity_after_time) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let currency_code = captured_order_currency(draft_order.data)
+  let #(line_items, next_identity) = case dict.has_key(input, "lineItems") {
+    True ->
+      build_draft_order_line_items(
+        store,
+        identity_after_time,
+        read_object_list(input, "lineItems"),
+      )
+    False -> #(draft_order_line_items(draft_order.data), identity_after_time)
+  }
+  let replacements =
+    []
+    |> replace_if_present(
+      input,
+      "email",
+      optional_captured_string(read_string(input, "email")),
+    )
+    |> replace_if_present(
+      input,
+      "note",
+      optional_captured_string(read_string(input, "note")),
+    )
+    |> replace_if_present(
+      input,
+      "tags",
+      CapturedArray(
+        read_string_list(input, "tags")
+        |> list.sort(by: string.compare)
+        |> list.map(CapturedString),
+      ),
+    )
+    |> replace_if_present(
+      input,
+      "customAttributes",
+      captured_attributes(read_object_list(input, "customAttributes")),
+    )
+    |> replace_if_present(
+      input,
+      "billingAddress",
+      build_draft_order_address(read_object(input, "billingAddress")),
+    )
+    |> replace_if_present(
+      input,
+      "shippingAddress",
+      build_draft_order_address(read_object(input, "shippingAddress")),
+    )
+    |> replace_if_present(
+      input,
+      "shippingLine",
+      build_draft_order_shipping_line(read_object(input, "shippingLine")),
+    )
+    |> prepend_captured_replacement("updatedAt", CapturedString(updated_at))
+    |> prepend_captured_replacement(
+      "lineItems",
+      CapturedObject([#("nodes", CapturedArray(line_items))]),
+    )
+  let updated_data =
+    draft_order.data
+    |> replace_captured_object_fields(replacements)
+    |> recalculate_draft_order_totals(currency_code)
+  #(DraftOrderRecord(..draft_order, data: updated_data), next_identity)
+}
+
+fn replace_if_present(
+  replacements: List(#(String, CapturedJsonValue)),
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+  value: CapturedJsonValue,
+) -> List(#(String, CapturedJsonValue)) {
+  case dict.has_key(input, name) {
+    True -> prepend_captured_replacement(replacements, name, value)
+    False -> replacements
+  }
+}
+
+fn prepend_captured_replacement(
+  replacements: List(#(String, CapturedJsonValue)),
+  name: String,
+  value: CapturedJsonValue,
+) -> List(#(String, CapturedJsonValue)) {
+  [#(name, value), ..replacements]
+}
+
+fn replace_captured_object_fields(
+  value: CapturedJsonValue,
+  replacements: List(#(String, CapturedJsonValue)),
+) -> CapturedJsonValue {
+  case value {
+    CapturedObject(fields) ->
+      CapturedObject(upsert_captured_fields(fields, replacements))
+    _ -> CapturedObject(replacements)
+  }
+}
+
+fn upsert_captured_fields(
+  fields: List(#(String, CapturedJsonValue)),
+  replacements: List(#(String, CapturedJsonValue)),
+) -> List(#(String, CapturedJsonValue)) {
+  let replaced =
+    list.map(fields, fn(pair) {
+      let #(key, existing) = pair
+      case find_captured_replacement(replacements, key) {
+        Some(value) -> #(key, value)
+        None -> #(key, existing)
+      }
+    })
+  let appended =
+    replacements
+    |> list.filter(fn(pair) {
+      let #(key, _) = pair
+      !list.any(fields, fn(existing_pair) {
+        let #(existing_key, _) = existing_pair
+        existing_key == key
+      })
+    })
+  list.append(replaced, appended)
+}
+
+fn find_captured_replacement(
+  replacements: List(#(String, CapturedJsonValue)),
+  name: String,
+) -> Option(CapturedJsonValue) {
+  replacements
+  |> list.find_map(fn(pair) {
+    let #(key, value) = pair
+    case key == name {
+      True -> Ok(value)
+      False -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn recalculate_draft_order_totals(
+  data: CapturedJsonValue,
+  currency_code: String,
+) -> CapturedJsonValue {
+  let line_items = draft_order_line_items(data)
+  let applied_discount =
+    captured_object_field(data, "appliedDiscount")
+    |> option.unwrap(CapturedNull)
+  let shipping_line =
+    captured_object_field(data, "shippingLine") |> option.unwrap(CapturedNull)
+  let line_discount_total =
+    line_items
+    |> list.fold(0.0, fn(sum, item) {
+      sum +. captured_money_amount(item, "totalDiscountSet")
+    })
+  let discounted_line_subtotal =
+    line_items
+    |> list.fold(0.0, fn(sum, item) {
+      sum +. draft_order_line_item_discounted_total(item)
+    })
+  let order_discount_total =
+    discount_amount(applied_discount, discounted_line_subtotal)
+  let subtotal =
+    max_float(0.0, discounted_line_subtotal -. order_discount_total)
+  let shipping_total = captured_money_amount(shipping_line, "originalPriceSet")
+  let total_discount = line_discount_total +. order_discount_total
+  let total = subtotal +. shipping_total
+  data
+  |> replace_captured_object_fields([
+    #("subtotalPriceSet", money_set(subtotal, currency_code)),
+    #("totalDiscountsSet", money_set(total_discount, currency_code)),
+    #("totalShippingPriceSet", money_set(shipping_total, currency_code)),
+    #("totalPriceSet", money_set(total, currency_code)),
+    #("totalQuantityOfLineItems", CapturedInt(total_quantity(line_items))),
+  ])
+}
+
+fn draft_order_line_item_discounted_total(item: CapturedJsonValue) -> Float {
+  case captured_object_field(item, "discountedTotalSet") {
+    Some(discounted_total) -> captured_money_value(discounted_total)
+    None ->
+      captured_money_amount(item, "originalUnitPriceSet")
+      *. int.to_float(captured_int_field(item, "quantity") |> option.unwrap(0))
+  }
+}
+
+fn captured_order_currency(data: CapturedJsonValue) -> String {
+  captured_money_currency(data, "totalPriceSet")
+  |> option.or(captured_money_currency(data, "subtotalPriceSet"))
+  |> option.or(captured_money_currency(data, "totalShippingPriceSet"))
+  |> option.unwrap("CAD")
+}
+
+fn captured_money_currency(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(String) {
+  case captured_object_field(value, name) {
+    Some(money_set) ->
+      case captured_object_field(money_set, "shopMoney") {
+        Some(shop_money) -> captured_string_field(shop_money, "currencyCode")
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn draft_order_line_items(data: CapturedJsonValue) -> List(CapturedJsonValue) {
+  case captured_object_field(data, "lineItems") {
+    Some(line_items) ->
+      case captured_object_field(line_items, "nodes") {
+        Some(CapturedArray(items)) -> items
+        _ -> []
+      }
+    None -> []
+  }
 }
 
 fn build_draft_order_from_input(
@@ -1792,6 +2164,13 @@ fn captured_number_field(
     Some(CapturedInt(value)) -> Some(int.to_float(value))
     Some(CapturedFloat(value)) -> Some(value)
     Some(CapturedString(value)) -> Some(parse_amount(value))
+    _ -> None
+  }
+}
+
+fn captured_int_field(value: CapturedJsonValue, name: String) -> Option(Int) {
+  case captured_object_field(value, name) {
+    Some(CapturedInt(value)) -> Some(value)
     _ -> None
   }
 }

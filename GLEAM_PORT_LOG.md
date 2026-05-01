@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 124: draft order update lifecycle
+
+Promotes the captured `draftOrderUpdate` parity plan in the Gleam Orders
+domain. This pass seeds the setup draft order from the live capture, stages
+local update effects for the captured draft-order fields, recalculates totals
+when shipping or line items change, and preserves downstream `draftOrder(id:)`
+read-after-write visibility.
+
+| Module                                                   | Change                                                                             |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderUpdate` mutation handling, local field updates, and recalculation. |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured setup draft order before replaying the update parity plan.      |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers local update payloads and downstream reads directly.                        |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderUpdate-parity-plan` spec.                     |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (732 passed).
+- Docker Erlang fallback:
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (728 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 parity specs; 144 expected Gleam
+  parity failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The update capture reuses the setup draft order's Shopify-generated id, name,
+  invoice URL, customer, discount, addresses, and line-item ids; the port seeds
+  that captured graph into base state, then stages only the requested local
+  changes.
+- Draft-order totals must be recalculated from the effective line-item totals,
+  order discount, and shipping line after update, even when the parity request
+  only changes the shipping line.
+
+### Risks / open items
+
+- `draftOrderDuplicate`, `draftOrderComplete` success, invoice, bulk/helper
+  roots, and broader draft-order search/count reads remain gated.
+- Order lifecycle, order editing success paths, fulfillment success paths,
+  refunds, and returns remain unported.
+
+### Pass 125 candidates
+
+- Continue draft-order lifecycle with `draftOrderDuplicate`, or move to a
+  small draft-order read/count/search slice backed by checked-in parity
+  evidence.
+
+---
+
 ## 2026-05-01 - Pass 123: draft order delete lifecycle
 
 Promotes the captured `draftOrderDelete` parity plan in the Gleam Orders domain.
