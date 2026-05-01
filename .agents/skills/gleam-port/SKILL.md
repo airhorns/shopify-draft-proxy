@@ -484,6 +484,11 @@ synthetic-id/timestamp expected differences.
   `paymentGatewayNames: ["manual"]` and `displayFinancialStatus: "PAID"`, and
   order line-item ids are fresh `LineItem` gids while draft line-item ids remain
   unchanged.
+- `draftOrderInvoiceSend` parity is currently a safety/validation slice only.
+  Seed the captured no-recipient open/completed draft states, leave deleted ids
+  unseeded so they behave as not found, serialize user-error `field` as nullable
+  when Shopify returns `null`, and do not mutate staged draft-order state or
+  claim recipient-backed email-send success behavior.
 
 ## Workflow for a new pass
 

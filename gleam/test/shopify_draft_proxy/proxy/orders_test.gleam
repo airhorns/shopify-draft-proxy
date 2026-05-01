@@ -1447,3 +1447,68 @@ pub fn orders_draft_order_complete_read_after_write_test() {
   assert json.to_string(read_result)
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"COMPLETED\",\"completedAt\":\"2024-01-01T00:00:01.000Z\",\"order\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\"}}}}"
 }
+
+pub fn orders_draft_order_invoice_send_safety_validation_test() {
+  let mutation =
+    "
+    mutation DraftOrderInvoiceSend($id: ID!, $email: EmailInput) {
+      draftOrderInvoiceSend(id: $id, email: $email) {
+        draftOrder {
+          id
+          status
+          email
+          invoiceUrl
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(unknown_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/999")),
+      ]),
+    )
+  assert json.to_string(unknown_outcome.data)
+    == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Draft order not found\"}]}}}"
+
+  let create_mutation =
+    "
+    mutation {
+      draftOrderCreate(input: {
+        lineItems: [{ title: \"Invoice safety item\", quantity: 1, originalUnitPrice: \"1.00\" }]
+      }) {
+        draftOrder {
+          id
+        }
+      }
+    }
+  "
+  let assert Ok(create_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      create_mutation,
+      dict.new(),
+    )
+  let assert Ok(open_outcome) =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+      ]),
+    )
+  assert json.to_string(open_outcome.data)
+    == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"OPEN\",\"email\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice\"},\"userErrors\":[{\"field\":null,\"message\":\"To can't be blank\"}]}}}"
+}

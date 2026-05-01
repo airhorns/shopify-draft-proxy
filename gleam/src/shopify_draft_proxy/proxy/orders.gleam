@@ -77,6 +77,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "draftOrderCreate",
       "draftOrderDelete",
       "draftOrderDuplicate",
+      "draftOrderInvoiceSend",
       "draftOrderUpdate",
       "fulfillmentCancel",
       "fulfillmentCreate",
@@ -541,6 +542,36 @@ pub fn process_mutation(
             list.append(ids, next_ids),
             list.append(drafts, next_drafts),
           )
+        }
+        Field(name: name, ..) if name.value == "draftOrderInvoiceSend" -> {
+          let result =
+            handle_draft_order_invoice_send(
+              current_store,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          let #(key, payload, next_errors, next_drafts) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              current_store,
+              current_identity,
+              ids,
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+          }
         }
         Field(name: name, ..) if name.value == "draftOrderUpdate" -> {
           let result =
@@ -1048,6 +1079,150 @@ fn unknown_draft_order_duplicate_result(
       fragments,
     )
   #(key, payload, store, identity, [], [])
+}
+
+fn handle_draft_order_invoice_send(
+  store: Store,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, List(Json), List(LogDraft)) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "draftOrderInvoiceSend",
+      [RequiredArgument(name: "id", expected_type: "ID!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      let id = read_string_arg(args, "id")
+      let draft_order = case id {
+        Some(id) -> store.get_draft_order_by_id(store, id)
+        None -> None
+      }
+      let user_errors = invoice_send_user_errors(args, draft_order)
+      let payload =
+        serialize_draft_order_invoice_send_payload(
+          field,
+          draft_order,
+          user_errors,
+          fragments,
+        )
+      let draft =
+        single_root_log_draft(
+          "draftOrderInvoiceSend",
+          [],
+          case user_errors {
+            [] -> store.Staged
+            _ -> store.Failed
+          },
+          "orders",
+          "stage-locally",
+          Some("Locally handled draftOrderInvoiceSend safety validation."),
+        )
+      #(key, payload, [], [draft])
+    }
+  }
+}
+
+fn invoice_send_user_errors(
+  args: Dict(String, root_field.ResolvedValue),
+  draft_order: Option(DraftOrderRecord),
+) -> List(#(Option(List(String)), String)) {
+  case draft_order {
+    None -> [#(None, "Draft order not found")]
+    Some(record) -> {
+      let recipient_errors = case invoice_send_recipient_present(args, record) {
+        True -> []
+        False -> [#(None, "To can't be blank")]
+      }
+      let status_errors = case captured_string_field(record.data, "status") {
+        Some("COMPLETED") -> [
+          #(
+            None,
+            "Draft order Invoice can't be sent. This draft order is already paid.",
+          ),
+        ]
+        _ -> []
+      }
+      list.append(recipient_errors, status_errors)
+    }
+  }
+}
+
+fn invoice_send_recipient_present(
+  args: Dict(String, root_field.ResolvedValue),
+  draft_order: DraftOrderRecord,
+) -> Bool {
+  case read_object(args, "email") {
+    Some(email) ->
+      case read_string(email, "to") {
+        Some("") -> False
+        Some(_) -> True
+        None -> False
+      }
+    None ->
+      case captured_string_field(draft_order.data, "email") {
+        Some("") -> False
+        Some(_) -> True
+        None -> False
+      }
+  }
+}
+
+fn serialize_draft_order_invoice_send_payload(
+  field: Selection,
+  draft_order: Option(DraftOrderRecord),
+  user_errors: List(#(Option(List(String)), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "draftOrder" -> #(key, case draft_order {
+              Some(record) ->
+                serialize_draft_order_node(child, record, fragments)
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_nullable_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_nullable_user_error(
+  field: Selection,
+  error: #(Option(List(String)), String),
+) -> Json {
+  let #(field_path, message) = error
+  let source =
+    src_object([
+      #("field", case field_path {
+        Some(path) -> SrcList(list.map(path, SrcString))
+        None -> SrcNull
+      }),
+      #("message", SrcString(message)),
+    ])
+  project_graphql_value(source, selection_children(field), dict.new())
 }
 
 fn handle_draft_order_update(

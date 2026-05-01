@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 127: draft order invoice send guardrails
+
+Promotes the captured `draftOrderInvoiceSend` safety parity plan in the Gleam
+Orders domain. This pass keeps the root validation-only: it handles unknown,
+deleted/unseeded, open no-recipient, and completed no-recipient drafts locally,
+serializes Shopify's nullable user-error `field`, and deliberately avoids
+claiming email-send success behavior or mutating staged draft-order state.
+
+| Module                                                   | Change                                                                                         |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderInvoiceSend` dispatch and captured no-recipient/not-found/paid validation.     |
+| `gleam/test/parity/runner.gleam`                         | Seeds only the captured open/completed no-recipient draft states before replaying the scenario. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers unknown-id and open no-recipient validation directly.                                   |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderInvoiceSend-parity-plan` spec.                            |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (735 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (731 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 141 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify returns `field: null` for the captured invoice-send user errors, so
+  the Orders serializer needs a nullable user-error projection instead of the
+  existing list-backed helper used by other mutation payloads.
+- A completed draft with no recipient returns both `To can't be blank` and
+  `Draft order Invoice can't be sent. This draft order is already paid.`, while
+  unknown and deleted/unseeded draft ids both return `Draft order not found`.
+
+### Risks / open items
+
+- Recipient-backed invoice send success remains gated; this pass does not send
+  email, mutate draft state, or claim notification lifecycle support.
+- Draft-order helper roots, broader draft-order reads/count/search, order
+  lifecycle, order editing, fulfillment success paths, refunds, and returns
+  remain unported.
+
+### Pass 128 candidates
+
+- Continue with draft-order helper roots or read/count/search parity if the
+  checked-in fixtures can be modeled without broad order-store work.
+
+---
+
 ## 2026-05-01 - Pass 126: draft order complete lifecycle
 
 Promotes the captured `draftOrderComplete` parity plan in the Gleam Orders

@@ -266,6 +266,8 @@ fn seed_capture_preconditions(
       seed_draft_order_delete_preconditions(capture, proxy)
     "draft-order-duplicate-live-parity" ->
       seed_draft_order_duplicate_preconditions(capture, proxy)
+    "draft-order-invoice-send-safety" ->
+      seed_draft_order_invoice_send_preconditions(capture, proxy)
     "draft-order-update-live-parity" ->
       seed_draft_order_update_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
@@ -638,6 +640,38 @@ fn seed_draft_order_duplicate_preconditions(
         Error(_) -> proxy
       }
     None -> proxy
+  }
+}
+
+fn seed_draft_order_invoice_send_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records =
+    []
+    |> list.append(seed_draft_orders_at_path(
+      capture,
+      "$.recipient.openNoRecipient.setup.draftOrderCreate.mutation.response.data.draftOrderCreate.draftOrder",
+    ))
+    |> list.append(seed_draft_orders_at_path(
+      capture,
+      "$.lifecycle.completedNoRecipient.setup.draftOrderComplete.mutation.response.data.draftOrderComplete.draftOrder",
+    ))
+  let store = proxy.store |> store_mod.upsert_base_draft_orders(records)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_draft_orders_at_path(
+  capture: JsonValue,
+  path: String,
+) -> List(DraftOrderRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(source) ->
+      case make_seed_draft_order(source) {
+        Ok(record) -> [record]
+        Error(_) -> []
+      }
+    None -> []
   }
 }
 
