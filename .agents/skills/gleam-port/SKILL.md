@@ -431,6 +431,12 @@ synthetic-id/timestamp expected differences.
   line-item `variantTitle`, and nested `variant.sku`: default-title variants
   render `variantTitle` as null, line-item `sku` may be `""`, and nested
   variant `sku` may still be null.
+- Draft-order create validation should run before minting IDs or staging draft
+  orders. Preserve Shopify's no-line-items precedence, nullable
+  `userErrors.field`, current-time reserve-inventory check, and failed
+  mutation-log drafts for rejected payloads. Payment terms inside
+  `draftOrderCreate` are validation guardrails only; successful payment-terms
+  lifecycle remains owned by the payment terms roots.
 - Standalone draft-order read parity can seed `$.response.data.draftOrder` into
   base draft-order state as captured JSON. Keep this scenario-specific until
   the draft-order lifecycle roots prove which normalized fields and indexes are

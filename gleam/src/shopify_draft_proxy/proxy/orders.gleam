@@ -31,6 +31,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, RequiredArgument, find_argument, single_root_log_draft,
   validate_required_field_arguments,
 }
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -2151,33 +2152,237 @@ fn handle_draft_order_create(
       let args = field_arguments(field, variables)
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) -> {
-          let #(draft_order, next_identity) =
-            build_draft_order_from_input(store, identity, input)
-          let next_store = store.stage_draft_order(store, draft_order)
-          let payload =
-            serialize_draft_order_mutation_payload(
-              field,
-              Some(draft_order),
-              [],
-              fragments,
-            )
-          let draft =
-            single_root_log_draft(
-              "draftOrderCreate",
-              [draft_order.id],
-              store.Staged,
-              "orders",
-              "stage-locally",
-              Some("Locally staged draftOrderCreate in shopify-draft-proxy."),
-            )
-          #(key, payload, next_store, next_identity, [draft_order.id], [], [
-            draft,
-          ])
+          let user_errors = validate_draft_order_create_input(store, input)
+          case user_errors {
+            [] -> {
+              let #(draft_order, next_identity) =
+                build_draft_order_from_input(store, identity, input)
+              let next_store = store.stage_draft_order(store, draft_order)
+              let payload =
+                serialize_draft_order_mutation_payload(
+                  field,
+                  Some(draft_order),
+                  [],
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  "draftOrderCreate",
+                  [draft_order.id],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some(
+                    "Locally staged draftOrderCreate in shopify-draft-proxy.",
+                  ),
+                )
+              #(key, payload, next_store, next_identity, [draft_order.id], [], [
+                draft,
+              ])
+            }
+            _ -> {
+              let payload =
+                serialize_draft_order_nullable_error_payload(
+                  field,
+                  None,
+                  user_errors,
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  "draftOrderCreate",
+                  [],
+                  store.Failed,
+                  "orders",
+                  "stage-locally",
+                  Some("Locally rejected draftOrderCreate validation branch."),
+                )
+              #(key, payload, store, identity, [], [], [draft])
+            }
+          }
         }
         _ -> #(key, json.null(), store, identity, [], [], [])
       }
     }
   }
+}
+
+fn validate_draft_order_create_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(Option(List(String)), String)) {
+  let line_items = read_object_list(input, "lineItems")
+  case line_items {
+    [] -> [#(None, "Add at least 1 product")]
+    _ -> {
+      let line_item_errors =
+        line_items
+        |> list.index_map(fn(line_item, index) {
+          validate_draft_order_create_line_item(store, line_item, index)
+        })
+        |> list.flatten
+      list.flatten([
+        validate_draft_order_create_email(input),
+        validate_draft_order_create_reserve(input),
+        validate_draft_order_create_payment_terms(input),
+        line_item_errors,
+      ])
+    }
+  }
+}
+
+fn validate_draft_order_create_email(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(Option(List(String)), String)) {
+  case read_string(input, "email") {
+    Some(email) ->
+      case valid_email_address(email) {
+        True -> []
+        False -> [#(Some(["email"]), "Email is invalid")]
+      }
+    _ -> []
+  }
+}
+
+fn valid_email_address(email: String) -> Bool {
+  case string.contains(email, " ") {
+    True -> False
+    False ->
+      case string.split(email, "@") {
+        [local, domain] ->
+          string.trim(local) != "" && string.contains(domain, ".")
+        _ -> False
+      }
+  }
+}
+
+fn validate_draft_order_create_reserve(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(Option(List(String)), String)) {
+  case read_string(input, "reserveInventoryUntil") {
+    Some(value) ->
+      case
+        iso_timestamp.parse_iso(value),
+        iso_timestamp.parse_iso(iso_timestamp.now_iso())
+      {
+        Ok(reserve_until), Ok(now) ->
+          case reserve_until < now {
+            True -> [#(None, "Reserve until can't be in the past")]
+            False -> []
+          }
+        _, _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_draft_order_create_payment_terms(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(Option(List(String)), String)) {
+  case read_object(input, "paymentTerms") {
+    Some(payment_terms) ->
+      case read_string(payment_terms, "paymentTermsTemplateId") {
+        Some(_) -> [#(None, "The user must have access to set payment terms.")]
+        None -> [#(None, "Payment terms template id can not be empty.")]
+      }
+    None -> []
+  }
+}
+
+fn validate_draft_order_create_line_item(
+  store: Store,
+  line_item: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(#(Option(List(String)), String)) {
+  case read_string(line_item, "variantId") {
+    Some(variant_id) ->
+      case store.get_draft_order_variant_catalog_by_id(store, variant_id) {
+        Some(_) -> []
+        None ->
+          case store.get_effective_variant_by_id(store, variant_id) {
+            Some(_) -> []
+            None -> [
+              #(
+                None,
+                "Product with ID "
+                  <> draft_order_gid_tail(variant_id)
+                  <> " is no longer available.",
+              ),
+            ]
+          }
+      }
+    None -> validate_custom_draft_order_line_item(line_item, index)
+  }
+}
+
+fn validate_custom_draft_order_line_item(
+  line_item: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(#(Option(List(String)), String)) {
+  case read_string(line_item, "title") {
+    Some(title) ->
+      case string.trim(title) != "" {
+        True -> validate_custom_draft_order_line_item_values(line_item, index)
+        False -> [#(None, "Merchandise title is empty.")]
+      }
+    _ -> [#(None, "Merchandise title is empty.")]
+  }
+}
+
+fn validate_custom_draft_order_line_item_values(
+  line_item: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(#(Option(List(String)), String)) {
+  let quantity = read_int(line_item, "quantity", 1)
+  case quantity < 1 {
+    True -> [
+      #(
+        Some(["lineItems", int.to_string(index), "quantity"]),
+        "Quantity must be greater than or equal to 1",
+      ),
+    ]
+    False -> {
+      let amount =
+        read_string(line_item, "originalUnitPrice")
+        |> option.unwrap("0")
+        |> parse_amount
+      case amount <. 0.0 {
+        True -> [#(None, "Cannot send negative price for line_item")]
+        False -> []
+      }
+    }
+  }
+}
+
+fn serialize_draft_order_nullable_error_payload(
+  field: Selection,
+  draft_order: Option(DraftOrderRecord),
+  user_errors: List(#(Option(List(String)), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "draftOrder" -> #(key, case draft_order {
+              Some(record) ->
+                serialize_draft_order_node(child, record, fragments)
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_nullable_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 fn serialize_draft_order_mutation_payload(

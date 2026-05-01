@@ -214,6 +214,75 @@ pub fn orders_draft_order_create_validation_guardrails_test() {
     == "{\"errors\":[{\"message\":\"Argument 'input' on Field 'draftOrderCreate' has an invalid value (null). Expected type 'DraftOrderInput!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation InlineNullDraftOrderInput\",\"draftOrderCreate\",\"input\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"input\"}}]}"
 }
 
+pub fn orders_draft_order_create_payload_validation_matrix_test() {
+  let mutation =
+    "
+    mutation {
+      noLineItems: draftOrderCreate(input: { lineItems: [] }) {
+        draftOrder { id }
+        userErrors { field message }
+      }
+      unknownVariant: draftOrderCreate(input: {
+        lineItems: [{ variantId: \"gid://shopify/ProductVariant/999999999999999999\", quantity: 1 }]
+      }) {
+        draftOrder { id }
+        userErrors { field message }
+      }
+      customMissingTitle: draftOrderCreate(input: {
+        lineItems: [{ quantity: 1, originalUnitPrice: \"10.00\" }]
+      }) {
+        draftOrder { id }
+        userErrors { field message }
+      }
+      zeroQuantity: draftOrderCreate(input: {
+        lineItems: [{ title: \"Zero quantity\", quantity: 0, originalUnitPrice: \"10.00\" }]
+      }) {
+        draftOrder { id }
+        userErrors { field message }
+      }
+      paymentTerms: draftOrderCreate(input: {
+        paymentTerms: { paymentSchedules: [{ dueAt: \"2026-05-22T12:00:00Z\" }] }
+        lineItems: [{ title: \"Payment terms\", quantity: 1, originalUnitPrice: \"10.00\" }]
+      }) {
+        draftOrder { id }
+        userErrors { field message }
+      }
+      negativePrice: draftOrderCreate(input: {
+        lineItems: [{ title: \"Negative price\", quantity: 1, originalUnitPrice: \"-1.00\" }]
+      }) {
+        draftOrder { id }
+        userErrors { field message }
+      }
+      pastReserve: draftOrderCreate(input: {
+        reserveInventoryUntil: \"2020-01-01T00:00:00Z\"
+        lineItems: [{ title: \"Past reserve\", quantity: 1, originalUnitPrice: \"10.00\" }]
+      }) {
+        draftOrder { id }
+        userErrors { field message }
+      }
+      badEmail: draftOrderCreate(input: {
+        email: \"not-an-email\"
+        lineItems: [{ title: \"Bad email\", quantity: 1, originalUnitPrice: \"10.00\" }]
+      }) {
+        draftOrder { id }
+        userErrors { field message }
+      }
+    }
+  "
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.new(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"noLineItems\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\"}]},\"unknownVariant\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Product with ID 999999999999999999 is no longer available.\"}]},\"customMissingTitle\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Merchandise title is empty.\"}]},\"zeroQuantity\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"lineItems\",\"0\",\"quantity\"],\"message\":\"Quantity must be greater than or equal to 1\"}]},\"paymentTerms\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Payment terms template id can not be empty.\"}]},\"negativePrice\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Cannot send negative price for line_item\"}]},\"pastReserve\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Reserve until can't be in the past\"}]},\"badEmail\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email is invalid\"}]}}}"
+  assert list.length(outcome.log_drafts) == 8
+  assert store.list_effective_draft_orders(outcome.store) == []
+}
+
 pub fn orders_draft_order_complete_validation_guardrails_test() {
   let missing_id =
     "

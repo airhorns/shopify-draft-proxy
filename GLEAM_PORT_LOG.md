@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 129: draft order create validation parity
+
+Promotes the checked-in `draftOrderCreate-validation-matrix` parity scenario in
+the Gleam Orders domain. This pass adds Shopify-shaped payload validation for
+invalid draft-order create inputs, keeps failed branches from staging draft
+orders or consuming synthetic IDs, and preserves valid local create staging.
+
+| Module                                                   | Change                                                                             |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds create-time validation and nullable user-error payload serialization.         |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers the captured validation matrix and verifies failed creates stage no drafts. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `draftOrderCreate-validation-matrix` spec.               |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (737 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (733 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 139 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The create validation matrix can run without new live credentials because its
+  captured request/response fixture already covers the invalid input branches.
+- Validation failures need the same nullable `userErrors.field` projection as
+  invoice-send guardrails, and they should produce failed mutation-log drafts
+  without local store changes.
+- Reserve-inventory validation should use the existing cross-target timestamp
+  FFI rather than a fixed cutoff so future-dated valid creates stay valid.
+
+### Risks / open items
+
+- This does not port draft-order catalog/count/search hydration, nor
+  `draftOrderCreateFromOrder`; those remain gated.
+- Broader order lifecycle, order editing, fulfillment success paths, refunds,
+  and returns remain unported.
+
+### Pass 130 candidates
+
+- Continue with `draftOrderCreateFromOrder` if the existing setup/order data
+  can be seeded narrowly, or tackle draft-order catalog/count/search hydration
+  as a focused read slice.
+
+---
+
 ## 2026-05-01 - Pass 128: draft order residual helper roots
 
 Promotes the checked-in `draft-order-residual-helper-roots` parity scenario in
