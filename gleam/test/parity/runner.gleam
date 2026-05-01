@@ -48,8 +48,9 @@ import shopify_draft_proxy/state/types.{
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord,
-  type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord, type InventoryItemRecord,
+  type DraftOrderVariantCatalogRecord, type GiftCardConfigurationRecord,
+  type GiftCardRecipientAttributesRecord, type GiftCardRecord,
+  type GiftCardTransactionRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
   type InventoryWeightRecord, type LocationRecord, type MarketingRecord,
@@ -82,20 +83,20 @@ import shopify_draft_proxy/state/types.{
   CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
   CustomerEventSummaryRecord, CustomerMetafieldRecord,
   CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
-  GiftCardTransactionRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
-  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
-  LocationRecord, MarketingBool, MarketingFloat, MarketingInt, MarketingList,
-  MarketingNull, MarketingObject, MarketingRecord, MarketingString,
-  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
-  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
-  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, MetaobjectBool,
-  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
-  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
-  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
-  MetaobjectFieldDefinitionReferenceRecord,
+  DraftOrderVariantCatalogRecord, GiftCardConfigurationRecord,
+  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
+  InventoryWeightInt, InventoryWeightRecord, LocationRecord, MarketingBool,
+  MarketingFloat, MarketingInt, MarketingList, MarketingNull, MarketingObject,
+  MarketingRecord, MarketingString, MetafieldDefinitionCapabilitiesRecord,
+  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintValueRecord,
+  MetafieldDefinitionConstraintsRecord, MetafieldDefinitionRecord,
+  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
+  MetaobjectBool, MetaobjectCapabilitiesRecord,
+  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
+  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
+  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
@@ -255,6 +256,8 @@ fn seed_capture_preconditions(
     "customer-order-summary-read-effects" ->
       seed_customer_order_summary_preconditions(capture, proxy)
     "data-sale-opt-out-parity" -> seed_customer_preconditions(capture, proxy)
+    "draft-order-create-live-parity" ->
+      seed_draft_order_create_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "location-detail-read" -> seed_location_detail_preconditions(capture, proxy)
@@ -508,6 +511,74 @@ fn seed_customer_preconditions(
     |> store_mod.upsert_base_customer_account_pages(pages)
     |> seed_customer_connections(connections)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_draft_order_create_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let proxy = seed_customer_preconditions(capture, proxy)
+  let catalog = collect_draft_order_variant_catalog(capture)
+  let store =
+    proxy.store |> store_mod.upsert_base_draft_order_variant_catalog(catalog)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn collect_draft_order_variant_catalog(
+  capture: JsonValue,
+) -> List(DraftOrderVariantCatalogRecord) {
+  collect_objects(capture)
+  |> list.filter_map(make_draft_order_variant_catalog)
+  |> dedupe_draft_order_variant_catalog([])
+}
+
+fn make_draft_order_variant_catalog(
+  source: JsonValue,
+) -> Result(DraftOrderVariantCatalogRecord, Nil) {
+  use variant <- result.try(
+    read_object_field(source, "variant") |> option_to_result(),
+  )
+  use variant_id <- result.try(required_gid(variant, "id", "ProductVariant"))
+  let title = read_string_field(source, "title") |> option.unwrap("Variant")
+  let name = read_string_field(source, "name") |> option.unwrap(title)
+  let shop_money =
+    read_object_field(source, "originalUnitPriceSet")
+    |> option.then(read_object_field(_, "shopMoney"))
+  let unit_price =
+    read_string_field_from_option(shop_money, "amount")
+    |> option.unwrap("0.0")
+  let currency_code =
+    read_string_field_from_option(shop_money, "currencyCode")
+    |> option.unwrap("CAD")
+  Ok(DraftOrderVariantCatalogRecord(
+    variant_id: variant_id,
+    title: title,
+    name: name,
+    variant_title: read_string_field(variant, "title"),
+    sku: read_string_field(source, "sku"),
+    requires_shipping: read_bool_field(source, "requiresShipping")
+      |> option.unwrap(True),
+    taxable: read_bool_field(source, "taxable") |> option.unwrap(True),
+    unit_price: unit_price,
+    currency_code: currency_code,
+  ))
+}
+
+fn dedupe_draft_order_variant_catalog(
+  records: List(DraftOrderVariantCatalogRecord),
+  seen: List(String),
+) -> List(DraftOrderVariantCatalogRecord) {
+  case records {
+    [] -> []
+    [record, ..rest] ->
+      case list.contains(seen, record.variant_id) {
+        True -> dedupe_draft_order_variant_catalog(rest, seen)
+        False -> [
+          record,
+          ..dedupe_draft_order_variant_catalog(rest, [record.variant_id, ..seen])
+        ]
+      }
+  }
 }
 
 fn seed_customer_connections(

@@ -9,6 +9,58 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 115: draft-order create/read parity seed
+
+Ports the first executable draft-order lifecycle slice in the Orders Gleam
+domain. The local Orders dispatcher now handles `draftOrder(id:)` not-found
+reads, `draftOrderCreate` required-input validation branches, and the captured
+draft-order create/read-after-write parity scenario. Draft orders are staged as
+captured JSON records so selected downstream reads project the same Shopify
+field shapes while broader draft-order roots remain gated.
+
+| Module                                                    | Change                                                                                              |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`        | Adds `draftOrder` reads plus `draftOrderCreate` staging for the captured custom/variant line slice. |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds captured draft-order records and a minimal variant catalog seed record.                        |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds instance-owned draft-order base/staged state and variant catalog helpers.                      |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries draft-order slices through dump/restore serialization.                                      |
+| `gleam/test/parity/runner.gleam`                          | Seeds customer and variant catalog data for the live draft-order create parity fixture.             |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`  | Covers not-found reads, validation guardrails, and custom-line create read-after-write.             |
+| `config/gleam-port-ci-gates.json`                         | Removes five newly passing Orders draft-order parity specs.                                         |
+
+Validation:
+Full JavaScript is green at 724 tests. The draft-order create parity plan now
+passes in the Gleam runner, bringing Orders to 9 executable/pass specs with 69
+Orders specs still gated.
+
+### Findings
+
+- Variant-backed draft-order line items have separate Shopify semantics for
+  line-item `sku`, line-item `variantTitle`, and nested `variant.sku`: a
+  default-title variant projects `variantTitle: null`, line item `sku` can be
+  the empty string, and nested variant `sku` remains null.
+- The captured draft-order create fixture needs customer preconditions plus a
+  variant catalog seed derived from the captured created line item; no parity
+  request or fixture shape changes were needed.
+- Storing draft orders as captured JSON is the right first boundary for this
+  slice because it preserves selected field projection without prematurely
+  designing the whole draft-order lifecycle model.
+
+### Risks / open items
+
+- Existing captured draft-order detail reads still need base draft-order
+  seeding before they can be ungated.
+- Draft-order update, complete, delete, invoice, and create-from-order roots
+  remain unported; this pass is not broader order lifecycle support.
+
+### Pass 116 candidates
+
+- Seed captured draft-order detail fixtures so `draftOrder-read-parity-plan`
+  can run, then continue into draft-order update/delete/complete lifecycle
+  behavior.
+
+---
+
 ## 2026-05-01 - Pass 114: orders access-denied guardrail parity
 
 Promotes two captured Orders access-denied guardrail fixtures into the Gleam

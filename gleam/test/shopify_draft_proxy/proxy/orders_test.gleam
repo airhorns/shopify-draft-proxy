@@ -139,3 +139,179 @@ pub fn orders_access_denied_guardrails_test() {
   assert outcome.staged_resource_ids == []
   assert list.length(outcome.log_drafts) == 2
 }
+
+pub fn orders_draft_order_not_found_read_test() {
+  let query =
+    "
+    query {
+      missingDraftOrder: draftOrder(
+        id: \"gid://shopify/DraftOrder/999999999999999\"
+      ) {
+        id
+        name
+        status
+        invoiceUrl
+      }
+    }
+  "
+  let assert Ok(result) = orders.process(store.new(), query, dict.new())
+  assert json.to_string(result) == "{\"data\":{\"missingDraftOrder\":null}}"
+}
+
+pub fn orders_draft_order_create_validation_guardrails_test() {
+  let missing_input =
+    "
+    mutation InlineMissingDraftOrderInput {
+      draftOrderCreate {
+        draftOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(missing_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      missing_input,
+      dict.new(),
+    )
+  assert json.to_string(missing_outcome.data)
+    == "{\"errors\":[{\"message\":\"Field 'draftOrderCreate' is missing required arguments: input\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation InlineMissingDraftOrderInput\",\"draftOrderCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"draftOrderCreate\",\"arguments\":\"input\"}}]}"
+
+  let null_input =
+    "
+    mutation InlineNullDraftOrderInput {
+      draftOrderCreate(input: null) {
+        draftOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(null_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      null_input,
+      dict.new(),
+    )
+  assert json.to_string(null_outcome.data)
+    == "{\"errors\":[{\"message\":\"Argument 'input' on Field 'draftOrderCreate' has an invalid value (null). Expected type 'DraftOrderInput!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation InlineNullDraftOrderInput\",\"draftOrderCreate\",\"input\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"input\"}}]}"
+}
+
+pub fn orders_draft_order_create_custom_item_read_after_write_test() {
+  let mutation =
+    "
+    mutation {
+      draftOrderCreate(input: {
+        email: \"draft@example.test\"
+        note: \"Phone order\"
+        tags: [\"beta\", \"alpha\"]
+        lineItems: [{
+          title: \"Custom service\"
+          quantity: 2
+          originalUnitPrice: \"20.00\"
+          requiresShipping: false
+          taxable: false
+          sku: \"CUSTOM\"
+          appliedDiscount: {
+            title: \"Service discount\"
+            description: \"10 percent off\"
+            value: 10
+            amount: 4
+            valueType: PERCENTAGE
+          }
+          customAttributes: [{ key: \"appointment\", value: \"morning\" }]
+        }]
+        shippingLine: {
+          title: \"Courier\"
+          priceWithCurrency: { amount: \"7.25\", currencyCode: CAD }
+        }
+      }) {
+        draftOrder {
+          id
+          name
+          status
+          email
+          note
+          tags
+          totalQuantityOfLineItems
+          subtotalPriceSet { shopMoney { amount currencyCode } }
+          totalDiscountsSet { shopMoney { amount currencyCode } }
+          totalShippingPriceSet { shopMoney { amount currencyCode } }
+          totalPriceSet { shopMoney { amount currencyCode } }
+          lineItems {
+            nodes {
+              id
+              title
+              name
+              quantity
+              sku
+              custom
+              requiresShipping
+              taxable
+              variantTitle
+              variant { id }
+              originalUnitPriceSet { shopMoney { amount currencyCode } }
+              originalTotalSet { shopMoney { amount currencyCode } }
+              discountedTotalSet { shopMoney { amount currencyCode } }
+              totalDiscountSet { shopMoney { amount currencyCode } }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.new(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"draftOrderCreate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D1\",\"status\":\"OPEN\",\"email\":\"draft@example.test\",\"note\":\"Phone order\",\"tags\":[\"alpha\",\"beta\"],\"totalQuantityOfLineItems\":2,\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"36.0\",\"currencyCode\":\"CAD\"}},\"totalDiscountsSet\":{\"shopMoney\":{\"amount\":\"4.0\",\"currencyCode\":\"CAD\"}},\"totalShippingPriceSet\":{\"shopMoney\":{\"amount\":\"7.25\",\"currencyCode\":\"CAD\"}},\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"43.25\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/DraftOrderLineItem/2\",\"title\":\"Custom service\",\"name\":\"Custom service\",\"quantity\":2,\"sku\":\"CUSTOM\",\"custom\":true,\"requiresShipping\":false,\"taxable\":false,\"variantTitle\":null,\"variant\":null,\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}},\"originalTotalSet\":{\"shopMoney\":{\"amount\":\"40.0\",\"currencyCode\":\"CAD\"}},\"discountedTotalSet\":{\"shopMoney\":{\"amount\":\"36.0\",\"currencyCode\":\"CAD\"}},\"totalDiscountSet\":{\"shopMoney\":{\"amount\":\"4.0\",\"currencyCode\":\"CAD\"}}}]}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == ["gid://shopify/DraftOrder/1"]
+  assert list.length(outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query {
+      draftOrder(id: \"gid://shopify/DraftOrder/1\") {
+        id
+        name
+        status
+        email
+        note
+        tags
+        totalQuantityOfLineItems
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read_result) =
+    orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read_result)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D1\",\"status\":\"OPEN\",\"email\":\"draft@example.test\",\"note\":\"Phone order\",\"tags\":[\"alpha\",\"beta\"],\"totalQuantityOfLineItems\":2,\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"43.25\",\"currencyCode\":\"CAD\"}}}}}"
+}

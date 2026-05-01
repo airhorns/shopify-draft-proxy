@@ -136,6 +136,24 @@ pub type AbandonmentRecord {
   )
 }
 
+pub type DraftOrderRecord {
+  DraftOrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+pub type DraftOrderVariantCatalogRecord {
+  DraftOrderVariantCatalogRecord(
+    variant_id: String,
+    title: String,
+    name: String,
+    variant_title: Option(String),
+    sku: Option(String),
+    requires_shipping: Bool,
+    taxable: Bool,
+    unit_price: String,
+    currency_code: String,
+  )
+}
+
 pub type InventoryWeightValue {
   InventoryWeightInt(Int)
   InventoryWeightFloat(Float)

@@ -425,6 +425,12 @@ synthetic-id/timestamp expected differences.
   `orderCreateManualPayment` unknown/non-local order access denial does not
   imply local synthetic-order payment success is ported, and `taxSummaryCreate`
   access denial does not imply tax-app success semantics are ported.
+- Draft-order create parity can start with raw captured `DraftOrderRecord`
+  staging plus a tiny variant catalog seed derived from the captured created
+  line items. Preserve Shopify's split between line-item `sku`,
+  line-item `variantTitle`, and nested `variant.sku`: default-title variants
+  render `variantTitle` as null, line-item `sku` may be `""`, and nested
+  variant `sku` may still be null.
 
 ## Workflow for a new pass
 

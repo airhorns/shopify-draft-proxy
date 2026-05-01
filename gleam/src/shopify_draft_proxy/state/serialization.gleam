@@ -38,6 +38,16 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
     ),
     #("abandonments", dict_to_json(state.abandonments, abandonment_json)),
     #("abandonmentOrder", json.array(state.abandonment_order, json.string)),
+    #("draftOrders", dict_to_json(state.draft_orders, draft_order_json)),
+    #("draftOrderOrder", json.array(state.draft_order_order, json.string)),
+    #("deletedDraftOrderIds", bool_dict_to_json(state.deleted_draft_order_ids)),
+    #(
+      "draftOrderVariantCatalog",
+      dict_to_json(
+        state.draft_order_variant_catalog,
+        draft_order_variant_catalog_json,
+      ),
+    ),
     #("products", dict_to_json(state.products, product_json)),
     #("productOrder", json.array(state.product_order, json.string)),
     #(
@@ -415,6 +425,16 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
     ),
     #("abandonments", dict_to_json(state.abandonments, abandonment_json)),
     #("abandonmentOrder", json.array(state.abandonment_order, json.string)),
+    #("draftOrders", dict_to_json(state.draft_orders, draft_order_json)),
+    #("draftOrderOrder", json.array(state.draft_order_order, json.string)),
+    #("deletedDraftOrderIds", bool_dict_to_json(state.deleted_draft_order_ids)),
+    #(
+      "draftOrderVariantCatalog",
+      dict_to_json(
+        state.draft_order_variant_catalog,
+        draft_order_variant_catalog_json,
+      ),
+    ),
     #("products", dict_to_json(state.products, product_json)),
     #("productOrder", json.array(state.product_order, json.string)),
     #(
@@ -1157,6 +1177,30 @@ fn abandonment_json(record: types.AbandonmentRecord) -> Json {
         abandonment_delivery_activity_json,
       ),
     ),
+  ])
+}
+
+fn draft_order_json(record: types.DraftOrderRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn draft_order_variant_catalog_json(
+  record: types.DraftOrderVariantCatalogRecord,
+) -> Json {
+  json.object([
+    #("variantId", json.string(record.variant_id)),
+    #("title", json.string(record.title)),
+    #("name", json.string(record.name)),
+    #("variantTitle", optional_string(record.variant_title)),
+    #("sku", optional_string(record.sku)),
+    #("requiresShipping", json.bool(record.requires_shipping)),
+    #("taxable", json.bool(record.taxable)),
+    #("unitPrice", json.string(record.unit_price)),
+    #("currencyCode", json.string(record.currency_code)),
   ])
 }
 
@@ -2266,6 +2310,13 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
   use abandoned_checkout_order <- string_list_field("abandonedCheckoutOrder")
   use abandonments <- dict_field("abandonments", abandonment_decoder())
   use abandonment_order <- string_list_field("abandonmentOrder")
+  use draft_orders <- dict_field("draftOrders", draft_order_decoder())
+  use draft_order_order <- string_list_field("draftOrderOrder")
+  use deleted_draft_order_ids <- bool_dict_field("deletedDraftOrderIds")
+  use draft_order_variant_catalog <- dict_field(
+    "draftOrderVariantCatalog",
+    draft_order_variant_catalog_decoder(),
+  )
   use store_property_locations <- dict_field(
     "locations",
     store_property_record_decoder(),
@@ -2463,6 +2514,10 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     abandoned_checkout_order: abandoned_checkout_order,
     abandonments: abandonments,
     abandonment_order: abandonment_order,
+    draft_orders: draft_orders,
+    draft_order_order: draft_order_order,
+    deleted_draft_order_ids: deleted_draft_order_ids,
+    draft_order_variant_catalog: draft_order_variant_catalog,
     inventory_transfers: empty.inventory_transfers,
     inventory_transfer_order: empty.inventory_transfer_order,
     deleted_inventory_transfer_ids: empty.deleted_inventory_transfer_ids,
@@ -2601,6 +2656,13 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
   use abandoned_checkout_order <- string_list_field("abandonedCheckoutOrder")
   use abandonments <- dict_field("abandonments", abandonment_decoder())
   use abandonment_order <- string_list_field("abandonmentOrder")
+  use draft_orders <- dict_field("draftOrders", draft_order_decoder())
+  use draft_order_order <- string_list_field("draftOrderOrder")
+  use deleted_draft_order_ids <- bool_dict_field("deletedDraftOrderIds")
+  use draft_order_variant_catalog <- dict_field(
+    "draftOrderVariantCatalog",
+    draft_order_variant_catalog_decoder(),
+  )
   use store_property_locations <- dict_field(
     "locations",
     store_property_record_decoder(),
@@ -2792,6 +2854,10 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     abandoned_checkout_order: abandoned_checkout_order,
     abandonments: abandonments,
     abandonment_order: abandonment_order,
+    draft_orders: draft_orders,
+    draft_order_order: draft_order_order,
+    deleted_draft_order_ids: deleted_draft_order_ids,
+    draft_order_variant_catalog: draft_order_variant_catalog,
     inventory_transfers: empty.inventory_transfers,
     inventory_transfer_order: empty.inventory_transfer_order,
     deleted_inventory_transfer_ids: empty.deleted_inventory_transfer_ids,
@@ -3101,6 +3167,38 @@ fn abandonment_decoder() -> Decoder(types.AbandonmentRecord) {
     cursor: cursor,
     data: data,
     delivery_activities: delivery_activities,
+  ))
+}
+
+fn draft_order_decoder() -> Decoder(types.DraftOrderRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  decode.success(types.DraftOrderRecord(id: id, cursor: cursor, data: data))
+}
+
+fn draft_order_variant_catalog_decoder() -> Decoder(
+  types.DraftOrderVariantCatalogRecord,
+) {
+  use variant_id <- decode.field("variantId", decode.string)
+  use title <- decode.field("title", decode.string)
+  use name <- decode.field("name", decode.string)
+  use variant_title <- optional_string_field("variantTitle")
+  use sku <- optional_string_field("sku")
+  use requires_shipping <- decode.field("requiresShipping", decode.bool)
+  use taxable <- decode.field("taxable", decode.bool)
+  use unit_price <- decode.field("unitPrice", decode.string)
+  use currency_code <- decode.field("currencyCode", decode.string)
+  decode.success(types.DraftOrderVariantCatalogRecord(
+    variant_id: variant_id,
+    title: title,
+    name: name,
+    variant_title: variant_title,
+    sku: sku,
+    requires_shipping: requires_shipping,
+    taxable: taxable,
+    unit_price: unit_price,
+    currency_code: currency_code,
   ))
 }
 

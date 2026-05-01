@@ -319,10 +319,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/orders/draft-order-by-id-not-found-read.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/orders/draft-order-residual-helper-roots.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
@@ -344,22 +340,6 @@
     },
     {
       "specPath": "config/parity-specs/orders/draftOrderComplete-parity-plan.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/orders/draftOrderCreate-inline-missing-input-parity.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/orders/draftOrderCreate-inline-null-input-parity.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/orders/draftOrderCreate-missing-input-parity.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/orders/draftOrderCreate-parity-plan.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {

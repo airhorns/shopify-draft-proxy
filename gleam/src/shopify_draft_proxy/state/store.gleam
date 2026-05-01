@@ -29,6 +29,7 @@ import shopify_draft_proxy/state/types.{
   type CustomerOrderSummaryRecord, type CustomerPaymentMethodRecord,
   type CustomerPaymentMethodUpdateUrlRecord, type CustomerRecord,
   type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
+  type DraftOrderRecord, type DraftOrderVariantCatalogRecord,
   type GiftCardConfigurationRecord, type GiftCardRecord,
   type InventoryLevelRecord, type InventoryShipmentRecord,
   type InventoryTransferRecord, type LocaleRecord, type LocationRecord,
@@ -87,6 +88,10 @@ pub type BaseState {
     abandoned_checkout_order: List(String),
     abandonments: Dict(String, AbandonmentRecord),
     abandonment_order: List(String),
+    draft_orders: Dict(String, DraftOrderRecord),
+    draft_order_order: List(String),
+    deleted_draft_order_ids: Dict(String, Bool),
+    draft_order_variant_catalog: Dict(String, DraftOrderVariantCatalogRecord),
     inventory_transfers: Dict(String, InventoryTransferRecord),
     inventory_transfer_order: List(String),
     deleted_inventory_transfer_ids: Dict(String, Bool),
@@ -252,6 +257,10 @@ pub type StagedState {
     abandoned_checkout_order: List(String),
     abandonments: Dict(String, AbandonmentRecord),
     abandonment_order: List(String),
+    draft_orders: Dict(String, DraftOrderRecord),
+    draft_order_order: List(String),
+    deleted_draft_order_ids: Dict(String, Bool),
+    draft_order_variant_catalog: Dict(String, DraftOrderVariantCatalogRecord),
     inventory_transfers: Dict(String, InventoryTransferRecord),
     inventory_transfer_order: List(String),
     deleted_inventory_transfer_ids: Dict(String, Bool),
@@ -484,6 +493,10 @@ pub fn empty_base_state() -> BaseState {
     abandoned_checkout_order: [],
     abandonments: dict.new(),
     abandonment_order: [],
+    draft_orders: dict.new(),
+    draft_order_order: [],
+    deleted_draft_order_ids: dict.new(),
+    draft_order_variant_catalog: dict.new(),
     inventory_transfers: dict.new(),
     inventory_transfer_order: [],
     deleted_inventory_transfer_ids: dict.new(),
@@ -624,6 +637,10 @@ pub fn empty_staged_state() -> StagedState {
     abandoned_checkout_order: [],
     abandonments: dict.new(),
     abandonment_order: [],
+    draft_orders: dict.new(),
+    draft_order_order: [],
+    deleted_draft_order_ids: dict.new(),
+    draft_order_variant_catalog: dict.new(),
     inventory_transfers: dict.new(),
     inventory_transfer_order: [],
     deleted_inventory_transfer_ids: dict.new(),
@@ -792,6 +809,71 @@ pub fn upsert_base_abandonments(
   })
 }
 
+pub fn upsert_base_draft_orders(
+  store: Store,
+  records: List(DraftOrderRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        draft_orders: dict.insert(base.draft_orders, record.id, record),
+        draft_order_order: append_unique_id(base.draft_order_order, record.id),
+        deleted_draft_order_ids: dict.delete(
+          base.deleted_draft_order_ids,
+          record.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_draft_order_ids: dict.delete(
+          staged.deleted_draft_order_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_base_draft_order_variant_catalog(
+  store: Store,
+  records: List(DraftOrderVariantCatalogRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        draft_order_variant_catalog: dict.insert(
+          base.draft_order_variant_catalog,
+          record.variant_id,
+          record,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn stage_draft_order(store: Store, record: DraftOrderRecord) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      draft_orders: dict.insert(staged.draft_orders, record.id, record),
+      draft_order_order: append_unique_id(staged.draft_order_order, record.id),
+      deleted_draft_order_ids: dict.delete(
+        staged.deleted_draft_order_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
 pub fn get_abandoned_checkout_by_id(
   store: Store,
   id: String,
@@ -800,6 +882,64 @@ pub fn get_abandoned_checkout_by_id(
     Ok(record) -> Some(record)
     Error(_) ->
       case dict.get(store.base_state.abandoned_checkouts, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn get_draft_order_by_id(
+  store: Store,
+  id: String,
+) -> Option(DraftOrderRecord) {
+  case dict.get(store.staged_state.deleted_draft_order_ids, id) {
+    Ok(True) -> None
+    _ ->
+      case dict.get(store.staged_state.draft_orders, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.deleted_draft_order_ids, id) {
+            Ok(True) -> None
+            _ ->
+              case dict.get(store.base_state.draft_orders, id) {
+                Ok(record) -> Some(record)
+                Error(_) -> None
+              }
+          }
+      }
+  }
+}
+
+pub fn list_effective_draft_orders(store: Store) -> List(DraftOrderRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.draft_order_order,
+      store.staged_state.draft_order_order,
+    )
+  let ordered =
+    ordered_ids
+    |> dedupe_strings()
+    |> list.filter_map(fn(id) {
+      case get_draft_order_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let unordered =
+    dict.values(store.base_state.draft_orders)
+    |> list.append(dict.values(store.staged_state.draft_orders))
+    |> list.filter(fn(record) { !list.contains(ordered_ids, record.id) })
+  list.append(ordered, unordered) |> dedupe_draft_orders()
+}
+
+pub fn get_draft_order_variant_catalog_by_id(
+  store: Store,
+  variant_id: String,
+) -> Option(DraftOrderVariantCatalogRecord) {
+  case dict.get(store.staged_state.draft_order_variant_catalog, variant_id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.draft_order_variant_catalog, variant_id) {
         Ok(record) -> Some(record)
         Error(_) -> None
       }
@@ -1032,6 +1172,19 @@ fn dedupe_abandonments(
   records: List(AbandonmentRecord),
 ) -> List(AbandonmentRecord) {
   let initial: List(AbandonmentRecord) = []
+  records
+  |> list.fold(initial, fn(acc, record) {
+    case list.any(acc, fn(existing) { existing.id == record.id }) {
+      True -> acc
+      False -> list.append(acc, [record])
+    }
+  })
+}
+
+fn dedupe_draft_orders(
+  records: List(DraftOrderRecord),
+) -> List(DraftOrderRecord) {
+  let initial: List(DraftOrderRecord) = []
   records
   |> list.fold(initial, fn(acc, record) {
     case list.any(acc, fn(existing) { existing.id == record.id }) {
