@@ -612,6 +612,22 @@ pub type BackupRegionRecord {
   BackupRegionRecord(id: String, name: String, code: String)
 }
 
+pub type AdminPlatformGenericNodeRecord {
+  AdminPlatformGenericNodeRecord(
+    id: String,
+    typename: String,
+    data: CapturedJsonValue,
+  )
+}
+
+pub type AdminPlatformTaxonomyCategoryRecord {
+  AdminPlatformTaxonomyCategoryRecord(
+    id: String,
+    cursor: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
 /// Audit record for locally handled `flowGenerateSignature`.
 /// The proxy stores hashes rather than the raw signature or payload.
 pub type AdminPlatformFlowSignatureRecord {

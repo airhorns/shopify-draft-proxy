@@ -18,11 +18,11 @@ already routed `metafieldsDelete` and the legacy compatibility
 this pass locks the product downstream read behavior with focused tests and
 keeps the TypeScript runtime intact under the incremental port guardrail.
 
-| Module                                                         | Change                                                                                                  |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Covers singular deletion, plural mixed hit/miss deletion, unknown-ID userErrors, downstream reads, and mutation-log staging. |
-| `.agents/skills/gleam-port/SKILL.md`                           | Notes that owner-scoped metafield delete roots live with custom-data/metafield-definition handling while sharing product metafield state. |
-| `GLEAM_PORT_LOG.md`                                            | Records HAR-519 evidence and the TypeScript retirement deferral.                                        |
+| Module                                                              | Change                                                                                                                                    |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Covers singular deletion, plural mixed hit/miss deletion, unknown-ID userErrors, downstream reads, and mutation-log staging.              |
+| `.agents/skills/gleam-port/SKILL.md`                                | Notes that owner-scoped metafield delete roots live with custom-data/metafield-definition handling while sharing product metafield state. |
+| `GLEAM_PORT_LOG.md`                                                 | Records HAR-519 evidence and the TypeScript retirement deferral.                                                                          |
 
 Validation:
 
@@ -135,6 +135,52 @@ Validation:
 
 - Final deletion of TypeScript localization runtime remains deferred until the
   whole-port cutover acceptance bar is met.
+
+---
+
+## 2026-05-01 - Pass 164: Admin Platform node coverage proof
+
+Addresses HAR-498 review feedback by adding the Gleam equivalent of the
+TypeScript Admin Platform Node coverage snapshot. The test now reads the
+captured Shopify `Node` interface introspection fixture, subtracts the
+Gleam-supported `node(id:)` / `nodes(ids:)` types, and snapshots the remaining
+unsupported implementors in executable Gleam coverage. The pass also wires
+primary `Domain` GIDs through the existing store-properties domain serializer so
+the supported list reflects actual local `node` behavior.
+
+| Module                                                           | Change                                                                                          |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`       | Exposes the supported Node type list and resolves primary `Domain` IDs through store state.     |
+| `gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam` | Adds the introspection-backed unsupported Node snapshot and focused Domain node readback.       |
+| `.agents/skills/gleam-port/SKILL.md`                             | Records the Admin Platform Node coverage pattern for future domain ports that add node support. |
+| `GLEAM_PORT_LOG.md`                                              | Records the HAR-498 review-feedback rework.                                                     |
+
+Validation: the TypeScript Vitest Node coverage test is green. Targeted
+`gleam test --target javascript admin_platform` is green at 773 tests, and the
+targeted Docker Erlang fallback is green at 769 tests. Full
+`gleam test --target javascript` is green at 773 tests. Host
+`gleam test --target erlang admin_platform` still reproduces the known local
+`undef` runner issue; the full established Docker Erlang fallback with
+`HOME=/tmp` is green at 769 tests. `corepack pnpm gleam:port:coverage` is green
+with 379 specs and 62 expected Gleam failures. `corepack pnpm
+gleam:registry:check`, `corepack pnpm lint`, and `git diff --check` are green.
+
+### Findings
+
+- The unsupported Node coverage proof belongs in Gleam tests, not only in the
+  TypeScript fixture snapshot, because the Gleam node dispatch table is smaller
+  while the incremental port is still in progress.
+- `Domain` is a Shopify `Node` implementor and can resolve safely through the
+  already-ported store-properties primary-domain serializer. Unsupported or
+  missing Domain IDs still return `null`.
+
+### Risks / open items
+
+- Many implemented singular roots from other ported domains still need owning
+  resource serializers before they can be removed from the unsupported Node
+  list; this pass records that truth instead of claiming support early.
+- TypeScript runtime deletion remains deferred to the final all-port cutover
+  under the Gleam port preservation rule.
 
 ---
 
