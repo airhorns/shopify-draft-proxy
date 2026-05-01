@@ -9,6 +9,48 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 116: draft-order detail read seeding
+
+Promotes the standalone draft-order detail read parity scenario in the Gleam
+runner. The Orders runtime already projects captured draft-order records through
+the `draftOrder(id:)` query path from Pass 115; this pass seeds the captured
+detail fixture into base state so the checked-in strict read contract can run
+without changing the request or fixture.
+
+| Module                            | Change                                                                                  |
+| --------------------------------- | --------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`  | Seeds `draft-order-detail-read` from `$.response.data.draftOrder` as a draft-order row. |
+| `config/gleam-port-ci-gates.json` | Removes the newly passing `draftOrder-read-parity-plan` Orders spec.                    |
+
+Validation:
+Full JavaScript is green at 724 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 specs and 166 expected Gleam parity failures. Orders now has 10
+executable/pass specs and 68 gated specs out of 78.
+
+### Findings
+
+- The captured detail read does not need bespoke field modeling yet; storing
+  the captured `DraftOrder` payload as `CapturedJsonValue` preserves the strict
+  selected-field contract.
+- Scenario-specific seeding is enough for standalone read parity; it should not
+  be generalized into broad draft-order fixture hydration until update,
+  complete, delete, invoice, and helper roots define their lifecycle needs.
+
+### Risks / open items
+
+- `draft-order-residual-helper-roots` and the draft-order lifecycle mutations
+  remain gated.
+- The broader order lifecycle, editing, fulfillment, refund, and return roots
+  remain unported.
+
+### Pass 117 candidates
+
+- Continue the draft-order cluster with validation branches for
+  `draftOrderComplete`, `draftOrderDelete`, or the residual helper roots only
+  when each branch has executable parity evidence.
+
+---
+
 ## 2026-05-01 - Pass 115: draft-order create/read parity seed
 
 Ports the first executable draft-order lifecycle slice in the Orders Gleam

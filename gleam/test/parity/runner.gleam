@@ -48,9 +48,9 @@ import shopify_draft_proxy/state/types.{
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord,
-  type DraftOrderVariantCatalogRecord, type GiftCardConfigurationRecord,
-  type GiftCardRecipientAttributesRecord, type GiftCardRecord,
-  type GiftCardTransactionRecord, type InventoryItemRecord,
+  type DraftOrderRecord, type DraftOrderVariantCatalogRecord,
+  type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
+  type GiftCardRecord, type GiftCardTransactionRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
   type InventoryWeightRecord, type LocationRecord, type MarketingRecord,
@@ -83,7 +83,7 @@ import shopify_draft_proxy/state/types.{
   CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
   CustomerEventSummaryRecord, CustomerMetafieldRecord,
   CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  DraftOrderVariantCatalogRecord, GiftCardConfigurationRecord,
+  DraftOrderRecord, DraftOrderVariantCatalogRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
   InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
   InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
@@ -256,6 +256,8 @@ fn seed_capture_preconditions(
     "customer-order-summary-read-effects" ->
       seed_customer_order_summary_preconditions(capture, proxy)
     "data-sale-opt-out-parity" -> seed_customer_preconditions(capture, proxy)
+    "draft-order-detail-read" ->
+      seed_draft_order_detail_preconditions(capture, proxy)
     "draft-order-create-live-parity" ->
       seed_draft_order_create_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
@@ -522,6 +524,33 @@ fn seed_draft_order_create_preconditions(
   let store =
     proxy.store |> store_mod.upsert_base_draft_order_variant_catalog(catalog)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_draft_order_detail_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.response.data.draftOrder") {
+    Some(source) ->
+      case make_seed_draft_order(source) {
+        Ok(record) -> {
+          let store =
+            proxy.store |> store_mod.upsert_base_draft_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn make_seed_draft_order(source: JsonValue) -> Result(DraftOrderRecord, Nil) {
+  use id <- result.try(required_gid(source, "id", "DraftOrder"))
+  Ok(DraftOrderRecord(
+    id: id,
+    cursor: None,
+    data: captured_json_from_parity(source),
+  ))
 }
 
 fn collect_draft_order_variant_catalog(

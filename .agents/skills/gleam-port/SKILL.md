@@ -431,6 +431,10 @@ synthetic-id/timestamp expected differences.
   line-item `variantTitle`, and nested `variant.sku`: default-title variants
   render `variantTitle` as null, line-item `sku` may be `""`, and nested
   variant `sku` may still be null.
+- Standalone draft-order read parity can seed `$.response.data.draftOrder` into
+  base draft-order state as captured JSON. Keep this scenario-specific until
+  the draft-order lifecycle roots prove which normalized fields and indexes are
+  truly needed.
 
 ## Workflow for a new pass
 
