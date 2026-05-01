@@ -449,6 +449,14 @@ synthetic-id/timestamp expected differences.
   selected page. Invalid `email:` search on `draftOrders`/`draftOrdersCount`
   returns Shopify search warning extensions while leaving the catalog
   unfiltered.
+- `draftOrderCreateFromOrder` can be ported narrowly before a general order
+  store exists by finding the source order embedded on a completed
+  `DraftOrderRecord`. Seed parity from the setup `draftOrderCreate` payload,
+  then overlay the setup `draftOrderComplete.order` so the source draft keeps
+  fields such as email while the embedded order carries line-item prices. The
+  new draft should reset to open/ready, clear shipping and discounts, allocate
+  fresh draft/draft-line-item IDs, and recalculate totals from order line-item
+  unit prices.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or

@@ -79,6 +79,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "abandonmentUpdateActivitiesDeliveryStatuses",
       "draftOrderComplete",
       "draftOrderCreate",
+      "draftOrderCreateFromOrder",
       "draftOrderDelete",
       "draftOrderDuplicate",
       "draftOrderBulkAddTags",
@@ -608,6 +609,45 @@ pub fn process_mutation(
         Field(name: name, ..) if name.value == "draftOrderCreate" -> {
           let result =
             handle_draft_order_create(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            next_ids,
+            next_errors,
+            next_drafts,
+          ) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, next_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              next_store,
+              next_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
+        Field(name: name, ..) if name.value == "draftOrderCreateFromOrder" -> {
+          let result =
+            handle_draft_order_create_from_order(
               current_store,
               current_identity,
               document,
@@ -2362,6 +2402,327 @@ fn handle_draft_order_create(
         _ -> #(key, json.null(), store, identity, [], [], [])
       }
     }
+  }
+}
+
+fn handle_draft_order_create_from_order(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "draftOrderCreateFromOrder",
+      [RequiredArgument(name: "orderId", expected_type: "ID!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      case read_string_arg(args, "orderId") {
+        Some(order_id) ->
+          case find_order_source_by_id(store, order_id) {
+            Some(source) -> {
+              let #(order, source_draft_order) = source
+              let #(draft_order, next_identity) =
+                build_draft_order_from_order(
+                  store,
+                  identity,
+                  order,
+                  source_draft_order,
+                )
+              let next_store = store.stage_draft_order(store, draft_order)
+              let payload =
+                serialize_draft_order_mutation_payload(
+                  field,
+                  Some(draft_order),
+                  [],
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  "draftOrderCreateFromOrder",
+                  [draft_order.id],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some(
+                    "Locally staged draftOrderCreateFromOrder in shopify-draft-proxy.",
+                  ),
+                )
+              #(key, payload, next_store, next_identity, [draft_order.id], [], [
+                draft,
+              ])
+            }
+            None -> {
+              let payload =
+                serialize_draft_order_mutation_payload(
+                  field,
+                  None,
+                  [#(["orderId"], "Order does not exist")],
+                  fragments,
+                )
+              #(key, payload, store, identity, [], [], [])
+            }
+          }
+        None -> #(key, json.null(), store, identity, [], [], [])
+      }
+    }
+  }
+}
+
+fn find_order_source_by_id(
+  store: Store,
+  order_id: String,
+) -> Option(#(CapturedJsonValue, DraftOrderRecord)) {
+  store.list_effective_draft_orders(store)
+  |> list.find_map(fn(draft_order) {
+    case captured_object_field(draft_order.data, "order") {
+      Some(order) ->
+        case captured_string_field(order, "id") {
+          Some(id) if id == order_id -> Ok(#(order, draft_order))
+          _ -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn build_draft_order_from_order(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  order: CapturedJsonValue,
+  source_draft_order: DraftOrderRecord,
+) -> #(DraftOrderRecord, SyntheticIdentityRegistry) {
+  let #(draft_order_id, identity_after_id) =
+    synthetic_identity.make_synthetic_gid(identity, "DraftOrder")
+  let #(created_at, identity_after_time) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let currency_code = captured_source_order_currency(order)
+  let #(line_items, next_identity) =
+    build_draft_order_line_items_from_order(
+      identity_after_time,
+      draft_order_line_items(order),
+      currency_code,
+    )
+  let subtotal =
+    line_items
+    |> list.fold(0.0, fn(sum, item) {
+      sum
+      +. captured_money_amount(item, "originalUnitPriceSet")
+      *. int.to_float(captured_int_field(item, "quantity") |> option.unwrap(0))
+    })
+  let data =
+    CapturedObject([
+      #("id", CapturedString(draft_order_id)),
+      #(
+        "name",
+        CapturedString(
+          "#D"
+          <> int.to_string(
+            list.length(store.list_effective_draft_orders(store)) + 1,
+          ),
+        ),
+      ),
+      #(
+        "invoiceUrl",
+        CapturedString(
+          "https://shopify-draft-proxy.local/draft_orders/"
+          <> draft_order_id
+          <> "/invoice",
+        ),
+      ),
+      #("status", CapturedString("OPEN")),
+      #("ready", CapturedBool(True)),
+      #("email", source_order_email(order, source_draft_order.data)),
+      #("note", captured_field_or_null(order, "note")),
+      #("tags", captured_field_or_empty_array(order, "tags")),
+      #("customer", source_order_customer(order, source_draft_order.data)),
+      #("taxExempt", CapturedBool(False)),
+      #("taxesIncluded", CapturedBool(False)),
+      #("reserveInventoryUntil", CapturedNull),
+      #("paymentTerms", CapturedNull),
+      #("appliedDiscount", CapturedNull),
+      #(
+        "customAttributes",
+        captured_field_or_empty_array(order, "customAttributes"),
+      ),
+      #("billingAddress", captured_field_or_null(order, "billingAddress")),
+      #("shippingAddress", captured_field_or_null(order, "shippingAddress")),
+      #("shippingLine", CapturedNull),
+      #("createdAt", CapturedString(created_at)),
+      #("updatedAt", CapturedString(created_at)),
+      #("subtotalPriceSet", money_set(subtotal, currency_code)),
+      #("totalDiscountsSet", money_set(0.0, currency_code)),
+      #("totalShippingPriceSet", money_set(0.0, currency_code)),
+      #("totalPriceSet", money_set(subtotal, currency_code)),
+      #("totalQuantityOfLineItems", CapturedInt(total_quantity(line_items))),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
+    ])
+  #(
+    DraftOrderRecord(id: draft_order_id, cursor: None, data: data),
+    next_identity,
+  )
+}
+
+fn build_draft_order_line_items_from_order(
+  identity: SyntheticIdentityRegistry,
+  line_items: List(CapturedJsonValue),
+  currency_code: String,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  let initial: #(List(CapturedJsonValue), SyntheticIdentityRegistry) = #(
+    [],
+    identity,
+  )
+  line_items
+  |> list.fold(initial, fn(acc, item) {
+    let #(items, current_identity) = acc
+    let #(id, next_identity) =
+      synthetic_identity.make_synthetic_gid(
+        current_identity,
+        "DraftOrderLineItem",
+      )
+    #(
+      list.append(items, [
+        build_draft_order_line_item_from_order(id, item, currency_code),
+      ]),
+      next_identity,
+    )
+  })
+}
+
+fn build_draft_order_line_item_from_order(
+  id: String,
+  item: CapturedJsonValue,
+  currency_code: String,
+) -> CapturedJsonValue {
+  let quantity = captured_int_field(item, "quantity") |> option.unwrap(0)
+  let original_unit_price =
+    captured_field_or_money(item, "originalUnitPriceSet", currency_code)
+  let original_total =
+    captured_money_value(original_unit_price) *. int.to_float(quantity)
+  CapturedObject([
+    #("id", CapturedString(id)),
+    #("title", captured_field_or_null(item, "title")),
+    #("name", captured_field_or_null(item, "title")),
+    #("quantity", CapturedInt(quantity)),
+    #("sku", nullable_empty_captured_string(item, "sku")),
+    #("variantTitle", nullable_default_title(item)),
+    #(
+      "variantId",
+      optional_captured_string(source_order_line_item_variant_id(item)),
+    ),
+    #("productId", CapturedNull),
+    #("custom", CapturedBool(source_order_line_item_custom(item))),
+    #("requiresShipping", CapturedBool(True)),
+    #("taxable", CapturedBool(True)),
+    #("customAttributes", CapturedArray([])),
+    #("appliedDiscount", CapturedNull),
+    #("originalUnitPriceSet", original_unit_price),
+    #("originalTotalSet", money_set(original_total, currency_code)),
+    #("discountedTotalSet", money_set(original_total, currency_code)),
+    #("totalDiscountSet", money_set(0.0, currency_code)),
+    #("variant", source_order_line_item_variant(item)),
+  ])
+}
+
+fn captured_source_order_currency(order: CapturedJsonValue) -> String {
+  captured_money_currency(order, "currentTotalPriceSet")
+  |> option.or(captured_money_currency(order, "totalPriceSet"))
+  |> option.or(captured_money_currency(order, "subtotalPriceSet"))
+  |> option.or(first_order_line_item_currency(order))
+  |> option.unwrap("CAD")
+}
+
+fn first_order_line_item_currency(order: CapturedJsonValue) -> Option(String) {
+  order
+  |> draft_order_line_items
+  |> list.find_map(fn(item) {
+    case captured_money_currency(item, "originalUnitPriceSet") {
+      Some(currency) -> Ok(currency)
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn source_order_email(
+  order: CapturedJsonValue,
+  source_draft_order: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case captured_string_field(order, "email") {
+    Some(email) -> CapturedString(email)
+    None ->
+      case captured_object_field(order, "customer") {
+        Some(customer) ->
+          case captured_string_field(customer, "email") {
+            Some(email) -> CapturedString(email)
+            None -> captured_field_or_null(source_draft_order, "email")
+          }
+        None -> captured_field_or_null(source_draft_order, "email")
+      }
+  }
+}
+
+fn source_order_customer(
+  order: CapturedJsonValue,
+  source_draft_order: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case captured_object_field(order, "customer") {
+    Some(customer) -> customer
+    None -> captured_field_or_null(source_draft_order, "customer")
+  }
+}
+
+fn source_order_line_item_variant_id(
+  item: CapturedJsonValue,
+) -> Option(String) {
+  case captured_object_field(item, "variant") {
+    Some(variant) -> captured_string_field(variant, "id")
+    None -> captured_string_field(item, "variantId")
+  }
+}
+
+fn source_order_line_item_custom(item: CapturedJsonValue) -> Bool {
+  case source_order_line_item_variant_id(item) {
+    Some(_) -> False
+    None -> True
+  }
+}
+
+fn source_order_line_item_variant(
+  item: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case captured_object_field(item, "variant") {
+    Some(variant) -> variant
+    None ->
+      case captured_string_field(item, "variantId") {
+        Some(id) ->
+          CapturedObject([
+            #("id", CapturedString(id)),
+            #("title", captured_field_or_null(item, "variantTitle")),
+            #("sku", nullable_empty_captured_string(item, "sku")),
+          ])
+        None -> CapturedNull
+      }
   }
 }
 

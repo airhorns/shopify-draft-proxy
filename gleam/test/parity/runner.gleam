@@ -263,6 +263,8 @@ fn seed_capture_preconditions(
       seed_draft_order_detail_preconditions(capture, proxy)
     "draft-order-create-live-parity" ->
       seed_draft_order_create_preconditions(capture, proxy)
+    "draft-order-create-from-order-live-parity" ->
+      seed_draft_order_create_from_order_preconditions(capture, proxy)
     "draft-order-complete-live-parity" ->
       seed_draft_order_complete_preconditions(capture, proxy)
     "draft-order-delete-live-parity" ->
@@ -744,6 +746,73 @@ fn seed_draft_order_complete_preconditions(
         Error(_) -> proxy
       }
     None -> proxy
+  }
+}
+
+fn seed_draft_order_create_from_order_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.draftOrderCreate.mutation.response.data.draftOrderCreate.draftOrder",
+    )
+  {
+    Some(source) ->
+      case make_seed_draft_order(source) {
+        Ok(record) -> {
+          let record = draft_order_with_create_from_order_setup(capture, record)
+          let store =
+            proxy.store |> store_mod.upsert_base_draft_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn draft_order_with_create_from_order_setup(
+  capture: JsonValue,
+  record: DraftOrderRecord,
+) -> DraftOrderRecord {
+  let complete_path =
+    "$.setup.draftOrderComplete.mutation.response.data.draftOrderComplete.draftOrder"
+  let data =
+    record.data
+    |> upsert_captured_json_field_from_path(
+      capture,
+      complete_path <> ".status",
+      "status",
+    )
+    |> upsert_captured_json_field_from_path(
+      capture,
+      complete_path <> ".completedAt",
+      "completedAt",
+    )
+    |> upsert_captured_json_field_from_path(
+      capture,
+      complete_path <> ".order",
+      "order",
+    )
+  DraftOrderRecord(..record, data: data)
+}
+
+fn upsert_captured_json_field_from_path(
+  value: CapturedJsonValue,
+  capture: JsonValue,
+  path: String,
+  name: String,
+) -> CapturedJsonValue {
+  case jsonpath.lookup(capture, path) {
+    Some(replacement) ->
+      upsert_captured_json_field(
+        value,
+        name,
+        captured_json_from_parity(replacement),
+      )
+    None -> value
   }
 }
 

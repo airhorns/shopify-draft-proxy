@@ -1578,6 +1578,149 @@ pub fn orders_draft_order_complete_read_after_write_test() {
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"COMPLETED\",\"completedAt\":\"2024-01-01T00:00:01.000Z\",\"order\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\"}}}}"
 }
 
+pub fn orders_draft_order_create_from_order_read_after_write_test() {
+  let create_mutation =
+    "
+    mutation {
+      draftOrderCreate(input: {
+        email: \"from-order-source@example.test\"
+        note: \"complete before cloning to draft\"
+        tags: [\"from-order\", \"source\"]
+        lineItems: [{
+          title: \"From order service\"
+          quantity: 2
+          originalUnitPrice: \"12.50\"
+          sku: \"FROM-ORDER\"
+        }]
+      }) {
+        draftOrder {
+          id
+        }
+      }
+    }
+  "
+  let assert Ok(create_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      create_mutation,
+      dict.new(),
+    )
+
+  let complete_mutation =
+    "
+    mutation DraftOrderComplete($id: ID!) {
+      draftOrderComplete(id: $id, sourceName: \"hermes-cron-orders\") {
+        draftOrder {
+          id
+          order {
+            id
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(complete_outcome) =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      complete_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+      ]),
+    )
+
+  let mutation =
+    "
+    mutation DraftOrderCreateFromOrder($orderId: ID!) {
+      draftOrderCreateFromOrder(orderId: $orderId) {
+        draftOrder {
+          id
+          name
+          status
+          ready
+          email
+          tags
+          subtotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          lineItems {
+            nodes {
+              id
+              title
+              quantity
+              sku
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      complete_outcome.store,
+      complete_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #("orderId", root_field.StringVal("gid://shopify/Order/3")),
+      ]),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"draftOrderCreateFromOrder\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/5\",\"name\":\"#D2\",\"status\":\"OPEN\",\"ready\":true,\"email\":\"from-order-source@example.test\",\"tags\":[\"from-order\",\"source\"],\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/DraftOrderLineItem/6\",\"title\":\"From order service\",\"quantity\":2,\"sku\":\"FROM-ORDER\"}]}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == ["gid://shopify/DraftOrder/5"]
+  assert list.length(outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query {
+      draftOrder(id: \"gid://shopify/DraftOrder/5\") {
+        id
+        email
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read_result) =
+    orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read_result)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/5\",\"email\":\"from-order-source@example.test\",\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}}}}"
+
+  let assert Ok(missing_outcome) =
+    orders.process_mutation(
+      outcome.store,
+      outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #("orderId", root_field.StringVal("gid://shopify/Order/404")),
+      ]),
+    )
+  assert json.to_string(missing_outcome.data)
+    == "{\"data\":{\"draftOrderCreateFromOrder\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\"}]}}}"
+}
+
 pub fn orders_draft_order_invoice_send_safety_validation_test() {
   let mutation =
     "

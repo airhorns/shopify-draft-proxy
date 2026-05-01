@@ -9,6 +9,63 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 131: draft order create from order
+
+Promotes the checked-in `draftOrderCreateFromOrder-parity-plan` scenario in
+the Gleam Orders domain. This pass adds local `draftOrderCreateFromOrder`
+dispatch, required `orderId` validation, source-order lookup through completed
+draft orders, and staged draft-order creation with fresh draft/line-item IDs and
+downstream `draftOrder(id:)` visibility.
+
+| Module                                                   | Change                                                                               |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrderCreateFromOrder` mutation handling from embedded completed orders.   |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured setup draft/order chain for create-from-order parity replay.      |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers local create-complete-createFromOrder read-after-write plus missing order id. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing create-from-order parity spec.                             |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (741 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (737 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 131 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured create-from-order setup can be replayed without a new broad
+  order store by seeding the completed draft order and finding its nested
+  `order` payload by id.
+- Shopify resets draft-order fields when creating from an order: the new draft
+  is open/ready, clears shipping and discounts, allocates fresh draft and
+  draft-line-item IDs, and recomputes totals from order line-item unit prices.
+- The captured completed-order payload carries line-item prices, while the
+  source draft carries the original email. The local builder keeps both pieces
+  together for this narrow slice.
+
+### Risks / open items
+
+- This does not introduce general `OrderRecord` state or standalone order
+  reads/search/counts; broader order lifecycle remains gated.
+- Fulfillment success paths, refunds, returns, and order editing remain
+  unported.
+
+### Pass 132 candidates
+
+- Start a narrow order no-data/read/count slice if it can be backed by existing
+  captured parity fixtures, or continue with the next draft-order-adjacent
+  order lifecycle fixture that does not require broad fulfillment state.
+
+---
+
 ## 2026-05-01 - Pass 130: draft order catalog/count reads
 
 Promotes the checked-in `draftOrders-read-parity-plan`,
