@@ -164,58 +164,33 @@ fn normalize_path(path: String) -> String {
 }
 
 fn wildcard_path_matches(pattern: String, path: String) -> Bool {
-  case string.split(pattern, on: "[*]") {
-    [prefix, suffix] ->
+  case string.split_once(pattern, "[*]") {
+    Ok(#(prefix, suffix_pattern)) ->
       string.starts_with(path, prefix)
-      && string.ends_with(path, suffix)
-      && wildcard_index_segment(path, prefix, suffix)
-    [prefix, middle, suffix] ->
-      string.starts_with(path, prefix)
-      && string.ends_with(path, suffix)
-      && double_wildcard_index_segments(path, prefix, middle, suffix)
-    _ -> False
+      && {
+        let rest = string.drop_start(path, string.length(prefix))
+        case consume_wildcard_index(rest) {
+          Some(suffix_path) ->
+            wildcard_path_matches(suffix_pattern, suffix_path)
+          None -> False
+        }
+      }
+    Error(_) -> pattern == path
   }
 }
 
-fn double_wildcard_index_segments(
-  path: String,
-  prefix: String,
-  middle: String,
-  suffix: String,
-) -> Bool {
-  let body_start = string.length(prefix)
-  let body_end = string.length(path) - string.length(suffix)
-  case body_end > body_start {
-    True -> {
-      let body = string.slice(path, body_start, body_end - body_start)
-      case string.split(body, on: middle) {
-        [left_index, right_index] ->
-          is_index_segment(left_index) && is_index_segment(right_index)
-        _ -> False
+fn consume_wildcard_index(path: String) -> Option(String) {
+  case path {
+    "[" <> tail -> {
+      let #(digits, after_digits) = take_digits(tail, "")
+      case digits, after_digits {
+        "", _ -> None
+        _, "]" <> suffix -> Some(suffix)
+        _, _ -> None
       }
     }
-    False -> False
+    _ -> None
   }
-}
-
-fn wildcard_index_segment(
-  path: String,
-  prefix: String,
-  suffix: String,
-) -> Bool {
-  let middle_start = string.length(prefix)
-  let middle_end = string.length(path) - string.length(suffix)
-  case middle_end > middle_start {
-    True -> {
-      let middle = string.slice(path, middle_start, middle_end - middle_start)
-      is_index_segment(middle)
-    }
-    False -> False
-  }
-}
-
-fn is_index_segment(value: String) -> Bool {
-  string.starts_with(value, "[") && string.ends_with(value, "]")
 }
 
 fn satisfies_matcher(

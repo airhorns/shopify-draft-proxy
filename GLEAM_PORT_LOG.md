@@ -4928,6 +4928,64 @@ Validation: `gleam test --target javascript` is green at 684 tests. The host
 
 ---
 
+## 2026-04-30 — Pass 44: B2B company lifecycle parity
+
+Ports the B2B Admin GraphQL domain into the Gleam runtime while preserving the
+TypeScript B2B runtime and tests for the incremental port. Companies, contacts,
+locations, roles, role assignments, address assignments, staff assignments, and
+tax settings now have normalized Gleam state, local mutation staging, downstream
+read-after-write behavior, Relay node coverage for B2B-owned records, and
+parity-runner fixture seeding for the checked-in B2B captures. Email-delivery
+behavior remains outside local B2B support rather than inventing local side
+effects.
+
+| Module                                                                   | Change                                                                                                                    |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/b2b.gleam`                          | Adds B2B query and mutation handling for company/contact/location/role lifecycle flows and relationship/tax updates.      |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam`  | Adds B2B normalized records, effective-state helpers, delete markers, and state dump buckets with empty restore defaults. |
+| `gleam/src/shopify_draft_proxy/proxy/{draft_proxy,admin_platform}.gleam` | Wires B2B query/mutation dispatch and B2B Relay node reads without broadening unsupported roots.                          |
+| `gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam`                    | Adds targeted Gleam coverage for B2B lifecycle mutations, downstream reads, and unsupported email-delivery boundaries.    |
+| `gleam/test/parity/{runner,diff,spec}.gleam`                             | Seeds B2B read fixtures and fixes nested wildcard diff matching needed by the B2B parity specs.                           |
+| `config/gleam-port-ci-gates.json`                                        | Removes the now-passing B2B specs, plus a stale passing localization spec, from expected Gleam parity failures.           |
+
+Validation: `gleam test --target javascript` was green at 681 tests. `gleam
+test --target erlang` was green at 677 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container because the host
+Erlang/OTP 25 installation is too old for the current `gleam_json`
+requirement. The direct B2B parity scenario report was green for all four B2B
+specs: `b2b-company-contact-main-delete`, `b2b-company-create-lifecycle`,
+`b2b-company-roots-read`, and `b2b-contact-location-assignments-tax`.
+`git diff --check` was also green.
+
+### Findings
+
+- The B2B read fixture has enough captured baseline data to seed root catalog
+  reads directly in the Gleam parity runner.
+- Nested wildcard expected-difference paths need to match more than one list
+  segment; the previous diff helper only handled the first wildcard cleanly.
+- The generated ticket text mentions deleting the TypeScript B2B runtime after
+  parity, but the port guardrail keeps TypeScript runtime and test coverage in
+  place until the final full-port cutover.
+
+### Risks / open items
+
+- B2B state restore currently defaults newly ported B2B buckets to empty when
+  older dumps omit them; a future snapshot compatibility pass can decode stored
+  B2B buckets once real Gleam-authored dumps need round-trip restore coverage.
+- Final TypeScript B2B runtime retirement remains a whole-port cutover concern,
+  not a per-domain pass action.
+
+### Pass 45 candidates
+
+- Port product-owned `metafieldDelete` / `metafieldsDelete` and their
+  hydrated/downstream deletion flows into Gleam.
+- Continue Store Properties locations and fulfillment/carrier-service lifecycle
+  roots, reusing the existing shop state slice.
+- Add `standardMetafieldDefinitionTemplates` catalog query support once a
+  captured template-catalog fixture exists.
+
+---
+
 ## 2026-04-30 — Pass 42: webhook parity evidence metadata with TS retained
 
 Records the completed Webhooks Gleam parity evidence in repository metadata
