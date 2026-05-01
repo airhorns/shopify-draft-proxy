@@ -9,20 +9,19 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-01 - Pass 164: HAR-496 payments branch discounts refresh
+## 2026-05-01 - Pass 165: HAR-496 payments branch media refresh
 
 Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
-Discounts lifecycle parity work. The merge keeps Payments and order-payment
-parity ungated while preserving mainline Discounts dispatch, store,
-serialization, and parity runner coverage.
+HAR-506 Media files and uploads refresh. The merge keeps Payments and
+order-payment parity ungated while preserving mainline Discounts and Media
+dispatch, store, serialization, and parity runner coverage.
 
-| Module                                                  | Change                                                                            |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/discounts.gleam`   | Brings in mainline Discounts lifecycle parity support.                            |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Payments dispatch alongside mainline Discounts and Orders dispatch.         |
-| `gleam/src/shopify_draft_proxy/state/*`                 | Combines mainline Discounts state with HAR-496 payment customization/terms state. |
-| `gleam/test/parity/runner.gleam`                        | Keeps payment precondition seeding alongside mainline discount fixture seeding.   |
-| `config/gleam-port-ci-gates.json`                       | Keeps Payments/order-payment and mainline Discounts paths ungated.                |
+| Module                                                  | Change                                                                                  |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Payments dispatch alongside mainline Discounts, Media, and Orders dispatch.       |
+| `gleam/src/shopify_draft_proxy/state/*`                 | Combines mainline Media/Discounts state with HAR-496 payment customization/terms state. |
+| `gleam/test/parity/runner.gleam`                        | Keeps payment precondition seeding alongside mainline media and discount seeding.       |
+| `config/gleam-port-ci-gates.json`                       | Keeps Payments/order-payment and mainline Media/Discounts paths ungated.                |
 
 Validation:
 
@@ -34,22 +33,56 @@ Validation:
 - `cd gleam && gleam test --target javascript -- --seed 0` (771 passed)
 - `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
   (767 passed)
-- `corepack pnpm gleam:port:coverage` (379 specs; 66 expected failures; passed)
+- `corepack pnpm gleam:port:coverage` (379 specs; 59 expected failures; passed)
 - Targeted expected-failure scan for payments/order-payment, finance-risk,
-  product grammar, Segments, and Discounts paths returned no matches.
+  product grammar, Segments, Discounts, and Media paths returned no matches.
 
 ### Findings
 
-- Mainline now owns the Discounts module, so this refresh preserves it and
+- Mainline now owns Media mutation routing, so this refresh preserves it and
   keeps the HAR-496 Payments dispatch, state, seed, and gate removals layered
   into the same dispatcher/store surface.
 - The dispatcher conflict resolves to the compact `first_matching_domain`
-  helpers while adding both Payments and Discounts roots.
+  helpers while keeping Payments, Discounts, Media, and Orders roots.
 
 ### Risks / open items
 
 - TypeScript Payments runtime deletion remains deferred under the incremental
   port preservation rule until final all-port cutover.
+
+---
+
+## 2026-05-01 - Pass 164: HAR-506 post-approval mainline refresh
+
+Refreshes the approved HAR-506 Media files and uploads branch after
+`origin/main` added the Discounts lifecycle port. The merge keeps the mainline
+Discounts dispatcher and state slices while preserving the HAR-506 Media
+dispatcher, file state slice, staged-upload behavior, and file-delete
+product-media seed.
+
+| Module                                                  | Change                                                                                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Media mutation routing alongside mainline Discounts, Bulk Operations, Admin Platform, Privacy, Orders, and Customers dispatch. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`       | Combines the Media `FileRecord` import with mainline Discount, Draft Order, abandonment, and store-property state imports.           |
+| `GLEAM_PORT_LOG.md`                                     | Records the post-approval mainline refresh evidence for HAR-506.                                                                     |
+
+Validation:
+JavaScript target is green at 771 tests. Docker Erlang target is green at 767
+tests. `corepack pnpm gleam:port:coverage`, `corepack pnpm
+gleam:registry:check`, `corepack pnpm lint`, and `git diff --check` are green.
+Gleam parity coverage now reports 379 checked-in specs and 68 expected failures.
+
+### Findings
+
+- The conflict was additive: Discounts from `main` and Media from HAR-506 both
+  remain explicitly routed locally.
+- The ticket's TypeScript media runtime retirement remains deferred under the
+  Gleam Port Guardrail until the final all-port cutover.
+
+### Risks / open items
+
+- TypeScript Media runtime retirement remains deferred to the final all-port
+  cutover acceptance bar.
 
 ---
 
