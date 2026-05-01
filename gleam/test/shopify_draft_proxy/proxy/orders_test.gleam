@@ -458,6 +458,122 @@ pub fn orders_order_edit_begin_existing_order_payload_test() {
   assert outcome.log_drafts == []
 }
 
+pub fn orders_order_edit_add_variant_payload_test() {
+  let product_id = "gid://shopify/Product/8397254426857"
+  let variant_id = "gid://shopify/ProductVariant/46789254021353"
+  let seeded =
+    store.new()
+    |> store.upsert_base_products([
+      types.ProductRecord(
+        id: product_id,
+        legacy_resource_id: None,
+        title: "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+        handle: "",
+        status: "ACTIVE",
+        vendor: None,
+        product_type: None,
+        tags: [],
+        total_inventory: None,
+        tracks_inventory: None,
+        created_at: None,
+        updated_at: None,
+        published_at: None,
+        description_html: "",
+        online_store_preview_url: None,
+        template_suffix: None,
+        seo: types.ProductSeoRecord(title: None, description: None),
+        category: None,
+        publication_ids: [],
+        contextual_pricing: None,
+        cursor: None,
+      ),
+    ])
+    |> store.upsert_base_product_variants([
+      types.ProductVariantRecord(
+        id: variant_id,
+        product_id: product_id,
+        title: "4 / burgandy",
+        sku: Some("VN-01-burgandy-4"),
+        barcode: None,
+        price: Some("29.00"),
+        compare_at_price: None,
+        taxable: None,
+        inventory_policy: None,
+        inventory_quantity: None,
+        selected_options: [],
+        media_ids: [],
+        inventory_item: None,
+        contextual_pricing: None,
+        cursor: None,
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderEditExistingWorkflowAddVariantPayload(
+      $id: ID!
+      $variantId: ID!
+      $quantity: Int!
+      $locationId: ID
+      $allowDuplicates: Boolean
+    ) {
+      orderEditAddVariant(
+        id: $id
+        variantId: $variantId
+        quantity: $quantity
+        locationId: $locationId
+        allowDuplicates: $allowDuplicates
+      ) {
+        calculatedLineItem {
+          id
+          title
+          quantity
+          currentQuantity
+          sku
+          variant {
+            id
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #("id", root_field.StringVal("gid://shopify/CalculatedOrder/10")),
+      #("variantId", root_field.StringVal(variant_id)),
+      #("quantity", root_field.IntVal(1)),
+      #(
+        "locationId",
+        root_field.StringVal("gid://shopify/Location/68509171945"),
+      ),
+      #("allowDuplicates", root_field.BoolVal(False)),
+    ])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedLineItem\":{\"id\":\"gid://shopify/CalculatedLineItem/1\",\"title\":\"VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE\",\"quantity\":1,\"currentQuantity\":1,\"sku\":\"VN-01-burgandy-4\",\"variant\":{\"id\":\"gid://shopify/ProductVariant/46789254021353\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"29.0\",\"currencyCode\":\"CAD\"}}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/10\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
 pub fn orders_draft_order_not_found_read_test() {
   let query =
     "

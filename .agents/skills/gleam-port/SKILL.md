@@ -609,6 +609,14 @@ synthetic-id/timestamp expected differences.
   shape. Do not treat this as calculated-order session lifecycle support until
   add-variant, set-quantity, commit, and downstream order effects persist
   through local state.
+- `orderEditAddVariant` can be promoted as a payload-only slice when the
+  parity spec compares just the stable `calculatedLineItem`, empty
+  `userErrors`, and `OrderEditSession` GID type. Seed the same `$.seedOrder`
+  begin precondition plus captured `seedProducts`; derive the session id from
+  the calculated-order id input; use product title, variant SKU/id, quantity,
+  and normalized variant price for the calculated line. Keep set/commit
+  persistence and downstream order effects gated until calculated-edit state is
+  modeled.
 
 ## Workflow for a new pass
 

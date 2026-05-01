@@ -239,7 +239,7 @@ fn seed_capture_preconditions(
     | "shop-policy-update-parity"
     | "admin-platform-store-property-node-reads" ->
       seed_shop_preconditions(capture, proxy)
-    "order-edit-begin-live-parity" ->
+    "order-edit-begin-live-parity" | "order-edit-add-variant-live-parity" ->
       seed_order_edit_existing_order_preconditions(capture, proxy)
     "localization-disable-clears-translations" ->
       seed_localization_disable_cleanup_preconditions(capture, proxy)

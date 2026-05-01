@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 147: order edit add variant parity
+
+Promotes the checked-in `orderEditAddVariant` existing-order parity scenario in
+the Gleam Orders domain. This pass reuses the captured begin-order fixture,
+seeds the captured product/variant catalog, and returns the stable calculated
+line-item payload locally without claiming set-quantity, commit, or persistent
+calculated-order lifecycle support.
+
+| Module                                                   | Change                                                          |
+| -------------------------------------------------------- | --------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `orderEditAddVariant` calculated-line payload support.     |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured order-edit source orders for add-variant parity. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers add-variant payload, product title, SKU, and price set.  |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `orderEditAddVariant` parity spec.    |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records order-edit add-variant porting notes.                   |
+
+Validation:
+
+- Reproduction with only `orderEditAddVariant-parity-plan.json` ungated failed
+  because `fromPrimaryProxyPath` could not resolve
+  `$.data.orderEditBegin.calculatedOrder.id` before the add-variant scenario
+  seeded `$.seedOrder`.
+- `cd gleam && gleam test --target javascript` (753 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (749 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 109 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The add-variant parity spec depends on the begin request only to provide a
+  calculated-order id; the strict comparison target is the stable
+  `calculatedLineItem`, empty `userErrors`, and an `OrderEditSession` GID type.
+- Captured `seedProducts` already provide the product title and variant SKU/
+  price. The local payload should prefer the product title over the variant
+  option title, matching Shopify's calculated add-line shape.
+- This is still a payload slice: it does not persist calculated edits or mutate
+  downstream order line items until set/commit lifecycle support lands.
+
+### Risks / open items
+
+- Order-edit set/commit sessions, direct order creation/delete, payment
+  transaction and mandate roots, fulfillment creation/fulfillment-order
+  workflows, and returns remain gated.
+
+### Pass 148 candidates
+
+- Continue order-edit by adding `orderEditSetQuantity`/`orderEditCommit`
+  calculated-edit persistence, or switch to another bounded existing-order,
+  payment, fulfillment, or return fixture if it can be modeled without partial
+  support.
+
+---
+
 ## 2026-05-01 - Pass 146: order edit begin parity
 
 Promotes the checked-in `orderEditBegin` existing-order parity scenario in the
