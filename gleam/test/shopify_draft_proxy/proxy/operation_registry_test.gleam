@@ -199,7 +199,15 @@ pub fn default_registry_marks_only_ported_roots_as_locally_dispatched_test() {
     operation_registry.find_entry(entries, Mutation, [
       Some("inventoryTransferEdit"),
     ])
-  assert !draft_proxy.registry_entry_has_local_dispatch(inventory_transfer_edit)
+  assert draft_proxy.registry_entry_has_local_dispatch(inventory_transfer_edit)
+
+  let assert Some(price_list_fixed_prices_add) =
+    operation_registry.find_entry(entries, Mutation, [
+      Some("priceListFixedPricesAdd"),
+    ])
+  assert !draft_proxy.registry_entry_has_local_dispatch(
+    price_list_fixed_prices_add,
+  )
 
   let assert Some(product_create) =
     operation_registry.find_entry(entries, Mutation, [Some("productCreate")])

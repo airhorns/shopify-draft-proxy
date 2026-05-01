@@ -813,6 +813,13 @@ broad synthetic-id/timestamp expected differences.
   as a raw captured array. `assignedFulfillmentOrders` is now local readback;
   use a different implemented-but-unported sentinel such as
   `fulfillmentService`.
+- Owner-scoped product metafield deletion roots are custom-data roots in the
+  Gleam port, even when their read-after-write effect is visible through
+  `product.metafield(...)` / `product.metafields(...)`. Keep
+  `metafieldsDelete` and the legacy compatibility `metafieldDelete` routed
+  through `metafield_definitions.gleam`, share the product metafield store
+  helpers, and prove product downstream reads with focused products runtime
+  tests plus the checked-in parity specs.
 - Admin Platform `node(id:)` / `nodes(ids:)` support needs its own
   introspection-backed Gleam coverage. When adding a new owning resource
   serializer to `admin_platform.gleam`, update
