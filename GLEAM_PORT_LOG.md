@@ -9,6 +9,55 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 152: order edit commit parity
+
+Promotes the captured existing-order order-edit commit scenarios in the Gleam
+Orders domain. This pass seeds the captured source order for all commit
+workflow specs, keeps calculated edit sessions as hidden staged-order JSON
+between `orderEditBegin`, `orderEditAddVariant` / `orderEditSetQuantity`, and
+`orderEditCommit`, and applies committed line-item current quantity effects to
+downstream `order(id:)` reads.
+
+| Module                                             | Change                                                  |
+| -------------------------------------------------- | ------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds order-edit session persistence and commit effects. |
+| `gleam/test/parity/runner.gleam`                   | Seeds existing-order commit workflow preconditions.     |
+| `config/gleam-port-ci-gates.json`                  | Removes the three newly passing order-edit specs.       |
+| `.agents/skills/gleam-port/SKILL.md`               | Records order-edit session bookkeeping notes.           |
+
+Validation:
+
+- Reproduction with the three order-edit commit specs ungated first failed
+  because the source order was not seeded for those scenario IDs; after seeding,
+  the remaining failure was the validation-only `orderEditCommit` null payload.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- The existing-order commit fixtures can share the already-ported begin/add/set
+  payload behavior. The missing domain behavior was durable calculated-session
+  state and applying that session back onto the original order at commit time.
+- Hidden staged-order JSON is sufficient for this slice and stays invisible to
+  selected order reads, matching the mandate-payment bookkeeping pattern from
+  Pass 151.
+- Shopify keeps historical `quantity` on existing line items after a zero
+  removal while changing `currentQuantity`; newly added calculated lines become
+  downstream order line items.
+
+### Risks / open items
+
+- Residual calculated edit roots for custom items, discounts, and shipping
+  lines remain gated.
+- Direct order delete success, fulfillment creation/fulfillment-order
+  workflows, and returns remain gated.
+
+### Pass 153 candidates
+
+- Continue with residual order-edit calculated edits, or switch to the returns
+  lifecycle slice.
+
+---
+
 ## 2026-05-01 - Pass 151: order payment lifecycle parity
 
 Promotes the checked-in local-runtime order payment parity scenarios in the

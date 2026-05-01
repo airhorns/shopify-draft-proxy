@@ -647,6 +647,14 @@ synthetic-id/timestamp expected differences.
   local-runtime fixtures. Store mandate idempotency records as hidden captured
   JSON on the staged order; selected order reads naturally ignore that
   bookkeeping.
+- Existing-order `orderEditCommit` parity persists calculated edit sessions as
+  hidden captured JSON on the staged order, not as a broad store slice. Begin
+  stages the session, add/set update it, and commit applies it back onto the
+  original order before removing the hidden session. Existing line items keep
+  historical `quantity` while `currentQuantity` changes; added calculated lines
+  become downstream order line items. Seed every commit workflow scenario ID in
+  the parity runner, because begin/add/set can otherwise fail before commit
+  behavior is exercised.
 
 ## Workflow for a new pass
 
