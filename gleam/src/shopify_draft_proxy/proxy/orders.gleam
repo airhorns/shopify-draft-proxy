@@ -121,6 +121,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "orderOpen",
       "orderUpdate",
       "refundCreate",
+      "removeFromReturn",
       "returnCancel",
       "returnClose",
       "returnCreate",
@@ -1754,6 +1755,7 @@ pub fn process_mutation(
           || name.value == "returnCancel"
           || name.value == "returnClose"
           || name.value == "returnReopen"
+          || name.value == "removeFromReturn"
         -> {
           let #(
             key,
@@ -4873,6 +4875,42 @@ fn handle_return_lifecycle_mutation(
         return_log_draft(root_name, staged_ids, user_errors),
       ])
     }
+    "removeFromReturn" -> {
+      let args = field_arguments(field, variables)
+      let result =
+        apply_remove_from_return(
+          store,
+          identity,
+          read_string(args, "returnId"),
+          read_object_list(args, "returnLineItems"),
+          read_object_list(args, "exchangeLineItems"),
+        )
+      let ReturnMutationResult(
+        order,
+        order_return,
+        next_store,
+        next_identity,
+        user_errors,
+      ) = result
+      let payload =
+        serialize_return_mutation_payload(
+          field,
+          order_return,
+          order,
+          user_errors,
+          fragments,
+        )
+      let staged_ids = case order_return {
+        Some(value) ->
+          captured_string_field(value, "id")
+          |> option.map(fn(id) { [id] })
+          |> option.unwrap([])
+        None -> []
+      }
+      #(key, payload, next_store, next_identity, staged_ids, [
+        return_log_draft(root_name, staged_ids, user_errors),
+      ])
+    }
     _ -> #(key, json.null(), store, identity, [], [])
   }
 }
@@ -5015,6 +5053,196 @@ fn apply_return_status_update(
         }
       }
   }
+}
+
+fn apply_remove_from_return(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  return_id: Option(String),
+  raw_return_line_items: List(Dict(String, root_field.ResolvedValue)),
+  raw_exchange_line_items: List(Dict(String, root_field.ResolvedValue)),
+) -> ReturnMutationResult {
+  case return_id {
+    None ->
+      ReturnMutationResult(None, None, store, identity, [
+        #(["returnId"], "Return does not exist."),
+      ])
+    Some(return_id) ->
+      case find_order_return(store, return_id) {
+        None ->
+          ReturnMutationResult(None, None, store, identity, [
+            #(["returnId"], "Return does not exist."),
+          ])
+        Some(match) -> {
+          let #(order, order_return) = match
+          case raw_return_line_items, raw_exchange_line_items {
+            [], [] ->
+              ReturnMutationResult(Some(order), None, store, identity, [
+                #(
+                  ["returnLineItems"],
+                  "Return line items or exchange line items are required.",
+                ),
+              ])
+            _, [_, ..] ->
+              ReturnMutationResult(Some(order), None, store, identity, [
+                #(
+                  ["exchangeLineItems"],
+                  "Exchange line item removal is not supported by the local return model yet.",
+                ),
+              ])
+            _, _ -> {
+              let #(next_line_items, user_errors) =
+                remove_return_line_items(
+                  order_return_line_items(order_return),
+                  raw_return_line_items,
+                )
+              case user_errors {
+                [_, ..] ->
+                  ReturnMutationResult(
+                    Some(order),
+                    None,
+                    store,
+                    identity,
+                    user_errors,
+                  )
+                [] -> {
+                  let updated_return =
+                    replace_captured_object_fields(order_return, [
+                      #(
+                        "totalQuantity",
+                        CapturedInt(total_return_quantity(next_line_items)),
+                      ),
+                      #("returnLineItems", CapturedArray(next_line_items)),
+                    ])
+                    |> sync_reverse_fulfillment_line_items(identity)
+                  let #(synced_return, next_identity) = updated_return
+                  let returns =
+                    order_returns(order.data)
+                    |> list.map(fn(candidate) {
+                      case
+                        captured_string_field(candidate, "id")
+                        == Some(return_id)
+                      {
+                        True -> synced_return
+                        False -> candidate
+                      }
+                    })
+                  let #(next_store, staged_identity, updated_order) =
+                    stage_order_with_returns(
+                      store,
+                      next_identity,
+                      order,
+                      returns,
+                    )
+                  ReturnMutationResult(
+                    Some(updated_order),
+                    Some(synced_return),
+                    next_store,
+                    staged_identity,
+                    [],
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+  }
+}
+
+fn remove_return_line_items(
+  existing_line_items: List(CapturedJsonValue),
+  raw_return_line_items: List(Dict(String, root_field.ResolvedValue)),
+) -> #(List(CapturedJsonValue), List(#(List(String), String))) {
+  raw_return_line_items
+  |> list.index_fold(#(existing_line_items, []), fn(acc, input, index) {
+    let #(line_items, user_errors) = acc
+    let line_item_id = read_string(input, "returnLineItemId")
+    let quantity = read_int(input, "quantity", 0)
+    let line_item =
+      line_item_id
+      |> option.then(fn(id) { find_return_line_item(line_items, id) })
+    case line_item_id, line_item {
+      None, _ -> #(
+        line_items,
+        list.append(user_errors, [
+          #(
+            ["returnLineItems", int.to_string(index), "returnLineItemId"],
+            "Return line item does not exist.",
+          ),
+        ]),
+      )
+      Some(_), None -> #(
+        line_items,
+        list.append(user_errors, [
+          #(
+            ["returnLineItems", int.to_string(index), "returnLineItemId"],
+            "Return line item does not exist.",
+          ),
+        ]),
+      )
+      Some(id), Some(line_item) -> {
+        let current_quantity =
+          captured_int_field(line_item, "quantity") |> option.unwrap(0)
+        let processed_quantity =
+          captured_int_field(line_item, "processedQuantity") |> option.unwrap(0)
+        let removable_quantity = current_quantity - processed_quantity
+        case quantity <= 0 || quantity > removable_quantity {
+          True -> #(
+            line_items,
+            list.append(user_errors, [
+              #(
+                ["returnLineItems", int.to_string(index), "quantity"],
+                "Quantity is not removable from return.",
+              ),
+            ]),
+          )
+          False -> #(
+            apply_return_line_item_removal(line_items, id, quantity),
+            user_errors,
+          )
+        }
+      }
+    }
+  })
+}
+
+fn find_return_line_item(
+  line_items: List(CapturedJsonValue),
+  id: String,
+) -> Option(CapturedJsonValue) {
+  line_items
+  |> list.find(fn(line_item) {
+    captured_string_field(line_item, "id") == Some(id)
+  })
+  |> option.from_result
+}
+
+fn apply_return_line_item_removal(
+  line_items: List(CapturedJsonValue),
+  id: String,
+  quantity: Int,
+) -> List(CapturedJsonValue) {
+  line_items
+  |> list.filter_map(fn(line_item) {
+    case captured_string_field(line_item, "id") == Some(id) {
+      False -> Ok(line_item)
+      True -> {
+        let current_quantity =
+          captured_int_field(line_item, "quantity") |> option.unwrap(0)
+        let next_quantity = current_quantity - quantity
+        case next_quantity <= 0 {
+          True -> Error(Nil)
+          False ->
+            Ok(
+              replace_captured_object_fields(line_item, [
+                #("quantity", CapturedInt(next_quantity)),
+              ]),
+            )
+        }
+      }
+    }
+  })
 }
 
 fn build_return_line_items(
@@ -5268,6 +5496,128 @@ fn build_reverse_fulfillment_order(
     ]),
     next_identity,
   )
+}
+
+fn sync_reverse_fulfillment_line_items(
+  order_return: CapturedJsonValue,
+  identity: SyntheticIdentityRegistry,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let reverse_orders = order_reverse_fulfillment_orders(order_return)
+  case reverse_orders {
+    [] -> #(order_return, identity)
+    _ -> {
+      let #(synced_reverse_orders, next_identity) =
+        reverse_orders
+        |> list.fold(#([], identity), fn(acc, reverse_order) {
+          let #(orders, current_identity) = acc
+          let #(line_items, line_identity) =
+            sync_reverse_fulfillment_order_line_items(
+              reverse_order,
+              order_return_line_items(order_return),
+              current_identity,
+            )
+          #(
+            list.append(orders, [
+              replace_captured_object_fields(reverse_order, [
+                #("lineItems", CapturedArray(line_items)),
+              ]),
+            ]),
+            line_identity,
+          )
+        })
+      #(
+        replace_captured_object_fields(order_return, [
+          #("reverseFulfillmentOrders", CapturedArray(synced_reverse_orders)),
+        ]),
+        next_identity,
+      )
+    }
+  }
+}
+
+fn sync_reverse_fulfillment_order_line_items(
+  reverse_order: CapturedJsonValue,
+  return_line_items: List(CapturedJsonValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  return_line_items
+  |> list.fold(#([], identity), fn(acc, return_line_item) {
+    let #(line_items, current_identity) = acc
+    let return_line_item_id = captured_string_field(return_line_item, "id")
+    let existing =
+      return_line_item_id
+      |> option.then(fn(id) {
+        reverse_fulfillment_order_line_items(reverse_order)
+        |> list.find(fn(line_item) {
+          captured_string_field(line_item, "returnLineItemId") == Some(id)
+        })
+        |> option.from_result
+      })
+    let #(id, next_identity) = case existing {
+      Some(line_item) -> #(
+        captured_string_field(line_item, "id") |> option.unwrap(""),
+        current_identity,
+      )
+      None ->
+        synthetic_identity.make_synthetic_gid(
+          current_identity,
+          "ReverseFulfillmentOrderLineItem",
+        )
+    }
+    let quantity =
+      captured_int_field(return_line_item, "quantity") |> option.unwrap(0)
+    let processed_quantity =
+      captured_int_field(return_line_item, "processedQuantity")
+      |> option.unwrap(0)
+    #(
+      list.append(line_items, [
+        CapturedObject([
+          #("id", CapturedString(id)),
+          #("returnLineItemId", captured_field_or_null(return_line_item, "id")),
+          #(
+            "fulfillmentLineItemId",
+            captured_field_or_null(return_line_item, "fulfillmentLineItemId"),
+          ),
+          #(
+            "lineItemId",
+            captured_field_or_null(return_line_item, "lineItemId"),
+          ),
+          #("title", captured_field_or_null(return_line_item, "title")),
+          #("totalQuantity", CapturedInt(quantity)),
+          #(
+            "remainingQuantity",
+            CapturedInt(int.max(0, quantity - processed_quantity)),
+          ),
+          #(
+            "disposedQuantity",
+            existing
+              |> option.then(fn(line_item) {
+                captured_int_field(line_item, "disposedQuantity")
+              })
+              |> option.unwrap(0)
+              |> CapturedInt,
+          ),
+          #(
+            "dispositionType",
+            existing
+              |> option.then(fn(line_item) {
+                captured_object_field(line_item, "dispositionType")
+              })
+              |> option.unwrap(CapturedNull),
+          ),
+          #(
+            "dispositionLocationId",
+            existing
+              |> option.then(fn(line_item) {
+                captured_object_field(line_item, "dispositionLocationId")
+              })
+              |> option.unwrap(CapturedNull),
+          ),
+        ]),
+      ]),
+      next_identity,
+    )
+  })
 }
 
 fn stage_order_with_returns(

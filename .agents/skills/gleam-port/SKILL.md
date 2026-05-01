@@ -672,6 +672,12 @@ synthetic-id/timestamp expected differences.
   return IDs depend on mutation-log synthetic-id consumption between requests.
   Preserve timestamp order from the TypeScript runtime: `returnClose.closedAt`
   is minted before the enclosing order `updatedAt`.
+- `removeFromReturn` mutates the same order-backed return JSON. Remove or
+  decrement return line items first, recompute `totalQuantity`, then resync
+  every reverse fulfillment order's line-item array from the remaining return
+  line items. Preserve existing reverse fulfillment line IDs when the
+  corresponding return line remains; only mint a new reverse line ID if a
+  future fixture introduces a retained return line that lacks a reverse line.
 
 ## Workflow for a new pass
 

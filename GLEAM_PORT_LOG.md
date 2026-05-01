@@ -9,6 +9,47 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 155: remove from return staging
+
+Promotes the local-runtime `removeFromReturn` scenario in the Gleam Orders
+domain. This pass extends the order-backed return model from Pass 154 with
+line-item removal, return quantity recomputation, and reverse fulfillment order
+line recomputation without runtime upstream passthrough.
+
+| Module                                             | Change                                             |
+| -------------------------------------------------- | -------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds `removeFromReturn` mutation staging.          |
+| `config/gleam-port-ci-gates.json`                  | Removes the newly passing remove-from-return spec. |
+| `.agents/skills/gleam-port/SKILL.md`               | Records return-removal staging notes.              |
+
+Validation:
+
+- Reproduction with `removeFromReturn-local-staging` ungated first failed at
+  missing local dispatcher support for `removeFromReturn`.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- `removeFromReturn` should not mint replacement reverse fulfillment order line
+  IDs when matching existing lines remain; it preserves existing reverse line
+  identity and only drops lines whose return line item was removed.
+- Reverse fulfillment order line nodes are derived from current return line
+  items, so successful removal must update both `returnLineItems` and every
+  reverse fulfillment order's `lineItems` array before staging the order.
+
+### Risks / open items
+
+- Request-decline and reverse-logistics return roots remain gated.
+- Direct order delete success and broader fulfillment creation workflows remain
+  outside the promoted parity set.
+
+### Pass 156 candidates
+
+- Port `return-request-decline-local-staging`, then use the same return-backed
+  serializers for reverse-logistics roots.
+
+---
+
 ## 2026-05-01 - Pass 154: return lifecycle staging
 
 Promotes the local-runtime return lifecycle scenario in the Gleam Orders
