@@ -655,6 +655,14 @@ synthetic-id/timestamp expected differences.
   become downstream order line items. Seed every commit workflow scenario ID in
   the parity runner, because begin/add/set can otherwise fail before commit
   behavior is exercised.
+- Residual order-edit calculated roots (`orderEditAddCustomItem`,
+  `orderEditAddLineItemDiscount`, `orderEditRemoveDiscount`,
+  `orderEditAddShippingLine`, `orderEditUpdateShippingLine`,
+  `orderEditRemoveShippingLine`) also reuse hidden staged-order session JSON.
+  Keep the claimed behavior to pre-commit calculated-order state unless a spec
+  proves downstream commit effects for those root families. Recalculate
+  selected totals from session line items, discounts, and shipping lines; the
+  residual spec excludes Shopify-allocated calculated ids.
 
 ## Workflow for a new pass
 

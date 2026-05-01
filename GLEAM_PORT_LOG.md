@@ -9,6 +9,50 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 153: residual order edit calculated edits
+
+Promotes the captured residual calculated-order edit scenario in the Gleam
+Orders domain. This pass wires the local residual edit roots for custom items,
+line-item discount add/remove, and shipping line add/update/remove into the
+same hidden calculated-session state introduced for order-edit commit.
+
+| Module                                             | Change                                              |
+| -------------------------------------------------- | --------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds residual calculated edit mutation handling.    |
+| `gleam/test/parity/runner.gleam`                   | Seeds the residual edit source order precondition.  |
+| `config/gleam-port-ci-gates.json`                  | Removes the newly passing residual order-edit spec. |
+| `.agents/skills/gleam-port/SKILL.md`               | Records residual calculated-session notes.          |
+
+Validation:
+
+- Reproduction with the residual order-edit spec ungated first failed because
+  the source order was not seeded for that scenario ID; after seeding, the
+  next failure was no local dispatcher for `orderEditAddCustomItem`.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- The residual workflow only needs pre-commit calculated-order state, so it can
+  reuse hidden session bookkeeping without widening commit behavior beyond the
+  already-promoted add-variant and zero-removal workflows.
+- Shopify's stable comparison fields are totals, quantities, discount
+  allocation payloads, and shipping-line status/price/title; synthetic
+  calculated ids remain opaque and are excluded by the spec.
+
+### Risks / open items
+
+- Returns remain gated and are the last Orders parity group still blocked in
+  the Gleam gate.
+- Direct order delete success and broader fulfillment creation workflows remain
+  outside the promoted parity set.
+
+### Pass 154 candidates
+
+- Begin the return lifecycle slice, starting with `returnCreate` and return
+  status transitions before reverse logistics.
+
+---
+
 ## 2026-05-01 - Pass 152: order edit commit parity
 
 Promotes the captured existing-order order-edit commit scenarios in the Gleam

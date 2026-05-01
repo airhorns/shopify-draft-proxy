@@ -105,10 +105,16 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "orderCreate",
       "orderCreateMandatePayment",
       "orderCreateManualPayment",
+      "orderEditAddCustomItem",
+      "orderEditAddLineItemDiscount",
+      "orderEditAddShippingLine",
       "orderEditAddVariant",
       "orderEditBegin",
       "orderEditCommit",
+      "orderEditRemoveDiscount",
+      "orderEditRemoveShippingLine",
       "orderEditSetQuantity",
+      "orderEditUpdateShippingLine",
       "orderInvoiceSend",
       "orderMarkAsPaid",
       "orderOpen",
@@ -1678,6 +1684,32 @@ pub fn process_mutation(
               drafts,
             )
           }
+        }
+        Field(name: name, ..)
+          if name.value == "orderEditAddCustomItem"
+          || name.value == "orderEditAddLineItemDiscount"
+          || name.value == "orderEditRemoveDiscount"
+          || name.value == "orderEditAddShippingLine"
+          || name.value == "orderEditUpdateShippingLine"
+          || name.value == "orderEditRemoveShippingLine"
+        -> {
+          let #(key, payload, next_store, next_identity) =
+            handle_order_edit_residual_mutation(
+              current_store,
+              current_identity,
+              name.value,
+              field,
+              fragments,
+              variables,
+            )
+          #(
+            list.append(entries, [#(key, payload)]),
+            errors,
+            next_store,
+            next_identity,
+            ids,
+            drafts,
+          )
         }
         Field(name: name, ..)
           if name.value == "orderCreateManualPayment"
@@ -4586,6 +4618,346 @@ fn handle_order_edit_commit_mutation(
   }
 }
 
+fn handle_order_edit_residual_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_arguments(field, variables)
+  case find_order_edit_session(store, read_string(args, "id")) {
+    None -> #(key, json.null(), store, identity)
+    Some(match) -> {
+      let #(order, session) = match
+      case root_name {
+        "orderEditAddCustomItem" ->
+          order_edit_add_custom_item(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            order,
+            session,
+            args,
+          )
+        "orderEditAddLineItemDiscount" ->
+          order_edit_add_line_item_discount(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            order,
+            session,
+            args,
+          )
+        "orderEditRemoveDiscount" ->
+          order_edit_remove_discount(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            order,
+            session,
+            args,
+          )
+        "orderEditAddShippingLine" ->
+          order_edit_add_shipping_line(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            order,
+            session,
+            args,
+          )
+        "orderEditUpdateShippingLine" ->
+          order_edit_update_shipping_line(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            order,
+            session,
+            args,
+          )
+        "orderEditRemoveShippingLine" ->
+          order_edit_remove_shipping_line(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            order,
+            session,
+            args,
+          )
+        _ -> #(key, json.null(), store, identity)
+      }
+    }
+  }
+}
+
+fn order_edit_add_custom_item(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  order: OrderRecord,
+  session: CapturedJsonValue,
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, Store, SyntheticIdentityRegistry) {
+  let #(line_item, next_identity) =
+    build_order_edit_custom_line_item(identity, args)
+  let line_items =
+    list.append(order_edit_session_line_items(session), [line_item])
+  let added_line_items =
+    list.append(order_edit_session_added_line_items(session), [line_item])
+  let updated_session =
+    replace_captured_object_fields(session, [
+      #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
+      #(
+        "addedLineItems",
+        CapturedObject([#("nodes", CapturedArray(added_line_items))]),
+      ),
+    ])
+  let #(next_store, calculated_order) =
+    stage_updated_order_edit_session(store, order, updated_session)
+  let payload =
+    serialize_order_edit_residual_payload(
+      field,
+      Some(calculated_order),
+      Some(line_item),
+      None,
+      None,
+      fragments,
+    )
+  #(key, payload, next_store, next_identity)
+}
+
+fn order_edit_add_line_item_discount(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  order: OrderRecord,
+  session: CapturedJsonValue,
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, Store, SyntheticIdentityRegistry) {
+  let line_item_id = read_string(args, "lineItemId")
+  let discount = read_object(args, "discount") |> option.unwrap(dict.new())
+  let description = read_string(discount, "description") |> option.unwrap("")
+  let fixed_value =
+    read_object(discount, "fixedValue") |> option.unwrap(discount)
+  let discount_amount = read_number(fixed_value, "amount") |> option.unwrap(0.0)
+  let currency_code =
+    read_string(fixed_value, "currencyCode") |> option.unwrap("CAD")
+  let #(staged_change_id, identity_after_change) =
+    synthetic_identity.make_synthetic_gid(
+      identity,
+      "OrderStagedChangeAddLineItemDiscount",
+    )
+  let #(discount_application_id, next_identity) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_change,
+      "CalculatedManualDiscountApplication",
+    )
+  let staged_change =
+    CapturedObject([
+      #("id", CapturedString(staged_change_id)),
+      #("description", CapturedString(description)),
+    ])
+  let line_items =
+    order_edit_session_line_items(session)
+    |> list.map(fn(line_item) {
+      case captured_string_field(line_item, "id") == line_item_id {
+        True ->
+          apply_order_edit_line_discount(
+            line_item,
+            discount_amount,
+            currency_code,
+            description,
+            discount_application_id,
+          )
+        False -> line_item
+      }
+    })
+  let updated_session =
+    replace_captured_object_fields(session, [
+      #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
+    ])
+  let #(next_store, calculated_order) =
+    stage_updated_order_edit_session(store, order, updated_session)
+  let calculated_line_item =
+    line_item_id
+    |> option.then(fn(id) { find_calculated_line_item(line_items, id) })
+  let payload =
+    serialize_order_edit_residual_payload(
+      field,
+      Some(calculated_order),
+      calculated_line_item,
+      None,
+      Some(staged_change),
+      fragments,
+    )
+  #(key, payload, next_store, next_identity)
+}
+
+fn order_edit_remove_discount(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  order: OrderRecord,
+  session: CapturedJsonValue,
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, Store, SyntheticIdentityRegistry) {
+  let discount_application_id = read_string(args, "discountApplicationId")
+  let line_items =
+    order_edit_session_line_items(session)
+    |> list.map(fn(line_item) {
+      case
+        order_edit_line_item_has_discount(line_item, discount_application_id)
+      {
+        True -> remove_order_edit_line_discount(line_item)
+        False -> line_item
+      }
+    })
+  let updated_session =
+    replace_captured_object_fields(session, [
+      #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
+    ])
+  let #(next_store, calculated_order) =
+    stage_updated_order_edit_session(store, order, updated_session)
+  let payload =
+    serialize_order_edit_residual_payload(
+      field,
+      Some(calculated_order),
+      None,
+      None,
+      None,
+      fragments,
+    )
+  #(key, payload, next_store, identity)
+}
+
+fn order_edit_add_shipping_line(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  order: OrderRecord,
+  session: CapturedJsonValue,
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, Store, SyntheticIdentityRegistry) {
+  let shipping_input =
+    read_object(args, "shippingLine") |> option.unwrap(dict.new())
+  let #(shipping_line, next_identity) =
+    build_order_edit_shipping_line(identity, shipping_input, "ADDED")
+  let shipping_lines =
+    list.append(order_edit_session_shipping_lines(session), [shipping_line])
+  let updated_session =
+    replace_captured_object_fields(session, [
+      #("shippingLines", CapturedArray(shipping_lines)),
+    ])
+  let #(next_store, calculated_order) =
+    stage_updated_order_edit_session(store, order, updated_session)
+  let payload =
+    serialize_order_edit_residual_payload(
+      field,
+      Some(calculated_order),
+      None,
+      Some(shipping_line),
+      None,
+      fragments,
+    )
+  #(key, payload, next_store, next_identity)
+}
+
+fn order_edit_update_shipping_line(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  order: OrderRecord,
+  session: CapturedJsonValue,
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, Store, SyntheticIdentityRegistry) {
+  let shipping_line_id = read_string(args, "shippingLineId")
+  let shipping_input =
+    read_object(args, "shippingLine") |> option.unwrap(dict.new())
+  let shipping_lines =
+    order_edit_session_shipping_lines(session)
+    |> list.map(fn(shipping_line) {
+      case captured_string_field(shipping_line, "id") == shipping_line_id {
+        True -> update_order_edit_shipping_line(shipping_line, shipping_input)
+        False -> shipping_line
+      }
+    })
+  let updated_session =
+    replace_captured_object_fields(session, [
+      #("shippingLines", CapturedArray(shipping_lines)),
+    ])
+  let #(next_store, calculated_order) =
+    stage_updated_order_edit_session(store, order, updated_session)
+  let payload =
+    serialize_order_edit_residual_payload(
+      field,
+      Some(calculated_order),
+      None,
+      None,
+      None,
+      fragments,
+    )
+  #(key, payload, next_store, identity)
+}
+
+fn order_edit_remove_shipping_line(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  order: OrderRecord,
+  session: CapturedJsonValue,
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, Store, SyntheticIdentityRegistry) {
+  let shipping_line_id = read_string(args, "shippingLineId")
+  let shipping_lines =
+    order_edit_session_shipping_lines(session)
+    |> list.filter(fn(shipping_line) {
+      captured_string_field(shipping_line, "id") != shipping_line_id
+    })
+  let updated_session =
+    replace_captured_object_fields(session, [
+      #("shippingLines", CapturedArray(shipping_lines)),
+    ])
+  let #(next_store, calculated_order) =
+    stage_updated_order_edit_session(store, order, updated_session)
+  let payload =
+    serialize_order_edit_residual_payload(
+      field,
+      Some(calculated_order),
+      None,
+      None,
+      None,
+      fragments,
+    )
+  #(key, payload, next_store, identity)
+}
+
 fn build_calculated_order_from_order(
   order: OrderRecord,
   identity: SyntheticIdentityRegistry,
@@ -4597,6 +4969,7 @@ fn build_calculated_order_from_order(
       order_line_items(order.data),
       identity_after_order,
     )
+  let subtotal = order_edit_line_items_total(line_items)
   #(
     CapturedObject([
       #("id", CapturedString(id)),
@@ -4612,6 +4985,13 @@ fn build_calculated_order_from_order(
       ),
       #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
       #("addedLineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+      #("shippingLines", CapturedArray(order_edit_shipping_lines(order))),
+      #(
+        "subtotalLineItemsQuantity",
+        CapturedInt(order_edit_line_items_quantity(line_items)),
+      ),
+      #("subtotalPriceSet", money_set(subtotal, "CAD")),
+      #("totalPriceSet", money_set(subtotal, "CAD")),
     ]),
     next_identity,
   )
@@ -4645,6 +5025,11 @@ fn order_edit_session_record(
       "addedLineItems",
       captured_object_field(calculated_order, "addedLineItems")
         |> option.unwrap(CapturedObject([#("nodes", CapturedArray([]))])),
+    ),
+    #(
+      "shippingLines",
+      captured_object_field(calculated_order, "shippingLines")
+        |> option.unwrap(CapturedArray([])),
     ),
   ])
 }
@@ -4758,6 +5143,212 @@ fn order_edit_session_added_line_items(
   }
 }
 
+fn order_edit_session_shipping_lines(
+  session: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(session, "shippingLines") {
+    Some(CapturedArray(values)) -> values
+    _ -> []
+  }
+}
+
+fn stage_updated_order_edit_session(
+  store: Store,
+  order: OrderRecord,
+  session: CapturedJsonValue,
+) -> #(Store, CapturedJsonValue) {
+  let updated_order = upsert_order_edit_session(order, session)
+  #(
+    store.stage_order(store, updated_order),
+    calculated_order_from_session(session, updated_order),
+  )
+}
+
+fn build_order_edit_custom_line_item(
+  identity: SyntheticIdentityRegistry,
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(id, next_identity) =
+    synthetic_identity.make_synthetic_gid(identity, "CalculatedLineItem")
+  let price = read_object(args, "price") |> option.unwrap(dict.new())
+  let amount = read_number(price, "amount") |> option.unwrap(0.0)
+  let currency_code = read_string(price, "currencyCode") |> option.unwrap("CAD")
+  let quantity = read_int(args, "quantity", 1)
+  #(
+    CapturedObject([
+      #("id", CapturedString(id)),
+      #("title", optional_captured_string(read_string(args, "title"))),
+      #("quantity", CapturedInt(quantity)),
+      #("currentQuantity", CapturedInt(quantity)),
+      #("sku", CapturedNull),
+      #("variant", CapturedNull),
+      #("originalUnitPriceSet", money_set(amount, currency_code)),
+      #("discountedUnitPriceSet", money_set(amount, currency_code)),
+    ]),
+    next_identity,
+  )
+}
+
+fn apply_order_edit_line_discount(
+  line_item: CapturedJsonValue,
+  discount_amount: Float,
+  currency_code: String,
+  description: String,
+  discount_application_id: String,
+) -> CapturedJsonValue {
+  let quantity = captured_int_field(line_item, "quantity") |> option.unwrap(1)
+  let original = captured_money_amount(line_item, "originalUnitPriceSet")
+  let discounted = max_float(0.0, original -. discount_amount)
+  let allocated = discount_amount *. int.to_float(quantity)
+  replace_captured_object_fields(line_item, [
+    #("hasStagedLineItemDiscount", CapturedBool(True)),
+    #("discountedUnitPriceSet", money_set(discounted, currency_code)),
+    #(
+      "calculatedDiscountAllocations",
+      CapturedArray([
+        CapturedObject([
+          #("allocatedAmountSet", money_set(allocated, currency_code)),
+          #(
+            "discountApplication",
+            CapturedObject([
+              #("id", CapturedString(discount_application_id)),
+              #("description", CapturedString(description)),
+            ]),
+          ),
+        ]),
+      ]),
+    ),
+  ])
+}
+
+fn remove_order_edit_line_discount(
+  line_item: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let original =
+    captured_object_field(line_item, "originalUnitPriceSet")
+    |> option.unwrap(money_set(0.0, "CAD"))
+  replace_captured_object_fields(line_item, [
+    #("hasStagedLineItemDiscount", CapturedBool(False)),
+    #("calculatedDiscountAllocations", CapturedArray([])),
+    #("discountedUnitPriceSet", original),
+  ])
+}
+
+fn order_edit_line_item_has_discount(
+  line_item: CapturedJsonValue,
+  discount_application_id: Option(String),
+) -> Bool {
+  case discount_application_id {
+    None -> False
+    Some(id) ->
+      case captured_object_field(line_item, "calculatedDiscountAllocations") {
+        Some(CapturedArray(allocations)) ->
+          allocations
+          |> list.any(fn(allocation) {
+            captured_object_field(allocation, "discountApplication")
+            |> option.then(fn(application) {
+              captured_string_field(application, "id")
+            })
+            == Some(id)
+          })
+        _ -> False
+      }
+  }
+}
+
+fn find_calculated_line_item(
+  line_items: List(CapturedJsonValue),
+  id: String,
+) -> Option(CapturedJsonValue) {
+  line_items
+  |> list.find(fn(line_item) {
+    captured_string_field(line_item, "id") == Some(id)
+  })
+  |> option.from_result
+}
+
+fn build_order_edit_shipping_line(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+  staged_status: String,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(id, next_identity) =
+    synthetic_identity.make_synthetic_gid(identity, "CalculatedShippingLine")
+  let price = read_object(input, "price") |> option.unwrap(dict.new())
+  let amount = read_number(price, "amount") |> option.unwrap(0.0)
+  let currency_code = read_string(price, "currencyCode") |> option.unwrap("CAD")
+  #(
+    CapturedObject([
+      #("id", CapturedString(id)),
+      #("title", optional_captured_string(read_string(input, "title"))),
+      #("stagedStatus", CapturedString(staged_status)),
+      #("price", money_set(amount, currency_code)),
+    ]),
+    next_identity,
+  )
+}
+
+fn update_order_edit_shipping_line(
+  shipping_line: CapturedJsonValue,
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  let price = read_object(input, "price") |> option.unwrap(dict.new())
+  let amount = read_number(price, "amount") |> option.unwrap(0.0)
+  let currency_code = read_string(price, "currencyCode") |> option.unwrap("CAD")
+  replace_captured_object_fields(shipping_line, [
+    #("title", optional_captured_string(read_string(input, "title"))),
+    #("price", money_set(amount, currency_code)),
+  ])
+}
+
+fn order_edit_shipping_lines(order: OrderRecord) -> List(CapturedJsonValue) {
+  case captured_object_field(order.data, "shippingLines") {
+    Some(CapturedObject(fields)) ->
+      dict.from_list(fields)
+      |> dict.get("nodes")
+      |> result.unwrap(CapturedArray([]))
+      |> captured_array_values
+    Some(CapturedArray(items)) -> items
+    _ -> []
+  }
+}
+
+fn captured_array_values(value: CapturedJsonValue) -> List(CapturedJsonValue) {
+  case value {
+    CapturedArray(values) -> values
+    _ -> []
+  }
+}
+
+fn order_edit_line_items_quantity(line_items: List(CapturedJsonValue)) -> Int {
+  line_items
+  |> list.fold(0, fn(sum, line_item) {
+    let quantity = captured_int_field(line_item, "quantity") |> option.unwrap(0)
+    sum + quantity
+  })
+}
+
+fn order_edit_line_items_total(line_items: List(CapturedJsonValue)) -> Float {
+  line_items
+  |> list.fold(0.0, fn(sum, line_item) {
+    let quantity = captured_int_field(line_item, "quantity") |> option.unwrap(0)
+    let unit =
+      captured_object_field(line_item, "discountedUnitPriceSet")
+      |> option.map(captured_money_value)
+      |> option.unwrap(captured_money_amount(line_item, "originalUnitPriceSet"))
+    sum +. unit *. int.to_float(quantity)
+  })
+}
+
+fn order_edit_shipping_lines_total(
+  shipping_lines: List(CapturedJsonValue),
+) -> Float {
+  shipping_lines
+  |> list.fold(0.0, fn(sum, shipping_line) {
+    sum +. captured_money_amount(shipping_line, "price")
+  })
+}
+
 fn update_order_edit_session_with_line_item(
   store: Store,
   calculated_order_id: Option(String),
@@ -4837,6 +5428,10 @@ fn calculated_order_from_session(
   session: CapturedJsonValue,
   order: OrderRecord,
 ) -> CapturedJsonValue {
+  let line_items = order_edit_session_line_items(session)
+  let shipping_lines = order_edit_session_shipping_lines(session)
+  let subtotal = order_edit_line_items_total(line_items)
+  let shipping_total = order_edit_shipping_lines_total(shipping_lines)
   CapturedObject([
     #("id", captured_field_or_null(session, "id")),
     #(
@@ -4856,6 +5451,13 @@ fn calculated_order_from_session(
       captured_object_field(session, "addedLineItems")
         |> option.unwrap(CapturedObject([#("nodes", CapturedArray([]))])),
     ),
+    #("shippingLines", CapturedArray(shipping_lines)),
+    #(
+      "subtotalLineItemsQuantity",
+      CapturedInt(order_edit_line_items_quantity(line_items)),
+    ),
+    #("subtotalPriceSet", money_set(subtotal, "CAD")),
+    #("totalPriceSet", money_set(subtotal +. shipping_total, "CAD")),
   ])
 }
 
@@ -5234,6 +5836,53 @@ fn serialize_order_edit_commit_payload(
             "successMessages" -> #(
               key,
               json.array(["Order updated"], json.string),
+            )
+            "userErrors" -> #(key, json.array([], fn(error) { error }))
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_order_edit_residual_payload(
+  field: Selection,
+  calculated_order: Option(CapturedJsonValue),
+  calculated_line_item: Option(CapturedJsonValue),
+  calculated_shipping_line: Option(CapturedJsonValue),
+  staged_change: Option(CapturedJsonValue),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "calculatedOrder" -> #(
+              key,
+              serialize_captured_selection(child, calculated_order, fragments),
+            )
+            "calculatedLineItem" -> #(
+              key,
+              serialize_captured_selection(
+                child,
+                calculated_line_item,
+                fragments,
+              ),
+            )
+            "calculatedShippingLine" -> #(
+              key,
+              serialize_captured_selection(
+                child,
+                calculated_shipping_line,
+                fragments,
+              ),
+            )
+            "addedDiscountStagedChange" -> #(
+              key,
+              serialize_captured_selection(child, staged_change, fragments),
             )
             "userErrors" -> #(key, json.array([], fn(error) { error }))
             _ -> #(key, json.null())

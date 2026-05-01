@@ -245,7 +245,8 @@ fn seed_capture_preconditions(
     | "order-edit-existing-order-validation"
     | "order-edit-commit-live-parity"
     | "order-edit-existing-order-happy-path"
-    | "order-edit-existing-order-zero-removal" ->
+    | "order-edit-existing-order-zero-removal"
+    | "order-edit-residual-workflow-calculated-edits" ->
       seed_order_edit_existing_order_preconditions(capture, proxy)
     "localization-disable-clears-translations" ->
       seed_localization_disable_cleanup_preconditions(capture, proxy)
