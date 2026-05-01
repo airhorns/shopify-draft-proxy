@@ -7698,18 +7698,18 @@ fn as_previous_ref(value: JsonValue) -> Option(String) {
   }
 }
 
-/// If `value` is exactly `{"fromProxyResponse": "...", "path": "..."}`
-/// or the same entries in the opposite order, return target/path.
+/// If `value` is exactly an object containing `fromProxyResponse` and
+/// `path` string entries, return target/path regardless of field order.
 fn as_named_response_ref(value: JsonValue) -> Option(#(String, String)) {
   case value {
-    JObject([
-      #("fromProxyResponse", json_value.JString(target)),
-      #("path", json_value.JString(path)),
-    ]) -> Some(#(target, path))
-    JObject([
-      #("path", json_value.JString(path)),
-      #("fromProxyResponse", json_value.JString(target)),
-    ]) -> Some(#(target, path))
+    JObject(entries) -> {
+      let target = object_string_entry(entries, "fromProxyResponse")
+      let path = object_string_entry(entries, "path")
+      case target, path {
+        Some(target), Some(path) -> Some(#(target, path))
+        _, _ -> None
+      }
+    }
     _ -> None
   }
 }
@@ -7720,6 +7720,17 @@ fn as_primary_ref(value: JsonValue) -> Option(String) {
   case value {
     JObject([#("fromPrimaryProxyPath", json_value.JString(path))]) -> Some(path)
     _ -> None
+  }
+}
+
+fn object_string_entry(
+  entries: List(#(String, JsonValue)),
+  name: String,
+) -> Option(String) {
+  case entries {
+    [] -> None
+    [#(key, json_value.JString(value)), ..] if key == name -> Some(value)
+    [_, ..rest] -> object_string_entry(rest, name)
   }
 }
 
