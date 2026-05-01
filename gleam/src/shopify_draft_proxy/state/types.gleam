@@ -109,6 +109,55 @@ pub type CapturedJsonValue {
   CapturedObject(List(#(String, CapturedJsonValue)))
 }
 
+pub type AbandonedCheckoutRecord {
+  AbandonedCheckoutRecord(
+    id: String,
+    cursor: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+pub type AbandonmentDeliveryActivityRecord {
+  AbandonmentDeliveryActivityRecord(
+    marketing_activity_id: String,
+    delivery_status: String,
+    delivered_at: Option(String),
+    delivery_status_change_reason: Option(String),
+  )
+}
+
+pub type AbandonmentRecord {
+  AbandonmentRecord(
+    id: String,
+    abandoned_checkout_id: Option(String),
+    cursor: Option(String),
+    data: CapturedJsonValue,
+    delivery_activities: Dict(String, AbandonmentDeliveryActivityRecord),
+  )
+}
+
+pub type DraftOrderRecord {
+  DraftOrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+pub type OrderRecord {
+  OrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+pub type DraftOrderVariantCatalogRecord {
+  DraftOrderVariantCatalogRecord(
+    variant_id: String,
+    title: String,
+    name: String,
+    variant_title: Option(String),
+    sku: Option(String),
+    requires_shipping: Bool,
+    taxable: Bool,
+    unit_price: String,
+    currency_code: String,
+  )
+}
+
 pub type InventoryWeightValue {
   InventoryWeightInt(Int)
   InventoryWeightFloat(Float)
@@ -1495,38 +1544,6 @@ pub type PaymentTermsRecord {
     payment_terms_type: String,
     translated_name: String,
     payment_schedules: List(PaymentScheduleRecord),
-  )
-}
-
-/// Minimal order payment transaction projection used by the Gleam Orders
-/// payment slice.
-pub type OrderTransactionRecord {
-  OrderTransactionRecord(
-    id: String,
-    kind: String,
-    status: String,
-    gateway: Option(String),
-    amount: Money,
-    parent_transaction_id: Option(String),
-    payment_id: Option(String),
-    payment_reference_id: Option(String),
-  )
-}
-
-/// Minimal order record for local order payment staging.
-pub type OrderRecord {
-  OrderRecord(
-    id: String,
-    currency_code: String,
-    total_price: String,
-    display_financial_status: String,
-    capturable: Bool,
-    total_capturable: String,
-    total_outstanding: String,
-    total_received: String,
-    net_payment: String,
-    payment_gateway_names: List(String),
-    transactions: List(OrderTransactionRecord),
   )
 }
 

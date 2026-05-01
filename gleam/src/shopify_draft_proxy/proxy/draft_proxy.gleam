@@ -1396,6 +1396,11 @@ fn local_query_dispatch_domain(
     "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
     "shop" -> Ok(StorePropertiesDomain)
     "order" -> Ok(OrdersDomain)
+    "draftOrder" ->
+      case draft_order_payment_terms_only_query(query) {
+        True -> Ok(PaymentsDomain)
+        False -> Ok(OrdersDomain)
+      }
     "product" | "collection" ->
       case store_publishable_owner_query(name, query) {
         True -> Ok(StorePropertiesDomain)
@@ -1410,9 +1415,10 @@ fn local_query_dispatch_domain(
         #(functions.is_function_query_root(name), FunctionsDomain),
         #(gift_cards.is_gift_card_query_root(name), GiftCardsDomain),
         #(b2b.is_b2b_query_root(name), B2BDomain),
-        #(products.is_products_query_root(name), ProductsDomain),
         #(segments.is_segment_query_root(name), SegmentsDomain),
+        #(products.is_products_query_root(name), ProductsDomain),
         #(customers.is_customer_query_root(name), CustomersDomain),
+        #(orders.is_orders_query_root(name), OrdersDomain),
         #(
           metafield_definitions.is_metafield_definitions_query_root(name),
           MetafieldDefinitionsDomain,
@@ -1437,6 +1443,26 @@ fn local_query_dispatch_domain(
           StorePropertiesDomain,
         ),
       ])
+  }
+}
+
+fn draft_order_payment_terms_only_query(query: String) -> Bool {
+  case root_field.get_root_fields(query) {
+    Error(_) -> False
+    Ok(fields) ->
+      fields
+      |> list.any(fn(field) {
+        case field {
+          Field(name: field_name, ..) if field_name.value == "draftOrder" -> {
+            let selection_names = root_field.get_selection_names(field)
+            !list.is_empty(selection_names)
+            && list.all(selection_names, fn(name) {
+              name == "id" || name == "paymentTerms" || name == "__typename"
+            })
+          }
+          _ -> False
+        }
+      })
   }
 }
 

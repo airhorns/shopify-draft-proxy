@@ -195,9 +195,9 @@ pub fn default_registry_marks_only_ported_roots_as_locally_dispatched_test() {
     operation_registry.find_entry(entries, Query, [Some("shop")])
   assert draft_proxy.registry_entry_has_local_dispatch(shop)
 
-  let assert Some(orders) =
-    operation_registry.find_entry(entries, Query, [Some("orders")])
-  assert !draft_proxy.registry_entry_has_local_dispatch(orders)
+  let assert Some(fulfillment_service) =
+    operation_registry.find_entry(entries, Query, [Some("fulfillmentService")])
+  assert !draft_proxy.registry_entry_has_local_dispatch(fulfillment_service)
 
   let assert Some(product_create) =
     operation_registry.find_entry(entries, Mutation, [Some("productCreate")])
