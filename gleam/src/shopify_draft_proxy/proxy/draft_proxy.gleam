@@ -40,6 +40,7 @@ import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/gift_cards
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/proxy/marketing
+import shopify_draft_proxy/proxy/markets
 import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
@@ -1128,6 +1129,12 @@ fn route_query(
         bulk_operations.process(proxy.store, query, variables),
         "Failed to handle bulk operations query",
       )
+    Ok(MarketsDomain) ->
+      respond(
+        proxy,
+        markets.process(proxy.store, query, variables),
+        "Failed to handle markets query",
+      )
     Ok(MediaDomain) ->
       respond(proxy, media.process(query), "Failed to handle media query")
     Ok(ProductsDomain) ->
@@ -1185,6 +1192,7 @@ type Domain {
   MetaobjectDefinitionsDomain
   MarketingDomain
   BulkOperationsDomain
+  MarketsDomain
   MediaDomain
   ProductsDomain
   AdminPlatformDomain
@@ -1305,6 +1313,18 @@ fn local_query_dispatch_domain(
     "event" | "events" | "eventsCount" -> Ok(EventsDomain)
     "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
     "shop" -> Ok(StorePropertiesDomain)
+    "market"
+    | "markets"
+    | "catalog"
+    | "catalogs"
+    | "catalogsCount"
+    | "priceList"
+    | "priceLists"
+    | "webPresences"
+    | "marketsResolvedValues"
+    | "marketLocalizableResource"
+    | "marketLocalizableResources"
+    | "marketLocalizableResourcesByIds" -> Ok(MarketsDomain)
     "product" | "collection" ->
       case store_publishable_owner_query(name, query) {
         True -> Ok(StorePropertiesDomain)

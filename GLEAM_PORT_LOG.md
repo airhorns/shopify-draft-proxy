@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 112: markets captured read substrate
+
+Promotes the first captured Markets read slice into the Gleam parity suite.
+The port now has a read-only Markets domain module with captured-state
+projection for Markets, MarketCatalogs, PriceLists, MarketWebPresences,
+`marketsResolvedValues`, and Shopify's empty market-localizable read roots.
+Mutation staging remains gated for a later Markets pass.
+
+| Module                                                      | Change                                                                                                 |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`         | Adds captured read projection for core Markets resources, root payloads, and empty localizable roots.  |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`     | Routes the ported Markets query roots through the explicit local dispatcher.                           |
+| `gleam/src/shopify_draft_proxy/proxy/graphql_helpers.gleam` | Lets `Catalog` interface fragments project over captured `MarketCatalog` objects.                      |
+| `gleam/src/shopify_draft_proxy/state/*`                     | Adds Markets records, root payload storage, ordering, deletion markers, and state dump round-tripping. |
+| `gleam/test/parity/runner.gleam`                            | Seeds captured Markets resources and root payloads from existing parity captures.                      |
+| `config/gleam-port-ci-gates.json`                           | Removes ten now-passing captured Markets read parity specs.                                            |
+
+Validation:
+Full JavaScript is green at 716 tests. Host `gleam test --target erlang`
+still fails because local Erlang/OTP is 25 while `gleam_json` requires OTP 27.
+The Docker Erlang fallback using mounted Gleam 1.16 on `erlang:27-alpine` is
+green at 712 tests. `corepack pnpm gleam:port:coverage` is green with 379
+specs and 167 expected failures. `corepack pnpm lint` is green. Markets parity
+inventory is 27 checked-in specs, with 10 captured read specs now executable in
+the Gleam parity suite and 17 Markets specs still expected-failing.
+
+### Findings
+
+- Captured `MarketCatalog` payloads use reusable fragments on the `Catalog`
+  interface, so the shared projector needs to treat `Catalog` as applying to
+  concrete Market/App/CompanyLocation catalog typenames.
+- Several read fixtures already contain enough resource graph data to seed
+  Markets, Catalogs, PriceLists, WebPresences, and nested root payloads without
+  mutating Shopify or changing parity request shapes.
+- The market-localizable empty fixture is a pure no-data read: the single root
+  returns `null`, and both connection roots return empty `edges`, `nodes`, and
+  `pageInfo`.
+
+### Risks / open items
+
+- Markets mutation staging, validation branches, quantity pricing/rules,
+  fixed-price product updates, web-presence lifecycle, and market localization
+  lifecycle remain gated for later passes.
+- The TypeScript Markets runtime remains intact under the Gleam port
+  preservation rule until the final all-port cutover.
+
+### Pass 113 candidates
+
+- Continue Markets with validation-only mutation branches, or start the
+  web-presence lifecycle staging path because it has small local state surface
+  and downstream `webPresences`/`marketsResolvedValues` read effects.
+
+---
+
 ## 2026-04-30 - Pass 111: product search grammar parity
 
 Promotes the final gated Product parity spec,

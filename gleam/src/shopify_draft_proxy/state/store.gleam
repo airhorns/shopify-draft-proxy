@@ -19,21 +19,22 @@ import shopify_draft_proxy/state/types.{
   type AppInstallationRecord, type AppOneTimePurchaseRecord, type AppRecord,
   type AppSubscriptionLineItemRecord, type AppSubscriptionRecord,
   type AppUsageRecord, type BackupRegionRecord, type BulkOperationRecord,
-  type CartTransformRecord, type ChannelRecord, type CollectionRecord,
-  type CustomerAccountPageRecord, type CustomerAddressRecord,
-  type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
-  type CustomerDataErasureRequestRecord, type CustomerEventSummaryRecord,
-  type CustomerMergeRequestRecord, type CustomerMetafieldRecord,
-  type CustomerOrderSummaryRecord, type CustomerPaymentMethodRecord,
-  type CustomerPaymentMethodUpdateUrlRecord, type CustomerRecord,
-  type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
-  type GiftCardConfigurationRecord, type GiftCardRecord,
-  type InventoryLevelRecord, type InventoryShipmentRecord,
+  type CapturedJsonValue, type CartTransformRecord, type CatalogRecord,
+  type ChannelRecord, type CollectionRecord, type CustomerAccountPageRecord,
+  type CustomerAddressRecord, type CustomerCatalogConnectionRecord,
+  type CustomerCatalogPageInfoRecord, type CustomerDataErasureRequestRecord,
+  type CustomerEventSummaryRecord, type CustomerMergeRequestRecord,
+  type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
+  type CustomerPaymentMethodRecord, type CustomerPaymentMethodUpdateUrlRecord,
+  type CustomerRecord, type CustomerSegmentMembersQueryRecord,
+  type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
+  type GiftCardRecord, type InventoryLevelRecord, type InventoryShipmentRecord,
   type InventoryTransferRecord, type LocaleRecord, type LocationRecord,
+  type MarketLocalizationRecord, type MarketRecord,
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
   type MetafieldDefinitionRecord, type MetaobjectDefinitionRecord,
-  type MetaobjectRecord, type ProductCollectionRecord, type ProductFeedRecord,
-  type ProductMediaRecord, type ProductMetafieldRecord,
+  type MetaobjectRecord, type PriceListRecord, type ProductCollectionRecord,
+  type ProductFeedRecord, type ProductMediaRecord, type ProductMetafieldRecord,
   type ProductOperationRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductVariantRecord,
@@ -43,8 +44,8 @@ import shopify_draft_proxy/state/types.{
   type StoreCreditAccountRecord, type StoreCreditAccountTransactionRecord,
   type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
   type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
-  type WebhookSubscriptionRecord, BulkOperationRecord, ChannelRecord,
-  MarketingObject, MarketingString, PublicationRecord,
+  type WebPresenceRecord, type WebhookSubscriptionRecord, BulkOperationRecord,
+  ChannelRecord, MarketingObject, MarketingString, PublicationRecord,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the ported slices of `StateSnapshot`
@@ -64,6 +65,20 @@ pub type BaseState {
     selling_plan_groups: Dict(String, SellingPlanGroupRecord),
     selling_plan_group_order: List(String),
     deleted_selling_plan_group_ids: Dict(String, Bool),
+    markets: Dict(String, MarketRecord),
+    market_order: List(String),
+    deleted_market_ids: Dict(String, Bool),
+    catalogs: Dict(String, CatalogRecord),
+    catalog_order: List(String),
+    deleted_catalog_ids: Dict(String, Bool),
+    price_lists: Dict(String, PriceListRecord),
+    price_list_order: List(String),
+    deleted_price_list_ids: Dict(String, Bool),
+    web_presences: Dict(String, WebPresenceRecord),
+    web_presence_order: List(String),
+    deleted_web_presence_ids: Dict(String, Bool),
+    market_localizations: Dict(String, MarketLocalizationRecord),
+    markets_root_payloads: Dict(String, CapturedJsonValue),
     product_media: Dict(String, List(ProductMediaRecord)),
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
@@ -228,6 +243,20 @@ pub type StagedState {
     selling_plan_groups: Dict(String, SellingPlanGroupRecord),
     selling_plan_group_order: List(String),
     deleted_selling_plan_group_ids: Dict(String, Bool),
+    markets: Dict(String, MarketRecord),
+    market_order: List(String),
+    deleted_market_ids: Dict(String, Bool),
+    catalogs: Dict(String, CatalogRecord),
+    catalog_order: List(String),
+    deleted_catalog_ids: Dict(String, Bool),
+    price_lists: Dict(String, PriceListRecord),
+    price_list_order: List(String),
+    deleted_price_list_ids: Dict(String, Bool),
+    web_presences: Dict(String, WebPresenceRecord),
+    web_presence_order: List(String),
+    deleted_web_presence_ids: Dict(String, Bool),
+    market_localizations: Dict(String, MarketLocalizationRecord),
+    markets_root_payloads: Dict(String, CapturedJsonValue),
     product_media: Dict(String, List(ProductMediaRecord)),
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
@@ -453,6 +482,20 @@ pub fn empty_base_state() -> BaseState {
     selling_plan_groups: dict.new(),
     selling_plan_group_order: [],
     deleted_selling_plan_group_ids: dict.new(),
+    markets: dict.new(),
+    market_order: [],
+    deleted_market_ids: dict.new(),
+    catalogs: dict.new(),
+    catalog_order: [],
+    deleted_catalog_ids: dict.new(),
+    price_lists: dict.new(),
+    price_list_order: [],
+    deleted_price_list_ids: dict.new(),
+    web_presences: dict.new(),
+    web_presence_order: [],
+    deleted_web_presence_ids: dict.new(),
+    market_localizations: dict.new(),
+    markets_root_payloads: dict.new(),
     product_media: dict.new(),
     collections: dict.new(),
     collection_order: [],
@@ -592,6 +635,20 @@ pub fn empty_staged_state() -> StagedState {
     selling_plan_groups: dict.new(),
     selling_plan_group_order: [],
     deleted_selling_plan_group_ids: dict.new(),
+    markets: dict.new(),
+    market_order: [],
+    deleted_market_ids: dict.new(),
+    catalogs: dict.new(),
+    catalog_order: [],
+    deleted_catalog_ids: dict.new(),
+    price_lists: dict.new(),
+    price_list_order: [],
+    deleted_price_list_ids: dict.new(),
+    web_presences: dict.new(),
+    web_presence_order: [],
+    deleted_web_presence_ids: dict.new(),
+    market_localizations: dict.new(),
+    markets_root_payloads: dict.new(),
     product_media: dict.new(),
     collections: dict.new(),
     collection_order: [],
@@ -2461,6 +2518,280 @@ pub fn list_effective_selling_plan_groups(
     |> list.filter_map(fn(id) {
       get_effective_selling_plan_group_by_id(store, id) |> option_to_result
     })
+  list.append(ordered, unordered)
+}
+
+// ---------------------------------------------------------------------------
+// Markets slice
+// ---------------------------------------------------------------------------
+
+fn upsert_base_ordered_record(ids: List(String), id: String) -> List(String) {
+  append_unique_id(ids, id)
+}
+
+pub fn upsert_base_markets(store: Store, records: List(MarketRecord)) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        markets: dict.insert(base.markets, record.id, record),
+        market_order: upsert_base_ordered_record(base.market_order, record.id),
+        deleted_market_ids: dict.delete(base.deleted_market_ids, record.id),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_market_ids: dict.delete(staged.deleted_market_ids, record.id),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_market_by_id(
+  store: Store,
+  id: String,
+) -> Option(MarketRecord) {
+  case dict_has(store.staged_state.deleted_market_ids, id) {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.markets, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.markets, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_markets(store: Store) -> List(MarketRecord) {
+  list_effective_ordered_records(
+    store.base_state.market_order,
+    store.staged_state.market_order,
+    dict.merge(store.base_state.markets, store.staged_state.markets),
+    fn(id) { get_effective_market_by_id(store, id) },
+  )
+}
+
+pub fn upsert_base_catalogs(
+  store: Store,
+  records: List(CatalogRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        catalogs: dict.insert(base.catalogs, record.id, record),
+        catalog_order: upsert_base_ordered_record(base.catalog_order, record.id),
+        deleted_catalog_ids: dict.delete(base.deleted_catalog_ids, record.id),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_catalog_ids: dict.delete(staged.deleted_catalog_ids, record.id),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_catalog_by_id(
+  store: Store,
+  id: String,
+) -> Option(CatalogRecord) {
+  case dict_has(store.staged_state.deleted_catalog_ids, id) {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.catalogs, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.catalogs, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_catalogs(store: Store) -> List(CatalogRecord) {
+  list_effective_ordered_records(
+    store.base_state.catalog_order,
+    store.staged_state.catalog_order,
+    dict.merge(store.base_state.catalogs, store.staged_state.catalogs),
+    fn(id) { get_effective_catalog_by_id(store, id) },
+  )
+}
+
+pub fn upsert_base_price_lists(
+  store: Store,
+  records: List(PriceListRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        price_lists: dict.insert(base.price_lists, record.id, record),
+        price_list_order: upsert_base_ordered_record(
+          base.price_list_order,
+          record.id,
+        ),
+        deleted_price_list_ids: dict.delete(
+          base.deleted_price_list_ids,
+          record.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_price_list_ids: dict.delete(
+          staged.deleted_price_list_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_price_list_by_id(
+  store: Store,
+  id: String,
+) -> Option(PriceListRecord) {
+  case dict_has(store.staged_state.deleted_price_list_ids, id) {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.price_lists, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.price_lists, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_price_lists(store: Store) -> List(PriceListRecord) {
+  list_effective_ordered_records(
+    store.base_state.price_list_order,
+    store.staged_state.price_list_order,
+    dict.merge(store.base_state.price_lists, store.staged_state.price_lists),
+    fn(id) { get_effective_price_list_by_id(store, id) },
+  )
+}
+
+pub fn upsert_base_web_presences(
+  store: Store,
+  records: List(WebPresenceRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        web_presences: dict.insert(base.web_presences, record.id, record),
+        web_presence_order: upsert_base_ordered_record(
+          base.web_presence_order,
+          record.id,
+        ),
+        deleted_web_presence_ids: dict.delete(
+          base.deleted_web_presence_ids,
+          record.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_web_presence_ids: dict.delete(
+          staged.deleted_web_presence_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_web_presence_by_id(
+  store: Store,
+  id: String,
+) -> Option(WebPresenceRecord) {
+  case dict_has(store.staged_state.deleted_web_presence_ids, id) {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.web_presences, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.web_presences, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_web_presences(store: Store) -> List(WebPresenceRecord) {
+  list_effective_ordered_records(
+    store.base_state.web_presence_order,
+    store.staged_state.web_presence_order,
+    dict.merge(store.base_state.web_presences, store.staged_state.web_presences),
+    fn(id) { get_effective_web_presence_by_id(store, id) },
+  )
+}
+
+pub fn upsert_base_markets_root_payload(
+  store: Store,
+  key: String,
+  payload: CapturedJsonValue,
+) -> Store {
+  let base = store.base_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      markets_root_payloads: dict.insert(
+        base.markets_root_payloads,
+        key,
+        payload,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_markets_root_payload(
+  store: Store,
+  key: String,
+) -> Option(CapturedJsonValue) {
+  case dict.get(store.staged_state.markets_root_payloads, key) {
+    Ok(payload) -> Some(payload)
+    Error(_) ->
+      case dict.get(store.base_state.markets_root_payloads, key) {
+        Ok(payload) -> Some(payload)
+        Error(_) -> None
+      }
+  }
+}
+
+fn list_effective_ordered_records(
+  base_order: List(String),
+  staged_order: List(String),
+  merged: Dict(String, a),
+  by_id: fn(String) -> Option(a),
+) -> List(a) {
+  let ordered_ids = list.append(base_order, staged_order) |> dedupe_strings()
+  let ordered =
+    list.filter_map(ordered_ids, fn(id) { by_id(id) |> option_to_result })
+  let ordered_set = list_to_set(ordered_ids)
+  let unordered =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(resource_ids.compare_shopify_resource_ids)
+    |> list.filter_map(fn(id) { by_id(id) |> option_to_result })
   list.append(ordered, unordered)
 }
 
