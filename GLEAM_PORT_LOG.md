@@ -366,6 +366,7 @@ Gleam parity failures are down from 11 to 9.
   local pickup enable/disable staging.
 - Continue `fulfillment-service-lifecycle.json` if a smaller mutation/read
   lifecycle slice is preferred.
+
 ---
 
 ## 2026-05-01 - Pass 162: fulfillment-order request lifecycle staging
@@ -2968,6 +2969,7 @@ are executable in Gleam and 76 remain gated.
 - Continue Orders with the next evidence-backed slice that can be ported
   without claiming unsupported roots, preferably a complete draft-order or
   order lifecycle cluster rather than validation-only roots.
+
 ---
 
 ## 2026-05-01 - Pass 116: segments baseline and member parity

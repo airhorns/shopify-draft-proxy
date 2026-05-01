@@ -8150,9 +8150,13 @@ fn seed_fulfillment_read_preconditions(
   let detail_order_id =
     detail_order
     |> option.then(fn(order) { read_string_field(order, "id") })
-  let orders =
+  let shipping_orders =
     detail_order
     |> option.map(fn(order) { [make_seed_shipping_order(order)] })
+    |> option.unwrap([])
+  let order_records =
+    detail_order
+    |> option.map(make_seed_order_list)
     |> option.unwrap([])
   let direct_fulfillments = case
     jsonpath.lookup(capture, "$.detailRead.response.data.fulfillment")
@@ -8202,7 +8206,8 @@ fn seed_fulfillment_read_preconditions(
   }
   let store =
     proxy.store
-    |> store_mod.upsert_base_shipping_orders(orders)
+    |> store_mod.upsert_base_orders(order_records)
+    |> store_mod.upsert_base_shipping_orders(shipping_orders)
     |> store_mod.upsert_base_fulfillments(
       merge_fulfillments(list.append(direct_fulfillments, order_fulfillments)),
     )
@@ -8223,9 +8228,13 @@ fn seed_assigned_fulfillment_orders_preconditions(
   let order_id =
     order
     |> option.then(fn(value) { read_string_field(value, "id") })
-  let orders =
+  let shipping_orders =
     order
     |> option.map(fn(value) { [make_seed_shipping_order(value)] })
+    |> option.unwrap([])
+  let order_records =
+    order
+    |> option.map(make_seed_order_list)
     |> option.unwrap([])
   let fulfillment_orders = case
     jsonpath.lookup(capture, "$.seedOrder.fulfillmentOrders.nodes")
@@ -8237,7 +8246,8 @@ fn seed_assigned_fulfillment_orders_preconditions(
   }
   let store =
     proxy.store
-    |> store_mod.upsert_base_shipping_orders(orders)
+    |> store_mod.upsert_base_orders(order_records)
+    |> store_mod.upsert_base_shipping_orders(shipping_orders)
     |> store_mod.upsert_base_fulfillment_orders(fulfillment_orders)
   draft_proxy.DraftProxy(..proxy, store: store)
 }
@@ -8246,7 +8256,7 @@ fn seed_fulfillment_order_request_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let orders =
+  let fulfillment_orders =
     [
       "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder",
       "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.unsubmittedFulfillmentOrder",
@@ -8259,7 +8269,19 @@ fn seed_fulfillment_order_request_preconditions(
         None -> Error(Nil)
       }
     })
-  let store = store_mod.upsert_base_fulfillment_orders(proxy.store, orders)
+  let order_records = case fulfillment_orders {
+    [] -> []
+    _ -> [
+      order_record_from_fulfillment_orders(
+        "gid://shopify/Order/shipping-fulfillment-order-request-seed",
+        fulfillment_orders,
+      ),
+    ]
+  }
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_orders(order_records)
+    |> store_mod.upsert_base_fulfillment_orders(fulfillment_orders)
   draft_proxy.DraftProxy(..proxy, store: store)
 }
 
@@ -8274,40 +8296,63 @@ fn seed_fulfillment_order_lifecycle_preconditions(
     "$.workflows.reroute.create.response.payload.data.orderCreate.order",
     "$.workflows.residualSplitDeadlineMerge.create.response.payload.data.orderCreate.order",
   ]
-  let orders =
+  let order_sources =
     create_paths
     |> list.filter_map(fn(path) {
       case jsonpath.lookup(capture, path) {
-        Some(order) -> Ok(make_seed_shipping_order(order))
+        Some(order) -> Ok(order)
         None -> Error(Nil)
       }
     })
+  let shipping_orders = list.map(order_sources, make_seed_shipping_order)
+  let order_records = list.flat_map(order_sources, make_seed_order_list)
   let fulfillment_orders =
-    create_paths
+    order_sources
     |> list.flat_map(fn(path) {
-      case jsonpath.lookup(capture, path) {
-        Some(order) -> {
-          let order_id = read_string_field(order, "id")
-          case read_object_field(order, "fulfillmentOrders") {
-            Some(connection) ->
-              case read_array_field(connection, "nodes") {
-                Some(nodes) ->
-                  list.map(nodes, fn(node) {
-                    make_seed_fulfillment_order(node, order_id)
-                  })
-                None -> []
-              }
+      let order_id = read_string_field(path, "id")
+      case read_object_field(path, "fulfillmentOrders") {
+        Some(connection) ->
+          case read_array_field(connection, "nodes") {
+            Some(nodes) ->
+              list.map(nodes, fn(node) {
+                make_seed_fulfillment_order(node, order_id)
+              })
             None -> []
           }
-        }
         None -> []
       }
     })
   let store =
     proxy.store
-    |> store_mod.upsert_base_shipping_orders(orders)
+    |> store_mod.upsert_base_orders(order_records)
+    |> store_mod.upsert_base_shipping_orders(shipping_orders)
     |> store_mod.upsert_base_fulfillment_orders(fulfillment_orders)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_order_list(source: JsonValue) -> List(OrderRecord) {
+  case make_seed_order(source) {
+    Ok(record) -> [record]
+    Error(_) -> []
+  }
+}
+
+fn order_record_from_fulfillment_orders(
+  id: String,
+  fulfillment_orders: List(FulfillmentOrderRecord),
+) -> OrderRecord {
+  OrderRecord(
+    id: id,
+    cursor: None,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("fulfillments", CapturedArray([])),
+      #(
+        "fulfillmentOrders",
+        CapturedArray(list.map(fulfillment_orders, fn(record) { record.data })),
+      ),
+    ]),
+  )
 }
 
 fn make_seed_shipping_order(source: JsonValue) -> ShippingOrderRecord {
