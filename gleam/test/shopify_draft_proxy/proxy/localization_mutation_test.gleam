@@ -2,9 +2,9 @@
 ////
 //// Covers the five mutation roots — shopLocaleEnable/Update/Disable
 //// and translationsRegister/Remove — including the userError envelope,
-//// the staged_resource_ids signal, and the resource-not-found path
-//// that fires whenever a translation mutation runs while the Products
-//// domain is absent (the current Gleam port state).
+//// the staged_resource_ids signal, unknown-resource validation, and
+//// captured source-content marker behavior while the Products domain is
+//// absent from the current Gleam port state.
 
 import gleam/dict
 import gleam/json
@@ -12,7 +12,7 @@ import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
-import shopify_draft_proxy/state/types.{ShopLocaleRecord}
+import shopify_draft_proxy/state/types.{ShopLocaleRecord, TranslationRecord}
 
 fn run_outcome(
   store_in: store.Store,
@@ -49,6 +49,29 @@ fn seed_shop_locale(
         primary: primary,
         published: published,
         market_web_presence_ids: [],
+      ),
+    )
+  s
+}
+
+fn seed_source_content_marker(
+  store_in: store.Store,
+  resource_id: String,
+  key: String,
+  digest: String,
+) -> store.Store {
+  let #(_, s) =
+    store.stage_translation(
+      store_in,
+      TranslationRecord(
+        resource_id: resource_id,
+        key: key,
+        locale: "__source",
+        value: "",
+        translatable_content_digest: digest,
+        market_id: None,
+        updated_at: "1970-01-01T00:00:00Z",
+        outdated: False,
       ),
     )
   s
@@ -148,7 +171,7 @@ pub fn shop_locale_disable_primary_returns_user_error_test() {
 // ---------- translationsRegister ----------
 
 pub fn translations_register_unknown_resource_returns_error_test() {
-  // No Products domain → every resourceId fails RESOURCE_NOT_FOUND.
+  // No Products domain and no seeded source marker → unknown ids fail.
   let s = seed_shop_locale(store.new(), "fr", False, True)
   let body =
     run(
@@ -157,6 +180,33 @@ pub fn translations_register_unknown_resource_returns_error_test() {
     )
   assert body
     == "{\"data\":{\"translationsRegister\":{\"translations\":null,\"userErrors\":[{\"field\":[\"resourceId\"],\"message\":\"Resource gid://shopify/Product/1 does not exist\",\"code\":\"RESOURCE_NOT_FOUND\"}]}}}"
+}
+
+pub fn translations_register_against_seeded_source_marker_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: [{ locale: \"fr\", key: \"title\", value: \"Bonjour\", translatableContentDigest: \"abc\" }]) { translations { key value locale outdated market { id } } userErrors { field message code } } }",
+    )
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[{\"key\":\"title\",\"value\":\"Bonjour\",\"locale\":\"fr\",\"outdated\":false,\"market\":null}],\"userErrors\":[]}}}"
+
+  let disabled =
+    run_outcome(
+      register.store,
+      "mutation { shopLocaleDisable(locale: \"fr\") { locale userErrors { field message } } }",
+    )
+  let assert Ok(read_data) =
+    localization.handle_localization_query(
+      disabled.store,
+      "{ translatableResource(resourceId: \"gid://shopify/Product/1\") { resourceId translations(locale: \"fr\") { key value locale } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"translatableResource\":{\"resourceId\":\"gid://shopify/Product/1\",\"translations\":[]}}"
 }
 
 pub fn translations_register_blank_resource_id_returns_error_test() {
