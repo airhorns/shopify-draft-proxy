@@ -1204,27 +1204,39 @@ pub fn process_mutation(
           )
         }
         Field(name: name, ..) if name.value == "orderCreate" -> {
-          let #(key, payload, next_errors) =
-            handle_order_create_validation_guardrail(
+          let result =
+            handle_order_create_mutation(
+              current_store,
+              current_identity,
               document,
               operation_path,
               field,
+              fragments,
               variables,
             )
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            next_ids,
+            next_errors,
+            next_drafts,
+          ) = result
           case next_errors {
             [] -> #(
               list.append(entries, [#(key, payload)]),
               errors,
-              current_store,
-              current_identity,
-              ids,
-              drafts,
+              next_store,
+              next_identity,
+              list.append(ids, next_ids),
+              list.append(drafts, next_drafts),
             )
             _ -> #(
               entries,
               list.append(errors, next_errors),
-              current_store,
-              current_identity,
+              next_store,
+              next_identity,
               ids,
               drafts,
             )
@@ -4693,6 +4705,86 @@ fn handle_order_create_validation_guardrail(
   }
 }
 
+fn handle_order_create_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let #(validation_key, validation_payload, validation_errors) =
+    handle_order_create_validation_guardrail(
+      document,
+      operation_path,
+      field,
+      variables,
+    )
+  case validation_errors {
+    [_, ..] -> #(
+      validation_key,
+      validation_payload,
+      store,
+      identity,
+      [],
+      validation_errors,
+      [],
+    )
+    [] -> {
+      let args = field_arguments(field, variables)
+      case dict.get(args, "order") {
+        Ok(root_field.ObjectVal(input)) -> {
+          let user_errors = validate_order_create_input(input)
+          case user_errors {
+            [_, ..] -> #(
+              key,
+              serialize_order_mutation_error_payload(field, user_errors),
+              store,
+              identity,
+              [],
+              [],
+              [],
+            )
+            [] -> {
+              let #(order, next_identity) =
+                build_order_from_create_input(store, identity, input)
+              let next_store = store.stage_order(store, order)
+              let payload =
+                serialize_order_mutation_payload(
+                  field,
+                  Some(order),
+                  [],
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  "orderCreate",
+                  [order.id],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some("Locally staged orderCreate in shopify-draft-proxy."),
+                )
+              #(key, payload, next_store, next_identity, [order.id], [], [draft])
+            }
+          }
+        }
+        _ -> #(key, validation_payload, store, identity, [], [], [])
+      }
+    }
+  }
+}
+
 fn validate_order_create_input(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(#(List(String), String)) {
@@ -4727,6 +4819,620 @@ fn serialize_order_mutation_error_payload(
       }
     })
   json.object(entries)
+}
+
+fn build_order_from_create_input(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(OrderRecord, SyntheticIdentityRegistry) {
+  let currency_code = order_create_currency(input)
+  let #(order_id, identity_after_order) =
+    synthetic_identity.make_synthetic_gid(identity, "Order")
+  let #(created_at, identity_after_time) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_order)
+  let #(line_items, identity_after_lines) =
+    build_order_create_line_items(identity_after_time, input, currency_code)
+  let #(transactions, next_identity) =
+    build_order_create_transactions(identity_after_lines, input, currency_code)
+  let shipping_lines = build_order_create_shipping_lines(input, currency_code)
+  let subtotal = order_line_items_subtotal(line_items)
+  let shipping_total = order_shipping_lines_total(shipping_lines)
+  let tax_total =
+    order_create_tax_total(input, line_items, shipping_lines, currency_code)
+  let discount =
+    order_create_discount(input, currency_code, subtotal, shipping_total)
+  let discount_total = captured_money_value(discount.total_discounts_set)
+  let total = subtotal +. shipping_total
+  let current_total = max_float(0.0, total +. tax_total -. discount_total)
+  let has_paid_transaction = order_transactions_include_paid(transactions)
+  let has_authorization = order_transactions_include_authorization(transactions)
+  let financial_status = case read_string(input, "financialStatus") {
+    Some(value) -> string.uppercase(value)
+    None ->
+      case has_paid_transaction {
+        True -> "PAID"
+        False ->
+          case has_authorization {
+            True -> "AUTHORIZED"
+            False -> "PENDING"
+          }
+      }
+  }
+  let fulfillment_status =
+    read_string(input, "fulfillmentStatus")
+    |> option.map(string.uppercase)
+    |> option.unwrap("UNFULFILLED")
+  let payment_gateways = order_transaction_gateways(transactions)
+  let payment_gateway_names = case payment_gateways {
+    [] ->
+      case has_paid_transaction {
+        True -> [CapturedString("manual")]
+        False -> []
+      }
+    _ -> list.map(payment_gateways, CapturedString)
+  }
+  let current_total_set = money_set(current_total, currency_code)
+  let zero_money = money_set(0.0, currency_code)
+  let total_capturable = case has_authorization {
+    True -> current_total
+    False -> 0.0
+  }
+  let total_received = case has_paid_transaction {
+    True -> current_total
+    False -> 0.0
+  }
+  let data =
+    CapturedObject([
+      #("id", CapturedString(order_id)),
+      #(
+        "name",
+        CapturedString(
+          "#"
+          <> int.to_string(list.length(store.list_effective_orders(store)) + 1),
+        ),
+      ),
+      #("createdAt", CapturedString(created_at)),
+      #("updatedAt", CapturedString(created_at)),
+      #("email", optional_captured_string(read_string(input, "email"))),
+      #("phone", optional_captured_string(read_string(input, "phone"))),
+      #("poNumber", optional_captured_string(read_string(input, "poNumber"))),
+      #("closed", CapturedBool(False)),
+      #("closedAt", CapturedNull),
+      #("cancelledAt", CapturedNull),
+      #("cancelReason", CapturedNull),
+      #(
+        "sourceName",
+        optional_captured_string(read_string(input, "sourceName")),
+      ),
+      #("paymentGatewayNames", CapturedArray(payment_gateway_names)),
+      #("displayFinancialStatus", CapturedString(financial_status)),
+      #("displayFulfillmentStatus", CapturedString(fulfillment_status)),
+      #("note", optional_captured_string(read_string(input, "note"))),
+      #("tags", CapturedArray(order_create_tags(input))),
+      #(
+        "customAttributes",
+        captured_attributes(read_object_list(input, "customAttributes")),
+      ),
+      #("metafields", CapturedArray([])),
+      #(
+        "billingAddress",
+        build_draft_order_address(read_object(input, "billingAddress")),
+      ),
+      #(
+        "shippingAddress",
+        build_draft_order_address(read_object(input, "shippingAddress")),
+      ),
+      #("subtotalPriceSet", money_set(subtotal, currency_code)),
+      #("currentSubtotalPriceSet", money_set(subtotal, currency_code)),
+      #("currentTotalPriceSet", current_total_set),
+      #("currentTotalDiscountsSet", discount.total_discounts_set),
+      #("currentTotalTaxSet", money_set(tax_total, currency_code)),
+      #("totalPriceSet", current_total_set),
+      #(
+        "totalOutstandingSet",
+        money_set(
+          case has_paid_transaction {
+            True -> 0.0
+            False -> current_total
+          },
+          currency_code,
+        ),
+      ),
+      #("totalCapturable", CapturedString(float.to_string(total_capturable))),
+      #("totalCapturableSet", money_set(total_capturable, currency_code)),
+      #("capturable", CapturedBool(has_authorization)),
+      #("totalRefundedSet", zero_money),
+      #("totalRefundedShippingSet", zero_money),
+      #("totalReceivedSet", money_set(total_received, currency_code)),
+      #("netPaymentSet", money_set(total_received, currency_code)),
+      #("totalShippingPriceSet", money_set(shipping_total, currency_code)),
+      #("totalTaxSet", money_set(tax_total, currency_code)),
+      #("totalDiscountsSet", discount.total_discounts_set),
+      #(
+        "discountCodes",
+        CapturedArray(list.map(discount.codes, CapturedString)),
+      ),
+      #("discountApplications", CapturedArray(discount.applications)),
+      #(
+        "taxLines",
+        CapturedArray(build_order_create_tax_lines(input, currency_code)),
+      ),
+      #("taxesIncluded", CapturedBool(read_bool(input, "taxesIncluded", False))),
+      #("customer", CapturedNull),
+      #(
+        "shippingLines",
+        CapturedObject([#("nodes", CapturedArray(shipping_lines))]),
+      ),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
+      #("paymentTerms", CapturedNull),
+      #("fulfillments", CapturedArray([])),
+      #("fulfillmentOrders", CapturedArray([])),
+      #("transactions", CapturedArray(transactions)),
+      #("refunds", CapturedArray([])),
+      #("returns", CapturedArray([])),
+    ])
+  #(OrderRecord(id: order_id, cursor: None, data: data), next_identity)
+}
+
+type OrderCreateDiscount {
+  OrderCreateDiscount(
+    codes: List(String),
+    applications: List(CapturedJsonValue),
+    total_discounts_set: CapturedJsonValue,
+  )
+}
+
+fn order_create_currency(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  case read_string(input, "currency") {
+    Some(currency) -> currency
+    None ->
+      read_object_list(input, "lineItems")
+      |> list.find_map(fn(line_item) {
+        case read_object(line_item, "priceSet") {
+          Some(price_set) ->
+            case read_object(price_set, "shopMoney") {
+              Some(shop_money) ->
+                read_string(shop_money, "currencyCode") |> option_to_result
+              None -> Error(Nil)
+            }
+          None -> Error(Nil)
+        }
+      })
+      |> result.unwrap("CAD")
+  }
+}
+
+fn build_order_create_line_items(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  let initial: #(List(CapturedJsonValue), SyntheticIdentityRegistry) = #(
+    [],
+    identity,
+  )
+  read_object_list(input, "lineItems")
+  |> list.fold(initial, fn(acc, line_item) {
+    let #(items, current_identity) = acc
+    let #(id, next_identity) =
+      synthetic_identity.make_synthetic_gid(current_identity, "LineItem")
+    let price_set =
+      read_object(line_item, "originalUnitPriceSet")
+      |> option.or(read_object(line_item, "priceSet"))
+    let variant_id = read_string(line_item, "variantId")
+    let current_quantity = case dict.get(line_item, "currentQuantity") {
+      Ok(root_field.IntVal(value)) -> [#("currentQuantity", CapturedInt(value))]
+      _ -> []
+    }
+    let item =
+      CapturedObject(list.append(
+        [
+          #("id", CapturedString(id)),
+          #("title", optional_captured_string(read_string(line_item, "title"))),
+          #("quantity", CapturedInt(read_int(line_item, "quantity", 0))),
+          #("sku", optional_captured_string(read_string(line_item, "sku"))),
+          #("variantId", optional_captured_string(variant_id)),
+          #("variant", case variant_id {
+            Some(id) -> CapturedObject([#("id", CapturedString(id))])
+            None -> CapturedNull
+          }),
+          #(
+            "variantTitle",
+            optional_captured_string(read_string(line_item, "variantTitle")),
+          ),
+          #(
+            "originalUnitPriceSet",
+            order_money_set_from_input(price_set, currency_code, 0.0),
+          ),
+          #(
+            "taxLines",
+            CapturedArray(build_order_create_tax_lines(line_item, currency_code)),
+          ),
+        ],
+        current_quantity,
+      ))
+    #(list.append(items, [item]), next_identity)
+  })
+}
+
+fn build_order_create_shipping_lines(
+  input: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+) -> List(CapturedJsonValue) {
+  read_object_list(input, "shippingLines")
+  |> list.map(fn(shipping_line) {
+    CapturedObject([
+      #("title", optional_captured_string(read_string(shipping_line, "title"))),
+      #("code", optional_captured_string(read_string(shipping_line, "code"))),
+      #(
+        "source",
+        optional_captured_string(read_string(shipping_line, "source")),
+      ),
+      #(
+        "originalPriceSet",
+        order_money_set_from_input(
+          read_object(shipping_line, "priceSet"),
+          currency_code,
+          0.0,
+        ),
+      ),
+      #(
+        "taxLines",
+        CapturedArray(build_order_create_tax_lines(shipping_line, currency_code)),
+      ),
+    ])
+  })
+}
+
+fn build_order_create_transactions(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  let initial: #(List(CapturedJsonValue), SyntheticIdentityRegistry) = #(
+    [],
+    identity,
+  )
+  read_object_list(input, "transactions")
+  |> list.fold(initial, fn(acc, transaction) {
+    let #(items, current_identity) = acc
+    let #(id, next_identity) =
+      synthetic_identity.make_synthetic_gid(
+        current_identity,
+        "OrderTransaction",
+      )
+    let amount_set = read_object(transaction, "amountSet")
+    let direct_amount = read_number(transaction, "amount") |> option.unwrap(0.0)
+    let parent_id = read_string(transaction, "parentTransactionId")
+    let item =
+      CapturedObject([
+        #("id", CapturedString(id)),
+        #("kind", optional_captured_string(read_string(transaction, "kind"))),
+        #(
+          "status",
+          CapturedString(
+            read_string(transaction, "status") |> option.unwrap("SUCCESS"),
+          ),
+        ),
+        #(
+          "gateway",
+          optional_captured_string(read_string(transaction, "gateway")),
+        ),
+        #(
+          "amountSet",
+          order_money_set_from_input(amount_set, currency_code, direct_amount),
+        ),
+        #("parentTransactionId", optional_captured_string(parent_id)),
+        #("parentTransaction", CapturedNull),
+        #(
+          "paymentId",
+          optional_captured_string(read_string(transaction, "paymentId")),
+        ),
+        #(
+          "paymentReferenceId",
+          optional_captured_string(read_string(
+            transaction,
+            "paymentReferenceId",
+          )),
+        ),
+        #(
+          "processedAt",
+          optional_captured_string(read_string(transaction, "processedAt")),
+        ),
+      ])
+    #(list.append(items, [item]), next_identity)
+  })
+}
+
+fn build_order_create_tax_lines(
+  input: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+) -> List(CapturedJsonValue) {
+  read_object_list(input, "taxLines")
+  |> list.map(fn(tax_line) {
+    let channel_liable = case dict.get(tax_line, "channelLiable") {
+      Ok(root_field.BoolVal(value)) -> CapturedBool(value)
+      _ -> CapturedNull
+    }
+    CapturedObject([
+      #("title", optional_captured_string(read_string(tax_line, "title"))),
+      #("rate", captured_number(tax_line, "rate")),
+      #("channelLiable", channel_liable),
+      #(
+        "priceSet",
+        order_money_set_from_input(
+          read_object(tax_line, "priceSet"),
+          currency_code,
+          0.0,
+        ),
+      ),
+    ])
+  })
+}
+
+fn order_money_set_from_input(
+  input: Option(Dict(String, root_field.ResolvedValue)),
+  currency_code: String,
+  fallback_amount: Float,
+) -> CapturedJsonValue {
+  let fields = input |> option.unwrap(dict.new())
+  let shop_money = read_object(fields, "shopMoney")
+  let amount =
+    case shop_money {
+      Some(money) -> read_number(money, "amount")
+      None -> read_number(fields, "amount")
+    }
+    |> option.unwrap(fallback_amount)
+  let shop_currency =
+    case shop_money {
+      Some(money) -> read_string(money, "currencyCode")
+      None -> read_string(fields, "currencyCode")
+    }
+    |> option.unwrap(currency_code)
+  let presentment = case read_object(fields, "presentmentMoney") {
+    Some(money) -> [
+      #(
+        "presentmentMoney",
+        CapturedObject([
+          #(
+            "amount",
+            CapturedString(float.to_string(
+              read_number(money, "amount") |> option.unwrap(0.0),
+            )),
+          ),
+          #(
+            "currencyCode",
+            CapturedString(
+              read_string(money, "currencyCode") |> option.unwrap(shop_currency),
+            ),
+          ),
+        ]),
+      ),
+    ]
+    None -> []
+  }
+  CapturedObject(list.append(
+    [
+      #(
+        "shopMoney",
+        CapturedObject([
+          #("amount", CapturedString(float.to_string(amount))),
+          #("currencyCode", CapturedString(shop_currency)),
+        ]),
+      ),
+    ],
+    presentment,
+  ))
+}
+
+fn order_create_tags(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  read_string_list(input, "tags")
+  |> list.sort(string.compare)
+  |> list.map(CapturedString)
+}
+
+fn order_line_items_subtotal(line_items: List(CapturedJsonValue)) -> Float {
+  line_items
+  |> list.fold(0.0, fn(sum, line_item) {
+    sum
+    +. captured_money_amount(line_item, "originalUnitPriceSet")
+    *. int.to_float(
+      captured_int_field(line_item, "quantity") |> option.unwrap(0),
+    )
+  })
+}
+
+fn order_shipping_lines_total(
+  shipping_lines: List(CapturedJsonValue),
+) -> Float {
+  shipping_lines
+  |> list.fold(0.0, fn(sum, shipping_line) {
+    sum +. captured_money_amount(shipping_line, "originalPriceSet")
+  })
+}
+
+fn order_create_tax_total(
+  input: Dict(String, root_field.ResolvedValue),
+  line_items: List(CapturedJsonValue),
+  shipping_lines: List(CapturedJsonValue),
+  currency_code: String,
+) -> Float {
+  sum_captured_tax_lines(build_order_create_tax_lines(input, currency_code))
+  +. list.fold(line_items, 0.0, fn(sum, line_item) {
+    sum +. sum_captured_tax_lines(captured_tax_lines(line_item))
+  })
+  +. list.fold(shipping_lines, 0.0, fn(sum, shipping_line) {
+    sum +. sum_captured_tax_lines(captured_tax_lines(shipping_line))
+  })
+}
+
+fn captured_tax_lines(value: CapturedJsonValue) -> List(CapturedJsonValue) {
+  case captured_object_field(value, "taxLines") {
+    Some(CapturedArray(tax_lines)) -> tax_lines
+    _ -> []
+  }
+}
+
+fn sum_captured_tax_lines(tax_lines: List(CapturedJsonValue)) -> Float {
+  tax_lines
+  |> list.fold(0.0, fn(sum, tax_line) {
+    sum +. captured_money_amount(tax_line, "priceSet")
+  })
+}
+
+fn order_create_discount(
+  input: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+  subtotal: Float,
+  shipping_total: Float,
+) -> OrderCreateDiscount {
+  case read_object(input, "discountCode") {
+    Some(discount_code) ->
+      case read_object(discount_code, "itemFixedDiscountCode") {
+        Some(fixed) -> {
+          let code = read_string(fixed, "code")
+          let amount_set =
+            order_money_set_from_input(
+              read_object(fixed, "amountSet"),
+              currency_code,
+              0.0,
+            )
+          OrderCreateDiscount(
+            codes: option_to_list_string(code),
+            applications: [
+              CapturedObject([
+                #("code", optional_captured_string(code)),
+                #(
+                  "value",
+                  CapturedObject([
+                    #("type", CapturedString("money")),
+                    #(
+                      "amount",
+                      optional_captured_string(captured_string_field(
+                        captured_object_field(amount_set, "shopMoney")
+                          |> option.unwrap(CapturedNull),
+                        "amount",
+                      )),
+                    ),
+                    #("currencyCode", CapturedString(currency_code)),
+                  ]),
+                ),
+              ]),
+            ],
+            total_discounts_set: amount_set,
+          )
+        }
+        None ->
+          case read_object(discount_code, "itemPercentageDiscountCode") {
+            Some(percent_discount) -> {
+              let code = read_string(percent_discount, "code")
+              let percentage =
+                read_number(percent_discount, "percentage")
+                |> option.unwrap(0.0)
+              let amount = subtotal *. percentage /. 100.0
+              OrderCreateDiscount(
+                codes: option_to_list_string(code),
+                applications: [
+                  CapturedObject([
+                    #("code", optional_captured_string(code)),
+                    #(
+                      "value",
+                      CapturedObject([
+                        #("type", CapturedString("percentage")),
+                        #("percentage", CapturedFloat(percentage)),
+                      ]),
+                    ),
+                  ]),
+                ],
+                total_discounts_set: money_set(amount, currency_code),
+              )
+            }
+            None ->
+              case read_object(discount_code, "freeShippingDiscountCode") {
+                Some(free_shipping) -> {
+                  let code = read_string(free_shipping, "code")
+                  OrderCreateDiscount(
+                    codes: option_to_list_string(code),
+                    applications: [
+                      CapturedObject([
+                        #("code", optional_captured_string(code)),
+                        #(
+                          "value",
+                          CapturedObject([
+                            #("type", CapturedString("money")),
+                            #(
+                              "amount",
+                              CapturedString(float.to_string(shipping_total)),
+                            ),
+                            #("currencyCode", CapturedString(currency_code)),
+                          ]),
+                        ),
+                      ]),
+                    ],
+                    total_discounts_set: money_set(
+                      shipping_total,
+                      currency_code,
+                    ),
+                  )
+                }
+                None -> empty_order_create_discount(currency_code)
+              }
+          }
+      }
+    None -> empty_order_create_discount(currency_code)
+  }
+}
+
+fn empty_order_create_discount(currency_code: String) -> OrderCreateDiscount {
+  OrderCreateDiscount(
+    codes: [],
+    applications: [],
+    total_discounts_set: money_set(0.0, currency_code),
+  )
+}
+
+fn option_to_list_string(value: Option(String)) -> List(String) {
+  case value {
+    Some(value) -> [value]
+    None -> []
+  }
+}
+
+fn order_transactions_include_paid(
+  transactions: List(CapturedJsonValue),
+) -> Bool {
+  transactions
+  |> list.any(fn(transaction) {
+    captured_string_field(transaction, "status") == Some("SUCCESS")
+    && case captured_string_field(transaction, "kind") {
+      Some("SALE") | Some("CAPTURE") -> True
+      _ -> False
+    }
+  })
+}
+
+fn order_transactions_include_authorization(
+  transactions: List(CapturedJsonValue),
+) -> Bool {
+  transactions
+  |> list.any(fn(transaction) {
+    captured_string_field(transaction, "status") == Some("SUCCESS")
+    && captured_string_field(transaction, "kind") == Some("AUTHORIZATION")
+  })
+}
+
+fn order_transaction_gateways(
+  transactions: List(CapturedJsonValue),
+) -> List(String) {
+  transactions
+  |> list.filter_map(fn(transaction) {
+    captured_string_field(transaction, "gateway") |> option_to_result
+  })
 }
 
 fn handle_fulfillment_mutation(

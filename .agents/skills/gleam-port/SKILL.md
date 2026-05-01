@@ -630,6 +630,14 @@ synthetic-id/timestamp expected differences.
   calculated objects/session, while the captured duplicate existing variant
   path still returns a calculated line item. Keep this as validation/payload
   coverage, not commit support.
+- Direct `orderCreate` parity should build the staged order from resolved
+  `OrderCreateOrderInput` rather than from fixture copies. Preserve Shopify's
+  direct-order normalization: mint `Order` before timestamps and line/transaction
+  ids, sort tags lexicographically, keep line-item `presentmentMoney`, compute
+  current total as subtotal plus shipping plus tax minus fixed discount, and
+  expose downstream `order(id:)` from the staged order. Payment transaction
+  lifecycle roots still need their own local state transitions before their
+  parity specs can be ungated.
 
 ## Workflow for a new pass
 

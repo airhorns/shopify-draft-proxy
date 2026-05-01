@@ -2048,6 +2048,347 @@ pub fn orders_order_create_validation_guardrails_test() {
   assert store.list_effective_orders(no_line_items_outcome.store) == []
 }
 
+pub fn orders_order_create_stages_selected_order_and_downstream_read_test() {
+  let mutation =
+    "
+    mutation Create($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        order {
+          id
+          name
+          email
+          displayFinancialStatus
+          displayFulfillmentStatus
+          note
+          tags
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalTaxSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalDiscountsSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          discountCodes
+          shippingLines(first: 5) {
+            nodes {
+              title
+              originalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+          lineItems(first: 5) {
+            nodes {
+              id
+              title
+              quantity
+              sku
+              variant {
+                id
+              }
+              originalUnitPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+                presentmentMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              taxLines {
+                title
+                rate
+                priceSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "order",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("email", root_field.StringVal("order-create@example.test")),
+            #("note", root_field.StringVal("order create parity")),
+            #(
+              "tags",
+              root_field.ListVal([
+                root_field.StringVal("parity-plan"),
+                root_field.StringVal("order-create"),
+              ]),
+            ),
+            #("currency", root_field.StringVal("USD")),
+            #("fulfillmentStatus", root_field.StringVal("FULFILLED")),
+            #(
+              "discountCode",
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "itemFixedDiscountCode",
+                    root_field.ObjectVal(
+                      dict.from_list([
+                        #("code", root_field.StringVal("SAVE5")),
+                        #(
+                          "amountSet",
+                          root_field.ObjectVal(
+                            dict.from_list([
+                              #(
+                                "shopMoney",
+                                root_field.ObjectVal(
+                                  dict.from_list([
+                                    #("amount", root_field.StringVal("5.00")),
+                                    #(
+                                      "currencyCode",
+                                      root_field.StringVal("USD"),
+                                    ),
+                                  ]),
+                                ),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+            #(
+              "shippingLines",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("title", root_field.StringVal("Standard")),
+                    #(
+                      "priceSet",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "shopMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("5.00")),
+                                #("currencyCode", root_field.StringVal("USD")),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    #(
+                      "taxLines",
+                      root_field.ListVal([
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #("title", root_field.StringVal("Shipping tax")),
+                            #("rate", root_field.FloatVal(0.1)),
+                            #(
+                              "priceSet",
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #(
+                                    "shopMoney",
+                                    root_field.ObjectVal(
+                                      dict.from_list([
+                                        #(
+                                          "amount",
+                                          root_field.StringVal("0.50"),
+                                        ),
+                                        #(
+                                          "currencyCode",
+                                          root_field.StringVal("USD"),
+                                        ),
+                                      ]),
+                                    ),
+                                  ),
+                                ]),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            #(
+              "lineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #(
+                      "variantId",
+                      root_field.StringVal("gid://shopify/ProductVariant/99"),
+                    ),
+                    #("title", root_field.StringVal("Inventory-backed line")),
+                    #("quantity", root_field.IntVal(2)),
+                    #("sku", root_field.StringVal("order-create-sku")),
+                    #(
+                      "priceSet",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "shopMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("20.00")),
+                                #("currencyCode", root_field.StringVal("USD")),
+                              ]),
+                            ),
+                          ),
+                          #(
+                            "presentmentMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("27.00")),
+                                #("currencyCode", root_field.StringVal("CAD")),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    #(
+                      "taxLines",
+                      root_field.ListVal([
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #("title", root_field.StringVal("Line tax")),
+                            #("rate", root_field.FloatVal(0.05)),
+                            #(
+                              "priceSet",
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #(
+                                    "shopMoney",
+                                    root_field.ObjectVal(
+                                      dict.from_list([
+                                        #(
+                                          "amount",
+                                          root_field.StringVal("2.00"),
+                                        ),
+                                        #(
+                                          "currencyCode",
+                                          root_field.StringVal("USD"),
+                                        ),
+                                      ]),
+                                    ),
+                                  ),
+                                ]),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            #(
+              "transactions",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("kind", root_field.StringVal("SALE")),
+                    #("status", root_field.StringVal("SUCCESS")),
+                    #("gateway", root_field.StringVal("manual")),
+                    #(
+                      "amountSet",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "shopMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("42.50")),
+                                #("currencyCode", root_field.StringVal("USD")),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCreate\":{\"order\":{\"id\":\"gid://shopify/Order/1\",\"name\":\"#1\",\"email\":\"order-create@example.test\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"FULFILLED\",\"note\":\"order create parity\",\"tags\":[\"order-create\",\"parity-plan\"],\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"42.5\",\"currencyCode\":\"USD\"}},\"totalTaxSet\":{\"shopMoney\":{\"amount\":\"2.5\",\"currencyCode\":\"USD\"}},\"totalDiscountsSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"USD\"}},\"discountCodes\":[\"SAVE5\"],\"shippingLines\":{\"nodes\":[{\"title\":\"Standard\",\"originalPriceSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"USD\"}}}]},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/LineItem/2\",\"title\":\"Inventory-backed line\",\"quantity\":2,\"sku\":\"order-create-sku\",\"variant\":{\"id\":\"gid://shopify/ProductVariant/99\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"27.0\",\"currencyCode\":\"CAD\"}},\"taxLines\":[{\"title\":\"Line tax\",\"rate\":0.05,\"priceSet\":{\"shopMoney\":{\"amount\":\"2.0\",\"currencyCode\":\"USD\"}}}]}]}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == ["gid://shopify/Order/1"]
+
+  let query =
+    "
+    query Read($id: ID!) {
+      order(id: $id) {
+        id
+        displayFinancialStatus
+        currentTotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        lineItems(first: 5) {
+          nodes {
+            title
+            quantity
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read_result) =
+    orders.process(
+      outcome.store,
+      query,
+      dict.from_list([#("id", root_field.StringVal("gid://shopify/Order/1"))]),
+    )
+  assert json.to_string(read_result)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/1\",\"displayFinancialStatus\":\"PAID\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"42.5\",\"currencyCode\":\"USD\"}},\"lineItems\":{\"nodes\":[{\"title\":\"Inventory-backed line\",\"quantity\":2}]}}}}"
+}
+
 pub fn orders_order_update_validation_guardrails_test() {
   let missing_inline_id =
     "

@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 150: order create parity
+
+Promotes the checked-in `orderCreate-parity-plan` scenario in the Gleam
+Orders domain. This pass replaces the validation-only `orderCreate` branch
+with local staging for the captured direct-order creation payload, including
+selected totals, tax/discount/shipping fields, line item identity, transaction
+payment status, and immediate downstream `order(id:)` reads.
+
+| Module                                                   | Change                                                   |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Builds and stages direct `orderCreate` order records.    |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers created order payload and downstream order reads. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `orderCreate` parity spec.     |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records direct order-create porting notes.               |
+
+Validation:
+
+- Reproduction with only `orderCreate-parity-plan.json` ungated first failed
+  because `$.data.orderCreate.userErrors` did not resolve for valid input.
+- `cd gleam && gleam test --target javascript` (756 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (752 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 106 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The parity spec's selected payload can be satisfied from the resolved
+  `OrderCreateOrderInput`; no fixture rewrite or Shopify runtime passthrough is
+  needed.
+- Synthetic identity order is load-bearing for downstream payment specs:
+  `Order/1`, `LineItem/2`, then `OrderTransaction/3` for the authorization
+  local-runtime fixtures.
+- Shopify sorts direct order tags lexicographically, preserves
+  `presentmentMoney` on line-item prices when present, and computes
+  `currentTotalPriceSet` as line subtotal plus shipping plus tax minus fixed
+  discount.
+
+### Risks / open items
+
+- Payment transaction roots remain gated because `orderCapture`,
+  `transactionVoid`, and `orderCreateMandatePayment` are not yet locally
+  modeled in Gleam.
+- Order-edit commit sessions, fulfillment creation/fulfillment-order workflows,
+  and returns remain gated.
+
+### Pass 151 candidates
+
+- Use the now-staged direct `orderCreate` foundation to port payment
+  transaction lifecycle roots, or switch to order-edit commit state if a smaller
+  session model slice is available.
+
+---
+
 ## 2026-05-01 - Pass 149: order edit validation parity
 
 Promotes the checked-in `orderEditExistingOrder-validation` parity scenario in
