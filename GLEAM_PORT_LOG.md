@@ -9,6 +9,52 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 114: segments baseline and member parity
+
+Completes the next Segments Gleam parity pass while preserving the TypeScript
+runtime and TypeScript tests for the incremental port. The segment baseline
+parity spec now seeds captured segment roots into Gleam base state and runs as
+passing evidence, and customer segment member reads now evaluate the supported
+segment query grammar against effective customer state instead of returning only
+empty placeholders.
+
+This pass also removes the segment baseline expected-failure gate. The original
+TypeScript segment runtime remains in place because per-domain Gleam parity does
+not authorize TypeScript retirement before the final all-port cutover.
+
+| Module                                                     | Change                                                                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/segments.gleam`       | Adds segment metadata roots, top-level missing-resource errors, customer segment member filtering, and membership checks. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds base segment upsert helpers and captured segment root payload storage.                                               |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`  | Persists `segmentRootPayloads` through state dumps and restores.                                                          |
+| `gleam/test/parity/runner.gleam`                           | Seeds `segments-baseline-read` from captured root payloads and segment records.                                           |
+| `gleam/test/shopify_draft_proxy/proxy/segments_test.gleam` | Covers segment metadata root predicates, customer member filters, and membership evaluation.                              |
+| `config/gleam-port-ci-gates.json`                          | Removes the now-passing segment baseline expected-failure entry.                                                          |
+
+Validation: see HAR-510 workpad for the latest merge-refresh validation against
+the current `origin/main`.
+
+### Findings
+
+- Segment baseline parity needs both normalized segment records and captured
+  root payloads for catalog-like roots such as filters, suggestions, value
+  suggestions, and migrations.
+- Customer segment member reads can share the mutation validation grammar for
+  the currently supported `number_of_orders` and `customer_tags CONTAINS` forms,
+  then evaluate that parsed predicate against effective customer records.
+- The host Erlang build cache can mask the container OTP version; clean inside
+  the OTP 27+ container before treating `gleam_json` OTP errors as real target
+  failures.
+
+### Risks / open items
+
+- The supported segment query grammar remains intentionally narrow and should be
+  expanded only with captured Shopify evidence for additional predicates.
+- The TypeScript segment runtime still remains the shipping Node/Koa path until
+  a final all-port cutover proves repository-wide parity.
+
+---
+
 ## 2026-05-01 — Pass 113: apps billing/access parity cutover
 
 Completes the broader Apps billing/access parity scenario in the Gleam runner.
@@ -57,7 +103,7 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
   main and should be cut over only when the whole port is ready for that final
   transition.
 
-### Pass 114 candidates
+### Pass 115 candidates
 
 - Port product-owned `metafieldDelete` / `metafieldsDelete` and their
   hydrated/downstream deletion flows into Gleam.

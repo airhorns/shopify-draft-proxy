@@ -22,17 +22,19 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcInt,
-  SrcList, SrcNull, SrcString, default_connection_page_info_options,
-  default_connection_window_options, get_document_fragments,
-  get_field_response_key, paginate_connection_items, project_graphql_value,
-  serialize_connection, src_object,
+  ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcBool,
+  SrcFloat, SrcInt, SrcList, SrcNull, SrcObject, SrcString,
+  default_connection_page_info_options, default_connection_window_options,
+  get_document_fragments, get_field_response_key, paginate_connection_items,
+  project_graphql_value, serialize_connection,
+  serialize_connection_with_field_serializers, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, single_root_log_draft,
@@ -42,8 +44,11 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CustomerSegmentMembersQueryRecord, type SegmentRecord,
-  CustomerSegmentMembersQueryRecord, SegmentRecord,
+  type CustomerDefaultEmailAddressRecord, type CustomerRecord,
+  type CustomerSegmentMembersQueryRecord, type Money, type SegmentRecord,
+  type StorePropertyValue, CustomerSegmentMembersQueryRecord, Money,
+  SegmentRecord, StorePropertyBool, StorePropertyFloat, StorePropertyInt,
+  StorePropertyList, StorePropertyNull, StorePropertyObject, StorePropertyString,
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +69,10 @@ pub fn is_segment_query_root(name: String) -> Bool {
     "segment" -> True
     "segments" -> True
     "segmentsCount" -> True
+    "segmentFilters" -> True
+    "segmentFilterSuggestions" -> True
+    "segmentValueSuggestions" -> True
+    "segmentMigrations" -> True
     "customerSegmentMembers" -> True
     "customerSegmentMembersQuery" -> True
     "customerSegmentMembership" -> True
@@ -108,8 +117,41 @@ pub fn process(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, SegmentsError) {
-  use data <- result.try(handle_segments_query(store, document, variables))
-  Ok(wrap_data(data))
+  case root_field.get_root_fields(document) {
+    Error(err) -> Error(ParseFailed(err))
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      let results =
+        list.map(fields, fn(field) {
+          root_query_result(store, field, fragments, variables, document)
+        })
+      let data_entries =
+        list.map(results, fn(result) { #(result.key, result.value) })
+      let errors = list.flat_map(results, fn(result) { result.errors })
+      let null_data = list.any(results, fn(result) { result.null_data })
+      let data = case null_data {
+        True -> json.null()
+        False -> json.object(data_entries)
+      }
+      let entries = case errors {
+        [] -> [#("data", data)]
+        _ -> [
+          #("data", data),
+          #("errors", json.array(errors, fn(error) { error })),
+        ]
+      }
+      Ok(json.object(entries))
+    }
+  }
+}
+
+type QueryFieldResult {
+  QueryFieldResult(
+    key: String,
+    value: Json,
+    errors: List(Json),
+    null_data: Bool,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -131,6 +173,97 @@ fn serialize_root_fields(
   json.object(entries)
 }
 
+fn root_query_result(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  document: String,
+) -> QueryFieldResult {
+  let key = get_field_response_key(field)
+  case field {
+    Field(name: name, ..) -> {
+      let value = root_payload_for_field(store, field, fragments, variables)
+      case name.value {
+        "segment" -> {
+          let args = field_args(field, variables)
+          case read_arg_string(args, "id"), json_is_null(value) {
+            Some(_), True ->
+              QueryFieldResult(
+                key: key,
+                value: value,
+                errors: [segment_not_found_error(field, document, key)],
+                null_data: False,
+              )
+            _, _ ->
+              QueryFieldResult(
+                key: key,
+                value: value,
+                errors: [],
+                null_data: False,
+              )
+          }
+        }
+        "customerSegmentMembersQuery" -> {
+          let args = field_args(field, variables)
+          case read_arg_string(args, "id"), json_is_null(value) {
+            Some(_), True ->
+              QueryFieldResult(
+                key: key,
+                value: value,
+                errors: [
+                  customer_segment_members_query_not_found_error(
+                    field,
+                    document,
+                    key,
+                  ),
+                ],
+                null_data: False,
+              )
+            _, _ ->
+              QueryFieldResult(
+                key: key,
+                value: value,
+                errors: [],
+                null_data: False,
+              )
+          }
+        }
+        "customerSegmentMembers" -> {
+          let args = field_args(field, variables)
+          case
+            customer_segment_members_error(store, args, field, document, key)
+          {
+            Some(error) ->
+              QueryFieldResult(
+                key: key,
+                value: json.null(),
+                errors: [error],
+                null_data: True,
+              )
+            None ->
+              QueryFieldResult(
+                key: key,
+                value: value,
+                errors: [],
+                null_data: False,
+              )
+          }
+        }
+        _ ->
+          QueryFieldResult(key: key, value: value, errors: [], null_data: False)
+      }
+    }
+    _ ->
+      QueryFieldResult(
+        key: key,
+        value: json.null(),
+        errors: [],
+        null_data: False,
+      )
+  }
+}
+
 fn root_payload_for_field(
   store: Store,
   field: Selection,
@@ -144,6 +277,16 @@ fn root_payload_for_field(
         "segments" ->
           serialize_segments_connection(store, field, fragments, variables)
         "segmentsCount" -> serialize_segments_count(store, field, fragments)
+        "segmentFilters"
+        | "segmentFilterSuggestions"
+        | "segmentValueSuggestions"
+        | "segmentMigrations" ->
+          serialize_captured_or_empty_connection(
+            store,
+            name.value,
+            field,
+            fragments,
+          )
         "customerSegmentMembersQuery" ->
           serialize_customer_segment_members_query(store, field, variables)
         "customerSegmentMembers" ->
@@ -192,6 +335,71 @@ fn arg_present(
   case dict.get(args, name) {
     Ok(_) -> True
     Error(_) -> False
+  }
+}
+
+fn json_is_null(value: Json) -> Bool {
+  json.to_string(value) == "null"
+}
+
+fn segment_not_found_error(
+  field: Selection,
+  document: String,
+  key: String,
+) -> Json {
+  json.object([
+    #("message", json.string("Segment does not exist")),
+    #("locations", locations_json(field, document)),
+    #("extensions", json.object([#("code", json.string("NOT_FOUND"))])),
+    #("path", json.array([key], json.string)),
+  ])
+}
+
+fn customer_segment_members_query_not_found_error(
+  field: Selection,
+  document: String,
+  key: String,
+) -> Json {
+  json.object([
+    #("message", json.string("Something went wrong")),
+    #("locations", locations_json(field, document)),
+    #(
+      "extensions",
+      json.object([#("code", json.string("INTERNAL_SERVER_ERROR"))]),
+    ),
+    #("path", json.array([key], json.string)),
+  ])
+}
+
+fn customer_segment_members_error_json(
+  field: Selection,
+  document: String,
+  key: String,
+  message: String,
+) -> Json {
+  json.object([
+    #("message", json.string(message)),
+    #("locations", locations_json(field, document)),
+    #("path", json.array([key], json.string)),
+  ])
+}
+
+fn locations_json(field: Selection, document: String) -> Json {
+  case field {
+    Field(loc: Some(ast.Location(start: start, ..)), ..) -> {
+      let source = graphql_source.new(document)
+      let location = graphql_location.get_location(source, position: start)
+      json.array(
+        [
+          json.object([
+            #("line", json.int(location.line)),
+            #("column", json.int(location.column)),
+          ]),
+        ],
+        fn(value) { value },
+      )
+    }
+    _ -> json.array([], fn(value) { value })
   }
 }
 
@@ -252,6 +460,28 @@ fn serialize_segments_connection(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
+  case
+    store_has_staged_segments(store),
+    store.get_base_segment_root_payload(store, "segments")
+  {
+    False, Some(payload) ->
+      project_store_property_payload(payload, field, fragments)
+    _, _ ->
+      serialize_effective_segments_connection(
+        store,
+        field,
+        fragments,
+        variables,
+      )
+  }
+}
+
+fn serialize_effective_segments_connection(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
   let items = store.list_effective_segments(store)
   let cursor_value = fn(record: SegmentRecord, _index: Int) -> String {
     "cursor:" <> record.id
@@ -297,18 +527,115 @@ fn serialize_segments_count(
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
-  let total = list.length(store.list_effective_segments(store))
-  let source =
-    src_object([
-      #("__typename", SrcString("Count")),
-      #("count", SrcInt(total)),
-      #("precision", SrcString("EXACT")),
-    ])
+  let source = case
+    store_has_staged_segments(store),
+    store.get_base_segment_root_payload(store, "segmentsCount")
+  {
+    False, Some(payload) -> store_property_value_to_source(payload)
+    _, _ -> {
+      let total = list.length(store.list_effective_segments(store))
+      src_object([
+        #("__typename", SrcString("Count")),
+        #("count", SrcInt(total)),
+        #("precision", SrcString("EXACT")),
+      ])
+    }
+  }
   case field {
     Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
       project_graphql_value(source, selections, fragments)
     _ -> json.object([])
   }
+}
+
+fn serialize_captured_or_empty_connection(
+  store: Store,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_base_segment_root_payload(store, root_name) {
+    Some(payload) -> project_store_property_payload(payload, field, fragments)
+    None -> serialize_empty_connection_for_field(field)
+  }
+}
+
+fn project_store_property_payload(
+  payload: StorePropertyValue,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let source = store_property_value_to_source(payload)
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      project_graphql_value(source, selections, fragments)
+    _ -> source_value_to_json(source)
+  }
+}
+
+fn store_has_staged_segments(store: Store) -> Bool {
+  dict.to_list(store.staged_state.segments) != []
+  || store.staged_state.segment_order != []
+  || dict.to_list(store.staged_state.deleted_segment_ids) != []
+}
+
+fn store_property_value_to_source(value: StorePropertyValue) -> SourceValue {
+  case value {
+    StorePropertyNull -> SrcNull
+    StorePropertyString(value) -> SrcString(value)
+    StorePropertyBool(value) -> SrcBool(value)
+    StorePropertyInt(value) -> SrcInt(value)
+    StorePropertyFloat(value) -> SrcFloat(value)
+    StorePropertyList(values) ->
+      SrcList(list.map(values, store_property_value_to_source))
+    StorePropertyObject(values) ->
+      SrcObject(
+        dict.to_list(values)
+        |> list.map(fn(pair) {
+          #(pair.0, store_property_value_to_source(pair.1))
+        })
+        |> dict.from_list,
+      )
+  }
+}
+
+fn source_value_to_json(value: SourceValue) -> Json {
+  case value {
+    SrcNull -> json.null()
+    SrcString(value) -> json.string(value)
+    SrcBool(value) -> json.bool(value)
+    SrcInt(value) -> json.int(value)
+    SrcFloat(value) -> json.float(value)
+    SrcList(values) -> json.array(values, source_value_to_json)
+    SrcObject(fields) ->
+      json.object(
+        dict.to_list(fields)
+        |> list.map(fn(pair) { #(pair.0, source_value_to_json(pair.1)) }),
+      )
+  }
+}
+
+fn serialize_empty_connection_for_field(field: Selection) -> Json {
+  let selections = case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      selections
+    _ -> []
+  }
+  let entries =
+    list.map(selections, fn(selection) {
+      let key = get_field_response_key(selection)
+      case selection {
+        Field(name: name, selection_set: ss, ..) ->
+          case name.value {
+            "nodes" -> #(key, json.array([], fn(x) { x }))
+            "edges" -> #(key, json.array([], fn(x) { x }))
+            "pageInfo" -> #(key, serialize_member_connection_page_info(ss))
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 // ---------------------------------------------------------------------------
@@ -363,17 +690,18 @@ fn project_customer_segment_members_query_record(
 fn serialize_customer_segment_members_connection(
   store: Store,
   field: Selection,
-  _fragments: FragmentMap,
+  fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = field_args(field, variables)
   let resolved = resolve_customer_segment_member_query(store, args)
-  // Without a customers store slice the proxy never has any
-  // members to return, but we still gate on missingQueryId so that
-  // the lookup-vs-empty distinction matches Shopify (the parity
-  // scenario only exercises the empty branch — see capture cases[3]).
-  let _ = resolved
-  serialize_empty_member_connection(field)
+  let members = list_customer_segment_members_for_query(store, resolved.query)
+  serialize_customer_segment_member_connection(
+    members,
+    field,
+    fragments,
+    variables,
+  )
 }
 
 type ResolvedMemberQuery {
@@ -382,6 +710,36 @@ type ResolvedMemberQuery {
     query_record: Option(CustomerSegmentMembersQueryRecord),
     missing_query_id: Option(String),
   )
+}
+
+fn customer_segment_members_error(
+  store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+  key: String,
+) -> Option(Json) {
+  let resolved = resolve_customer_segment_member_query(store, args)
+  case resolved.missing_query_id {
+    Some(_) ->
+      Some(customer_segment_members_error_json(
+        field,
+        document,
+        key,
+        "this async query cannot be found in segmentMembers",
+      ))
+    None ->
+      case validate_customer_segment_members_query(resolved.query) {
+        [] -> None
+        [first, ..] ->
+          Some(customer_segment_members_error_json(
+            field,
+            document,
+            key,
+            first.message,
+          ))
+      }
+  }
 }
 
 fn resolve_customer_segment_member_query(
@@ -435,33 +793,183 @@ fn resolve_customer_segment_member_query(
   }
 }
 
-fn serialize_empty_member_connection(field: Selection) -> Json {
-  let selections = case field {
-    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
-      selections
-    _ -> []
+fn serialize_customer_segment_member_connection(
+  all_members: List(CustomerRecord),
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let cursor_value = fn(customer: CustomerRecord, _index: Int) -> String {
+    customer.id
   }
-  let entries =
-    list.map(selections, fn(selection) {
-      let key = get_field_response_key(selection)
+  let window =
+    paginate_connection_items(
+      all_members,
+      field,
+      variables,
+      cursor_value,
+      default_connection_window_options(),
+    )
+  let ConnectionWindow(
+    items: paged,
+    has_next_page: has_next,
+    has_previous_page: has_prev,
+  ) = window
+  let selected_field_options =
+    SelectedFieldOptions(include_inline_fragments: True)
+  let page_info_options =
+    ConnectionPageInfoOptions(
+      ..default_connection_page_info_options(),
+      include_inline_fragments: True,
+    )
+  serialize_connection_with_field_serializers(
+    field,
+    SerializeConnectionConfig(
+      items: paged,
+      has_next_page: has_next,
+      has_previous_page: has_prev,
+      get_cursor_value: cursor_value,
+      serialize_node: fn(customer, node_field, _index) {
+        project_customer_segment_member(customer, node_field, fragments)
+      },
+      selected_field_options: selected_field_options,
+      page_info_options: page_info_options,
+    ),
+    fn(_page_info_field) { None },
+    fn(selection) {
       case selection {
         Field(name: name, selection_set: ss, ..) ->
           case name.value {
-            "__typename" -> #(
-              key,
-              json.string("CustomerSegmentMembersConnection"),
-            )
-            "totalCount" -> #(key, json.int(0))
-            "statistics" -> #(key, serialize_segment_statistics_empty(ss))
-            "edges" -> #(key, json.array([], fn(x) { x }))
-            "nodes" -> #(key, json.array([], fn(x) { x }))
-            "pageInfo" -> #(key, serialize_member_connection_page_info(ss))
-            _ -> #(key, json.null())
+            "totalCount" -> json.int(list.length(all_members))
+            "statistics" -> serialize_segment_statistics_empty(ss)
+            _ -> json.null()
           }
-        _ -> #(key, json.null())
+        _ -> json.null()
       }
-    })
-  json.object(entries)
+    },
+  )
+}
+
+fn project_customer_segment_member(
+  customer: CustomerRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      project_graphql_value(
+        customer_segment_member_to_source(customer),
+        selections,
+        fragments,
+      )
+    _ -> json.object([])
+  }
+}
+
+fn customer_segment_member_to_source(customer: CustomerRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("CustomerSegmentMember")),
+    #("id", SrcString(member_id_for_customer(customer))),
+    #("displayName", SrcString(option.unwrap(customer.display_name, ""))),
+    #("firstName", optional_string_source(customer.first_name)),
+    #("lastName", optional_string_source(customer.last_name)),
+    #(
+      "defaultEmailAddress",
+      default_email_address_source(customer.default_email_address),
+    ),
+    #(
+      "numberOfOrders",
+      SrcString(int.to_string(customer_number_of_orders(customer))),
+    ),
+    #("amountSpent", money_source(customer.amount_spent)),
+  ])
+}
+
+fn member_id_for_customer(customer: CustomerRecord) -> String {
+  "gid://shopify/CustomerSegmentMember/" <> gid_tail(customer.id)
+}
+
+fn gid_tail(id: String) -> String {
+  case string.split(id, "/") |> list.reverse() {
+    [tail, ..] -> tail
+    [] -> id
+  }
+}
+
+fn default_email_address_source(
+  value: Option(CustomerDefaultEmailAddressRecord),
+) -> SourceValue {
+  case value {
+    Some(record) ->
+      src_object([
+        #("emailAddress", optional_string_source(record.email_address)),
+      ])
+    None -> SrcNull
+  }
+}
+
+fn money_source(value: Option(Money)) -> SourceValue {
+  let money = option.unwrap(value, Money(amount: "0.0", currency_code: "USD"))
+  src_object([
+    #("amount", SrcString(money.amount)),
+    #("currencyCode", SrcString(money.currency_code)),
+  ])
+}
+
+fn list_customer_segment_members_for_query(
+  store: Store,
+  query: Option(String),
+) -> List(CustomerRecord) {
+  let parsed = case query {
+    Some(raw) -> parse_supported_segment_query_value(string.trim(raw))
+    None -> None
+  }
+  case parsed {
+    None -> []
+    Some(query) ->
+      store.list_effective_customers(store)
+      |> list.filter(fn(customer) {
+        customer_matches_supported_segment_query(customer, query)
+      })
+      |> list.sort(fn(left, right) { string.compare(right.id, left.id) })
+  }
+}
+
+fn customer_matches_supported_segment_query(
+  customer: CustomerRecord,
+  parsed: SupportedSegmentQuery,
+) -> Bool {
+  case parsed {
+    CustomerTagsContains(value: value, negated: negated) -> {
+      let has_tag = list.contains(customer.tags, value)
+      case negated {
+        True -> !has_tag
+        False -> has_tag
+      }
+    }
+    NumberOfOrders(comparator: comparator, value: expected) -> {
+      let actual = customer_number_of_orders(customer)
+      case comparator {
+        "=" -> actual == expected
+        ">" -> actual > expected
+        ">=" -> actual >= expected
+        "<" -> actual < expected
+        "<=" -> actual <= expected
+        _ -> False
+      }
+    }
+  }
+}
+
+fn customer_number_of_orders(customer: CustomerRecord) -> Int {
+  case customer.number_of_orders {
+    Some(value) ->
+      case int.parse(value) {
+        Ok(parsed) -> parsed
+        Error(_) -> 0
+      }
+    None -> 0
+  }
 }
 
 fn serialize_segment_statistics_empty(
@@ -540,6 +1048,10 @@ fn serialize_customer_segment_membership(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = field_args(field, variables)
+  let customer = case read_arg_string(args, "customerId") {
+    Some(id) -> store.get_effective_customer_by_id(store, id)
+    None -> None
+  }
   let segment_ids = case dict.get(args, "segmentIds") {
     Ok(root_field.ListVal(items)) ->
       list.filter_map(items, fn(item) {
@@ -556,7 +1068,21 @@ fn serialize_customer_segment_membership(
   let memberships =
     list.filter_map(segment_ids, fn(seg_id) {
       case store.get_effective_segment_by_id(store, seg_id) {
-        Some(_) -> Ok(#(seg_id, False))
+        Some(segment) ->
+          Ok(
+            #(seg_id, case customer, segment.query {
+              Some(customer_record), Some(query) ->
+                case parse_supported_segment_query_value(string.trim(query)) {
+                  Some(parsed) ->
+                    customer_matches_supported_segment_query(
+                      customer_record,
+                      parsed,
+                    )
+                  None -> False
+                }
+              _, _ -> False
+            }),
+          )
         None -> Error(Nil)
       }
     })
@@ -641,6 +1167,11 @@ type SegmentMutationPayload {
     deleted_segment_id: Option(String),
     user_errors: List(UserError),
   )
+}
+
+type SupportedSegmentQuery {
+  NumberOfOrders(comparator: String, value: Int)
+  CustomerTagsContains(value: String, negated: Bool)
 }
 
 /// Process a segments mutation document.
@@ -1060,6 +1591,8 @@ fn handle_customer_segment_members_query_create(
   let user_errors = validate_customer_segment_members_query(resolved_query)
   case user_errors {
     [] -> {
+      let members =
+        list_customer_segment_members_for_query(store, resolved_query)
       let #(gid, identity_after) =
         synthetic_identity.make_synthetic_gid(
           identity,
@@ -1070,7 +1603,7 @@ fn handle_customer_segment_members_query_create(
           id: gid,
           query: resolved_query,
           segment_id: segment_id,
-          current_count: 0,
+          current_count: list.length(members),
           done: True,
         )
       let store_after =
@@ -1404,51 +1937,73 @@ fn validate_segment_query_string(trimmed: String) -> List(String) {
 /// match. The regex set in TS is small and stable enough that hand-coded
 /// parsers cost less than wiring a regex dependency through the build.
 fn parse_supported_segment_query(trimmed: String) -> Bool {
-  case strip_prefix(trimmed, "number_of_orders") {
-    Some(after_field) -> {
-      let after_ws = string.trim_start(after_field)
-      case strip_comparator(after_ws) {
-        Some(rest) -> {
-          let after_op_ws = string.trim_start(rest)
-          is_all_digits(after_op_ws) && string.length(after_op_ws) > 0
-        }
-        None -> False
-      }
-    }
-    None -> customer_tags_contains_match(trimmed)
+  case parse_supported_segment_query_value(trimmed) {
+    Some(_) -> True
+    None -> False
   }
 }
 
-fn customer_tags_contains_match(trimmed: String) -> Bool {
+fn parse_supported_segment_query_value(
+  trimmed: String,
+) -> Option(SupportedSegmentQuery) {
+  case strip_prefix(trimmed, "number_of_orders") {
+    Some(after_field) -> {
+      let after_ws = string.trim_start(after_field)
+      case strip_comparator_value(after_ws) {
+        Some(#(comparator, rest)) -> {
+          let after_op_ws = string.trim_start(rest)
+          case int.parse(after_op_ws) {
+            Ok(value) ->
+              Some(NumberOfOrders(comparator: comparator, value: value))
+            Error(_) -> None
+          }
+        }
+        None -> None
+      }
+    }
+    None -> parse_customer_tags_contains(trimmed)
+  }
+}
+
+fn parse_customer_tags_contains(
+  trimmed: String,
+) -> Option(SupportedSegmentQuery) {
   case strip_prefix(trimmed, "customer_tags") {
-    None -> False
+    None -> None
     Some(after_field) -> {
       let after_ws = string.trim_start(after_field)
       // Need at least one whitespace between field and operator.
       let consumed_ws = string.length(after_field) - string.length(after_ws)
       case consumed_ws > 0 {
-        False -> False
+        False -> None
         True -> {
-          let after_optional_not = case strip_prefix(after_ws, "NOT") {
+          let #(negated, after_optional_not) = case
+            strip_prefix(after_ws, "NOT")
+          {
             Some(rest) -> {
               let trimmed_rest = string.trim_start(rest)
               let consumed = string.length(rest) - string.length(trimmed_rest)
               case consumed > 0 {
-                True -> trimmed_rest
-                False -> after_ws
+                True -> #(True, trimmed_rest)
+                False -> #(False, after_ws)
               }
             }
-            None -> after_ws
+            None -> #(False, after_ws)
           }
           case strip_prefix(after_optional_not, "CONTAINS") {
-            None -> False
+            None -> None
             Some(after_op) -> {
               let after_op_ws = string.trim_start(after_op)
               let consumed_op_ws =
                 string.length(after_op) - string.length(after_op_ws)
               case consumed_op_ws > 0 {
-                False -> False
-                True -> is_single_quoted_value(after_op_ws)
+                False -> None
+                True ->
+                  case single_quoted_value(after_op_ws) {
+                    Some(value) ->
+                      Some(CustomerTagsContains(value: value, negated: negated))
+                    None -> None
+                  }
               }
             }
           }
@@ -1520,49 +2075,55 @@ fn strip_prefix(value: String, prefix: String) -> Option(String) {
   }
 }
 
-/// Strip one of `>=`, `<=`, `=`, `>`, `<` (longest match first) and
-/// return the remainder.
-fn strip_comparator(value: String) -> Option(String) {
+fn strip_comparator_value(value: String) -> Option(#(String, String)) {
   case strip_prefix(value, ">=") {
-    Some(rest) -> Some(rest)
+    Some(rest) -> Some(#(">=", rest))
     None ->
       case strip_prefix(value, "<=") {
-        Some(rest) -> Some(rest)
+        Some(rest) -> Some(#("<=", rest))
         None ->
           case strip_prefix(value, "=") {
-            Some(rest) -> Some(rest)
+            Some(rest) -> Some(#("=", rest))
             None ->
               case strip_prefix(value, ">") {
-                Some(rest) -> Some(rest)
-                None -> strip_prefix(value, "<")
+                Some(rest) -> Some(#(">", rest))
+                None ->
+                  case strip_prefix(value, "<") {
+                    Some(rest) -> Some(#("<", rest))
+                    None -> None
+                  }
               }
           }
       }
   }
 }
 
-fn is_all_digits(value: String) -> Bool {
-  case int.parse(value) {
-    Ok(_) -> string.length(value) > 0
-    Error(_) -> False
-  }
-}
-
 /// True when `value` exactly matches `'[^']+'` — single-quoted, non-empty,
 /// with no embedded single quotes.
 fn is_single_quoted_value(value: String) -> Bool {
+  case single_quoted_value(value) {
+    Some(_) -> True
+    None -> False
+  }
+}
+
+fn single_quoted_value(value: String) -> Option(String) {
   case string.starts_with(value, "'") && string.ends_with(value, "'") {
-    False -> False
+    False -> None
     True -> {
       let inner = string.drop_start(value, 1)
       let inner_len = string.length(inner)
       case inner_len < 1 {
-        True -> False
+        True -> None
         False -> {
           let inner_no_close = string.drop_end(inner, 1)
           case string.length(inner_no_close) {
-            0 -> False
-            _ -> !string.contains(inner_no_close, "'")
+            0 -> None
+            _ ->
+              case string.contains(inner_no_close, "'") {
+                True -> None
+                False -> Some(inner_no_close)
+              }
           }
         }
       }
@@ -1691,7 +2252,10 @@ fn serialize_user_errors(
 fn user_error_to_source(error: UserError) -> SourceValue {
   src_object([
     #("__typename", SrcString("UserError")),
-    #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
+    #("field", case error.field {
+      [] -> SrcNull
+      parts -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
+    }),
     #("message", SrcString(error.message)),
   ])
 }
