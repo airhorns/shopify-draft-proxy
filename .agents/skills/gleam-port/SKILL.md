@@ -427,6 +427,11 @@ synthetic-id/timestamp expected differences.
   mints response resource IDs before consuming the mutation-log ID; validation
   responses still consume the post-handler log ID/timestamp even when no log
   entry is recorded.
+- Segment catalog-like roots can require captured root payload storage in
+  addition to normalized records. Seed `segments-baseline-read` by extracting the
+  captured root payloads into base state, then project selected fields from that
+  payload until staged local segment writes require synthesized connection
+  output.
 - Privacy `dataSaleOptOut` is a privacy-domain mutation whose downstream read
   effect belongs on `CustomerRecord.data_sale_opt_out`. Keep only that root in
   `proxy/privacy.gleam`; seed its parity capture from the downstream customer

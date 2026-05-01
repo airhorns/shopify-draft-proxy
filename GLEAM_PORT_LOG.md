@@ -9,6 +9,96 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 115: HAR-496 payments branch segments refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+HAR-510 Segments parity completion. The merge keeps the branch-local Payments
+and order-payment coverage ungated while bringing in mainline Segments payload
+seeding, member filtering, serialization, and expected-failure removal.
+
+| Module                                                    | Change                                                                                   |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `.agents/skills/gleam-port/SKILL.md`                      | Keeps Payments/order-payment notes alongside the mainline Segments root-payload note.    |
+| `gleam/src/shopify_draft_proxy/proxy/segments.gleam`      | Preserves the mainline Segments baseline and customer member parity implementation.      |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Preserves mainline captured segment root payload storage.                                |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Preserves segment root payload state dump round-tripping.                                |
+| `gleam/test/parity/runner.gleam`                          | Keeps HAR-496 Payments/order-payment seeding alongside mainline Segments parity seeding. |
+| `config/gleam-port-ci-gates.json`                         | Keeps Payments/order-payment ungated and incorporates the Segments gate removal.         |
+
+Validation:
+
+- `git diff --check`
+- `cd gleam && gleam format --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (722 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (718 passed)
+- `corepack pnpm gleam:port:coverage`
+- Targeted expected-failure scan for payments/order-payment/product
+  grammar/Segments paths returned no matches.
+
+### Findings
+
+- The merge required conflict resolution only in the Gleam-port skill notes and
+  expected-failure gate inventory. The intended gate result is to leave both
+  HAR-496 Payments/order-payment paths and mainline `segments-baseline-read`
+  ungated.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
+
+---
+
+## 2026-05-01 - Pass 114: segments baseline and member parity
+
+Completes the next Segments Gleam parity pass while preserving the TypeScript
+runtime and TypeScript tests for the incremental port. The segment baseline
+parity spec now seeds captured segment roots into Gleam base state and runs as
+passing evidence, and customer segment member reads now evaluate the supported
+segment query grammar against effective customer state instead of returning only
+empty placeholders.
+
+This pass also removes the segment baseline expected-failure gate. The original
+TypeScript segment runtime remains in place because per-domain Gleam parity does
+not authorize TypeScript retirement before the final all-port cutover.
+
+| Module                                                     | Change                                                                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/segments.gleam`       | Adds segment metadata roots, top-level missing-resource errors, customer segment member filtering, and membership checks. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | Adds base segment upsert helpers and captured segment root payload storage.                                               |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`  | Persists `segmentRootPayloads` through state dumps and restores.                                                          |
+| `gleam/test/parity/runner.gleam`                           | Seeds `segments-baseline-read` from captured root payloads and segment records.                                           |
+| `gleam/test/shopify_draft_proxy/proxy/segments_test.gleam` | Covers segment metadata root predicates, customer member filters, and membership evaluation.                              |
+| `config/gleam-port-ci-gates.json`                          | Removes the now-passing segment baseline expected-failure entry.                                                          |
+
+Validation: see HAR-510 workpad for the latest merge-refresh validation against
+the current `origin/main`.
+
+### Findings
+
+- Segment baseline parity needs both normalized segment records and captured
+  root payloads for catalog-like roots such as filters, suggestions, value
+  suggestions, and migrations.
+- Customer segment member reads can share the mutation validation grammar for
+  the currently supported `number_of_orders` and `customer_tags CONTAINS` forms,
+  then evaluate that parsed predicate against effective customer records.
+- The host Erlang build cache can mask the container OTP version; clean inside
+  the OTP 27+ container before treating `gleam_json` OTP errors as real target
+  failures.
+
+### Risks / open items
+
+- The supported segment query grammar remains intentionally narrow and should be
+  expanded only with captured Shopify evidence for additional predicates.
+- The TypeScript segment runtime still remains the shipping Node/Koa path until
+  a final all-port cutover proves repository-wide parity.
+
+---
+
 ## 2026-05-01 — Pass 113: apps billing/access parity cutover
 
 Completes the broader Apps billing/access parity scenario in the Gleam runner.
@@ -57,7 +147,7 @@ lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
   main and should be cut over only when the whole port is ready for that final
   transition.
 
-### Pass 114 candidates
+### Pass 115 candidates
 
 - Port product-owned `metafieldDelete` / `metafieldsDelete` and their
   hydrated/downstream deletion flows into Gleam.
