@@ -506,6 +506,12 @@ synthetic-id/timestamp expected differences.
   effects. For Orders parity specs, seed customers plus customer order summaries
   from the capture; do not also register these roots in the Orders dispatch
   table or customer order-summary parity will route to the wrong domain.
+- `orderMarkAsPaid` can be ported as a narrow existing-order payment state
+  slice: validate `input.id`, stage `displayFinancialStatus: PAID`,
+  `paymentGatewayNames: ["manual"]`, zero `totalOutstandingSet`, and one manual
+  successful SALE transaction from the outstanding/current total amount. If the
+  seeded order is already paid, serialize it unchanged to avoid duplicate
+  transactions in captured parity fixtures.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or

@@ -106,6 +106,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "orderEditCommit",
       "orderEditSetQuantity",
       "orderInvoiceSend",
+      "orderMarkAsPaid",
       "orderOpen",
       "orderUpdate",
       "taxSummaryCreate",
@@ -1321,6 +1322,44 @@ pub fn process_mutation(
               current_identity,
               ids,
               drafts,
+            )
+          }
+        }
+        Field(name: name, ..) if name.value == "orderMarkAsPaid" -> {
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            staged_ids,
+            next_errors,
+            next_drafts,
+          ) =
+            handle_order_mark_as_paid_mutation(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, staged_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              current_store,
+              current_identity,
+              ids,
+              list.append(drafts, next_drafts),
             )
           }
         }
@@ -2743,6 +2782,186 @@ fn handle_order_invoice_send(
         )
       }
     }
+  }
+}
+
+fn handle_order_mark_as_paid_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "orderMarkAsPaid",
+      [RequiredArgument(name: "input", expected_type: "OrderMarkAsPaidInput!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      let order_id = case dict.get(args, "input") {
+        Ok(root_field.ObjectVal(input)) -> read_string(input, "id")
+        _ -> None
+      }
+      case order_id {
+        None -> {
+          let payload =
+            serialize_order_mutation_payload(
+              field,
+              None,
+              [
+                #(["id"], "Order does not exist"),
+              ],
+              fragments,
+            )
+          #(key, payload, store, identity, [], [], [])
+        }
+        Some(id) ->
+          case store.get_order_by_id(store, id) {
+            None -> {
+              let payload =
+                serialize_order_mutation_payload(
+                  field,
+                  None,
+                  [
+                    #(["id"], "Order does not exist"),
+                  ],
+                  fragments,
+                )
+              #(key, payload, store, identity, [], [], [])
+            }
+            Some(order) -> {
+              let #(updated_order, next_identity) =
+                apply_order_mark_as_paid_update(order, identity)
+              let next_store = store.stage_order(store, updated_order)
+              let payload =
+                serialize_order_mutation_payload(
+                  field,
+                  Some(updated_order),
+                  [],
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  "orderMarkAsPaid",
+                  [id],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some("Locally staged orderMarkAsPaid in shopify-draft-proxy."),
+                )
+              #(key, payload, next_store, next_identity, [id], [], [draft])
+            }
+          }
+      }
+    }
+  }
+}
+
+fn apply_order_mark_as_paid_update(
+  order: OrderRecord,
+  identity: SyntheticIdentityRegistry,
+) -> #(OrderRecord, SyntheticIdentityRegistry) {
+  case captured_string_field(order.data, "displayFinancialStatus") {
+    Some("PAID") -> #(order, identity)
+    _ -> {
+      let #(timestamp, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      let amount_set = order_payment_amount_set(order)
+      let currency_code = captured_money_set_currency(amount_set)
+      let transaction =
+        CapturedObject([
+          #("kind", CapturedString("SALE")),
+          #("status", CapturedString("SUCCESS")),
+          #("gateway", CapturedString("manual")),
+          #("amountSet", amount_set),
+        ])
+      let updated_data =
+        order.data
+        |> replace_captured_object_fields([
+          #("updatedAt", CapturedString(timestamp)),
+          #("displayFinancialStatus", CapturedString("PAID")),
+          #("paymentGatewayNames", CapturedArray([CapturedString("manual")])),
+          #("totalOutstandingSet", money_set_string("0.0", currency_code)),
+          #(
+            "transactions",
+            CapturedArray(list.append(order_transactions(order), [transaction])),
+          ),
+        ])
+      #(OrderRecord(..order, data: updated_data), next_identity)
+    }
+  }
+}
+
+fn order_payment_amount_set(order: OrderRecord) -> CapturedJsonValue {
+  let outstanding = case
+    captured_object_field(order.data, "totalOutstandingSet")
+  {
+    Some(value) ->
+      case captured_money_value(value) >. 0.0 {
+        True -> Some(value)
+        False -> None
+      }
+    None -> None
+  }
+  outstanding
+  |> option.or(captured_object_field(order.data, "currentTotalPriceSet"))
+  |> option.or(captured_object_field(order.data, "totalPriceSet"))
+  |> option.unwrap(money_set_string("0.0", order_currency_code(order)))
+}
+
+fn order_currency_code(order: OrderRecord) -> String {
+  captured_object_field(order.data, "currentTotalPriceSet")
+  |> option.or(captured_object_field(order.data, "totalOutstandingSet"))
+  |> option.or(captured_object_field(order.data, "totalPriceSet"))
+  |> option.map(captured_money_set_currency)
+  |> option.unwrap("CAD")
+}
+
+fn captured_money_set_currency(value: CapturedJsonValue) -> String {
+  case captured_object_field(value, "shopMoney") {
+    Some(shop_money) ->
+      captured_string_field(shop_money, "currencyCode") |> option.unwrap("CAD")
+    None -> "CAD"
+  }
+}
+
+fn money_set_string(
+  amount: String,
+  currency_code: String,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "shopMoney",
+      CapturedObject([
+        #("amount", CapturedString(amount)),
+        #("currencyCode", CapturedString(currency_code)),
+      ]),
+    ),
+  ])
+}
+
+fn order_transactions(order: OrderRecord) -> List(CapturedJsonValue) {
+  case captured_object_field(order.data, "transactions") {
+    Some(CapturedArray(items)) -> items
+    _ -> []
   }
 }
 

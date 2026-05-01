@@ -293,6 +293,8 @@ fn seed_capture_preconditions(
       seed_order_management_preconditions(capture, proxy, "orderClose")
     "orderInvoiceSend-live-parity" ->
       seed_order_management_preconditions(capture, proxy, "orderInvoiceSend")
+    "orderMarkAsPaid-live-parity" ->
+      seed_order_management_preconditions(capture, proxy, "orderMarkAsPaid")
     "orderCustomerSet-live-parity" | "orderCustomerRemove-live-parity" ->
       seed_order_customer_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->

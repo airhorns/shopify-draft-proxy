@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 141: order mark-as-paid parity
+
+Promotes the checked-in `orderMarkAsPaid` parity scenario in the Gleam Orders
+domain. This pass adds local existing-order payment state staging for
+mark-as-paid requests, preserves already-paid captured orders without
+duplicating transactions, and seeds the parity fixture from its captured paid
+order payload.
+
+| Module                                                   | Change                                                   |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds local `orderMarkAsPaid` payment state handling.     |
+| `gleam/test/parity/runner.gleam`                         | Seeds mark-as-paid parity from captured mutation order.  |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers mark-as-paid payload and downstream read effects. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing mark-as-paid parity spec.      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (747 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (743 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 118 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured `orderMarkAsPaid` scenario selects the paid financial status,
+  manual gateway, zero outstanding amount, and a successful manual SALE
+  transaction. These fields can be modeled locally from an existing captured
+  order without claiming the broader payment/transaction lifecycle roots.
+- Parity seeding uses the captured already-paid mutation order, so the handler
+  must serialize already-paid orders unchanged rather than appending a duplicate
+  local transaction.
+
+### Risks / open items
+
+- Manual payment creation, mandate payments, transaction capture/void flows,
+  order creation/update/delete success, fulfillment, refunds, returns, and
+  order-edit sessions remain gated.
+
+### Pass 142 candidates
+
+- Continue with payment lifecycle roots only if their transaction/state
+  interactions can be modeled coherently, or move to another narrow validation
+  fixture.
+
+---
+
 ## 2026-05-01 - Pass 140: order customer association parity
 
 Promotes the checked-in `orderCustomerSet` and `orderCustomerRemove` parity

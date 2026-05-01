@@ -1319,6 +1319,136 @@ pub fn orders_order_invoice_send_payload_test() {
   assert outcome.log_drafts == []
 }
 
+pub fn orders_order_mark_as_paid_read_after_write_test() {
+  let order_id = "gid://shopify/Order/6830647771369"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1329")),
+          #("displayFinancialStatus", types.CapturedString("PENDING")),
+          #("paymentGatewayNames", types.CapturedArray([])),
+          #(
+            "totalOutstandingSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("19.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "currentTotalPriceSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("19.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #("transactions", types.CapturedArray([])),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderMarkAsPaidParity($input: OrderMarkAsPaidInput!) {
+      orderMarkAsPaid(input: $input) {
+        order {
+          id
+          displayFinancialStatus
+          paymentGatewayNames
+          totalOutstandingSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          transactions {
+            kind
+            status
+            gateway
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("id", root_field.StringVal(order_id)),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [order_id]
+  assert list.length(outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/6830647771369\") {
+        id
+        displayFinancialStatus
+        paymentGatewayNames
+        totalOutstandingSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        transactions {
+          kind
+          status
+          gateway
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]}}}"
+}
+
 pub fn orders_order_edit_missing_id_validation_guardrails_test() {
   let expected =
     "{\"errors\":[{\"message\":\"Variable $id of type ID! was provided invalid value\",\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":null,\"problems\":[{\"path\":[],\"explanation\":\"Expected value to not be null\"}]}}]}"
