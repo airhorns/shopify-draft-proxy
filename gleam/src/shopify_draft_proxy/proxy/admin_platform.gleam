@@ -71,14 +71,19 @@ pub fn is_admin_platform_query_root(name: String) -> Bool {
     [
       "backupRegion",
       "cashTrackingSession",
+      "cashTrackingSessions",
       "deliveryProfile",
       "dispute",
+      "disputeEvidence",
+      "disputes",
       "domain",
       "job",
       "node",
       "nodes",
       "pointOfSaleDevice",
       "publicApiVersions",
+      "shopPayPaymentRequestReceipt",
+      "shopPayPaymentRequestReceipts",
       "staffMember",
       "staffMembers",
       "taxonomy",
@@ -209,8 +214,13 @@ fn serialize_query_field(
     "taxonomy" -> #(serialize_taxonomy(store, field, fragments, variables), [])
     "staffMember" -> #(json.null(), [staff_access_error(field, document)])
     "staffMembers" -> #(json.null(), [staff_access_error(field, document)])
-    "cashTrackingSession" | "pointOfSaleDevice" | "dispute" -> #(
-      json.null(),
+    "cashTrackingSession"
+    | "pointOfSaleDevice"
+    | "dispute"
+    | "disputeEvidence"
+    | "shopPayPaymentRequestReceipt" -> #(json.null(), [])
+    "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" -> #(
+      serialize_empty_connection(field, default_selected_field_options()),
       [],
     )
     "deliveryProfile" -> #(json.null(), [])
