@@ -40,7 +40,8 @@ import shopify_draft_proxy/state/types.{
   type MarketLocalizationRecord, type MarketRecord,
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
   type MetafieldDefinitionRecord, type MetaobjectDefinitionRecord,
-  type MetaobjectRecord, type OrderRecord, type PriceListRecord,
+  type MetaobjectRecord, type OnlineStoreContentRecord,
+  type OnlineStoreIntegrationRecord, type OrderRecord, type PriceListRecord,
   type ProductCollectionRecord, type ProductFeedRecord, type ProductMediaRecord,
   type ProductMetafieldRecord, type ProductOperationRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
@@ -165,6 +166,12 @@ pub type BaseState {
     webhook_subscriptions: Dict(String, WebhookSubscriptionRecord),
     webhook_subscription_order: List(String),
     deleted_webhook_subscription_ids: Dict(String, Bool),
+    online_store_content: Dict(String, OnlineStoreContentRecord),
+    online_store_content_order: List(String),
+    deleted_online_store_content_ids: Dict(String, Bool),
+    online_store_integrations: Dict(String, OnlineStoreIntegrationRecord),
+    online_store_integration_order: List(String),
+    deleted_online_store_integration_ids: Dict(String, Bool),
     apps: Dict(String, AppRecord),
     app_order: List(String),
     app_installations: Dict(String, AppInstallationRecord),
@@ -371,6 +378,12 @@ pub type StagedState {
     webhook_subscriptions: Dict(String, WebhookSubscriptionRecord),
     webhook_subscription_order: List(String),
     deleted_webhook_subscription_ids: Dict(String, Bool),
+    online_store_content: Dict(String, OnlineStoreContentRecord),
+    online_store_content_order: List(String),
+    deleted_online_store_content_ids: Dict(String, Bool),
+    online_store_integrations: Dict(String, OnlineStoreIntegrationRecord),
+    online_store_integration_order: List(String),
+    deleted_online_store_integration_ids: Dict(String, Bool),
     apps: Dict(String, AppRecord),
     app_order: List(String),
     app_installations: Dict(String, AppInstallationRecord),
@@ -637,6 +650,12 @@ pub fn empty_base_state() -> BaseState {
     webhook_subscriptions: dict.new(),
     webhook_subscription_order: [],
     deleted_webhook_subscription_ids: dict.new(),
+    online_store_content: dict.new(),
+    online_store_content_order: [],
+    deleted_online_store_content_ids: dict.new(),
+    online_store_integrations: dict.new(),
+    online_store_integration_order: [],
+    deleted_online_store_integration_ids: dict.new(),
     apps: dict.new(),
     app_order: [],
     app_installations: dict.new(),
@@ -818,6 +837,12 @@ pub fn empty_staged_state() -> StagedState {
     webhook_subscriptions: dict.new(),
     webhook_subscription_order: [],
     deleted_webhook_subscription_ids: dict.new(),
+    online_store_content: dict.new(),
+    online_store_content_order: [],
+    deleted_online_store_content_ids: dict.new(),
+    online_store_integrations: dict.new(),
+    online_store_integration_order: [],
+    deleted_online_store_integration_ids: dict.new(),
     apps: dict.new(),
     app_order: [],
     app_installations: dict.new(),
@@ -5476,6 +5501,294 @@ pub fn list_effective_webhook_subscriptions(
       case get_effective_webhook_subscription_by_id(store, id) {
         Some(record) -> Ok(record)
         None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+// ---------------------------------------------------------------------------
+// Online-store slices
+// ---------------------------------------------------------------------------
+
+pub fn upsert_base_online_store_content(
+  store: Store,
+  records: List(OnlineStoreContentRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    let new_base =
+      BaseState(
+        ..base,
+        online_store_content: dict.insert(
+          base.online_store_content,
+          record.id,
+          record,
+        ),
+        online_store_content_order: append_unique_id(
+          base.online_store_content_order,
+          record.id,
+        ),
+        deleted_online_store_content_ids: dict.delete(
+          base.deleted_online_store_content_ids,
+          record.id,
+        ),
+      )
+    let new_staged =
+      StagedState(
+        ..staged,
+        deleted_online_store_content_ids: dict.delete(
+          staged.deleted_online_store_content_ids,
+          record.id,
+        ),
+      )
+    Store(..acc, base_state: new_base, staged_state: new_staged)
+  })
+}
+
+pub fn upsert_staged_online_store_content(
+  store: Store,
+  record: OnlineStoreContentRecord,
+) -> #(OnlineStoreContentRecord, Store) {
+  let staged = store.staged_state
+  let already_known =
+    list.contains(store.base_state.online_store_content_order, record.id)
+    || list.contains(staged.online_store_content_order, record.id)
+  let new_order = case already_known {
+    True -> staged.online_store_content_order
+    False -> list.append(staged.online_store_content_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      online_store_content: dict.insert(
+        staged.online_store_content,
+        record.id,
+        record,
+      ),
+      online_store_content_order: new_order,
+      deleted_online_store_content_ids: dict.delete(
+        staged.deleted_online_store_content_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn delete_staged_online_store_content(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      online_store_content: dict.delete(staged.online_store_content, id),
+      deleted_online_store_content_ids: dict.insert(
+        staged.deleted_online_store_content_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_online_store_content_by_id(
+  store: Store,
+  id: String,
+) -> Option(OnlineStoreContentRecord) {
+  let deleted =
+    dict_has(store.base_state.deleted_online_store_content_ids, id)
+    || dict_has(store.staged_state.deleted_online_store_content_ids, id)
+  case deleted {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.online_store_content, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.online_store_content, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_online_store_content(
+  store: Store,
+  kind: String,
+) -> List(OnlineStoreContentRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.online_store_content_order,
+      store.staged_state.online_store_content_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_online_store_content_by_id(store, id) {
+        Some(record) if record.kind == kind -> Ok(record)
+        _ -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(
+      store.base_state.online_store_content,
+      store.staged_state.online_store_content,
+    )
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_online_store_content_by_id(store, id) {
+        Some(record) if record.kind == kind -> Ok(record)
+        _ -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+pub fn upsert_base_online_store_integrations(
+  store: Store,
+  records: List(OnlineStoreIntegrationRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    let new_base =
+      BaseState(
+        ..base,
+        online_store_integrations: dict.insert(
+          base.online_store_integrations,
+          record.id,
+          record,
+        ),
+        online_store_integration_order: append_unique_id(
+          base.online_store_integration_order,
+          record.id,
+        ),
+        deleted_online_store_integration_ids: dict.delete(
+          base.deleted_online_store_integration_ids,
+          record.id,
+        ),
+      )
+    let new_staged =
+      StagedState(
+        ..staged,
+        deleted_online_store_integration_ids: dict.delete(
+          staged.deleted_online_store_integration_ids,
+          record.id,
+        ),
+      )
+    Store(..acc, base_state: new_base, staged_state: new_staged)
+  })
+}
+
+pub fn upsert_staged_online_store_integration(
+  store: Store,
+  record: OnlineStoreIntegrationRecord,
+) -> #(OnlineStoreIntegrationRecord, Store) {
+  let staged = store.staged_state
+  let already_known =
+    list.contains(store.base_state.online_store_integration_order, record.id)
+    || list.contains(staged.online_store_integration_order, record.id)
+  let new_order = case already_known {
+    True -> staged.online_store_integration_order
+    False -> list.append(staged.online_store_integration_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      online_store_integrations: dict.insert(
+        staged.online_store_integrations,
+        record.id,
+        record,
+      ),
+      online_store_integration_order: new_order,
+      deleted_online_store_integration_ids: dict.delete(
+        staged.deleted_online_store_integration_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn delete_staged_online_store_integration(
+  store: Store,
+  id: String,
+) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      online_store_integrations: dict.delete(
+        staged.online_store_integrations,
+        id,
+      ),
+      deleted_online_store_integration_ids: dict.insert(
+        staged.deleted_online_store_integration_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_online_store_integration_by_id(
+  store: Store,
+  id: String,
+) -> Option(OnlineStoreIntegrationRecord) {
+  let deleted =
+    dict_has(store.base_state.deleted_online_store_integration_ids, id)
+    || dict_has(store.staged_state.deleted_online_store_integration_ids, id)
+  case deleted {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.online_store_integrations, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.online_store_integrations, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_online_store_integrations(
+  store: Store,
+  kind: String,
+) -> List(OnlineStoreIntegrationRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.online_store_integration_order,
+      store.staged_state.online_store_integration_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_online_store_integration_by_id(store, id) {
+        Some(record) if record.kind == kind -> Ok(record)
+        _ -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(
+      store.base_state.online_store_integrations,
+      store.staged_state.online_store_integrations,
+    )
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_online_store_integration_by_id(store, id) {
+        Some(record) if record.kind == kind -> Ok(record)
+        _ -> Error(Nil)
       }
     })
   list.append(ordered_records, unordered_records)

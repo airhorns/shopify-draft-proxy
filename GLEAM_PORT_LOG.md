@@ -2750,6 +2750,66 @@ the Gleam parity suite and 0 Markets specs expected-failing.
 
 ---
 
+## 2026-05-01 - Pass 117: online-store content and integration parity
+
+Promotes the online-store content, integrations, storefront token, default page
+publish, and article media/navigation fixtures into the Gleam parity suite. The
+port now stages online-store content and integration records locally, projects
+Shopify-shaped read-after-write payloads, and routes `shop.storefrontAccessTokens`
+through online-store without weakening the existing store-properties `shop`
+handler.
+
+| Module                                                    | Change                                                                                                      |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/online_store.gleam`  | Adds online-store query/mutation handling for content, themes/files, script tags, pixels, tokens, and apps. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`   | Wires online-store query/mutation dispatch, including `shop { storefrontAccessTokens }` routing.            |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds captured-json-backed online-store content and integration records.                                     |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds effective/staged online-store content and integration store helpers.                                   |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Carries online-store content/integration buckets through state dump serialization.                          |
+| `gleam/test/parity/runner.gleam`                          | Executes the storefront-token read-after-create override instead of substituting the safe upstream read.    |
+| `config/gleam-port-ci-gates.json`                         | Removes the six newly passing online-store parity specs.                                                    |
+
+Validation:
+Focused JavaScript parity is green for all six online-store specs:
+`online-store-content-lifecycle.json`,
+`online-store-content-search-filters.json`,
+`online-store-integrations-local-staging.json`,
+`online-store-page-default-publish-local-staging.json`,
+`storefront-access-token-local-staging.json`, and
+`online-store-article-media-navigation-follow-through.json`. Host Erlang still
+fails under OTP 25 with the known `gleam_json` OTP 27 requirement; after clearing
+host-built artifacts, the Docker Erlang fallback using Gleam 1.16 is green at
+712 tests. Full JavaScript is green at 716 tests. `corepack pnpm
+gleam:port:coverage` is green with 379 specs and 171 expected failures.
+`corepack pnpm lint` is green.
+
+### Findings
+
+- Online-store needs two generic state families rather than one resource type:
+  content records for blogs/articles/pages/comments, and integration records
+  for themes/files, script tags, pixels, storefront access tokens, and mobile
+  applications.
+- Shopify treats `WebPixel.settings` as a JSON scalar; projecting it through an
+  empty child selection produces `{}` instead of the raw settings object.
+- Mobile platform app create inputs may nest Android fields under `android`, and
+  Article metafield read-after-write parity requires adding `ownerType` and
+  `jsonValue` to locally staged metafields.
+- The storefront-token fixture includes live safe-read evidence, but the local
+  read-after-create target must execute against the staged proxy state.
+
+### Risks / open items
+
+- Online-store parity is now ungated in Gleam, but the TypeScript online-store
+  runtime and TypeScript integration tests remain intact until the final
+  all-port cutover.
+
+### Pass 118 candidates
+
+- Continue with the next expected-failing non-online-store domain from
+  `config/gleam-port-ci-gates.json`.
+
+---
+
 ## 2026-05-01 - Pass 116: segments baseline and member parity
 
 Completes the next Segments Gleam parity pass while preserving the TypeScript
