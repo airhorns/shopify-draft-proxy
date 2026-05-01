@@ -22,8 +22,10 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/result
 import gleam/string
+import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -41,8 +43,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type LocaleRecord, type ShopLocaleRecord, type TranslationRecord, LocaleRecord,
-  ShopLocaleRecord, TranslationRecord,
+  type LocaleRecord, type ProductMetafieldRecord, type ProductRecord,
+  type ShopLocaleRecord, type TranslationRecord, LocaleRecord, ShopLocaleRecord,
+  TranslationRecord,
 }
 
 // ---------------------------------------------------------------------------
@@ -252,27 +255,267 @@ fn get_shop_locale(
 // Resource reconstruction
 // ---------------------------------------------------------------------------
 
-/// Find a translatable resource by id. Without a Products domain the
-/// proxy can't truly enumerate translatable resources, so this is
-/// always `None` — every resourceId surfaces as RESOURCE_NOT_FOUND
-/// during validation. Once the Products domain ports, this should
-/// derive a `TranslatableResource` from the matching `ProductRecord`
-/// (and `MetafieldRecord`) just like `findResource` in TS.
+/// Find a translatable resource by id from effective Product and
+/// product Metafield state, mirroring the TypeScript localization
+/// runtime.
 fn find_resource(
-  _store_in: Store,
-  _resource_id: String,
+  store_in: Store,
+  resource_id: String,
 ) -> Option(TranslatableResource) {
-  None
+  case store.get_effective_product_by_id(store_in, resource_id) {
+    Some(product) ->
+      Some(TranslatableResource(
+        resource_id: product.id,
+        resource_type: "PRODUCT",
+        content: product_content(product),
+      ))
+    None ->
+      case
+        list.find(list_product_metafields(store_in), fn(metafield) {
+          metafield.id == resource_id
+        })
+      {
+        Ok(metafield) ->
+          Some(TranslatableResource(
+            resource_id: metafield.id,
+            resource_type: "METAFIELD",
+            content: metafield_content(metafield),
+          ))
+        Error(_) -> None
+      }
+  }
 }
 
-/// Enumerate every translatable resource of a given type. Returns
-/// `[]` for the same reason as `find_resource` — no Products in the
-/// Gleam store yet.
+/// Enumerate every translatable resource of a given type from effective
+/// Product/Product Metafield state plus capture-backed source markers.
 fn list_resources(
-  _store_in: Store,
-  _resource_type: Option(String),
+  store_in: Store,
+  resource_type: Option(String),
 ) -> List(TranslatableResource) {
-  []
+  let product_resources = case resource_matches(resource_type, "PRODUCT") {
+    True ->
+      store.list_effective_products(store_in)
+      |> list.map(fn(product) {
+        TranslatableResource(
+          resource_id: product.id,
+          resource_type: "PRODUCT",
+          content: product_content(product),
+        )
+      })
+    False -> []
+  }
+  let metafield_resources = case resource_matches(resource_type, "METAFIELD") {
+    True ->
+      list_product_metafields(store_in)
+      |> list.map(fn(metafield) {
+        TranslatableResource(
+          resource_id: metafield.id,
+          resource_type: "METAFIELD",
+          content: metafield_content(metafield),
+        )
+      })
+    False -> []
+  }
+  let seeded_resources =
+    source_marker_resources(store_in)
+    |> list.filter(fn(resource) {
+      resource_matches(resource_type, resource.resource_type)
+    })
+  list.append(product_resources, metafield_resources)
+  |> list.append(seeded_resources)
+  |> dedupe_resources([])
+  |> list.sort(fn(left, right) {
+    string.compare(left.resource_id, right.resource_id)
+  })
+}
+
+fn resource_matches(filter: Option(String), resource_type: String) -> Bool {
+  case filter {
+    Some(target) -> target == resource_type
+    None -> False
+  }
+}
+
+fn list_product_metafields(store_in: Store) -> List(ProductMetafieldRecord) {
+  store.list_effective_products(store_in)
+  |> list.flat_map(fn(product) {
+    store.get_effective_metafields_by_owner_id(store_in, product.id)
+  })
+  |> dedupe_metafields([])
+  |> list.sort(fn(left, right) { string.compare(left.id, right.id) })
+}
+
+fn dedupe_metafields(
+  metafields: List(ProductMetafieldRecord),
+  seen: List(String),
+) -> List(ProductMetafieldRecord) {
+  case metafields {
+    [] -> []
+    [metafield, ..rest] ->
+      case list.contains(seen, metafield.id) {
+        True -> dedupe_metafields(rest, seen)
+        False -> [metafield, ..dedupe_metafields(rest, [metafield.id, ..seen])]
+      }
+  }
+}
+
+fn product_content(product: ProductRecord) -> List(TranslatableContent) {
+  let base = [
+    TranslatableContent(
+      key: "title",
+      value: Some(product.title),
+      digest: Some(crypto.sha256_hex(product.title)),
+      locale: "en",
+      type_: "SINGLE_LINE_TEXT_FIELD",
+    ),
+    TranslatableContent(
+      key: "handle",
+      value: Some(product.handle),
+      digest: Some(crypto.sha256_hex(product.handle)),
+      locale: "en",
+      type_: "URI",
+    ),
+  ]
+  let with_body = case product.description_html {
+    "" -> base
+    value ->
+      list.append(base, [
+        TranslatableContent(
+          key: "body_html",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "HTML",
+        ),
+      ])
+  }
+  let with_type = case product.product_type {
+    Some(value) ->
+      list.append(with_body, [
+        TranslatableContent(
+          key: "product_type",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "SINGLE_LINE_TEXT_FIELD",
+        ),
+      ])
+    None -> with_body
+  }
+  let with_seo_title = case product.seo.title {
+    Some(value) ->
+      list.append(with_type, [
+        TranslatableContent(
+          key: "meta_title",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "SINGLE_LINE_TEXT_FIELD",
+        ),
+      ])
+    None -> with_type
+  }
+  case product.seo.description {
+    Some(value) ->
+      list.append(with_seo_title, [
+        TranslatableContent(
+          key: "meta_description",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "MULTI_LINE_TEXT_FIELD",
+        ),
+      ])
+    None -> with_seo_title
+  }
+}
+
+fn metafield_content(
+  metafield: ProductMetafieldRecord,
+) -> List(TranslatableContent) {
+  [
+    TranslatableContent(
+      key: "value",
+      value: metafield.value,
+      digest: case metafield.compare_digest, metafield.value {
+        Some(digest), _ -> Some(digest)
+        None, Some(value) -> Some(crypto.sha256_hex(value))
+        None, None -> None
+      },
+      locale: "en",
+      type_: localizable_content_type_for_metafield(metafield.type_),
+    ),
+  ]
+}
+
+fn localizable_content_type_for_metafield(type_: Option(String)) -> String {
+  case type_ {
+    Some("multi_line_text_field") -> "MULTI_LINE_TEXT_FIELD"
+    Some("rich_text_field") -> "RICH_TEXT_FIELD"
+    Some("url") -> "URL"
+    Some("json") -> "JSON"
+    _ -> "SINGLE_LINE_TEXT_FIELD"
+  }
+}
+
+fn source_marker_resources(store_in: Store) -> List(TranslatableResource) {
+  let source_markers =
+    list.append(
+      dict.values(store_in.base_state.translations),
+      dict.values(store_in.staged_state.translations),
+    )
+    |> list.filter(fn(t) { t.locale == "__source" })
+  let resource_ids =
+    source_markers
+    |> list.map(fn(t) { t.resource_id })
+    |> dedupe_strings([])
+  list.filter_map(resource_ids, fn(resource_id) {
+    let content =
+      source_markers
+      |> list.filter(fn(t) { t.resource_id == resource_id })
+      |> list.map(fn(t) {
+        content_from_translation(t, t.translatable_content_digest)
+      })
+      |> dedupe_content_by_key([])
+      |> list.sort(compare_content)
+    case content {
+      [] -> Error(Nil)
+      _ ->
+        Ok(TranslatableResource(
+          resource_id: resource_id,
+          resource_type: synthetic_resource_type(resource_id),
+          content: content,
+        ))
+    }
+  })
+}
+
+fn dedupe_strings(values: List(String), seen: List(String)) -> List(String) {
+  case values {
+    [] -> []
+    [value, ..rest] ->
+      case list.contains(seen, value) {
+        True -> dedupe_strings(rest, seen)
+        False -> [value, ..dedupe_strings(rest, [value, ..seen])]
+      }
+  }
+}
+
+fn dedupe_resources(
+  resources: List(TranslatableResource),
+  seen: List(String),
+) -> List(TranslatableResource) {
+  case resources {
+    [] -> []
+    [resource, ..rest] ->
+      case list.contains(seen, resource.resource_id) {
+        True -> dedupe_resources(rest, seen)
+        False -> [
+          resource,
+          ..dedupe_resources(rest, [resource.resource_id, ..seen])
+        ]
+      }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -490,7 +733,30 @@ fn synthesized_content_from_translations(
     )
   })
   |> dedupe_content_by_key([])
-  |> list.sort(fn(left, right) { string.compare(left.key, right.key) })
+  |> list.sort(compare_content)
+}
+
+fn compare_content(
+  left: TranslatableContent,
+  right: TranslatableContent,
+) -> order.Order {
+  case int.compare(content_order(left.key), content_order(right.key)) {
+    order.Eq -> string.compare(left.key, right.key)
+    other -> other
+  }
+}
+
+fn content_order(key: String) -> Int {
+  case key {
+    "title" -> 0
+    "handle" -> 1
+    "body_html" -> 2
+    "product_type" -> 3
+    "meta_title" -> 4
+    "meta_description" -> 5
+    "value" -> 6
+    _ -> 100
+  }
 }
 
 fn dedupe_content_by_key(
@@ -511,9 +777,14 @@ fn content_from_translation(
   translation: TranslationRecord,
   digest: String,
 ) -> TranslatableContent {
+  let source_value = case translation.locale, translation.value {
+    "__source", "" -> None
+    "__source", value -> Some(value)
+    _, _ -> None
+  }
   TranslatableContent(
     key: translation.key,
-    value: None,
+    value: source_value,
     digest: case digest {
       "" -> None
       value -> Some(value)
