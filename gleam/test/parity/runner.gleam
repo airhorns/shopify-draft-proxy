@@ -4738,6 +4738,25 @@ fn seed_inventory_quantity_contracts_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
+  case
+    capture_has_any_path(capture, [
+      "$.setup.product.productId",
+      "$.setup.product.variantId",
+      "$.setup.product.inventoryItemId",
+      "$.inventorySetQuantities.variables.input.quantities[0].locationId",
+      "$.downstreamRead.data.inventoryItem.inventoryLevels.nodes[0].location.name",
+    ])
+  {
+    False -> proxy
+    True ->
+      seed_inventory_quantity_contracts_preconditions_inner(capture, proxy)
+  }
+}
+
+fn seed_inventory_quantity_contracts_preconditions_inner(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
   let product_id =
     jsonpath.lookup(capture, "$.setup.product.productId")
     |> json_string_or("gid://shopify/Product/10172136718642")
