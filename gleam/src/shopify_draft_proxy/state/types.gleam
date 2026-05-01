@@ -132,6 +132,35 @@ pub type OnlineStoreIntegrationRecord {
   )
 }
 
+// Discounts domain
+// ---------------------------------------------------------------------------
+
+pub type DiscountRecord {
+  DiscountRecord(
+    id: String,
+    owner_kind: String,
+    discount_type: String,
+    title: Option(String),
+    status: String,
+    code: Option(String),
+    payload: CapturedJsonValue,
+    cursor: Option(String),
+  )
+}
+
+pub type DiscountBulkOperationRecord {
+  DiscountBulkOperationRecord(
+    id: String,
+    operation: String,
+    discount_id: String,
+    status: String,
+    payload: CapturedJsonValue,
+  )
+}
+
+// Orders domain
+// ---------------------------------------------------------------------------
+
 pub type AbandonedCheckoutRecord {
   AbandonedCheckoutRecord(
     id: String,
