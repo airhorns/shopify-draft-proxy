@@ -2103,19 +2103,16 @@ type StoreFieldsDump {
 }
 
 fn store_fields_decoder() -> decode.Decoder(StoreFieldsDump) {
-  use base_state <- decode.optional_field(
+  use base_state <- decode.field(
     "baseState",
-    store.empty_base_state(),
-    store_field_decoder(state_serialization.base_state_decoder()),
+    store_field_decoder(state_serialization.strict_base_state_decoder()),
   )
-  use staged_state <- decode.optional_field(
+  use staged_state <- decode.field(
     "stagedState",
-    store.empty_staged_state(),
-    store_field_decoder(state_serialization.staged_state_decoder()),
+    store_field_decoder(state_serialization.strict_staged_state_decoder()),
   )
-  use mutation_log <- decode.optional_field(
+  use mutation_log <- decode.field(
     "mutationLog",
-    [],
     store_field_decoder(decode.list(of: mutation_log_entry_decoder())),
   )
   decode.success(StoreFieldsDump(
