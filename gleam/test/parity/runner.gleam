@@ -73,21 +73,22 @@ import shopify_draft_proxy/state/types.{
   type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
   type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, type StoreCreditAccountRecord,
-  type StorePropertyRecord, type StorePropertyValue, CapturedArray, CapturedBool,
-  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
-  CollectionRuleSetRecord, CustomerAccountPageRecord, CustomerAddressRecord,
-  CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
-  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
-  CustomerEventSummaryRecord, CustomerMetafieldRecord,
-  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
-  GiftCardTransactionRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
-  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
-  LocationRecord, MarketingBool, MarketingFloat, MarketingInt, MarketingList,
-  MarketingNull, MarketingObject, MarketingRecord, MarketingString,
+  type StorePropertyRecord, type StorePropertyValue, type TranslationRecord,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, CollectionImageRecord, CollectionRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, CustomerAccountPageRecord,
+  CustomerAddressRecord, CustomerCatalogConnectionRecord,
+  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerEmailMarketingConsentRecord, CustomerEventSummaryRecord,
+  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
+  CustomerSmsMarketingConsentRecord, GiftCardConfigurationRecord,
+  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
+  InventoryWeightInt, InventoryWeightRecord, LocaleRecord, LocationRecord,
+  MarketingBool, MarketingFloat, MarketingInt, MarketingList, MarketingNull,
+  MarketingObject, MarketingRecord, MarketingString,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
   MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
   MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
@@ -236,6 +237,8 @@ fn seed_capture_preconditions(
       seed_shop_preconditions(capture, proxy)
     "localization-disable-clears-translations" ->
       seed_localization_disable_cleanup_preconditions(capture, proxy)
+    "localization-locale-translation-fixture" ->
+      seed_localization_locale_translation_preconditions(capture, proxy)
     "marketing-baseline-read" ->
       seed_marketing_baseline_preconditions(capture, proxy)
     "store-credit-account-local-staging" ->
@@ -469,6 +472,82 @@ fn seed_localization_disable_cleanup_preconditions(
       }
     }
     None -> proxy
+  }
+}
+
+fn seed_localization_locale_translation_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let store_with_locales = case
+    jsonpath.lookup(
+      capture,
+      "$.readCapture.response.data.availableLocalesExcerpt",
+    )
+  {
+    Some(JArray(locales)) -> {
+      let records =
+        locales
+        |> list.filter_map(fn(locale) {
+          case
+            read_string_field(locale, "isoCode"),
+            read_string_field(locale, "name")
+          {
+            Some(iso_code), Some(name) ->
+              Ok(LocaleRecord(iso_code: iso_code, name: name))
+            _, _ -> Error(Nil)
+          }
+        })
+      store_mod.replace_base_available_locales(proxy.store, records)
+    }
+    _ -> proxy.store
+  }
+  let seeded_store = case
+    jsonpath.lookup(capture, "$.readCapture.response.data.resources.nodes")
+  {
+    Some(JArray(resources)) ->
+      resources
+      |> list.flat_map(localization_source_markers)
+      |> list.fold(store_with_locales, fn(current_store, marker) {
+        let #(_, next_store) =
+          store_mod.stage_translation(current_store, marker)
+        next_store
+      })
+    _ -> store_with_locales
+  }
+  draft_proxy.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn localization_source_markers(resource: JsonValue) -> List(TranslationRecord) {
+  case read_string_field(resource, "resourceId") {
+    Some(resource_id) -> {
+      let content = case read_array_field(resource, "translatableContent") {
+        Some(entries) -> entries
+        None -> []
+      }
+      content
+      |> list.filter_map(fn(entry) {
+        case
+          read_string_field(entry, "key"),
+          read_string_field(entry, "value"),
+          read_string_field(entry, "digest")
+        {
+          Some(key), Some(value), Some(digest) ->
+            Ok(TranslationRecord(
+              resource_id: resource_id,
+              key: key,
+              locale: "__source",
+              value: value,
+              translatable_content_digest: digest,
+              market_id: None,
+              updated_at: "1970-01-01T00:00:00Z",
+              outdated: False,
+            ))
+          _, _, _ -> Error(Nil)
+        }
+      })
+    }
+    None -> []
   }
 }
 

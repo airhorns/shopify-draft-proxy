@@ -9,6 +9,47 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 113: HAR-504 localization parity completion
+
+Promotes the remaining localization parity fixture into the Gleam parity suite.
+The localization port now derives translatable Product and product Metafield
+resources from effective store state, keeps captured source-content markers as
+a parity seeding bridge, and replays the locale/translation lifecycle fixture
+without the expected-failure gate.
+
+| Module                                                         | Change                                                                                              |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/localization.gleam`       | Lists/finds Product and Metafield translatable resources and preserves source-marker content order. |
+| `gleam/test/parity/runner.gleam`                               | Seeds captured localization available-locale excerpts and source-content markers for replay.        |
+| `gleam/test/shopify_draft_proxy/proxy/localization_test.gleam` | Covers Product-backed and source-marker-backed translatable resource enumeration.                   |
+| `config/gleam-port-ci-gates.json`                              | Removes `localization-locale-translation-fixture.json` from expected Gleam parity failures.         |
+| `.agents/skills/gleam-port/SKILL.md`                           | Records the localization source-marker seeding pattern for future passes.                           |
+
+Validation:
+`gleam test --target erlang` is green in the OTP 28 Gleam container at 716
+tests; `gleam test --target javascript` is green at 720 tests.
+`corepack pnpm gleam:port:coverage` and
+`corepack pnpm gleam:registry:check` are green.
+
+### Findings
+
+- The final gated localization fixture was not a mutation gap; it needed the
+  runner to seed the captured source content before the first read so local
+  `translatableResources` enumeration, register validation, downstream reads,
+  and remove cleanup could all see the same product resource.
+- `availableLocales` in the capture is intentionally an excerpt, so the runner
+  seeds that captured catalog slice for this scenario instead of using the
+  default broader catalog.
+- The TypeScript localization runtime remains intact under the incremental port
+  preservation rule.
+
+### Risks / open items
+
+- Final deletion of TypeScript localization runtime remains deferred until the
+  whole-port cutover acceptance bar is met.
+
+---
+
 ## 2026-05-01 - Pass 112: HAR-505 mainline refresh seeding
 
 Refreshes the HAR-505 Marketing branch after `origin/main` promoted the

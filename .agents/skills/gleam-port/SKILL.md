@@ -411,6 +411,12 @@ synthetic-id/timestamp expected differences.
   `proxy/privacy.gleam`; seed its parity capture from the downstream customer
   read so the proxy returns the captured customer id without broadening shop
   privacy settings support.
+- Localization translatable-resource parity may need source-content markers
+  before the first replay request. Seed captured `translatableContent` entries
+  as `TranslationRecord(locale: "__source", ...)` only from checked-in capture
+  data, preserve Shopify's content order (`title`, `handle`, `body_html`,
+  `product_type`, SEO fields), and keep real Product/ProductMetafield store
+  derivation as the primary runtime path.
 
 ## Workflow for a new pass
 
