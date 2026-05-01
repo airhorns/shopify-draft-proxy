@@ -125,6 +125,29 @@ fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
       "deletedSellingPlanGroupIds",
       bool_dict_to_json(state.deleted_selling_plan_group_ids),
     ),
+    #("markets", dict_to_json(state.markets, market_json)),
+    #("marketOrder", json.array(state.market_order, json.string)),
+    #("deletedMarketIds", bool_dict_to_json(state.deleted_market_ids)),
+    #("catalogs", dict_to_json(state.catalogs, catalog_json)),
+    #("catalogOrder", json.array(state.catalog_order, json.string)),
+    #("deletedCatalogIds", bool_dict_to_json(state.deleted_catalog_ids)),
+    #("priceLists", dict_to_json(state.price_lists, price_list_json)),
+    #("priceListOrder", json.array(state.price_list_order, json.string)),
+    #("deletedPriceListIds", bool_dict_to_json(state.deleted_price_list_ids)),
+    #("webPresences", dict_to_json(state.web_presences, web_presence_json)),
+    #("webPresenceOrder", json.array(state.web_presence_order, json.string)),
+    #(
+      "deletedWebPresenceIds",
+      bool_dict_to_json(state.deleted_web_presence_ids),
+    ),
+    #(
+      "marketLocalizations",
+      dict_to_json(state.market_localizations, market_localization_json),
+    ),
+    #(
+      "marketsRootPayloads",
+      dict_to_json(state.markets_root_payloads, captured_json_value_json),
+    ),
     #("files", dict_to_json(state.files, file_json)),
     #("fileOrder", json.array(state.file_order, json.string)),
     #("deletedFileIds", bool_dict_to_json(state.deleted_file_ids)),
@@ -752,6 +775,29 @@ fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
     #(
       "deletedSellingPlanGroupIds",
       bool_dict_to_json(state.deleted_selling_plan_group_ids),
+    ),
+    #("markets", dict_to_json(state.markets, market_json)),
+    #("marketOrder", json.array(state.market_order, json.string)),
+    #("deletedMarketIds", bool_dict_to_json(state.deleted_market_ids)),
+    #("catalogs", dict_to_json(state.catalogs, catalog_json)),
+    #("catalogOrder", json.array(state.catalog_order, json.string)),
+    #("deletedCatalogIds", bool_dict_to_json(state.deleted_catalog_ids)),
+    #("priceLists", dict_to_json(state.price_lists, price_list_json)),
+    #("priceListOrder", json.array(state.price_list_order, json.string)),
+    #("deletedPriceListIds", bool_dict_to_json(state.deleted_price_list_ids)),
+    #("webPresences", dict_to_json(state.web_presences, web_presence_json)),
+    #("webPresenceOrder", json.array(state.web_presence_order, json.string)),
+    #(
+      "deletedWebPresenceIds",
+      bool_dict_to_json(state.deleted_web_presence_ids),
+    ),
+    #(
+      "marketLocalizations",
+      dict_to_json(state.market_localizations, market_localization_json),
+    ),
+    #(
+      "marketsRootPayloads",
+      dict_to_json(state.markets_root_payloads, captured_json_value_json),
     ),
     #("files", dict_to_json(state.files, file_json)),
     #("fileOrder", json.array(state.file_order, json.string)),
@@ -1740,6 +1786,49 @@ fn delivery_profile_json(record: types.DeliveryProfileRecord) -> Json {
     #("cursor", optional_string(record.cursor)),
     #("merchantOwned", json.bool(record.merchant_owned)),
     #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn market_json(record: types.MarketRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn catalog_json(record: types.CatalogRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn price_list_json(record: types.PriceListRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn web_presence_json(record: types.WebPresenceRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn market_localization_json(record: types.MarketLocalizationRecord) -> Json {
+  json.object([
+    #("resourceId", json.string(record.resource_id)),
+    #("marketId", json.string(record.market_id)),
+    #("key", json.string(record.key)),
+    #("value", json.string(record.value)),
+    #("updatedAt", json.string(record.updated_at)),
+    #("outdated", json.bool(record.outdated)),
   ])
 }
 
@@ -3268,6 +3357,26 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
   use orders <- dict_field("orders", order_decoder())
   use order_order <- string_list_field("orderOrder")
   use deleted_order_ids <- bool_dict_field("deletedOrderIds")
+  use markets <- dict_field("markets", market_decoder())
+  use market_order <- string_list_field("marketOrder")
+  use deleted_market_ids <- bool_dict_field("deletedMarketIds")
+  use catalogs <- dict_field("catalogs", catalog_decoder())
+  use catalog_order <- string_list_field("catalogOrder")
+  use deleted_catalog_ids <- bool_dict_field("deletedCatalogIds")
+  use price_lists <- dict_field("priceLists", price_list_decoder())
+  use price_list_order <- string_list_field("priceListOrder")
+  use deleted_price_list_ids <- bool_dict_field("deletedPriceListIds")
+  use web_presences <- dict_field("webPresences", web_presence_decoder())
+  use web_presence_order <- string_list_field("webPresenceOrder")
+  use deleted_web_presence_ids <- bool_dict_field("deletedWebPresenceIds")
+  use market_localizations <- dict_field(
+    "marketLocalizations",
+    market_localization_decoder(),
+  )
+  use markets_root_payloads <- dict_field(
+    "marketsRootPayloads",
+    captured_json_value_decoder(),
+  )
   use store_property_locations <- dict_field(
     "locations",
     store_property_record_decoder(),
@@ -3449,6 +3558,20 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     selling_plan_groups: empty.selling_plan_groups,
     selling_plan_group_order: empty.selling_plan_group_order,
     deleted_selling_plan_group_ids: empty.deleted_selling_plan_group_ids,
+    markets: markets,
+    market_order: market_order,
+    deleted_market_ids: deleted_market_ids,
+    catalogs: catalogs,
+    catalog_order: catalog_order,
+    deleted_catalog_ids: deleted_catalog_ids,
+    price_lists: price_lists,
+    price_list_order: price_list_order,
+    deleted_price_list_ids: deleted_price_list_ids,
+    web_presences: web_presences,
+    web_presence_order: web_presence_order,
+    deleted_web_presence_ids: deleted_web_presence_ids,
+    market_localizations: market_localizations,
+    markets_root_payloads: markets_root_payloads,
     product_media: empty.product_media,
     files: empty.files,
     file_order: empty.file_order,
@@ -3687,6 +3810,26 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
   use orders <- dict_field("orders", order_decoder())
   use order_order <- string_list_field("orderOrder")
   use deleted_order_ids <- bool_dict_field("deletedOrderIds")
+  use markets <- dict_field("markets", market_decoder())
+  use market_order <- string_list_field("marketOrder")
+  use deleted_market_ids <- bool_dict_field("deletedMarketIds")
+  use catalogs <- dict_field("catalogs", catalog_decoder())
+  use catalog_order <- string_list_field("catalogOrder")
+  use deleted_catalog_ids <- bool_dict_field("deletedCatalogIds")
+  use price_lists <- dict_field("priceLists", price_list_decoder())
+  use price_list_order <- string_list_field("priceListOrder")
+  use deleted_price_list_ids <- bool_dict_field("deletedPriceListIds")
+  use web_presences <- dict_field("webPresences", web_presence_decoder())
+  use web_presence_order <- string_list_field("webPresenceOrder")
+  use deleted_web_presence_ids <- bool_dict_field("deletedWebPresenceIds")
+  use market_localizations <- dict_field(
+    "marketLocalizations",
+    market_localization_decoder(),
+  )
+  use markets_root_payloads <- dict_field(
+    "marketsRootPayloads",
+    captured_json_value_decoder(),
+  )
   use store_property_locations <- dict_field(
     "locations",
     store_property_record_decoder(),
@@ -3860,6 +4003,20 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     selling_plan_groups: empty.selling_plan_groups,
     selling_plan_group_order: empty.selling_plan_group_order,
     deleted_selling_plan_group_ids: empty.deleted_selling_plan_group_ids,
+    markets: markets,
+    market_order: market_order,
+    deleted_market_ids: deleted_market_ids,
+    catalogs: catalogs,
+    catalog_order: catalog_order,
+    deleted_catalog_ids: deleted_catalog_ids,
+    price_lists: price_lists,
+    price_list_order: price_list_order,
+    deleted_price_list_ids: deleted_price_list_ids,
+    web_presences: web_presences,
+    web_presence_order: web_presence_order,
+    deleted_web_presence_ids: deleted_web_presence_ids,
+    market_localizations: market_localizations,
+    markets_root_payloads: markets_root_payloads,
     product_media: empty.product_media,
     files: empty.files,
     file_order: empty.file_order,
@@ -4612,6 +4769,51 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
     url: url,
     created_at: created_at,
     updated_at: updated_at,
+  ))
+}
+
+fn market_decoder() -> Decoder(types.MarketRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  decode.success(types.MarketRecord(id: id, cursor: cursor, data: data))
+}
+
+fn catalog_decoder() -> Decoder(types.CatalogRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  decode.success(types.CatalogRecord(id: id, cursor: cursor, data: data))
+}
+
+fn price_list_decoder() -> Decoder(types.PriceListRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  decode.success(types.PriceListRecord(id: id, cursor: cursor, data: data))
+}
+
+fn web_presence_decoder() -> Decoder(types.WebPresenceRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  decode.success(types.WebPresenceRecord(id: id, cursor: cursor, data: data))
+}
+
+fn market_localization_decoder() -> Decoder(types.MarketLocalizationRecord) {
+  use resource_id <- decode.field("resourceId", decode.string)
+  use market_id <- decode.field("marketId", decode.string)
+  use key <- decode.field("key", decode.string)
+  use value <- decode.field("value", decode.string)
+  use updated_at <- decode.field("updatedAt", decode.string)
+  use outdated <- decode.field("outdated", decode.bool)
+  decode.success(types.MarketLocalizationRecord(
+    resource_id: resource_id,
+    market_id: market_id,
+    key: key,
+    value: value,
+    updated_at: updated_at,
+    outdated: outdated,
   ))
 }
 

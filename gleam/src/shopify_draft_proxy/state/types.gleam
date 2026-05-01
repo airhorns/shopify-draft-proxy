@@ -595,6 +595,44 @@ pub type SellingPlanGroupRecord {
 }
 
 // ---------------------------------------------------------------------------
+// Markets domain
+// ---------------------------------------------------------------------------
+
+/// Mirrors `MarketRecord` in `src/state/types.ts`. The captured Shopify
+/// payload remains JSON-shaped because Markets expose several nested union and
+/// connection subtrees that are projected by the domain serializer.
+pub type MarketRecord {
+  MarketRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+/// Mirrors `CatalogRecord` in `src/state/types.ts`.
+pub type CatalogRecord {
+  CatalogRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+/// Mirrors `PriceListRecord` in `src/state/types.ts`.
+pub type PriceListRecord {
+  PriceListRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+/// Mirrors `WebPresenceRecord` in `src/state/types.ts`.
+pub type WebPresenceRecord {
+  WebPresenceRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+/// Mirrors `MarketLocalizationRecord` in `src/state/types.ts`.
+pub type MarketLocalizationRecord {
+  MarketLocalizationRecord(
+    resource_id: String,
+    market_id: String,
+    key: String,
+    value: String,
+    updated_at: String,
+    outdated: Bool,
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Metafields domain
 // ---------------------------------------------------------------------------
 

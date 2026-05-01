@@ -3145,6 +3145,59 @@ are executable in Gleam and 76 remain gated.
 
 ---
 
+## 2026-05-01 - Pass 115: markets mutation parity completion
+
+Promotes the remaining checked-in Markets parity scenarios into the Gleam
+suite. The Markets port now covers market and catalog validation/lifecycle
+basics, price-list validation, product fixed-price updates, quantity
+pricing/rules, default metafield market-localization behavior, and the captured
+read-after-write effects needed by the existing fixtures.
+
+| Module                                              | Change                                                                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam` | Adds staged market/catalog/price-list mutations, fixed prices, quantity pricing, and localization validation. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`   | Adds staged upsert/delete helpers for Markets, Catalogs, and PriceLists.                                      |
+| `gleam/test/parity/runner.gleam`                    | Seeds price-list and metafield localization baselines from the captured fixtures.                             |
+| `config/gleam-port-ci-gates.json`                   | Removes the final 13 Markets expected-failure gates, leaving 0 Markets gated specs.                           |
+
+Validation:
+Full JavaScript is green at 718 tests. Host `gleam test --target erlang`
+still fails before tests execute with `undef shopify_draft_proxy@@main:run`, so
+the Docker Erlang fallback using mounted Gleam 1.16 on `erlang:27-alpine` is
+the BEAM proof and is green at 714 tests. `corepack pnpm gleam:port:coverage`
+is green with 379 specs and 149 expected failures. `corepack pnpm
+gleam:registry:check`, `corepack pnpm lint`, and `git diff --check` are green.
+Markets parity inventory is 27 checked-in specs, with all 27 now executable in
+the Gleam parity suite and 0 Markets specs expected-failing.
+
+### Findings
+
+- The product fixed-price and quantity-pricing captures already contain enough
+  `data.priceList` and `seedProducts` state to replay staged read-after-write
+  effects without new live captures.
+- The metafield market-localization fixture is the default ad hoc metafield
+  branch: reads return an identity payload with empty content/localizations,
+  register rejects `value` as `INVALID_KEY_FOR_MODEL`, and remove returns a
+  null localization payload with no errors.
+- Market/catalog validation roots were only promoted after adding local
+  lifecycle staging for those resource families, preserving the no
+  validation-only support guardrail.
+
+### Risks / open items
+
+- The TypeScript Markets runtime remains intact under the Gleam port
+  preservation rule until the final all-port cutover.
+- This completes the checked-in Markets parity corpus, but broader whole-port
+  cutover work still owns TypeScript runtime retirement and packaging/docs.
+
+### Pass 116 candidates
+
+- Move to the next non-Markets expected-failing domain in
+  `config/gleam-port-ci-gates.json`, preserving the same fixture-backed
+  promotion discipline.
+
+---
+
 ## 2026-05-01 - Pass 117: online-store content and integration parity
 
 Promotes the online-store content, integrations, storefront token, default page
@@ -3248,6 +3301,110 @@ the current `origin/main`.
   expanded only with captured Shopify evidence for additional predicates.
 - The TypeScript segment runtime still remains the shipping Node/Koa path until
   a final all-port cutover proves repository-wide parity.
+
+---
+
+## 2026-05-01 - Pass 114: market web-presence staging
+
+Promotes the captured MarketWebPresence mutation lifecycle into the Gleam
+parity suite. The Markets port now locally stages web presence create, update,
+delete, unknown-id validation, invalid-routing validation, and downstream
+`webPresences` reads without runtime Shopify writes.
+
+| Module                                                  | Change                                                                                                |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`     | Adds MarketWebPresence mutation dispatch, validation payloads, synthetic IDs, and read projection.    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes web-presence Markets mutations through the explicit local mutation dispatcher.                 |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`       | Adds staged upsert/delete helpers for web-presence records.                                           |
+| `gleam/test/parity/runner.gleam`                        | Seeds lifecycle specs from the captured baseline `data.webPresences.nodes` instead of mutation cases. |
+| `config/gleam-port-ci-gates.json`                       | Removes four now-passing MarketWebPresence parity specs.                                              |
+
+Validation:
+Full JavaScript is green at 718 tests. Host `gleam test --target erlang`
+still fails in the local Erlang runtime, so the Docker Erlang fallback using
+mounted Gleam 1.16 on `erlang:27-alpine` is the BEAM proof and is green at 714
+tests. `corepack pnpm gleam:port:coverage` is green with 379 specs and 162
+expected failures. `corepack pnpm gleam:registry:check`, `corepack pnpm lint`,
+and `git diff --check` are green. Markets parity inventory remains 27 checked-in
+specs, with 14 specs now executable in the Gleam parity suite and 13 Markets
+specs still expected-failing.
+
+### Findings
+
+- Web-presence lifecycle captures contain both a stable baseline
+  `data.webPresences.nodes` tree and disposable mutation response IDs; seeding
+  the entire capture would incorrectly preserve deleted disposable live IDs in
+  local read-after-delete results.
+- Shopify returns subfolder web presences with `domain: null` and root URLs
+  derived from the shop's primary baseline web-presence URL.
+
+### Risks / open items
+
+- Market/catalog/price-list mutation lifecycles, quantity pricing/rules, fixed
+  product prices, and market localization metafield lifecycle remain gated for
+  later passes.
+- The TypeScript Markets runtime remains intact under the Gleam port
+  preservation rule until the final all-port cutover.
+
+### Pass 115 candidates
+
+- Continue Markets with price-list fixed-price and quantity-pricing staging,
+  or port market/catalog mutation validation only after the corresponding
+  success lifecycle can be staged locally without overstating operation support.
+
+---
+
+## 2026-05-01 - Pass 113: markets captured read substrate
+
+Promotes the first captured Markets read slice into the Gleam parity suite.
+The port now has a read-only Markets domain module with captured-state
+projection for Markets, MarketCatalogs, PriceLists, MarketWebPresences,
+`marketsResolvedValues`, and Shopify's empty market-localizable read roots.
+Mutation staging remains gated for a later Markets pass.
+
+| Module                                                      | Change                                                                                                 |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`         | Adds captured read projection for core Markets resources, root payloads, and empty localizable roots.  |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`     | Routes the ported Markets query roots through the explicit local dispatcher.                           |
+| `gleam/src/shopify_draft_proxy/proxy/graphql_helpers.gleam` | Lets `Catalog` interface fragments project over captured `MarketCatalog` objects.                      |
+| `gleam/src/shopify_draft_proxy/state/*`                     | Adds Markets records, root payload storage, ordering, deletion markers, and state dump round-tripping. |
+| `gleam/test/parity/runner.gleam`                            | Seeds captured Markets resources and root payloads from existing parity captures.                      |
+| `config/gleam-port-ci-gates.json`                           | Removes ten now-passing captured Markets read parity specs.                                            |
+
+Validation:
+Full JavaScript is green at 718 tests. Host `gleam test --target erlang`
+still fails because local Erlang/OTP is 25 while `gleam_json` requires OTP 27.
+The Docker Erlang fallback using mounted Gleam 1.16 on `erlang:27-alpine` is
+green at 714 tests. `corepack pnpm gleam:port:coverage` is green with 379
+specs and 166 expected failures. `corepack pnpm lint` is green. Markets parity
+inventory is 27 checked-in specs, with 10 captured read specs now executable in
+the Gleam parity suite and 17 Markets specs still expected-failing.
+
+### Findings
+
+- Captured `MarketCatalog` payloads use reusable fragments on the `Catalog`
+  interface, so the shared projector needs to treat `Catalog` as applying to
+  concrete Market/App/CompanyLocation catalog typenames.
+- Several read fixtures already contain enough resource graph data to seed
+  Markets, Catalogs, PriceLists, WebPresences, and nested root payloads without
+  mutating Shopify or changing parity request shapes.
+- The market-localizable empty fixture is a pure no-data read: the single root
+  returns `null`, and both connection roots return empty `edges`, `nodes`, and
+  `pageInfo`.
+
+### Risks / open items
+
+- Markets mutation staging, validation branches, quantity pricing/rules,
+  fixed-price product updates, web-presence lifecycle, and market localization
+  lifecycle remain gated for later passes.
+- The TypeScript Markets runtime remains intact under the Gleam port
+  preservation rule until the final all-port cutover.
+
+### Pass 114 candidates
+
+- Continue Markets with validation-only mutation branches, or start the
+  web-presence lifecycle staging path because it has small local state surface
+  and downstream `webPresences`/`marketsResolvedValues` read effects.
 
 ---
 
