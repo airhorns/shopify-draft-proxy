@@ -283,6 +283,8 @@ fn seed_capture_preconditions(
     "order-merchant-detail-read" ->
       seed_order_merchant_detail_preconditions(capture, proxy)
     "order-empty-state-read" -> seed_order_catalog_preconditions(capture, proxy)
+    "order-catalog-count-read" ->
+      seed_order_catalog_count_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "b2b-company-roots-read" ->
@@ -998,6 +1000,127 @@ fn order_placeholder_records(count: Int, offset: Int) -> List(OrderRecord) {
         )
       })
   }
+}
+
+fn seed_order_catalog_count_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records =
+    []
+    |> list.append(order_records_from_nodes_path(
+      capture,
+      "$.response.data.seedCatalog.nodes",
+    ))
+    |> list.append(order_records_from_nodes_path(
+      capture,
+      "$.response.data.byStatus.nodes",
+    ))
+    |> list.append(order_records_from_nodes_path(
+      capture,
+      "$.nextPage.response.data.nextPage.nodes",
+    ))
+    |> dedupe_seed_orders()
+  let store = proxy.store |> store_mod.upsert_base_orders(records)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn order_records_from_nodes_path(
+  capture: JsonValue,
+  path: String,
+) -> List(OrderRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(nodes)) ->
+      nodes
+      |> list.filter_map(fn(node) {
+        case make_seed_order_node(capture, node) {
+          Ok(record) -> Ok(record)
+          Error(_) -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_order_node(
+  capture: JsonValue,
+  node: JsonValue,
+) -> Result(OrderRecord, Nil) {
+  use id <- result.try(required_gid(node, "id", "Order"))
+  Ok(OrderRecord(
+    id: id,
+    cursor: order_catalog_cursor_for_id(capture, id),
+    data: captured_json_from_parity(node),
+  ))
+}
+
+fn order_catalog_cursor_for_id(
+  capture: JsonValue,
+  id: String,
+) -> Option(String) {
+  [
+    "$.response.data.recent",
+    "$.response.data.oldest",
+    "$.response.data.byName",
+    "$.response.data.byStatus",
+    "$.nextPage.response.data.nextPage",
+  ]
+  |> list.find_map(fn(path) {
+    order_connection_cursor_for_id(capture, path, id)
+  })
+  |> option.from_result
+}
+
+fn order_connection_cursor_for_id(
+  capture: JsonValue,
+  path: String,
+  id: String,
+) -> Result(String, Nil) {
+  case jsonpath.lookup(capture, path <> ".nodes") {
+    Some(JArray(nodes)) -> {
+      let matching_index =
+        nodes
+        |> list.index_map(fn(node, index) { #(node, index) })
+        |> list.find_map(fn(pair) {
+          let #(node, index) = pair
+          case required_gid(node, "id", "Order") {
+            Ok(node_id) if node_id == id -> Ok(index)
+            _ -> Error(Nil)
+          }
+        })
+      case matching_index {
+        Ok(0) -> read_string_jsonpath(capture, path <> ".pageInfo.startCursor")
+        Ok(index) ->
+          case index == list.length(nodes) - 1 {
+            True -> read_string_jsonpath(capture, path <> ".pageInfo.endCursor")
+            False -> Error(Nil)
+          }
+        _ -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
+  }
+}
+
+fn read_string_jsonpath(
+  capture: JsonValue,
+  path: String,
+) -> Result(String, Nil) {
+  case jsonpath.lookup(capture, path) {
+    Some(JString(value)) -> Ok(value)
+    _ -> Error(Nil)
+  }
+}
+
+fn dedupe_seed_orders(records: List(OrderRecord)) -> List(OrderRecord) {
+  let initial: List(OrderRecord) = []
+  records
+  |> list.fold(initial, fn(acc, record) {
+    case list.any(acc, fn(existing) { existing.id == record.id }) {
+      True -> acc
+      False -> list.append(acc, [record])
+    }
+  })
 }
 
 fn draft_order_with_setup_note(

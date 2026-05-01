@@ -470,6 +470,12 @@ synthetic-id/timestamp expected differences.
   fields actually present on the captured payload so strict parity does not
   invent `null` properties that Shopify did not record. This is still not order
   search/filter/count-limit parity or lifecycle mutation support.
+- Order catalog search/count-limit parity should use the shared
+  `search_query_parser` with an order-specific positive-term matcher rather
+  than a resource-local parser. Keep matching limited to captured/proven fields
+  such as `tag`, `name`, `financial_status`, and `fulfillment_status`; when a
+  node-based capture has no edge cursors, derive raw cursors from the captured
+  connection `pageInfo` windows and store them on `OrderRecord` rows.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or

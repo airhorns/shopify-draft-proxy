@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 134: order catalog filters and count limits
+
+Promotes the checked-in `order-catalog-count-read` scenario in the Gleam Orders
+domain. This pass extends the narrow order catalog slice with captured catalog
+seeding from node-based responses, shared Admin search-query filtering for the
+captured `tag:`, `name:`, `financial_status:`, and `fulfillment_status:` terms,
+raw cursor replay for the captured next-page request, reverse ordering, and
+`ordersCount(limit:)` precision.
+
+| Module                                                   | Change                                                                     |
+| -------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds order catalog query filtering, reverse windows, and count precision.  |
+| `gleam/test/parity/runner.gleam`                         | Seeds node-based captured order catalogs with preserved cursors.           |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Extends direct catalog/count coverage for tag filters and limit precision. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing order catalog/count parity spec.                 |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (743 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (739 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 127 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- `orders` can use the shared `search_query_parser.apply_search_query` helper
+  with a small order-specific positive term matcher. The captured terms only
+  require exact tag/status matching and text matching for names.
+- The captured catalog fixture selects `nodes`, not `edges`, so the parity
+  runner needs to derive stable raw cursors from the captured pageInfo windows
+  and attach them to seeded `OrderRecord`s.
+- `ordersCount(limit:)` returns `AT_LEAST` when the filtered count exceeds the
+  limit and otherwise returns `EXACT`; a `null` limit behaves as unlimited.
+
+### Risks / open items
+
+- Search support remains limited to the fields proven by the captured fixture.
+- This does not add order lifecycle mutations, order-edit success paths,
+  fulfillment success paths, refunds, returns, or customer/payment side effects.
+
+### Pass 135 candidates
+
+- Continue with another order read fixture that can build on the catalog
+  substrate, or shift to the next lifecycle fixture only when the required
+  downstream state can be modeled without partial mutation support.
+
+---
+
 ## 2026-05-01 - Pass 133: order empty catalog/count reads
 
 Promotes the checked-in `order-empty-state-read` scenario and the

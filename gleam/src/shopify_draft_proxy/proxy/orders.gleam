@@ -31,6 +31,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, RequiredArgument, find_argument, single_root_log_draft,
   validate_required_field_arguments,
 }
+import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -295,7 +296,7 @@ fn serialize_query_field(
       }
     }
     "orders" -> serialize_orders(store, field, fragments, variables)
-    "ordersCount" -> serialize_orders_count(store, field, fragments)
+    "ordersCount" -> serialize_orders_count(store, field, fragments, variables)
     _ -> json.null()
   }
 }
@@ -318,8 +319,10 @@ fn serialize_orders(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let orders = store.list_effective_orders(store)
   let args = field_arguments(field, variables)
+  let orders =
+    store.list_effective_orders(store)
+    |> filter_orders_by_query(read_string(args, "query"))
   let ordered = case dict.get(args, "reverse") {
     Ok(root_field.BoolVal(False)) -> list.reverse(orders)
     _ -> orders
@@ -393,15 +396,105 @@ fn order_cursor(order: OrderRecord, _index: Int) -> String {
   order.cursor |> option.unwrap(order.id)
 }
 
+fn filter_orders_by_query(
+  orders: List(OrderRecord),
+  raw_query: Option(String),
+) -> List(OrderRecord) {
+  search_query_parser.apply_search_query(
+    orders,
+    raw_query,
+    search_query_parser.default_parse_options(),
+    order_matches_search_term,
+  )
+}
+
+fn order_matches_search_term(
+  order: OrderRecord,
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  case term.field {
+    None ->
+      search_query_parser.matches_search_query_text(
+        captured_string_field(order.data, "id"),
+        term,
+      )
+      || search_query_parser.matches_search_query_text(
+        captured_string_field(order.data, "name"),
+        term,
+      )
+      || search_query_parser.matches_search_query_text(
+        captured_string_field(order.data, "email"),
+        term,
+      )
+      || list.any(order_tags(order.data), fn(tag) {
+        search_query_parser.matches_search_query_text(Some(tag), term)
+      })
+    Some("tag") ->
+      list.any(order_tags(order.data), fn(tag) {
+        search_query_parser.matches_search_query_string(
+          Some(tag),
+          term.value,
+          search_query_parser.ExactMatch,
+          search_query_parser.default_string_match_options(),
+        )
+      })
+    Some("name") ->
+      search_query_parser.matches_search_query_text(
+        captured_string_field(order.data, "name"),
+        term,
+      )
+    Some("financial_status") ->
+      search_query_parser.matches_search_query_string(
+        captured_string_field(order.data, "displayFinancialStatus"),
+        term.value,
+        search_query_parser.ExactMatch,
+        search_query_parser.default_string_match_options(),
+      )
+    Some("fulfillment_status") ->
+      search_query_parser.matches_search_query_string(
+        captured_string_field(order.data, "displayFulfillmentStatus"),
+        term.value,
+        search_query_parser.ExactMatch,
+        search_query_parser.default_string_match_options(),
+      )
+    _ -> False
+  }
+}
+
+fn order_tags(data: CapturedJsonValue) -> List(String) {
+  case captured_object_field(data, "tags") {
+    Some(CapturedArray(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          CapturedString(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
 fn serialize_orders_count(
   store: Store,
   field: Selection,
   fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
+  let args = field_arguments(field, variables)
+  let orders =
+    store.list_effective_orders(store)
+    |> filter_orders_by_query(read_string(args, "query"))
+  let count = list.length(orders)
+  let limit = read_int_argument(field, "limit", variables)
+  let #(visible_count, precision) = case limit {
+    Some(limit) if limit >= 0 && count > limit -> #(limit, "AT_LEAST")
+    _ -> #(count, "EXACT")
+  }
   let source =
     src_object([
-      #("count", SrcInt(list.length(store.list_effective_orders(store)))),
-      #("precision", SrcString("EXACT")),
+      #("count", SrcInt(visible_count)),
+      #("precision", SrcString(precision)),
     ])
   project_graphql_value(source, selection_children(field), fragments)
 }

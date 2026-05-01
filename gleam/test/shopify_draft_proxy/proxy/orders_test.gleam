@@ -190,6 +190,13 @@ pub fn orders_catalog_count_and_page_info_test() {
           #("name", types.CapturedString("#101")),
           #("displayFinancialStatus", types.CapturedString("PAID")),
           #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+          #(
+            "tags",
+            types.CapturedArray([
+              types.CapturedString("merchant-realistic"),
+              types.CapturedString("parity-probe"),
+            ]),
+          ),
         ]),
       ),
       types.OrderRecord(
@@ -200,6 +207,7 @@ pub fn orders_catalog_count_and_page_info_test() {
           #("name", types.CapturedString("#102")),
           #("displayFinancialStatus", types.CapturedString("PENDING")),
           #("displayFulfillmentStatus", types.CapturedString("FULFILLED")),
+          #("tags", types.CapturedArray([types.CapturedString("other")])),
         ]),
       ),
     ])
@@ -227,11 +235,21 @@ pub fn orders_catalog_count_and_page_info_test() {
         count
         precision
       }
+      tagged: orders(first: 1, query: \"tag:merchant-realistic\") {
+        nodes {
+          id
+          name
+        }
+      }
+      limitedTaggedCount: ordersCount(query: \"tag:merchant-realistic\", limit: 0) {
+        count
+        precision
+      }
     }
   "
   let assert Ok(result) = orders.process(seeded_store, query, dict.new())
   assert json.to_string(result)
-    == "{\"data\":{\"orders\":{\"edges\":[{\"cursor\":\"cursor-101\",\"node\":{\"id\":\"gid://shopify/Order/101\",\"name\":\"#101\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\"}}],\"pageInfo\":{\"hasNextPage\":true,\"hasPreviousPage\":false,\"startCursor\":\"cursor-101\",\"endCursor\":\"cursor-101\"}},\"ordersCount\":{\"count\":2,\"precision\":\"EXACT\"}}}"
+    == "{\"data\":{\"orders\":{\"edges\":[{\"cursor\":\"cursor-101\",\"node\":{\"id\":\"gid://shopify/Order/101\",\"name\":\"#101\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\"}}],\"pageInfo\":{\"hasNextPage\":true,\"hasPreviousPage\":false,\"startCursor\":\"cursor-101\",\"endCursor\":\"cursor-101\"}},\"ordersCount\":{\"count\":2,\"precision\":\"EXACT\"},\"tagged\":{\"nodes\":[{\"id\":\"gid://shopify/Order/101\",\"name\":\"#101\"}]},\"limitedTaggedCount\":{\"count\":0,\"precision\":\"AT_LEAST\"}}}"
 }
 
 pub fn orders_abandonment_delivery_status_unknown_test() {
