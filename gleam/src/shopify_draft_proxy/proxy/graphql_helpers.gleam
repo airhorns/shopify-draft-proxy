@@ -230,10 +230,22 @@ pub fn default_type_condition_applies(
     None -> True
     Some(cond) ->
       case dict.get(source, "__typename") {
-        Ok(SrcString(name)) -> name == cond
+        Ok(SrcString(name)) ->
+          name == cond || interface_type_applies(cond, name)
         // No __typename ⇒ apply (TS uses `!sourceTypename || sourceTypename === typeCondition`).
         _ -> True
       }
+  }
+}
+
+fn interface_type_applies(type_condition: String, typename: String) -> Bool {
+  case type_condition {
+    "Catalog" ->
+      list.contains(
+        ["AppCatalog", "CompanyLocationCatalog", "MarketCatalog"],
+        typename,
+      )
+    _ -> False
   }
 }
 
