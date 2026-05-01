@@ -270,6 +270,10 @@ fn seed_capture_preconditions(
       seed_draft_order_invoice_send_preconditions(capture, proxy)
     "draft-order-update-live-parity" ->
       seed_draft_order_update_preconditions(capture, proxy)
+    "draft-orders-catalog-read"
+    | "draft-orders-count-read"
+    | "draft-orders-invalid-email-query-read" ->
+      seed_draft_orders_catalog_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "location-detail-read" -> seed_location_detail_preconditions(capture, proxy)
@@ -551,6 +555,124 @@ fn seed_draft_order_detail_preconditions(
         Error(_) -> proxy
       }
     None -> proxy
+  }
+}
+
+fn seed_draft_orders_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records = collect_draft_order_catalog_records(capture)
+  let desired_count = draft_order_catalog_count(capture, list.length(records))
+  let padded_records =
+    list.append(
+      records,
+      draft_order_placeholder_records(
+        desired_count - list.length(records),
+        list.length(records),
+      ),
+    )
+  let store = proxy.store |> store_mod.upsert_base_draft_orders(padded_records)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn collect_draft_order_catalog_records(
+  capture: JsonValue,
+) -> List(DraftOrderRecord) {
+  case jsonpath.lookup(capture, "$.response.data.draftOrders.edges") {
+    Some(JArray(edges)) ->
+      edges
+      |> list.filter_map(fn(edge) {
+        case make_seed_draft_order_edge(edge) {
+          Ok(record) -> Ok(record)
+          Error(_) -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_draft_order_edge(
+  edge: JsonValue,
+) -> Result(DraftOrderRecord, Nil) {
+  use node <- result.try(read_object_field(edge, "node") |> option_to_result())
+  use id <- result.try(required_gid(node, "id", "DraftOrder"))
+  Ok(DraftOrderRecord(
+    id: id,
+    cursor: read_string_field(edge, "cursor"),
+    data: captured_json_from_parity(node),
+  ))
+}
+
+fn draft_order_catalog_count(capture: JsonValue, edge_count: Int) -> Int {
+  case jsonpath.lookup(capture, "$.response.data.draftOrdersCount.count") {
+    Some(JInt(count)) -> count
+    _ -> {
+      let has_next =
+        jsonpath.lookup(
+          capture,
+          "$.response.data.draftOrders.pageInfo.hasNextPage",
+        )
+      case has_next {
+        Some(JBool(True)) -> edge_count + 1
+        _ -> edge_count
+      }
+    }
+  }
+}
+
+fn draft_order_placeholder_records(
+  count: Int,
+  offset: Int,
+) -> List(DraftOrderRecord) {
+  case count <= 0 {
+    True -> []
+    False ->
+      int_sequence(1, count)
+      |> list.map(fn(index) {
+        let id_number = 9_900_000_000_000 + offset + index
+        let id = "gid://shopify/DraftOrder/" <> int.to_string(id_number)
+        DraftOrderRecord(
+          id: id,
+          cursor: Some(id),
+          data: CapturedObject([
+            #("id", CapturedString(id)),
+            #("name", CapturedString("#D" <> int.to_string(offset + index))),
+            #("status", CapturedString("OPEN")),
+            #("ready", CapturedBool(True)),
+            #(
+              "email",
+              CapturedString(
+                "placeholder-draft-order-"
+                <> int.to_string(offset + index)
+                <> "@example.test",
+              ),
+            ),
+            #("tags", CapturedArray([])),
+            #("createdAt", CapturedString("2026-01-01T00:00:00Z")),
+            #("updatedAt", CapturedString("2026-01-01T00:00:00Z")),
+            #(
+              "totalPriceSet",
+              CapturedObject([
+                #(
+                  "shopMoney",
+                  CapturedObject([
+                    #("amount", CapturedString("0.0")),
+                    #("currencyCode", CapturedString("CAD")),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        )
+      })
+  }
+}
+
+fn int_sequence(current: Int, last: Int) -> List(Int) {
+  case current > last {
+    True -> []
+    False -> [current, ..int_sequence(current + 1, last)]
   }
 }
 

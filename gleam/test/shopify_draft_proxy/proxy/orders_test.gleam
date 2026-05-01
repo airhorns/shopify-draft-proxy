@@ -1,7 +1,7 @@
 import gleam/dict.{type Dict}
 import gleam/json
 import gleam/list
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/orders
@@ -58,6 +58,67 @@ pub fn orders_abandoned_checkout_empty_read_test() {
   let assert Ok(result) = orders.process(store.new(), query, dict.new())
   assert json.to_string(result)
     == "{\"data\":{\"abandonedCheckouts\":{\"nodes\":[],\"edges\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}},\"abandonedCheckoutsCount\":{\"count\":0,\"precision\":\"EXACT\"},\"abandonment\":null,\"abandonmentByAbandonedCheckoutId\":null}}"
+}
+
+pub fn orders_draft_orders_catalog_count_and_search_warning_test() {
+  let first_id = "gid://shopify/DraftOrder/101"
+  let second_id = "gid://shopify/DraftOrder/102"
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_draft_orders([
+      types.DraftOrderRecord(
+        id: first_id,
+        cursor: Some("cursor-101"),
+        data: types.CapturedObject([
+          #("id", types.CapturedString(first_id)),
+          #("name", types.CapturedString("#D101")),
+          #("email", types.CapturedString("first@example.test")),
+          #("status", types.CapturedString("OPEN")),
+          #("ready", types.CapturedBool(True)),
+        ]),
+      ),
+      types.DraftOrderRecord(
+        id: second_id,
+        cursor: Some("cursor-102"),
+        data: types.CapturedObject([
+          #("id", types.CapturedString(second_id)),
+          #("name", types.CapturedString("#D102")),
+          #("email", types.CapturedString("second@example.test")),
+          #("status", types.CapturedString("COMPLETED")),
+          #("ready", types.CapturedBool(True)),
+        ]),
+      ),
+    ])
+  let query =
+    "
+    query {
+      draftOrders(first: 1, query: \"email:first@example.test\") {
+        edges {
+          cursor
+          node {
+            id
+            name
+            email
+            status
+            ready
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      draftOrdersCount(query: \"email:first@example.test\") {
+        count
+        precision
+      }
+    }
+  "
+  let assert Ok(result) = orders.process(seeded_store, query, dict.new())
+  assert json.to_string(result)
+    == "{\"data\":{\"draftOrders\":{\"edges\":[{\"cursor\":\"cursor-101\",\"node\":{\"id\":\"gid://shopify/DraftOrder/101\",\"name\":\"#D101\",\"email\":\"first@example.test\",\"status\":\"OPEN\",\"ready\":true}}],\"pageInfo\":{\"hasNextPage\":true,\"hasPreviousPage\":false,\"startCursor\":\"cursor-101\",\"endCursor\":\"cursor-101\"}},\"draftOrdersCount\":{\"count\":2,\"precision\":\"EXACT\"}},\"extensions\":{\"search\":[{\"path\":[\"draftOrders\"],\"query\":\"email:first@example.test\",\"parsed\":{\"field\":\"email\",\"match_all\":\"first@example.test\"},\"warnings\":[{\"field\":\"email\",\"message\":\"Invalid search field for this query.\",\"code\":\"invalid_field\"}]},{\"path\":[\"draftOrdersCount\"],\"query\":\"email:first@example.test\",\"parsed\":{\"field\":\"email\",\"match_all\":\"first@example.test\"},\"warnings\":[{\"field\":\"email\",\"message\":\"Invalid search field for this query.\",\"code\":\"invalid_field\"}]}]}}"
 }
 
 pub fn orders_abandonment_delivery_status_unknown_test() {

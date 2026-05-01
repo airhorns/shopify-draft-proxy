@@ -9,6 +9,61 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 130: draft order catalog/count reads
+
+Promotes the checked-in `draftOrders-read-parity-plan`,
+`draftOrdersCount-read-parity-plan`, and `draftOrders-invalid-email-query-read`
+parity scenarios in the Gleam Orders domain. This pass adds local
+`draftOrders` connection serialization, `draftOrdersCount`, captured catalog
+baseline seeding for parity, and Shopify's invalid-email search warning
+extension for these draft-order roots.
+
+| Module                                                   | Change                                                                           |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `draftOrders`/`draftOrdersCount` query roots and search-warning extensions. |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured draft-order catalog edges, cursors, and count baselines.          |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers draft-order connection/count output plus invalid email warnings.          |
+| `config/gleam-port-ci-gates.json`                        | Removes the three newly passing `draftOrders*` specs.                            |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (738 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (734 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 136 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Captured catalog parity needs cursor preservation from connection edges, not
+  generated local cursors, because the checked-in specs compare strict JSON.
+- Count parity can be satisfied by seeding placeholder draft orders after the
+  captured window; only the count/pageInfo shape observes the extra records.
+- Shopify returns invalid-email search warnings for both `draftOrders` and
+  `draftOrdersCount` while still returning the unfiltered catalog baseline.
+
+### Risks / open items
+
+- This pass does not add draft-order search filtering beyond the captured
+  invalid-email warning branch.
+- `draftOrderCreateFromOrder`, broader order lifecycle, order editing,
+  fulfillment success paths, refunds, and returns remain unported.
+
+### Pass 131 candidates
+
+- Continue with `draftOrderCreateFromOrder` while the draft-order data model is
+  active, or start a narrow order no-data/read slice if create-from-order needs
+  broader order seeding first.
+
+---
+
 ## 2026-05-01 - Pass 129: draft order create validation parity
 
 Promotes the checked-in `draftOrderCreate-validation-matrix` parity scenario in

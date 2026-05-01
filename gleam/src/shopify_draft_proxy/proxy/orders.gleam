@@ -66,6 +66,8 @@ pub fn is_orders_query_root(name: String) -> Bool {
       "abandonmentByAbandonedCheckoutId",
       "draftOrder",
       "draftOrderAvailableDeliveryOptions",
+      "draftOrders",
+      "draftOrdersCount",
     ],
     name,
   )
@@ -129,7 +131,100 @@ pub fn process(
         _ -> Error(Nil)
       }
     })
-  Ok(json.object([#("data", json.object(entries))]))
+  let search_extensions = draft_order_search_extensions(fields, variables)
+  Ok(wrap_query_payload(json.object(entries), search_extensions))
+}
+
+fn wrap_query_payload(data: Json, search_extensions: List(Json)) -> Json {
+  case search_extensions {
+    [] -> json.object([#("data", data)])
+    [_, ..] ->
+      json.object([
+        #("data", data),
+        #(
+          "extensions",
+          json.object([
+            #(
+              "search",
+              json.array(search_extensions, fn(extension) { extension }),
+            ),
+          ]),
+        ),
+      ])
+  }
+}
+
+fn draft_order_search_extensions(
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(Json) {
+  fields
+  |> list.filter_map(fn(field) {
+    case field {
+      Field(name: name, ..) ->
+        case name.value {
+          "draftOrders" | "draftOrdersCount" ->
+            build_draft_order_search_extension(
+              read_string_argument(field, "query", variables),
+              get_field_response_key(field),
+            )
+          _ -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn build_draft_order_search_extension(
+  query: Option(String),
+  response_key: String,
+) -> Result(Json, Nil) {
+  use raw <- result.try(option_to_result(query))
+  let trimmed = string.trim(raw)
+  case string.split_once(trimmed, ":") {
+    Ok(#(raw_field, raw_value)) -> {
+      let field = raw_field |> string.trim |> string.lowercase
+      let match_all = string.trim(raw_value)
+      case field == "email" && match_all != "" {
+        True ->
+          Ok(
+            json.object([
+              #("path", json.array([response_key], json.string)),
+              #("query", json.string(trimmed)),
+              #(
+                "parsed",
+                json.object([
+                  #("field", json.string(field)),
+                  #("match_all", json.string(match_all)),
+                ]),
+              ),
+              #(
+                "warnings",
+                json.array([field], fn(warning_field) {
+                  json.object([
+                    #("field", json.string(warning_field)),
+                    #(
+                      "message",
+                      json.string("Invalid search field for this query."),
+                    ),
+                    #("code", json.string("invalid_field")),
+                  ])
+                }),
+              ),
+            ]),
+          )
+        False -> Error(Nil)
+      }
+    }
+    Error(_) -> Error(Nil)
+  }
+}
+
+fn option_to_result(value: Option(a)) -> Result(a, Nil) {
+  case value {
+    Some(value) -> Ok(value)
+    None -> Error(Nil)
+  }
 }
 
 fn serialize_query_field(
@@ -182,8 +277,71 @@ fn serialize_query_field(
     }
     "draftOrderAvailableDeliveryOptions" ->
       serialize_draft_order_available_delivery_options(field, fragments)
+    "draftOrders" -> serialize_draft_orders(store, field, fragments, variables)
+    "draftOrdersCount" -> serialize_draft_orders_count(store, field, fragments)
     _ -> json.null()
   }
+}
+
+fn serialize_draft_orders(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let draft_orders = store.list_effective_draft_orders(store)
+  let args = field_arguments(field, variables)
+  let ordered = case dict.get(args, "reverse") {
+    Ok(root_field.BoolVal(False)) -> list.reverse(draft_orders)
+    _ -> draft_orders
+  }
+  let window =
+    paginate_connection_items(
+      ordered,
+      field,
+      variables,
+      draft_order_cursor,
+      default_connection_window_options(),
+    )
+  let page_info_options =
+    ConnectionPageInfoOptions(
+      include_inline_fragments: True,
+      prefix_cursors: False,
+      include_cursors: True,
+      fallback_start_cursor: None,
+      fallback_end_cursor: None,
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: draft_order_cursor,
+      serialize_node: fn(draft_order, selection, _index) {
+        serialize_draft_order_node(selection, draft_order, fragments)
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: page_info_options,
+    ),
+  )
+}
+
+fn draft_order_cursor(draft_order: DraftOrderRecord, _index: Int) -> String {
+  draft_order.cursor |> option.unwrap(draft_order.id)
+}
+
+fn serialize_draft_orders_count(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let source =
+    src_object([
+      #("count", SrcInt(list.length(store.list_effective_draft_orders(store)))),
+      #("precision", SrcString("EXACT")),
+    ])
+  project_graphql_value(source, selection_children(field), fragments)
 }
 
 fn serialize_draft_order_available_delivery_options(

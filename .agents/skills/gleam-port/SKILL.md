@@ -441,6 +441,14 @@ synthetic-id/timestamp expected differences.
   base draft-order state as captured JSON. Keep this scenario-specific until
   the draft-order lifecycle roots prove which normalized fields and indexes are
   truly needed.
+- Draft-order catalog/count parity can seed captured `draftOrders.edges` into
+  base draft-order state with preserved edge cursors. When a captured response
+  proves there are more records than selected edges, append placeholder records
+  after the captured window so `pageInfo.hasNextPage` and
+  `draftOrdersCount.count` match without exposing fabricated records in the
+  selected page. Invalid `email:` search on `draftOrders`/`draftOrdersCount`
+  returns Shopify search warning extensions while leaving the catalog
+  unfiltered.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or
