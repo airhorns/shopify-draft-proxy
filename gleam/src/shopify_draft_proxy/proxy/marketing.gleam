@@ -742,6 +742,8 @@ fn handle_mutation_fields(
         primary_root_field: primary_root,
         domain: "marketing",
         execution: "stage-locally",
+        query: None,
+        variables: None,
         staged_resource_ids: final_ids,
         status: store.Staged,
         notes: Some("Staged locally in the in-memory marketing draft store."),
