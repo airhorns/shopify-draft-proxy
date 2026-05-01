@@ -683,6 +683,15 @@ synthetic-id/timestamp expected differences.
   `status: DECLINED` and a `decline` object with nullable captured `reason` and
   `note`. Do not model notification delivery; the local-runtime parity scenario
   asserts only the staged return payload and no upstream passthrough.
+- Reverse logistics stays on the order-backed return JSON. `returnApproveRequest`
+  converts a `REQUESTED` return to `OPEN` and creates reverse fulfillment order
+  state; reverse delivery create/update then mutates that reverse order's
+  `reverseDeliveries`; disposition mutates reverse fulfillment order line
+  fields; `returnProcess` persists processed quantities and a closed return
+  while returning the captured pre-close payload status. Serializers must expose
+  both local and live-recorded field families (`company`/`carrierName`,
+  `dispositionType`/`dispositions`, top-level `reverseDelivery` and
+  `reverseFulfillmentOrder`) from the same captured reverse-order model.
 
 ## Workflow for a new pass
 

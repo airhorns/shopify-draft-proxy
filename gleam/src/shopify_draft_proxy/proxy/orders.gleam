@@ -75,6 +75,8 @@ pub fn is_orders_query_root(name: String) -> Bool {
       "order",
       "orders",
       "ordersCount",
+      "reverseDelivery",
+      "reverseFulfillmentOrder",
       "return",
     ],
     name,
@@ -122,12 +124,17 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "orderUpdate",
       "refundCreate",
       "removeFromReturn",
+      "returnApproveRequest",
       "returnDeclineRequest",
       "returnCancel",
       "returnClose",
       "returnCreate",
+      "returnProcess",
       "returnReopen",
       "returnRequest",
+      "reverseDeliveryCreateWithShipping",
+      "reverseDeliveryShippingUpdate",
+      "reverseFulfillmentOrderDispose",
       "taxSummaryCreate",
       "transactionVoid",
     ],
@@ -329,6 +336,48 @@ fn serialize_query_field(
             Some(match) -> {
               let #(order, order_return) = match
               serialize_order_return(field, order_return, order, fragments)
+            }
+            None -> json.null()
+          }
+        None -> json.null()
+      }
+    }
+    "reverseDelivery" -> {
+      let id = read_string_argument(field, "id", variables)
+      case id {
+        Some(id) ->
+          case find_order_reverse_delivery(store, id) {
+            Some(match) -> {
+              let #(order, order_return, reverse_order, reverse_delivery) =
+                match
+              serialize_reverse_delivery(
+                field,
+                reverse_delivery,
+                reverse_order,
+                order_return,
+                order,
+                fragments,
+              )
+            }
+            None -> json.null()
+          }
+        None -> json.null()
+      }
+    }
+    "reverseFulfillmentOrder" -> {
+      let id = read_string_argument(field, "id", variables)
+      case id {
+        Some(id) ->
+          case find_order_reverse_fulfillment_order(store, id) {
+            Some(match) -> {
+              let #(order, order_return, reverse_order) = match
+              serialize_reverse_fulfillment_order(
+                field,
+                reverse_order,
+                order_return,
+                order,
+                fragments,
+              )
             }
             None -> json.null()
           }
@@ -1758,6 +1807,11 @@ pub fn process_mutation(
           || name.value == "returnReopen"
           || name.value == "removeFromReturn"
           || name.value == "returnDeclineRequest"
+          || name.value == "returnApproveRequest"
+          || name.value == "returnProcess"
+          || name.value == "reverseDeliveryCreateWithShipping"
+          || name.value == "reverseDeliveryShippingUpdate"
+          || name.value == "reverseFulfillmentOrderDispose"
         -> {
           let #(
             key,
@@ -4947,6 +5001,128 @@ fn handle_return_lifecycle_mutation(
         return_log_draft(root_name, staged_ids, user_errors),
       ])
     }
+    "returnApproveRequest" -> {
+      let args = field_arguments(field, variables)
+      let result =
+        apply_return_approve_request(
+          store,
+          identity,
+          read_object(args, "input"),
+        )
+      let ReturnMutationResult(
+        order,
+        order_return,
+        next_store,
+        next_identity,
+        user_errors,
+      ) = result
+      let payload =
+        serialize_return_mutation_payload(
+          field,
+          order_return,
+          order,
+          user_errors,
+          fragments,
+        )
+      let staged_ids = case order_return {
+        Some(value) ->
+          captured_string_field(value, "id")
+          |> option.map(fn(id) { [id] })
+          |> option.unwrap([])
+        None -> []
+      }
+      #(key, payload, next_store, next_identity, staged_ids, [
+        return_log_draft(root_name, staged_ids, user_errors),
+      ])
+    }
+    "returnProcess" -> {
+      let args = field_arguments(field, variables)
+      let result =
+        apply_return_process(store, identity, read_object(args, "input"))
+      let ReturnMutationResult(
+        order,
+        order_return,
+        next_store,
+        next_identity,
+        user_errors,
+      ) = result
+      let payload =
+        serialize_return_mutation_payload(
+          field,
+          order_return,
+          order,
+          user_errors,
+          fragments,
+        )
+      let staged_ids = case order_return {
+        Some(value) ->
+          captured_string_field(value, "id")
+          |> option.map(fn(id) { [id] })
+          |> option.unwrap([])
+        None -> []
+      }
+      #(key, payload, next_store, next_identity, staged_ids, [
+        return_log_draft(root_name, staged_ids, user_errors),
+      ])
+    }
+    "reverseDeliveryCreateWithShipping" | "reverseDeliveryShippingUpdate" -> {
+      let args = field_arguments(field, variables)
+      let result = case root_name {
+        "reverseDeliveryCreateWithShipping" ->
+          apply_reverse_delivery_create_with_shipping(store, identity, args)
+        _ -> apply_reverse_delivery_shipping_update(store, identity, args)
+      }
+      let ReverseDeliveryMutationResult(
+        order,
+        order_return,
+        reverse_order,
+        reverse_delivery,
+        next_store,
+        next_identity,
+        user_errors,
+      ) = result
+      let payload =
+        serialize_reverse_delivery_mutation_payload(
+          field,
+          reverse_delivery,
+          reverse_order,
+          order_return,
+          order,
+          user_errors,
+          fragments,
+        )
+      let staged_ids = case reverse_delivery {
+        Some(value) ->
+          captured_string_field(value, "id")
+          |> option.map(fn(id) { [id] })
+          |> option.unwrap([])
+        None -> []
+      }
+      #(key, payload, next_store, next_identity, staged_ids, [
+        return_log_draft(root_name, staged_ids, user_errors),
+      ])
+    }
+    "reverseFulfillmentOrderDispose" -> {
+      let args = field_arguments(field, variables)
+      let result =
+        apply_reverse_fulfillment_order_dispose(store, identity, args)
+      let DisposeMutationResult(
+        line_items,
+        next_store,
+        next_identity,
+        user_errors,
+      ) = result
+      let payload =
+        serialize_reverse_fulfillment_order_dispose_payload(
+          field,
+          line_items,
+          user_errors,
+          fragments,
+        )
+      #(key, payload, next_store, next_identity, [], [
+        return_log_draft(root_name, [], user_errors),
+      ])
+    }
     _ -> #(key, json.null(), store, identity, [], [])
   }
 }
@@ -4955,6 +5131,27 @@ type ReturnMutationResult {
   ReturnMutationResult(
     order: Option(OrderRecord),
     order_return: Option(CapturedJsonValue),
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    user_errors: List(#(List(String), String)),
+  )
+}
+
+type ReverseDeliveryMutationResult {
+  ReverseDeliveryMutationResult(
+    order: Option(OrderRecord),
+    order_return: Option(CapturedJsonValue),
+    reverse_fulfillment_order: Option(CapturedJsonValue),
+    reverse_delivery: Option(CapturedJsonValue),
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    user_errors: List(#(List(String), String)),
+  )
+}
+
+type DisposeMutationResult {
+  DisposeMutationResult(
+    line_items: List(CapturedJsonValue),
     store: Store,
     identity: SyntheticIdentityRegistry,
     user_errors: List(#(List(String), String)),
@@ -5362,6 +5559,632 @@ fn apply_return_decline_request(
   }
 }
 
+fn apply_return_approve_request(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Option(Dict(String, root_field.ResolvedValue)),
+) -> ReturnMutationResult {
+  let return_id = case input {
+    Some(input) -> read_string(input, "id")
+    None -> None
+  }
+  case return_id {
+    None ->
+      ReturnMutationResult(None, None, store, identity, [
+        #(["input", "id"], "Return does not exist."),
+      ])
+    Some(return_id) ->
+      case find_order_return(store, return_id) {
+        None ->
+          ReturnMutationResult(None, None, store, identity, [
+            #(["input", "id"], "Return does not exist."),
+          ])
+        Some(match) -> {
+          let #(order, order_return) = match
+          case captured_string_field(order_return, "status") {
+            Some("REQUESTED") -> {
+              let open_return =
+                replace_captured_object_fields(order_return, [
+                  #("status", CapturedString("OPEN")),
+                  #("decline", CapturedNull),
+                ])
+              let #(approved_return, next_identity) =
+                ensure_return_reverse_fulfillment_orders(
+                  identity,
+                  order,
+                  open_return,
+                )
+              let #(next_store, staged_identity, updated_order) =
+                stage_order_with_return(
+                  store,
+                  next_identity,
+                  order,
+                  approved_return,
+                )
+              ReturnMutationResult(
+                Some(updated_order),
+                Some(approved_return),
+                next_store,
+                staged_identity,
+                [],
+              )
+            }
+            _ ->
+              ReturnMutationResult(Some(order), None, store, identity, [
+                #(
+                  ["input", "id"],
+                  "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                ),
+              ])
+          }
+        }
+      }
+  }
+}
+
+fn apply_return_process(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Option(Dict(String, root_field.ResolvedValue)),
+) -> ReturnMutationResult {
+  let input_fields = input |> option.unwrap(dict.new())
+  case read_string(input_fields, "returnId") {
+    None ->
+      ReturnMutationResult(None, None, store, identity, [
+        #(["input", "returnId"], "Return does not exist."),
+      ])
+    Some(return_id) ->
+      case find_order_return(store, return_id) {
+        None ->
+          ReturnMutationResult(None, None, store, identity, [
+            #(["input", "returnId"], "Return does not exist."),
+          ])
+        Some(match) -> {
+          let #(order, order_return) = match
+          case captured_string_field(order_return, "status") {
+            Some("OPEN") -> {
+              let raw_line_items =
+                read_object_list(input_fields, "returnLineItems")
+              case raw_line_items {
+                [] ->
+                  ReturnMutationResult(Some(order), None, store, identity, [
+                    #(
+                      ["input", "returnLineItems"],
+                      "Return line items are required.",
+                    ),
+                  ])
+                _ -> {
+                  let #(next_line_items, user_errors) =
+                    process_return_line_items(
+                      order_return_line_items(order_return),
+                      raw_line_items,
+                    )
+                  case user_errors {
+                    [_, ..] ->
+                      ReturnMutationResult(
+                        Some(order),
+                        None,
+                        store,
+                        identity,
+                        user_errors,
+                      )
+                    [] -> {
+                      let all_processed =
+                        next_line_items
+                        |> list.all(fn(line_item) {
+                          let processed =
+                            captured_int_field(line_item, "processedQuantity")
+                            |> option.unwrap(0)
+                          let quantity =
+                            captured_int_field(line_item, "quantity")
+                            |> option.unwrap(0)
+                          processed >= quantity
+                        })
+                      let #(closed_at, identity_after_closed) = case
+                        all_processed
+                      {
+                        True -> {
+                          let #(timestamp, next_identity) =
+                            synthetic_identity.make_synthetic_timestamp(
+                              identity,
+                            )
+                          #(CapturedString(timestamp), next_identity)
+                        }
+                        False -> #(
+                          captured_field_or_null(order_return, "closedAt"),
+                          identity,
+                        )
+                      }
+                      let staged_status = case all_processed {
+                        True -> "CLOSED"
+                        False ->
+                          captured_string_field(order_return, "status")
+                          |> option.unwrap("OPEN")
+                      }
+                      let base_return =
+                        replace_captured_object_fields(order_return, [
+                          #("status", CapturedString(staged_status)),
+                          #("closedAt", closed_at),
+                          #("returnLineItems", CapturedArray(next_line_items)),
+                        ])
+                      let #(return_with_reverse, identity_after_reverse) =
+                        ensure_return_reverse_fulfillment_orders(
+                          identity_after_closed,
+                          order,
+                          base_return,
+                        )
+                      let #(synced_return, next_identity) =
+                        sync_reverse_fulfillment_line_items(
+                          return_with_reverse,
+                          identity_after_reverse,
+                        )
+                      let #(next_store, staged_identity, updated_order) =
+                        stage_order_with_return(
+                          store,
+                          next_identity,
+                          order,
+                          synced_return,
+                        )
+                      let response_return = case all_processed {
+                        True ->
+                          replace_captured_object_fields(synced_return, [
+                            #(
+                              "status",
+                              captured_field_or_null(order_return, "status"),
+                            ),
+                            #(
+                              "closedAt",
+                              captured_field_or_null(order_return, "closedAt"),
+                            ),
+                          ])
+                        False -> synced_return
+                      }
+                      ReturnMutationResult(
+                        Some(updated_order),
+                        Some(response_return),
+                        next_store,
+                        staged_identity,
+                        [],
+                      )
+                    }
+                  }
+                }
+              }
+            }
+            _ ->
+              ReturnMutationResult(Some(order), None, store, identity, [
+                #(["input", "returnId"], "Only OPEN returns can be processed."),
+              ])
+          }
+        }
+      }
+  }
+}
+
+fn process_return_line_items(
+  existing_line_items: List(CapturedJsonValue),
+  raw_return_line_items: List(Dict(String, root_field.ResolvedValue)),
+) -> #(List(CapturedJsonValue), List(#(List(String), String))) {
+  raw_return_line_items
+  |> list.index_fold(#(existing_line_items, []), fn(acc, input, index) {
+    let #(line_items, user_errors) = acc
+    let line_item_id = read_string(input, "id")
+    let quantity = read_int(input, "quantity", 0)
+    let line_item =
+      line_item_id
+      |> option.then(fn(id) { find_return_line_item(line_items, id) })
+    case line_item_id, line_item {
+      None, _ -> #(
+        line_items,
+        list.append(user_errors, [
+          #(
+            ["input", "returnLineItems", int.to_string(index), "id"],
+            "Return line item does not exist.",
+          ),
+        ]),
+      )
+      Some(_), None -> #(
+        line_items,
+        list.append(user_errors, [
+          #(
+            ["input", "returnLineItems", int.to_string(index), "id"],
+            "Return line item does not exist.",
+          ),
+        ]),
+      )
+      Some(id), Some(line_item) -> {
+        let processed_quantity =
+          captured_int_field(line_item, "processedQuantity") |> option.unwrap(0)
+        let current_quantity =
+          captured_int_field(line_item, "quantity") |> option.unwrap(0)
+        let unprocessed_quantity = current_quantity - processed_quantity
+        case quantity <= 0 || quantity > unprocessed_quantity {
+          True -> #(
+            line_items,
+            list.append(user_errors, [
+              #(
+                ["input", "returnLineItems", int.to_string(index), "quantity"],
+                "Quantity is not processable.",
+              ),
+            ]),
+          )
+          False -> #(
+            line_items
+              |> list.map(fn(candidate) {
+                case captured_string_field(candidate, "id") == Some(id) {
+                  True ->
+                    replace_captured_object_fields(candidate, [
+                      #(
+                        "processedQuantity",
+                        CapturedInt(processed_quantity + quantity),
+                      ),
+                    ])
+                  False -> candidate
+                }
+              }),
+            user_errors,
+          )
+        }
+      }
+    }
+  })
+}
+
+fn apply_reverse_delivery_create_with_shipping(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args: Dict(String, root_field.ResolvedValue),
+) -> ReverseDeliveryMutationResult {
+  case read_string(args, "reverseFulfillmentOrderId") {
+    None ->
+      ReverseDeliveryMutationResult(None, None, None, None, store, identity, [
+        #(
+          ["reverseFulfillmentOrderId"],
+          "Reverse fulfillment order does not exist.",
+        ),
+      ])
+    Some(reverse_order_id) ->
+      case find_order_reverse_fulfillment_order(store, reverse_order_id) {
+        None ->
+          ReverseDeliveryMutationResult(
+            None,
+            None,
+            None,
+            None,
+            store,
+            identity,
+            [
+              #(
+                ["reverseFulfillmentOrderId"],
+                "Reverse fulfillment order does not exist.",
+              ),
+            ],
+          )
+        Some(match) -> {
+          let #(order, order_return, reverse_order) = match
+          let raw_line_items =
+            read_object_list(args, "reverseDeliveryLineItems")
+          let line_item_result = case raw_line_items {
+            [] ->
+              Ok(build_all_reverse_delivery_line_items(identity, reverse_order))
+            _ ->
+              build_reverse_delivery_line_items(
+                identity,
+                reverse_order,
+                raw_line_items,
+              )
+          }
+          case line_item_result {
+            Error(user_errors) ->
+              ReverseDeliveryMutationResult(
+                Some(order),
+                Some(order_return),
+                Some(reverse_order),
+                None,
+                store,
+                identity,
+                user_errors,
+              )
+            Ok(line_item_pack) -> {
+              let #(line_items, identity_after_lines) = line_item_pack
+              case line_items {
+                [] ->
+                  ReverseDeliveryMutationResult(
+                    Some(order),
+                    Some(order_return),
+                    Some(reverse_order),
+                    None,
+                    store,
+                    identity,
+                    [
+                      #(
+                        ["reverseDeliveryLineItems"],
+                        "Reverse delivery line items are required.",
+                      ),
+                    ],
+                  )
+                _ -> {
+                  let #(reverse_delivery_id, identity_after_delivery) =
+                    synthetic_identity.make_synthetic_gid(
+                      identity_after_lines,
+                      "ReverseDelivery",
+                    )
+                  let reverse_delivery =
+                    CapturedObject([
+                      #("id", CapturedString(reverse_delivery_id)),
+                      #(
+                        "reverseFulfillmentOrderId",
+                        captured_field_or_null(reverse_order, "id"),
+                      ),
+                      #("reverseDeliveryLineItems", CapturedArray(line_items)),
+                      #(
+                        "tracking",
+                        normalize_reverse_delivery_tracking(read_object(
+                          args,
+                          "trackingInput",
+                        )),
+                      ),
+                      #(
+                        "label",
+                        normalize_reverse_delivery_label(read_object(
+                          args,
+                          "labelInput",
+                        )),
+                      ),
+                    ])
+                  let reverse_deliveries = [
+                    reverse_delivery,
+                    ..reverse_fulfillment_order_reverse_deliveries(
+                      reverse_order,
+                    )
+                  ]
+                  let updated_reverse_order =
+                    replace_captured_object_fields(reverse_order, [
+                      #("reverseDeliveries", CapturedArray(reverse_deliveries)),
+                    ])
+                  stage_reverse_delivery_update(
+                    store,
+                    identity_after_delivery,
+                    order,
+                    order_return,
+                    updated_reverse_order,
+                    reverse_delivery,
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+  }
+}
+
+fn apply_reverse_delivery_shipping_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args: Dict(String, root_field.ResolvedValue),
+) -> ReverseDeliveryMutationResult {
+  case read_string(args, "reverseDeliveryId") {
+    None ->
+      ReverseDeliveryMutationResult(None, None, None, None, store, identity, [
+        #(["reverseDeliveryId"], "Reverse delivery does not exist."),
+      ])
+    Some(reverse_delivery_id) ->
+      case find_order_reverse_delivery(store, reverse_delivery_id) {
+        None ->
+          ReverseDeliveryMutationResult(
+            None,
+            None,
+            None,
+            None,
+            store,
+            identity,
+            [
+              #(["reverseDeliveryId"], "Reverse delivery does not exist."),
+            ],
+          )
+        Some(match) -> {
+          let #(order, order_return, reverse_order, reverse_delivery) = match
+          let tracking = case read_object(args, "trackingInput") {
+            Some(input) -> normalize_reverse_delivery_tracking(Some(input))
+            None -> captured_field_or_null(reverse_delivery, "tracking")
+          }
+          let label = case read_object(args, "labelInput") {
+            Some(input) -> normalize_reverse_delivery_label(Some(input))
+            None -> captured_field_or_null(reverse_delivery, "label")
+          }
+          let updated_delivery =
+            replace_captured_object_fields(reverse_delivery, [
+              #("tracking", tracking),
+              #("label", label),
+            ])
+          let updated_reverse_order =
+            replace_captured_object_fields(reverse_order, [
+              #(
+                "reverseDeliveries",
+                CapturedArray(
+                  reverse_fulfillment_order_reverse_deliveries(reverse_order)
+                  |> list.map(fn(candidate) {
+                    case
+                      captured_string_field(candidate, "id")
+                      == Some(reverse_delivery_id)
+                    {
+                      True -> updated_delivery
+                      False -> candidate
+                    }
+                  }),
+                ),
+              ),
+            ])
+          stage_reverse_delivery_update(
+            store,
+            identity,
+            order,
+            order_return,
+            updated_reverse_order,
+            updated_delivery,
+          )
+        }
+      }
+  }
+}
+
+fn apply_reverse_fulfillment_order_dispose(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args: Dict(String, root_field.ResolvedValue),
+) -> DisposeMutationResult {
+  let inputs = read_object_list(args, "dispositionInputs")
+  case inputs {
+    [] ->
+      DisposeMutationResult([], store, identity, [
+        #(["dispositionInputs"], "Disposition inputs are required."),
+      ])
+    _ -> {
+      let #(next_store, next_identity, line_items, user_errors) =
+        inputs
+        |> list.index_fold(#(store, identity, [], []), fn(acc, input, index) {
+          let #(current_store, current_identity, disposed_items, errors) = acc
+          let line_item_id =
+            read_string(input, "reverseFulfillmentOrderLineItemId")
+          let quantity = read_int(input, "quantity", 0)
+          let match =
+            line_item_id
+            |> option.then(fn(id) {
+              find_order_reverse_fulfillment_order_line_item(current_store, id)
+            })
+          case line_item_id, match {
+            None, _ -> #(
+              current_store,
+              current_identity,
+              disposed_items,
+              list.append(errors, [
+                #(
+                  [
+                    "dispositionInputs",
+                    int.to_string(index),
+                    "reverseFulfillmentOrderLineItemId",
+                  ],
+                  "Reverse fulfillment order line item does not exist.",
+                ),
+              ]),
+            )
+            Some(_), None -> #(
+              current_store,
+              current_identity,
+              disposed_items,
+              list.append(errors, [
+                #(
+                  [
+                    "dispositionInputs",
+                    int.to_string(index),
+                    "reverseFulfillmentOrderLineItemId",
+                  ],
+                  "Reverse fulfillment order line item does not exist.",
+                ),
+              ]),
+            )
+            Some(_), Some(match) -> {
+              let #(order, order_return, reverse_order, line_item) = match
+              let total_quantity =
+                captured_int_field(line_item, "totalQuantity")
+                |> option.unwrap(0)
+              let disposed_quantity =
+                captured_int_field(line_item, "disposedQuantity")
+                |> option.unwrap(0)
+              let disposable_quantity = total_quantity - disposed_quantity
+              case quantity <= 0 || quantity > disposable_quantity {
+                True -> #(
+                  current_store,
+                  current_identity,
+                  disposed_items,
+                  list.append(errors, [
+                    #(
+                      ["dispositionInputs", int.to_string(index), "quantity"],
+                      "Quantity is not disposable.",
+                    ),
+                  ]),
+                )
+                False -> {
+                  let updated_line_item =
+                    replace_captured_object_fields(line_item, [
+                      #(
+                        "remainingQuantity",
+                        CapturedInt(int.max(
+                          0,
+                          {
+                            captured_int_field(line_item, "remainingQuantity")
+                            |> option.unwrap(total_quantity)
+                          }
+                            - quantity,
+                        )),
+                      ),
+                      #(
+                        "disposedQuantity",
+                        CapturedInt(disposed_quantity + quantity),
+                      ),
+                      #(
+                        "dispositionType",
+                        optional_captured_string(read_string(
+                          input,
+                          "dispositionType",
+                        )),
+                      ),
+                      #(
+                        "dispositionLocationId",
+                        optional_captured_string(read_string(
+                          input,
+                          "locationId",
+                        )),
+                      ),
+                    ])
+                  let updated_reverse_order =
+                    replace_captured_object_fields(reverse_order, [
+                      #(
+                        "lineItems",
+                        CapturedArray(
+                          reverse_fulfillment_order_line_items(reverse_order)
+                          |> list.map(fn(candidate) {
+                            case
+                              captured_string_field(candidate, "id")
+                              == captured_string_field(updated_line_item, "id")
+                            {
+                              True -> updated_line_item
+                              False -> candidate
+                            }
+                          }),
+                        ),
+                      ),
+                    ])
+                  let #(staged_store, staged_identity, _) =
+                    stage_order_with_return(
+                      current_store,
+                      current_identity,
+                      order,
+                      replace_return_reverse_fulfillment_order(
+                        order_return,
+                        updated_reverse_order,
+                      ),
+                    )
+                  #(
+                    staged_store,
+                    staged_identity,
+                    list.append(disposed_items, [updated_line_item]),
+                    errors,
+                  )
+                }
+              }
+            }
+          }
+        })
+      case user_errors {
+        [] -> DisposeMutationResult(line_items, next_store, next_identity, [])
+        _ -> DisposeMutationResult([], store, identity, user_errors)
+      }
+    }
+  }
+}
+
 fn build_return_line_items(
   identity: SyntheticIdentityRegistry,
   order: OrderRecord,
@@ -5737,6 +6560,249 @@ fn sync_reverse_fulfillment_order_line_items(
   })
 }
 
+fn build_all_reverse_delivery_line_items(
+  identity: SyntheticIdentityRegistry,
+  reverse_order: CapturedJsonValue,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  reverse_fulfillment_order_line_items(reverse_order)
+  |> list.filter(fn(line_item) {
+    captured_int_field(line_item, "totalQuantity") |> option.unwrap(0) > 0
+  })
+  |> list.fold(#([], identity), fn(acc, line_item) {
+    let #(items, current_identity) = acc
+    let #(id, next_identity) =
+      synthetic_identity.make_synthetic_gid(
+        current_identity,
+        "ReverseDeliveryLineItem",
+      )
+    #(
+      list.append(items, [
+        CapturedObject([
+          #("id", CapturedString(id)),
+          #(
+            "reverseFulfillmentOrderLineItemId",
+            captured_field_or_null(line_item, "id"),
+          ),
+          #(
+            "quantity",
+            CapturedInt(
+              captured_int_field(line_item, "totalQuantity")
+              |> option.unwrap(0),
+            ),
+          ),
+        ]),
+      ]),
+      next_identity,
+    )
+  })
+}
+
+fn build_reverse_delivery_line_items(
+  identity: SyntheticIdentityRegistry,
+  reverse_order: CapturedJsonValue,
+  raw_line_items: List(Dict(String, root_field.ResolvedValue)),
+) -> Result(
+  #(List(CapturedJsonValue), SyntheticIdentityRegistry),
+  List(#(List(String), String)),
+) {
+  let #(line_items, user_errors, next_identity) =
+    raw_line_items
+    |> list.index_fold(#([], [], identity), fn(acc, input, index) {
+      let #(items, errors, current_identity) = acc
+      let line_item_id = read_string(input, "reverseFulfillmentOrderLineItemId")
+      let quantity = read_int(input, "quantity", 0)
+      let line_item =
+        line_item_id
+        |> option.then(fn(id) {
+          find_reverse_fulfillment_order_line_item(reverse_order, id)
+        })
+      case line_item_id, line_item {
+        None, _ -> #(
+          items,
+          list.append(errors, [
+            #(
+              [
+                "reverseDeliveryLineItems",
+                int.to_string(index),
+                "reverseFulfillmentOrderLineItemId",
+              ],
+              "Reverse fulfillment order line item does not exist.",
+            ),
+          ]),
+          current_identity,
+        )
+        Some(_), None -> #(
+          items,
+          list.append(errors, [
+            #(
+              [
+                "reverseDeliveryLineItems",
+                int.to_string(index),
+                "reverseFulfillmentOrderLineItemId",
+              ],
+              "Reverse fulfillment order line item does not exist.",
+            ),
+          ]),
+          current_identity,
+        )
+        Some(_), Some(line_item) -> {
+          let total_quantity =
+            captured_int_field(line_item, "totalQuantity") |> option.unwrap(0)
+          case quantity <= 0 || quantity > total_quantity {
+            True -> #(
+              items,
+              list.append(errors, [
+                #(
+                  ["reverseDeliveryLineItems", int.to_string(index), "quantity"],
+                  "Quantity is not available for reverse delivery.",
+                ),
+              ]),
+              current_identity,
+            )
+            False -> {
+              let #(id, next_identity) =
+                synthetic_identity.make_synthetic_gid(
+                  current_identity,
+                  "ReverseDeliveryLineItem",
+                )
+              #(
+                list.append(items, [
+                  CapturedObject([
+                    #("id", CapturedString(id)),
+                    #(
+                      "reverseFulfillmentOrderLineItemId",
+                      captured_field_or_null(line_item, "id"),
+                    ),
+                    #("quantity", CapturedInt(quantity)),
+                  ]),
+                ]),
+                errors,
+                next_identity,
+              )
+            }
+          }
+        }
+      }
+    })
+  case user_errors {
+    [] -> Ok(#(line_items, next_identity))
+    _ -> Error(user_errors)
+  }
+}
+
+fn normalize_reverse_delivery_tracking(
+  input: Option(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  case input {
+    None -> CapturedNull
+    Some(input) ->
+      CapturedObject([
+        #(
+          "number",
+          optional_captured_string(
+            read_string(input, "number")
+            |> option.or(read_string(input, "trackingNumber")),
+          ),
+        ),
+        #(
+          "url",
+          optional_captured_string(
+            read_string(input, "url")
+            |> option.or(read_string(input, "trackingUrl")),
+          ),
+        ),
+        #(
+          "company",
+          optional_captured_string(
+            read_string(input, "company")
+            |> option.or(read_string(input, "carrierName")),
+          ),
+        ),
+      ])
+  }
+}
+
+fn normalize_reverse_delivery_label(
+  input: Option(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  case input {
+    None -> CapturedNull
+    Some(input) ->
+      CapturedObject([
+        #(
+          "publicFileUrl",
+          optional_captured_string(
+            read_string(input, "fileUrl")
+            |> option.or(read_string(input, "publicFileUrl"))
+            |> option.or(read_string(input, "url")),
+          ),
+        ),
+      ])
+  }
+}
+
+fn stage_reverse_delivery_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  order: OrderRecord,
+  order_return: CapturedJsonValue,
+  reverse_order: CapturedJsonValue,
+  reverse_delivery: CapturedJsonValue,
+) -> ReverseDeliveryMutationResult {
+  let updated_return =
+    replace_return_reverse_fulfillment_order(order_return, reverse_order)
+  let #(next_store, next_identity, updated_order) =
+    stage_order_with_return(store, identity, order, updated_return)
+  ReverseDeliveryMutationResult(
+    Some(updated_order),
+    Some(updated_return),
+    Some(reverse_order),
+    Some(reverse_delivery),
+    next_store,
+    next_identity,
+    [],
+  )
+}
+
+fn stage_order_with_return(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  order: OrderRecord,
+  updated_return: CapturedJsonValue,
+) -> #(Store, SyntheticIdentityRegistry, OrderRecord) {
+  let return_id = captured_string_field(updated_return, "id")
+  let returns =
+    order_returns(order.data)
+    |> list.map(fn(candidate) {
+      case captured_string_field(candidate, "id") == return_id {
+        True -> updated_return
+        False -> candidate
+      }
+    })
+  stage_order_with_returns(store, identity, order, returns)
+}
+
+fn replace_return_reverse_fulfillment_order(
+  order_return: CapturedJsonValue,
+  reverse_order: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let reverse_order_id = captured_string_field(reverse_order, "id")
+  replace_captured_object_fields(order_return, [
+    #(
+      "reverseFulfillmentOrders",
+      CapturedArray(
+        order_reverse_fulfillment_orders(order_return)
+        |> list.map(fn(candidate) {
+          case captured_string_field(candidate, "id") == reverse_order_id {
+            True -> reverse_order
+            False -> candidate
+          }
+        }),
+      ),
+    ),
+  ])
+}
+
 fn stage_order_with_returns(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -5776,6 +6842,92 @@ fn find_order_return(
   |> option.from_result
 }
 
+fn find_order_reverse_fulfillment_order(
+  store: Store,
+  reverse_fulfillment_order_id: String,
+) -> Option(#(OrderRecord, CapturedJsonValue, CapturedJsonValue)) {
+  store.list_effective_orders(store)
+  |> list.find_map(fn(order) {
+    order_returns(order.data)
+    |> list.find_map(fn(order_return) {
+      order_reverse_fulfillment_orders(order_return)
+      |> list.find(fn(reverse_order) {
+        captured_string_field(reverse_order, "id")
+        == Some(reverse_fulfillment_order_id)
+      })
+      |> option.from_result
+      |> option.map(fn(reverse_order) { #(order, order_return, reverse_order) })
+      |> option_to_result
+    })
+  })
+  |> option.from_result
+}
+
+fn find_order_reverse_delivery(
+  store: Store,
+  reverse_delivery_id: String,
+) -> Option(
+  #(OrderRecord, CapturedJsonValue, CapturedJsonValue, CapturedJsonValue),
+) {
+  store.list_effective_orders(store)
+  |> list.find_map(fn(order) {
+    order_returns(order.data)
+    |> list.find_map(fn(order_return) {
+      order_reverse_fulfillment_orders(order_return)
+      |> list.find_map(fn(reverse_order) {
+        reverse_fulfillment_order_reverse_deliveries(reverse_order)
+        |> list.find(fn(reverse_delivery) {
+          captured_string_field(reverse_delivery, "id")
+          == Some(reverse_delivery_id)
+        })
+        |> option.from_result
+        |> option.map(fn(reverse_delivery) {
+          #(order, order_return, reverse_order, reverse_delivery)
+        })
+        |> option_to_result
+      })
+    })
+  })
+  |> option.from_result
+}
+
+fn find_order_reverse_fulfillment_order_line_item(
+  store: Store,
+  reverse_line_item_id: String,
+) -> Option(
+  #(OrderRecord, CapturedJsonValue, CapturedJsonValue, CapturedJsonValue),
+) {
+  store.list_effective_orders(store)
+  |> list.find_map(fn(order) {
+    order_returns(order.data)
+    |> list.find_map(fn(order_return) {
+      order_reverse_fulfillment_orders(order_return)
+      |> list.find_map(fn(reverse_order) {
+        find_reverse_fulfillment_order_line_item(
+          reverse_order,
+          reverse_line_item_id,
+        )
+        |> option.map(fn(line_item) {
+          #(order, order_return, reverse_order, line_item)
+        })
+        |> option_to_result
+      })
+    })
+  })
+  |> option.from_result
+}
+
+fn find_reverse_fulfillment_order_line_item(
+  reverse_order: CapturedJsonValue,
+  reverse_line_item_id: String,
+) -> Option(CapturedJsonValue) {
+  reverse_fulfillment_order_line_items(reverse_order)
+  |> list.find(fn(line_item) {
+    captured_string_field(line_item, "id") == Some(reverse_line_item_id)
+  })
+  |> option.from_result
+}
+
 fn order_returns(order_data: CapturedJsonValue) -> List(CapturedJsonValue) {
   case captured_object_field(order_data, "returns") {
     Some(CapturedArray(values)) -> values
@@ -5808,6 +6960,26 @@ fn reverse_fulfillment_order_line_items(
   reverse_fulfillment_order: CapturedJsonValue,
 ) -> List(CapturedJsonValue) {
   case captured_object_field(reverse_fulfillment_order, "lineItems") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> connection_nodes(value)
+    None -> []
+  }
+}
+
+fn reverse_fulfillment_order_reverse_deliveries(
+  reverse_fulfillment_order: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(reverse_fulfillment_order, "reverseDeliveries") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> connection_nodes(value)
+    None -> []
+  }
+}
+
+fn reverse_delivery_line_items(
+  reverse_delivery: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(reverse_delivery, "reverseDeliveryLineItems") {
     Some(CapturedArray(values)) -> values
     Some(value) -> connection_nodes(value)
     None -> []
@@ -5886,6 +7058,91 @@ fn serialize_return_mutation_payload(
                 serialize_order_return(child, order_return, order, fragments)
               _, _ -> json.null()
             })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_reverse_delivery_mutation_payload(
+  field: Selection,
+  reverse_delivery: Option(CapturedJsonValue),
+  reverse_order: Option(CapturedJsonValue),
+  order_return: Option(CapturedJsonValue),
+  order: Option(OrderRecord),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "reverseDelivery" -> #(
+              key,
+              case reverse_delivery, reverse_order, order_return, order {
+                Some(reverse_delivery),
+                  Some(reverse_order),
+                  Some(order_return),
+                  Some(order)
+                ->
+                  serialize_reverse_delivery(
+                    child,
+                    reverse_delivery,
+                    reverse_order,
+                    order_return,
+                    order,
+                    fragments,
+                  )
+                _, _, _, _ -> json.null()
+              },
+            )
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_reverse_fulfillment_order_dispose_payload(
+  field: Selection,
+  line_items: List(CapturedJsonValue),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "reverseFulfillmentOrderLineItems" -> #(
+              key,
+              json.array(line_items, fn(line_item) {
+                serialize_reverse_fulfillment_order_line_item(
+                  child,
+                  line_item,
+                  CapturedObject([]),
+                  fragments,
+                )
+              }),
+            )
             "userErrors" -> #(
               key,
               json.array(user_errors, fn(error) {
@@ -6158,12 +7415,264 @@ fn serialize_reverse_fulfillment_order(
                 fragments,
               ),
             )
+            "reverseDeliveries" -> #(
+              key,
+              serialize_reverse_deliveries_connection(
+                child,
+                reverse_fulfillment_order_reverse_deliveries(reverse_order),
+                reverse_order,
+                order_return,
+                order,
+                fragments,
+              ),
+            )
             _ -> #(key, project_graphql_field_value(source, child, fragments))
           }
         _ -> #(key, json.null())
       }
     })
   json.object(entries)
+}
+
+fn serialize_reverse_delivery(
+  field: Selection,
+  reverse_delivery: CapturedJsonValue,
+  reverse_order: CapturedJsonValue,
+  order_return: CapturedJsonValue,
+  order: OrderRecord,
+  fragments: FragmentMap,
+) -> Json {
+  let source = captured_json_source(reverse_delivery)
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "reverseFulfillmentOrder" -> #(
+              key,
+              serialize_reverse_fulfillment_order(
+                child,
+                reverse_order,
+                order_return,
+                order,
+                fragments,
+              ),
+            )
+            "reverseDeliveryLineItems" -> #(
+              key,
+              serialize_reverse_delivery_line_items_connection(
+                child,
+                reverse_delivery_line_items(reverse_delivery),
+                reverse_order,
+                order_return,
+                fragments,
+              ),
+            )
+            "deliverable" -> #(
+              key,
+              project_graphql_value(
+                reverse_delivery_deliverable_source(reverse_delivery),
+                selection_children(child),
+                fragments,
+              ),
+            )
+            _ -> #(key, project_graphql_field_value(source, child, fragments))
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn reverse_delivery_deliverable_source(
+  reverse_delivery: CapturedJsonValue,
+) -> SourceValue {
+  let tracking = captured_object_field(reverse_delivery, "tracking")
+  let label = captured_object_field(reverse_delivery, "label")
+  src_object([
+    #("__typename", SrcString("ReverseDeliveryShippingDeliverable")),
+    #(
+      "tracking",
+      tracking
+        |> option.map(fn(value) {
+          src_object([
+            #(
+              "number",
+              captured_string_field(value, "number")
+                |> option.map(SrcString)
+                |> option.unwrap(SrcNull),
+            ),
+            #(
+              "trackingNumber",
+              captured_string_field(value, "number")
+                |> option.map(SrcString)
+                |> option.unwrap(SrcNull),
+            ),
+            #(
+              "url",
+              captured_string_field(value, "url")
+                |> option.map(SrcString)
+                |> option.unwrap(SrcNull),
+            ),
+            #(
+              "trackingUrl",
+              captured_string_field(value, "url")
+                |> option.map(SrcString)
+                |> option.unwrap(SrcNull),
+            ),
+            #(
+              "company",
+              captured_string_field(value, "company")
+                |> option.map(SrcString)
+                |> option.unwrap(SrcNull),
+            ),
+            #(
+              "carrierName",
+              captured_string_field(value, "company")
+                |> option.map(SrcString)
+                |> option.unwrap(SrcNull),
+            ),
+          ])
+        })
+        |> option.unwrap(SrcNull),
+    ),
+    #(
+      "label",
+      label
+        |> option.map(fn(value) {
+          let public_file_url =
+            captured_string_field(value, "publicFileUrl")
+            |> option.map(SrcString)
+            |> option.unwrap(SrcNull)
+          src_object([
+            #("publicFileUrl", public_file_url),
+            #("url", public_file_url),
+          ])
+        })
+        |> option.unwrap(SrcNull),
+    ),
+  ])
+}
+
+fn serialize_reverse_delivery_line_items_connection(
+  field: Selection,
+  line_items: List(CapturedJsonValue),
+  reverse_order: CapturedJsonValue,
+  order_return: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: line_items,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(line_item, _index) {
+        captured_string_field(line_item, "id") |> option.unwrap("")
+      },
+      serialize_node: fn(line_item, selection, _index) {
+        serialize_reverse_delivery_line_item(
+          selection,
+          line_item,
+          reverse_order,
+          order_return,
+          fragments,
+        )
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: True,
+        prefix_cursors: False,
+        include_cursors: False,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn serialize_reverse_delivery_line_item(
+  field: Selection,
+  line_item: CapturedJsonValue,
+  reverse_order: CapturedJsonValue,
+  order_return: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  let source = captured_json_source(line_item)
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "reverseFulfillmentOrderLineItem" -> #(
+              key,
+              case
+                captured_string_field(
+                  line_item,
+                  "reverseFulfillmentOrderLineItemId",
+                )
+              {
+                Some(id) ->
+                  find_reverse_fulfillment_order_line_item(reverse_order, id)
+                  |> option.map(fn(reverse_line_item) {
+                    serialize_reverse_fulfillment_order_line_item(
+                      child,
+                      reverse_line_item,
+                      order_return,
+                      fragments,
+                    )
+                  })
+                  |> option.unwrap(json.null())
+                None -> json.null()
+              },
+            )
+            _ -> #(key, project_graphql_field_value(source, child, fragments))
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_reverse_deliveries_connection(
+  field: Selection,
+  reverse_deliveries: List(CapturedJsonValue),
+  reverse_order: CapturedJsonValue,
+  order_return: CapturedJsonValue,
+  order: OrderRecord,
+  fragments: FragmentMap,
+) -> Json {
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: reverse_deliveries,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(reverse_delivery, _index) {
+        captured_string_field(reverse_delivery, "id") |> option.unwrap("")
+      },
+      serialize_node: fn(reverse_delivery, selection, _index) {
+        serialize_reverse_delivery(
+          selection,
+          reverse_delivery,
+          reverse_order,
+          order_return,
+          order,
+          fragments,
+        )
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: True,
+        prefix_cursors: False,
+        include_cursors: False,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
 }
 
 fn serialize_reverse_fulfillment_order_line_items_connection(
@@ -6214,6 +7723,32 @@ fn serialize_reverse_fulfillment_order_line_item(
       case child {
         Field(name: name, ..) ->
           case name.value {
+            "quantity" | "totalQuantity" -> #(
+              key,
+              json.int(
+                captured_int_field(line_item, "totalQuantity")
+                |> option.unwrap(0),
+              ),
+            )
+            "remainingQuantity" -> #(
+              key,
+              json.int(
+                captured_int_field(line_item, "remainingQuantity")
+                |> option.unwrap(0),
+              ),
+            )
+            "dispositionType" -> #(
+              key,
+              project_graphql_field_value(source, child, fragments),
+            )
+            "fulfillmentLineItem" -> #(
+              key,
+              serialize_reverse_fulfillment_line_item(
+                child,
+                line_item,
+                fragments,
+              ),
+            )
             "returnLineItem" -> #(
               key,
               case captured_string_field(line_item, "returnLineItemId") {
@@ -6234,12 +7769,91 @@ fn serialize_reverse_fulfillment_order_line_item(
                 None -> json.null()
               },
             )
+            "dispositions" -> #(
+              key,
+              serialize_reverse_fulfillment_order_line_item_dispositions(
+                child,
+                line_item,
+                fragments,
+              ),
+            )
             _ -> #(key, project_graphql_field_value(source, child, fragments))
           }
         _ -> #(key, json.null())
       }
     })
   json.object(entries)
+}
+
+fn serialize_reverse_fulfillment_line_item(
+  field: Selection,
+  line_item: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  let source =
+    src_object([
+      #(
+        "id",
+        captured_string_field(line_item, "fulfillmentLineItemId")
+          |> option.map(SrcString)
+          |> option.unwrap(SrcNull),
+      ),
+      #(
+        "quantity",
+        SrcInt(
+          captured_int_field(line_item, "totalQuantity") |> option.unwrap(0),
+        ),
+      ),
+      #(
+        "lineItem",
+        src_object([
+          #(
+            "id",
+            captured_string_field(line_item, "lineItemId")
+              |> option.map(SrcString)
+              |> option.unwrap(SrcNull),
+          ),
+          #(
+            "title",
+            captured_string_field(line_item, "title")
+              |> option.map(SrcString)
+              |> option.unwrap(SrcNull),
+          ),
+        ]),
+      ),
+    ])
+  project_graphql_value(source, selection_children(field), fragments)
+}
+
+fn serialize_reverse_fulfillment_order_line_item_dispositions(
+  field: Selection,
+  line_item: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  let quantity =
+    captured_int_field(line_item, "disposedQuantity") |> option.unwrap(0)
+  case quantity <= 0, captured_string_field(line_item, "dispositionType") {
+    True, _ -> json.array([], fn(value) { value })
+    _, None -> json.array([], fn(value) { value })
+    False, Some(disposition_type) ->
+      json.array(
+        [
+          src_object([
+            #("type", SrcString(disposition_type)),
+            #("quantity", SrcInt(quantity)),
+            #(
+              "location",
+              captured_string_field(line_item, "dispositionLocationId")
+                |> option.map(fn(id) { src_object([#("id", SrcString(id))]) })
+                |> option.unwrap(SrcNull),
+            ),
+          ]),
+        ],
+        fn(source) {
+          project_graphql_value(source, selection_children(field), fragments)
+        },
+      )
+  }
 }
 
 fn order_edit_add_custom_item(

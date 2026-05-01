@@ -9,6 +9,55 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 157: return reverse logistics staging
+
+Promotes the local-runtime and recorded reverse-logistics return scenarios in
+the Gleam Orders domain. This pass adds requested-return approval, reverse
+delivery creation/update, reverse fulfillment disposition, return processing,
+top-level reverse delivery and reverse fulfillment order reads, and downstream
+read-after-write effects for both fixture shapes.
+
+| Module                                             | Change                                           |
+| -------------------------------------------------- | ------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds reverse-logistics mutation/read handling.   |
+| `config/gleam-port-ci-gates.json`                  | Removes the final two gated Orders parity specs. |
+| `.agents/skills/gleam-port/SKILL.md`               | Records reverse-logistics staging notes.         |
+
+Validation:
+
+- Reproduction with both reverse-logistics specs ungated first failed at
+  missing local dispatcher support for `returnApproveRequest`.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- Approval is the bridge from a requested return to reverse logistics: it
+  creates the reverse fulfillment order and line item IDs that all later targets
+  derive from.
+- The local and recorded fixtures select different reverse-logistics field
+  shapes (`company` vs `carrierName`, `dispositionType` vs `dispositions`), so
+  serializers need to expose both Shopify field families from one captured
+  reverse-order model.
+- `returnProcess` persists a closed return when all line items are processed,
+  while the mutation payload keeps Shopify's captured response status from the
+  pre-process open return.
+
+### Risks / open items
+
+- All 78 checked-in Orders parity specs now run in the Gleam parity gate, but
+  HAR-492's broader integration-flow acceptance still needs final validation
+  before the issue can leave `In Progress`.
+- Direct order delete success and broader fulfillment creation workflows remain
+  outside the promoted parity set unless covered by existing executable tests.
+
+### Pass 158 candidates
+
+- Run the required full validation suite, inspect remaining registry/runtime
+  gaps for HAR-492 acceptance, and decide whether the PR can move toward human
+  review or needs another targeted pass.
+
+---
+
 ## 2026-05-01 - Pass 156: return request decline staging
 
 Promotes the local-runtime requested-return decline scenario in the Gleam
