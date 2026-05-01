@@ -2499,8 +2499,60 @@ fn handle_order_create_validation_guardrail(
     )
   case validation_errors {
     [_, ..] -> #(key, json.null(), validation_errors)
-    [] -> #(key, json.null(), [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      case dict.get(args, "order") {
+        Ok(root_field.ObjectVal(input)) -> {
+          let user_errors = validate_order_create_input(input)
+          case user_errors {
+            [] -> #(key, json.null(), [])
+            _ -> #(
+              key,
+              serialize_order_create_validation_payload(field, user_errors),
+              [],
+            )
+          }
+        }
+        _ -> #(key, json.null(), [])
+      }
+    }
   }
+}
+
+fn validate_order_create_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String)) {
+  case read_object_list(input, "lineItems") {
+    [] -> [
+      #(["order", "lineItems"], "Line items must have at least one line item"),
+    ]
+    _ -> []
+  }
+}
+
+fn serialize_order_create_validation_payload(
+  field: Selection,
+  user_errors: List(#(List(String), String)),
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "order" -> #(key, json.null())
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 fn handle_fulfillment_validation_guardrail(

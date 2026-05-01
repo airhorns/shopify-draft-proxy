@@ -9,6 +9,57 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 135: order create no-line-items validation
+
+Promotes the checked-in `orderCreate-validation-matrix` scenario in the Gleam
+Orders domain. This pass extends the existing `orderCreate` validation
+guardrail beyond required-argument errors to mirror Shopify's captured
+no-line-items business-rule user error without staging an order, writing a
+mutation-log draft, or claiming order creation success behavior.
+
+| Module                                                   | Change                                                          |
+| -------------------------------------------------------- | --------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds the no-line-items `orderCreate` validation payload branch. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers the local no-line-items response and no staging/logging. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing order create validation spec.         |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (743 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (739 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 126 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify returns the no-line-items branch as payload `userErrors`, not a
+  top-level GraphQL error: `order: null`, `field: ["order", "lineItems"]`, and
+  message `Line items must have at least one line item`.
+- This rejected branch should not stage an `OrderRecord`, mint synthetic IDs, or
+  create a mutation-log draft.
+
+### Risks / open items
+
+- This is still a validation guardrail only. Successful `orderCreate`
+  lifecycle, downstream read effects, payment transactions, inventory bypass,
+  customer linkage, fulfillment state, refunds, and returns remain gated.
+
+### Pass 136 candidates
+
+- Continue with another validation-only order guardrail if it is backed by a
+  captured executable fixture, or start the broader `orderCreate` lifecycle only
+  when all downstream state effects can be modeled together.
+
+---
+
 ## 2026-05-01 - Pass 134: order catalog filters and count limits
 
 Promotes the checked-in `order-catalog-count-read` scenario in the Gleam Orders

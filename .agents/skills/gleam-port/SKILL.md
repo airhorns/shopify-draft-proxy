@@ -476,6 +476,11 @@ synthetic-id/timestamp expected differences.
   such as `tag`, `name`, `financial_status`, and `fulfillment_status`; when a
   node-based capture has no edge cursors, derive raw cursors from the captured
   connection `pageInfo` windows and store them on `OrderRecord` rows.
+- `orderCreate` no-line-items validation is a payload user-error branch, not a
+  top-level GraphQL validation error: return `order: null`, field
+  `["order", "lineItems"]`, and do not stage an order, mint IDs, or append a
+  mutation-log draft. Keep this as a guardrail until successful direct-order
+  creation and downstream state effects are ported together.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or

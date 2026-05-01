@@ -841,6 +841,49 @@ pub fn orders_order_create_validation_guardrails_test() {
     )
   assert json.to_string(null_outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'order' on Field 'orderCreate' has an invalid value (null). Expected type 'OrderCreateOrderInput!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation InlineNullOrderArg\",\"orderCreate\",\"order\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"order\"}}]}"
+
+  let no_line_items =
+    "
+    mutation OrderCreateValidationMatrix($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        order {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "order",
+        root_field.ObjectVal(
+          dict.from_list([
+            #(
+              "email",
+              root_field.StringVal("hermes-order-no-line-items@example.com"),
+            ),
+            #("lineItems", root_field.ListVal([])),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(no_line_items_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      no_line_items,
+      variables,
+    )
+  assert json.to_string(no_line_items_outcome.data)
+    == "{\"data\":{\"orderCreate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"lineItems\"],\"message\":\"Line items must have at least one line item\"}]}}}"
+  assert no_line_items_outcome.staged_resource_ids == []
+  assert no_line_items_outcome.log_drafts == []
+  assert store.list_effective_orders(no_line_items_outcome.store) == []
 }
 
 pub fn orders_order_update_validation_guardrails_test() {
