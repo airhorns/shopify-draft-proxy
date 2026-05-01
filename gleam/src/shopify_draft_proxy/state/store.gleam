@@ -39,7 +39,9 @@ import shopify_draft_proxy/state/types.{
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
   type MetafieldDefinitionRecord, type MetaobjectDefinitionRecord,
   type MetaobjectRecord, type OnlineStoreContentRecord,
-  type OnlineStoreIntegrationRecord, type OrderRecord,
+  type OnlineStoreIntegrationRecord, type OrderMandatePaymentRecord,
+  type OrderRecord, type PaymentCustomizationRecord,
+  type PaymentReminderSendRecord, type PaymentTermsRecord,
   type ProductCollectionRecord, type ProductFeedRecord, type ProductMediaRecord,
   type ProductMetafieldRecord, type ProductOperationRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
@@ -103,6 +105,7 @@ pub type BaseState {
     orders: Dict(String, OrderRecord),
     order_order: List(String),
     deleted_order_ids: Dict(String, Bool),
+    order_mandate_payments: Dict(String, OrderMandatePaymentRecord),
     inventory_transfers: Dict(String, InventoryTransferRecord),
     inventory_transfer_order: List(String),
     deleted_inventory_transfer_ids: Dict(String, Bool),
@@ -229,6 +232,14 @@ pub type BaseState {
       CustomerPaymentMethodUpdateUrlRecord,
     ),
     deleted_customer_payment_method_ids: Dict(String, Bool),
+    payment_reminder_sends: Dict(String, PaymentReminderSendRecord),
+    payment_customizations: Dict(String, PaymentCustomizationRecord),
+    payment_customization_order: List(String),
+    deleted_payment_customization_ids: Dict(String, Bool),
+    payment_terms: Dict(String, PaymentTermsRecord),
+    payment_terms_owner_ids: Dict(String, Bool),
+    payment_terms_by_owner_id: Dict(String, String),
+    deleted_payment_terms_ids: Dict(String, Bool),
     store_credit_accounts: Dict(String, StoreCreditAccountRecord),
     store_credit_account_transactions: Dict(
       String,
@@ -301,6 +312,7 @@ pub type StagedState {
     orders: Dict(String, OrderRecord),
     order_order: List(String),
     deleted_order_ids: Dict(String, Bool),
+    order_mandate_payments: Dict(String, OrderMandatePaymentRecord),
     inventory_transfers: Dict(String, InventoryTransferRecord),
     inventory_transfer_order: List(String),
     deleted_inventory_transfer_ids: Dict(String, Bool),
@@ -426,6 +438,14 @@ pub type StagedState {
       CustomerPaymentMethodUpdateUrlRecord,
     ),
     deleted_customer_payment_method_ids: Dict(String, Bool),
+    payment_reminder_sends: Dict(String, PaymentReminderSendRecord),
+    payment_customizations: Dict(String, PaymentCustomizationRecord),
+    payment_customization_order: List(String),
+    deleted_payment_customization_ids: Dict(String, Bool),
+    payment_terms: Dict(String, PaymentTermsRecord),
+    payment_terms_owner_ids: Dict(String, Bool),
+    payment_terms_by_owner_id: Dict(String, String),
+    deleted_payment_terms_ids: Dict(String, Bool),
     store_credit_accounts: Dict(String, StoreCreditAccountRecord),
     store_credit_account_transactions: Dict(
       String,
@@ -565,6 +585,7 @@ pub fn empty_base_state() -> BaseState {
     orders: dict.new(),
     order_order: [],
     deleted_order_ids: dict.new(),
+    order_mandate_payments: dict.new(),
     inventory_transfers: dict.new(),
     inventory_transfer_order: [],
     deleted_inventory_transfer_ids: dict.new(),
@@ -676,6 +697,14 @@ pub fn empty_base_state() -> BaseState {
     customer_payment_methods: dict.new(),
     customer_payment_method_update_urls: dict.new(),
     deleted_customer_payment_method_ids: dict.new(),
+    payment_reminder_sends: dict.new(),
+    payment_customizations: dict.new(),
+    payment_customization_order: [],
+    deleted_payment_customization_ids: dict.new(),
+    payment_terms: dict.new(),
+    payment_terms_owner_ids: dict.new(),
+    payment_terms_by_owner_id: dict.new(),
+    deleted_payment_terms_ids: dict.new(),
     store_credit_accounts: dict.new(),
     store_credit_account_transactions: dict.new(),
     customer_account_pages: dict.new(),
@@ -738,6 +767,7 @@ pub fn empty_staged_state() -> StagedState {
     orders: dict.new(),
     order_order: [],
     deleted_order_ids: dict.new(),
+    order_mandate_payments: dict.new(),
     inventory_transfers: dict.new(),
     inventory_transfer_order: [],
     deleted_inventory_transfer_ids: dict.new(),
@@ -848,6 +878,14 @@ pub fn empty_staged_state() -> StagedState {
     customer_payment_methods: dict.new(),
     customer_payment_method_update_urls: dict.new(),
     deleted_customer_payment_method_ids: dict.new(),
+    payment_reminder_sends: dict.new(),
+    payment_customizations: dict.new(),
+    payment_customization_order: [],
+    deleted_payment_customization_ids: dict.new(),
+    payment_terms: dict.new(),
+    payment_terms_owner_ids: dict.new(),
+    payment_terms_by_owner_id: dict.new(),
+    deleted_payment_terms_ids: dict.new(),
     store_credit_accounts: dict.new(),
     store_credit_account_transactions: dict.new(),
     customer_account_pages: dict.new(),
@@ -1148,6 +1186,47 @@ pub fn list_effective_orders(store: Store) -> List(OrderRecord) {
     |> list.append(dict.values(store.staged_state.orders))
     |> list.filter(fn(record) { !list.contains(ordered_ids, record.id) })
   list.append(ordered, unordered) |> dedupe_orders()
+}
+
+pub fn get_order_mandate_payment(
+  store: Store,
+  order_id: String,
+  idempotency_key: String,
+) -> Option(OrderMandatePaymentRecord) {
+  let key = order_mandate_payment_key(order_id, idempotency_key)
+  case dict.get(store.staged_state.order_mandate_payments, key) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.order_mandate_payments, key) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn upsert_staged_order_mandate_payment(
+  store: Store,
+  record: OrderMandatePaymentRecord,
+) -> Store {
+  let key = order_mandate_payment_key(record.order_id, record.idempotency_key)
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      order_mandate_payments: dict.insert(
+        store.staged_state.order_mandate_payments,
+        key,
+        record,
+      ),
+    ),
+  )
+}
+
+fn order_mandate_payment_key(
+  order_id: String,
+  idempotency_key: String,
+) -> String {
+  order_id <> "::" <> idempotency_key
 }
 
 pub fn get_draft_order_variant_catalog_by_id(
@@ -7964,6 +8043,70 @@ pub fn stage_customer_payment_method(
   )
 }
 
+pub fn upsert_base_customer_payment_methods(
+  store: Store,
+  records: List(CustomerPaymentMethodRecord),
+) -> Store {
+  list.fold(records, store, fn(current, record) {
+    Store(
+      ..current,
+      base_state: BaseState(
+        ..current.base_state,
+        customer_payment_methods: dict.insert(
+          current.base_state.customer_payment_methods,
+          record.id,
+          record,
+        ),
+        deleted_customer_payment_method_ids: dict.delete(
+          current.base_state.deleted_customer_payment_method_ids,
+          record.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..current.staged_state,
+        deleted_customer_payment_method_ids: dict.delete(
+          current.staged_state.deleted_customer_payment_method_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn stage_customer_payment_method_update_url(
+  store: Store,
+  record: CustomerPaymentMethodUpdateUrlRecord,
+) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      customer_payment_method_update_urls: dict.insert(
+        store.staged_state.customer_payment_method_update_urls,
+        record.id,
+        record,
+      ),
+    ),
+  )
+}
+
+pub fn stage_payment_reminder_send(
+  store: Store,
+  record: PaymentReminderSendRecord,
+) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      payment_reminder_sends: dict.insert(
+        store.staged_state.payment_reminder_sends,
+        record.id,
+        record,
+      ),
+    ),
+  )
+}
+
 pub fn get_effective_customer_payment_method_by_id(
   store: Store,
   payment_method_id: String,
@@ -8029,6 +8172,271 @@ pub fn list_effective_customer_payment_methods(
       None -> Error(Nil)
     }
   })
+}
+
+pub fn upsert_base_payment_customizations(
+  store: Store,
+  records: List(PaymentCustomizationRecord),
+) -> Store {
+  list.fold(records, store, fn(current, record) {
+    Store(
+      ..current,
+      base_state: BaseState(
+        ..current.base_state,
+        payment_customizations: dict.insert(
+          current.base_state.payment_customizations,
+          record.id,
+          record,
+        ),
+        payment_customization_order: append_unique_id(
+          current.base_state.payment_customization_order,
+          record.id,
+        ),
+        deleted_payment_customization_ids: dict.delete(
+          current.base_state.deleted_payment_customization_ids,
+          record.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..current.staged_state,
+        deleted_payment_customization_ids: dict.delete(
+          current.staged_state.deleted_payment_customization_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_staged_payment_customization(
+  store: Store,
+  record: PaymentCustomizationRecord,
+) -> Store {
+  let staged_order = case
+    list.contains(store.base_state.payment_customization_order, record.id)
+    || list.contains(store.staged_state.payment_customization_order, record.id)
+  {
+    True -> store.staged_state.payment_customization_order
+    False ->
+      list.append(store.staged_state.payment_customization_order, [record.id])
+  }
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      payment_customizations: dict.insert(
+        store.staged_state.payment_customizations,
+        record.id,
+        record,
+      ),
+      payment_customization_order: staged_order,
+      deleted_payment_customization_ids: dict.delete(
+        store.staged_state.deleted_payment_customization_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
+pub fn delete_staged_payment_customization(store: Store, id: String) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      payment_customizations: dict.delete(
+        store.staged_state.payment_customizations,
+        id,
+      ),
+      deleted_payment_customization_ids: dict.insert(
+        store.staged_state.deleted_payment_customization_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_payment_customization_by_id(
+  store: Store,
+  id: String,
+) -> Option(PaymentCustomizationRecord) {
+  case dict.get(store.staged_state.deleted_payment_customization_ids, id) {
+    Ok(True) -> None
+    _ ->
+      case dict.get(store.staged_state.payment_customizations, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.payment_customizations, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_payment_customizations(
+  store: Store,
+) -> List(PaymentCustomizationRecord) {
+  let ordered_ids =
+    append_unique_ids(
+      store.base_state.payment_customization_order,
+      store.staged_state.payment_customization_order,
+    )
+  let ordered =
+    ordered_ids
+    |> list.filter_map(fn(id) {
+      case get_effective_payment_customization_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let unordered =
+    dict.values(dict.merge(
+      store.base_state.payment_customizations,
+      store.staged_state.payment_customizations,
+    ))
+    |> list.filter(fn(record) {
+      !list.contains(ordered_ids, record.id)
+      && case
+        dict.get(
+          store.staged_state.deleted_payment_customization_ids,
+          record.id,
+        )
+      {
+        Ok(True) -> False
+        _ -> True
+      }
+    })
+    |> list.sort(fn(a, b) {
+      resource_ids.compare_shopify_resource_ids(a.id, b.id)
+    })
+  list.append(ordered, unordered)
+}
+
+pub fn has_payment_customizations(store: Store) -> Bool {
+  dict.size(store.base_state.payment_customizations) > 0
+  || dict.size(store.staged_state.payment_customizations) > 0
+  || dict.size(store.staged_state.deleted_payment_customization_ids) > 0
+}
+
+pub fn register_payment_terms_owner(store: Store, owner_id: String) -> Store {
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..store.base_state,
+      payment_terms_owner_ids: dict.insert(
+        store.base_state.payment_terms_owner_ids,
+        owner_id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn upsert_staged_payment_terms(
+  store: Store,
+  record: PaymentTermsRecord,
+) -> Store {
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      payment_terms: dict.insert(
+        store.staged_state.payment_terms,
+        record.id,
+        record,
+      ),
+      payment_terms_owner_ids: dict.insert(
+        store.staged_state.payment_terms_owner_ids,
+        record.owner_id,
+        True,
+      ),
+      payment_terms_by_owner_id: dict.insert(
+        store.staged_state.payment_terms_by_owner_id,
+        record.owner_id,
+        record.id,
+      ),
+      deleted_payment_terms_ids: dict.delete(
+        store.staged_state.deleted_payment_terms_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
+pub fn delete_staged_payment_terms(store: Store, id: String) -> Store {
+  let owner_id = case get_effective_payment_terms_by_id(store, id) {
+    Some(record) -> Some(record.owner_id)
+    None -> None
+  }
+  let by_owner = case owner_id {
+    Some(owner) ->
+      dict.delete(store.staged_state.payment_terms_by_owner_id, owner)
+    None -> store.staged_state.payment_terms_by_owner_id
+  }
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..store.staged_state,
+      payment_terms: dict.delete(store.staged_state.payment_terms, id),
+      payment_terms_by_owner_id: by_owner,
+      deleted_payment_terms_ids: dict.insert(
+        store.staged_state.deleted_payment_terms_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn payment_terms_owner_exists(store: Store, owner_id: String) -> Bool {
+  case dict.get(store.staged_state.payment_terms_owner_ids, owner_id) {
+    Ok(True) -> True
+    _ ->
+      case dict.get(store.base_state.payment_terms_owner_ids, owner_id) {
+        Ok(True) -> True
+        _ -> False
+      }
+  }
+}
+
+pub fn get_effective_payment_terms_by_id(
+  store: Store,
+  id: String,
+) -> Option(PaymentTermsRecord) {
+  case dict.get(store.staged_state.deleted_payment_terms_ids, id) {
+    Ok(True) -> None
+    _ ->
+      case dict.get(store.staged_state.payment_terms, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.payment_terms, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn get_effective_payment_terms_by_owner_id(
+  store: Store,
+  owner_id: String,
+) -> Option(PaymentTermsRecord) {
+  let id = case
+    dict.get(store.staged_state.payment_terms_by_owner_id, owner_id)
+  {
+    Ok(value) -> Some(value)
+    Error(_) ->
+      case dict.get(store.base_state.payment_terms_by_owner_id, owner_id) {
+        Ok(value) -> Some(value)
+        Error(_) -> None
+      }
+  }
+  case id {
+    Some(payment_terms_id) ->
+      get_effective_payment_terms_by_id(store, payment_terms_id)
+    None -> None
+  }
 }
 
 pub fn stage_store_credit_account(

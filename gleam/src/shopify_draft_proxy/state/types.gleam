@@ -1537,6 +1537,95 @@ pub type CustomerPaymentMethodUpdateUrlRecord {
   )
 }
 
+/// Mirrors `PaymentReminderSendRecord`.
+pub type PaymentReminderSendRecord {
+  PaymentReminderSendRecord(
+    id: String,
+    payment_schedule_id: String,
+    sent_at: String,
+  )
+}
+
+/// Payment-customization owned metafield row.
+pub type PaymentCustomizationMetafieldRecord {
+  PaymentCustomizationMetafieldRecord(
+    id: String,
+    payment_customization_id: String,
+    namespace: String,
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    compare_digest: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    owner_type: Option(String),
+  )
+}
+
+/// Mirrors `PaymentCustomizationRecord`.
+pub type PaymentCustomizationRecord {
+  PaymentCustomizationRecord(
+    id: String,
+    title: Option(String),
+    enabled: Option(Bool),
+    function_id: Option(String),
+    function_handle: Option(String),
+    metafields: List(PaymentCustomizationMetafieldRecord),
+  )
+}
+
+/// Mirrors `PaymentTermsTemplateRecord`.
+pub type PaymentTermsTemplateRecord {
+  PaymentTermsTemplateRecord(
+    id: String,
+    name: String,
+    description: String,
+    due_in_days: Option(Int),
+    payment_terms_type: String,
+    translated_name: String,
+  )
+}
+
+/// Mirrors the payment-schedule projection used by payment terms.
+pub type PaymentScheduleRecord {
+  PaymentScheduleRecord(
+    id: String,
+    due_at: Option(String),
+    issued_at: Option(String),
+    completed_at: Option(String),
+    due: Option(Bool),
+    amount: Option(Money),
+    balance_due: Option(Money),
+    total_balance: Option(Money),
+  )
+}
+
+/// Normalized payment terms staged against an order or draft order owner.
+pub type PaymentTermsRecord {
+  PaymentTermsRecord(
+    id: String,
+    owner_id: String,
+    due: Bool,
+    overdue: Bool,
+    due_in_days: Option(Int),
+    payment_terms_name: String,
+    payment_terms_type: String,
+    translated_name: String,
+    payment_schedules: List(PaymentScheduleRecord),
+  )
+}
+
+/// Idempotency record for `orderCreateMandatePayment`.
+pub type OrderMandatePaymentRecord {
+  OrderMandatePaymentRecord(
+    order_id: String,
+    idempotency_key: String,
+    job_id: String,
+    payment_reference_id: String,
+    transaction_id: String,
+  )
+}
+
 /// Mirrors `StoreCreditAccountTransactionRecord`.
 pub type StoreCreditAccountTransactionRecord {
   StoreCreditAccountTransactionRecord(
