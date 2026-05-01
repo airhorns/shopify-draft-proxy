@@ -210,6 +210,65 @@ pub fn orders_draft_order_create_validation_guardrails_test() {
     == "{\"errors\":[{\"message\":\"Argument 'input' on Field 'draftOrderCreate' has an invalid value (null). Expected type 'DraftOrderInput!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation InlineNullDraftOrderInput\",\"draftOrderCreate\",\"input\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"input\"}}]}"
 }
 
+pub fn orders_draft_order_complete_validation_guardrails_test() {
+  let missing_id =
+    "
+    mutation DraftOrderCompleteInlineMissingIdParity {
+      draftOrderComplete(
+        paymentGatewayId: null
+        sourceName: \"hermes-cron-orders\"
+      ) {
+        draftOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(missing_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      missing_id,
+      dict.new(),
+    )
+  assert json.to_string(missing_outcome.data)
+    == "{\"errors\":[{\"message\":\"Field 'draftOrderComplete' is missing required arguments: id\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation DraftOrderCompleteInlineMissingIdParity\",\"draftOrderComplete\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"draftOrderComplete\",\"arguments\":\"id\"}}]}"
+
+  let null_id =
+    "
+    mutation DraftOrderCompleteInlineNullIdParity {
+      draftOrderComplete(
+        id: null
+        paymentGatewayId: null
+        sourceName: \"hermes-cron-orders\"
+      ) {
+        draftOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(null_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      null_id,
+      dict.new(),
+    )
+  assert json.to_string(null_outcome.data)
+    == "{\"errors\":[{\"message\":\"Argument 'id' on Field 'draftOrderComplete' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation DraftOrderCompleteInlineNullIdParity\",\"draftOrderComplete\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"id\"}}]}"
+}
+
 pub fn orders_draft_order_create_custom_item_read_after_write_test() {
   let mutation =
     "

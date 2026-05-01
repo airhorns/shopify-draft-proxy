@@ -435,6 +435,10 @@ synthetic-id/timestamp expected differences.
   base draft-order state as captured JSON. Keep this scenario-specific until
   the draft-order lifecycle roots prove which normalized fields and indexes are
   truly needed.
+- Draft-order validation guardrails such as `draftOrderComplete` required-`id`
+  branches should stay documented as guardrails. Do not treat omitted/null
+  argument parity as evidence that completion, payment, source-name handling, or
+  downstream Order materialization is ported.
 
 ## Workflow for a new pass
 

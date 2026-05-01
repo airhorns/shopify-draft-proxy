@@ -9,6 +9,46 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 117: draft-order complete validation guardrails
+
+Promotes the captured `draftOrderComplete` required-`id` validation branches in
+the Gleam Orders domain. This pass mirrors Shopify's top-level GraphQL
+validation errors for omitted, inline-null, and missing variable `id` values
+without claiming the happy-path draft-order completion lifecycle.
+
+| Module                                                   | Change                                                                    |
+| -------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds a narrow `draftOrderComplete` required-id validation guardrail.      |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers inline missing-id and inline null-id error shapes directly.        |
+| `config/gleam-port-ci-gates.json`                        | Removes three newly passing `draftOrderComplete` validation parity specs. |
+
+Validation:
+Full JavaScript is green at 725 tests. Orders now has 13 executable/pass specs
+and 65 gated specs out of 78.
+
+### Findings
+
+- The existing mutation validation helper is sufficient for
+  `draftOrderComplete`'s required top-level `id` argument; no draft-order
+  completion state transition should be inferred from these guardrails.
+- The happy-path `draftOrderComplete` scenario remains gated until the port can
+  model payment/source effects and downstream order materialization.
+
+### Risks / open items
+
+- `draftOrderComplete-parity-plan` and the rest of the draft-order mutation
+  lifecycle remain unported.
+- Regular order lifecycle, editing, fulfillment, refund, and return roots
+  remain unported.
+
+### Pass 118 candidates
+
+- Continue with another small captured validation branch only if it does not
+  broaden runtime support beyond the proven branch, or start modeling
+  draft-order update/delete lifecycle state.
+
+---
+
 ## 2026-05-01 - Pass 116: draft-order detail read seeding
 
 Promotes the standalone draft-order detail read parity scenario in the Gleam
