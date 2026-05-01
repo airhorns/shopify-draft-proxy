@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 115: markets mutation parity completion
+
+Promotes the remaining checked-in Markets parity scenarios into the Gleam
+suite. The Markets port now covers market and catalog validation/lifecycle
+basics, price-list validation, product fixed-price updates, quantity
+pricing/rules, default metafield market-localization behavior, and the captured
+read-after-write effects needed by the existing fixtures.
+
+| Module                                              | Change                                                                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam` | Adds staged market/catalog/price-list mutations, fixed prices, quantity pricing, and localization validation. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`   | Adds staged upsert/delete helpers for Markets, Catalogs, and PriceLists.                                      |
+| `gleam/test/parity/runner.gleam`                    | Seeds price-list and metafield localization baselines from the captured fixtures.                             |
+| `config/gleam-port-ci-gates.json`                   | Removes the final 13 Markets expected-failure gates, leaving 0 Markets gated specs.                           |
+
+Validation:
+Full JavaScript is green at 718 tests. Host `gleam test --target erlang`
+still fails before tests execute with `undef shopify_draft_proxy@@main:run`, so
+the Docker Erlang fallback using mounted Gleam 1.16 on `erlang:27-alpine` is
+the BEAM proof and is green at 714 tests. `corepack pnpm gleam:port:coverage`
+is green with 379 specs and 149 expected failures. `corepack pnpm
+gleam:registry:check`, `corepack pnpm lint`, and `git diff --check` are green.
+Markets parity inventory is 27 checked-in specs, with all 27 now executable in
+the Gleam parity suite and 0 Markets specs expected-failing.
+
+### Findings
+
+- The product fixed-price and quantity-pricing captures already contain enough
+  `data.priceList` and `seedProducts` state to replay staged read-after-write
+  effects without new live captures.
+- The metafield market-localization fixture is the default ad hoc metafield
+  branch: reads return an identity payload with empty content/localizations,
+  register rejects `value` as `INVALID_KEY_FOR_MODEL`, and remove returns a
+  null localization payload with no errors.
+- Market/catalog validation roots were only promoted after adding local
+  lifecycle staging for those resource families, preserving the no
+  validation-only support guardrail.
+
+### Risks / open items
+
+- The TypeScript Markets runtime remains intact under the Gleam port
+  preservation rule until the final all-port cutover.
+- This completes the checked-in Markets parity corpus, but broader whole-port
+  cutover work still owns TypeScript runtime retirement and packaging/docs.
+
+### Pass 116 candidates
+
+- Move to the next non-Markets expected-failing domain in
+  `config/gleam-port-ci-gates.json`, preserving the same fixture-backed
+  promotion discipline.
+
+---
+
 ## 2026-05-01 - Pass 114: market web-presence staging
 
 Promotes the captured MarketWebPresence mutation lifecycle into the Gleam

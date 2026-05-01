@@ -2576,6 +2576,40 @@ pub fn list_effective_markets(store: Store) -> List(MarketRecord) {
   )
 }
 
+pub fn upsert_staged_market(
+  store: Store,
+  record: MarketRecord,
+) -> #(MarketRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.market_order, record.id)
+    || list.contains(staged.market_order, record.id)
+  let new_order = case already_known {
+    True -> staged.market_order
+    False -> list.append(staged.market_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      markets: dict.insert(staged.markets, record.id, record),
+      market_order: new_order,
+      deleted_market_ids: dict.delete(staged.deleted_market_ids, record.id),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn delete_staged_market(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(
+      ..staged,
+      markets: dict.delete(staged.markets, id),
+      deleted_market_ids: dict.insert(staged.deleted_market_ids, id, True),
+    )
+  Store(..store, staged_state: new_staged)
+}
+
 pub fn upsert_base_catalogs(
   store: Store,
   records: List(CatalogRecord),
@@ -2624,6 +2658,40 @@ pub fn list_effective_catalogs(store: Store) -> List(CatalogRecord) {
     dict.merge(store.base_state.catalogs, store.staged_state.catalogs),
     fn(id) { get_effective_catalog_by_id(store, id) },
   )
+}
+
+pub fn upsert_staged_catalog(
+  store: Store,
+  record: CatalogRecord,
+) -> #(CatalogRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.catalog_order, record.id)
+    || list.contains(staged.catalog_order, record.id)
+  let new_order = case already_known {
+    True -> staged.catalog_order
+    False -> list.append(staged.catalog_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      catalogs: dict.insert(staged.catalogs, record.id, record),
+      catalog_order: new_order,
+      deleted_catalog_ids: dict.delete(staged.deleted_catalog_ids, record.id),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn delete_staged_catalog(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(
+      ..staged,
+      catalogs: dict.delete(staged.catalogs, id),
+      deleted_catalog_ids: dict.insert(staged.deleted_catalog_ids, id, True),
+    )
+  Store(..store, staged_state: new_staged)
 }
 
 pub fn upsert_base_price_lists(
@@ -2683,6 +2751,47 @@ pub fn list_effective_price_lists(store: Store) -> List(PriceListRecord) {
     dict.merge(store.base_state.price_lists, store.staged_state.price_lists),
     fn(id) { get_effective_price_list_by_id(store, id) },
   )
+}
+
+pub fn upsert_staged_price_list(
+  store: Store,
+  record: PriceListRecord,
+) -> #(PriceListRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.price_list_order, record.id)
+    || list.contains(staged.price_list_order, record.id)
+  let new_order = case already_known {
+    True -> staged.price_list_order
+    False -> list.append(staged.price_list_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      price_lists: dict.insert(staged.price_lists, record.id, record),
+      price_list_order: new_order,
+      deleted_price_list_ids: dict.delete(
+        staged.deleted_price_list_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn delete_staged_price_list(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(
+      ..staged,
+      price_lists: dict.delete(staged.price_lists, id),
+      deleted_price_list_ids: dict.insert(
+        staged.deleted_price_list_ids,
+        id,
+        True,
+      ),
+    )
+  Store(..store, staged_state: new_staged)
 }
 
 pub fn upsert_base_web_presences(

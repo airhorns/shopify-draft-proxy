@@ -5,6 +5,7 @@
 //// the checked-in parity captures.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -30,9 +31,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type CatalogRecord, type MarketRecord,
-  type PriceListRecord, type WebPresenceRecord, CapturedArray, CapturedBool,
-  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  WebPresenceRecord,
+  type PriceListRecord, type ProductRecord, type ProductVariantRecord,
+  type WebPresenceRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, CatalogRecord,
+  MarketRecord, PriceListRecord, WebPresenceRecord,
 }
 
 pub type MarketsError {
@@ -77,7 +79,25 @@ pub fn is_markets_query_root(name: String) -> Bool {
 
 pub fn is_markets_mutation_root(name: String) -> Bool {
   case name {
-    "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete" -> True
+    "marketCreate"
+    | "marketUpdate"
+    | "marketDelete"
+    | "catalogCreate"
+    | "catalogUpdate"
+    | "catalogContextUpdate"
+    | "catalogDelete"
+    | "priceListCreate"
+    | "priceListUpdate"
+    | "priceListDelete"
+    | "priceListFixedPricesByProductUpdate"
+    | "quantityPricingByVariantUpdate"
+    | "quantityRulesAdd"
+    | "quantityRulesDelete"
+    | "webPresenceCreate"
+    | "webPresenceUpdate"
+    | "webPresenceDelete"
+    | "marketLocalizationsRegister"
+    | "marketLocalizationsRemove" -> True
     _ -> False
   }
 }
@@ -162,7 +182,7 @@ fn handle_mutation_fields(
       case field {
         Field(name: name, ..) ->
           case
-            handle_web_presence_mutation(
+            handle_market_mutation(
               current_store,
               current_identity,
               field,
@@ -192,7 +212,7 @@ fn handle_mutation_fields(
   )
 }
 
-fn handle_web_presence_mutation(
+fn handle_market_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   field: Selection,
@@ -201,6 +221,82 @@ fn handle_web_presence_mutation(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Option(MutationFieldResult) {
   case name {
+    "marketCreate" ->
+      Some(handle_market_create(store, identity, field, fragments, variables))
+    "marketUpdate" ->
+      Some(handle_market_update(store, identity, field, fragments, variables))
+    "marketDelete" ->
+      Some(handle_market_delete(store, identity, field, fragments, variables))
+    "catalogCreate" ->
+      Some(handle_catalog_create(store, identity, field, fragments, variables))
+    "catalogUpdate" ->
+      Some(handle_catalog_update(store, identity, field, fragments, variables))
+    "catalogContextUpdate" ->
+      Some(handle_catalog_context_update(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "catalogDelete" ->
+      Some(handle_catalog_delete(store, identity, field, fragments, variables))
+    "priceListCreate" ->
+      Some(handle_price_list_create(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "priceListUpdate" ->
+      Some(handle_price_list_update(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "priceListDelete" ->
+      Some(handle_price_list_delete(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "priceListFixedPricesByProductUpdate" ->
+      Some(handle_price_list_fixed_prices_by_product_update(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "quantityPricingByVariantUpdate" ->
+      Some(handle_quantity_pricing_by_variant_update(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "quantityRulesAdd" ->
+      Some(handle_quantity_rules_add(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "quantityRulesDelete" ->
+      Some(handle_quantity_rules_delete(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
     "webPresenceCreate" ->
       Some(handle_web_presence_create(
         store,
@@ -225,8 +321,1036 @@ fn handle_web_presence_mutation(
         fragments,
         variables,
       ))
+    "marketLocalizationsRegister" ->
+      Some(handle_market_localizations_register(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "marketLocalizationsRemove" ->
+      Some(handle_market_localizations_remove(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
     _ -> None
   }
+}
+
+fn handle_market_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let name = read_arg_string(input, "name") |> option.unwrap("")
+  let errors = case string.trim(name) {
+    "" -> [
+      user_error(["input", "name"], "Name can't be blank", "BLANK"),
+      user_error(
+        ["input", "name"],
+        "Name is too short (minimum is 2 characters)",
+        "TOO_SHORT",
+      ),
+    ]
+    trimmed ->
+      case string.length(trimmed) < 2 {
+        True -> [
+          user_error(
+            ["input", "name"],
+            "Name is too short (minimum is 2 characters)",
+            "TOO_SHORT",
+          ),
+        ]
+        False -> []
+      }
+  }
+  case errors {
+    [] -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "Market")
+      let data = market_data(id, input, None)
+      let #(_, next_store) =
+        store.upsert_staged_market(store, MarketRecord(id, Some(id), data))
+      mutation_result(
+        key,
+        field,
+        fragments,
+        "marketCreate",
+        "market",
+        data,
+        [],
+        next_store,
+        next_identity,
+        [id],
+      )
+    }
+    _ ->
+      mutation_result(
+        key,
+        field,
+        fragments,
+        "marketCreate",
+        "market",
+        CapturedNull,
+        errors,
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_market_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  case read_arg_string(args, "id") {
+    Some(id) ->
+      case store.get_effective_market_by_id(store, id) {
+        Some(existing) -> {
+          let data = market_data(id, input, Some(existing.data))
+          let #(_, next_store) =
+            store.upsert_staged_market(
+              store,
+              MarketRecord(id, existing.cursor, data),
+            )
+          mutation_result(
+            key,
+            field,
+            fragments,
+            "marketUpdate",
+            "market",
+            data,
+            [],
+            next_store,
+            identity,
+            [id],
+          )
+        }
+        None ->
+          not_found_mutation_result(
+            key,
+            field,
+            fragments,
+            "marketUpdate",
+            "market",
+            ["id"],
+            "Market does not exist",
+            "MARKET_NOT_FOUND",
+            store,
+            identity,
+          )
+      }
+    None ->
+      not_found_mutation_result(
+        key,
+        field,
+        fragments,
+        "marketUpdate",
+        "market",
+        ["id"],
+        "Market does not exist",
+        "MARKET_NOT_FOUND",
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_market_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "id") {
+    Some(id) ->
+      case store.get_effective_market_by_id(store, id) {
+        Some(_) ->
+          delete_result(
+            key,
+            field,
+            fragments,
+            "marketDelete",
+            id,
+            store.delete_staged_market(store, id),
+            identity,
+          )
+        None ->
+          delete_error_result(
+            key,
+            field,
+            fragments,
+            "marketDelete",
+            ["id"],
+            "Market does not exist",
+            "MARKET_NOT_FOUND",
+            store,
+            identity,
+          )
+      }
+    None ->
+      delete_error_result(
+        key,
+        field,
+        fragments,
+        "marketDelete",
+        ["id"],
+        "Market does not exist",
+        "MARKET_NOT_FOUND",
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_catalog_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let title = read_arg_string_allow_empty(input, "title") |> option.unwrap("")
+  let errors = case string.trim(title) {
+    "" -> [user_error(["input", "title"], "Title can't be blank", "BLANK")]
+    trimmed ->
+      case string.length(trimmed) < 2 {
+        True -> [
+          user_error(
+            ["input", "title"],
+            "Title is too short (minimum is 2 characters)",
+            "TOO_SHORT",
+          ),
+        ]
+        False -> []
+      }
+  }
+  case errors {
+    [] -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "MarketCatalog")
+      let data = catalog_data(store, id, input, None)
+      let #(_, next_store) =
+        store.upsert_staged_catalog(store, CatalogRecord(id, Some(id), data))
+      mutation_result(
+        key,
+        field,
+        fragments,
+        "catalogCreate",
+        "catalog",
+        data,
+        [],
+        next_store,
+        next_identity,
+        [id],
+      )
+    }
+    _ ->
+      mutation_result(
+        key,
+        field,
+        fragments,
+        "catalogCreate",
+        "catalog",
+        CapturedNull,
+        errors,
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_catalog_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  case read_arg_string(args, "id") {
+    Some(id) ->
+      case store.get_effective_catalog_by_id(store, id) {
+        Some(existing) -> {
+          let data = catalog_data(store, id, input, Some(existing.data))
+          let #(_, next_store) =
+            store.upsert_staged_catalog(
+              store,
+              CatalogRecord(id, existing.cursor, data),
+            )
+          mutation_result(
+            key,
+            field,
+            fragments,
+            "catalogUpdate",
+            "catalog",
+            data,
+            [],
+            next_store,
+            identity,
+            [id],
+          )
+        }
+        None ->
+          not_found_mutation_result(
+            key,
+            field,
+            fragments,
+            "catalogUpdate",
+            "catalog",
+            ["id"],
+            "Catalog does not exist",
+            "CATALOG_NOT_FOUND",
+            store,
+            identity,
+          )
+      }
+    None ->
+      not_found_mutation_result(
+        key,
+        field,
+        fragments,
+        "catalogUpdate",
+        "catalog",
+        ["id"],
+        "Catalog does not exist",
+        "CATALOG_NOT_FOUND",
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_catalog_context_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "catalogId") {
+    Some(id) ->
+      case store.get_effective_catalog_by_id(store, id) {
+        Some(existing) -> {
+          let market_ids =
+            read_arg_object(args, "contextsToAdd")
+            |> option.then(read_arg_string_array(_, "marketIds"))
+            |> option.unwrap([])
+          let data =
+            captured_object_upsert(existing.data, [
+              #("markets", market_connection_from_ids(store, market_ids)),
+            ])
+          let #(_, next_store) =
+            store.upsert_staged_catalog(
+              store,
+              CatalogRecord(id, existing.cursor, data),
+            )
+          mutation_result(
+            key,
+            field,
+            fragments,
+            "catalogContextUpdate",
+            "catalog",
+            data,
+            [],
+            next_store,
+            identity,
+            [id],
+          )
+        }
+        None ->
+          not_found_mutation_result(
+            key,
+            field,
+            fragments,
+            "catalogContextUpdate",
+            "catalog",
+            ["catalogId"],
+            "Catalog does not exist",
+            "CATALOG_NOT_FOUND",
+            store,
+            identity,
+          )
+      }
+    None ->
+      not_found_mutation_result(
+        key,
+        field,
+        fragments,
+        "catalogContextUpdate",
+        "catalog",
+        ["catalogId"],
+        "Catalog does not exist",
+        "CATALOG_NOT_FOUND",
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_catalog_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "id") {
+    Some(id) ->
+      case store.get_effective_catalog_by_id(store, id) {
+        Some(_) ->
+          delete_result(
+            key,
+            field,
+            fragments,
+            "catalogDelete",
+            id,
+            store.delete_staged_catalog(store, id),
+            identity,
+          )
+        None ->
+          delete_error_result(
+            key,
+            field,
+            fragments,
+            "catalogDelete",
+            ["id"],
+            "Catalog does not exist",
+            "CATALOG_NOT_FOUND",
+            store,
+            identity,
+          )
+      }
+    None ->
+      delete_error_result(
+        key,
+        field,
+        fragments,
+        "catalogDelete",
+        ["id"],
+        "Catalog does not exist",
+        "CATALOG_NOT_FOUND",
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_price_list_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let errors = price_list_input_errors(input, None)
+  case errors {
+    [] -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "PriceList")
+      let data = price_list_data(id, input, None)
+      let #(_, next_store) =
+        store.upsert_staged_price_list(
+          store,
+          PriceListRecord(id, Some(id), data),
+        )
+      mutation_result(
+        key,
+        field,
+        fragments,
+        "priceListCreate",
+        "priceList",
+        data,
+        [],
+        next_store,
+        next_identity,
+        [id],
+      )
+    }
+    _ ->
+      mutation_result(
+        key,
+        field,
+        fragments,
+        "priceListCreate",
+        "priceList",
+        CapturedNull,
+        errors,
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_price_list_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  case read_arg_string(args, "id") {
+    Some(id) ->
+      case store.get_effective_price_list_by_id(store, id) {
+        Some(existing) -> {
+          let errors = price_list_input_errors(input, Some(existing.data))
+          case errors {
+            [] -> {
+              let data = price_list_data(id, input, Some(existing.data))
+              let #(_, next_store) =
+                store.upsert_staged_price_list(
+                  store,
+                  PriceListRecord(id, existing.cursor, data),
+                )
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "priceListUpdate",
+                "priceList",
+                data,
+                [],
+                next_store,
+                identity,
+                [id],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "priceListUpdate",
+                "priceList",
+                CapturedNull,
+                errors,
+                store,
+                identity,
+                [],
+              )
+          }
+        }
+        None ->
+          not_found_mutation_result(
+            key,
+            field,
+            fragments,
+            "priceListUpdate",
+            "priceList",
+            ["id"],
+            "Price list does not exist",
+            "PRICE_LIST_NOT_FOUND",
+            store,
+            identity,
+          )
+      }
+    None ->
+      not_found_mutation_result(
+        key,
+        field,
+        fragments,
+        "priceListUpdate",
+        "priceList",
+        ["id"],
+        "Price list does not exist",
+        "PRICE_LIST_NOT_FOUND",
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_price_list_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  case read_arg_string(args, "id") {
+    Some(id) ->
+      case store.get_effective_price_list_by_id(store, id) {
+        Some(existing) -> {
+          let next_store = store.delete_staged_price_list(store, id)
+          let payload =
+            CapturedObject([
+              #("deletedId", CapturedString(id)),
+              #("priceList", existing.data),
+              #("userErrors", CapturedArray([])),
+            ])
+          MutationFieldResult(
+            key: key,
+            payload: project_record(
+              field,
+              fragments,
+              captured_json_source(payload),
+            ),
+            store: next_store,
+            identity: identity,
+            staged_resource_ids: [],
+            log_drafts: [markets_log_draft("priceListDelete", [id])],
+          )
+        }
+        None ->
+          delete_error_result(
+            key,
+            field,
+            fragments,
+            "priceListDelete",
+            ["id"],
+            "Price list does not exist",
+            "PRICE_LIST_NOT_FOUND",
+            store,
+            identity,
+          )
+      }
+    None ->
+      delete_error_result(
+        key,
+        field,
+        fragments,
+        "priceListDelete",
+        ["id"],
+        "Price list does not exist",
+        "PRICE_LIST_NOT_FOUND",
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_price_list_fixed_prices_by_product_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let price_list_id = read_price_list_id(args)
+  let price_list =
+    option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
+  let price_inputs = read_arg_object_array(args, "pricesToAdd")
+  let delete_product_ids =
+    read_arg_string_array(args, "pricesToDeleteByProductIds")
+    |> option.unwrap([])
+  let errors =
+    case price_list_id, price_list {
+      Some(_), Some(_) -> []
+      _, _ -> [
+        user_error(
+          ["priceListId"],
+          "Price list does not exist.",
+          "PRICE_LIST_DOES_NOT_EXIST",
+        ),
+      ]
+    }
+    |> list.append(product_level_fixed_price_errors(
+      store,
+      price_inputs,
+      delete_product_ids,
+    ))
+
+  case price_list, errors {
+    Some(existing), [] -> {
+      let added_product_ids =
+        list.filter_map(price_inputs, fn(input) {
+          read_arg_string(input, "productId") |> option_to_result
+        })
+      let fixed_inputs =
+        list.flat_map(price_inputs, fn(input) {
+          case read_arg_string(input, "productId") {
+            Some(product_id) ->
+              store.get_effective_variants_by_product_id(store, product_id)
+              |> list.map(fn(variant) {
+                dict.insert(
+                  input,
+                  "variantId",
+                  root_field.StringVal(variant.id),
+                )
+              })
+            None -> []
+          }
+        })
+      let delete_variant_ids =
+        delete_product_ids
+        |> list.flat_map(fn(product_id) {
+          store.get_effective_variants_by_product_id(store, product_id)
+          |> list.map(fn(variant) { variant.id })
+        })
+      let updated =
+        existing
+        |> upsert_fixed_price_nodes(store, fixed_inputs)
+        |> delete_fixed_price_nodes(delete_variant_ids)
+      let #(_, next_store) = store.upsert_staged_price_list(store, updated)
+      let payload =
+        CapturedObject([
+          #("priceList", updated.data),
+          #("pricesToAddProducts", product_payloads(store, added_product_ids)),
+          #(
+            "pricesToDeleteProducts",
+            product_payloads(store, delete_product_ids),
+          ),
+          #("fixedPriceVariantIds", CapturedArray([])),
+          #("deletedFixedPriceVariantIds", CapturedArray([])),
+          #("userErrors", CapturedArray([])),
+        ])
+      MutationFieldResult(
+        key: key,
+        payload: project_record(field, fragments, captured_json_source(payload)),
+        store: next_store,
+        identity: identity,
+        staged_resource_ids: [existing.id],
+        log_drafts: [
+          markets_log_draft("priceListFixedPricesByProductUpdate", [existing.id]),
+        ],
+      )
+    }
+    _, _ ->
+      mutation_payload_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesByProductUpdate",
+        CapturedObject([
+          #("priceList", CapturedNull),
+          #("pricesToAddProducts", CapturedNull),
+          #("pricesToDeleteProducts", CapturedNull),
+          #("userErrors", CapturedArray(errors)),
+        ]),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_quantity_pricing_by_variant_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let price_list_id = read_price_list_id(args)
+  let price_list =
+    option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
+  let errors = case price_list {
+    Some(_) -> quantity_pricing_input_errors(store, input)
+    None -> [
+      user_error(
+        ["priceListId"],
+        "Price list not found.",
+        "PRICE_LIST_NOT_FOUND",
+      ),
+    ]
+  }
+  case price_list, errors {
+    Some(existing), [] -> {
+      let fixed_inputs = read_arg_object_array(input, "pricesToAdd")
+      let delete_variant_ids =
+        read_arg_string_array(input, "pricesToDeleteByVariantId")
+        |> option.unwrap([])
+      let rule_inputs = read_arg_object_array(input, "quantityRulesToAdd")
+      let rule_delete_ids =
+        read_arg_string_array(input, "quantityRulesToDeleteByVariantId")
+        |> option.unwrap([])
+      let price_break_inputs =
+        read_arg_object_array(input, "quantityPriceBreaksToAdd")
+      let updated =
+        existing
+        |> upsert_fixed_price_nodes(store, fixed_inputs)
+        |> delete_fixed_price_nodes(delete_variant_ids)
+        |> upsert_quantity_rule_nodes(store, rule_inputs)
+        |> delete_quantity_rule_nodes(rule_delete_ids)
+        |> upsert_quantity_price_break_nodes(
+          store,
+          identity,
+          price_break_inputs,
+        )
+      let #(_, next_store) = store.upsert_staged_price_list(store, updated)
+      let changed_variant_ids =
+        mutation_variant_ids(fixed_inputs)
+        |> append_unique_strings(mutation_variant_ids(rule_inputs))
+        |> append_unique_strings(mutation_variant_ids(price_break_inputs))
+        |> append_unique_strings(delete_variant_ids)
+        |> append_unique_strings(rule_delete_ids)
+      let payload =
+        CapturedObject([
+          #("productVariants", variant_payloads(store, changed_variant_ids)),
+          #("userErrors", CapturedArray([])),
+        ])
+      MutationFieldResult(
+        key: key,
+        payload: project_record(field, fragments, captured_json_source(payload)),
+        store: next_store,
+        identity: identity,
+        staged_resource_ids: [existing.id],
+        log_drafts: [
+          markets_log_draft("quantityPricingByVariantUpdate", [existing.id]),
+        ],
+      )
+    }
+    _, _ ->
+      mutation_payload_result(
+        key,
+        field,
+        fragments,
+        "quantityPricingByVariantUpdate",
+        CapturedObject([
+          #("productVariants", CapturedNull),
+          #("userErrors", CapturedArray(errors)),
+        ]),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_quantity_rules_add(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let price_list =
+    option.then(read_price_list_id(args), store.get_effective_price_list_by_id(
+      store,
+      _,
+    ))
+  let inputs = read_arg_object_array(args, "quantityRules")
+  let errors = case price_list {
+    Some(_) -> quantity_rules_input_errors(store, inputs)
+    None -> [
+      user_error(
+        ["priceListId"],
+        "Price list does not exist.",
+        "PRICE_LIST_DOES_NOT_EXIST",
+      ),
+    ]
+  }
+  case price_list, errors {
+    Some(existing), [] -> {
+      let updated = upsert_quantity_rule_nodes(existing, store, inputs)
+      let #(_, next_store) = store.upsert_staged_price_list(store, updated)
+      let payload =
+        CapturedObject([
+          #("quantityRules", quantity_rule_payloads(store, inputs)),
+          #("userErrors", CapturedArray([])),
+        ])
+      mutation_payload_result(
+        key,
+        field,
+        fragments,
+        "quantityRulesAdd",
+        payload,
+        next_store,
+        identity,
+        [existing.id],
+      )
+    }
+    _, _ ->
+      mutation_payload_result(
+        key,
+        field,
+        fragments,
+        "quantityRulesAdd",
+        CapturedObject([
+          #("quantityRules", CapturedArray([])),
+          #("userErrors", CapturedArray(errors)),
+        ]),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_quantity_rules_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let price_list =
+    option.then(read_price_list_id(args), store.get_effective_price_list_by_id(
+      store,
+      _,
+    ))
+  let variant_ids =
+    read_arg_string_array(args, "variantIds") |> option.unwrap([])
+  let errors = case price_list {
+    Some(_) -> quantity_rule_delete_errors(store, variant_ids)
+    None -> [
+      user_error(
+        ["priceListId"],
+        "Price list does not exist.",
+        "PRICE_LIST_DOES_NOT_EXIST",
+      ),
+    ]
+  }
+  case price_list, errors {
+    Some(existing), [] -> {
+      let updated = delete_quantity_rule_nodes(existing, variant_ids)
+      let #(_, next_store) = store.upsert_staged_price_list(store, updated)
+      mutation_payload_result(
+        key,
+        field,
+        fragments,
+        "quantityRulesDelete",
+        CapturedObject([
+          #("deletedQuantityRulesVariantIds", string_array(variant_ids)),
+          #("userErrors", CapturedArray([])),
+        ]),
+        next_store,
+        identity,
+        [existing.id],
+      )
+    }
+    _, _ ->
+      mutation_payload_result(
+        key,
+        field,
+        fragments,
+        "quantityRulesDelete",
+        CapturedObject([
+          #("deletedQuantityRulesVariantIds", CapturedArray([])),
+          #("userErrors", CapturedArray(errors)),
+        ]),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_market_localizations_register(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let resource_id = read_arg_string(args, "resourceId")
+  let errors = case resource_id {
+    Some(id) ->
+      case store.find_effective_metafield_by_id(store, id) {
+        Some(_) -> [
+          user_error(
+            ["marketLocalizations", "0", "key"],
+            "Key value is not a valid market localizable field",
+            "INVALID_KEY_FOR_MODEL",
+          ),
+        ]
+        None -> [resource_not_found_error(id)]
+      }
+    None -> [resource_not_found_error("")]
+  }
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    "marketLocalizationsRegister",
+    CapturedObject([
+      #("marketLocalizations", CapturedNull),
+      #("userErrors", CapturedArray(errors)),
+    ]),
+    store,
+    identity,
+    [],
+  )
+}
+
+fn handle_market_localizations_remove(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let resource_id = read_arg_string(args, "resourceId")
+  let errors = case resource_id {
+    Some(id) ->
+      case store.find_effective_metafield_by_id(store, id) {
+        Some(_) -> []
+        None -> [resource_not_found_error(id)]
+      }
+    None -> [resource_not_found_error("")]
+  }
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    "marketLocalizationsRemove",
+    CapturedObject([
+      #("marketLocalizations", CapturedNull),
+      #("userErrors", CapturedArray(errors)),
+    ]),
+    store,
+    identity,
+    [],
+  )
+}
+
+fn resource_not_found_error(resource_id: String) -> CapturedJsonValue {
+  user_error(
+    ["resourceId"],
+    "Resource " <> resource_id <> " does not exist",
+    "RESOURCE_NOT_FOUND",
+  )
 }
 
 fn handle_web_presence_create(
@@ -408,6 +1532,102 @@ fn mutation_result(
     identity: identity,
     staged_resource_ids: staged_ids,
     log_drafts: [markets_log_draft(root_name, staged_ids)],
+  )
+}
+
+fn mutation_payload_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  payload: CapturedJsonValue,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  staged_ids: List(String),
+) -> MutationFieldResult {
+  MutationFieldResult(
+    key: key,
+    payload: project_record(field, fragments, captured_json_source(payload)),
+    store: store,
+    identity: identity,
+    staged_resource_ids: staged_ids,
+    log_drafts: [markets_log_draft(root_name, staged_ids)],
+  )
+}
+
+fn not_found_mutation_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  resource_key: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    resource_key,
+    CapturedNull,
+    [user_error(error_field, message, code)],
+    store,
+    identity,
+    [],
+  )
+}
+
+fn delete_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  id: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    CapturedObject([
+      #("deletedId", CapturedString(id)),
+      #("userErrors", CapturedArray([])),
+    ]),
+    store,
+    identity,
+    [id],
+  )
+}
+
+fn delete_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  error_field: List(String),
+  message: String,
+  code: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    CapturedObject([
+      #("deletedId", CapturedNull),
+      #("userErrors", CapturedArray([user_error(error_field, message, code)])),
+    ]),
+    store,
+    identity,
+    [],
   )
 }
 
@@ -623,6 +1843,1009 @@ fn markets_log_draft(root_name: String, staged_ids: List(String)) -> LogDraft {
   )
 }
 
+fn market_data(
+  id: String,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> CapturedJsonValue {
+  let existing_value = existing |> option.unwrap(CapturedObject([]))
+  let name =
+    read_arg_string_allow_empty(input, "name")
+    |> option.or(captured_string_field(existing_value, "name"))
+    |> option.unwrap("")
+  let status =
+    read_arg_string(input, "status")
+    |> option.or(captured_string_field(existing_value, "status"))
+    |> option.unwrap("ACTIVE")
+  let enabled =
+    read_arg_bool(input, "enabled")
+    |> option.unwrap(status == "ACTIVE")
+  captured_object_upsert(existing_value, [
+    #("__typename", CapturedString("Market")),
+    #("id", CapturedString(id)),
+    #("name", CapturedString(name)),
+    #("handle", CapturedString(market_handle(name))),
+    #("status", CapturedString(status)),
+    #("enabled", CapturedBool(enabled)),
+    #(
+      "type",
+      captured_field(existing_value, "type")
+        |> option.unwrap(CapturedString("NONE")),
+    ),
+    #(
+      "catalogs",
+      captured_field(existing_value, "catalogs")
+        |> option.unwrap(empty_connection()),
+    ),
+    #(
+      "webPresences",
+      captured_field(existing_value, "webPresences")
+        |> option.unwrap(empty_connection()),
+    ),
+  ])
+}
+
+fn market_handle(name: String) -> String {
+  string.trim(name)
+  |> string.lowercase
+  |> string.replace(" ", "-")
+}
+
+fn catalog_data(
+  store: Store,
+  id: String,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> CapturedJsonValue {
+  let existing_value = existing |> option.unwrap(CapturedObject([]))
+  let title =
+    read_arg_string_allow_empty(input, "title")
+    |> option.or(captured_string_field(existing_value, "title"))
+    |> option.unwrap("")
+    |> string.trim
+  let status =
+    read_arg_string(input, "status")
+    |> option.or(captured_string_field(existing_value, "status"))
+    |> option.unwrap("ACTIVE")
+  let market_ids =
+    read_arg_object(input, "context")
+    |> option.then(read_arg_string_array(_, "marketIds"))
+    |> option.unwrap([])
+  captured_object_upsert(existing_value, [
+    #("__typename", CapturedString("MarketCatalog")),
+    #("id", CapturedString(id)),
+    #("title", CapturedString(title)),
+    #("status", CapturedString(status)),
+    #("markets", market_connection_from_ids(store, market_ids)),
+    #(
+      "operations",
+      captured_field(existing_value, "operations")
+        |> option.unwrap(CapturedArray([])),
+    ),
+    #(
+      "priceList",
+      captured_field(existing_value, "priceList") |> option.unwrap(CapturedNull),
+    ),
+    #(
+      "publication",
+      captured_field(existing_value, "publication")
+        |> option.unwrap(CapturedNull),
+    ),
+  ])
+}
+
+fn market_connection_from_ids(
+  store: Store,
+  market_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(market_ids, fn(id) {
+          CapturedObject([
+            #("cursor", CapturedString(id)),
+            #("node", market_node_for_id(store, id)),
+          ])
+        }),
+      ),
+    ),
+    #(
+      "nodes",
+      CapturedArray(list.map(market_ids, market_node_for_id(store, _))),
+    ),
+    #("pageInfo", page_info_for_cursors(market_ids)),
+  ])
+}
+
+fn market_node_for_id(store: Store, id: String) -> CapturedJsonValue {
+  case store.get_effective_market_by_id(store, id) {
+    Some(record) -> record.data
+    None ->
+      CapturedObject([
+        #("__typename", CapturedString("Market")),
+        #("id", CapturedString(id)),
+      ])
+  }
+}
+
+fn price_list_input_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> List(CapturedJsonValue) {
+  let name =
+    read_arg_string_allow_empty(input, "name")
+    |> option.or(option.then(existing, captured_string_field(_, "name")))
+    |> option.unwrap("")
+    |> string.trim
+  let name_errors = case name {
+    "" -> [user_error(["input", "name"], "Name can't be blank", "BLANK")]
+    _ -> []
+  }
+  let currency_errors = case read_arg_string(input, "currency") {
+    Some(currency) ->
+      case valid_currency(currency) {
+        True -> []
+        False -> [
+          user_error(
+            ["input", "currency"],
+            "Currency isn't included in the list",
+            "INCLUSION",
+          ),
+        ]
+      }
+    None -> []
+  }
+  list.append(name_errors, currency_errors)
+}
+
+fn valid_currency(currency: String) -> Bool {
+  case currency {
+    "AED" | "AUD" | "CAD" | "CHF" | "EUR" | "GBP" | "JPY" | "NZD" | "USD" ->
+      True
+    _ -> False
+  }
+}
+
+fn price_list_data(
+  id: String,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> CapturedJsonValue {
+  let existing_value = existing |> option.unwrap(CapturedObject([]))
+  let name =
+    read_arg_string_allow_empty(input, "name")
+    |> option.or(captured_string_field(existing_value, "name"))
+    |> option.unwrap("")
+    |> string.trim
+  let currency =
+    read_arg_string(input, "currency")
+    |> option.or(captured_string_field(existing_value, "currency"))
+    |> option.unwrap("USD")
+  captured_object_upsert(existing_value, [
+    #("__typename", CapturedString("PriceList")),
+    #("id", CapturedString(id)),
+    #("name", CapturedString(name)),
+    #("currency", CapturedString(currency)),
+    #(
+      "fixedPricesCount",
+      captured_field(existing_value, "fixedPricesCount")
+        |> option.unwrap(CapturedInt(0)),
+    ),
+    #(
+      "parent",
+      captured_field(existing_value, "parent") |> option.unwrap(CapturedNull),
+    ),
+    #(
+      "catalog",
+      captured_field(existing_value, "catalog") |> option.unwrap(CapturedNull),
+    ),
+    #(
+      "prices",
+      captured_field(existing_value, "prices")
+        |> option.unwrap(empty_price_connection()),
+    ),
+    #(
+      "quantityRules",
+      captured_field(existing_value, "quantityRules")
+        |> option.unwrap(empty_connection()),
+    ),
+  ])
+}
+
+fn product_level_fixed_price_errors(
+  store: Store,
+  price_inputs: List(Dict(String, root_field.ResolvedValue)),
+  delete_product_ids: List(String),
+) -> List(CapturedJsonValue) {
+  let add_errors =
+    price_inputs
+    |> enumerate_dicts
+    |> list.filter_map(fn(entry) {
+      let #(input, index) = entry
+      let product_id = read_arg_string(input, "productId") |> option.unwrap("")
+      case store.get_effective_product_by_id(store, product_id) {
+        Some(_) -> Error(Nil)
+        None ->
+          Ok(user_error(
+            ["pricesToAdd", int.to_string(index), "productId"],
+            "Product " <> product_id <> " in `pricesToAdd` does not exist.",
+            "PRODUCT_DOES_NOT_EXIST",
+          ))
+      }
+    })
+  let delete_errors =
+    delete_product_ids
+    |> enumerate_strings
+    |> list.filter_map(fn(entry) {
+      let #(product_id, index) = entry
+      case store.get_effective_product_by_id(store, product_id) {
+        Some(_) -> Error(Nil)
+        None ->
+          Ok(user_error(
+            ["pricesToDeleteByProductIds", int.to_string(index)],
+            "Product "
+              <> product_id
+              <> " in `pricesToDeleteByProductIds` does not exist.",
+            "PRODUCT_DOES_NOT_EXIST",
+          ))
+      }
+    })
+  list.append(add_errors, delete_errors)
+}
+
+fn upsert_fixed_price_nodes(
+  price_list: PriceListRecord,
+  store: Store,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> PriceListRecord {
+  let existing_edges = price_edges(price_list.data)
+  let input_variant_ids = mutation_variant_ids(inputs)
+  let retained =
+    existing_edges
+    |> list.filter(fn(edge) {
+      case fixed_price_edge_variant_id(edge) {
+        Some(id) -> !list.contains(input_variant_ids, id)
+        None -> True
+      }
+    })
+  let new_edges =
+    inputs
+    |> list.filter_map(fn(input) {
+      use variant_id <- result.try(
+        read_arg_string(input, "variantId") |> option_to_result,
+      )
+      use variant <- result.try(
+        store.get_effective_variant_by_id(store, variant_id) |> option_to_result,
+      )
+      Ok(price_edge_for_variant(
+        store,
+        variant,
+        input,
+        price_list_currency(price_list),
+      ))
+    })
+  rebuild_price_list_prices(price_list, list.append(retained, new_edges))
+}
+
+fn delete_fixed_price_nodes(
+  price_list: PriceListRecord,
+  variant_ids: List(String),
+) -> PriceListRecord {
+  let retained =
+    price_edges(price_list.data)
+    |> list.filter(fn(edge) {
+      case fixed_price_edge_variant_id(edge) {
+        Some(id) -> !list.contains(variant_ids, id)
+        None -> True
+      }
+    })
+  rebuild_price_list_prices(price_list, retained)
+}
+
+fn rebuild_price_list_prices(
+  price_list: PriceListRecord,
+  edges: List(CapturedJsonValue),
+) -> PriceListRecord {
+  let fixed_count =
+    edges
+    |> list.filter(fn(edge) {
+      case captured_edge_node(edge) {
+        Some(node) -> captured_string_field(node, "originType") == Some("FIXED")
+        None -> False
+      }
+    })
+    |> list.length
+  PriceListRecord(
+    ..price_list,
+    data: captured_object_upsert(price_list.data, [
+      #("fixedPricesCount", CapturedInt(fixed_count)),
+      #("prices", price_connection_from_edges(edges)),
+    ]),
+  )
+}
+
+fn price_edge_for_variant(
+  store: Store,
+  variant: ProductVariantRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  currency: String,
+) -> CapturedJsonValue {
+  let product = store.get_effective_product_by_id(store, variant.product_id)
+  CapturedObject([
+    #("cursor", CapturedString(variant.id)),
+    #(
+      "node",
+      CapturedObject([
+        #("__typename", CapturedString("PriceListPrice")),
+        #("price", money_payload(read_arg_object(input, "price"), currency)),
+        #(
+          "compareAtPrice",
+          optional_money_payload(
+            read_arg_object(input, "compareAtPrice"),
+            currency,
+          ),
+        ),
+        #("originType", CapturedString("FIXED")),
+        #("variant", variant_payload(store, variant, product)),
+        #("quantityPriceBreaks", empty_connection()),
+      ]),
+    ),
+  ])
+}
+
+fn price_list_currency(price_list: PriceListRecord) -> String {
+  captured_string_field(price_list.data, "currency") |> option.unwrap("USD")
+}
+
+fn product_payloads(
+  store: Store,
+  product_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedArray(
+    product_ids
+    |> list.filter_map(fn(id) {
+      store.get_effective_product_by_id(store, id) |> option_to_result
+    })
+    |> list.map(product_payload),
+  )
+}
+
+fn product_payload(product: ProductRecord) -> CapturedJsonValue {
+  CapturedObject([
+    #("__typename", CapturedString("Product")),
+    #("id", CapturedString(product.id)),
+    #("title", CapturedString(product.title)),
+    #("handle", CapturedString(product.handle)),
+    #("status", CapturedString(product.status)),
+  ])
+}
+
+fn variant_payloads(
+  store: Store,
+  variant_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedArray(
+    variant_ids
+    |> list.filter_map(fn(id) {
+      store.get_effective_variant_by_id(store, id) |> option_to_result
+    })
+    |> list.map(fn(variant) {
+      variant_payload(
+        store,
+        variant,
+        store.get_effective_product_by_id(store, variant.product_id),
+      )
+    }),
+  )
+}
+
+fn variant_payload(
+  _store: Store,
+  variant: ProductVariantRecord,
+  product: Option(ProductRecord),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("__typename", CapturedString("ProductVariant")),
+    #("id", CapturedString(variant.id)),
+    #("title", CapturedString(variant.title)),
+    #("sku", optional_captured_string(variant.sku)),
+    #("product", case product {
+      Some(p) -> product_payload(p)
+      None -> CapturedNull
+    }),
+  ])
+}
+
+fn quantity_pricing_input_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  let price_break_errors =
+    variant_not_found_errors(
+      store,
+      read_arg_object_array(input, "quantityPriceBreaksToAdd"),
+      ["input", "quantityPriceBreaksToAdd"],
+      "QUANTITY_PRICE_BREAK_ADD_VARIANT_NOT_FOUND",
+      "Variant not found.",
+    )
+  let rule_errors =
+    variant_not_found_errors(
+      store,
+      read_arg_object_array(input, "quantityRulesToAdd"),
+      ["input", "quantityRulesToAdd"],
+      "QUANTITY_RULE_ADD_VARIANT_NOT_FOUND",
+      "Variant not found.",
+    )
+  let price_errors =
+    variant_not_found_errors(
+      store,
+      read_arg_object_array(input, "pricesToAdd"),
+      ["input", "pricesToAdd"],
+      "PRICE_ADD_VARIANT_NOT_FOUND",
+      "Variant not found.",
+    )
+  list.append(price_break_errors, list.append(rule_errors, price_errors))
+}
+
+fn quantity_rules_input_errors(
+  store: Store,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(CapturedJsonValue) {
+  inputs
+  |> enumerate_dicts
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    let variant_id = read_arg_string(input, "variantId") |> option.unwrap("")
+    case store.get_effective_variant_by_id(store, variant_id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(user_error(
+          ["quantityRules", int.to_string(index), "variantId"],
+          "Product variant ID does not exist.",
+          "PRODUCT_VARIANT_DOES_NOT_EXIST",
+        ))
+    }
+  })
+}
+
+fn quantity_rule_delete_errors(
+  store: Store,
+  variant_ids: List(String),
+) -> List(CapturedJsonValue) {
+  variant_ids
+  |> enumerate_strings
+  |> list.filter_map(fn(entry) {
+    let #(variant_id, index) = entry
+    case store.get_effective_variant_by_id(store, variant_id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(user_error(
+          ["variantIds", int.to_string(index)],
+          "Product variant ID does not exist.",
+          "PRODUCT_VARIANT_DOES_NOT_EXIST",
+        ))
+    }
+  })
+}
+
+fn variant_not_found_errors(
+  store: Store,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_prefix: List(String),
+  code: String,
+  message: String,
+) -> List(CapturedJsonValue) {
+  inputs
+  |> enumerate_dicts
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    let variant_id = read_arg_string(input, "variantId") |> option.unwrap("")
+    case store.get_effective_variant_by_id(store, variant_id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(user_error(
+          list.append(field_prefix, [int.to_string(index)]),
+          message,
+          code,
+        ))
+    }
+  })
+}
+
+fn upsert_quantity_rule_nodes(
+  price_list: PriceListRecord,
+  store: Store,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> PriceListRecord {
+  let existing_edges = quantity_rule_edges(price_list.data)
+  let input_variant_ids = mutation_variant_ids(inputs)
+  let retained =
+    existing_edges
+    |> list.filter(fn(edge) {
+      case quantity_rule_edge_variant_id(edge) {
+        Some(id) -> !list.contains(input_variant_ids, id)
+        None -> True
+      }
+    })
+  let new_edges =
+    inputs
+    |> list.filter_map(fn(input) {
+      use variant_id <- result.try(
+        read_arg_string(input, "variantId") |> option_to_result,
+      )
+      use variant <- result.try(
+        store.get_effective_variant_by_id(store, variant_id) |> option_to_result,
+      )
+      Ok(
+        CapturedObject([
+          #("cursor", CapturedString(variant_id)),
+          #("node", quantity_rule_node(store, variant, input)),
+        ]),
+      )
+    })
+  PriceListRecord(
+    ..price_list,
+    data: captured_object_upsert(price_list.data, [
+      #(
+        "quantityRules",
+        price_connection_from_edges(list.append(retained, new_edges)),
+      ),
+    ]),
+  )
+}
+
+fn delete_quantity_rule_nodes(
+  price_list: PriceListRecord,
+  variant_ids: List(String),
+) -> PriceListRecord {
+  let retained =
+    quantity_rule_edges(price_list.data)
+    |> list.filter(fn(edge) {
+      case quantity_rule_edge_variant_id(edge) {
+        Some(id) -> !list.contains(variant_ids, id)
+        None -> True
+      }
+    })
+  PriceListRecord(
+    ..price_list,
+    data: captured_object_upsert(price_list.data, [
+      #("quantityRules", price_connection_from_edges(retained)),
+    ]),
+  )
+}
+
+fn quantity_rule_payloads(
+  store: Store,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  CapturedArray(
+    inputs
+    |> list.filter_map(fn(input) {
+      use variant_id <- result.try(
+        read_arg_string(input, "variantId") |> option_to_result,
+      )
+      use variant <- result.try(
+        store.get_effective_variant_by_id(store, variant_id) |> option_to_result,
+      )
+      Ok(quantity_rule_node(store, variant, input))
+    }),
+  )
+}
+
+fn quantity_rule_node(
+  store: Store,
+  variant: ProductVariantRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("__typename", CapturedString("QuantityRule")),
+    #(
+      "minimum",
+      CapturedInt(read_arg_int(input, "minimum") |> option.unwrap(1)),
+    ),
+    #("maximum", optional_captured_int(read_arg_int(input, "maximum"))),
+    #(
+      "increment",
+      CapturedInt(read_arg_int(input, "increment") |> option.unwrap(1)),
+    ),
+    #("isDefault", CapturedBool(False)),
+    #("originType", CapturedString("FIXED")),
+    #(
+      "productVariant",
+      variant_payload(
+        store,
+        variant,
+        store.get_effective_product_by_id(store, variant.product_id),
+      ),
+    ),
+  ])
+}
+
+fn upsert_quantity_price_break_nodes(
+  price_list: PriceListRecord,
+  store: Store,
+  _identity: SyntheticIdentityRegistry,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> PriceListRecord {
+  let input_variant_ids = mutation_variant_ids(inputs)
+  let next_edges =
+    price_edges(price_list.data)
+    |> list.map(fn(edge) {
+      case fixed_price_edge_variant_id(edge) {
+        Some(variant_id) ->
+          case list.contains(input_variant_ids, variant_id) {
+            True ->
+              rebuild_price_edge_with_breaks(
+                edge,
+                list.filter(inputs, fn(input) {
+                  read_arg_string(input, "variantId") == Some(variant_id)
+                })
+                  |> list.filter_map(fn(input) {
+                    use variant <- result.try(
+                      store.get_effective_variant_by_id(store, variant_id)
+                      |> option_to_result,
+                    )
+                    Ok(
+                      CapturedObject([
+                        #("cursor", CapturedString(variant_id <> ":break")),
+                        #(
+                          "node",
+                          quantity_price_break_node(
+                            store,
+                            price_list,
+                            variant,
+                            input,
+                          ),
+                        ),
+                      ]),
+                    )
+                  }),
+              )
+            False -> edge
+          }
+        None -> edge
+      }
+    })
+  rebuild_price_list_prices(price_list, next_edges)
+}
+
+fn quantity_price_break_node(
+  store: Store,
+  price_list: PriceListRecord,
+  variant: ProductVariantRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("__typename", CapturedString("QuantityPriceBreak")),
+    #("id", CapturedString(variant.id <> ":quantity-price-break")),
+    #(
+      "minimumQuantity",
+      CapturedInt(read_arg_int(input, "minimumQuantity") |> option.unwrap(1)),
+    ),
+    #(
+      "price",
+      money_payload(
+        read_arg_object(input, "price"),
+        price_list_currency(price_list),
+      ),
+    ),
+    #(
+      "variant",
+      variant_payload(
+        store,
+        variant,
+        store.get_effective_product_by_id(store, variant.product_id),
+      ),
+    ),
+  ])
+}
+
+fn rebuild_price_edge_with_breaks(
+  edge: CapturedJsonValue,
+  quantity_break_edges: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  case edge {
+    CapturedObject(fields) ->
+      case captured_field(edge, "node") {
+        Some(node) ->
+          CapturedObject(replace_field(
+            fields,
+            "node",
+            captured_object_upsert(node, [
+              #(
+                "quantityPriceBreaks",
+                price_connection_from_edges(quantity_break_edges),
+              ),
+            ]),
+          ))
+        None -> edge
+      }
+    _ -> edge
+  }
+}
+
+fn money_payload(
+  raw: Option(Dict(String, root_field.ResolvedValue)),
+  currency: String,
+) -> CapturedJsonValue {
+  case raw {
+    Some(value) ->
+      CapturedObject([
+        #(
+          "amount",
+          CapturedString(
+            read_arg_string(value, "amount")
+            |> option.or(
+              read_arg_int(value, "amount") |> option.map(int.to_string),
+            )
+            |> option.unwrap("0")
+            |> format_money_amount,
+          ),
+        ),
+        #(
+          "currencyCode",
+          CapturedString(
+            read_arg_string(value, "currencyCode") |> option.unwrap(currency),
+          ),
+        ),
+      ])
+    None -> CapturedNull
+  }
+}
+
+fn optional_money_payload(
+  raw: Option(Dict(String, root_field.ResolvedValue)),
+  currency: String,
+) -> CapturedJsonValue {
+  case raw {
+    Some(_) -> money_payload(raw, currency)
+    None -> CapturedNull
+  }
+}
+
+fn format_money_amount(raw: String) -> String {
+  case string.split(raw, ".") {
+    [whole, fraction] -> whole <> "." <> trim_money_fraction(fraction)
+    _ -> raw
+  }
+}
+
+fn trim_money_fraction(fraction: String) -> String {
+  case string.ends_with(fraction, "0") {
+    True -> trim_money_fraction(string.drop_end(fraction, 1))
+    False ->
+      case fraction {
+        "" -> "0"
+        _ -> fraction
+      }
+  }
+}
+
+fn price_edges(value: CapturedJsonValue) -> List(CapturedJsonValue) {
+  captured_connection_edges(captured_field(value, "prices"))
+}
+
+fn quantity_rule_edges(value: CapturedJsonValue) -> List(CapturedJsonValue) {
+  captured_connection_edges(captured_field(value, "quantityRules"))
+}
+
+fn captured_connection_edges(
+  value: Option(CapturedJsonValue),
+) -> List(CapturedJsonValue) {
+  case value {
+    Some(CapturedObject(_)) ->
+      case captured_field(value |> option.unwrap(CapturedNull), "edges") {
+        Some(CapturedArray(edges)) -> edges
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn fixed_price_edge_variant_id(edge: CapturedJsonValue) -> Option(String) {
+  case captured_edge_node(edge) {
+    Some(node) ->
+      case captured_field(node, "variant") {
+        Some(variant) -> captured_string_field(variant, "id")
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn quantity_rule_edge_variant_id(edge: CapturedJsonValue) -> Option(String) {
+  case captured_edge_node(edge) {
+    Some(node) ->
+      case captured_field(node, "productVariant") {
+        Some(variant) -> captured_string_field(variant, "id")
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn captured_edge_node(edge: CapturedJsonValue) -> Option(CapturedJsonValue) {
+  captured_field(edge, "node")
+}
+
+fn price_connection_from_edges(
+  edges: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  let cursors =
+    edges
+    |> list.filter_map(fn(edge) {
+      captured_string_field(edge, "cursor") |> option_to_result
+    })
+  CapturedObject([
+    #("edges", CapturedArray(edges)),
+    #(
+      "nodes",
+      CapturedArray(
+        edges
+        |> list.filter_map(fn(edge) {
+          captured_edge_node(edge) |> option_to_result
+        }),
+      ),
+    ),
+    #("pageInfo", page_info_for_cursors(cursors)),
+  ])
+}
+
+fn page_info_for_cursors(cursors: List(String)) -> CapturedJsonValue {
+  CapturedObject([
+    #("hasNextPage", CapturedBool(False)),
+    #("hasPreviousPage", CapturedBool(False)),
+    #(
+      "startCursor",
+      optional_captured_string(list.first(cursors) |> result_to_option),
+    ),
+    #(
+      "endCursor",
+      optional_captured_string(list.last(cursors) |> result_to_option),
+    ),
+  ])
+}
+
+fn empty_connection() -> CapturedJsonValue {
+  price_connection_from_edges([])
+}
+
+fn empty_price_connection() -> CapturedJsonValue {
+  price_connection_from_edges([])
+}
+
+fn market_localizable_resource_payload(
+  store: Store,
+  resource_id: String,
+) -> CapturedJsonValue {
+  case store.find_effective_metafield_by_id(store, resource_id) {
+    Some(_) ->
+      CapturedObject([
+        #("resourceId", CapturedString(resource_id)),
+        #("marketLocalizableContent", CapturedArray([])),
+        #("marketLocalizations", CapturedArray([])),
+      ])
+    None -> CapturedNull
+  }
+}
+
+fn captured_object_upsert(
+  value: CapturedJsonValue,
+  updates: List(#(String, CapturedJsonValue)),
+) -> CapturedJsonValue {
+  let base = case value {
+    CapturedObject(fields) -> fields
+    _ -> []
+  }
+  let retained =
+    base
+    |> list.filter(fn(pair) {
+      let #(key, _) = pair
+      !list.any(updates, fn(update) {
+        let #(update_key, _) = update
+        update_key == key
+      })
+    })
+  CapturedObject(list.append(retained, updates))
+}
+
+fn replace_field(
+  fields: List(#(String, CapturedJsonValue)),
+  key: String,
+  value: CapturedJsonValue,
+) -> List(#(String, CapturedJsonValue)) {
+  list.append(
+    list.filter(fields, fn(pair) {
+      let #(field_key, _) = pair
+      field_key != key
+    }),
+    [#(key, value)],
+  )
+}
+
+fn string_array(values: List(String)) -> CapturedJsonValue {
+  CapturedArray(list.map(values, CapturedString))
+}
+
+fn optional_captured_int(value: Option(Int)) -> CapturedJsonValue {
+  case value {
+    Some(i) -> CapturedInt(i)
+    None -> CapturedNull
+  }
+}
+
+fn mutation_variant_ids(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(String) {
+  inputs
+  |> list.filter_map(fn(input) {
+    read_arg_string(input, "variantId") |> option_to_result
+  })
+}
+
+fn append_unique_strings(
+  base: List(String),
+  extra: List(String),
+) -> List(String) {
+  list.fold(extra, base, fn(acc, item) {
+    case list.contains(acc, item) {
+      True -> acc
+      False -> list.append(acc, [item])
+    }
+  })
+}
+
+fn enumerate_dicts(
+  items: List(Dict(String, root_field.ResolvedValue)),
+) -> List(#(Dict(String, root_field.ResolvedValue), Int)) {
+  enumerate_dicts_loop(items, 0)
+}
+
+fn enumerate_dicts_loop(
+  items: List(Dict(String, root_field.ResolvedValue)),
+  index: Int,
+) -> List(#(Dict(String, root_field.ResolvedValue), Int)) {
+  case items {
+    [] -> []
+    [first, ..rest] -> [
+      #(first, index),
+      ..enumerate_dicts_loop(rest, index + 1)
+    ]
+  }
+}
+
+fn enumerate_strings(items: List(String)) -> List(#(String, Int)) {
+  enumerate_strings_loop(items, 0)
+}
+
+fn enumerate_strings_loop(
+  items: List(String),
+  index: Int,
+) -> List(#(String, Int)) {
+  case items {
+    [] -> []
+    [first, ..rest] -> [
+      #(first, index),
+      ..enumerate_strings_loop(rest, index + 1)
+    ]
+  }
+}
+
+fn option_to_result(value: Option(a)) -> Result(a, Nil) {
+  case value {
+    Some(item) -> Ok(item)
+    None -> Error(Nil)
+  }
+}
+
+fn result_to_option(value: Result(a, b)) -> Option(a) {
+  case value {
+    Ok(item) -> Some(item)
+    Error(_) -> None
+  }
+}
+
 fn root_payload_for_field(
   store: Store,
   field: Selection,
@@ -730,7 +2953,21 @@ fn root_payload_for_field(
               project_record(field, fragments, captured_json_source(payload))
             None -> json.null()
           }
-        "marketLocalizableResource" -> json.null()
+        "marketLocalizableResource" -> {
+          let args = field_args(field, variables)
+          case read_arg_string(args, "resourceId") {
+            Some(resource_id) ->
+              project_record(
+                field,
+                fragments,
+                captured_json_source(market_localizable_resource_payload(
+                  store,
+                  resource_id,
+                )),
+              )
+            None -> json.null()
+          }
+        }
         "marketLocalizableResources" | "marketLocalizableResourcesByIds" ->
           serialize_empty_connection(field, default_selected_field_options())
         _ -> json.null()
@@ -913,6 +3150,36 @@ fn read_arg_string(
   }
 }
 
+fn read_arg_string_allow_empty(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(args, name) {
+    Ok(root_field.StringVal(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn read_arg_bool(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case dict.get(args, name) {
+    Ok(root_field.BoolVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn read_arg_int(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Int) {
+  case dict.get(args, name) {
+    Ok(root_field.IntVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
 fn read_arg_object(
   args: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -920,6 +3187,37 @@ fn read_arg_object(
   case dict.get(args, name) {
     Ok(root_field.ObjectVal(fields)) -> Some(fields)
     _ -> None
+  }
+}
+
+fn read_arg_object_array(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> List(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(args, name) {
+    Ok(root_field.ListVal(items)) ->
+      list.filter_map(items, fn(value) {
+        case value {
+          root_field.ObjectVal(fields) -> Ok(fields)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn read_price_list_id(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case read_arg_string(args, "priceListId") {
+    Some(id) -> Some(id)
+    None ->
+      case read_arg_string(args, "id") {
+        Some(id) -> Some(id)
+        None ->
+          read_arg_object(args, "input")
+          |> option.then(read_arg_string(_, "priceListId"))
+      }
   }
 }
 

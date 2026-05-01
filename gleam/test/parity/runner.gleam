@@ -300,6 +300,11 @@ fn seed_capture_preconditions(
     "web-presence-delete-local-staging"
     | "web-presence-lifecycle-local-staging" ->
       seed_markets_web_presence_baseline_preconditions(capture, proxy)
+    "price-list-fixed-prices-by-product-update"
+    | "quantity-pricing-rules-local-staging" ->
+      seed_markets_capture_preconditions(capture, proxy)
+    "market-localization-metafield-default-validation" ->
+      seed_market_localization_metafield_preconditions(capture, proxy)
     "market-catalog-detail-read"
     | "market-catalogs-read"
     | "market-detail-read"
@@ -3388,6 +3393,22 @@ fn seed_markets_web_presence_baseline_preconditions(
   }
   let store = store_mod.upsert_base_web_presences(proxy.store, records)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_market_localization_metafield_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.productRead.response.payload.data.product",
+    )
+  {
+    Some(product_json) ->
+      seed_product_metafield_product_json(product_json, proxy)
+    None -> proxy
+  }
 }
 
 fn seed_products_search_read_preconditions(
