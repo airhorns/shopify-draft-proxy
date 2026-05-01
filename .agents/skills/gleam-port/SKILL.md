@@ -237,6 +237,19 @@ If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
 path syntax instead of narrowing or rewriting the checked-in spec.
 
+Broad multi-step parity specs may reference responses from earlier named
+targets, not only the primary request. Preserve this with `fromProxyResponse`
+template substitution in the runner. Apps billing/access also proved that
+expected-difference paths can contain multiple wildcard index segments such as
+`$.allSubscriptions.nodes[*].lineItems[*].id`; support the path shape in the
+Gleam diff layer instead of changing specs.
+
+When a domain exposes records through Admin Platform `node(id:)`, add explicit
+node serializers in the owning domain and wire only those owned GID types into
+`admin_platform.gleam`. For Apps, uninstalled app installations and destroyed
+delegated tokens are hidden from effective lookup/read paths, while the app
+identity itself remains resolvable for later Node reads.
+
 If an existing parity target declares `selectedPaths`, preserve that contract in
 the Gleam parity runner instead of broadening or narrowing the checked-in spec.
 The Gift Cards lifecycle parity spec depends on target-level selected-path
