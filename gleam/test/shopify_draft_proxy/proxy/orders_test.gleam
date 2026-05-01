@@ -1,4 +1,4 @@
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/json
 import gleam/list
 import gleam/string
@@ -581,6 +581,121 @@ pub fn orders_order_update_validation_guardrails_test() {
     missing_variable_json,
     "\"tags\":[\"parity-probe\",\"order-update\",\"missing-id\"]",
   )
+}
+
+pub fn orders_order_edit_missing_id_validation_guardrails_test() {
+  let expected =
+    "{\"errors\":[{\"message\":\"Variable $id of type ID! was provided invalid value\",\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":null,\"problems\":[{\"path\":[],\"explanation\":\"Expected value to not be null\"}]}}]}"
+
+  let begin =
+    "
+    mutation OrderEditBeginMissingId($id: ID!) {
+      orderEditBegin(id: $id) {
+        calculatedOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  assert order_edit_missing_id_json(begin, dict.new()) == expected
+
+  let add_variant =
+    "
+    mutation OrderEditAddVariantMissingId($id: ID!, $variantId: ID!, $quantity: Int!) {
+      orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {
+        calculatedOrder {
+          id
+        }
+        calculatedLineItem {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  assert order_edit_missing_id_json(
+      add_variant,
+      dict.from_list([
+        #("variantId", root_field.StringVal("gid://shopify/ProductVariant/0")),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+    )
+    == expected
+
+  let set_quantity =
+    "
+    mutation OrderEditSetQuantityMissingId($id: ID!, $lineItemId: ID!, $quantity: Int!) {
+      orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {
+        calculatedOrder {
+          id
+        }
+        calculatedLineItem {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  assert order_edit_missing_id_json(
+      set_quantity,
+      dict.from_list([
+        #(
+          "lineItemId",
+          root_field.StringVal("gid://shopify/CalculatedLineItem/0"),
+        ),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+    )
+    == expected
+
+  let commit =
+    "
+    mutation OrderEditCommitMissingId($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {
+      orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {
+        order {
+          id
+          name
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  assert order_edit_missing_id_json(
+      commit,
+      dict.from_list([
+        #("notifyCustomer", root_field.BoolVal(False)),
+        #("staffNote", root_field.StringVal("missing id probe")),
+      ]),
+    )
+    == expected
+}
+
+fn order_edit_missing_id_json(
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> String {
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      document,
+      variables,
+    )
+  json.to_string(outcome.data)
 }
 
 pub fn orders_draft_order_create_custom_item_read_after_write_test() {

@@ -9,6 +9,57 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 121: order-edit missing-id guardrails
+
+Promotes the captured order-edit missing-id validation branches in the Gleam
+Orders domain. This pass mirrors Shopify's `INVALID_VARIABLE` response when the
+non-null `$id` variable is omitted for `orderEditBegin`, `orderEditAddVariant`,
+`orderEditSetQuantity`, and `orderEditCommit`, without claiming edit-session
+lifecycle support.
+
+| Module                                                   | Change                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds narrow required-`id` validation guardrails for four order-edit mutation roots.         |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers missing `$id` variables for begin/add-variant/set-quantity/commit branches directly. |
+| `config/gleam-port-ci-gates.json`                        | Removes four newly passing order-edit missing-id validation parity specs.                   |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (729 passed).
+- Docker Erlang fallback:
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (725 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 parity specs; 147 expected Gleam
+  parity failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The checked-in parity specs compare only the stable error message and
+  extensions; Shopify also reports root-specific variable locations that are
+  intentionally outside the current comparison target.
+- These roots remain guardrail-only. Successful edits still need calculated
+  order state, line-item mutations, commit effects, and downstream order reads.
+
+### Risks / open items
+
+- Order edit begin/add-variant/set-quantity/commit success paths remain gated.
+- Order lifecycle, fulfillments, refunds, returns, and the remaining draft-order
+  lifecycle roots remain unported.
+
+### Pass 122 candidates
+
+- Start a durable draft-order update/delete lifecycle slice, or continue
+  order-edit calculated edit state with checked-in parity evidence.
+
+---
+
 ## 2026-05-01 - Pass 120: order update validation guardrails
 
 Promotes the captured `orderUpdate` missing-id validation branches in the Gleam

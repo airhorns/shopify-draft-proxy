@@ -452,6 +452,11 @@ synthetic-id/timestamp expected differences.
   top-level required argument. Mirror Shopify's error message/extensions for
   inline missing/null `input.id` and variable-backed missing id without treating
   update success, downstream reads, or timestamp behavior as ported.
+- Order-edit missing-id validation for `orderEditBegin`,
+  `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` can use
+  the shared top-level required-argument helper with `ID!`. Keep the edit
+  session lifecycle, calculated edits, commit effects, and downstream order
+  reads gated until those state transitions are modeled together.
 
 ## Workflow for a new pass
 
