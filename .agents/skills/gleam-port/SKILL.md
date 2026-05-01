@@ -617,6 +617,13 @@ synthetic-id/timestamp expected differences.
   and normalized variant price for the calculated line. Keep set/commit
   persistence and downstream order effects gated until calculated-edit state is
   modeled.
+- `orderEditSetQuantity` can also be promoted as a payload-only slice when the
+  parity spec compares just the stable zero-quantity `calculatedLineItem` and
+  empty `userErrors`. Seed `$.seedOrder`; map the synthetic
+  `CalculatedLineItem/N` id from the begin payload back to the captured order
+  line item by index; override `quantity` and `currentQuantity` in the payload.
+  Treat this as a bridge for the checked-in payload spec, not persistent
+  calculated-edit state or commit/downstream order support.
 
 ## Workflow for a new pass
 

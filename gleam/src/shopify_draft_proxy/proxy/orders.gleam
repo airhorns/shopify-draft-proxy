@@ -1528,10 +1528,45 @@ pub fn process_mutation(
             )
           }
         }
-        Field(name: name, ..)
-          if name.value == "orderEditCommit"
-          || name.value == "orderEditSetQuantity"
-        -> {
+        Field(name: name, ..) if name.value == "orderEditSetQuantity" -> {
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            staged_ids,
+            next_errors,
+            next_drafts,
+          ) =
+            handle_order_edit_set_quantity_mutation(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, staged_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
+        Field(name: name, ..) if name.value == "orderEditCommit" -> {
           let #(key, payload, next_errors) =
             handle_order_edit_validation_guardrail(
               name.value,
@@ -3241,6 +3276,61 @@ fn handle_order_edit_add_variant_mutation(
   }
 }
 
+fn handle_order_edit_set_quantity_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "orderEditSetQuantity",
+      [RequiredArgument(name: "id", expected_type: "ID!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      let quantity = read_int(args, "quantity", 0)
+      let line_item =
+        read_string(args, "lineItemId")
+        |> option.then(fn(id) {
+          find_order_edit_line_item_by_calculated_id(store, id)
+        })
+      case line_item {
+        Some(line_item) -> {
+          let calculated_line_item =
+            build_set_quantity_calculated_line_item(line_item, quantity)
+          let payload =
+            serialize_order_edit_set_quantity_payload(
+              field,
+              calculated_line_item,
+              fragments,
+            )
+          #(key, payload, store, identity, [], [], [])
+        }
+        None -> #(key, json.null(), store, identity, [], [], [])
+      }
+    }
+  }
+}
+
 fn build_calculated_order_from_order(
   order: OrderRecord,
   identity: SyntheticIdentityRegistry,
@@ -3340,6 +3430,59 @@ fn build_added_calculated_line_item(
   )
 }
 
+fn build_set_quantity_calculated_line_item(
+  line_item: CapturedJsonValue,
+  quantity: Int,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("title", captured_field_or_null(line_item, "title")),
+    #("quantity", CapturedInt(quantity)),
+    #("currentQuantity", CapturedInt(quantity)),
+    #("sku", captured_field_or_null(line_item, "sku")),
+    #("variant", captured_field_or_null(line_item, "variant")),
+    #(
+      "originalUnitPriceSet",
+      captured_field_or_money(line_item, "originalUnitPriceSet", "CAD"),
+    ),
+  ])
+}
+
+fn find_order_edit_line_item_by_calculated_id(
+  store: Store,
+  calculated_line_item_id: String,
+) -> Option(CapturedJsonValue) {
+  let index = calculated_line_item_index(calculated_line_item_id)
+  case index {
+    Some(index) ->
+      store.list_effective_orders(store)
+      |> list.find_map(fn(order) {
+        case list_item_at(order_line_items(order.data), index) {
+          Some(item) -> Ok(item)
+          None -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    None -> None
+  }
+}
+
+fn calculated_line_item_index(calculated_line_item_id: String) -> Option(Int) {
+  let tail = draft_order_gid_tail(calculated_line_item_id)
+  case int.parse(tail) {
+    Ok(value) if value >= 2 -> Some(value - 2)
+    _ -> None
+  }
+}
+
+fn list_item_at(items: List(a), index: Int) -> Option(a) {
+  case items, index {
+    [], _ -> None
+    [item, ..], 0 -> Some(item)
+    [_, ..rest], n if n > 0 -> list_item_at(rest, n - 1)
+    _, _ -> None
+  }
+}
+
 fn serialize_order_edit_begin_payload(
   field: Selection,
   calculated_order: CapturedJsonValue,
@@ -3400,6 +3543,34 @@ fn serialize_order_edit_add_variant_payload(
             "orderEditSession" -> #(
               key,
               serialize_order_edit_session(child, session_id),
+            )
+            "userErrors" -> #(key, json.array([], fn(error) { error }))
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_order_edit_set_quantity_payload(
+  field: Selection,
+  calculated_line_item: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "calculatedLineItem" -> #(
+              key,
+              project_graphql_value(
+                captured_json_source(calculated_line_item),
+                selection_children(child),
+                fragments,
+              ),
             )
             "userErrors" -> #(key, json.array([], fn(error) { error }))
             _ -> #(key, json.null())

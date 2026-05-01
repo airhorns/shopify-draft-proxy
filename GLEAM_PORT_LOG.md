@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 148: order edit set quantity parity
+
+Promotes the checked-in `orderEditSetQuantity` existing-order parity scenario
+in the Gleam Orders domain. This pass seeds the captured zero-removal source
+order, maps the synthetic calculated-line id from `orderEditBegin` back to the
+captured source line item, and returns Shopify's stable zero-quantity
+calculated-line payload without claiming commit or downstream edit persistence.
+
+| Module                                                   | Change                                                           |
+| -------------------------------------------------------- | ---------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `orderEditSetQuantity` calculated-line payload support.     |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured order-edit source orders for set-quantity parity. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers zero-quantity calculated-line payloads.                   |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `orderEditSetQuantity` parity spec.    |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records order-edit set-quantity porting notes.                   |
+
+Validation:
+
+- Reproduction with only `orderEditSetQuantity-parity-plan.json` ungated failed
+  because `fromPrimaryProxyPath` could not resolve
+  `$.data.orderEditBegin.calculatedOrder.id` before the set-quantity scenario
+  seeded `$.seedOrder`.
+- `cd gleam && gleam test --target javascript` (754 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (750 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 108 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The set-quantity spec compares only the stable calculated-line payload and
+  empty `userErrors`; it does not require a serialized session id.
+- Because the begin payload mints calculated line ids deterministically after
+  the calculated order id, the payload slice can map `CalculatedLineItem/N` back
+  to the seeded order line item by order index. This is a narrow bridge, not
+  persistent calculated-edit state.
+- Commit and downstream order effects remain separate work. This pass returns
+  the selected calculated line with overridden `quantity`/`currentQuantity`
+  only.
+
+### Risks / open items
+
+- Order-edit commit sessions, direct order creation/delete, payment transaction
+  and mandate roots, fulfillment creation/fulfillment-order workflows, and
+  returns remain gated.
+
+### Pass 149 candidates
+
+- Continue order-edit by adding commit persistence for the captured add/remove
+  workflows, or switch to another bounded existing-order, payment, fulfillment,
+  or return fixture if it can be modeled without partial support.
+
+---
+
 ## 2026-05-01 - Pass 147: order edit add variant parity
 
 Promotes the checked-in `orderEditAddVariant` existing-order parity scenario in

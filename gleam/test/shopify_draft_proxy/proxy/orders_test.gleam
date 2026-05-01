@@ -574,6 +574,130 @@ pub fn orders_order_edit_add_variant_payload_test() {
   assert outcome.log_drafts == []
 }
 
+pub fn orders_order_edit_set_quantity_payload_test() {
+  let order_id = "gid://shopify/Order/6834565087465"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1331")),
+          #(
+            "lineItems",
+            types.CapturedObject([
+              #(
+                "nodes",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #(
+                      "id",
+                      types.CapturedString(
+                        "gid://shopify/LineItem/16210048319721",
+                      ),
+                    ),
+                    #(
+                      "title",
+                      types.CapturedString(
+                        "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                      ),
+                    ),
+                    #("quantity", types.CapturedInt(1)),
+                    #("currentQuantity", types.CapturedInt(1)),
+                    #("sku", types.CapturedString("VN-01-burgandy-4")),
+                    #(
+                      "variant",
+                      types.CapturedObject([
+                        #(
+                          "id",
+                          types.CapturedString(
+                            "gid://shopify/ProductVariant/46789254021353",
+                          ),
+                        ),
+                      ]),
+                    ),
+                    #(
+                      "originalUnitPriceSet",
+                      types.CapturedObject([
+                        #(
+                          "shopMoney",
+                          types.CapturedObject([
+                            #("amount", types.CapturedString("29.0")),
+                            #("currencyCode", types.CapturedString("CAD")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderEditExistingWorkflowSetQuantityPayload(
+      $id: ID!
+      $lineItemId: ID!
+      $quantity: Int!
+      $restock: Boolean
+    ) {
+      orderEditSetQuantity(
+        id: $id
+        lineItemId: $lineItemId
+        quantity: $quantity
+        restock: $restock
+      ) {
+        calculatedLineItem {
+          title
+          quantity
+          currentQuantity
+          sku
+          variant {
+            id
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+      #(
+        "lineItemId",
+        root_field.StringVal("gid://shopify/CalculatedLineItem/2"),
+      ),
+      #("quantity", root_field.IntVal(0)),
+      #("restock", root_field.BoolVal(True)),
+    ])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedLineItem\":{\"title\":\"VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE\",\"quantity\":0,\"currentQuantity\":0,\"sku\":\"VN-01-burgandy-4\",\"variant\":{\"id\":\"gid://shopify/ProductVariant/46789254021353\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"29.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
 pub fn orders_draft_order_not_found_read_test() {
   let query =
     "
