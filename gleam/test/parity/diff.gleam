@@ -153,7 +153,7 @@ fn path_matches(pattern: String, path: String) -> Bool {
     False ->
       string.starts_with(path, pattern <> ".")
       || string.starts_with(path, pattern <> "[")
-      || wildcard_segments_match(string.split(pattern, on: "[*]"), path)
+      || wildcard_path_matches(pattern, path)
   }
 }
 
@@ -163,66 +163,33 @@ fn normalize_path(path: String) -> String {
   |> string.replace("[\"edges\"]", ".edges")
 }
 
-fn wildcard_segments_match(segments: List(String), path: String) -> Bool {
-  case segments {
-    [] -> False
-    [_] -> False
-    [prefix, ..rest] ->
-      case string.starts_with(path, prefix) {
-        False -> False
-        True ->
-          wildcard_segments_match_loop(
-            rest,
-            string.drop_start(path, string.length(prefix)),
-          )
+fn wildcard_path_matches(pattern: String, path: String) -> Bool {
+  case string.split_once(pattern, "[*]") {
+    Ok(#(prefix, suffix_pattern)) ->
+      string.starts_with(path, prefix)
+      && {
+        let rest = string.drop_start(path, string.length(prefix))
+        case consume_wildcard_index(rest) {
+          Some(suffix_path) ->
+            wildcard_path_matches(suffix_pattern, suffix_path)
+          None -> False
+        }
       }
-  }
-}
-
-fn wildcard_segments_match_loop(
-  segments: List(String),
-  remaining_path: String,
-) -> Bool {
-  case segments {
-    [] -> remaining_path == ""
-    [suffix] ->
-      case consume_wildcard_index(remaining_path) {
-        Some(after_index) -> after_index == suffix
-        None -> False
-      }
-    [segment, ..rest] ->
-      case consume_wildcard_index(remaining_path) {
-        Some(after_index) ->
-          case string.starts_with(after_index, segment) {
-            False -> False
-            True ->
-              wildcard_segments_match_loop(
-                rest,
-                string.drop_start(after_index, string.length(segment)),
-              )
-          }
-        None -> False
-      }
+    Error(_) -> pattern == path
   }
 }
 
 fn consume_wildcard_index(path: String) -> Option(String) {
-  case string.starts_with(path, "[") {
-    False -> None
-    True -> consume_wildcard_index_loop(string.drop_start(path, 1))
-  }
-}
-
-fn consume_wildcard_index_loop(path: String) -> Option(String) {
-  case string.pop_grapheme(path) {
-    Error(_) -> None
-    Ok(#(g, rest)) ->
-      case g {
-        "]" -> Some(rest)
-        "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ->
-          consume_wildcard_index_loop(rest)
-        _ -> None
+  case path {
+    "[" <> tail -> {
+      let #(digits, after_digits) = take_digits(tail, "")
+      case digits, after_digits {
+        "", _ -> None
+        _, "]" <> suffix -> Some(suffix)
+        _, _ -> None
       }
+    }
+    _ -> None
   }
 }
 
