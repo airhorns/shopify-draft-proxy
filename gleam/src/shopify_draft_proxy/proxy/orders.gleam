@@ -105,6 +105,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "orderEditBegin",
       "orderEditCommit",
       "orderEditSetQuantity",
+      "orderInvoiceSend",
       "orderOpen",
       "orderUpdate",
       "taxSummaryCreate",
@@ -1289,6 +1290,35 @@ pub fn process_mutation(
               list.append(errors, next_errors),
               next_store,
               next_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
+        Field(name: name, ..) if name.value == "orderInvoiceSend" -> {
+          let #(key, payload, next_errors) =
+            handle_order_invoice_send(
+              current_store,
+              document,
+              operation_path,
+              field,
+              fragments,
+              variables,
+            )
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              current_store,
+              current_identity,
               ids,
               drafts,
             )
@@ -2649,6 +2679,71 @@ fn serialize_order_cancel_payload(
       }
     })
   json.object(entries)
+}
+
+fn handle_order_invoice_send(
+  store: Store,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, List(Json)) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "orderInvoiceSend",
+      [RequiredArgument(name: "id", expected_type: "ID!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), validation_errors)
+    [] -> {
+      let args = field_arguments(field, variables)
+      case read_string_arg(args, "id") {
+        Some(order_id) ->
+          case store.get_order_by_id(store, order_id) {
+            Some(order) -> #(
+              key,
+              serialize_order_mutation_payload(
+                field,
+                Some(order),
+                [],
+                fragments,
+              ),
+              [],
+            )
+            None -> #(
+              key,
+              serialize_order_mutation_payload(
+                field,
+                None,
+                [
+                  #(["id"], "Order does not exist"),
+                ],
+                fragments,
+              ),
+              [],
+            )
+          }
+        None -> #(
+          key,
+          serialize_order_mutation_payload(
+            field,
+            None,
+            [
+              #(["id"], "Order does not exist"),
+            ],
+            fragments,
+          ),
+          [],
+        )
+      }
+    }
+  }
 }
 
 fn handle_order_edit_validation_guardrail(

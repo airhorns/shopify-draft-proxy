@@ -9,6 +9,57 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 139: order invoice send payload parity
+
+Promotes the checked-in `orderInvoiceSend` parity scenario in the Gleam Orders
+domain. This pass adds a local existing-order payload response for invoice-send
+requests, returns the selected captured order and empty user errors, keeps
+runtime state untouched, and seeds the parity fixture from its captured mutation
+order payload.
+
+| Module                                                   | Change                                                   |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds local `orderInvoiceSend` payload handling.          |
+| `gleam/test/parity/runner.gleam`                         | Seeds invoice-send parity from captured mutation order.  |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers invoice-send payload and no staging side effects. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing invoice-send parity spec.      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (746 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (742 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 121 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured `orderInvoiceSend` parity target asserts the returned order id
+  and empty user errors; no local order state mutation is needed for this slice.
+- Seeding from `$.mutation.response.data.orderInvoiceSend.order` preserves the
+  selected order shape without claiming email delivery or side effects.
+
+### Risks / open items
+
+- Email-send delivery semantics, notification side effects, direct order
+  creation/update/delete/customer/payment effects, fulfillment, refunds,
+  returns, and order-edit sessions remain gated.
+
+### Pass 140 candidates
+
+- Continue with another narrow order management validation fixture, or start a
+  coherent payment/customer lifecycle slice when the surrounding state effects
+  can be modeled together.
+
+---
+
 ## 2026-05-01 - Pass 138: order cancel downstream parity
 
 Promotes the checked-in `orderCancel` parity scenario in the Gleam Orders

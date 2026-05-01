@@ -497,6 +497,10 @@ synthetic-id/timestamp expected differences.
   `$.downstreamRead.response.data.order`, stage `closed`, `closedAt`,
   `cancelledAt`, and `cancelReason` locally, and keep broader canceled-order
   interaction rules gated until their fixtures are executable.
+- `orderInvoiceSend` can be a no-state-change payload slice when the checked-in
+  comparison only asserts returned order id and empty user errors. Seed from
+  `$.mutation.response.data.orderInvoiceSend.order`, serialize the captured
+  order, and do not claim email delivery semantics or notification side effects.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or

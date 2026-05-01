@@ -291,6 +291,8 @@ fn seed_capture_preconditions(
       seed_order_management_preconditions(capture, proxy, "orderOpen")
     "orderClose-live-parity" ->
       seed_order_management_preconditions(capture, proxy, "orderClose")
+    "orderInvoiceSend-live-parity" ->
+      seed_order_management_preconditions(capture, proxy, "orderInvoiceSend")
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "b2b-company-roots-read" ->

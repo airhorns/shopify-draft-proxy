@@ -1265,6 +1265,60 @@ pub fn orders_order_cancel_read_after_write_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"closed\":true,\"closedAt\":\"2024-01-01T00:00:00.000Z\",\"cancelledAt\":\"2024-01-01T00:00:00.000Z\",\"cancelReason\":\"OTHER\"}}}"
 }
 
+pub fn orders_order_invoice_send_payload_test() {
+  let order_id = "gid://shopify/Order/6830646329577"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1328")),
+          #("closed", types.CapturedBool(False)),
+          #("closedAt", types.CapturedNull),
+          #("cancelledAt", types.CapturedNull),
+          #("cancelReason", types.CapturedNull),
+          #("displayFinancialStatus", types.CapturedNull),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderInvoiceSendParity($id: ID!) {
+      orderInvoiceSend(id: $id) {
+        order {
+          id
+          name
+          closed
+          closedAt
+          cancelledAt
+          cancelReason
+          displayFinancialStatus
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables = dict.from_list([#("id", root_field.StringVal(order_id))])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderInvoiceSend\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"name\":\"#1328\",\"closed\":false,\"closedAt\":null,\"cancelledAt\":null,\"cancelReason\":null,\"displayFinancialStatus\":null},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
 pub fn orders_order_edit_missing_id_validation_guardrails_test() {
   let expected =
     "{\"errors\":[{\"message\":\"Variable $id of type ID! was provided invalid value\",\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":null,\"problems\":[{\"path\":[],\"explanation\":\"Expected value to not be null\"}]}}]}"
