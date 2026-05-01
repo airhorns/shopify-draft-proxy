@@ -798,7 +798,14 @@ pub fn process_mutation(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
+      Ok(handle_mutation_fields(
+        store,
+        identity,
+        fields,
+        fragments,
+        document,
+        variables,
+      ))
     }
   }
 }
@@ -808,6 +815,7 @@ fn handle_mutation_fields(
   identity: SyntheticIdentityRegistry,
   fields: List(Selection),
   fragments: FragmentMap,
+  query: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
   let initial = #([], store, identity, [])
@@ -840,6 +848,8 @@ fn handle_mutation_fields(
         primary_root_field: Some(primary),
         domain: "payments",
         execution: "stage-locally",
+        query: Some(query),
+        variables: Some(variables),
         staged_resource_ids: staged_ids,
         status: store.Staged,
         notes: Some(

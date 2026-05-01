@@ -41,9 +41,9 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type AdminPlatformGenericNodeRecord, type AdminPlatformTaxonomyCategoryRecord,
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
-  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
-  type CatalogRecord, type CollectionImageRecord, type CollectionRecord,
-  type CollectionRuleRecord, type CollectionRuleSetRecord,
+  type B2BCompanyLocationRecord, type B2BCompanyRecord, type BulkOperationRecord,
+  type CapturedJsonValue, type CatalogRecord, type CollectionImageRecord,
+  type CollectionRecord, type CollectionRuleRecord, type CollectionRuleSetRecord,
   type CustomerAccountPageRecord, type CustomerAddressRecord,
   type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
   type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
@@ -85,10 +85,10 @@ import shopify_draft_proxy/state/types.{
   type WebPresenceRecord, AdminPlatformGenericNodeRecord,
   AdminPlatformTaxonomyCategoryRecord, B2BCompanyContactRecord,
   B2BCompanyContactRoleRecord, B2BCompanyLocationRecord, B2BCompanyRecord,
-  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
-  CapturedObject, CapturedString, CatalogRecord, CollectionImageRecord,
-  CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
-  CustomerAccountPageRecord, CustomerAddressRecord,
+  BulkOperationRecord, CapturedArray, CapturedBool, CapturedFloat, CapturedInt,
+  CapturedNull, CapturedObject, CapturedString, CatalogRecord,
+  CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
+  CollectionRuleSetRecord, CustomerAccountPageRecord, CustomerAddressRecord,
   CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
   CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
   CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
@@ -308,6 +308,7 @@ fn seed_capture_preconditions(
     seed_metafield_definition_preconditions,
     seed_metaobject_preconditions,
     seed_marketing_baseline_preconditions,
+    seed_bulk_operation_status_preconditions,
     seed_online_store_content_preconditions,
     fn(c, p) {
       case parsed.scenario_id {
@@ -331,6 +332,148 @@ fn seed_capture_preconditions(
     fn(c, p) { seed_orders_capture_preconditions(parsed.scenario_id, c, p) },
   ]
   list.fold(helpers, proxy, fn(p, helper) { helper(capture, p) })
+}
+
+fn seed_bulk_operation_status_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_records = case
+    jsonpath.lookup(capture, "$.lifecycle.queryExportToTerminal.result.records")
+  {
+    Some(JArray(records)) -> list.filter_map(records, make_seed_product_relaxed)
+    _ -> []
+  }
+
+  let base_operations =
+    list.flatten([
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogDefault.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogEmptyRunningQuery.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogEmptyRunningMutation.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.lifecycle.queryExportToTerminal.catalogById.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_options_at(capture, [
+        "$.reads.currentQuery.response.data.currentBulkOperation",
+        "$.reads.currentMutation.response.data.currentBulkOperation",
+        "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.bulkOperation",
+        "$.lifecycle.queryExportToTerminal.terminalOperation",
+        "$.lifecycle.queryExportToTerminal.currentQueryOperation.response.data.currentBulkOperation",
+        "$.lifecycle.queryExportToTerminal.terminalCancelAttempt.response.data.bulkOperationCancel.bulkOperation",
+      ]),
+    ])
+
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(product_records)
+    |> store_mod.upsert_base_bulk_operations(base_operations)
+    |> restrict_products_to_bulk_result(product_records)
+
+  let store = case
+    bulk_operation_at(
+      capture,
+      "$.lifecycle.queryExportImmediateCancel.run.response.data.bulkOperationRunQuery.bulkOperation",
+    )
+  {
+    Some(operation) -> {
+      let #(_, staged_store) = store_mod.stage_bulk_operation(store, operation)
+      staged_store
+    }
+    None -> store
+  }
+
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn restrict_products_to_bulk_result(
+  store: store_mod.Store,
+  product_records: List(ProductRecord),
+) -> store_mod.Store {
+  case product_records {
+    [] -> store
+    _ -> {
+      let captured_ids = list.map(product_records, fn(product) { product.id })
+      store_mod.list_effective_products(store)
+      |> list.fold(store, fn(current, product) {
+        case list.contains(captured_ids, product.id) {
+          True -> current
+          False -> store_mod.delete_staged_product(current, product.id)
+        }
+      })
+    }
+  }
+}
+
+fn bulk_operation_array_at(
+  capture: JsonValue,
+  path: String,
+) -> List(BulkOperationRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(nodes)) -> list.filter_map(nodes, make_seed_bulk_operation)
+    _ -> []
+  }
+}
+
+fn bulk_operation_options_at(
+  capture: JsonValue,
+  paths: List(String),
+) -> List(BulkOperationRecord) {
+  list.filter_map(paths, fn(path) {
+    case bulk_operation_at(capture, path) {
+      Some(operation) -> Ok(operation)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn bulk_operation_at(
+  capture: JsonValue,
+  path: String,
+) -> Option(BulkOperationRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(source) ->
+      case make_seed_bulk_operation(source) {
+        Ok(operation) -> Some(operation)
+        Error(_) -> None
+      }
+    _ -> None
+  }
+}
+
+fn make_seed_bulk_operation(
+  source: JsonValue,
+) -> Result(BulkOperationRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use status <- result.try(required_string_field(source, "status"))
+  use type_ <- result.try(required_string_field(source, "type"))
+  use created_at <- result.try(required_string_field(source, "createdAt"))
+  Ok(BulkOperationRecord(
+    id: id,
+    status: status,
+    type_: type_,
+    error_code: read_string_field(source, "errorCode"),
+    created_at: created_at,
+    completed_at: read_string_field(source, "completedAt"),
+    object_count: read_string_field(source, "objectCount") |> option.unwrap("0"),
+    root_object_count: read_string_field(source, "rootObjectCount")
+      |> option.unwrap("0"),
+    file_size: read_string_field(source, "fileSize"),
+    url: read_string_field(source, "url"),
+    partial_data_url: read_string_field(source, "partialDataUrl"),
+    query: read_string_field(source, "query"),
+    cursor: read_string_field(source, "cursor"),
+    result_jsonl: None,
+  ))
 }
 
 fn seed_admin_platform_node_preconditions(
