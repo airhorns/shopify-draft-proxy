@@ -9,6 +9,56 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 151: order payment lifecycle parity
+
+Promotes the checked-in local-runtime order payment parity scenarios in the
+Gleam Orders domain. This pass wires `orderCapture`, `transactionVoid`, and
+`orderCreateMandatePayment` through the local Orders dispatcher, stages payment
+transactions against synthetic orders, updates downstream financial/capturable
+fields, and preserves mutation-log-driven synthetic identity gaps for strict
+fixture parity.
+
+| Module                                             | Change                                                  |
+| -------------------------------------------------- | ------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds local order payment lifecycle mutation handling.   |
+| `config/gleam-port-ci-gates.json`                  | Removes the three newly passing payment parity specs.   |
+| `.agents/skills/gleam-port/SKILL.md`               | Records payment lifecycle synthetic-id and state notes. |
+
+Validation:
+
+- Reproduction with the three payment specs ungated first failed at dispatch:
+  `orderCapture`, `transactionVoid`, and `orderCreateMandatePayment` had no
+  local mutation dispatcher.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- The local-runtime payment fixtures rely on `orderCreate` mutation-log entries
+  consuming synthetic ids between requests. Failed payment validation branches
+  also need `Failed` log drafts so later capture ids line up with the recorded
+  fixture.
+- `orderCapture` derives partial/final financial state from the original
+  authorization and staged capture children. Capture transactions keep a
+  selected `parentTransaction` object so downstream transaction reads do not
+  need resolver-time parent lookup.
+- `orderCreateMandatePayment` can keep idempotency data as hidden captured JSON
+  on the staged order; selected order fields ignore that local bookkeeping while
+  repeated calls reuse the same job and payment reference.
+
+### Risks / open items
+
+- Direct order delete success, order-edit commit sessions, fulfillment
+  creation/fulfillment-order workflows, and returns remain gated.
+- The payment implementation covers the checked-in local-runtime lifecycle
+  branches; broader gateway semantics remain outside this pass.
+
+### Pass 152 candidates
+
+- Continue with order-edit commit session persistence, or begin the returns
+  lifecycle slice now that direct order/payment foundations are stronger.
+
+---
+
 ## 2026-05-01 - Pass 150: order create parity
 
 Promotes the checked-in `orderCreate-parity-plan` scenario in the Gleam

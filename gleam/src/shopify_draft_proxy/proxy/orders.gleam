@@ -100,8 +100,10 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "fulfillmentCreate",
       "fulfillmentTrackingInfoUpdate",
       "orderCancel",
+      "orderCapture",
       "orderClose",
       "orderCreate",
+      "orderCreateMandatePayment",
       "orderCreateManualPayment",
       "orderEditAddVariant",
       "orderEditBegin",
@@ -113,6 +115,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "orderUpdate",
       "refundCreate",
       "taxSummaryCreate",
+      "transactionVoid",
     ],
     name,
   )
@@ -1321,6 +1324,66 @@ pub fn process_mutation(
               drafts,
             )
           }
+        }
+        Field(name: name, ..) if name.value == "orderCapture" -> {
+          let result =
+            handle_order_capture_mutation(
+              current_store,
+              current_identity,
+              field,
+              fragments,
+              variables,
+            )
+          let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
+            result
+          #(
+            list.append(entries, [#(key, payload)]),
+            errors,
+            next_store,
+            next_identity,
+            list.append(ids, next_ids),
+            list.append(drafts, next_drafts),
+          )
+        }
+        Field(name: name, ..) if name.value == "transactionVoid" -> {
+          let result =
+            handle_transaction_void_mutation(
+              current_store,
+              current_identity,
+              field,
+              fragments,
+              variables,
+            )
+          let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
+            result
+          #(
+            list.append(entries, [#(key, payload)]),
+            errors,
+            next_store,
+            next_identity,
+            list.append(ids, next_ids),
+            list.append(drafts, next_drafts),
+          )
+        }
+        Field(name: name, ..) if name.value == "orderCreateMandatePayment" -> {
+          let result =
+            handle_order_create_mandate_payment_mutation(
+              current_store,
+              current_identity,
+              field,
+              fragments,
+              variables,
+            )
+          let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
+            result
+          #(
+            list.append(entries, [#(key, payload)]),
+            errors,
+            next_store,
+            next_identity,
+            list.append(ids, next_ids),
+            list.append(drafts, next_drafts),
+          )
         }
         Field(name: name, ..) if name.value == "orderInvoiceSend" -> {
           let #(key, payload, next_errors) =
@@ -3146,6 +3209,1091 @@ fn order_transactions(order: OrderRecord) -> List(CapturedJsonValue) {
     Some(CapturedArray(items)) -> items
     _ -> []
   }
+}
+
+fn handle_order_capture_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let args = field_arguments(field, variables)
+  case read_object(args, "input") {
+    None -> {
+      let payload =
+        serialize_order_capture_payload(
+          field,
+          None,
+          None,
+          [#(["input"], "Input is required.")],
+          fragments,
+        )
+      #(key, payload, store, identity, [], [
+        payment_log_draft("orderCapture", [], store.Failed),
+      ])
+    }
+    Some(input) -> {
+      let order_id =
+        read_string(input, "id") |> option.or(read_string(input, "orderId"))
+      let parent_transaction_id =
+        read_string(input, "parentTransactionId")
+        |> option.or(read_string(input, "transactionId"))
+      case order_id {
+        None -> {
+          let payload =
+            serialize_order_capture_payload(
+              field,
+              None,
+              None,
+              [#(["input", "id"], "Order does not exist")],
+              fragments,
+            )
+          #(key, payload, store, identity, [], [
+            payment_log_draft("orderCapture", [], store.Failed),
+          ])
+        }
+        Some(order_id) ->
+          case store.get_order_by_id(store, order_id) {
+            None -> {
+              let payload =
+                serialize_order_capture_payload(
+                  field,
+                  None,
+                  None,
+                  [#(["input", "id"], "Order does not exist")],
+                  fragments,
+                )
+              #(key, payload, store, identity, [], [
+                payment_log_draft("orderCapture", [], store.Failed),
+              ])
+            }
+            Some(order) ->
+              case parent_transaction_id {
+                None -> {
+                  let payload =
+                    serialize_order_capture_payload(
+                      field,
+                      None,
+                      Some(order),
+                      [
+                        #(
+                          ["input", "parentTransactionId"],
+                          "Transaction does not exist",
+                        ),
+                      ],
+                      fragments,
+                    )
+                  #(key, payload, store, identity, [], [
+                    payment_log_draft("orderCapture", [order.id], store.Failed),
+                  ])
+                }
+                Some(transaction_id) ->
+                  case find_transaction(order, transaction_id) {
+                    None -> {
+                      let payload =
+                        serialize_order_capture_payload(
+                          field,
+                          None,
+                          Some(order),
+                          [
+                            #(
+                              ["input", "parentTransactionId"],
+                              "Transaction does not exist",
+                            ),
+                          ],
+                          fragments,
+                        )
+                      #(key, payload, store, identity, [], [
+                        payment_log_draft(
+                          "orderCapture",
+                          [order.id],
+                          store.Failed,
+                        ),
+                      ])
+                    }
+                    Some(authorization) ->
+                      capture_order_payment(
+                        key,
+                        store,
+                        identity,
+                        field,
+                        fragments,
+                        order,
+                        authorization,
+                        input,
+                      )
+                  }
+              }
+          }
+      }
+    }
+  }
+}
+
+fn capture_order_payment(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  order: OrderRecord,
+  authorization: CapturedJsonValue,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(LogDraft),
+) {
+  let remaining = capturable_amount_for_authorization(order, authorization)
+  let amount = payment_input_amount(input, remaining)
+  case remaining <=. 0.0 {
+    True -> {
+      let payload =
+        serialize_order_capture_payload(
+          field,
+          None,
+          Some(order),
+          [
+            #(["input", "parentTransactionId"], "Transaction is not capturable"),
+          ],
+          fragments,
+        )
+      #(key, payload, store, identity, [], [
+        payment_log_draft("orderCapture", [order.id], store.Failed),
+      ])
+    }
+    False ->
+      case amount <=. 0.0 {
+        True -> {
+          let payload =
+            serialize_order_capture_payload(
+              field,
+              None,
+              Some(order),
+              [#(["input", "amount"], "Amount must be greater than zero")],
+              fragments,
+            )
+          #(key, payload, store, identity, [], [
+            payment_log_draft("orderCapture", [order.id], store.Failed),
+          ])
+        }
+        False ->
+          case amount >. remaining {
+            True -> {
+              let payload =
+                serialize_order_capture_payload(
+                  field,
+                  None,
+                  Some(order),
+                  [#(["input", "amount"], "Amount exceeds capturable amount")],
+                  fragments,
+                )
+              #(key, payload, store, identity, [], [
+                payment_log_draft("orderCapture", [order.id], store.Failed),
+              ])
+            }
+            False -> {
+              let currency_code =
+                payment_input_currency(input, order_currency_code(order))
+              let #(payment_reference_id, identity_after_reference) =
+                synthetic_identity.make_synthetic_gid(
+                  identity,
+                  "PaymentReference",
+                )
+              let #(transaction, identity_after_capture) =
+                build_payment_transaction(
+                  identity_after_reference,
+                  "CAPTURE",
+                  money_set(amount, currency_code),
+                  captured_string_field(authorization, "gateway"),
+                  captured_string_field(authorization, "id"),
+                  Some(payment_reference_id),
+                )
+              let final_capture = read_bool(input, "finalCapture", False)
+              let remaining_after_capture = max_float(0.0, remaining -. amount)
+              let #(extra_transactions, next_identity) = case
+                final_capture && remaining_after_capture >. 0.0
+              {
+                True -> {
+                  let #(void_transaction, identity_after_void) =
+                    build_payment_transaction(
+                      identity_after_capture,
+                      "VOID",
+                      money_set(remaining_after_capture, currency_code),
+                      captured_string_field(authorization, "gateway"),
+                      captured_string_field(authorization, "id"),
+                      None,
+                    )
+                  #([void_transaction], identity_after_void)
+                }
+                False -> #([], identity_after_capture)
+              }
+              let updated_order =
+                order
+                |> append_order_transactions([transaction, ..extra_transactions])
+                |> apply_payment_derived_fields
+              let next_store = store.stage_order(store, updated_order)
+              let payload =
+                serialize_order_capture_payload(
+                  field,
+                  Some(transaction),
+                  Some(updated_order),
+                  [],
+                  fragments,
+                )
+              #(key, payload, next_store, next_identity, [order.id], [
+                payment_log_draft("orderCapture", [order.id], store.Staged),
+              ])
+            }
+          }
+      }
+  }
+}
+
+fn handle_transaction_void_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let args = field_arguments(field, variables)
+  let #(transaction_id, field_name) = transaction_void_reference(args)
+  case transaction_id {
+    None -> {
+      let payload =
+        serialize_transaction_void_payload(
+          field,
+          None,
+          [#([field_name], "Transaction does not exist")],
+          fragments,
+        )
+      #(key, payload, store, identity, [], [
+        payment_log_draft("transactionVoid", [], store.Failed),
+      ])
+    }
+    Some(transaction_id) ->
+      case find_order_with_transaction(store, transaction_id) {
+        None -> {
+          let payload =
+            serialize_transaction_void_payload(
+              field,
+              None,
+              [#([field_name], "Transaction does not exist")],
+              fragments,
+            )
+          #(key, payload, store, identity, [], [
+            payment_log_draft("transactionVoid", [], store.Failed),
+          ])
+        }
+        Some(match) -> {
+          let #(order, transaction) = match
+          void_order_transaction(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            order,
+            transaction,
+          )
+        }
+      }
+  }
+}
+
+fn void_order_transaction(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  order: OrderRecord,
+  authorization: CapturedJsonValue,
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(LogDraft),
+) {
+  let user_errors = case is_successful_authorization(authorization) {
+    False -> [#(["id"], "Transaction is not voidable")]
+    True ->
+      case
+        transaction_has_voiding_child(
+          order,
+          captured_string_field(authorization, "id") |> option.unwrap(""),
+        )
+      {
+        True -> [#(["id"], "Transaction has already been voided")]
+        False ->
+          case
+            captured_amount_for_authorization(
+              order,
+              captured_string_field(authorization, "id") |> option.unwrap(""),
+            )
+            >. 0.0
+          {
+            True -> [#(["id"], "Transaction has already been captured")]
+            False -> []
+          }
+      }
+  }
+  case user_errors {
+    [_, ..] -> {
+      let payload =
+        serialize_transaction_void_payload(field, None, user_errors, fragments)
+      #(key, payload, store, identity, [], [
+        payment_log_draft("transactionVoid", [order.id], store.Failed),
+      ])
+    }
+    [] -> {
+      let #(transaction, next_identity) =
+        build_payment_transaction(
+          identity,
+          "VOID",
+          captured_object_field(authorization, "amountSet")
+            |> option.unwrap(money_set(0.0, order_currency_code(order))),
+          captured_string_field(authorization, "gateway"),
+          captured_string_field(authorization, "id"),
+          None,
+        )
+      let updated_order =
+        order
+        |> append_order_transactions([transaction])
+        |> apply_payment_derived_fields
+      let next_store = store.stage_order(store, updated_order)
+      let payload =
+        serialize_transaction_void_payload(
+          field,
+          Some(transaction),
+          [],
+          fragments,
+        )
+      #(key, payload, next_store, next_identity, [order.id], [
+        payment_log_draft("transactionVoid", [order.id], store.Staged),
+      ])
+    }
+  }
+}
+
+fn handle_order_create_mandate_payment_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let args = field_arguments(field, variables)
+  let input = read_object(args, "input") |> option.unwrap(args)
+  let order_id =
+    read_string(input, "id") |> option.or(read_string(input, "orderId"))
+  case order_id {
+    None -> {
+      let payload =
+        serialize_mandate_payment_payload(
+          field,
+          None,
+          None,
+          None,
+          [#(["id"], "Order does not exist")],
+          fragments,
+        )
+      #(key, payload, store, identity, [], [
+        payment_log_draft("orderCreateMandatePayment", [], store.Failed),
+      ])
+    }
+    Some(order_id) ->
+      case store.get_order_by_id(store, order_id) {
+        None -> {
+          let payload =
+            serialize_mandate_payment_payload(
+              field,
+              None,
+              None,
+              None,
+              [#(["id"], "Order does not exist")],
+              fragments,
+            )
+          #(key, payload, store, identity, [], [
+            payment_log_draft("orderCreateMandatePayment", [], store.Failed),
+          ])
+        }
+        Some(order) -> {
+          let idempotency_key = read_string(input, "idempotencyKey")
+          case idempotency_key {
+            None -> {
+              let payload =
+                serialize_mandate_payment_payload(
+                  field,
+                  None,
+                  None,
+                  Some(order),
+                  [#(["idempotencyKey"], "Idempotency key is required")],
+                  fragments,
+                )
+              #(key, payload, store, identity, [], [
+                payment_log_draft(
+                  "orderCreateMandatePayment",
+                  [order.id],
+                  store.Failed,
+                ),
+              ])
+            }
+            Some(idempotency_key) ->
+              case find_mandate_payment(order, idempotency_key) {
+                Some(payment) -> {
+                  let payload =
+                    serialize_mandate_payment_payload(
+                      field,
+                      Some(payment),
+                      captured_string_field(payment, "paymentReferenceId"),
+                      Some(order),
+                      [],
+                      fragments,
+                    )
+                  #(key, payload, store, identity, [order.id], [
+                    payment_log_draft(
+                      "orderCreateMandatePayment",
+                      [order.id],
+                      store.Staged,
+                    ),
+                  ])
+                }
+                None ->
+                  create_mandate_payment(
+                    key,
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    order,
+                    input,
+                    idempotency_key,
+                  )
+              }
+          }
+        }
+      }
+  }
+}
+
+fn create_mandate_payment(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  order: OrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  idempotency_key: String,
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(LogDraft),
+) {
+  let currency_code = payment_input_currency(input, order_currency_code(order))
+  let amount =
+    payment_input_amount(
+      input,
+      captured_money_amount(order.data, "totalOutstandingSet")
+        |> nonzero_float(captured_money_amount(
+          order.data,
+          "currentTotalPriceSet",
+        )),
+    )
+  case amount <=. 0.0 {
+    True -> {
+      let payload =
+        serialize_mandate_payment_payload(
+          field,
+          None,
+          None,
+          Some(order),
+          [#(["amount"], "Amount must be greater than zero")],
+          fragments,
+        )
+      #(key, payload, store, identity, [], [
+        payment_log_draft("orderCreateMandatePayment", [order.id], store.Failed),
+      ])
+    }
+    False -> {
+      let #(payment_reference_id, identity_after_reference) =
+        synthetic_identity.make_synthetic_gid(identity, "PaymentReference")
+      let #(transaction, identity_after_transaction) =
+        build_payment_transaction(
+          identity_after_reference,
+          "MANDATE_PAYMENT",
+          money_set(amount, currency_code),
+          Some("mandate"),
+          None,
+          Some(payment_reference_id),
+        )
+      let #(job_id, identity_after_job) =
+        synthetic_identity.make_synthetic_gid(identity_after_transaction, "Job")
+      let mandate_payment =
+        CapturedObject([
+          #("idempotencyKey", CapturedString(idempotency_key)),
+          #("jobId", CapturedString(job_id)),
+          #("paymentReferenceId", CapturedString(payment_reference_id)),
+          #(
+            "transactionId",
+            optional_captured_string(captured_string_field(transaction, "id")),
+          ),
+        ])
+      let updated_order =
+        order
+        |> append_order_transactions([transaction])
+        |> append_mandate_payment(mandate_payment)
+        |> append_payment_gateway("mandate")
+        |> apply_payment_derived_fields
+      let next_store = store.stage_order(store, updated_order)
+      let payload =
+        serialize_mandate_payment_payload(
+          field,
+          Some(mandate_payment),
+          Some(payment_reference_id),
+          Some(updated_order),
+          [],
+          fragments,
+        )
+      #(key, payload, next_store, identity_after_job, [order.id], [
+        payment_log_draft("orderCreateMandatePayment", [order.id], store.Staged),
+      ])
+    }
+  }
+}
+
+fn build_payment_transaction(
+  identity: SyntheticIdentityRegistry,
+  kind: String,
+  amount_set: CapturedJsonValue,
+  gateway: Option(String),
+  parent_transaction_id: Option(String),
+  payment_reference_id: Option(String),
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(transaction_id, identity_after_transaction) =
+    synthetic_identity.make_synthetic_gid(identity, "OrderTransaction")
+  let #(payment_id, identity_after_payment) =
+    synthetic_identity.make_synthetic_gid(identity_after_transaction, "Payment")
+  let #(processed_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_payment)
+  let parent_transaction = case parent_transaction_id {
+    Some(id) ->
+      CapturedObject([
+        #("id", CapturedString(id)),
+        #("kind", CapturedString("AUTHORIZATION")),
+        #("status", CapturedString("SUCCESS")),
+      ])
+    None -> CapturedNull
+  }
+  #(
+    CapturedObject([
+      #("id", CapturedString(transaction_id)),
+      #("kind", CapturedString(kind)),
+      #("status", CapturedString("SUCCESS")),
+      #("gateway", optional_captured_string(gateway)),
+      #("amountSet", amount_set),
+      #("parentTransactionId", optional_captured_string(parent_transaction_id)),
+      #("parentTransaction", parent_transaction),
+      #("paymentId", CapturedString(payment_id)),
+      #("paymentReferenceId", optional_captured_string(payment_reference_id)),
+      #("processedAt", CapturedString(processed_at)),
+    ]),
+    next_identity,
+  )
+}
+
+fn append_order_transactions(
+  order: OrderRecord,
+  transactions: List(CapturedJsonValue),
+) -> OrderRecord {
+  let updated =
+    order.data
+    |> replace_captured_object_fields([
+      #(
+        "transactions",
+        CapturedArray(list.append(order_transactions(order), transactions)),
+      ),
+    ])
+  OrderRecord(..order, data: updated)
+}
+
+fn append_mandate_payment(
+  order: OrderRecord,
+  payment: CapturedJsonValue,
+) -> OrderRecord {
+  let existing = mandate_payments(order)
+  let updated =
+    order.data
+    |> replace_captured_object_fields([
+      #("mandatePayments", CapturedArray(list.append(existing, [payment]))),
+    ])
+  OrderRecord(..order, data: updated)
+}
+
+fn append_payment_gateway(order: OrderRecord, gateway: String) -> OrderRecord {
+  let existing = payment_gateway_names(order)
+  let gateways = case list.contains(existing, gateway) {
+    True -> existing
+    False -> list.append(existing, [gateway])
+  }
+  let updated =
+    order.data
+    |> replace_captured_object_fields([
+      #(
+        "paymentGatewayNames",
+        CapturedArray(list.map(gateways, CapturedString)),
+      ),
+    ])
+  OrderRecord(..order, data: updated)
+}
+
+fn apply_payment_derived_fields(order: OrderRecord) -> OrderRecord {
+  let currency_code = order_currency_code(order)
+  let received = total_received_amount(order)
+  let total =
+    captured_money_amount(order.data, "currentTotalPriceSet")
+    |> nonzero_float(captured_money_amount(order.data, "totalPriceSet"))
+  let outstanding = max_float(0.0, total -. received)
+  let capturable = total_capturable_amount(order)
+  let has_voided_authorization =
+    order_transactions(order)
+    |> list.any(fn(transaction) {
+      is_successful_authorization(transaction)
+      && transaction_has_voiding_child(
+        order,
+        captured_string_field(transaction, "id") |> option.unwrap(""),
+      )
+    })
+  let display_status = case received >=. total && total >. 0.0 {
+    True -> "PAID"
+    False ->
+      case received >. 0.0 {
+        True -> "PARTIALLY_PAID"
+        False ->
+          case capturable >. 0.0 {
+            True -> "AUTHORIZED"
+            False ->
+              case has_voided_authorization {
+                True -> "VOIDED"
+                False ->
+                  captured_string_field(order.data, "displayFinancialStatus")
+                  |> option.unwrap("PENDING")
+              }
+          }
+      }
+  }
+  let updated =
+    order.data
+    |> replace_captured_object_fields([
+      #("displayFinancialStatus", CapturedString(display_status)),
+      #("capturable", CapturedBool(capturable >. 0.0)),
+      #("totalCapturable", CapturedString(float.to_string(capturable))),
+      #("totalCapturableSet", money_set(capturable, currency_code)),
+      #("totalOutstandingSet", money_set(outstanding, currency_code)),
+      #("totalReceivedSet", money_set(received, currency_code)),
+      #("netPaymentSet", money_set(received, currency_code)),
+    ])
+  OrderRecord(..order, data: updated)
+}
+
+fn find_order_with_transaction(
+  store: Store,
+  transaction_id: String,
+) -> Option(#(OrderRecord, CapturedJsonValue)) {
+  store.list_effective_orders(store)
+  |> list.find_map(fn(order) {
+    case find_transaction(order, transaction_id) {
+      Some(transaction) -> Ok(#(order, transaction))
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn find_transaction(
+  order: OrderRecord,
+  transaction_id: String,
+) -> Option(CapturedJsonValue) {
+  order_transactions(order)
+  |> list.find(fn(transaction) {
+    captured_string_field(transaction, "id") == Some(transaction_id)
+  })
+  |> option.from_result
+}
+
+fn is_successful_authorization(transaction: CapturedJsonValue) -> Bool {
+  captured_string_field(transaction, "kind") == Some("AUTHORIZATION")
+  && captured_string_field(transaction, "status") == Some("SUCCESS")
+}
+
+fn is_successful_payment_capture(transaction: CapturedJsonValue) -> Bool {
+  captured_string_field(transaction, "status") == Some("SUCCESS")
+  && case captured_string_field(transaction, "kind") {
+    Some("SALE") | Some("CAPTURE") | Some("MANDATE_PAYMENT") -> True
+    _ -> False
+  }
+}
+
+fn transaction_has_voiding_child(
+  order: OrderRecord,
+  parent_transaction_id: String,
+) -> Bool {
+  order_transactions(order)
+  |> list.any(fn(transaction) {
+    captured_string_field(transaction, "kind") == Some("VOID")
+    && captured_string_field(transaction, "status") == Some("SUCCESS")
+    && captured_string_field(transaction, "parentTransactionId")
+    == Some(parent_transaction_id)
+  })
+}
+
+fn captured_amount_for_authorization(
+  order: OrderRecord,
+  parent_transaction_id: String,
+) -> Float {
+  order_transactions(order)
+  |> list.filter(fn(transaction) {
+    captured_string_field(transaction, "kind") == Some("CAPTURE")
+    && captured_string_field(transaction, "status") == Some("SUCCESS")
+    && captured_string_field(transaction, "parentTransactionId")
+    == Some(parent_transaction_id)
+  })
+  |> list.fold(0.0, fn(sum, transaction) {
+    sum +. captured_money_amount(transaction, "amountSet")
+  })
+}
+
+fn capturable_amount_for_authorization(
+  order: OrderRecord,
+  authorization: CapturedJsonValue,
+) -> Float {
+  let authorization_id =
+    captured_string_field(authorization, "id") |> option.unwrap("")
+  case
+    !is_successful_authorization(authorization)
+    || transaction_has_voiding_child(order, authorization_id)
+  {
+    True -> 0.0
+    False ->
+      max_float(
+        0.0,
+        captured_money_amount(authorization, "amountSet")
+          -. captured_amount_for_authorization(order, authorization_id),
+      )
+  }
+}
+
+fn total_capturable_amount(order: OrderRecord) -> Float {
+  order_transactions(order)
+  |> list.filter(is_successful_authorization)
+  |> list.fold(0.0, fn(sum, transaction) {
+    sum +. capturable_amount_for_authorization(order, transaction)
+  })
+}
+
+fn total_received_amount(order: OrderRecord) -> Float {
+  order_transactions(order)
+  |> list.filter(is_successful_payment_capture)
+  |> list.fold(0.0, fn(sum, transaction) {
+    sum +. captured_money_amount(transaction, "amountSet")
+  })
+}
+
+fn payment_gateway_names(order: OrderRecord) -> List(String) {
+  case captured_object_field(order.data, "paymentGatewayNames") {
+    Some(CapturedArray(values)) ->
+      values
+      |> list.filter_map(fn(value) {
+        case value {
+          CapturedString(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn mandate_payments(order: OrderRecord) -> List(CapturedJsonValue) {
+  case captured_object_field(order.data, "mandatePayments") {
+    Some(CapturedArray(values)) -> values
+    _ -> []
+  }
+}
+
+fn find_mandate_payment(
+  order: OrderRecord,
+  idempotency_key: String,
+) -> Option(CapturedJsonValue) {
+  mandate_payments(order)
+  |> list.find(fn(payment) {
+    captured_string_field(payment, "idempotencyKey") == Some(idempotency_key)
+  })
+  |> option.from_result
+}
+
+fn payment_input_amount(
+  input: Dict(String, root_field.ResolvedValue),
+  fallback: Float,
+) -> Float {
+  case dict.get(input, "amount") {
+    Ok(root_field.ObjectVal(amount)) ->
+      read_number(amount, "amount") |> option.unwrap(fallback)
+    _ ->
+      read_number(input, "amount")
+      |> option.or(case read_object(input, "amountSet") {
+        Some(amount_set) ->
+          case read_object(amount_set, "shopMoney") {
+            Some(shop_money) -> read_number(shop_money, "amount")
+            None -> None
+          }
+        None -> None
+      })
+      |> option.unwrap(fallback)
+  }
+}
+
+fn payment_input_currency(
+  input: Dict(String, root_field.ResolvedValue),
+  fallback: String,
+) -> String {
+  read_string(input, "currency")
+  |> option.or(case read_object(input, "amount") {
+    Some(amount) -> read_string(amount, "currencyCode")
+    None -> None
+  })
+  |> option.or(case read_object(input, "amountSet") {
+    Some(amount_set) ->
+      case read_object(amount_set, "shopMoney") {
+        Some(shop_money) -> read_string(shop_money, "currencyCode")
+        None -> None
+      }
+    None -> None
+  })
+  |> option.unwrap(fallback)
+}
+
+fn transaction_void_reference(
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(Option(String), String) {
+  case read_string(args, "parentTransactionId") {
+    Some(id) -> #(Some(id), "parentTransactionId")
+    None ->
+      case read_string(args, "id") {
+        Some(id) -> #(Some(id), "id")
+        None ->
+          case read_object(args, "input") {
+            Some(input) ->
+              case read_string(input, "parentTransactionId") {
+                Some(id) -> #(Some(id), "parentTransactionId")
+                None -> #(read_string(input, "id"), "id")
+              }
+            None -> #(None, "parentTransactionId")
+          }
+      }
+  }
+}
+
+fn serialize_order_capture_payload(
+  field: Selection,
+  transaction: Option(CapturedJsonValue),
+  order: Option(OrderRecord),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  json.object(
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "transaction" -> #(
+              key,
+              serialize_captured_selection(child, transaction, fragments),
+            )
+            "order" -> #(key, case order {
+              Some(order) -> serialize_order_node(child, order, fragments)
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    }),
+  )
+}
+
+fn serialize_transaction_void_payload(
+  field: Selection,
+  transaction: Option(CapturedJsonValue),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  json.object(
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "transaction" -> #(
+              key,
+              serialize_captured_selection(child, transaction, fragments),
+            )
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    }),
+  )
+}
+
+fn serialize_mandate_payment_payload(
+  field: Selection,
+  payment: Option(CapturedJsonValue),
+  payment_reference_id: Option(String),
+  order: Option(OrderRecord),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  json.object(
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "job" -> #(key, case payment {
+              Some(payment) ->
+                serialize_job_selection(
+                  child,
+                  captured_string_field(payment, "jobId"),
+                )
+              None -> json.null()
+            })
+            "paymentReferenceId" -> #(
+              key,
+              option_string_json(payment_reference_id),
+            )
+            "order" -> #(key, case order {
+              Some(order) -> serialize_order_node(child, order, fragments)
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    }),
+  )
+}
+
+fn serialize_captured_selection(
+  field: Selection,
+  value: Option(CapturedJsonValue),
+  fragments: FragmentMap,
+) -> Json {
+  case value {
+    Some(value) ->
+      project_graphql_value(
+        captured_json_source(value),
+        selection_children(field),
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_job_selection(field: Selection, job_id: Option(String)) -> Json {
+  case job_id {
+    None -> json.null()
+    Some(id) ->
+      json.object(
+        list.map(selection_children(field), fn(child) {
+          let key = get_field_response_key(child)
+          case child {
+            Field(name: name, ..) ->
+              case name.value {
+                "id" -> #(key, json.string(id))
+                "done" -> #(key, json.bool(True))
+                _ -> #(key, json.null())
+              }
+            _ -> #(key, json.null())
+          }
+        }),
+      )
+  }
+}
+
+fn option_string_json(value: Option(String)) -> Json {
+  case value {
+    Some(value) -> json.string(value)
+    None -> json.null()
+  }
+}
+
+fn payment_log_draft(
+  root_name: String,
+  staged_ids: List(String),
+  status: store.EntryStatus,
+) -> LogDraft {
+  single_root_log_draft(
+    root_name,
+    staged_ids,
+    status,
+    "payments",
+    "stage-locally",
+    Some("Locally staged " <> root_name <> " in shopify-draft-proxy."),
+  )
 }
 
 fn handle_order_edit_validation_guardrail(

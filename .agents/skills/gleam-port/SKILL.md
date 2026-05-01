@@ -638,6 +638,15 @@ synthetic-id/timestamp expected differences.
   expose downstream `order(id:)` from the staged order. Payment transaction
   lifecycle roots still need their own local state transitions before their
   parity specs can be ungated.
+- Order payment lifecycle parity (`orderCapture`, `transactionVoid`,
+  `orderCreateMandatePayment`) is housed in the Orders module even though the
+  registry domain is `payments`, because the local state transitions mutate
+  staged `OrderRecord` JSON. Preserve mutation-log synthetic-id consumption:
+  primary `orderCreate` and failed validation branches return log drafts, so
+  later transaction, payment, payment-reference, and job ids match the
+  local-runtime fixtures. Store mandate idempotency records as hidden captured
+  JSON on the staged order; selected order reads naturally ignore that
+  bookkeeping.
 
 ## Workflow for a new pass
 
