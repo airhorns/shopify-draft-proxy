@@ -350,6 +350,8 @@ fn seed_capture_preconditions(
       seed_product_variant_delete_preconditions(capture, proxy)
     "inventory-quantity-roots-parity" ->
       seed_inventory_quantity_roots_preconditions(capture, proxy)
+    "inventory-quantity-contracts-2026-04" ->
+      seed_inventory_quantity_contracts_preconditions(capture, proxy)
     "inventory-adjust-quantities-live-parity" ->
       seed_inventory_adjust_quantities_preconditions(capture, proxy)
     "inventory-activate-live-parity" ->
@@ -4374,6 +4376,97 @@ fn seed_inventory_quantity_roots_preconditions(
               inventory_item_id,
               location_1_id,
               "My Custom Location",
+            ),
+          ],
+        ),
+      ),
+      contextual_pricing: None,
+      cursor: None,
+    )
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products([product])
+    |> store_mod.upsert_base_product_variants([variant])
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_inventory_quantity_contracts_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_id =
+    jsonpath.lookup(capture, "$.setup.product.productId")
+    |> json_string_or("gid://shopify/Product/10172136718642")
+  let variant_id =
+    jsonpath.lookup(capture, "$.setup.product.variantId")
+    |> json_string_or("gid://shopify/ProductVariant/51105380008242")
+  let inventory_item_id =
+    jsonpath.lookup(capture, "$.setup.product.inventoryItemId")
+    |> json_string_or("gid://shopify/InventoryItem/53208220533042")
+  let location_id =
+    jsonpath.lookup(
+      capture,
+      "$.inventorySetQuantities.variables.input.quantities[0].locationId",
+    )
+    |> json_string_or("gid://shopify/Location/106318430514")
+  let location_name =
+    jsonpath.lookup(
+      capture,
+      "$.downstreamRead.data.inventoryItem.inventoryLevels.nodes[0].location.name",
+    )
+    |> json_string_or("Shop location")
+  let product =
+    ProductRecord(
+      id: product_id,
+      legacy_resource_id: None,
+      title: "Inventory quantity 2026-04 contract seed",
+      handle: "inventory-quantity-2026-04-contract-seed",
+      status: "ACTIVE",
+      vendor: None,
+      product_type: None,
+      tags: [],
+      total_inventory: Some(0),
+      tracks_inventory: Some(True),
+      created_at: None,
+      updated_at: None,
+      published_at: None,
+      description_html: "",
+      online_store_preview_url: None,
+      template_suffix: None,
+      seo: ProductSeoRecord(title: None, description: None),
+      category: None,
+      publication_ids: [],
+      contextual_pricing: None,
+      cursor: None,
+    )
+  let variant =
+    ProductVariantRecord(
+      id: variant_id,
+      product_id: product_id,
+      title: "Default Title",
+      sku: None,
+      barcode: None,
+      price: None,
+      compare_at_price: None,
+      taxable: None,
+      inventory_policy: None,
+      inventory_quantity: Some(0),
+      selected_options: [],
+      media_ids: [],
+      inventory_item: Some(
+        InventoryItemRecord(
+          id: inventory_item_id,
+          tracked: Some(True),
+          requires_shipping: None,
+          measurement: None,
+          country_code_of_origin: None,
+          province_code_of_origin: None,
+          harmonized_system_code: None,
+          inventory_levels: [
+            inventory_quantity_seed_level(
+              inventory_item_id,
+              location_id,
+              location_name,
             ),
           ],
         ),

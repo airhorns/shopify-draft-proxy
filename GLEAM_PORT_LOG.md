@@ -9,6 +9,44 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 112: HAR-505 mainline refresh seeding
+
+Refreshes the HAR-505 Marketing branch after `origin/main` promoted the
+remaining Product parity gates. The conflict resolution preserves the branch's
+Marketing and localization parity seeding while keeping the mainline
+Products/Inventory runner additions. The merged runner now explicitly seeds the
+captured `inventory-quantity-contracts-2026-04` disposable product from the
+fixture's `setup.product` block before replaying the 2026-04 set/adjust/read
+flow.
+
+| Module                           | Change                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `gleam/test/parity/runner.gleam` | Keeps Marketing capture seeding and seeds the 2026-04 inventory quantity contract fixture. |
+| `gleam/test/parity/spec.gleam`   | Keeps both `selectedPaths` and `upstreamCapturePath` parity target documentation.          |
+| `GLEAM_PORT_LOG.md`              | Preserves mainline Product pass history and the branch-local localization seeding entry.   |
+
+Validation:
+Full JavaScript is green at 718 tests. Docker Erlang is green at 714 tests.
+`corepack pnpm lint`, `git diff --check`, `corepack pnpm
+gleam:port:coverage`, and `corepack pnpm gleam:registry:check` are green.
+Gleam parity coverage reports 379 checked-in specs and 176 expected failures.
+
+### Findings
+
+- The 2026-04 inventory quantity contract fixture stores its disposable Product,
+  Variant, and InventoryItem ids under `setup.product`; without that seed, the
+  success mutation branches correctly reject the unknown inventory item instead
+  of exercising the captured contract path.
+- The Marketing branch did not need parity fixture or request changes for this
+  refresh; the required work was runner seeding and conflict reconciliation.
+
+### Risks / open items
+
+- TypeScript Marketing runtime deletion remains deferred to HAR-518 under the
+  incremental port preservation rule.
+
+---
+
 ## 2026-04-30 - Pass 111: product search grammar parity
 
 Promotes the final gated Product parity spec,
