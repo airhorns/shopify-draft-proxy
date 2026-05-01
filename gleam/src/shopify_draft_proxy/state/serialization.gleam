@@ -46,6 +46,48 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #("b2bCompanies", dict_to_json(state.b2b_companies, b2b_company_json)),
+    #("b2bCompanyOrder", json.array(state.b2b_company_order, json.string)),
+    #("deletedB2BCompanyIds", bool_dict_to_json(state.deleted_b2b_company_ids)),
+    #(
+      "b2bCompanyContacts",
+      dict_to_json(state.b2b_company_contacts, b2b_company_contact_json),
+    ),
+    #(
+      "b2bCompanyContactOrder",
+      json.array(state.b2b_company_contact_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyContactIds",
+      bool_dict_to_json(state.deleted_b2b_company_contact_ids),
+    ),
+    #(
+      "b2bCompanyContactRoles",
+      dict_to_json(
+        state.b2b_company_contact_roles,
+        b2b_company_contact_role_json,
+      ),
+    ),
+    #(
+      "b2bCompanyContactRoleOrder",
+      json.array(state.b2b_company_contact_role_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyContactRoleIds",
+      bool_dict_to_json(state.deleted_b2b_company_contact_role_ids),
+    ),
+    #(
+      "b2bCompanyLocations",
+      dict_to_json(state.b2b_company_locations, b2b_company_location_json),
+    ),
+    #(
+      "b2bCompanyLocationOrder",
+      json.array(state.b2b_company_location_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyLocationIds",
+      bool_dict_to_json(state.deleted_b2b_company_location_ids),
+    ),
     #("products", dict_to_json(state.products, product_json)),
     #("productOrder", json.array(state.product_order, json.string)),
     #(
@@ -431,6 +473,48 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #("b2bCompanies", dict_to_json(state.b2b_companies, b2b_company_json)),
+    #("b2bCompanyOrder", json.array(state.b2b_company_order, json.string)),
+    #("deletedB2BCompanyIds", bool_dict_to_json(state.deleted_b2b_company_ids)),
+    #(
+      "b2bCompanyContacts",
+      dict_to_json(state.b2b_company_contacts, b2b_company_contact_json),
+    ),
+    #(
+      "b2bCompanyContactOrder",
+      json.array(state.b2b_company_contact_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyContactIds",
+      bool_dict_to_json(state.deleted_b2b_company_contact_ids),
+    ),
+    #(
+      "b2bCompanyContactRoles",
+      dict_to_json(
+        state.b2b_company_contact_roles,
+        b2b_company_contact_role_json,
+      ),
+    ),
+    #(
+      "b2bCompanyContactRoleOrder",
+      json.array(state.b2b_company_contact_role_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyContactRoleIds",
+      bool_dict_to_json(state.deleted_b2b_company_contact_role_ids),
+    ),
+    #(
+      "b2bCompanyLocations",
+      dict_to_json(state.b2b_company_locations, b2b_company_location_json),
+    ),
+    #(
+      "b2bCompanyLocationOrder",
+      json.array(state.b2b_company_location_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyLocationIds",
+      bool_dict_to_json(state.deleted_b2b_company_location_ids),
+    ),
     #("products", dict_to_json(state.products, product_json)),
     #("productOrder", json.array(state.product_order, json.string)),
     #(
@@ -1013,6 +1097,46 @@ fn shop_policy_json(record: types.ShopPolicyRecord) -> Json {
     #("url", json.string(record.url)),
     #("createdAt", json.string(record.created_at)),
     #("updatedAt", json.string(record.updated_at)),
+  ])
+}
+
+fn b2b_company_json(record: types.B2BCompanyRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", store_property_data_json(record.data)),
+    #("contactIds", json.array(record.contact_ids, json.string)),
+    #("locationIds", json.array(record.location_ids, json.string)),
+    #("contactRoleIds", json.array(record.contact_role_ids, json.string)),
+  ])
+}
+
+fn b2b_company_contact_json(record: types.B2BCompanyContactRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("companyId", json.string(record.company_id)),
+    #("data", store_property_data_json(record.data)),
+  ])
+}
+
+fn b2b_company_contact_role_json(
+  record: types.B2BCompanyContactRoleRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("companyId", json.string(record.company_id)),
+    #("data", store_property_data_json(record.data)),
+  ])
+}
+
+fn b2b_company_location_json(record: types.B2BCompanyLocationRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("companyId", json.string(record.company_id)),
+    #("data", store_property_data_json(record.data)),
   ])
 }
 
@@ -2465,6 +2589,18 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     admin_platform_flow_triggers: flow_triggers,
     admin_platform_flow_trigger_order: flow_trigger_order,
     shop: shop,
+    b2b_companies: empty.b2b_companies,
+    b2b_company_order: empty.b2b_company_order,
+    deleted_b2b_company_ids: empty.deleted_b2b_company_ids,
+    b2b_company_contacts: empty.b2b_company_contacts,
+    b2b_company_contact_order: empty.b2b_company_contact_order,
+    deleted_b2b_company_contact_ids: empty.deleted_b2b_company_contact_ids,
+    b2b_company_contact_roles: empty.b2b_company_contact_roles,
+    b2b_company_contact_role_order: empty.b2b_company_contact_role_order,
+    deleted_b2b_company_contact_role_ids: empty.deleted_b2b_company_contact_role_ids,
+    b2b_company_locations: empty.b2b_company_locations,
+    b2b_company_location_order: empty.b2b_company_location_order,
+    deleted_b2b_company_location_ids: empty.deleted_b2b_company_location_ids,
     store_property_locations: store_property_locations,
     store_property_location_order: store_property_location_order,
     deleted_store_property_location_ids: deleted_store_property_location_ids,
@@ -2786,6 +2922,18 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     admin_platform_flow_triggers: flow_triggers,
     admin_platform_flow_trigger_order: flow_trigger_order,
     shop: shop,
+    b2b_companies: empty.b2b_companies,
+    b2b_company_order: empty.b2b_company_order,
+    deleted_b2b_company_ids: empty.deleted_b2b_company_ids,
+    b2b_company_contacts: empty.b2b_company_contacts,
+    b2b_company_contact_order: empty.b2b_company_contact_order,
+    deleted_b2b_company_contact_ids: empty.deleted_b2b_company_contact_ids,
+    b2b_company_contact_roles: empty.b2b_company_contact_roles,
+    b2b_company_contact_role_order: empty.b2b_company_contact_role_order,
+    deleted_b2b_company_contact_role_ids: empty.deleted_b2b_company_contact_role_ids,
+    b2b_company_locations: empty.b2b_company_locations,
+    b2b_company_location_order: empty.b2b_company_location_order,
+    deleted_b2b_company_location_ids: empty.deleted_b2b_company_location_ids,
     store_property_locations: store_property_locations,
     store_property_location_order: store_property_location_order,
     deleted_store_property_location_ids: deleted_store_property_location_ids,

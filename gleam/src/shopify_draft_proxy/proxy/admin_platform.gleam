@@ -22,6 +22,7 @@ import shopify_draft_proxy/graphql/ast.{
   InlineFragment, IntValue, Location, NamedType, SelectionSet,
 }
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/b2b
 import shopify_draft_proxy/proxy/customers
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
@@ -519,6 +520,15 @@ fn serialize_node_by_id(
     | "DeliveryZone"
     | "MarketWebPresence" ->
       serialize_generic_node_by_id(store, id, selections, fragments)
+    "CompanyAddress" ->
+      b2b.serialize_company_address_node_by_id(store, id, selections, fragments)
+    "CompanyContactRoleAssignment" ->
+      b2b.serialize_company_contact_role_assignment_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+      )
     _ -> json.null()
   }
 }
