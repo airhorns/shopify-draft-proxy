@@ -135,6 +135,58 @@ pub type DiscountBulkOperationRecord {
   )
 }
 
+// Orders domain
+// ---------------------------------------------------------------------------
+
+pub type AbandonedCheckoutRecord {
+  AbandonedCheckoutRecord(
+    id: String,
+    cursor: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+pub type AbandonmentDeliveryActivityRecord {
+  AbandonmentDeliveryActivityRecord(
+    marketing_activity_id: String,
+    delivery_status: String,
+    delivered_at: Option(String),
+    delivery_status_change_reason: Option(String),
+  )
+}
+
+pub type AbandonmentRecord {
+  AbandonmentRecord(
+    id: String,
+    abandoned_checkout_id: Option(String),
+    cursor: Option(String),
+    data: CapturedJsonValue,
+    delivery_activities: Dict(String, AbandonmentDeliveryActivityRecord),
+  )
+}
+
+pub type DraftOrderRecord {
+  DraftOrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+pub type OrderRecord {
+  OrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+pub type DraftOrderVariantCatalogRecord {
+  DraftOrderVariantCatalogRecord(
+    variant_id: String,
+    title: String,
+    name: String,
+    variant_title: Option(String),
+    sku: Option(String),
+    requires_shipping: Bool,
+    taxable: Bool,
+    unit_price: String,
+    currency_code: String,
+  )
+}
+
 pub type InventoryWeightValue {
   InventoryWeightInt(Int)
   InventoryWeightFloat(Float)
