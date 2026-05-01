@@ -50,6 +50,7 @@ import shopify_draft_proxy/proxy/online_store
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/proxy/orders
+import shopify_draft_proxy/proxy/payments
 import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/saved_searches
@@ -1132,6 +1133,28 @@ fn route_mutation(
         )
         Error(_) -> #(bad_request("Failed to handle customers mutation"), proxy)
       }
+    Ok(PaymentsDomain) ->
+      case
+        payments.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle payments mutation"), proxy)
+      }
     Ok(ShippingFulfillmentsDomain) ->
       case
         shipping_fulfillments.process_mutation(
@@ -1319,6 +1342,12 @@ fn route_query(
         customers.process(proxy.store, query, variables),
         "Failed to handle customers query",
       )
+    Ok(PaymentsDomain) ->
+      respond(
+        proxy,
+        payments.process(proxy.store, query, variables),
+        "Failed to handle payments query",
+      )
     Ok(ShippingFulfillmentsDomain) ->
       respond(
         proxy,
@@ -1371,6 +1400,7 @@ type Domain {
   OnlineStoreDomain
   PrivacyDomain
   CustomersDomain
+  PaymentsDomain
   ShippingFulfillmentsDomain
   OrdersDomain
 }
@@ -1486,15 +1516,20 @@ fn local_query_dispatch_domain(
   case name {
     "event" | "events" | "eventsCount" -> Ok(EventsDomain)
     "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
+    "shop" ->
+      case online_store.is_online_store_query_root(name, query) {
+        True -> Ok(OnlineStoreDomain)
+        False -> Ok(StorePropertiesDomain)
+      }
     "order" ->
       case shipping_fulfillment_order_lifecycle_query(query) {
         True -> Ok(ShippingFulfillmentsDomain)
         False -> Ok(OrdersDomain)
       }
-    "shop" ->
-      case online_store.is_online_store_query_root(name, query) {
-        True -> Ok(OnlineStoreDomain)
-        False -> Ok(StorePropertiesDomain)
+    "draftOrder" ->
+      case draft_order_payment_terms_only_query(query) {
+        True -> Ok(PaymentsDomain)
+        False -> Ok(OrdersDomain)
       }
     "product" | "collection" ->
       case store_publishable_owner_query(name, query) {
@@ -1502,184 +1537,85 @@ fn local_query_dispatch_domain(
         False -> Ok(ProductsDomain)
       }
     _ ->
-      case saved_searches.is_saved_search_query_root(name) {
-        True -> Ok(SavedSearchesDomain)
-        False ->
-          case webhooks.is_webhook_subscription_query_root(name) {
-            True -> Ok(WebhooksDomain)
-            False ->
-              case apps.is_app_query_root(name) {
-                True -> Ok(AppsDomain)
-                False ->
-                  case functions.is_function_query_root(name) {
-                    True -> Ok(FunctionsDomain)
-                    False ->
-                      case gift_cards.is_gift_card_query_root(name) {
-                        True -> Ok(GiftCardsDomain)
-                        False ->
-                          case discounts.is_discount_query_root(name) {
-                            True -> Ok(DiscountsDomain)
-                            False ->
-                              case b2b.is_b2b_query_root(name) {
-                                True -> Ok(B2BDomain)
-                                False ->
-                                  case segments.is_segment_query_root(name) {
-                                    True -> Ok(SegmentsDomain)
-                                    False ->
-                                      case
-                                        products.is_products_query_root(name)
-                                      {
-                                        True -> Ok(ProductsDomain)
-                                        False ->
-                                          case
-                                            customers.is_customer_query_root(
-                                              name,
-                                            )
-                                          {
-                                            True -> Ok(CustomersDomain)
-                                            False ->
-                                              case
-                                                metafield_definitions.is_metafield_definitions_query_root(
-                                                  name,
-                                                )
-                                              {
-                                                True ->
-                                                  Ok(MetafieldDefinitionsDomain)
-                                                False ->
-                                                  case
-                                                    localization.is_localization_query_root(
-                                                      name,
-                                                    )
-                                                  {
-                                                    True ->
-                                                      Ok(LocalizationDomain)
-                                                    False ->
-                                                      case
-                                                        metaobject_definitions.is_metaobject_definitions_query_root(
-                                                          name,
-                                                        )
-                                                      {
-                                                        True ->
-                                                          Ok(
-                                                            MetaobjectDefinitionsDomain,
-                                                          )
-                                                        False ->
-                                                          case
-                                                            marketing.is_marketing_query_root(
-                                                              name,
-                                                            )
-                                                          {
-                                                            True ->
-                                                              Ok(
-                                                                MarketingDomain,
-                                                              )
-                                                            False ->
-                                                              case
-                                                                bulk_operations.is_bulk_operations_query_root(
-                                                                  name,
-                                                                )
-                                                              {
-                                                                True ->
-                                                                  Ok(
-                                                                    BulkOperationsDomain,
-                                                                  )
-                                                                False ->
-                                                                  case
-                                                                    media.is_media_query_root(
-                                                                      name,
-                                                                    )
-                                                                  {
-                                                                    True ->
-                                                                      Ok(
-                                                                        MediaDomain,
-                                                                      )
-                                                                    False ->
-                                                                      case
-                                                                        shipping_fulfillment_priority_query_root(
-                                                                          name,
-                                                                        )
-                                                                      {
-                                                                        True ->
-                                                                          Ok(
-                                                                            ShippingFulfillmentsDomain,
-                                                                          )
-                                                                        False ->
-                                                                          case
-                                                                            orders.is_orders_query_root(
-                                                                              name,
-                                                                            )
-                                                                          {
-                                                                            True ->
-                                                                              Ok(
-                                                                                OrdersDomain,
-                                                                              )
-                                                                            False ->
-                                                                              case
-                                                                                admin_platform.is_admin_platform_query_root(
-                                                                                  name,
-                                                                                )
-                                                                              {
-                                                                                True ->
-                                                                                  Ok(
-                                                                                    AdminPlatformDomain,
-                                                                                  )
-                                                                                False ->
-                                                                                  case
-                                                                                    store_properties.is_store_properties_query_root(
-                                                                                      name,
-                                                                                    )
-                                                                                  {
-                                                                                    True ->
-                                                                                      Ok(
-                                                                                        StorePropertiesDomain,
-                                                                                      )
-                                                                                    False ->
-                                                                                      case
-                                                                                        online_store.is_online_store_query_root(
-                                                                                          name,
-                                                                                          query,
-                                                                                        )
-                                                                                      {
-                                                                                        True ->
-                                                                                          Ok(
-                                                                                            OnlineStoreDomain,
-                                                                                          )
-                                                                                        False ->
-                                                                                          case
-                                                                                            shipping_fulfillments.is_shipping_fulfillment_query_root(
-                                                                                              name,
-                                                                                            )
-                                                                                          {
-                                                                                            True ->
-                                                                                              Ok(
-                                                                                                ShippingFulfillmentsDomain,
-                                                                                              )
-                                                                                            False ->
-                                                                                              Error(
-                                                                                                Nil,
-                                                                                              )
-                                                                                          }
-                                                                                      }
-                                                                                  }
-                                                                              }
-                                                                          }
-                                                                      }
-                                                                  }
-                                                              }
-                                                          }
-                                                      }
-                                                  }
-                                              }
-                                          }
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  }
-              }
+      first_matching_domain([
+        #(payments.is_payments_query_root(name), PaymentsDomain),
+        #(saved_searches.is_saved_search_query_root(name), SavedSearchesDomain),
+        #(webhooks.is_webhook_subscription_query_root(name), WebhooksDomain),
+        #(apps.is_app_query_root(name), AppsDomain),
+        #(functions.is_function_query_root(name), FunctionsDomain),
+        #(gift_cards.is_gift_card_query_root(name), GiftCardsDomain),
+        #(discounts.is_discount_query_root(name), DiscountsDomain),
+        #(b2b.is_b2b_query_root(name), B2BDomain),
+        #(segments.is_segment_query_root(name), SegmentsDomain),
+        #(products.is_products_query_root(name), ProductsDomain),
+        #(customers.is_customer_query_root(name), CustomersDomain),
+        #(
+          shipping_fulfillment_priority_query_root(name),
+          ShippingFulfillmentsDomain,
+        ),
+        #(orders.is_orders_query_root(name), OrdersDomain),
+        #(
+          metafield_definitions.is_metafield_definitions_query_root(name),
+          MetafieldDefinitionsDomain,
+        ),
+        #(localization.is_localization_query_root(name), LocalizationDomain),
+        #(
+          metaobject_definitions.is_metaobject_definitions_query_root(name),
+          MetaobjectDefinitionsDomain,
+        ),
+        #(marketing.is_marketing_query_root(name), MarketingDomain),
+        #(
+          bulk_operations.is_bulk_operations_query_root(name),
+          BulkOperationsDomain,
+        ),
+        #(media.is_media_query_root(name), MediaDomain),
+        #(
+          admin_platform.is_admin_platform_query_root(name),
+          AdminPlatformDomain,
+        ),
+        #(
+          store_properties.is_store_properties_query_root(name),
+          StorePropertiesDomain,
+        ),
+        #(
+          online_store.is_online_store_query_root(name, query),
+          OnlineStoreDomain,
+        ),
+        #(
+          shipping_fulfillments.is_shipping_fulfillment_query_root(name),
+          ShippingFulfillmentsDomain,
+        ),
+      ])
+  }
+}
+
+fn draft_order_payment_terms_only_query(query: String) -> Bool {
+  case root_field.get_root_fields(query) {
+    Error(_) -> False
+    Ok(fields) ->
+      fields
+      |> list.any(fn(field) {
+        case field {
+          Field(name: field_name, ..) if field_name.value == "draftOrder" -> {
+            let selection_names = root_field.get_selection_names(field)
+            !list.is_empty(selection_names)
+            && list.all(selection_names, fn(name) {
+              name == "id" || name == "paymentTerms" || name == "__typename"
+            })
           }
-      }
+          _ -> False
+        }
+      })
+  }
+}
+
+fn first_matching_domain(
+  candidates: List(#(Bool, Domain)),
+) -> Result(Domain, Nil) {
+  case candidates {
+    [] -> Error(Nil)
+    [#(True, domain), ..] -> Ok(domain)
+    [_, ..rest] -> first_matching_domain(rest)
   }
 }
 
@@ -1756,187 +1692,50 @@ fn local_mutation_dispatch_domain(
 fn local_non_store_publishable_mutation_dispatch_domain(
   name: String,
 ) -> Result(Domain, Nil) {
-  case products.is_products_mutation_root(name) {
-    True -> Ok(ProductsDomain)
-    False ->
-      case store_properties.is_store_properties_mutation_root(name) {
-        True -> Ok(StorePropertiesDomain)
-        False ->
-          case saved_searches.is_saved_search_mutation_root(name) {
-            True -> Ok(SavedSearchesDomain)
-            False ->
-              case webhooks.is_webhook_subscription_mutation_root(name) {
-                True -> Ok(WebhooksDomain)
-                False ->
-                  case apps.is_app_mutation_root(name) {
-                    True -> Ok(AppsDomain)
-                    False ->
-                      case functions.is_function_mutation_root(name) {
-                        True -> Ok(FunctionsDomain)
-                        False ->
-                          case gift_cards.is_gift_card_mutation_root(name) {
-                            True -> Ok(GiftCardsDomain)
-                            False ->
-                              case discounts.is_discount_mutation_root(name) {
-                                True -> Ok(DiscountsDomain)
-                                False ->
-                                  case b2b.is_b2b_mutation_root(name) {
-                                    True -> Ok(B2BDomain)
-                                    False ->
-                                      case
-                                        segments.is_segment_mutation_root(name)
-                                      {
-                                        True -> Ok(SegmentsDomain)
-                                        False ->
-                                          case
-                                            metafield_definitions.is_metafield_definitions_mutation_root(
-                                              name,
-                                            )
-                                          {
-                                            True ->
-                                              Ok(MetafieldDefinitionsDomain)
-                                            False ->
-                                              case
-                                                localization.is_localization_mutation_root(
-                                                  name,
-                                                )
-                                              {
-                                                True -> Ok(LocalizationDomain)
-                                                False ->
-                                                  case
-                                                    metaobject_definitions.is_metaobject_definitions_mutation_root(
-                                                      name,
-                                                    )
-                                                  {
-                                                    True ->
-                                                      Ok(
-                                                        MetaobjectDefinitionsDomain,
-                                                      )
-                                                    False ->
-                                                      case
-                                                        marketing.is_marketing_mutation_root(
-                                                          name,
-                                                        )
-                                                      {
-                                                        True ->
-                                                          Ok(MarketingDomain)
-                                                        False ->
-                                                          case
-                                                            bulk_operations.is_bulk_operations_mutation_root(
-                                                              name,
-                                                            )
-                                                          {
-                                                            True ->
-                                                              Ok(
-                                                                BulkOperationsDomain,
-                                                              )
-                                                            False ->
-                                                              case
-                                                                media.is_media_mutation_root(
-                                                                  name,
-                                                                )
-                                                              {
-                                                                True ->
-                                                                  Ok(
-                                                                    MediaDomain,
-                                                                  )
-                                                                False ->
-                                                                  case
-                                                                    admin_platform.is_admin_platform_mutation_root(
-                                                                      name,
-                                                                    )
-                                                                  {
-                                                                    True ->
-                                                                      Ok(
-                                                                        AdminPlatformDomain,
-                                                                      )
-                                                                    False ->
-                                                                      case
-                                                                        online_store.is_online_store_mutation_root(
-                                                                          name,
-                                                                        )
-                                                                      {
-                                                                        True ->
-                                                                          Ok(
-                                                                            OnlineStoreDomain,
-                                                                          )
-                                                                        False ->
-                                                                          case
-                                                                            privacy.is_privacy_mutation_root(
-                                                                              name,
-                                                                            )
-                                                                          {
-                                                                            True ->
-                                                                              Ok(
-                                                                                PrivacyDomain,
-                                                                              )
-                                                                            False ->
-                                                                              case
-                                                                                shipping_fulfillment_priority_mutation_root(
-                                                                                  name,
-                                                                                )
-                                                                              {
-                                                                                True ->
-                                                                                  Ok(
-                                                                                    ShippingFulfillmentsDomain,
-                                                                                  )
-                                                                                False ->
-                                                                                  case
-                                                                                    orders.is_orders_mutation_root(
-                                                                                      name,
-                                                                                    )
-                                                                                  {
-                                                                                    True ->
-                                                                                      Ok(
-                                                                                        OrdersDomain,
-                                                                                      )
-                                                                                    False ->
-                                                                                      case
-                                                                                        customers.is_customer_mutation_root(
-                                                                                          name,
-                                                                                        )
-                                                                                      {
-                                                                                        True ->
-                                                                                          Ok(
-                                                                                            CustomersDomain,
-                                                                                          )
-                                                                                        False ->
-                                                                                          case
-                                                                                            shipping_fulfillments.is_shipping_fulfillment_mutation_root(
-                                                                                              name,
-                                                                                            )
-                                                                                          {
-                                                                                            True ->
-                                                                                              Ok(
-                                                                                                ShippingFulfillmentsDomain,
-                                                                                              )
-                                                                                            False ->
-                                                                                              Error(
-                                                                                                Nil,
-                                                                                              )
-                                                                                          }
-                                                                                      }
-                                                                                  }
-                                                                              }
-                                                                          }
-                                                                      }
-                                                                  }
-                                                              }
-                                                          }
-                                                      }
-                                                  }
-                                              }
-                                          }
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  }
-              }
-          }
-      }
-  }
+  first_matching_domain([
+    #(payments.is_payments_mutation_root(name), PaymentsDomain),
+    #(products.is_products_mutation_root(name), ProductsDomain),
+    #(
+      store_properties.is_store_properties_mutation_root(name),
+      StorePropertiesDomain,
+    ),
+    #(saved_searches.is_saved_search_mutation_root(name), SavedSearchesDomain),
+    #(webhooks.is_webhook_subscription_mutation_root(name), WebhooksDomain),
+    #(apps.is_app_mutation_root(name), AppsDomain),
+    #(functions.is_function_mutation_root(name), FunctionsDomain),
+    #(gift_cards.is_gift_card_mutation_root(name), GiftCardsDomain),
+    #(discounts.is_discount_mutation_root(name), DiscountsDomain),
+    #(b2b.is_b2b_mutation_root(name), B2BDomain),
+    #(segments.is_segment_mutation_root(name), SegmentsDomain),
+    #(
+      metafield_definitions.is_metafield_definitions_mutation_root(name),
+      MetafieldDefinitionsDomain,
+    ),
+    #(localization.is_localization_mutation_root(name), LocalizationDomain),
+    #(
+      metaobject_definitions.is_metaobject_definitions_mutation_root(name),
+      MetaobjectDefinitionsDomain,
+    ),
+    #(marketing.is_marketing_mutation_root(name), MarketingDomain),
+    #(
+      bulk_operations.is_bulk_operations_mutation_root(name),
+      BulkOperationsDomain,
+    ),
+    #(media.is_media_mutation_root(name), MediaDomain),
+    #(admin_platform.is_admin_platform_mutation_root(name), AdminPlatformDomain),
+    #(online_store.is_online_store_mutation_root(name), OnlineStoreDomain),
+    #(privacy.is_privacy_mutation_root(name), PrivacyDomain),
+    #(
+      shipping_fulfillment_priority_mutation_root(name),
+      ShippingFulfillmentsDomain,
+    ),
+    #(orders.is_orders_mutation_root(name), OrdersDomain),
+    #(customers.is_customer_mutation_root(name), CustomersDomain),
+    #(
+      shipping_fulfillments.is_shipping_fulfillment_mutation_root(name),
+      ShippingFulfillmentsDomain,
+    ),
+  ])
 }
 
 fn publishable_mutation_requests_store_properties(

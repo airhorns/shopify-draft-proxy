@@ -9,6 +9,54 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 167: HAR-496 payments branch localization refresh
+
+Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
+HAR-504 localization parity completion. The merge keeps Payments and
+order-payment parity ungated while preserving mainline localization source
+marker seeding, available-locale excerpt seeding, and the localization gate
+removal.
+
+| Module                                                         | Change                                                                                                 |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `gleam/test/parity/runner.gleam`                               | Keeps payment precondition seeding alongside mainline localization source-marker and locale seeding.   |
+| `gleam/src/shopify_draft_proxy/proxy/localization.gleam`       | Preserves mainline Product and Metafield translatable-resource localization behavior.                  |
+| `gleam/test/shopify_draft_proxy/proxy/localization_test.gleam` | Preserves mainline localization coverage for Product-backed and source-marker-backed resources.        |
+| `config/gleam-port-ci-gates.json`                              | Keeps Payments/order-payment, Online Store, and mainline localization paths ungated after the refresh. |
+| `.agents/skills/gleam-port/SKILL.md`                           | Preserves mainline localization seeding guidance alongside the HAR-496 payments port guidance.         |
+
+Validation:
+
+- `git diff --cached --check`
+- `corepack pnpm lint`
+- `cd gleam && gleam check --target javascript`
+- `cd gleam && gleam check --target erlang`
+- `cd gleam && gleam test --target javascript -- --seed 0` (773 passed)
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
+  (769 passed)
+- `corepack pnpm gleam:port:coverage` (379 specs; 52 expected failures; passed)
+- `corepack pnpm gleam:registry:check`
+- Targeted expected-failure scan for payments/order-payment, finance-risk,
+  product grammar, Segments, Discounts, Media, Online Store, and Localization
+  paths returned no matches.
+
+### Findings
+
+- Mainline now promotes the remaining localization parity fixture through
+  runner-side source-content markers and captured available-locale excerpts.
+  The runner conflict is additive with HAR-496's customer payment method and
+  payment terms seeders, so both seed families remain in the generic
+  capture-precondition chain.
+- The expected-failure gate conflict resolves by keeping the HAR-496
+  payments/order-payment removals plus the mainline localization removal.
+
+### Risks / open items
+
+- TypeScript Payments runtime deletion remains deferred under the incremental
+  port preservation rule until final all-port cutover.
+
+---
+
 ## 2026-05-01 - Pass 119: reverse logistics and order-edit shipping roots
 
 Completes the remaining HAR-493 shipping/fulfillment registry roots that are
