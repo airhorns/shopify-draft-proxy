@@ -21,15 +21,17 @@ keeps the TypeScript runtime intact under the incremental port guardrail.
 | Module                                                              | Change                                                                                                                                    |
 | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam` | Covers singular deletion, plural mixed hit/miss deletion, unknown-ID userErrors, downstream reads, and mutation-log staging.              |
+| `gleam/test/shopify_draft_proxy/proxy/operation_registry_test.gleam` | Preserves the merged inventory-transfer local-dispatch expectation while keeping a price-list fixed-price passthrough sentinel.           |
+| `gleam/test/shopify_draft_proxy/proxy/passthrough_test.gleam`        | Moves the live-hybrid unported-root sentinel to `priceListFixedPricesAdd` after inventory transfer roots landed on `origin/main`.         |
 | `.agents/skills/gleam-port/SKILL.md`                                | Notes that owner-scoped metafield delete roots live with custom-data/metafield-definition handling while sharing product metafield state. |
 | `GLEAM_PORT_LOG.md`                                                 | Records HAR-519 evidence and the TypeScript retirement deferral.                                                                          |
 
 Validation:
 
 - `cd gleam && gleam format --check`
-- `cd gleam && gleam test --target javascript` (776 passed)
-- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`
-  (772 passed)
+- `cd gleam && gleam test --target javascript` (803 passed after merging `origin/main`)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`
+  (799 passed after merging `origin/main`)
 
 ### Findings
 
