@@ -18,7 +18,8 @@ import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/types.{
   type AbandonedCheckoutRecord, type AbandonmentDeliveryActivityRecord,
   type AbandonmentRecord, type AdminPlatformFlowSignatureRecord,
-  type AdminPlatformFlowTriggerRecord, type AppInstallationRecord,
+  type AdminPlatformFlowTriggerRecord, type AdminPlatformGenericNodeRecord,
+  type AdminPlatformTaxonomyCategoryRecord, type AppInstallationRecord,
   type AppOneTimePurchaseRecord, type AppRecord,
   type AppSubscriptionLineItemRecord, type AppSubscriptionRecord,
   type AppUsageRecord, type B2BCompanyContactRecord,
@@ -56,8 +57,9 @@ import shopify_draft_proxy/state/types.{
   type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
   type StorePropertyValue, type TaxAppConfigurationRecord,
   type TranslationRecord, type ValidationRecord, type WebPresenceRecord,
-  type WebhookSubscriptionRecord, AbandonmentRecord, BulkOperationRecord,
-  ChannelRecord, MarketingObject, MarketingString, PublicationRecord,
+  type WebhookSubscriptionRecord, AbandonmentRecord,
+  AdminPlatformTaxonomyCategoryRecord, BulkOperationRecord, ChannelRecord,
+  MarketingObject, MarketingString, PublicationRecord,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the ported slices of `StateSnapshot`
@@ -130,6 +132,12 @@ pub type BaseState {
     inventory_shipment_order: List(String),
     deleted_inventory_shipment_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
+    admin_platform_generic_nodes: Dict(String, AdminPlatformGenericNodeRecord),
+    admin_platform_taxonomy_categories: Dict(
+      String,
+      AdminPlatformTaxonomyCategoryRecord,
+    ),
+    admin_platform_taxonomy_category_order: List(String),
     admin_platform_flow_signatures: Dict(
       String,
       AdminPlatformFlowSignatureRecord,
@@ -351,6 +359,12 @@ pub type StagedState {
     inventory_shipment_order: List(String),
     deleted_inventory_shipment_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
+    admin_platform_generic_nodes: Dict(String, AdminPlatformGenericNodeRecord),
+    admin_platform_taxonomy_categories: Dict(
+      String,
+      AdminPlatformTaxonomyCategoryRecord,
+    ),
+    admin_platform_taxonomy_category_order: List(String),
     admin_platform_flow_signatures: Dict(
       String,
       AdminPlatformFlowSignatureRecord,
@@ -639,6 +653,9 @@ pub fn empty_base_state() -> BaseState {
     inventory_shipment_order: [],
     deleted_inventory_shipment_ids: dict.new(),
     backup_region: None,
+    admin_platform_generic_nodes: dict.new(),
+    admin_platform_taxonomy_categories: dict.new(),
+    admin_platform_taxonomy_category_order: [],
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
     admin_platform_flow_triggers: dict.new(),
@@ -835,6 +852,9 @@ pub fn empty_staged_state() -> StagedState {
     inventory_shipment_order: [],
     deleted_inventory_shipment_ids: dict.new(),
     backup_region: None,
+    admin_platform_generic_nodes: dict.new(),
+    admin_platform_taxonomy_categories: dict.new(),
+    admin_platform_taxonomy_category_order: [],
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
     admin_platform_flow_triggers: dict.new(),
@@ -4064,6 +4084,118 @@ pub fn get_effective_backup_region(store: Store) -> Option(BackupRegionRecord) {
     Some(region) -> Some(region)
     None -> store.base_state.backup_region
   }
+}
+
+pub fn upsert_base_admin_platform_generic_nodes(
+  store: Store,
+  records: List(AdminPlatformGenericNodeRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        admin_platform_generic_nodes: dict.insert(
+          base.admin_platform_generic_nodes,
+          record.id,
+          record,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_admin_platform_generic_node_by_id(
+  store: Store,
+  id: String,
+) -> Option(AdminPlatformGenericNodeRecord) {
+  case dict.get(store.staged_state.admin_platform_generic_nodes, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.admin_platform_generic_nodes, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn upsert_base_admin_platform_taxonomy_categories(
+  store: Store,
+  records: List(AdminPlatformTaxonomyCategoryRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let existing = dict.get(base.admin_platform_taxonomy_categories, record.id)
+    let merged = case existing {
+      Ok(current) ->
+        AdminPlatformTaxonomyCategoryRecord(
+          ..record,
+          cursor: record.cursor |> option.or(current.cursor),
+        )
+      Error(_) -> record
+    }
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        admin_platform_taxonomy_categories: dict.insert(
+          base.admin_platform_taxonomy_categories,
+          record.id,
+          merged,
+        ),
+        admin_platform_taxonomy_category_order: append_unique_id(
+          base.admin_platform_taxonomy_category_order,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_admin_platform_taxonomy_category_by_id(
+  store: Store,
+  id: String,
+) -> Option(AdminPlatformTaxonomyCategoryRecord) {
+  case dict.get(store.staged_state.admin_platform_taxonomy_categories, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.admin_platform_taxonomy_categories, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn list_effective_admin_platform_taxonomy_categories(
+  store: Store,
+) -> List(AdminPlatformTaxonomyCategoryRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.admin_platform_taxonomy_category_order,
+      store.staged_state.admin_platform_taxonomy_category_order,
+    )
+    |> dedupe_strings()
+  let ordered =
+    ordered_ids
+    |> list.filter_map(fn(id) {
+      get_effective_admin_platform_taxonomy_category_by_id(store, id)
+      |> option_to_result
+    })
+  let ordered_lookup = list_to_set(ordered_ids)
+  let unordered =
+    dict.merge(
+      store.base_state.admin_platform_taxonomy_categories,
+      store.staged_state.admin_platform_taxonomy_categories,
+    )
+    |> dict.keys()
+    |> list.filter(fn(id) { !dict_has(ordered_lookup, id) })
+    |> list.sort(string_compare)
+    |> list.filter_map(fn(id) {
+      get_effective_admin_platform_taxonomy_category_by_id(store, id)
+      |> option_to_result
+    })
+  list.append(ordered, unordered)
 }
 
 // ---------------------------------------------------------------------------

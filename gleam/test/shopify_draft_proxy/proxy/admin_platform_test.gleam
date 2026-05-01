@@ -1,7 +1,8 @@
 import gleam/dict
+import gleam/dynamic/decode
 import gleam/json
 import gleam/list
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/admin_platform
 import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
@@ -9,8 +10,15 @@ import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  type ShopRecord, PaymentSettingsRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductSeoRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord,
 }
+import simplifile
+
+const admin_platform_fixture_path: String = "../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json"
 
 fn empty_vars() {
   dict.new()
@@ -121,6 +129,261 @@ pub fn product_option_node_reads_resolve_from_product_state_test() {
     == "{\"data\":{\"nodes\":[{\"__typename\":\"ProductOption\",\"id\":\"gid://shopify/ProductOption/color\",\"name\":\"Color\",\"position\":1,\"values\":[\"Red\"],\"optionValues\":[{\"id\":\"gid://shopify/ProductOptionValue/red\",\"name\":\"Red\",\"hasVariants\":true},{\"id\":\"gid://shopify/ProductOptionValue/blue\",\"name\":\"Blue\",\"hasVariants\":false}]},{\"__typename\":\"ProductOptionValue\",\"id\":\"gid://shopify/ProductOptionValue/blue\",\"name\":\"Blue\",\"hasVariants\":false},null]}}"
 }
 
+pub fn domain_node_reads_resolve_from_primary_shop_domain_test() {
+  let source = store.new() |> store.upsert_base_shop(make_shop())
+  let body =
+    run_query(
+      source,
+      "query {
+        node(id: \"gid://shopify/Domain/93049946345\") {
+          __typename
+          id
+          ... on Domain {
+            host
+            url
+            sslEnabled
+          }
+        }
+        nodes(ids: [
+          \"gid://shopify/Domain/93049946345\",
+          \"gid://shopify/Domain/missing\"
+        ]) {
+          __typename
+          id
+          ... on Domain {
+            host
+          }
+        }
+      }",
+    )
+
+  assert body
+    == "{\"data\":{\"node\":{\"__typename\":\"Domain\",\"id\":\"gid://shopify/Domain/93049946345\",\"host\":\"very-big-test-store.myshopify.com\",\"url\":\"https://very-big-test-store.myshopify.com\",\"sslEnabled\":true},\"nodes\":[{\"__typename\":\"Domain\",\"id\":\"gid://shopify/Domain/93049946345\",\"host\":\"very-big-test-store.myshopify.com\"},null]}}"
+}
+
+pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
+  let possible_node_types = read_possible_node_types()
+  let supported_node_types =
+    admin_platform.list_supported_admin_platform_node_types()
+  let unsupported_node_types =
+    possible_node_types
+    |> list.filter(fn(node_type) {
+      !list.contains(supported_node_types, node_type)
+    })
+  let supported_possible_node_types =
+    possible_node_types
+    |> list.filter(fn(node_type) {
+      list.contains(supported_node_types, node_type)
+    })
+
+  assert supported_possible_node_types == supported_node_types
+  assert unsupported_node_types
+    == [
+      "AbandonedCheckout",
+      "AbandonedCheckoutLineItem",
+      "Abandonment",
+      "AddAllProductsOperation",
+      "AdditionalFee",
+      "AppCatalog",
+      "AppCredit",
+      "AppRevenueAttributionRecord",
+      "Article",
+      "BasicEvent",
+      "Blog",
+      "BulkOperation",
+      "BusinessEntity",
+      "CalculatedOrder",
+      "CartTransform",
+      "CashDrawer",
+      "CashManagementCustomReasonCode",
+      "CashManagementDefaultReasonCode",
+      "CashManagementSystemReasonCode",
+      "CashTrackingAdjustment",
+      "CashTrackingSession",
+      "CatalogCsvOperation",
+      "Channel",
+      "ChannelDefinition",
+      "ChannelInformation",
+      "CheckoutAndAccountsConfiguration",
+      "CheckoutAndAccountsConfigurationOverride",
+      "CheckoutProfile",
+      "Comment",
+      "CommentEvent",
+      "Company",
+      "CompanyContact",
+      "CompanyContactRole",
+      "CompanyLocation",
+      "CompanyLocationCatalog",
+      "CompanyLocationStaffMemberAssignment",
+      "ConsentPolicy",
+      "CurrencyExchangeAdjustment",
+      "CustomerAccountAppExtensionPage",
+      "CustomerAccountNativePage",
+      "CustomerPaymentMethod",
+      "CustomerSegmentMembersQuery",
+      "CustomerVisit",
+      "DeliveryCarrierService",
+      "DeliveryCustomization",
+      "DeliveryMethod",
+      "DeliveryProfile",
+      "DeliveryProfileItem",
+      "DeliveryPromiseParticipant",
+      "DeliveryPromiseProvider",
+      "DiscountAutomaticBxgy",
+      "DiscountAutomaticNode",
+      "DiscountCodeNode",
+      "DiscountNode",
+      "DiscountRedeemCodeBulkCreation",
+      "DraftOrder",
+      "DraftOrderLineItem",
+      "DraftOrderTag",
+      "Duty",
+      "ExchangeLineItem",
+      "ExchangeV2",
+      "ExternalVideo",
+      "Fulfillment",
+      "FulfillmentConstraintRule",
+      "FulfillmentEvent",
+      "FulfillmentHold",
+      "FulfillmentLineItem",
+      "FulfillmentOrder",
+      "FulfillmentOrderDestination",
+      "FulfillmentOrderLineItem",
+      "FulfillmentOrderMerchantRequest",
+      "GenericFile",
+      "GiftCard",
+      "GiftCardCreditTransaction",
+      "GiftCardDebitTransaction",
+      "InventoryAdjustmentGroup",
+      "InventoryItem",
+      "InventoryItemMeasurement",
+      "InventoryLevel",
+      "InventoryQuantity",
+      "InventoryShipment",
+      "InventoryShipmentLineItem",
+      "InventoryTransfer",
+      "InventoryTransferLineItem",
+      "LineItem",
+      "LineItemGroup",
+      "MailingAddress",
+      "Market",
+      "MarketCatalog",
+      "MarketingActivity",
+      "MarketingEvent",
+      "MediaImage",
+      "Menu",
+      "MetafieldDefinition",
+      "Metaobject",
+      "MetaobjectDefinition",
+      "Model3d",
+      "OnlineStoreTheme",
+      "Order",
+      "OrderAdjustment",
+      "OrderDisputeSummary",
+      "OrderEditSession",
+      "OrderTransaction",
+      "Page",
+      "PaymentCustomization",
+      "PaymentMandate",
+      "PaymentSchedule",
+      "PaymentTerms",
+      "PaymentTermsTemplate",
+      "PointOfSaleDevice",
+      "PointOfSaleDevicePaymentSession",
+      "PriceList",
+      "PriceRule",
+      "PriceRuleDiscountCode",
+      "ProductBundleOperation",
+      "ProductDeleteOperation",
+      "ProductDuplicateOperation",
+      "ProductFeed",
+      "ProductSetOperation",
+      "ProductTaxonomyNode",
+      "ProductVariant",
+      "ProductVariantComponent",
+      "Publication",
+      "PublicationResourceOperation",
+      "QuantityPriceBreak",
+      "Refund",
+      "RefundShippingLine",
+      "Return",
+      "ReturnLineItem",
+      "ReturnReasonDefinition",
+      "ReturnableFulfillment",
+      "ReverseDelivery",
+      "ReverseDeliveryLineItem",
+      "ReverseFulfillmentOrder",
+      "ReverseFulfillmentOrderDisposition",
+      "ReverseFulfillmentOrderLineItem",
+      "SaleAdditionalFee",
+      "SavedSearch",
+      "ScriptTag",
+      "Segment",
+      "SellingPlanGroup",
+      "ServerPixel",
+      "ShopifyPaymentsAccount",
+      "ShopifyPaymentsBalanceTransaction",
+      "ShopifyPaymentsBankAccount",
+      "ShopifyPaymentsDispute",
+      "ShopifyPaymentsDisputeEvidence",
+      "ShopifyPaymentsDisputeFileUpload",
+      "ShopifyPaymentsDisputeFulfillment",
+      "ShopifyPaymentsPayout",
+      "StaffMember",
+      "StandardMetafieldDefinitionTemplate",
+      "StoreCreditAccount",
+      "StoreCreditAccountCreditTransaction",
+      "StoreCreditAccountDebitRevertTransaction",
+      "StoreCreditAccountDebitTransaction",
+      "StorefrontAccessToken",
+      "SubscriptionBillingAttempt",
+      "SubscriptionContract",
+      "SubscriptionDraft",
+      "TaxonomyAttribute",
+      "TaxonomyChoiceListAttribute",
+      "TaxonomyMeasurementAttribute",
+      "TaxonomyValue",
+      "TenderTransaction",
+      "TransactionFee",
+      "UnverifiedReturnLineItem",
+      "UrlRedirect",
+      "UrlRedirectImport",
+      "Validation",
+      "Video",
+      "WebPixel",
+      "WebhookSubscription",
+    ]
+}
+
+fn read_possible_node_types() -> List(String) {
+  let assert Ok(source) = simplifile.read(admin_platform_fixture_path)
+  let assert Ok(node_types) = json.parse(source, node_types_decoder())
+  node_types |> list.sort(by: string.compare)
+}
+
+fn node_types_decoder() -> decode.Decoder(List(String)) {
+  use introspection <- decode.field("introspection", introspection_decoder())
+  decode.success(introspection)
+}
+
+fn introspection_decoder() -> decode.Decoder(List(String)) {
+  use node_interface <- decode.field("nodeInterface", node_interface_decoder())
+  decode.success(node_interface)
+}
+
+fn node_interface_decoder() -> decode.Decoder(List(String)) {
+  use possible_types <- decode.field(
+    "possibleTypes",
+    decode.list(of: node_type_decoder()),
+  )
+  decode.success(possible_types)
+}
+
+fn node_type_decoder() -> decode.Decoder(String) {
+  use name <- decode.field("name", decode.string)
+  decode.success(name)
+}
+
 pub fn staff_roots_return_access_denied_errors_test() {
   let body =
     run_query(
@@ -182,6 +445,94 @@ fn seeded_product_option_store() {
       ],
     ),
   ])
+}
+
+fn make_shop() -> ShopRecord {
+  ShopRecord(
+    id: "gid://shopify/Shop/63755419881",
+    name: "very-big-test-store",
+    myshopify_domain: "very-big-test-store.myshopify.com",
+    url: "https://very-big-test-store.myshopify.com",
+    primary_domain: ShopDomainRecord(
+      id: "gid://shopify/Domain/93049946345",
+      host: "very-big-test-store.myshopify.com",
+      url: "https://very-big-test-store.myshopify.com",
+      ssl_enabled: True,
+    ),
+    contact_email: "shopify@gadget.dev",
+    email: "shopify@gadget.dev",
+    currency_code: "CAD",
+    enabled_presentment_currencies: ["CAD"],
+    iana_timezone: "America/Toronto",
+    timezone_abbreviation: "EDT",
+    timezone_offset: "-0400",
+    timezone_offset_minutes: -240,
+    taxes_included: False,
+    tax_shipping: False,
+    unit_system: "METRIC_SYSTEM",
+    weight_unit: "KILOGRAMS",
+    shop_address: ShopAddressRecord(
+      id: "gid://shopify/ShopAddress/63755419881",
+      address1: Some("103 ossington"),
+      address2: None,
+      city: Some("Ottawa"),
+      company: None,
+      coordinates_validated: False,
+      country: Some("Canada"),
+      country_code_v2: Some("CA"),
+      formatted: ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+      formatted_area: Some("Ottawa ON, Canada"),
+      latitude: Some(45.389817),
+      longitude: Some(-75.68692920000001),
+      phone: Some(""),
+      province: Some("Ontario"),
+      province_code: Some("ON"),
+      zip: Some("k1s3b7"),
+    ),
+    plan: ShopPlanRecord(
+      partner_development: True,
+      public_display_name: "Development",
+      shopify_plus: False,
+    ),
+    resource_limits: ShopResourceLimitsRecord(
+      location_limit: 1000,
+      max_product_options: 3,
+      max_product_variants: 2048,
+      redirect_limit_reached: False,
+    ),
+    features: ShopFeaturesRecord(
+      avalara_avatax: False,
+      branding: "SHOPIFY",
+      bundles: ShopBundlesFeatureRecord(
+        eligible_for_bundles: True,
+        ineligibility_reason: None,
+        sells_bundles: False,
+      ),
+      captcha: True,
+      cart_transform: ShopCartTransformFeatureRecord(
+        eligible_operations: ShopCartTransformEligibleOperationsRecord(
+          expand_operation: True,
+          merge_operation: True,
+          update_operation: True,
+        ),
+      ),
+      dynamic_remarketing: False,
+      eligible_for_subscription_migration: False,
+      eligible_for_subscriptions: False,
+      gift_cards: True,
+      harmonized_system_code: True,
+      legacy_subscription_gateway_enabled: False,
+      live_view: True,
+      paypal_express_subscription_gateway_status: "DISABLED",
+      reports: True,
+      sells_subscriptions: False,
+      show_metrics: True,
+      storefront: True,
+      unified_markets: True,
+    ),
+    payment_settings: PaymentSettingsRecord(supported_digital_wallets: []),
+    shop_policies: [],
+  )
 }
 
 pub fn backup_region_update_stages_and_reads_back_test() {
