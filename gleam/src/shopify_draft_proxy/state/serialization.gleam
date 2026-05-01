@@ -5,6 +5,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types
 
@@ -142,6 +143,9 @@ fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
       "deletedSellingPlanGroupIds",
       bool_dict_to_json(state.deleted_selling_plan_group_ids),
     ),
+    #("files", dict_to_json(state.files, file_json)),
+    #("fileOrder", json.array(state.file_order, json.string)),
+    #("deletedFileIds", bool_dict_to_json(state.deleted_file_ids)),
     #(
       "locations",
       dict_to_json(state.store_property_locations, store_property_record_json),
@@ -203,6 +207,64 @@ fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
     #(
       "deletedWebhookSubscriptionIds",
       bool_dict_to_json(state.deleted_webhook_subscription_ids),
+    ),
+    #(
+      "onlineStoreArticles",
+      online_store_content_kind_json(state.online_store_content, "article"),
+    ),
+    #(
+      "onlineStoreBlogs",
+      online_store_content_kind_json(state.online_store_content, "blog"),
+    ),
+    #(
+      "onlineStorePages",
+      online_store_content_kind_json(state.online_store_content, "page"),
+    ),
+    #(
+      "onlineStoreComments",
+      online_store_content_kind_json(state.online_store_content, "comment"),
+    ),
+    #(
+      "onlineStoreThemes",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "theme",
+      ),
+    ),
+    #(
+      "onlineStoreScriptTags",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "scriptTag",
+      ),
+    ),
+    #(
+      "onlineStoreWebPixels",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "webPixel",
+      ),
+    ),
+    #(
+      "onlineStoreServerPixels",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "serverPixel",
+      ),
+    ),
+    #(
+      "onlineStoreStorefrontAccessTokens",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "storefrontAccessToken",
+      ),
+    ),
+    #(
+      "onlineStoreMobilePlatformApplications",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "mobilePlatformApplication",
+      ),
     ),
     #("apps", dict_to_json(state.apps, app_json)),
     #("appOrder", json.array(state.app_order, json.string)),
@@ -612,6 +674,9 @@ fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
       "deletedSellingPlanGroupIds",
       bool_dict_to_json(state.deleted_selling_plan_group_ids),
     ),
+    #("files", dict_to_json(state.files, file_json)),
+    #("fileOrder", json.array(state.file_order, json.string)),
+    #("deletedFileIds", bool_dict_to_json(state.deleted_file_ids)),
     #(
       "locations",
       dict_to_json(state.store_property_locations, store_property_record_json),
@@ -673,6 +738,134 @@ fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
     #(
       "deletedWebhookSubscriptionIds",
       bool_dict_to_json(state.deleted_webhook_subscription_ids),
+    ),
+    #(
+      "onlineStoreArticles",
+      online_store_content_kind_json(state.online_store_content, "article"),
+    ),
+    #(
+      "onlineStoreBlogs",
+      online_store_content_kind_json(state.online_store_content, "blog"),
+    ),
+    #(
+      "onlineStorePages",
+      online_store_content_kind_json(state.online_store_content, "page"),
+    ),
+    #(
+      "onlineStoreComments",
+      online_store_content_kind_json(state.online_store_content, "comment"),
+    ),
+    #(
+      "deletedOnlineStoreArticleIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_content_ids,
+        "Article",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreBlogIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_content_ids,
+        "Blog",
+      ),
+    ),
+    #(
+      "deletedOnlineStorePageIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_content_ids,
+        "Page",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreCommentIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_content_ids,
+        "Comment",
+      ),
+    ),
+    #(
+      "onlineStoreThemes",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "theme",
+      ),
+    ),
+    #(
+      "onlineStoreScriptTags",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "scriptTag",
+      ),
+    ),
+    #(
+      "onlineStoreWebPixels",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "webPixel",
+      ),
+    ),
+    #(
+      "onlineStoreServerPixels",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "serverPixel",
+      ),
+    ),
+    #(
+      "onlineStoreStorefrontAccessTokens",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "storefrontAccessToken",
+      ),
+    ),
+    #(
+      "onlineStoreMobilePlatformApplications",
+      online_store_integration_kind_json(
+        state.online_store_integrations,
+        "mobilePlatformApplication",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreThemeIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "OnlineStoreTheme",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreScriptTagIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "ScriptTag",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreWebPixelIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "WebPixel",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreServerPixelIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "ServerPixel",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreStorefrontAccessTokenIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "StorefrontAccessToken",
+      ),
+    ),
+    #(
+      "deletedOnlineStoreMobilePlatformApplicationIds",
+      deleted_online_store_ids_json(
+        state.deleted_online_store_integration_ids,
+        "MobilePlatformApplication",
+      ),
     ),
     #("apps", dict_to_json(state.apps, app_json)),
     #("appOrder", json.array(state.app_order, json.string)),
@@ -965,6 +1158,25 @@ fn optional_float(value: Option(Float)) -> Json {
 
 fn optional_bool(value: Option(Bool)) -> Json {
   optional_to_json(value, json.bool)
+}
+
+fn file_json(record: types.FileRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("alt", optional_string(record.alt)),
+    #("contentType", optional_string(record.content_type)),
+    #("createdAt", json.string(record.created_at)),
+    #("fileStatus", json.string(record.file_status)),
+    #("filename", optional_string(record.filename)),
+    #("originalSource", json.string(record.original_source)),
+    #("imageUrl", optional_string(record.image_url)),
+    #("imageWidth", optional_int(record.image_width)),
+    #("imageHeight", optional_int(record.image_height)),
+    #(
+      "updateFailureAcknowledgedAt",
+      optional_string(record.update_failure_acknowledged_at),
+    ),
+  ])
 }
 
 fn dict_to_json(records: Dict(String, a), encode: fn(a) -> Json) -> Json {
@@ -1550,6 +1762,86 @@ fn webhook_endpoint_json(record: types.WebhookSubscriptionEndpoint) -> Json {
         #("pubSubTopic", optional_string(pub_sub_topic)),
       ])
   }
+}
+
+fn online_store_content_kind_json(
+  records: Dict(String, types.OnlineStoreContentRecord),
+  kind: String,
+) -> Json {
+  json.object(
+    records
+    |> dict.to_list()
+    |> list.filter_map(fn(pair) {
+      let #(id, record) = pair
+      case record.kind == kind {
+        True -> Ok(#(id, online_store_content_json(record)))
+        False -> Error(Nil)
+      }
+    }),
+  )
+}
+
+fn online_store_content_json(record: types.OnlineStoreContentRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("kind", json.string(record.kind)),
+    #("cursor", optional_string(record.cursor)),
+    #("parentId", optional_string(record.parent_id)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn online_store_integration_kind_json(
+  records: Dict(String, types.OnlineStoreIntegrationRecord),
+  kind: String,
+) -> Json {
+  json.object(
+    records
+    |> dict.to_list()
+    |> list.filter_map(fn(pair) {
+      let #(id, record) = pair
+      case record.kind == kind {
+        True -> Ok(#(id, online_store_integration_json(record)))
+        False -> Error(Nil)
+      }
+    }),
+  )
+}
+
+fn online_store_integration_json(
+  record: types.OnlineStoreIntegrationRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("kind", json.string(record.kind)),
+    #("cursor", optional_string(record.cursor)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn deleted_online_store_ids_json(
+  records: Dict(String, Bool),
+  gid_type: String,
+) -> Json {
+  json.object(
+    records
+    |> dict.to_list()
+    |> list.filter_map(fn(pair) {
+      let #(id, deleted) = pair
+      case deleted && string_contains_gid_type(id, gid_type) {
+        True -> Ok(#(id, json.bool(True)))
+        False -> Error(Nil)
+      }
+    }),
+  )
+}
+
+fn string_contains_gid_type(id: String, gid_type: String) -> Bool {
+  string.contains(id, "gid://shopify/" <> gid_type <> "/")
 }
 
 fn money_json(record: types.Money) -> Json {
@@ -2776,6 +3068,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     selling_plan_group_order: empty.selling_plan_group_order,
     deleted_selling_plan_group_ids: empty.deleted_selling_plan_group_ids,
     product_media: empty.product_media,
+    files: empty.files,
+    file_order: empty.file_order,
+    deleted_file_ids: empty.deleted_file_ids,
     collections: empty.collections,
     collection_order: empty.collection_order,
     product_collections: empty.product_collections,
@@ -2847,6 +3142,12 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     webhook_subscriptions: webhook_subscriptions,
     webhook_subscription_order: webhook_subscription_order,
     deleted_webhook_subscription_ids: deleted_webhook_subscription_ids,
+    online_store_content: empty.online_store_content,
+    online_store_content_order: empty.online_store_content_order,
+    deleted_online_store_content_ids: empty.deleted_online_store_content_ids,
+    online_store_integrations: empty.online_store_integrations,
+    online_store_integration_order: empty.online_store_integration_order,
+    deleted_online_store_integration_ids: empty.deleted_online_store_integration_ids,
     apps: apps,
     app_order: app_order,
     app_installations: app_installations,
@@ -3150,6 +3451,9 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     selling_plan_group_order: empty.selling_plan_group_order,
     deleted_selling_plan_group_ids: empty.deleted_selling_plan_group_ids,
     product_media: empty.product_media,
+    files: empty.files,
+    file_order: empty.file_order,
+    deleted_file_ids: empty.deleted_file_ids,
     collections: empty.collections,
     collection_order: empty.collection_order,
     product_collections: empty.product_collections,
@@ -3218,6 +3522,12 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     webhook_subscriptions: webhook_subscriptions,
     webhook_subscription_order: webhook_subscription_order,
     deleted_webhook_subscription_ids: deleted_webhook_subscription_ids,
+    online_store_content: empty.online_store_content,
+    online_store_content_order: empty.online_store_content_order,
+    deleted_online_store_content_ids: empty.deleted_online_store_content_ids,
+    online_store_integrations: empty.online_store_integrations,
+    online_store_integration_order: empty.online_store_integration_order,
+    deleted_online_store_integration_ids: empty.deleted_online_store_integration_ids,
     apps: apps,
     app_order: app_order,
     app_installations: app_installations,

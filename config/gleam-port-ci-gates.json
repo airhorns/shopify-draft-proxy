@@ -117,34 +117,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/media/fileCreate-parity-plan.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/media/fileDelete-product-media-parity.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/media/files-upload-local-runtime.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/media/fileUpdate-parity.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/media/fileUpdate-product-reference-local-staging.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/media/staged-upload-targets-parity.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json",
       "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
       "targets": ["erlang"]
@@ -153,30 +125,6 @@
       "specPath": "config/parity-specs/metaobjects/metaobject-definitions-read.json",
       "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
       "targets": ["erlang"]
-    },
-    {
-      "specPath": "config/parity-specs/online-store-article-media-navigation-follow-through.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/online-store-content-lifecycle.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/online-store-content-search-filters.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/online-store-integrations-local-staging.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/online-store-page-default-publish-local-staging.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/storefront-access-token-local-staging.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
       "specPath": "config/parity-specs/payments/customer-payment-method-local-staging.json",

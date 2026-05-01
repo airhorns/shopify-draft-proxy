@@ -46,6 +46,7 @@ import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/online_store
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/proxy/orders
@@ -971,6 +972,28 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(MediaDomain) ->
+      case
+        media.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle media mutation"), proxy)
+      }
     Ok(AdminPlatformDomain) ->
       case
         admin_platform.process_mutation(
@@ -993,6 +1016,31 @@ fn route_mutation(
           )
         Error(_) -> #(
           bad_request("Failed to handle admin platform mutation"),
+          proxy,
+        )
+      }
+    Ok(OnlineStoreDomain) ->
+      case
+        online_store.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(
+          bad_request("Failed to handle online-store mutation"),
           proxy,
         )
       }
@@ -1210,7 +1258,11 @@ fn route_query(
         "Failed to handle bulk operations query",
       )
     Ok(MediaDomain) ->
-      respond(proxy, media.process(query), "Failed to handle media query")
+      respond(
+        proxy,
+        media.process(proxy.store, query, variables),
+        "Failed to handle media query",
+      )
     Ok(ProductsDomain) ->
       respond(
         proxy,
@@ -1228,6 +1280,12 @@ fn route_query(
         proxy,
         store_properties.process(proxy.store, query, variables),
         "Failed to handle store properties query",
+      )
+    Ok(OnlineStoreDomain) ->
+      respond(
+        proxy,
+        online_store.process(proxy.store, query, variables),
+        "Failed to handle online-store query",
       )
     Ok(CustomersDomain) ->
       respond(
@@ -1278,6 +1336,7 @@ type Domain {
   ProductsDomain
   AdminPlatformDomain
   StorePropertiesDomain
+  OnlineStoreDomain
   PrivacyDomain
   CustomersDomain
   OrdersDomain
@@ -1394,7 +1453,11 @@ fn local_query_dispatch_domain(
   case name {
     "event" | "events" | "eventsCount" -> Ok(EventsDomain)
     "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
-    "shop" -> Ok(StorePropertiesDomain)
+    "shop" ->
+      case online_store.is_online_store_query_root(name, query) {
+        True -> Ok(OnlineStoreDomain)
+        False -> Ok(StorePropertiesDomain)
+      }
     "product" | "collection" ->
       case store_publishable_owner_query(name, query) {
         True -> Ok(StorePropertiesDomain)
@@ -1523,9 +1586,21 @@ fn local_query_dispatch_domain(
                                                                                     StorePropertiesDomain,
                                                                                   )
                                                                                 False ->
-                                                                                  Error(
-                                                                                    Nil,
-                                                                                  )
+                                                                                  case
+                                                                                    online_store.is_online_store_query_root(
+                                                                                      name,
+                                                                                      query,
+                                                                                    )
+                                                                                  {
+                                                                                    True ->
+                                                                                      Ok(
+                                                                                        OnlineStoreDomain,
+                                                                                      )
+                                                                                    False ->
+                                                                                      Error(
+                                                                                        Nil,
+                                                                                      )
+                                                                                  }
                                                                               }
                                                                           }
                                                                       }
@@ -1680,48 +1755,70 @@ fn local_non_store_publishable_mutation_dispatch_domain(
                                                               )
                                                             False ->
                                                               case
-                                                                admin_platform.is_admin_platform_mutation_root(
+                                                                media.is_media_mutation_root(
                                                                   name,
                                                                 )
                                                               {
                                                                 True ->
                                                                   Ok(
-                                                                    AdminPlatformDomain,
+                                                                    MediaDomain,
                                                                   )
                                                                 False ->
                                                                   case
-                                                                    privacy.is_privacy_mutation_root(
+                                                                    admin_platform.is_admin_platform_mutation_root(
                                                                       name,
                                                                     )
                                                                   {
                                                                     True ->
                                                                       Ok(
-                                                                        PrivacyDomain,
+                                                                        AdminPlatformDomain,
                                                                       )
                                                                     False ->
                                                                       case
-                                                                        orders.is_orders_mutation_root(
+                                                                        online_store.is_online_store_mutation_root(
                                                                           name,
                                                                         )
                                                                       {
                                                                         True ->
                                                                           Ok(
-                                                                            OrdersDomain,
+                                                                            OnlineStoreDomain,
                                                                           )
                                                                         False ->
                                                                           case
-                                                                            customers.is_customer_mutation_root(
+                                                                            privacy.is_privacy_mutation_root(
                                                                               name,
                                                                             )
                                                                           {
                                                                             True ->
                                                                               Ok(
-                                                                                CustomersDomain,
+                                                                                PrivacyDomain,
                                                                               )
                                                                             False ->
-                                                                              Error(
-                                                                                Nil,
-                                                                              )
+                                                                              case
+                                                                                orders.is_orders_mutation_root(
+                                                                                  name,
+                                                                                )
+                                                                              {
+                                                                                True ->
+                                                                                  Ok(
+                                                                                    OrdersDomain,
+                                                                                  )
+                                                                                False ->
+                                                                                  case
+                                                                                    customers.is_customer_mutation_root(
+                                                                                      name,
+                                                                                    )
+                                                                                  {
+                                                                                    True ->
+                                                                                      Ok(
+                                                                                        CustomersDomain,
+                                                                                      )
+                                                                                    False ->
+                                                                                      Error(
+                                                                                        Nil,
+                                                                                      )
+                                                                                  }
+                                                                              }
                                                                           }
                                                                       }
                                                                   }

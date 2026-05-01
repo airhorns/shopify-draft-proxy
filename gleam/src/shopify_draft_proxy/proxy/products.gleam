@@ -3860,7 +3860,7 @@ fn product_media_connection_source(
 }
 
 fn product_media_cursor(media: ProductMediaRecord, _index: Int) -> String {
-  media.key
+  "cursor:" <> media.key
 }
 
 fn product_media_source(media: ProductMediaRecord) -> SourceValue {

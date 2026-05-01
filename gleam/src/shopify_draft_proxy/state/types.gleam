@@ -95,6 +95,22 @@ pub type ProductMediaRecord {
   )
 }
 
+pub type FileRecord {
+  FileRecord(
+    id: String,
+    alt: Option(String),
+    content_type: Option(String),
+    created_at: String,
+    file_status: String,
+    filename: Option(String),
+    original_source: String,
+    image_url: Option(String),
+    image_width: Option(Int),
+    image_height: Option(Int),
+    update_failure_acknowledged_at: Option(String),
+  )
+}
+
 pub type ProductVariantSelectedOptionRecord {
   ProductVariantSelectedOptionRecord(name: String, value: String)
 }
@@ -107,6 +123,29 @@ pub type CapturedJsonValue {
   CapturedString(String)
   CapturedArray(List(CapturedJsonValue))
   CapturedObject(List(#(String, CapturedJsonValue)))
+}
+
+pub type OnlineStoreContentRecord {
+  OnlineStoreContentRecord(
+    id: String,
+    kind: String,
+    cursor: Option(String),
+    parent_id: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+pub type OnlineStoreIntegrationRecord {
+  OnlineStoreIntegrationRecord(
+    id: String,
+    kind: String,
+    cursor: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    data: CapturedJsonValue,
+  )
 }
 
 // Discounts domain
