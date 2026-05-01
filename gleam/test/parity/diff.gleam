@@ -139,11 +139,15 @@ fn is_expected(
 }
 
 fn path_is_child_of(parent: String, child: String) -> Bool {
+  let parent = normalize_path(parent)
+  let child = normalize_path(child)
   string.starts_with(child, parent <> ".")
   || string.starts_with(child, parent <> "[")
 }
 
 fn path_matches(pattern: String, path: String) -> Bool {
+  let pattern = normalize_path(pattern)
+  let path = normalize_path(path)
   case pattern == path {
     True -> True
     False ->
@@ -153,13 +157,44 @@ fn path_matches(pattern: String, path: String) -> Bool {
   }
 }
 
+fn normalize_path(path: String) -> String {
+  path
+  |> string.replace("[\"nodes\"]", ".nodes")
+  |> string.replace("[\"edges\"]", ".edges")
+}
+
 fn wildcard_path_matches(pattern: String, path: String) -> Bool {
   case string.split(pattern, on: "[*]") {
     [prefix, suffix] ->
       string.starts_with(path, prefix)
       && string.ends_with(path, suffix)
       && wildcard_index_segment(path, prefix, suffix)
+    [prefix, middle, suffix] ->
+      string.starts_with(path, prefix)
+      && string.ends_with(path, suffix)
+      && double_wildcard_index_segments(path, prefix, middle, suffix)
     _ -> False
+  }
+}
+
+fn double_wildcard_index_segments(
+  path: String,
+  prefix: String,
+  middle: String,
+  suffix: String,
+) -> Bool {
+  let body_start = string.length(prefix)
+  let body_end = string.length(path) - string.length(suffix)
+  case body_end > body_start {
+    True -> {
+      let body = string.slice(path, body_start, body_end - body_start)
+      case string.split(body, on: middle) {
+        [left_index, right_index] ->
+          is_index_segment(left_index) && is_index_segment(right_index)
+        _ -> False
+      }
+    }
+    False -> False
   }
 }
 
@@ -173,10 +208,14 @@ fn wildcard_index_segment(
   case middle_end > middle_start {
     True -> {
       let middle = string.slice(path, middle_start, middle_end - middle_start)
-      string.starts_with(middle, "[") && string.ends_with(middle, "]")
+      is_index_segment(middle)
     }
     False -> False
   }
+}
+
+fn is_index_segment(value: String) -> Bool {
+  string.starts_with(value, "[") && string.ends_with(value, "]")
 }
 
 fn satisfies_matcher(

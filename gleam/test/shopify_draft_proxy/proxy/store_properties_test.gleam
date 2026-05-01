@@ -335,7 +335,7 @@ pub fn location_reads_and_local_mutations_use_store_state_test() {
   let proxy =
     draft_proxy.DraftProxy(
       ..proxy,
-      store: store.upsert_base_location(proxy.store, location),
+      store: store.upsert_base_store_property_location(proxy.store, location),
     )
   let read_body =
     "{\"query\":\"query($id: ID!) { location(id: $id) { id name legacyResourceId metafields(first: 1) { nodes { id } pageInfo { hasNextPage startCursor } } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\"}}"

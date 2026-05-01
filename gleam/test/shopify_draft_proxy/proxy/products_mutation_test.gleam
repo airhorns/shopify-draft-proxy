@@ -1,0 +1,554 @@
+import gleam/dict
+import gleam/json
+import gleam/list
+import gleam/option.{None, Some}
+import gleam/string
+import shopify_draft_proxy/proxy/draft_proxy.{type Request, Request, Response}
+import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/types.{
+  type ProductRecord, type ProductVariantRecord, InventoryItemRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord,
+}
+
+fn empty_headers() -> dict.Dict(String, String) {
+  dict.new()
+}
+
+fn graphql_request(query: String) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: empty_headers(),
+    body: "{\"query\":\"" <> query <> "\"}",
+  )
+}
+
+pub fn product_options_create_stages_default_product_options_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", position: 1, values: [{ name: \\\"Red\\\" }, { name: \\\"Green\\\" }] }]) { product { id options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productOptionsCreate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"options\":[{\"name\":\"Color\",\"position\":1,\"values\":[\"Red\"],\"optionValues\":[{\"name\":\"Red\",\"hasVariants\":true},{\"name\":\"Green\",\"hasVariants\":false}]}],\"variants\":{\"nodes\":[{\"title\":\"Red\",\"selectedOptions\":[{\"name\":\"Color\",\"value\":\"Red\"}]}]}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"options\":[{\"name\":\"Color\",\"values\":[\"Red\"],\"optionValues\":[{\"name\":\"Red\",\"hasVariants\":true},{\"name\":\"Green\",\"hasVariants\":false}]}],\"variants\":{\"nodes\":[{\"title\":\"Red\",\"selectedOptions\":[{\"name\":\"Color\",\"value\":\"Red\"}]}]}}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_option_update_repositions_values_and_variants_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: option_update_store())
+  let query =
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Shade\\\", position: 2 }, optionValuesToAdd: [{ name: \\\"Blue\\\" }], optionValuesToUpdate: [{ id: \\\"gid://shopify/ProductOptionValue/red\\\", name: \\\"Crimson\\\" }], optionValuesToDelete: [\\\"gid://shopify/ProductOptionValue/green\\\"]) { product { id options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productOptionUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"options\":[{\"name\":\"Size\",\"position\":1,\"values\":[\"Small\"],\"optionValues\":[{\"name\":\"Small\",\"hasVariants\":true}]},{\"name\":\"Shade\",\"position\":2,\"values\":[\"Crimson\"],\"optionValues\":[{\"name\":\"Crimson\",\"hasVariants\":true},{\"name\":\"Blue\",\"hasVariants\":false}]}],\"variants\":{\"nodes\":[{\"title\":\"Small / Crimson\",\"selectedOptions\":[{\"name\":\"Size\",\"value\":\"Small\"},{\"name\":\"Shade\",\"value\":\"Crimson\"}]}]}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"options\":[{\"name\":\"Size\",\"position\":1,\"values\":[\"Small\"],\"optionValues\":[{\"name\":\"Small\",\"hasVariants\":true}]},{\"name\":\"Shade\",\"position\":2,\"values\":[\"Crimson\"],\"optionValues\":[{\"name\":\"Crimson\",\"hasVariants\":true},{\"name\":\"Blue\",\"hasVariants\":false}]}],\"variants\":{\"nodes\":[{\"title\":\"Small / Crimson\",\"selectedOptions\":[{\"name\":\"Size\",\"value\":\"Small\"},{\"name\":\"Shade\",\"value\":\"Crimson\"}]}]}}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_options_delete_restores_default_option_state_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: option_update_store())
+  let query =
+    "mutation { productOptionsDelete(productId: \\\"gid://shopify/Product/optioned\\\", options: [\\\"gid://shopify/ProductOption/color\\\", \\\"gid://shopify/ProductOption/size\\\"]) { deletedOptionsIds product { id options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productOptionsDelete\":{\"deletedOptionsIds\":[\"gid://shopify/ProductOption/color\",\"gid://shopify/ProductOption/size\"],\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"options\":[{\"name\":\"Title\",\"position\":1,\"values\":[\"Default Title\"],\"optionValues\":[{\"name\":\"Default Title\",\"hasVariants\":true}]}],\"variants\":{\"nodes\":[{\"title\":\"Default Title\",\"selectedOptions\":[{\"name\":\"Title\",\"value\":\"Default Title\"}]}]}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"options\":[{\"name\":\"Title\",\"position\":1,\"values\":[\"Default Title\"],\"optionValues\":[{\"name\":\"Default Title\",\"hasVariants\":true}]}],\"variants\":{\"nodes\":[{\"title\":\"Default Title\",\"selectedOptions\":[{\"name\":\"Title\",\"value\":\"Default Title\"}]}]}}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_options_reorder_reorders_variants_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: option_update_store())
+  let query =
+    "mutation { productOptionsReorder(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ id: \\\"gid://shopify/ProductOption/size\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/small\\\" }] }, { id: \\\"gid://shopify/ProductOption/color\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/green\\\" }, { id: \\\"gid://shopify/ProductOptionValue/red\\\" }] }]) { product { id options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productOptionsReorder\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"options\":[{\"name\":\"Size\",\"position\":1,\"values\":[\"Small\"],\"optionValues\":[{\"name\":\"Small\",\"hasVariants\":true}]},{\"name\":\"Color\",\"position\":2,\"values\":[\"Red\"],\"optionValues\":[{\"name\":\"Red\",\"hasVariants\":true},{\"name\":\"Green\",\"hasVariants\":false}]}],\"variants\":{\"nodes\":[{\"title\":\"Small / Red\",\"selectedOptions\":[{\"name\":\"Size\",\"value\":\"Small\"},{\"name\":\"Color\",\"value\":\"Red\"}]}]}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"options\":[{\"name\":\"Size\",\"position\":1,\"values\":[\"Small\"],\"optionValues\":[{\"name\":\"Small\",\"hasVariants\":true}]},{\"name\":\"Color\",\"position\":2,\"values\":[\"Red\"],\"optionValues\":[{\"name\":\"Red\",\"hasVariants\":true},{\"name\":\"Green\",\"hasVariants\":false}]}],\"variants\":{\"nodes\":[{\"title\":\"Small / Red\",\"selectedOptions\":[{\"name\":\"Size\",\"value\":\"Small\"},{\"name\":\"Color\",\"value\":\"Red\"}]}]}}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_change_status_stages_search_lagged_status_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productChangeStatus(productId: \\\"gid://shopify/Product/optioned\\\", status: ARCHIVED) { product { id status updatedAt } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productChangeStatus\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"status\":\"ARCHIVED\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id status updatedAt } products(first: 10, query: \\\"status:archived tag:existing\\\") { nodes { id status } } productsCount(query: \\\"status:archived tag:existing\\\") { count precision } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"status\":\"ARCHIVED\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"products\":{\"nodes\":[]},\"productsCount\":{\"count\":0,\"precision\":\"EXACT\"}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_delete_stages_downstream_no_data_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productDelete(input: { id: \\\"gid://shopify/Product/optioned\\\" }) { deletedProductId userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productDelete\":{\"deletedProductId\":\"gid://shopify/Product/optioned\",\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id title } products(first: 10, query: \\\"tag:existing\\\") { nodes { id title } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":null,\"products\":{\"nodes\":[]}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn tags_add_stages_tags_and_preserves_base_tag_search_lag_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { tagsAdd(id: \\\"gid://shopify/Product/optioned\\\", tags: [\\\"winter\\\", \\\"existing\\\", \\\"fall\\\"]) { node { ... on Product { id tags } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"tagsAdd\":{\"node\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"existing\",\"fall\",\"winter\"]},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id tags } products(first: 10, query: \\\"tag:fall\\\") { nodes { id tags } } productsCount(query: \\\"tag:fall\\\") { count precision } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"existing\",\"fall\",\"winter\"]},\"products\":{\"nodes\":[]},\"productsCount\":{\"count\":0,\"precision\":\"EXACT\"}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn tags_remove_stages_tags_and_keeps_removed_tag_searchable_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: tagged_product_store())
+  let query =
+    "mutation { tagsRemove(id: \\\"gid://shopify/Product/optioned\\\", tags: [\\\"sale\\\", \\\"missing\\\"]) { node { ... on Product { id tags } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"tagsRemove\":{\"node\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"existing\",\"summer\"]},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id tags } remaining: products(first: 10, query: \\\"tag:summer\\\") { nodes { id tags } } removed: products(first: 10, query: \\\"tag:sale\\\") { nodes { id tags } } remainingCount: productsCount(query: \\\"tag:summer\\\") { count precision } removedCount: productsCount(query: \\\"tag:sale\\\") { count precision } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"existing\",\"summer\"]},\"remaining\":{\"nodes\":[{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"existing\",\"summer\"]}]},\"removed\":{\"nodes\":[{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"existing\",\"summer\"]}]},\"remainingCount\":{\"count\":1,\"precision\":\"EXACT\"},\"removedCount\":{\"count\":1,\"precision\":\"EXACT\"}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_update_stages_fields_and_downstream_reads_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", title: \\\"Updated Board\\\", vendor: \\\"HERMES\\\", productType: \\\"BOARDS\\\", tags: [\\\"beta\\\", \\\"alpha\\\"], descriptionHtml: \\\"<p>Updated</p>\\\", templateSuffix: \\\"custom\\\", seo: { title: \\\"SEO title\\\", description: \\\"SEO description\\\" } }) { product { id title vendor productType tags descriptionHtml templateSuffix seo { title description } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Updated Board\",\"vendor\":\"HERMES\",\"productType\":\"BOARDS\",\"tags\":[\"alpha\",\"beta\"],\"descriptionHtml\":\"<p>Updated</p>\",\"templateSuffix\":\"custom\",\"seo\":{\"title\":\"SEO title\",\"description\":\"SEO description\"}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id title vendor productType tags descriptionHtml templateSuffix seo { title description } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Updated Board\",\"vendor\":\"HERMES\",\"productType\":\"BOARDS\",\"tags\":[\"alpha\",\"beta\"],\"descriptionHtml\":\"<p>Updated</p>\",\"templateSuffix\":\"custom\",\"seo\":{\"title\":\"SEO title\",\"description\":\"SEO description\"}}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_update_blank_title_returns_existing_product_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", title: \\\"\\\" }) { product { id title handle } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"handle\":\"optioned-board\"},\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\"}]}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_create_stages_product_default_variant_and_inventory_test() {
+  let proxy = draft_proxy.new()
+  let query =
+    "mutation { productCreate(product: { title: \\\"Created Board\\\", status: DRAFT, vendor: \\\"HERMES\\\", productType: \\\"BOARDS\\\", tags: [\\\"beta\\\", \\\"alpha\\\"], descriptionHtml: \\\"<p>Created</p>\\\", templateSuffix: \\\"custom\\\", seo: { title: \\\"SEO title\\\", description: \\\"SEO description\\\" } }) { product { id title handle status vendor productType tags descriptionHtml templateSuffix seo { title description } totalInventory tracksInventory variants(first: 10) { nodes { id title inventoryQuantity inventoryItem { id tracked requiresShipping } } } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Created Board\",\"handle\":\"created-board\",\"status\":\"DRAFT\",\"vendor\":\"HERMES\",\"productType\":\"BOARDS\",\"tags\":[\"alpha\",\"beta\"],\"descriptionHtml\":\"<p>Created</p>\",\"templateSuffix\":\"custom\",\"seo\":{\"title\":\"SEO title\",\"description\":\"SEO description\"},\"totalInventory\":0,\"tracksInventory\":false,\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/4\",\"title\":\"Default Title\",\"inventoryQuantity\":0,\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/5\",\"tracked\":false,\"requiresShipping\":true}}]}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title inventoryQuantity inventoryItem { id tracked requiresShipping } } } } variant: productVariant(id: \\\"gid://shopify/ProductVariant/4\\\") { id title inventoryQuantity inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory } } stock: inventoryItem(id: \\\"gid://shopify/InventoryItem/5\\\") { id tracked requiresShipping variant { id title sku inventoryQuantity product { id title handle status totalInventory tracksInventory } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Created Board\",\"handle\":\"created-board\",\"status\":\"DRAFT\",\"totalInventory\":0,\"tracksInventory\":false,\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/4\",\"title\":\"Default Title\",\"inventoryQuantity\":0,\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/5\",\"tracked\":false,\"requiresShipping\":true}}]}},\"variant\":{\"id\":\"gid://shopify/ProductVariant/4\",\"title\":\"Default Title\",\"inventoryQuantity\":0,\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/5\",\"tracked\":false,\"requiresShipping\":true},\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Created Board\",\"handle\":\"created-board\",\"status\":\"DRAFT\",\"totalInventory\":0,\"tracksInventory\":false}},\"stock\":{\"id\":\"gid://shopify/InventoryItem/5\",\"tracked\":false,\"requiresShipping\":true,\"variant\":{\"id\":\"gid://shopify/ProductVariant/4\",\"title\":\"Default Title\",\"sku\":null,\"inventoryQuantity\":0,\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Created Board\",\"handle\":\"created-board\",\"status\":\"DRAFT\",\"totalInventory\":0,\"tracksInventory\":false}}}}}"
+  assert store.get_log(next_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_create_validation_branches_return_user_errors_test() {
+  let blank_query =
+    "mutation { productCreate(product: { title: \\\"\\\" }) { product { id title handle } userErrors { field message } } }"
+  let #(Response(status: blank_status, body: blank_body, ..), blank_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(blank_query))
+  assert blank_status == 200
+  assert json.to_string(blank_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\"}]}}}"
+  assert store.get_log(blank_proxy.store)
+    |> list.length
+    == 1
+
+  let long_handle = string.repeat("a", times: 260)
+  let handle_query =
+    "mutation { productCreate(product: { title: \\\"Too Long\\\", handle: \\\""
+    <> long_handle
+    <> "\\\" }) { product { id title handle } userErrors { field message } } }"
+  let #(Response(status: handle_status, body: handle_body, ..), handle_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(handle_query),
+    )
+  assert handle_status == 200
+  assert json.to_string(handle_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"handle\"],\"message\":\"Handle is too long (maximum is 255 characters)\"}]}}}"
+  assert store.get_log(handle_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn product_variant_create_update_delete_stages_lifecycle_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: option_update_store())
+  let create_query =
+    "mutation { productVariantCreate(input: { productId: \\\"gid://shopify/Product/optioned\\\", title: \\\"Blue\\\", sku: \\\"BLUE-1\\\", barcode: \\\"2222222222222\\\", price: \\\"12.00\\\", inventoryQuantity: 5, selectedOptions: [{ name: \\\"Color\\\", value: \\\"Blue\\\" }], inventoryItem: { tracked: true, requiresShipping: false } }) { product { id totalInventory tracksInventory } productVariant { id title sku barcode price inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } userErrors { field message } } }"
+
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productVariantCreate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"totalInventory\":5,\"tracksInventory\":true},\"productVariant\":{\"id\":\"gid://shopify/ProductVariant/1\",\"title\":\"Blue\",\"sku\":\"BLUE-1\",\"barcode\":\"2222222222222\",\"price\":\"12.00\",\"inventoryQuantity\":5,\"selectedOptions\":[{\"name\":\"Color\",\"value\":\"Blue\"}],\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/2\",\"tracked\":true,\"requiresShipping\":false}},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { productVariantUpdate(input: { id: \\\"gid://shopify/ProductVariant/1\\\", title: \\\"Blue Deluxe\\\", sku: \\\"BLUE-2\\\", inventoryQuantity: 7, inventoryItem: { tracked: false, requiresShipping: true } }) { product { id totalInventory tracksInventory } productVariant { id title sku inventoryQuantity inventoryItem { id tracked requiresShipping } } userErrors { field message } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"productVariantUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"totalInventory\":7,\"tracksInventory\":false},\"productVariant\":{\"id\":\"gid://shopify/ProductVariant/1\",\"title\":\"Blue Deluxe\",\"sku\":\"BLUE-2\",\"inventoryQuantity\":7,\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/2\",\"tracked\":false,\"requiresShipping\":true}},\"userErrors\":[]}}}"
+
+  let delete_query =
+    "mutation { productVariantDelete(id: \\\"gid://shopify/ProductVariant/1\\\") { deletedProductVariantId userErrors { field message } } }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(delete_query))
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"productVariantDelete\":{\"deletedProductVariantId\":\"gid://shopify/ProductVariant/1\",\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id totalInventory tracksInventory variants(first: 10) { nodes { id title sku inventoryQuantity } } } productVariant(id: \\\"gid://shopify/ProductVariant/1\\\") { id } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"totalInventory\":0,\"tracksInventory\":false,\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/optioned\",\"title\":\"Red / Small\",\"sku\":null,\"inventoryQuantity\":0}]}},\"productVariant\":null}}"
+  assert store.get_log(proxy.store)
+    |> list.length
+    == 3
+}
+
+fn default_option_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_products([default_product()])
+  |> store.upsert_base_product_variants([default_variant()])
+  |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/default",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Title",
+      position: 1,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/default-title",
+          name: "Default Title",
+          has_variants: True,
+        ),
+      ],
+    ),
+  ])
+}
+
+fn tagged_product_store() -> store.Store {
+  default_option_store()
+  |> store.upsert_base_products([
+    ProductRecord(..default_product(), tags: ["existing", "sale", "summer"]),
+  ])
+}
+
+fn option_update_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_products([default_product()])
+  |> store.upsert_base_product_variants([option_update_variant()])
+  |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/color",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Color",
+      position: 1,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/red",
+          name: "Red",
+          has_variants: True,
+        ),
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/green",
+          name: "Green",
+          has_variants: False,
+        ),
+      ],
+    ),
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/size",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Size",
+      position: 2,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/small",
+          name: "Small",
+          has_variants: True,
+        ),
+      ],
+    ),
+  ])
+}
+
+fn default_product() -> ProductRecord {
+  ProductRecord(
+    id: "gid://shopify/Product/optioned",
+    legacy_resource_id: None,
+    title: "Optioned Board",
+    handle: "optioned-board",
+    status: "ACTIVE",
+    vendor: None,
+    product_type: None,
+    tags: ["existing"],
+    total_inventory: Some(0),
+    tracks_inventory: Some(False),
+    created_at: None,
+    updated_at: None,
+    published_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    category: None,
+    publication_ids: [],
+    contextual_pricing: None,
+    cursor: None,
+  )
+}
+
+fn option_update_variant() -> ProductVariantRecord {
+  ProductVariantRecord(
+    id: "gid://shopify/ProductVariant/optioned",
+    product_id: "gid://shopify/Product/optioned",
+    title: "Red / Small",
+    sku: None,
+    barcode: None,
+    price: Some("0.00"),
+    compare_at_price: None,
+    taxable: None,
+    inventory_policy: None,
+    inventory_quantity: Some(0),
+    selected_options: [
+      ProductVariantSelectedOptionRecord(name: "Color", value: "Red"),
+      ProductVariantSelectedOptionRecord(name: "Size", value: "Small"),
+    ],
+    media_ids: [],
+    inventory_item: Some(
+      InventoryItemRecord(
+        id: "gid://shopify/InventoryItem/optioned",
+        tracked: Some(False),
+        requires_shipping: Some(True),
+        measurement: None,
+        country_code_of_origin: None,
+        province_code_of_origin: None,
+        harmonized_system_code: None,
+        inventory_levels: [],
+      ),
+    ),
+    contextual_pricing: None,
+    cursor: None,
+  )
+}
+
+fn default_variant() -> ProductVariantRecord {
+  ProductVariantRecord(
+    id: "gid://shopify/ProductVariant/default",
+    product_id: "gid://shopify/Product/optioned",
+    title: "Default Title",
+    sku: None,
+    barcode: None,
+    price: Some("0.00"),
+    compare_at_price: None,
+    taxable: None,
+    inventory_policy: None,
+    inventory_quantity: Some(0),
+    selected_options: [
+      ProductVariantSelectedOptionRecord(name: "Title", value: "Default Title"),
+    ],
+    media_ids: [],
+    inventory_item: Some(
+      InventoryItemRecord(
+        id: "gid://shopify/InventoryItem/default",
+        tracked: Some(False),
+        requires_shipping: Some(True),
+        measurement: None,
+        country_code_of_origin: None,
+        province_code_of_origin: None,
+        harmonized_system_code: None,
+        inventory_levels: [],
+      ),
+    ),
+    contextual_pricing: None,
+    cursor: None,
+  )
+}

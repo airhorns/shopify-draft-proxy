@@ -126,7 +126,7 @@ pub fn graphql_with_invalid_body_returns_400_test() {
   assert status == 400
 }
 
-pub fn graphql_unimplemented_domain_returns_400_test() {
+pub fn graphql_products_empty_query_returns_envelope_test() {
   let proxy = draft_proxy.new()
   let request =
     Request(
@@ -137,7 +137,7 @@ pub fn graphql_unimplemented_domain_returns_400_test() {
     )
   let #(Response(status: status, ..), _) =
     draft_proxy.process_request(proxy, request)
-  assert status == 400
+  assert status == 200
 }
 
 pub fn graphql_mutation_returns_400_for_now_test() {

@@ -13,35 +13,364 @@ import gleam/dict.{type Dict}
 import gleam/json.{type Json}
 import gleam/option.{type Option}
 
-// ---------------------------------------------------------------------------
-// Products smoke foundation
+// Products domain
 // ---------------------------------------------------------------------------
 
-/// Narrow Product record used by the BEAM embedder smoke lifecycle.
-/// This is not the full products-domain port; it models the
-/// productCreate -> product(id:) read-after-write path while the broader
-/// product domain remains owned by the TypeScript implementation.
-pub type ProductRecord {
-  ProductRecord(
+pub type ProductSeoRecord {
+  ProductSeoRecord(title: Option(String), description: Option(String))
+}
+
+pub type ProductCategoryRecord {
+  ProductCategoryRecord(id: String, full_name: String)
+}
+
+pub type CollectionImageRecord {
+  CollectionImageRecord(
+    id: Option(String),
+    alt_text: Option(String),
+    url: Option(String),
+    width: Option(Int),
+    height: Option(Int),
+  )
+}
+
+pub type CollectionRuleRecord {
+  CollectionRuleRecord(column: String, relation: String, condition: String)
+}
+
+pub type CollectionRuleSetRecord {
+  CollectionRuleSetRecord(
+    applied_disjunctively: Bool,
+    rules: List(CollectionRuleRecord),
+  )
+}
+
+pub type CollectionRecord {
+  CollectionRecord(
     id: String,
-    legacy_resource_id: String,
+    legacy_resource_id: Option(String),
     title: String,
     handle: String,
+    publication_ids: List(String),
+    updated_at: Option(String),
+    description: Option(String),
+    description_html: Option(String),
+    image: Option(CollectionImageRecord),
+    sort_order: Option(String),
+    template_suffix: Option(String),
+    seo: ProductSeoRecord,
+    rule_set: Option(CollectionRuleSetRecord),
+    products_count: Option(Int),
+    is_smart: Bool,
+    cursor: Option(String),
+    title_cursor: Option(String),
+    updated_at_cursor: Option(String),
+  )
+}
+
+pub type ProductCollectionRecord {
+  ProductCollectionRecord(
+    collection_id: String,
+    product_id: String,
+    position: Int,
+    cursor: Option(String),
+  )
+}
+
+pub type ProductMediaRecord {
+  ProductMediaRecord(
+    key: String,
+    product_id: String,
+    position: Int,
+    id: Option(String),
+    media_content_type: Option(String),
+    alt: Option(String),
+    status: Option(String),
+    product_image_id: Option(String),
+    image_url: Option(String),
+    image_width: Option(Int),
+    image_height: Option(Int),
+    preview_image_url: Option(String),
+    source_url: Option(String),
+  )
+}
+
+pub type ProductVariantSelectedOptionRecord {
+  ProductVariantSelectedOptionRecord(name: String, value: String)
+}
+
+pub type CapturedJsonValue {
+  CapturedNull
+  CapturedBool(Bool)
+  CapturedInt(Int)
+  CapturedFloat(Float)
+  CapturedString(String)
+  CapturedArray(List(CapturedJsonValue))
+  CapturedObject(List(#(String, CapturedJsonValue)))
+}
+
+pub type InventoryWeightValue {
+  InventoryWeightInt(Int)
+  InventoryWeightFloat(Float)
+}
+
+pub type InventoryWeightRecord {
+  InventoryWeightRecord(unit: String, value: InventoryWeightValue)
+}
+
+pub type InventoryMeasurementRecord {
+  InventoryMeasurementRecord(weight: Option(InventoryWeightRecord))
+}
+
+pub type InventoryLocationRecord {
+  InventoryLocationRecord(id: String, name: String)
+}
+
+pub type LocationRecord {
+  LocationRecord(id: String, name: String, cursor: Option(String))
+}
+
+pub type PublicationRecord {
+  PublicationRecord(
+    id: String,
+    name: Option(String),
+    auto_publish: Option(Bool),
+    supports_future_publishing: Option(Bool),
+    catalog_id: Option(String),
+    channel_id: Option(String),
+    cursor: Option(String),
+  )
+}
+
+pub type ChannelRecord {
+  ChannelRecord(
+    id: String,
+    name: Option(String),
+    handle: Option(String),
+    publication_id: Option(String),
+    cursor: Option(String),
+  )
+}
+
+pub type ProductFeedRecord {
+  ProductFeedRecord(
+    id: String,
+    country: Option(String),
+    language: Option(String),
+    status: String,
+  )
+}
+
+pub type ProductResourceFeedbackRecord {
+  ProductResourceFeedbackRecord(
+    product_id: String,
+    state: String,
+    feedback_generated_at: String,
+    product_updated_at: String,
+    messages: List(String),
+  )
+}
+
+pub type ShopResourceFeedbackRecord {
+  ShopResourceFeedbackRecord(
+    id: String,
+    state: String,
+    feedback_generated_at: String,
+    messages: List(String),
+  )
+}
+
+pub type InventoryQuantityRecord {
+  InventoryQuantityRecord(
+    name: String,
+    quantity: Int,
+    updated_at: Option(String),
+  )
+}
+
+pub type InventoryLevelRecord {
+  InventoryLevelRecord(
+    id: String,
+    location: InventoryLocationRecord,
+    quantities: List(InventoryQuantityRecord),
+    is_active: Option(Bool),
+    cursor: Option(String),
+  )
+}
+
+pub type InventoryItemRecord {
+  InventoryItemRecord(
+    id: String,
+    tracked: Option(Bool),
+    requires_shipping: Option(Bool),
+    measurement: Option(InventoryMeasurementRecord),
+    country_code_of_origin: Option(String),
+    province_code_of_origin: Option(String),
+    harmonized_system_code: Option(String),
+    inventory_levels: List(InventoryLevelRecord),
+  )
+}
+
+pub type InventoryTransferLocationSnapshotRecord {
+  InventoryTransferLocationSnapshotRecord(
+    id: Option(String),
+    name: String,
+    snapshotted_at: String,
+  )
+}
+
+pub type InventoryTransferLineItemRecord {
+  InventoryTransferLineItemRecord(
+    id: String,
+    inventory_item_id: String,
+    title: Option(String),
+    total_quantity: Int,
+    shipped_quantity: Int,
+    picked_for_shipment_quantity: Int,
+  )
+}
+
+pub type InventoryTransferRecord {
+  InventoryTransferRecord(
+    id: String,
+    name: String,
+    reference_name: Option(String),
+    status: String,
+    note: Option(String),
+    tags: List(String),
+    date_created: String,
+    origin: Option(InventoryTransferLocationSnapshotRecord),
+    destination: Option(InventoryTransferLocationSnapshotRecord),
+    line_items: List(InventoryTransferLineItemRecord),
+  )
+}
+
+pub type InventoryShipmentTrackingRecord {
+  InventoryShipmentTrackingRecord(
+    tracking_number: Option(String),
+    company: Option(String),
+    tracking_url: Option(String),
+    arrives_at: Option(String),
+  )
+}
+
+pub type InventoryShipmentLineItemRecord {
+  InventoryShipmentLineItemRecord(
+    id: String,
+    inventory_item_id: String,
+    quantity: Int,
+    accepted_quantity: Int,
+    rejected_quantity: Int,
+  )
+}
+
+pub type InventoryShipmentRecord {
+  InventoryShipmentRecord(
+    id: String,
+    movement_id: String,
+    name: String,
     status: String,
     created_at: String,
     updated_at: String,
-    default_variant_id: String,
+    tracking: Option(InventoryShipmentTrackingRecord),
+    line_items: List(InventoryShipmentLineItemRecord),
   )
 }
 
 pub type ProductVariantRecord {
   ProductVariantRecord(
     id: String,
-    legacy_resource_id: String,
     product_id: String,
     title: String,
-    inventory_quantity: Int,
-    inventory_item_id: String,
+    sku: Option(String),
+    barcode: Option(String),
+    price: Option(String),
+    compare_at_price: Option(String),
+    taxable: Option(Bool),
+    inventory_policy: Option(String),
+    inventory_quantity: Option(Int),
+    selected_options: List(ProductVariantSelectedOptionRecord),
+    media_ids: List(String),
+    inventory_item: Option(InventoryItemRecord),
+    contextual_pricing: Option(CapturedJsonValue),
+    cursor: Option(String),
+  )
+}
+
+pub type ProductOptionValueRecord {
+  ProductOptionValueRecord(id: String, name: String, has_variants: Bool)
+}
+
+pub type ProductOptionRecord {
+  ProductOptionRecord(
+    id: String,
+    product_id: String,
+    name: String,
+    position: Int,
+    option_values: List(ProductOptionValueRecord),
+  )
+}
+
+pub type ProductOperationUserErrorRecord {
+  ProductOperationUserErrorRecord(field: Option(List(String)), message: String)
+}
+
+pub type ProductOperationRecord {
+  ProductOperationRecord(
+    id: String,
+    type_name: String,
+    product_id: Option(String),
+    new_product_id: Option(String),
+    status: String,
+    user_errors: List(ProductOperationUserErrorRecord),
+  )
+}
+
+pub type ProductRecord {
+  ProductRecord(
+    id: String,
+    legacy_resource_id: Option(String),
+    title: String,
+    handle: String,
+    status: String,
+    vendor: Option(String),
+    product_type: Option(String),
+    tags: List(String),
+    total_inventory: Option(Int),
+    tracks_inventory: Option(Bool),
+    created_at: Option(String),
+    updated_at: Option(String),
+    published_at: Option(String),
+    description_html: String,
+    online_store_preview_url: Option(String),
+    template_suffix: Option(String),
+    seo: ProductSeoRecord,
+    category: Option(ProductCategoryRecord),
+    publication_ids: List(String),
+    contextual_pricing: Option(CapturedJsonValue),
+    cursor: Option(String),
+  )
+}
+
+pub type SellingPlanRecord {
+  SellingPlanRecord(id: String, data: CapturedJsonValue)
+}
+
+pub type SellingPlanGroupRecord {
+  SellingPlanGroupRecord(
+    id: String,
+    app_id: Option(String),
+    name: String,
+    merchant_code: String,
+    description: Option(String),
+    options: List(String),
+    position: Option(Int),
+    summary: Option(String),
+    created_at: Option(String),
+    product_ids: List(String),
+    product_variant_ids: List(String),
+    selling_plans: List(SellingPlanRecord),
+    cursor: Option(String),
   )
 }
 
