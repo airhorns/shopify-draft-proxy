@@ -9,6 +9,366 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 118: reverse logistics and order-edit shipping roots
+
+Completes the remaining HAR-493 shipping/fulfillment registry roots that are
+owned by broader order flows rather than checked-in shipping parity specs. The
+Gleam port now stages reverse delivery creation/update/disposal over captured
+reverse-fulfillment-order records and stages calculated-order shipping-line
+add/update/remove operations with downstream calculated-order reads.
+
+| Module                                                     | Change                                                                                                      |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam` | Adds `reverseDelivery`, `reverseFulfillmentOrder`, `reverseDeliveryCreateWithShipping`, `reverseDeliveryShippingUpdate`, `reverseFulfillmentOrderDispose`, and `orderEditAdd/Update/RemoveShippingLine` local handling. |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds captured reverse-fulfillment-order, reverse-delivery, and calculated-order state slices for bounded order-backed staging. |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam` | Covers reverse delivery lifecycle/detail reads and calculated-order shipping-line add/update/remove staging. |
+
+Validation:
+Full JavaScript is green at 733 tests. Host Erlang still fails before tests
+with the known `undef` runner issue; the Docker Erlang fallback using Gleam 1.16
+and `HOME=/tmp` is green at 729 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 specs and 166 expected failures. `git diff --check` is green.
+
+### Findings
+
+- Reverse logistics can remain captured-state backed for this pass because the
+  source TypeScript evidence is embedded in broader order-return flows; the
+  Gleam slice preserves direct reverse delivery/fulfillment-order reads and
+  local mutation staging without claiming the full order return domain.
+- Calculated-order shipping-line support needs only the local calculated-order
+  slice here; commit materialization remains part of the broader order-edit
+  port, so the TypeScript runtime stays intact under the port preservation
+  rule.
+
+### Risks / open items
+
+- Full order return/order-edit parity remains a future domain porting concern;
+  this pass only covers the shipping/fulfillment roots called out by HAR-493.
+
+### Pass 119 candidates
+
+- Pick the next domain with manifest-backed expected failures from
+  `config/gleam-port-ci-gates.json`.
+
+---
+
+## 2026-05-01 - Pass 117: fulfillment order and fulfillment read parity
+
+Promotes the remaining shipping/fulfillment parity specs into the Gleam parity
+suite. The shipping/fulfillments port now seeds captured order-backed
+fulfillment data, serves top-level fulfillment and fulfillment-order reads,
+routes order reads with nested fulfillment selections locally, and stages the
+captured fulfillment-order request and lifecycle mutations without Shopify
+passthrough.
+
+| Module                                                     | Change                                                                                                      |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam` | Adds fulfillment/fulfillment-order query roots, assigned/manual fulfillment-order connections, order nested fulfillment projection, request lifecycle mutations, and bounded fulfillment-order hold/move/progress/open/cancel/split/deadline/merge staging. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`    | Routes `order` reads that select `fulfillments` or `fulfillmentOrders` through the shipping/fulfillments domain while leaving other order reads unsupported in the current port. |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds captured fulfillment, fulfillment-order, and shipping-order state slices plus staged shipping-order updates for lifecycle read-after-write effects. |
+| `gleam/test/parity/runner.gleam`                           | Seeds the captured fulfillment top-level reads, assigned fulfillment-order filters, fulfillment-order request lifecycle, and fulfillment-order lifecycle fixtures. |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam` | Covers fixture-backed fulfillment reads, assigned/manual filters, order nested reads, request lifecycle staging, and fulfillment-order lifecycle effects. |
+| `config/gleam-port-ci-gates.json`                          | Removes the last shipping/fulfillment parity specs from expected Gleam parity failures.                    |
+
+Validation:
+Full JavaScript is green at 730 tests. Host Erlang still fails before tests
+with the known `undef` runner issue; the Docker Erlang fallback using Gleam 1.16
+and `HOME=/tmp` is green at 726 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 specs and 166 expected failures. Shipping/fulfillment expected
+Gleam parity failures are now zero.
+
+### Findings
+
+- Fulfillment-order lifecycle parity needs to preserve Shopify's distinction
+  between fulfillment-order allocation quantities and the underlying order line
+  item quantity/fulfillable fields.
+- Release and merge flows keep closed sibling fulfillment orders visible on the
+  nested order read rather than dropping them from the order connection.
+- The order read effect for `fulfillmentOrderReportProgress` is staged on the
+  captured shipping-order record by updating `displayFulfillmentStatus`, then
+  reset by the open flow.
+- Captured deadline timestamps compare at Shopify's second precision, so local
+  deadline staging normalizes millisecond input values before projection.
+
+### Risks / open items
+
+- This pass intentionally uses captured JSON-backed order/fulfillment records
+  for the parity fixtures instead of porting the full TypeScript order runtime;
+  the broader order domain remains a separate porting concern.
+- Reverse logistics and order-edit shipping line roots are not represented by
+  checked-in shipping/fulfillment parity specs in this pass; future captured
+  specs should extend this domain substrate.
+- The TypeScript shipping/fulfillment runtime remains intact under the port
+  preservation rule until the final all-port cutover.
+
+### Pass 118 candidates
+
+- Pick the next domain with manifest-backed expected failures from
+  `config/gleam-port-ci-gates.json`.
+- Expand order-domain substrate when new order-owned parity fixtures require
+  more than captured shipping-order projection.
+
+---
+
+## 2026-05-01 - Pass 116: delivery profile lifecycle parity
+
+Promotes `delivery-profile-lifecycle.json` into the Gleam parity suite. The
+shipping/fulfillments port now stages delivery profile create/update/remove
+locally, returns captured validation-style user errors for blank/missing/default
+profile branches, preserves read-after-remove null behavior, and seeds the
+lifecycle fixture with captured product/variant/default-profile preconditions.
+
+| Module                                                     | Change                                                                                                      |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam` | Adds deliveryProfileCreate/update/remove mutation roots, synthetic profile/location-group/zone/method/rate/condition/job IDs, derived counts, variant item projection, and validation payloads. |
+| `gleam/test/parity/runner.gleam`                           | Seeds captured product/variant records plus the default profile needed by lifecycle validation replay.       |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam` | Covers lifecycle create/update/remove, downstream absence after removal, and validation branches.       |
+| `config/gleam-port-ci-gates.json`                          | Removes the delivery-profile lifecycle spec from expected Gleam parity failures.                            |
+
+Validation:
+Full JavaScript is green at 730 tests. Host Erlang still fails before tests
+with the known `undef` runner issue; the Docker Erlang fallback using Gleam 1.16
+and `HOME=/tmp` is green at 726 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 specs and 171 expected failures. Shipping/fulfillment expected
+Gleam parity failures are down from 6 to 5.
+
+### Findings
+
+- The lifecycle fixture does not need a broad delivery-profile schema model for
+  this pass; the captured-profile projector can represent the selected profile
+  graph while derived counts and read-after-remove behavior are staged locally.
+- The parity runner must seed the captured product/variant used by
+  `variantsToAssociate`, otherwise the create payload cannot reproduce the
+  downstream `profileItems` product and variant titles.
+- Default-profile removal parity needs an explicit default profile baseline,
+  because the default-remove validation branch must distinguish a missing
+  profile from Shopify's "Cannot delete the default profile." response.
+
+### Risks / open items
+
+- The staged profile update currently models the lifecycle fields selected by
+  the fixture; broader delivery-profile mutation subgraphs should be expanded
+  when additional captured specs require them.
+- Fulfillment order/event flows, assigned/manual fulfillment order reads,
+  reverse logistics, and order-edit shipping line roots remain gated for
+  HAR-493.
+- The TypeScript shipping/fulfillment runtime remains intact under the port
+  preservation rule until the final all-port cutover.
+
+### Pass 117 candidates
+
+- Continue `fulfillment-top-level-reads.json` if its fulfillment read shapes can
+  reuse the fulfillment-service and location substrate.
+- Continue order-backed fulfillment order/event lifecycle specs if the order
+  seed surface is tractable.
+
+---
+
+## 2026-05-01 - Pass 115: delivery profile read parity
+
+Promotes `delivery-profile-read.json` into the Gleam parity suite. The
+shipping/fulfillments port now has fixture-backed delivery profile state,
+top-level `deliveryProfile` detail reads, `deliveryProfiles` catalog
+connections, merchant-owned filtering, reverse ordering, captured cursor
+projection, and missing-profile null behavior.
+
+| Module                                                     | Change                                                                                                      |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam` | Adds `deliveryProfile`/`deliveryProfiles` query roots, captured profile projection, connection pagination, and hidden rate-provider typename annotation for inline fragments. |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds delivery-profile state, effective read helpers, staged delete plumbing for future lifecycle work, and state dump fields. |
+| `gleam/test/parity/runner.gleam`                           | Seeds the captured delivery profile detail payload and catalog cursor for strict parity replay.              |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam` | Covers detail, catalog, merchant-owned reverse read, and missing-profile null projection.             |
+| `config/gleam-port-ci-gates.json`                          | Removes the delivery-profile read spec from expected Gleam parity failures.                                  |
+
+Validation:
+Full JavaScript is green at 728 tests. Host Erlang/OTP 25 still cannot run the
+current `gleam_json` OTP 27 calls; the Docker Erlang fallback using Gleam 1.16
+and `HOME=/tmp` is green at 724 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 specs and 172 expected failures. Shipping/fulfillment expected
+Gleam parity failures are down from 7 to 6.
+
+### Findings
+
+- The capture omits `__typename` under `rateProvider`, but the local projector
+  needs the hidden type to apply `DeliveryRateDefinition` versus
+  `DeliveryParticipant` fragments. The read path infers that internal type from
+  stable rate-provider fields before projection while leaving the selected JSON
+  shape unchanged.
+- The read spec is safely fixture-backed: the captured detail payload contains
+  the nested profile item, location group, zone, rate, condition, unassigned
+  location, and connection cursor slices required by the strict replay targets.
+
+### Risks / open items
+
+- Delivery profile create/update/remove lifecycle remains gated separately.
+- Fulfillment order/event flows, assigned/manual fulfillment order reads,
+  reverse logistics, and order-edit shipping line roots remain gated for
+  HAR-493.
+- The TypeScript shipping/fulfillment runtime remains intact under the port
+  preservation rule until the final all-port cutover.
+
+### Pass 116 candidates
+
+- Continue `delivery-profile-lifecycle.json` now that delivery-profile read
+  state and projection are available.
+- Continue the order-backed fulfillment substrate if tackling
+  `fulfillment-top-level-reads.json` or fulfillment-order lifecycle specs.
+
+---
+
+## 2026-05-01 - Pass 114: fulfillment service lifecycle parity
+
+Promotes `fulfillment-service-lifecycle.json` into the Gleam parity suite. The
+shipping/fulfillments port now stages FulfillmentService create/update/delete
+locally, projects top-level `fulfillmentService` detail reads, and stages the
+associated Store Properties location so downstream location reads observe the
+service lifecycle.
+
+| Module                                                     | Change                                                                                                      |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam` | Adds fulfillment-service query/mutation roots, validation branches, synthetic IDs, and associated location staging. |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds normalized fulfillment-service state, effective reads, staged deletes, and state dump fields.    |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam` | Covers fulfillment-service lifecycle reads, associated location effects, delete cleanup, and validation branches. |
+| `config/gleam-port-ci-gates.json`                          | Removes the fulfillment-service lifecycle spec from expected Gleam parity failures.                         |
+
+Validation:
+Full JavaScript is green at 727 tests. Host Erlang/OTP 25 still cannot run the
+current `gleam_json` OTP 27 calls; the Docker Erlang fallback using Gleam 1.16
+and `HOME=/tmp` is green at 723 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 specs and 173 expected failures. Shipping/fulfillment expected
+Gleam parity failures are down from 8 to 7.
+
+### Findings
+
+- Fulfillment service updates preserve the original handle while changing
+  `serviceName` and the associated location name, matching the capture.
+- The delete payload strips the query suffix from the FulfillmentService GID,
+  while reads and staged identity keep the full synthetic GID.
+- The local service location belongs in Store Properties location state so mixed
+  `fulfillmentService` / `location` parity reads can observe the same staged
+  graph.
+
+### Risks / open items
+
+- Delivery profiles, fulfillment order/event flows, assigned/manual
+  fulfillment order reads, reverse logistics, and order-edit shipping line roots
+  remain gated for HAR-493.
+- The TypeScript shipping/fulfillment runtime remains intact under the port
+  preservation rule until the final all-port cutover.
+
+### Pass 115 candidates
+
+- Continue `fulfillment-top-level-reads.json` if the remaining top-level
+  fulfillment read shapes can share the fulfillment-service and location
+  substrate.
+- Continue `delivery-profile-read.json` / `delivery-profile-lifecycle.json` if
+  delivery-profile state can share the shipping settings location substrate.
+
+---
+
+## 2026-05-01 - Pass 113: shipping settings and local pickup parity
+
+Promotes `shipping-settings-package-pickup-constraints.json` into the Gleam
+parity suite. The shipping/fulfillments port now projects available active
+carrier services, active delivery-profile locations, and local pickup
+enable/disable mutations backed by staged Store Properties location state so
+downstream `location` reads observe pickup settings changes.
+
+| Module                                                     | Change                                                                                                      |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam` | Adds shipping settings availability reads plus local pickup enable/disable payloads and location staging. |
+| `gleam/test/parity/runner.gleam`                           | Seeds captured carrier services and Store Properties locations for the shipping settings parity replay.     |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam` | Covers availability filtering, pickup enable/read/disable, and unknown-location user errors.        |
+| `config/gleam-port-ci-gates.json`                          | Removes the shipping settings/package/local-pickup constraints spec from expected Gleam parity failures.    |
+
+Validation:
+Full JavaScript is green at 725 tests. Host Erlang/OTP 25 still cannot run the
+current `gleam_json` OTP 27 calls; the Docker Erlang fallback using Gleam 1.16
+and `HOME=/tmp` is green at 721 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 specs and 174 expected failures. Shipping/fulfillment expected
+Gleam parity failures are down from 9 to 8.
+
+### Findings
+
+- `availableCarrierServices` is captured as active carrier services paired
+  with active non-fulfillment locations when locations are selected.
+- `locationsAvailableForDeliveryProfilesConnection` includes active
+  fulfillment-service locations; it filters inactive/deleted locations and sorts
+  by Shopify resource ID before normal connection windowing.
+- Local pickup mutations should update Store Properties location records rather
+  than creating a separate shipping-only location state, because the downstream
+  captured read uses the already-ported `location` root.
+
+### Risks / open items
+
+- Delivery profiles, fulfillment services, fulfillment order/event flows,
+  assigned/manual fulfillment order reads, reverse logistics, and order-edit
+  shipping line roots remain gated for HAR-493.
+- The TypeScript shipping/fulfillment runtime remains intact under the port
+  preservation rule until the final all-port cutover.
+
+### Pass 114 candidates
+
+- Continue `fulfillment-service-lifecycle.json` if its mutation/read loop can
+  be isolated against the existing Store Properties location seed.
+- Continue `delivery-profile-read.json` / `delivery-profile-lifecycle.json` if
+  delivery-profile state can share the shipping settings location substrate.
+
+---
+
+## 2026-05-01 - Pass 112: shipping package and carrier service lifecycle parity
+
+Promotes two shipping/fulfillment lifecycle fixtures into the Gleam parity
+suite. The port now stages custom shipping package update/default/delete roots
+locally, preserves package state in dumps, returns captured unknown-id
+`RESOURCE_NOT_FOUND` envelopes, and stages DeliveryCarrierService
+create/update/delete with downstream detail and filtered connection reads.
+
+| Module                                                     | Change                                                                                                            |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam` | Adds the shipping/fulfillment domain slice for shipping package and carrier service mutation/query roots.         |
+| `gleam/src/shopify_draft_proxy/state/{types,store,serialization}.gleam` | Adds normalized shipping package and carrier service state, effective reads, staged deletes, and state dumps. |
+| `gleam/test/parity/{spec,runner}.gleam`                    | Allows parity specs to compare selected proxy state/log paths and seeds captured shipping package baselines.      |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam` | Covers local package lifecycle, carrier service lifecycle, filtered reads, and validation branches.        |
+| `config/gleam-port-ci-gates.json`                          | Removes the shipping package lifecycle and carrier service lifecycle specs from expected Gleam parity failures.   |
+
+Validation:
+Full JavaScript is green at 722 tests. Host Erlang/OTP 25 still cannot run the
+current `gleam_json` OTP 27 calls; the Docker Erlang fallback using Gleam 1.16
+and `HOME=/tmp` is green at 718 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 specs and 175 expected failures. Shipping/fulfillment expected
+Gleam parity failures are down from 11 to 9.
+
+### Findings
+
+- Shipping package mutations must not fabricate missing package records:
+  Shopify and the TypeScript runtime return a top-level `RESOURCE_NOT_FOUND`
+  error with a null root payload for unknown package IDs.
+- Carrier service lifecycle parity is self-contained enough for isolated
+  replay: the proxy-created DeliveryCarrierService ID can drive update,
+  downstream detail/active-filter reads, delete, and after-delete absence.
+- Carrier service search for this fixture only needs Shopify's captured
+  `active:` and `id:` term behavior; broader search semantics remain deferred
+  until another captured fixture requires them.
+
+### Risks / open items
+
+- Shipping settings/local pickup, delivery profiles, fulfillment services,
+  fulfillment orders/events, reverse logistics, and order-edit shipping line
+  roots remain gated for HAR-493.
+- The TypeScript shipping/fulfillment runtime remains intact under the port
+  preservation rule until the final all-port cutover.
+
+### Pass 113 candidates
+
+- Continue `shipping-settings-package-pickup-constraints.json` by porting
+  available carrier services, locations available for delivery profiles, and
+  local pickup enable/disable staging.
+- Continue `fulfillment-service-lifecycle.json` if a smaller mutation/read
+  lifecycle slice is preferred.
+
+---
+
 ## 2026-04-30 - Pass 111: product search grammar parity
 
 Promotes the final gated Product parity spec,

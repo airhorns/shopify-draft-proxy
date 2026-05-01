@@ -50,6 +50,7 @@ import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
+import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/upstream_dispatch
 import shopify_draft_proxy/proxy/webhooks
@@ -1036,6 +1037,31 @@ fn route_mutation(
         )
         Error(_) -> #(bad_request("Failed to handle customers mutation"), proxy)
       }
+    Ok(ShippingFulfillmentsDomain) ->
+      case
+        shipping_fulfillments.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(
+          bad_request("Failed to handle shipping fulfillments mutation"),
+          proxy,
+        )
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -1154,6 +1180,12 @@ fn route_query(
         customers.process(proxy.store, query, variables),
         "Failed to handle customers query",
       )
+    Ok(ShippingFulfillmentsDomain) ->
+      respond(
+        proxy,
+        shipping_fulfillments.process(proxy.store, query, variables),
+        "Failed to handle shipping fulfillments query",
+      )
     Ok(PrivacyDomain) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -1191,6 +1223,7 @@ type Domain {
   StorePropertiesDomain
   PrivacyDomain
   CustomersDomain
+  ShippingFulfillmentsDomain
 }
 
 /// Resolve a query operation's domain. The registry decides whether a
@@ -1304,6 +1337,14 @@ fn local_query_dispatch_domain(
   case name {
     "event" | "events" | "eventsCount" -> Ok(EventsDomain)
     "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
+    "order" ->
+      case
+        string.contains(query, "fulfillmentOrders")
+        || string.contains(query, "fulfillments")
+      {
+        True -> Ok(ShippingFulfillmentsDomain)
+        False -> Error(Nil)
+      }
     "shop" -> Ok(StorePropertiesDomain)
     "product" | "collection" ->
       case store_publishable_owner_query(name, query) {
@@ -1404,7 +1445,20 @@ fn local_query_dispatch_domain(
                                                                         StorePropertiesDomain,
                                                                       )
                                                                     False ->
-                                                                      Error(Nil)
+                                                                      case
+                                                                        shipping_fulfillments.is_shipping_fulfillment_query_root(
+                                                                          name,
+                                                                        )
+                                                                      {
+                                                                        True ->
+                                                                          Ok(
+                                                                            ShippingFulfillmentsDomain,
+                                                                          )
+                                                                        False ->
+                                                                          Error(
+                                                                            Nil,
+                                                                          )
+                                                                      }
                                                                   }
                                                               }
                                                           }
@@ -1569,7 +1623,18 @@ fn local_non_store_publishable_mutation_dispatch_domain(
                                                                     CustomersDomain,
                                                                   )
                                                                 False ->
-                                                                  Error(Nil)
+                                                                  case
+                                                                    shipping_fulfillments.is_shipping_fulfillment_mutation_root(
+                                                                      name,
+                                                                    )
+                                                                  {
+                                                                    True ->
+                                                                      Ok(
+                                                                        ShippingFulfillmentsDomain,
+                                                                      )
+                                                                    False ->
+                                                                      Error(Nil)
+                                                                  }
                                                               }
                                                           }
                                                       }
