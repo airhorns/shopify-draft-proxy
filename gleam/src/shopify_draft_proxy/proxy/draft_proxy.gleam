@@ -36,6 +36,7 @@ import shopify_draft_proxy/proxy/capabilities
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/customers
 import shopify_draft_proxy/proxy/delivery_settings
+import shopify_draft_proxy/proxy/discounts
 import shopify_draft_proxy/proxy/events
 import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/gift_cards
@@ -783,6 +784,28 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(DiscountsDomain) ->
+      case
+        discounts.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle discounts mutation"), proxy)
+      }
     Ok(B2BDomain) ->
       case
         b2b.process_mutation(
@@ -1161,6 +1184,12 @@ fn route_query(
         gift_cards.process(proxy.store, query, variables),
         "Failed to handle gift cards query",
       )
+    Ok(DiscountsDomain) ->
+      respond(
+        proxy,
+        discounts.process(proxy.store, query, variables),
+        "Failed to handle discounts query",
+      )
     Ok(B2BDomain) ->
       respond(
         proxy,
@@ -1266,6 +1295,7 @@ type Domain {
   AppsDomain
   FunctionsDomain
   GiftCardsDomain
+  DiscountsDomain
   B2BDomain
   SegmentsDomain
   MetafieldDefinitionsDomain
@@ -1414,6 +1444,7 @@ fn local_query_dispatch_domain(
         #(apps.is_app_query_root(name), AppsDomain),
         #(functions.is_function_query_root(name), FunctionsDomain),
         #(gift_cards.is_gift_card_query_root(name), GiftCardsDomain),
+        #(discounts.is_discount_query_root(name), DiscountsDomain),
         #(b2b.is_b2b_query_root(name), B2BDomain),
         #(segments.is_segment_query_root(name), SegmentsDomain),
         #(products.is_products_query_root(name), ProductsDomain),
@@ -1545,6 +1576,7 @@ fn local_non_store_publishable_mutation_dispatch_domain(
     #(apps.is_app_mutation_root(name), AppsDomain),
     #(functions.is_function_mutation_root(name), FunctionsDomain),
     #(gift_cards.is_gift_card_mutation_root(name), GiftCardsDomain),
+    #(discounts.is_discount_mutation_root(name), DiscountsDomain),
     #(b2b.is_b2b_mutation_root(name), B2BDomain),
     #(segments.is_segment_mutation_root(name), SegmentsDomain),
     #(

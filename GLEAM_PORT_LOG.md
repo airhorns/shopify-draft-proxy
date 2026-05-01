@@ -9,20 +9,20 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-01 - Pass 163: HAR-496 payments branch orders refresh
+## 2026-05-01 - Pass 164: HAR-496 payments branch discounts refresh
 
 Refreshes the HAR-496 Payments branch after `origin/main` advanced with the
-broader Gleam Orders fulfillment/request lifecycle work. The merge keeps
-Payments and order-payment parity ungated while preserving mainline Orders
-dispatch, store, serialization, and parity runner coverage.
+Discounts lifecycle parity work. The merge keeps Payments and order-payment
+parity ungated while preserving mainline Discounts dispatch, store,
+serialization, and parity runner coverage.
 
-| Module                                                  | Change                                                                                   |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`      | Preserves mainline's broader Orders implementation including order-payment roots.        |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Payments dispatch alongside mainline Orders dispatch.                              |
-| `gleam/src/shopify_draft_proxy/state/store.gleam`       | Combines mainline Orders state with HAR-496 payment customization/terms state.           |
-| `gleam/test/parity/runner.gleam`                        | Keeps payment precondition seeding inside the mainline parity runner.                    |
-| `config/gleam-port-ci-gates.json`                       | Keeps Payments/order-payment, finance-risk, product grammar, and Segments paths ungated. |
+| Module                                                  | Change                                                                            |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/discounts.gleam`   | Brings in mainline Discounts lifecycle parity support.                            |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Keeps Payments dispatch alongside mainline Discounts and Orders dispatch.         |
+| `gleam/src/shopify_draft_proxy/state/*`                 | Combines mainline Discounts state with HAR-496 payment customization/terms state. |
+| `gleam/test/parity/runner.gleam`                        | Keeps payment precondition seeding alongside mainline discount fixture seeding.   |
+| `config/gleam-port-ci-gates.json`                       | Keeps Payments/order-payment and mainline Discounts paths ungated.                |
 
 Validation:
 
@@ -31,25 +31,76 @@ Validation:
 - `corepack pnpm lint`
 - `cd gleam && gleam check --target javascript`
 - `cd gleam && gleam check --target erlang`
-- `cd gleam && gleam test --target javascript -- --seed 0` (768 passed)
+- `cd gleam && gleam test --target javascript -- --seed 0` (771 passed)
 - `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
-  (764 passed)
-- `corepack pnpm gleam:port:coverage`
+  (767 passed)
+- `corepack pnpm gleam:port:coverage` (379 specs; 66 expected failures; passed)
 - Targeted expected-failure scan for payments/order-payment, finance-risk,
-  product grammar, and Segments paths returned no matches.
+  product grammar, Segments, and Discounts paths returned no matches.
 
 ### Findings
 
-- Mainline now owns the broader Orders module, so this refresh preserves it and
-  reapplies only the HAR-496 Payments dispatch, state, seed, and gate removals.
-- `draftOrder` query dispatch now keeps payment-terms-only reads on the
-  Payments slice while routing full draft-order reads through mainline Orders,
-  avoiding a collision with the broader Orders parity scenarios.
+- Mainline now owns the Discounts module, so this refresh preserves it and
+  keeps the HAR-496 Payments dispatch, state, seed, and gate removals layered
+  into the same dispatcher/store surface.
+- The dispatcher conflict resolves to the compact `first_matching_domain`
+  helpers while adding both Payments and Discounts roots.
 
 ### Risks / open items
 
 - TypeScript Payments runtime deletion remains deferred under the incremental
   port preservation rule until final all-port cutover.
+
+---
+
+## 2026-05-01 - Pass 163: discounts lifecycle parity
+
+Promotes the Discounts domain into the Gleam parity suite. The port now stages
+discount catalog/detail reads, automatic and code discount lifecycle mutations,
+app discounts, BXGY, free shipping, bulk activate/deactivate/delete jobs, and
+redeem-code bulk add/delete flows locally while preserving captured buyer
+context, status filtering, validation, and downstream read-after-write behavior.
+
+| Module                                                      | Change                                                                                                                |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/discounts.gleam`       | Adds Discounts query/mutation root handling, normalized projection, validation, staged lifecycle, jobs, and codes.    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`     | Routes Discounts query and mutation roots to the new local domain dispatcher.                                         |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`           | Adds normalized discount records, typed discount kinds, redeem codes, async jobs, and bulk-creation records.          |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`           | Adds effective/staged discount helpers, deletion markers, bulk job helpers, and redeem-code lookup/update operations. |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`   | Carries discount state through dump/restore.                                                                          |
+| `gleam/test/parity/runner.gleam`                            | Seeds captured discount catalog/detail records for parity replay.                                                     |
+| `gleam/test/shopify_draft_proxy/proxy/discounts_test.gleam` | Adds focused lifecycle, validation, buyer-context, status-filter, and redeem-code behavior tests.                     |
+| `config/gleam-port-ci-gates.json`                           | Removes all 18 checked-in Discounts parity specs from the expected-failure gate.                                      |
+
+Validation:
+Focused Discounts parity is green for all 18 checked-in specs. `gleam check`
+is green. Full JavaScript target and the established Docker Erlang fallback are
+green on the HAR-491 branch. The TypeScript discount runtime remains intact
+under the port preservation rule until the final all-port cutover.
+
+### Findings
+
+- Discounts reuse more of Shopify's captured async-job surface than earlier
+  domains: app bulk activation/deactivation/delete and redeem-code deletes
+  return synthetic `Job` IDs, while redeem-code adds return a synthetic
+  `DiscountRedeemCodeBulkCreation` ID.
+- Captured discount catalog reads depend on both `status:` filters and code
+  query behavior. The Gleam port keeps those decisions in the Discounts module
+  instead of adding a resource-local generic search parser.
+- Buyer-context fields are preserved as captured payload fragments so automatic
+  and code discount detail reads round-trip stable Shopify-selected slices
+  after local mutation staging.
+
+### Risks / open items
+
+- This pass removes the Discounts parity gate for Gleam, but it does not
+  authorize deleting the TypeScript Discounts runtime before the broader
+  whole-port cutover acceptance bar is met.
+
+### Pass 164 candidates
+
+- Continue with the next expected-failing non-Product domain from
+  `config/gleam-port-ci-gates.json`.
 
 ---
 
