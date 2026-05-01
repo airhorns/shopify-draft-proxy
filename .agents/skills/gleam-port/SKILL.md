@@ -457,6 +457,11 @@ synthetic-id/timestamp expected differences.
   the shared top-level required-argument helper with `ID!`. Keep the edit
   session lifecycle, calculated edits, commit effects, and downstream order
   reads gated until those state transitions are modeled together.
+- `fulfillmentCreate` invalid fulfillment-order id is a GraphQL
+  `RESOURCE_NOT_FOUND` error with `data.fulfillmentCreate: null`, not a
+  `userErrors` payload. Treat this as a guardrail only; successful fulfillment
+  creation still needs local fulfillment-order state and downstream order
+  fulfillment visibility.
 
 ## Workflow for a new pass
 

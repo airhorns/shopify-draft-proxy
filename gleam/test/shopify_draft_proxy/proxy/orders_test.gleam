@@ -409,6 +409,79 @@ pub fn orders_fulfillment_validation_guardrails_test() {
     == "{\"errors\":[{\"message\":\"Argument 'fulfillmentId' on Field 'fulfillmentTrackingInfoUpdate' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":6,\"column\":7}],\"path\":[\"mutation FulfillmentTrackingInfoUpdateInlineNullId\",\"fulfillmentTrackingInfoUpdate\",\"fulfillmentId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"fulfillmentId\"}}]}"
 }
 
+pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
+  let mutation =
+    "
+    mutation FulfillmentCreateInvalidIdParity($fulfillment: FulfillmentInput!, $message: String) {
+      fulfillmentCreate(fulfillment: $fulfillment, message: $message) {
+        fulfillment {
+          id
+          status
+          trackingInfo(first: 5) {
+            number
+            url
+            company
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "fulfillment",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("notifyCustomer", root_field.BoolVal(False)),
+            #(
+              "trackingInfo",
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("number", root_field.StringVal("HERMES-PROBE")),
+                  #(
+                    "url",
+                    root_field.StringVal(
+                      "https://example.com/track/HERMES-PROBE",
+                    ),
+                  ),
+                  #("company", root_field.StringVal("Hermes")),
+                ]),
+              ),
+            ),
+            #(
+              "lineItemsByFulfillmentOrder",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #(
+                      "fulfillmentOrderId",
+                      root_field.StringVal("gid://shopify/FulfillmentOrder/0"),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+      #("message", root_field.StringVal("hermes fulfillment probe")),
+    ])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"errors\":[{\"message\":\"invalid id\",\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"},\"path\":[\"fulfillmentCreate\"]}],\"data\":{\"fulfillmentCreate\":null}}"
+}
+
 pub fn orders_order_create_validation_guardrails_test() {
   let missing_order =
     "

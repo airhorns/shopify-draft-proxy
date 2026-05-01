@@ -9,6 +9,58 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 122: fulfillment create invalid-id guardrail
+
+Promotes the captured `fulfillmentCreate` invalid fulfillment-order id branch
+in the Gleam Orders domain. This pass mirrors Shopify's top-level
+`RESOURCE_NOT_FOUND` error with `data.fulfillmentCreate: null` for the checked-in
+invalid-id parity fixture, while keeping successful fulfillment creation and
+downstream fulfillment reads gated.
+
+| Module                                                   | Change                                                                     |
+| -------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds a narrow `fulfillmentCreate` invalid-id resource-not-found guardrail. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers the invalid fulfillment-order id response envelope directly.        |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing `fulfillmentCreate-invalid-id-parity` spec.      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (730 passed).
+- Docker Erlang fallback:
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (726 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 parity specs; 146 expected Gleam
+  parity failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify returns this branch as a top-level GraphQL error with
+  `extensions.code = RESOURCE_NOT_FOUND` and a null mutation payload, not as a
+  mutation `userErrors` payload.
+- The checked-in parity target compares the stable data/error message,
+  extensions, and path; locations remain outside the comparison target.
+
+### Risks / open items
+
+- `fulfillmentCreate` happy path, fulfillment-order state, and downstream order
+  fulfillment visibility remain gated.
+- Order lifecycle, order editing success paths, refunds, returns, and the
+  remaining draft-order lifecycle roots remain unported.
+
+### Pass 123 candidates
+
+- Start a durable draft-order update/delete lifecycle slice, or continue
+  fulfillment success-path state only with checked-in parity evidence.
+
+---
+
 ## 2026-05-01 - Pass 121: order-edit missing-id guardrails
 
 Promotes the captured order-edit missing-id validation branches in the Gleam

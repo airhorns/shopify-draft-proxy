@@ -76,6 +76,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "draftOrderComplete",
       "draftOrderCreate",
       "fulfillmentCancel",
+      "fulfillmentCreate",
       "fulfillmentTrackingInfoUpdate",
       "orderCreate",
       "orderCreateManualPayment",
@@ -508,6 +509,18 @@ pub fn process_mutation(
             )
           }
         }
+        Field(name: name, ..) if name.value == "fulfillmentCreate" -> {
+          let #(key, payload, next_errors) =
+            handle_fulfillment_create_invalid_id_guardrail(name.value)
+          #(
+            list.append(entries, [#(key, payload)]),
+            list.append(errors, next_errors),
+            current_store,
+            current_identity,
+            ids,
+            drafts,
+          )
+        }
         Field(name: name, ..) if name.value == "orderCreate" -> {
           let #(key, payload, next_errors) =
             handle_order_create_validation_guardrail(
@@ -676,6 +689,21 @@ fn handle_order_edit_validation_guardrail(
     [_, ..] -> #(key, json.null(), validation_errors)
     [] -> #(key, json.null(), [])
   }
+}
+
+fn handle_fulfillment_create_invalid_id_guardrail(
+  root_name: String,
+) -> #(String, Json, List(Json)) {
+  #(root_name, json.null(), [
+    json.object([
+      #("message", json.string("invalid id")),
+      #(
+        "extensions",
+        json.object([#("code", json.string("RESOURCE_NOT_FOUND"))]),
+      ),
+      #("path", json.array([root_name], json.string)),
+    ]),
+  ])
 }
 
 fn handle_order_update_validation_guardrail(
