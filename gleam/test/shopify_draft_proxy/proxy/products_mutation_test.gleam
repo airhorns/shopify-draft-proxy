@@ -7,6 +7,7 @@ import shopify_draft_proxy/proxy/draft_proxy.{type Request, Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type ProductRecord, type ProductVariantRecord, InventoryItemRecord,
+  InventoryLevelRecord, InventoryLocationRecord, InventoryQuantityRecord,
   ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
   ProductVariantRecord, ProductVariantSelectedOptionRecord,
 }
@@ -393,6 +394,112 @@ pub fn product_variant_create_update_delete_stages_lifecycle_test() {
     == 3
 }
 
+pub fn inventory_shipment_extended_roots_stage_locally_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: tracked_inventory_store())
+  let create_query =
+    "mutation { inventoryShipmentCreate(input: { movementId: \\\"gid://shopify/InventoryTransfer/7001\\\", trackingInput: { trackingNumber: \\\"1Z999\\\", company: \\\"UPS\\\" }, lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 2 }] }) { inventoryShipment { id status lineItemTotalQuantity tracking { trackingNumber company } lineItems(first: 10) { nodes { id quantity unreceivedQuantity } } } userErrors { field message code } } }"
+
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"inventoryShipmentCreate\":{\"inventoryShipment\":{\"id\":\"gid://shopify/InventoryShipment/1\",\"status\":\"DRAFT\",\"lineItemTotalQuantity\":2,\"tracking\":{\"trackingNumber\":\"1Z999\",\"company\":\"UPS\"},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryShipmentLineItem/2\",\"quantity\":2,\"unreceivedQuantity\":2}]}},\"userErrors\":[]}}}"
+
+  let transit_query =
+    "mutation { inventoryShipmentMarkInTransit(id: \\\"gid://shopify/InventoryShipment/1\\\") { inventoryShipment { id status } userErrors { field message code } } }"
+  let #(Response(status: transit_status, body: transit_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(transit_query))
+  assert transit_status == 200
+  assert json.to_string(transit_body)
+    == "{\"data\":{\"inventoryShipmentMarkInTransit\":{\"inventoryShipment\":{\"id\":\"gid://shopify/InventoryShipment/1\",\"status\":\"IN_TRANSIT\"},\"userErrors\":[]}}}"
+
+  let add_query =
+    "mutation { inventoryShipmentAddItems(id: \\\"gid://shopify/InventoryShipment/1\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 3 }]) { addedItems { id quantity unreceivedQuantity } inventoryShipment { id lineItemTotalQuantity } userErrors { field message code } } }"
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_query))
+  assert add_status == 200
+  assert json.to_string(add_body)
+    == "{\"data\":{\"inventoryShipmentAddItems\":{\"addedItems\":[{\"id\":\"gid://shopify/InventoryShipmentLineItem/5\",\"quantity\":3,\"unreceivedQuantity\":3}],\"inventoryShipment\":{\"id\":\"gid://shopify/InventoryShipment/1\",\"lineItemTotalQuantity\":5},\"userErrors\":[]}}}"
+
+  let tracking_query =
+    "mutation { inventoryShipmentSetTracking(id: \\\"gid://shopify/InventoryShipment/1\\\", tracking: { trackingNumber: \\\"TRACK-2\\\", company: \\\"USPS\\\" }) { inventoryShipment { id tracking { trackingNumber company } } userErrors { field message code } } }"
+  let #(Response(status: tracking_status, body: tracking_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(tracking_query))
+  assert tracking_status == 200
+  assert json.to_string(tracking_body)
+    == "{\"data\":{\"inventoryShipmentSetTracking\":{\"inventoryShipment\":{\"id\":\"gid://shopify/InventoryShipment/1\",\"tracking\":{\"trackingNumber\":\"TRACK-2\",\"company\":\"USPS\"}},\"userErrors\":[]}}}"
+
+  let remove_query =
+    "mutation { inventoryShipmentRemoveItems(id: \\\"gid://shopify/InventoryShipment/1\\\", lineItems: [\\\"gid://shopify/InventoryShipmentLineItem/2\\\"]) { inventoryShipment { id lineItemTotalQuantity lineItems(first: 10) { nodes { id quantity } } } userErrors { field message code } } }"
+  let #(Response(status: remove_status, body: remove_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(remove_query))
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"inventoryShipmentRemoveItems\":{\"inventoryShipment\":{\"id\":\"gid://shopify/InventoryShipment/1\",\"lineItemTotalQuantity\":3,\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryShipmentLineItem/5\",\"quantity\":3}]}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { variant { inventoryQuantity } inventoryLevels(first: 1) { nodes { quantities(names: [\\\"available\\\", \\\"on_hand\\\", \\\"incoming\\\"]) { name quantity } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"variant\":{\"inventoryQuantity\":1},\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":1},{\"name\":\"on_hand\",\"quantity\":1},{\"name\":\"incoming\",\"quantity\":3},{\"name\":\"reserved\",\"quantity\":0}]}]}}}}"
+  let assert [
+    create_entry,
+    transit_entry,
+    add_entry,
+    tracking_entry,
+    remove_entry,
+  ] = store.get_log(proxy.store)
+  assert create_entry.operation_name == Some("inventoryShipmentCreate")
+  assert transit_entry.operation_name == Some("inventoryShipmentMarkInTransit")
+  assert add_entry.operation_name == Some("inventoryShipmentAddItems")
+  assert tracking_entry.operation_name == Some("inventoryShipmentSetTracking")
+  assert remove_entry.operation_name == Some("inventoryShipmentRemoveItems")
+  assert string.contains(create_entry.query, "inventoryShipmentCreate")
+  assert string.contains(remove_entry.query, "inventoryShipmentRemoveItems")
+}
+
+pub fn inventory_transfer_edit_and_duplicate_stage_locally_test() {
+  let proxy = draft_proxy.new()
+  let proxy = draft_proxy.DraftProxy(..proxy, store: tracked_inventory_store())
+  let create_query =
+    "mutation { inventoryTransferCreate(input: { originLocationId: \\\"gid://shopify/Location/1\\\", destinationLocationId: \\\"gid://shopify/Location/2\\\", referenceName: \\\"HAR-515\\\", note: \\\"local transfer\\\", tags: [\\\"har-515\\\"], lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 2 }] }) { inventoryTransfer { id name referenceName note tags status lineItems(first: 5) { nodes { id totalQuantity } } } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"inventoryTransferCreate\":{\"inventoryTransfer\":{\"id\":\"gid://shopify/InventoryTransfer/1\",\"name\":\"#T0001\",\"referenceName\":\"HAR-515\",\"note\":\"local transfer\",\"tags\":[\"har-515\"],\"status\":\"DRAFT\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryTransferLineItem/2?shopify-draft-proxy=synthetic\",\"totalQuantity\":2}]}},\"userErrors\":[]}}}"
+
+  let edit_query =
+    "mutation { inventoryTransferEdit(id: \\\"gid://shopify/InventoryTransfer/1\\\", input: { note: \\\"edited transfer\\\", tags: [\\\"har-515\\\", \\\"edited\\\"] }) { inventoryTransfer { id referenceName note tags } userErrors { field message code } } }"
+  let #(Response(status: edit_status, body: edit_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(edit_query))
+  assert edit_status == 200
+  assert json.to_string(edit_body)
+    == "{\"data\":{\"inventoryTransferEdit\":{\"inventoryTransfer\":{\"id\":\"gid://shopify/InventoryTransfer/1\",\"referenceName\":\"HAR-515\",\"note\":\"edited transfer\",\"tags\":[\"har-515\",\"edited\"]},\"userErrors\":[]}}}"
+
+  let duplicate_query =
+    "mutation { inventoryTransferDuplicate(id: \\\"gid://shopify/InventoryTransfer/1\\\") { inventoryTransfer { id name status note tags lineItems(first: 5) { nodes { id totalQuantity } } } userErrors { field message code } } }"
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(duplicate_query))
+  assert duplicate_status == 200
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"inventoryTransferDuplicate\":{\"inventoryTransfer\":{\"id\":\"gid://shopify/InventoryTransfer/5\",\"name\":\"#T0002\",\"status\":\"DRAFT\",\"note\":\"edited transfer\",\"tags\":[\"har-515\",\"edited\"],\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/InventoryTransferLineItem/6?shopify-draft-proxy=synthetic\",\"totalQuantity\":2}]}},\"userErrors\":[]}}}"
+  let assert [create_entry, edit_entry, duplicate_entry] =
+    store.get_log(proxy.store)
+  assert create_entry.operation_name == Some("inventoryTransferCreate")
+  assert edit_entry.operation_name == Some("inventoryTransferEdit")
+  assert duplicate_entry.operation_name == Some("inventoryTransferDuplicate")
+  assert string.contains(create_entry.query, "inventoryTransferCreate")
+  assert string.contains(edit_entry.query, "inventoryTransferEdit")
+  assert string.contains(duplicate_entry.query, "inventoryTransferDuplicate")
+}
+
 fn default_option_store() -> store.Store {
   store.new()
   |> store.upsert_base_products([default_product()])
@@ -419,6 +526,21 @@ fn tagged_product_store() -> store.Store {
   |> store.upsert_base_products([
     ProductRecord(..default_product(), tags: ["existing", "sale", "summer"]),
   ])
+}
+
+fn tracked_inventory_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_products([
+    ProductRecord(
+      ..default_product(),
+      id: "gid://shopify/Product/tracked",
+      title: "Tracked Product",
+      handle: "tracked-product",
+      total_inventory: Some(1),
+      tracks_inventory: Some(True),
+    ),
+  ])
+  |> store.upsert_base_product_variants([tracked_inventory_variant()])
 }
 
 fn option_update_store() -> store.Store {
@@ -458,6 +580,71 @@ fn option_update_store() -> store.Store {
       ],
     ),
   ])
+}
+
+fn tracked_inventory_variant() -> ProductVariantRecord {
+  ProductVariantRecord(
+    id: "gid://shopify/ProductVariant/tracked",
+    product_id: "gid://shopify/Product/tracked",
+    title: "Default Title",
+    sku: Some("TRACKED-SKU"),
+    barcode: None,
+    price: Some("0.00"),
+    compare_at_price: None,
+    taxable: None,
+    inventory_policy: None,
+    inventory_quantity: Some(1),
+    selected_options: [
+      ProductVariantSelectedOptionRecord(name: "Title", value: "Default Title"),
+    ],
+    media_ids: [],
+    inventory_item: Some(
+      InventoryItemRecord(
+        id: "gid://shopify/InventoryItem/tracked",
+        tracked: Some(True),
+        requires_shipping: Some(True),
+        measurement: None,
+        country_code_of_origin: None,
+        province_code_of_origin: None,
+        harmonized_system_code: None,
+        inventory_levels: [
+          InventoryLevelRecord(
+            id: "gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked",
+            cursor: None,
+            is_active: Some(True),
+            location: InventoryLocationRecord(
+              id: "gid://shopify/Location/1",
+              name: "Shop location",
+            ),
+            quantities: [
+              InventoryQuantityRecord(
+                name: "available",
+                quantity: 1,
+                updated_at: None,
+              ),
+              InventoryQuantityRecord(
+                name: "on_hand",
+                quantity: 1,
+                updated_at: None,
+              ),
+              InventoryQuantityRecord(
+                name: "incoming",
+                quantity: 0,
+                updated_at: None,
+              ),
+              InventoryQuantityRecord(
+                name: "reserved",
+                quantity: 0,
+                updated_at: None,
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+    contextual_pricing: None,
+    cursor: None,
+  )
 }
 
 fn default_product() -> ProductRecord {
