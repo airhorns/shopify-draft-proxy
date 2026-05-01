@@ -9,7 +9,16 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types
 
 pub fn serialize_base_state(state: store.BaseState) -> Json {
-  json.object([
+  json.object(base_state_dump_fields(state))
+}
+
+pub fn base_state_dump_field_names() -> List(String) {
+  base_state_dump_fields(store.empty_base_state())
+  |> dump_field_names
+}
+
+fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
+  [
     #("backupRegion", optional_to_json(state.backup_region, backup_region_json)),
     #(
       "adminPlatformFlowSignatures",
@@ -441,11 +450,20 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
     #("deletedShopLocales", json.object([])),
     #("translations", dict_to_json(state.translations, translation_json)),
     #("deletedTranslations", json.object([])),
-  ])
+  ]
 }
 
 pub fn serialize_staged_state(state: store.StagedState) -> Json {
-  json.object([
+  json.object(staged_state_dump_fields(state))
+}
+
+pub fn staged_state_dump_field_names() -> List(String) {
+  staged_state_dump_fields(store.empty_staged_state())
+  |> dump_field_names
+}
+
+fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
+  [
     #("backupRegion", optional_to_json(state.backup_region, backup_region_json)),
     #(
       "adminPlatformFlowSignatures",
@@ -866,7 +884,14 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
     #("deletedShopLocales", bool_dict_to_json(state.deleted_shop_locales)),
     #("translations", dict_to_json(state.translations, translation_json)),
     #("deletedTranslations", bool_dict_to_json(state.deleted_translations)),
-  ])
+  ]
+}
+
+fn dump_field_names(fields: List(#(String, Json))) -> List(String) {
+  list.map(fields, fn(field) {
+    let #(name, _) = field
+    name
+  })
 }
 
 fn optional_to_json(value: Option(a), encode: fn(a) -> Json) -> Json {
@@ -2394,6 +2419,11 @@ fn translation_json(record: types.TranslationRecord) -> Json {
   ])
 }
 
+pub fn strict_base_state_decoder() -> Decoder(store.BaseState) {
+  use _ <- decode.then(require_object_fields(base_state_dump_field_names()))
+  base_state_decoder()
+}
+
 pub fn base_state_decoder() -> Decoder(store.BaseState) {
   let empty = store.empty_base_state()
   use backup_region <- optional_field(
@@ -2768,6 +2798,11 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     shop_locales: shop_locales,
     translations: translations,
   ))
+}
+
+pub fn strict_staged_state_decoder() -> Decoder(store.StagedState) {
+  use _ <- decode.then(require_object_fields(staged_state_dump_field_names()))
+  staged_state_decoder()
 }
 
 pub fn staged_state_decoder() -> Decoder(store.StagedState) {
@@ -3175,6 +3210,14 @@ fn bool_dict_field(
   next: fn(Dict(String, Bool)) -> Decoder(a),
 ) -> Decoder(a) {
   dict_field(name, decode.bool, next)
+}
+
+fn require_object_fields(names: List(String)) -> Decoder(Nil) {
+  list.fold(names, decode.success(Nil), fn(decoder, name) {
+    use _ <- decode.then(decoder)
+    use _ <- decode.field(name, decode.dynamic)
+    decode.success(Nil)
+  })
 }
 
 fn runtime_json_decoder() -> Decoder(Json) {
