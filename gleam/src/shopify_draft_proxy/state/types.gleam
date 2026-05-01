@@ -125,6 +125,55 @@ pub type CapturedJsonValue {
   CapturedObject(List(#(String, CapturedJsonValue)))
 }
 
+pub type AbandonedCheckoutRecord {
+  AbandonedCheckoutRecord(
+    id: String,
+    cursor: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+pub type AbandonmentDeliveryActivityRecord {
+  AbandonmentDeliveryActivityRecord(
+    marketing_activity_id: String,
+    delivery_status: String,
+    delivered_at: Option(String),
+    delivery_status_change_reason: Option(String),
+  )
+}
+
+pub type AbandonmentRecord {
+  AbandonmentRecord(
+    id: String,
+    abandoned_checkout_id: Option(String),
+    cursor: Option(String),
+    data: CapturedJsonValue,
+    delivery_activities: Dict(String, AbandonmentDeliveryActivityRecord),
+  )
+}
+
+pub type DraftOrderRecord {
+  DraftOrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+pub type OrderRecord {
+  OrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+pub type DraftOrderVariantCatalogRecord {
+  DraftOrderVariantCatalogRecord(
+    variant_id: String,
+    title: String,
+    name: String,
+    variant_title: Option(String),
+    sku: Option(String),
+    requires_shipping: Bool,
+    taxable: Bool,
+    unit_price: String,
+    currency_code: String,
+  )
+}
+
 pub type InventoryWeightValue {
   InventoryWeightInt(Int)
   InventoryWeightFloat(Float)
@@ -652,6 +701,50 @@ pub type StorePropertyRecord {
   StorePropertyRecord(
     id: String,
     cursor: Option(String),
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// B2B company domain
+// ---------------------------------------------------------------------------
+
+/// JSON-shaped B2B company row. Relationships are normalized as Shopify GIDs
+/// so contacts, locations, and roles can be updated independently.
+pub type B2BCompanyRecord {
+  B2BCompanyRecord(
+    id: String,
+    cursor: Option(String),
+    data: Dict(String, StorePropertyValue),
+    contact_ids: List(String),
+    location_ids: List(String),
+    contact_role_ids: List(String),
+  )
+}
+
+pub type B2BCompanyContactRecord {
+  B2BCompanyContactRecord(
+    id: String,
+    cursor: Option(String),
+    company_id: String,
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+pub type B2BCompanyContactRoleRecord {
+  B2BCompanyContactRoleRecord(
+    id: String,
+    cursor: Option(String),
+    company_id: String,
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+pub type B2BCompanyLocationRecord {
+  B2BCompanyLocationRecord(
+    id: String,
+    cursor: Option(String),
+    company_id: String,
     data: Dict(String, StorePropertyValue),
   )
 }

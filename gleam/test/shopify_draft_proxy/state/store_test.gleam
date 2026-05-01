@@ -466,13 +466,13 @@ pub fn delegated_token_lifecycle_test() {
   let #(_, s) = store.stage_delegated_access_token(store.new(), token)
   let assert Some(found) = store.find_delegated_access_token_by_hash(s, "abcd")
   assert found.id == token.id
-  // Destroying populates destroyed_at and keeps the record findable.
+  // Destroying removes the token from hash lookup so repeat destroy
+  // attempts match Shopify's ACCESS_TOKEN_NOT_FOUND branch.
   let s =
     store.destroy_delegated_access_token(
       s,
       token.id,
       "2026-04-30T00:00:00.000Z",
     )
-  let assert Some(after) = store.find_delegated_access_token_by_hash(s, "abcd")
-  assert after.destroyed_at == Some("2026-04-30T00:00:00.000Z")
+  assert store.find_delegated_access_token_by_hash(s, "abcd") == None
 }

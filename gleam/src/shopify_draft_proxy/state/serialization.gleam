@@ -9,7 +9,16 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types
 
 pub fn serialize_base_state(state: store.BaseState) -> Json {
-  json.object([
+  json.object(base_state_dump_fields(state))
+}
+
+pub fn base_state_dump_field_names() -> List(String) {
+  base_state_dump_fields(store.empty_base_state())
+  |> dump_field_names
+}
+
+fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
+  [
     #("backupRegion", optional_to_json(state.backup_region, backup_region_json)),
     #(
       "adminPlatformFlowSignatures",
@@ -28,6 +37,71 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #(
+      "abandonedCheckouts",
+      dict_to_json(state.abandoned_checkouts, abandoned_checkout_json),
+    ),
+    #(
+      "abandonedCheckoutOrder",
+      json.array(state.abandoned_checkout_order, json.string),
+    ),
+    #("abandonments", dict_to_json(state.abandonments, abandonment_json)),
+    #("abandonmentOrder", json.array(state.abandonment_order, json.string)),
+    #("draftOrders", dict_to_json(state.draft_orders, draft_order_json)),
+    #("draftOrderOrder", json.array(state.draft_order_order, json.string)),
+    #("deletedDraftOrderIds", bool_dict_to_json(state.deleted_draft_order_ids)),
+    #(
+      "draftOrderVariantCatalog",
+      dict_to_json(
+        state.draft_order_variant_catalog,
+        draft_order_variant_catalog_json,
+      ),
+    ),
+    #("orders", dict_to_json(state.orders, order_json)),
+    #("orderOrder", json.array(state.order_order, json.string)),
+    #("deletedOrderIds", bool_dict_to_json(state.deleted_order_ids)),
+    #("b2bCompanies", dict_to_json(state.b2b_companies, b2b_company_json)),
+    #("b2bCompanyOrder", json.array(state.b2b_company_order, json.string)),
+    #("deletedB2BCompanyIds", bool_dict_to_json(state.deleted_b2b_company_ids)),
+    #(
+      "b2bCompanyContacts",
+      dict_to_json(state.b2b_company_contacts, b2b_company_contact_json),
+    ),
+    #(
+      "b2bCompanyContactOrder",
+      json.array(state.b2b_company_contact_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyContactIds",
+      bool_dict_to_json(state.deleted_b2b_company_contact_ids),
+    ),
+    #(
+      "b2bCompanyContactRoles",
+      dict_to_json(
+        state.b2b_company_contact_roles,
+        b2b_company_contact_role_json,
+      ),
+    ),
+    #(
+      "b2bCompanyContactRoleOrder",
+      json.array(state.b2b_company_contact_role_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyContactRoleIds",
+      bool_dict_to_json(state.deleted_b2b_company_contact_role_ids),
+    ),
+    #(
+      "b2bCompanyLocations",
+      dict_to_json(state.b2b_company_locations, b2b_company_location_json),
+    ),
+    #(
+      "b2bCompanyLocationOrder",
+      json.array(state.b2b_company_location_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyLocationIds",
+      bool_dict_to_json(state.deleted_b2b_company_location_ids),
+    ),
     #("products", dict_to_json(state.products, product_json)),
     #("productOrder", json.array(state.product_order, json.string)),
     #(
@@ -360,6 +434,10 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
     #("segmentOrder", json.array(state.segment_order, json.string)),
     #("deletedSegmentIds", bool_dict_to_json(state.deleted_segment_ids)),
     #(
+      "segmentRootPayloads",
+      dict_to_json(state.segment_root_payloads, store_property_value_json),
+    ),
+    #(
       "customerSegmentMembersQueries",
       dict_to_json(
         state.customer_segment_members_queries,
@@ -375,11 +453,20 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
     #("deletedShopLocales", json.object([])),
     #("translations", dict_to_json(state.translations, translation_json)),
     #("deletedTranslations", json.object([])),
-  ])
+  ]
 }
 
 pub fn serialize_staged_state(state: store.StagedState) -> Json {
-  json.object([
+  json.object(staged_state_dump_fields(state))
+}
+
+pub fn staged_state_dump_field_names() -> List(String) {
+  staged_state_dump_fields(store.empty_staged_state())
+  |> dump_field_names
+}
+
+fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
+  [
     #("backupRegion", optional_to_json(state.backup_region, backup_region_json)),
     #(
       "adminPlatformFlowSignatures",
@@ -398,6 +485,71 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
       json.array(state.admin_platform_flow_trigger_order, json.string),
     ),
     #("shop", optional_to_json(state.shop, shop_json)),
+    #(
+      "abandonedCheckouts",
+      dict_to_json(state.abandoned_checkouts, abandoned_checkout_json),
+    ),
+    #(
+      "abandonedCheckoutOrder",
+      json.array(state.abandoned_checkout_order, json.string),
+    ),
+    #("abandonments", dict_to_json(state.abandonments, abandonment_json)),
+    #("abandonmentOrder", json.array(state.abandonment_order, json.string)),
+    #("draftOrders", dict_to_json(state.draft_orders, draft_order_json)),
+    #("draftOrderOrder", json.array(state.draft_order_order, json.string)),
+    #("deletedDraftOrderIds", bool_dict_to_json(state.deleted_draft_order_ids)),
+    #(
+      "draftOrderVariantCatalog",
+      dict_to_json(
+        state.draft_order_variant_catalog,
+        draft_order_variant_catalog_json,
+      ),
+    ),
+    #("orders", dict_to_json(state.orders, order_json)),
+    #("orderOrder", json.array(state.order_order, json.string)),
+    #("deletedOrderIds", bool_dict_to_json(state.deleted_order_ids)),
+    #("b2bCompanies", dict_to_json(state.b2b_companies, b2b_company_json)),
+    #("b2bCompanyOrder", json.array(state.b2b_company_order, json.string)),
+    #("deletedB2BCompanyIds", bool_dict_to_json(state.deleted_b2b_company_ids)),
+    #(
+      "b2bCompanyContacts",
+      dict_to_json(state.b2b_company_contacts, b2b_company_contact_json),
+    ),
+    #(
+      "b2bCompanyContactOrder",
+      json.array(state.b2b_company_contact_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyContactIds",
+      bool_dict_to_json(state.deleted_b2b_company_contact_ids),
+    ),
+    #(
+      "b2bCompanyContactRoles",
+      dict_to_json(
+        state.b2b_company_contact_roles,
+        b2b_company_contact_role_json,
+      ),
+    ),
+    #(
+      "b2bCompanyContactRoleOrder",
+      json.array(state.b2b_company_contact_role_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyContactRoleIds",
+      bool_dict_to_json(state.deleted_b2b_company_contact_role_ids),
+    ),
+    #(
+      "b2bCompanyLocations",
+      dict_to_json(state.b2b_company_locations, b2b_company_location_json),
+    ),
+    #(
+      "b2bCompanyLocationOrder",
+      json.array(state.b2b_company_location_order, json.string),
+    ),
+    #(
+      "deletedB2BCompanyLocationIds",
+      bool_dict_to_json(state.deleted_b2b_company_location_ids),
+    ),
     #("products", dict_to_json(state.products, product_json)),
     #("productOrder", json.array(state.product_order, json.string)),
     #(
@@ -738,7 +890,14 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
     #("deletedShopLocales", bool_dict_to_json(state.deleted_shop_locales)),
     #("translations", dict_to_json(state.translations, translation_json)),
     #("deletedTranslations", bool_dict_to_json(state.deleted_translations)),
-  ])
+  ]
+}
+
+fn dump_field_names(fields: List(#(String, Json))) -> List(String) {
+  list.map(fields, fn(field) {
+    let #(name, _) = field
+    name
+  })
 }
 
 fn optional_to_json(value: Option(a), encode: fn(a) -> Json) -> Json {
@@ -985,6 +1144,46 @@ fn shop_policy_json(record: types.ShopPolicyRecord) -> Json {
   ])
 }
 
+fn b2b_company_json(record: types.B2BCompanyRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", store_property_data_json(record.data)),
+    #("contactIds", json.array(record.contact_ids, json.string)),
+    #("locationIds", json.array(record.location_ids, json.string)),
+    #("contactRoleIds", json.array(record.contact_role_ids, json.string)),
+  ])
+}
+
+fn b2b_company_contact_json(record: types.B2BCompanyContactRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("companyId", json.string(record.company_id)),
+    #("data", store_property_data_json(record.data)),
+  ])
+}
+
+fn b2b_company_contact_role_json(
+  record: types.B2BCompanyContactRoleRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("companyId", json.string(record.company_id)),
+    #("data", store_property_data_json(record.data)),
+  ])
+}
+
+fn b2b_company_location_json(record: types.B2BCompanyLocationRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("companyId", json.string(record.company_id)),
+    #("data", store_property_data_json(record.data)),
+  ])
+}
+
 fn store_property_record_json(record: types.StorePropertyRecord) -> Json {
   json.object([
     #("id", json.string(record.id)),
@@ -1124,6 +1323,76 @@ fn product_category_json(record: types.ProductCategoryRecord) -> Json {
   json.object([
     #("id", json.string(record.id)),
     #("fullName", json.string(record.full_name)),
+  ])
+}
+
+fn abandoned_checkout_json(record: types.AbandonedCheckoutRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn abandonment_delivery_activity_json(
+  record: types.AbandonmentDeliveryActivityRecord,
+) -> Json {
+  json.object([
+    #("marketingActivityId", json.string(record.marketing_activity_id)),
+    #("deliveryStatus", json.string(record.delivery_status)),
+    #("deliveredAt", optional_string(record.delivered_at)),
+    #(
+      "deliveryStatusChangeReason",
+      optional_string(record.delivery_status_change_reason),
+    ),
+  ])
+}
+
+fn abandonment_json(record: types.AbandonmentRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("abandonedCheckoutId", optional_string(record.abandoned_checkout_id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+    #(
+      "deliveryActivities",
+      dict_to_json(
+        record.delivery_activities,
+        abandonment_delivery_activity_json,
+      ),
+    ),
+  ])
+}
+
+fn draft_order_json(record: types.DraftOrderRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn order_json(record: types.OrderRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn draft_order_variant_catalog_json(
+  record: types.DraftOrderVariantCatalogRecord,
+) -> Json {
+  json.object([
+    #("variantId", json.string(record.variant_id)),
+    #("title", json.string(record.title)),
+    #("name", json.string(record.name)),
+    #("variantTitle", optional_string(record.variant_title)),
+    #("sku", optional_string(record.sku)),
+    #("requiresShipping", json.bool(record.requires_shipping)),
+    #("taxable", json.bool(record.taxable)),
+    #("unitPrice", json.string(record.unit_price)),
+    #("currencyCode", json.string(record.currency_code)),
   ])
 }
 
@@ -2202,6 +2471,11 @@ fn translation_json(record: types.TranslationRecord) -> Json {
   ])
 }
 
+pub fn strict_base_state_decoder() -> Decoder(store.BaseState) {
+  use _ <- decode.then(require_object_fields(base_state_dump_field_names()))
+  base_state_decoder()
+}
+
 pub fn base_state_decoder() -> Decoder(store.BaseState) {
   let empty = store.empty_base_state()
   use backup_region <- optional_field(
@@ -2226,6 +2500,23 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     empty.shop,
     decode.optional(shop_decoder()),
   )
+  use abandoned_checkouts <- dict_field(
+    "abandonedCheckouts",
+    abandoned_checkout_decoder(),
+  )
+  use abandoned_checkout_order <- string_list_field("abandonedCheckoutOrder")
+  use abandonments <- dict_field("abandonments", abandonment_decoder())
+  use abandonment_order <- string_list_field("abandonmentOrder")
+  use draft_orders <- dict_field("draftOrders", draft_order_decoder())
+  use draft_order_order <- string_list_field("draftOrderOrder")
+  use deleted_draft_order_ids <- bool_dict_field("deletedDraftOrderIds")
+  use draft_order_variant_catalog <- dict_field(
+    "draftOrderVariantCatalog",
+    draft_order_variant_catalog_decoder(),
+  )
+  use orders <- dict_field("orders", order_decoder())
+  use order_order <- string_list_field("orderOrder")
+  use deleted_order_ids <- bool_dict_field("deletedOrderIds")
   use store_property_locations <- dict_field(
     "locations",
     store_property_record_decoder(),
@@ -2375,6 +2666,11 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
   use segments <- dict_field("segments", segment_decoder())
   use segment_order <- string_list_field("segmentOrder")
   use deleted_segment_ids <- bool_dict_field("deletedSegmentIds")
+  use segment_root_payloads <- optional_field(
+    "segmentRootPayloads",
+    empty.segment_root_payloads,
+    decode.dict(decode.string, store_property_value_decoder()),
+  )
   use customer_segment_members_queries <- dict_field(
     "customerSegmentMembersQueries",
     customer_segment_members_query_decoder(),
@@ -2422,6 +2718,17 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     deleted_product_feed_ids: empty.deleted_product_feed_ids,
     product_resource_feedback: empty.product_resource_feedback,
     shop_resource_feedback: empty.shop_resource_feedback,
+    abandoned_checkouts: abandoned_checkouts,
+    abandoned_checkout_order: abandoned_checkout_order,
+    abandonments: abandonments,
+    abandonment_order: abandonment_order,
+    draft_orders: draft_orders,
+    draft_order_order: draft_order_order,
+    deleted_draft_order_ids: deleted_draft_order_ids,
+    draft_order_variant_catalog: draft_order_variant_catalog,
+    orders: orders,
+    order_order: order_order,
+    deleted_order_ids: deleted_order_ids,
     inventory_transfers: empty.inventory_transfers,
     inventory_transfer_order: empty.inventory_transfer_order,
     deleted_inventory_transfer_ids: empty.deleted_inventory_transfer_ids,
@@ -2434,6 +2741,18 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     admin_platform_flow_triggers: flow_triggers,
     admin_platform_flow_trigger_order: flow_trigger_order,
     shop: shop,
+    b2b_companies: empty.b2b_companies,
+    b2b_company_order: empty.b2b_company_order,
+    deleted_b2b_company_ids: empty.deleted_b2b_company_ids,
+    b2b_company_contacts: empty.b2b_company_contacts,
+    b2b_company_contact_order: empty.b2b_company_contact_order,
+    deleted_b2b_company_contact_ids: empty.deleted_b2b_company_contact_ids,
+    b2b_company_contact_roles: empty.b2b_company_contact_roles,
+    b2b_company_contact_role_order: empty.b2b_company_contact_role_order,
+    deleted_b2b_company_contact_role_ids: empty.deleted_b2b_company_contact_role_ids,
+    b2b_company_locations: empty.b2b_company_locations,
+    b2b_company_location_order: empty.b2b_company_location_order,
+    deleted_b2b_company_location_ids: empty.deleted_b2b_company_location_ids,
     store_property_locations: store_property_locations,
     store_property_location_order: store_property_location_order,
     deleted_store_property_location_ids: deleted_store_property_location_ids,
@@ -2521,12 +2840,18 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     segments: segments,
     segment_order: segment_order,
     deleted_segment_ids: deleted_segment_ids,
+    segment_root_payloads: segment_root_payloads,
     customer_segment_members_queries: customer_segment_members_queries,
     customer_segment_members_query_order: customer_segment_members_query_order,
     available_locales: available_locales,
     shop_locales: shop_locales,
     translations: translations,
   ))
+}
+
+pub fn strict_staged_state_decoder() -> Decoder(store.StagedState) {
+  use _ <- decode.then(require_object_fields(staged_state_dump_field_names()))
+  staged_state_decoder()
 }
 
 pub fn staged_state_decoder() -> Decoder(store.StagedState) {
@@ -2553,6 +2878,23 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     empty.shop,
     decode.optional(shop_decoder()),
   )
+  use abandoned_checkouts <- dict_field(
+    "abandonedCheckouts",
+    abandoned_checkout_decoder(),
+  )
+  use abandoned_checkout_order <- string_list_field("abandonedCheckoutOrder")
+  use abandonments <- dict_field("abandonments", abandonment_decoder())
+  use abandonment_order <- string_list_field("abandonmentOrder")
+  use draft_orders <- dict_field("draftOrders", draft_order_decoder())
+  use draft_order_order <- string_list_field("draftOrderOrder")
+  use deleted_draft_order_ids <- bool_dict_field("deletedDraftOrderIds")
+  use draft_order_variant_catalog <- dict_field(
+    "draftOrderVariantCatalog",
+    draft_order_variant_catalog_decoder(),
+  )
+  use orders <- dict_field("orders", order_decoder())
+  use order_order <- string_list_field("orderOrder")
+  use deleted_order_ids <- bool_dict_field("deletedOrderIds")
   use store_property_locations <- dict_field(
     "locations",
     store_property_record_decoder(),
@@ -2743,6 +3085,17 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     deleted_product_feed_ids: empty.deleted_product_feed_ids,
     product_resource_feedback: empty.product_resource_feedback,
     shop_resource_feedback: empty.shop_resource_feedback,
+    abandoned_checkouts: abandoned_checkouts,
+    abandoned_checkout_order: abandoned_checkout_order,
+    abandonments: abandonments,
+    abandonment_order: abandonment_order,
+    draft_orders: draft_orders,
+    draft_order_order: draft_order_order,
+    deleted_draft_order_ids: deleted_draft_order_ids,
+    draft_order_variant_catalog: draft_order_variant_catalog,
+    orders: orders,
+    order_order: order_order,
+    deleted_order_ids: deleted_order_ids,
     inventory_transfers: empty.inventory_transfers,
     inventory_transfer_order: empty.inventory_transfer_order,
     deleted_inventory_transfer_ids: empty.deleted_inventory_transfer_ids,
@@ -2755,6 +3108,18 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     admin_platform_flow_triggers: flow_triggers,
     admin_platform_flow_trigger_order: flow_trigger_order,
     shop: shop,
+    b2b_companies: empty.b2b_companies,
+    b2b_company_order: empty.b2b_company_order,
+    deleted_b2b_company_ids: empty.deleted_b2b_company_ids,
+    b2b_company_contacts: empty.b2b_company_contacts,
+    b2b_company_contact_order: empty.b2b_company_contact_order,
+    deleted_b2b_company_contact_ids: empty.deleted_b2b_company_contact_ids,
+    b2b_company_contact_roles: empty.b2b_company_contact_roles,
+    b2b_company_contact_role_order: empty.b2b_company_contact_role_order,
+    deleted_b2b_company_contact_role_ids: empty.deleted_b2b_company_contact_role_ids,
+    b2b_company_locations: empty.b2b_company_locations,
+    b2b_company_location_order: empty.b2b_company_location_order,
+    deleted_b2b_company_location_ids: empty.deleted_b2b_company_location_ids,
     store_property_locations: store_property_locations,
     store_property_location_order: store_property_location_order,
     deleted_store_property_location_ids: deleted_store_property_location_ids,
@@ -2893,8 +3258,77 @@ fn bool_dict_field(
   dict_field(name, decode.bool, next)
 }
 
+fn require_object_fields(names: List(String)) -> Decoder(Nil) {
+  list.fold(names, decode.success(Nil), fn(decoder, name) {
+    use _ <- decode.then(decoder)
+    use _ <- decode.field(name, decode.dynamic)
+    decode.success(Nil)
+  })
+}
+
 fn runtime_json_decoder() -> Decoder(Json) {
   decode.dynamic |> decode.map(runtime_json_from_dynamic)
+}
+
+fn captured_json_value_decoder() -> Decoder(types.CapturedJsonValue) {
+  decode.dynamic |> decode.map(captured_json_value_from_dynamic)
+}
+
+fn captured_json_value_from_dynamic(value: Dynamic) -> types.CapturedJsonValue {
+  case decode.run(value, decode.bool) {
+    Ok(b) -> types.CapturedBool(b)
+    Error(_) -> captured_json_value_from_non_bool_dynamic(value)
+  }
+}
+
+fn captured_json_value_from_non_bool_dynamic(
+  value: Dynamic,
+) -> types.CapturedJsonValue {
+  case decode.run(value, decode.optional(decode.dynamic)) {
+    Ok(None) -> types.CapturedNull
+    _ -> captured_json_value_from_present_dynamic(value)
+  }
+}
+
+fn captured_json_value_from_present_dynamic(
+  value: Dynamic,
+) -> types.CapturedJsonValue {
+  case decode.run(value, decode.int) {
+    Ok(i) -> types.CapturedInt(i)
+    Error(_) ->
+      case decode.run(value, decode.float) {
+        Ok(f) -> types.CapturedFloat(f)
+        Error(_) ->
+          case decode.run(value, decode.string) {
+            Ok(s) -> types.CapturedString(s)
+            Error(_) ->
+              case decode.run(value, decode.list(decode.dynamic)) {
+                Ok(items) ->
+                  types.CapturedArray(list.map(
+                    items,
+                    captured_json_value_from_dynamic,
+                  ))
+                Error(_) ->
+                  case
+                    decode.run(
+                      value,
+                      decode.dict(decode.string, decode.dynamic),
+                    )
+                  {
+                    Ok(fields) ->
+                      types.CapturedObject(
+                        fields
+                        |> dict.to_list()
+                        |> list.map(fn(pair) {
+                          #(pair.0, captured_json_value_from_dynamic(pair.1))
+                        }),
+                      )
+                    Error(_) -> types.CapturedNull
+                  }
+              }
+          }
+      }
+  }
 }
 
 fn runtime_json_from_dynamic(value: Dynamic) -> Json {
@@ -2942,6 +3376,95 @@ fn runtime_json_from_present_dynamic(value: Dynamic) -> Json {
 
 fn float_decoder() -> Decoder(Float) {
   decode.one_of(decode.float, or: [decode.int |> decode.map(int.to_float)])
+}
+
+fn abandoned_checkout_decoder() -> Decoder(types.AbandonedCheckoutRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  decode.success(types.AbandonedCheckoutRecord(
+    id: id,
+    cursor: cursor,
+    data: data,
+  ))
+}
+
+fn abandonment_delivery_activity_decoder() -> Decoder(
+  types.AbandonmentDeliveryActivityRecord,
+) {
+  use marketing_activity_id <- decode.field(
+    "marketingActivityId",
+    decode.string,
+  )
+  use delivery_status <- decode.field("deliveryStatus", decode.string)
+  use delivered_at <- optional_string_field("deliveredAt")
+  use delivery_status_change_reason <- optional_string_field(
+    "deliveryStatusChangeReason",
+  )
+  decode.success(types.AbandonmentDeliveryActivityRecord(
+    marketing_activity_id: marketing_activity_id,
+    delivery_status: delivery_status,
+    delivered_at: delivered_at,
+    delivery_status_change_reason: delivery_status_change_reason,
+  ))
+}
+
+fn abandonment_decoder() -> Decoder(types.AbandonmentRecord) {
+  use id <- decode.field("id", decode.string)
+  use abandoned_checkout_id <- optional_string_field("abandonedCheckoutId")
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  use delivery_activities <- optional_field(
+    "deliveryActivities",
+    dict.new(),
+    decode.dict(decode.string, abandonment_delivery_activity_decoder()),
+  )
+  decode.success(types.AbandonmentRecord(
+    id: id,
+    abandoned_checkout_id: abandoned_checkout_id,
+    cursor: cursor,
+    data: data,
+    delivery_activities: delivery_activities,
+  ))
+}
+
+fn draft_order_decoder() -> Decoder(types.DraftOrderRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  decode.success(types.DraftOrderRecord(id: id, cursor: cursor, data: data))
+}
+
+fn order_decoder() -> Decoder(types.OrderRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  decode.success(types.OrderRecord(id: id, cursor: cursor, data: data))
+}
+
+fn draft_order_variant_catalog_decoder() -> Decoder(
+  types.DraftOrderVariantCatalogRecord,
+) {
+  use variant_id <- decode.field("variantId", decode.string)
+  use title <- decode.field("title", decode.string)
+  use name <- decode.field("name", decode.string)
+  use variant_title <- optional_string_field("variantTitle")
+  use sku <- optional_string_field("sku")
+  use requires_shipping <- decode.field("requiresShipping", decode.bool)
+  use taxable <- decode.field("taxable", decode.bool)
+  use unit_price <- decode.field("unitPrice", decode.string)
+  use currency_code <- decode.field("currencyCode", decode.string)
+  decode.success(types.DraftOrderVariantCatalogRecord(
+    variant_id: variant_id,
+    title: title,
+    name: name,
+    variant_title: variant_title,
+    sku: sku,
+    requires_shipping: requires_shipping,
+    taxable: taxable,
+    unit_price: unit_price,
+    currency_code: currency_code,
+  ))
 }
 
 fn backup_region_decoder() -> Decoder(types.BackupRegionRecord) {
