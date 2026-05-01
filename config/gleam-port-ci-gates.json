@@ -69,10 +69,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/discounts/discount-app-bulk-local-runtime.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },

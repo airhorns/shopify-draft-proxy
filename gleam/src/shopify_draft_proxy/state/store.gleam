@@ -13,6 +13,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/string
+import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/types.{
   type AdminPlatformFlowSignatureRecord, type AdminPlatformFlowTriggerRecord,
@@ -296,6 +297,7 @@ pub type StagedState {
     shopify_function_order: List(String),
     bulk_operations: Dict(String, BulkOperationRecord),
     bulk_operation_order: List(String),
+    staged_upload_contents: Dict(String, String),
     metaobject_definitions: Dict(String, MetaobjectDefinitionRecord),
     metaobject_definition_order: List(String),
     deleted_metaobject_definition_ids: Dict(String, Bool),
@@ -418,7 +420,7 @@ pub type MutationLogEntry {
     operation_name: Option(String),
     path: String,
     query: String,
-    variables: Dict(String, String),
+    variables: Dict(String, root_field.ResolvedValue),
     staged_resource_ids: List(String),
     status: EntryStatus,
     interpreted: InterpretedMetadata,
@@ -654,6 +656,7 @@ pub fn empty_staged_state() -> StagedState {
     shopify_function_order: [],
     bulk_operations: dict.new(),
     bulk_operation_order: [],
+    staged_upload_contents: dict.new(),
     metaobject_definitions: dict.new(),
     metaobject_definition_order: [],
     deleted_metaobject_definition_ids: dict.new(),
@@ -4828,6 +4831,37 @@ pub fn has_bulk_operations(store: Store) -> Bool {
 
 pub fn has_staged_bulk_operations(store: Store) -> Bool {
   !list.is_empty(dict.keys(store.staged_state.bulk_operations))
+}
+
+/// Record staged-upload content for local bulk mutation imports. The HTTP
+/// staged-upload route is still TS-only, so Gleam tests seed this directly.
+pub fn stage_staged_upload_content(
+  store: Store,
+  staged_upload_path: String,
+  content: String,
+) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      staged_upload_contents: dict.insert(
+        staged.staged_upload_contents,
+        staged_upload_path,
+        content,
+      ),
+    ),
+  )
+}
+
+pub fn get_staged_upload_content(
+  store: Store,
+  staged_upload_path: String,
+) -> Option(String) {
+  case dict.get(store.staged_state.staged_upload_contents, staged_upload_path) {
+    Ok(content) -> Some(content)
+    Error(_) -> None
+  }
 }
 
 // ---------------------------------------------------------------------------

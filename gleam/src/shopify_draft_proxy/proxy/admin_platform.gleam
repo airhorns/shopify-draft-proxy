@@ -475,6 +475,8 @@ fn handle_mutation_fields(
         primary_root_field: primary_root,
         domain: "admin-platform",
         execution: "stage-locally",
+        query: None,
+        variables: None,
         staged_resource_ids: staged_ids,
         status: store.Staged,
         notes: case notes {

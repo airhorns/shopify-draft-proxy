@@ -12,8 +12,10 @@
 //// type safety.
 
 import gleam/dict.{type Dict}
+import gleam/dynamic/decode
 import gleam/float
 import gleam/int
+import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -241,6 +243,39 @@ fn inject_decimal_before_exponent(raw: String) -> String {
         }
       }
   }
+}
+
+pub fn resolved_value_to_json(value: ResolvedValue) -> Json {
+  case value {
+    NullVal -> json.null()
+    StringVal(s) -> json.string(s)
+    BoolVal(b) -> json.bool(b)
+    IntVal(i) -> json.int(i)
+    FloatVal(f) -> json.float(f)
+    ListVal(items) -> json.array(items, resolved_value_to_json)
+    ObjectVal(fields) ->
+      json.object(
+        dict.to_list(fields)
+        |> list.map(fn(pair) {
+          let #(key, field_value) = pair
+          #(key, resolved_value_to_json(field_value))
+        }),
+      )
+  }
+}
+
+pub fn resolved_value_decoder() -> decode.Decoder(ResolvedValue) {
+  decode.recursive(fn() {
+    decode.one_of(decode.bool |> decode.map(BoolVal), or: [
+      decode.int |> decode.map(IntVal),
+      decode.float |> decode.map(FloatVal),
+      decode.string |> decode.map(StringVal),
+      decode.list(of: resolved_value_decoder()) |> decode.map(ListVal),
+      decode.dict(decode.string, resolved_value_decoder())
+        |> decode.map(ObjectVal),
+      decode.success(NullVal),
+    ])
+  })
 }
 
 // Re-export so callers don't need to import parse_operation just for this.

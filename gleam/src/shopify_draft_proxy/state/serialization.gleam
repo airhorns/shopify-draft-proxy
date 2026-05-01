@@ -2760,6 +2760,7 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     shopify_function_order: shopify_function_order,
     bulk_operations: bulk_operations,
     bulk_operation_order: bulk_operation_order,
+    staged_upload_contents: empty.staged_upload_contents,
     metaobject_definitions: metaobject_definitions,
     metaobject_definition_order: metaobject_definition_order,
     deleted_metaobject_definition_ids: deleted_metaobject_definition_ids,

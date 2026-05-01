@@ -32,6 +32,7 @@ fn record_drafts(
       outcome.identity,
       request_path,
       document,
+      dict.new(),
       outcome.log_drafts,
     )
   admin_platform.MutationOutcome(

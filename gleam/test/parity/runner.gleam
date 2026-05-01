@@ -39,8 +39,8 @@ import shopify_draft_proxy/proxy/draft_proxy.{
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type CollectionImageRecord, type CollectionRecord,
-  type CollectionRuleRecord, type CollectionRuleSetRecord,
+  type BulkOperationRecord, type CapturedJsonValue, type CollectionImageRecord,
+  type CollectionRecord, type CollectionRuleRecord, type CollectionRuleSetRecord,
   type CustomerAccountPageRecord, type CustomerAddressRecord,
   type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
   type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
@@ -73,27 +73,28 @@ import shopify_draft_proxy/state/types.{
   type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
   type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, type StoreCreditAccountRecord,
-  type StorePropertyRecord, type StorePropertyValue, CapturedArray, CapturedBool,
-  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
-  CollectionRuleSetRecord, CustomerAccountPageRecord, CustomerAddressRecord,
-  CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
-  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
-  CustomerEventSummaryRecord, CustomerMetafieldRecord,
-  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
-  GiftCardTransactionRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
-  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
-  LocationRecord, MetafieldDefinitionCapabilitiesRecord,
-  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintValueRecord,
-  MetafieldDefinitionConstraintsRecord, MetafieldDefinitionRecord,
-  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
-  MetaobjectBool, MetaobjectCapabilitiesRecord,
-  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
-  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
-  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
+  type StorePropertyRecord, type StorePropertyValue, BulkOperationRecord,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, CollectionImageRecord, CollectionRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, CustomerAccountPageRecord,
+  CustomerAddressRecord, CustomerCatalogConnectionRecord,
+  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerEmailMarketingConsentRecord, CustomerEventSummaryRecord,
+  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
+  CustomerSmsMarketingConsentRecord, GiftCardConfigurationRecord,
+  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
+  InventoryWeightInt, InventoryWeightRecord, LocationRecord,
+  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
+  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
+  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
+  MetafieldDefinitionValidationRecord, MetaobjectBool,
+  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
+  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
+  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
+  MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
@@ -217,6 +218,8 @@ fn seed_capture_preconditions(
       seed_gift_card_lifecycle_preconditions(capture, proxy)
     "gift-card-lifecycle" ->
       seed_gift_card_lifecycle_preconditions(capture, proxy)
+    "bulk-operation-status-catalog-cancel" ->
+      seed_bulk_operation_status_preconditions(capture, proxy)
     "functions-metadata-local-staging"
     | "functions-owner-metadata-local-staging"
     | "functions-live-owner-metadata-read" ->
@@ -405,6 +408,128 @@ fn seed_capture_preconditions(
         False -> proxy
       }
   }
+}
+
+fn seed_bulk_operation_status_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_records = case
+    jsonpath.lookup(capture, "$.lifecycle.queryExportToTerminal.result.records")
+  {
+    Some(JArray(records)) -> list.filter_map(records, make_seed_product_relaxed)
+    _ -> []
+  }
+
+  let base_operations =
+    list.flatten([
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogDefault.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogEmptyRunningQuery.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogEmptyRunningMutation.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.lifecycle.queryExportToTerminal.catalogById.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_options_at(capture, [
+        "$.reads.currentQuery.response.data.currentBulkOperation",
+        "$.reads.currentMutation.response.data.currentBulkOperation",
+        "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.bulkOperation",
+        "$.lifecycle.queryExportToTerminal.terminalOperation",
+        "$.lifecycle.queryExportToTerminal.currentQueryOperation.response.data.currentBulkOperation",
+        "$.lifecycle.queryExportToTerminal.terminalCancelAttempt.response.data.bulkOperationCancel.bulkOperation",
+      ]),
+    ])
+
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(product_records)
+    |> store_mod.upsert_base_bulk_operations(base_operations)
+
+  let store = case
+    bulk_operation_at(
+      capture,
+      "$.lifecycle.queryExportImmediateCancel.run.response.data.bulkOperationRunQuery.bulkOperation",
+    )
+  {
+    Some(operation) -> {
+      let #(_, staged_store) = store_mod.stage_bulk_operation(store, operation)
+      staged_store
+    }
+    None -> store
+  }
+
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn bulk_operation_array_at(
+  capture: JsonValue,
+  path: String,
+) -> List(BulkOperationRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(nodes)) -> list.filter_map(nodes, make_seed_bulk_operation)
+    _ -> []
+  }
+}
+
+fn bulk_operation_options_at(
+  capture: JsonValue,
+  paths: List(String),
+) -> List(BulkOperationRecord) {
+  list.filter_map(paths, fn(path) {
+    case bulk_operation_at(capture, path) {
+      Some(operation) -> Ok(operation)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn bulk_operation_at(
+  capture: JsonValue,
+  path: String,
+) -> Option(BulkOperationRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(source) ->
+      case make_seed_bulk_operation(source) {
+        Ok(operation) -> Some(operation)
+        Error(_) -> None
+      }
+    _ -> None
+  }
+}
+
+fn make_seed_bulk_operation(
+  source: JsonValue,
+) -> Result(BulkOperationRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use status <- result.try(required_string_field(source, "status"))
+  use type_ <- result.try(required_string_field(source, "type"))
+  use created_at <- result.try(required_string_field(source, "createdAt"))
+  Ok(BulkOperationRecord(
+    id: id,
+    status: status,
+    type_: type_,
+    error_code: read_string_field(source, "errorCode"),
+    created_at: created_at,
+    completed_at: read_string_field(source, "completedAt"),
+    object_count: read_string_field(source, "objectCount") |> option.unwrap("0"),
+    root_object_count: read_string_field(source, "rootObjectCount")
+      |> option.unwrap("0"),
+    file_size: read_string_field(source, "fileSize"),
+    url: read_string_field(source, "url"),
+    partial_data_url: read_string_field(source, "partialDataUrl"),
+    query: read_string_field(source, "query"),
+    cursor: read_string_field(source, "cursor"),
+    result_jsonl: None,
+  ))
 }
 
 fn is_customer_seeded_scenario(scenario_id: String) -> Bool {
