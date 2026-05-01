@@ -1,6 +1,7 @@
 import gleam/dict
 import gleam/json
 import gleam/list
+import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/state/store
@@ -458,6 +459,128 @@ pub fn orders_order_create_validation_guardrails_test() {
     )
   assert json.to_string(null_outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'order' on Field 'orderCreate' has an invalid value (null). Expected type 'OrderCreateOrderInput!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation InlineNullOrderArg\",\"orderCreate\",\"order\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"order\"}}]}"
+}
+
+pub fn orders_order_update_validation_guardrails_test() {
+  let missing_inline_id =
+    "
+    mutation OrderUpdateInlineMissingIdParityPlan {
+      orderUpdate(
+        input: {
+          note: \"order update inline missing-id parity plan\"
+          tags: [\"parity-plan\", \"order-update\", \"inline-missing-id\"]
+        }
+      ) {
+        order {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(missing_inline_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      missing_inline_id,
+      dict.new(),
+    )
+  assert json.to_string(missing_inline_outcome.data)
+    == "{\"errors\":[{\"message\":\"Argument 'id' on InputObject 'OrderInput' is required. Expected type ID!\",\"path\":[\"mutation OrderUpdateInlineMissingIdParityPlan\",\"orderUpdate\",\"input\",\"id\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"id\",\"argumentType\":\"ID!\",\"inputObjectType\":\"OrderInput\"}}]}"
+
+  let null_inline_id =
+    "
+    mutation OrderUpdateInlineNullIdParityPlan {
+      orderUpdate(
+        input: {
+          id: null
+          note: \"order update inline null-id parity plan\"
+          tags: [\"parity-plan\", \"order-update\", \"inline-null-id\"]
+        }
+      ) {
+        order {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(null_inline_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      null_inline_id,
+      dict.new(),
+    )
+  assert json.to_string(null_inline_outcome.data)
+    == "{\"errors\":[{\"message\":\"Argument 'id' on InputObject 'OrderInput' has an invalid value (null). Expected type 'ID!'.\",\"path\":[\"mutation OrderUpdateInlineNullIdParityPlan\",\"orderUpdate\",\"input\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"id\"}}]}"
+
+  let missing_variable_id =
+    "
+    mutation OrderUpdateParityPlan($input: OrderInput!) {
+      orderUpdate(input: $input) {
+        order {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #(
+              "note",
+              root_field.StringVal("order update missing-id parity probe"),
+            ),
+            #(
+              "tags",
+              root_field.ListVal([
+                root_field.StringVal("parity-probe"),
+                root_field.StringVal("order-update"),
+                root_field.StringVal("missing-id"),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(missing_variable_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      missing_variable_id,
+      variables,
+    )
+  let missing_variable_json = json.to_string(missing_variable_outcome.data)
+  assert string.contains(
+    missing_variable_json,
+    "Variable $input of type OrderInput! was provided invalid value for id (Expected value to not be null)",
+  )
+  assert string.contains(missing_variable_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    missing_variable_json,
+    "\"note\":\"order update missing-id parity probe\"",
+  )
+  assert string.contains(
+    missing_variable_json,
+    "\"tags\":[\"parity-probe\",\"order-update\",\"missing-id\"]",
+  )
 }
 
 pub fn orders_draft_order_create_custom_item_read_after_write_test() {

@@ -448,6 +448,10 @@ synthetic-id/timestamp expected differences.
   argument helper with `OrderCreateOrderInput!`. Keep the direct-order happy
   path gated until local order state, payment/transaction effects, inventory
   bypass, and downstream reads are implemented.
+- `orderUpdate` missing-id validation is nested inside `OrderInput`, not a
+  top-level required argument. Mirror Shopify's error message/extensions for
+  inline missing/null `input.id` and variable-backed missing id without treating
+  update success, downstream reads, or timestamp behavior as ported.
 
 ## Workflow for a new pass
 

@@ -9,6 +9,58 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 120: order update validation guardrails
+
+Promotes the captured `orderUpdate` missing-id validation branches in the Gleam
+Orders domain. This pass mirrors Shopify's error message/extension shapes for
+inline missing `input.id`, inline null `input.id`, and variable-backed
+`OrderInput` values without an id, while leaving order update lifecycle
+semantics gated.
+
+| Module                                                   | Change                                                                                |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds narrow nested `OrderInput.id` validation guardrails for `orderUpdate`.           |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers inline missing, inline null, and variable-backed missing id branches directly. |
+| `config/gleam-port-ci-gates.json`                        | Removes three newly passing `orderUpdate` validation parity specs.                    |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (728 passed).
+- Docker Erlang fallback:
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (724 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 parity specs; 151 expected Gleam
+  parity failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- `orderUpdate` cannot use the top-level required-argument helper for these
+  captures because Shopify validates the required `id` inside `OrderInput`.
+- The checked-in parity specs compare the stable error message/extensions, so
+  this pass keeps the guardrail focused and does not claim update success,
+  downstream reads, metafields, address updates, or timestamp behavior.
+
+### Risks / open items
+
+- `orderUpdate-parity-plan`, `orderUpdate-live-parity`, and
+  `orderUpdate-expanded-parity-plan` remain gated.
+- Order lifecycle, editing, fulfillments, refunds, returns, and the remaining
+  draft-order lifecycle roots remain unported.
+
+### Pass 121 candidates
+
+- Continue order-edit missing-id validation guardrails, or start a durable
+  draft-order update/delete lifecycle slice with checked-in parity evidence.
+
+---
+
 ## 2026-05-01 - Pass 119: order create validation guardrails
 
 Promotes the captured `orderCreate` required-`order` validation branches in the

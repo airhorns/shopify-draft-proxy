@@ -12,7 +12,10 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/ast.{
+  type ObjectField, type Selection, Field, NullValue, ObjectField, ObjectValue,
+  SelectionSet, VariableValue,
+}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -21,11 +24,11 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   SrcList, SrcNull, SrcObject, SrcString, default_connection_window_options,
   default_selected_field_options, get_document_fragments, get_field_response_key,
   get_selected_child_fields, paginate_connection_items,
-  project_graphql_field_value, project_graphql_value, serialize_connection,
-  src_object,
+  project_graphql_field_value, project_graphql_value, resolved_value_to_source,
+  serialize_connection, source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, RequiredArgument, single_root_log_draft,
+  type LogDraft, RequiredArgument, find_argument, single_root_log_draft,
   validate_required_field_arguments,
 }
 import shopify_draft_proxy/state/store.{type Store}
@@ -76,6 +79,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "fulfillmentTrackingInfoUpdate",
       "orderCreate",
       "orderCreateManualPayment",
+      "orderUpdate",
       "taxSummaryCreate",
     ],
     name,
@@ -527,6 +531,32 @@ pub fn process_mutation(
             )
           }
         }
+        Field(name: name, ..) if name.value == "orderUpdate" -> {
+          let #(key, payload, next_errors) =
+            handle_order_update_validation_guardrail(
+              operation_path,
+              field,
+              variables,
+            )
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
         Field(name: name, ..)
           if name.value == "orderCreateManualPayment"
           || name.value == "taxSummaryCreate"
@@ -586,6 +616,166 @@ fn handle_draft_order_complete_guardrail(
     [_, ..] -> #(key, json.null(), validation_errors)
     [] -> #(key, json.null(), [])
   }
+}
+
+fn handle_order_update_validation_guardrail(
+  operation_path: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, List(Json)) {
+  let key = get_field_response_key(field)
+  let errors = case field {
+    Field(arguments: arguments, ..) ->
+      case find_argument(arguments, "input") {
+        Some(input_argument) ->
+          case input_argument.value {
+            ObjectValue(fields: fields, ..) ->
+              validate_order_update_inline_input(operation_path, fields)
+            VariableValue(variable: variable) ->
+              validate_order_update_variable_input(
+                variable.name.value,
+                variables,
+              )
+            _ -> []
+          }
+        None -> []
+      }
+    _ -> []
+  }
+  case errors {
+    [_, ..] -> #(key, json.null(), errors)
+    [] -> #(key, json.null(), [])
+  }
+}
+
+fn validate_order_update_inline_input(
+  operation_path: String,
+  fields: List(ObjectField),
+) -> List(Json) {
+  case find_object_field(fields, "id") {
+    None -> [build_order_update_missing_inline_id_error(operation_path)]
+    Some(ObjectField(value: NullValue(..), ..)) -> [
+      build_order_update_null_inline_id_error(operation_path),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_order_update_variable_input(
+  variable_name: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(Json) {
+  case dict.get(variables, variable_name) {
+    Ok(root_field.ObjectVal(input)) ->
+      case dict.get(input, "id") {
+        Ok(root_field.NullVal) | Error(_) -> [
+          build_order_update_missing_variable_id_error(
+            variable_name,
+            root_field.ObjectVal(input),
+          ),
+        ]
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn find_object_field(
+  fields: List(ObjectField),
+  name: String,
+) -> Option(ObjectField) {
+  case fields {
+    [] -> None
+    [first, ..rest] -> {
+      let ObjectField(name: field_name, ..) = first
+      case field_name.value == name {
+        True -> Some(first)
+        False -> find_object_field(rest, name)
+      }
+    }
+  }
+}
+
+fn build_order_update_missing_inline_id_error(operation_path: String) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Argument 'id' on InputObject 'OrderInput' is required. Expected type ID!",
+      ),
+    ),
+    #(
+      "path",
+      json.array([operation_path, "orderUpdate", "input", "id"], json.string),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("missingRequiredInputObjectAttribute")),
+        #("argumentName", json.string("id")),
+        #("argumentType", json.string("ID!")),
+        #("inputObjectType", json.string("OrderInput")),
+      ]),
+    ),
+  ])
+}
+
+fn build_order_update_null_inline_id_error(operation_path: String) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Argument 'id' on InputObject 'OrderInput' has an invalid value (null). Expected type 'ID!'.",
+      ),
+    ),
+    #(
+      "path",
+      json.array([operation_path, "orderUpdate", "input", "id"], json.string),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("argumentLiteralsIncompatible")),
+        #("typeName", json.string("InputObject")),
+        #("argumentName", json.string("id")),
+      ]),
+    ),
+  ])
+}
+
+fn build_order_update_missing_variable_id_error(
+  variable_name: String,
+  value: root_field.ResolvedValue,
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Variable $"
+        <> variable_name
+        <> " of type OrderInput! was provided invalid value for id (Expected value to not be null)",
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("INVALID_VARIABLE")),
+        #("value", source_to_json(resolved_value_to_source(value))),
+        #(
+          "problems",
+          json.array(
+            [
+              json.object([
+                #("path", json.array(["id"], json.string)),
+                #("explanation", json.string("Expected value to not be null")),
+              ]),
+            ],
+            fn(problem) { problem },
+          ),
+        ),
+      ]),
+    ),
+  ])
 }
 
 fn handle_order_create_validation_guardrail(
