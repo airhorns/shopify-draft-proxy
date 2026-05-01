@@ -1,8 +1,9 @@
 //// Incremental Orders-domain port.
 ////
-//// This pass intentionally claims only the abandoned-checkout/abandonment
-//// roots backed by checked-in executable parity fixtures. The broader order,
-//// draft-order, fulfillment, refund success, and return roots remain unported.
+//// This module is being expanded slice-by-slice from executable parity
+//// fixtures. Broad order creation/payment, order editing, fulfillment
+//// creation, and returns remain intentionally narrow until their lifecycle
+//// effects are modeled together.
 
 import gleam/dict.{type Dict}
 import gleam/float
@@ -1413,9 +1414,18 @@ pub fn process_mutation(
           }
         }
         Field(name: name, ..) if name.value == "refundCreate" -> {
-          let #(key, payload, next_errors, next_drafts) =
-            handle_refund_create_validation_mutation(
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            staged_ids,
+            next_errors,
+            next_drafts,
+          ) =
+            handle_refund_create_mutation(
               current_store,
+              current_identity,
               document,
               operation_path,
               field,
@@ -1426,9 +1436,9 @@ pub fn process_mutation(
             [] -> #(
               list.append(entries, [#(key, payload)]),
               errors,
-              current_store,
-              current_identity,
-              ids,
+              next_store,
+              next_identity,
+              list.append(ids, staged_ids),
               list.append(drafts, next_drafts),
             )
             _ -> #(
@@ -3140,14 +3150,23 @@ fn handle_order_update_mutation(
   }
 }
 
-fn handle_refund_create_validation_mutation(
+fn handle_refund_create_mutation(
   store: Store,
+  identity: SyntheticIdentityRegistry,
   document: String,
   operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(String, Json, List(Json), List(LogDraft)) {
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
   let key = get_field_response_key(field)
   let validation_errors =
     validate_required_field_arguments(
@@ -3159,7 +3178,7 @@ fn handle_refund_create_validation_mutation(
       document,
     )
   case validation_errors {
-    [_, ..] -> #(key, json.null(), validation_errors, [])
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
     [] -> {
       let args = field_arguments(field, variables)
       case read_object(args, "input") {
@@ -3174,6 +3193,9 @@ fn handle_refund_create_validation_mutation(
             ],
             fragments,
           ),
+          store,
+          identity,
+          [],
           [],
           [refund_create_log_draft([], store.Failed)],
         )
@@ -3195,6 +3217,9 @@ fn handle_refund_create_validation_mutation(
                 ],
                 fragments,
               ),
+              store,
+              identity,
+              [],
               [],
               [refund_create_log_draft([], store.Failed)],
             )
@@ -3223,27 +3248,31 @@ fn handle_refund_create_validation_mutation(
                       ],
                       fragments,
                     ),
+                    store,
+                    identity,
+                    [],
                     [],
                     [refund_create_log_draft([order.id], store.Failed)],
                   )
                 }
-                False -> #(
-                  key,
-                  serialize_refund_create_payload(
-                    field,
-                    None,
-                    Some(order),
-                    [
-                      #(
-                        Some(["input"]),
-                        "refundCreate success is not yet ported to Gleam.",
-                      ),
-                    ],
-                    fragments,
-                  ),
-                  [],
-                  [refund_create_log_draft([order.id], store.Failed)],
-                )
+                False -> {
+                  let #(refund, refund_transaction, next_identity) =
+                    build_refund_from_input(order, input, identity)
+                  let updated_order =
+                    apply_refund_to_order(order, refund, refund_transaction)
+                  let next_store = store.stage_order(store, updated_order)
+                  let payload =
+                    serialize_refund_create_payload(
+                      field,
+                      Some(refund),
+                      Some(updated_order),
+                      [],
+                      fragments,
+                    )
+                  #(key, payload, next_store, next_identity, [order.id], [], [
+                    refund_create_log_draft([order.id], store.Staged),
+                  ])
+                }
               }
             }
           }
@@ -3263,7 +3292,7 @@ fn refund_create_log_draft(
     status,
     "orders",
     "stage-locally",
-    Some("Locally handled refundCreate validation guardrail."),
+    Some("Locally handled refundCreate parity slice."),
   )
 }
 
@@ -3305,6 +3334,216 @@ fn serialize_refund_create_payload(
       }
     })
   json.object(entries)
+}
+
+fn build_refund_from_input(
+  order: OrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(CapturedJsonValue, CapturedJsonValue, SyntheticIdentityRegistry) {
+  let currency_code = order_currency_code(order)
+  let #(refund_id, identity_after_refund) =
+    synthetic_identity.make_synthetic_gid(identity, "Refund")
+  let #(created_at, identity_after_time) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_refund)
+  let #(refund_line_items, identity_after_lines) =
+    build_refund_line_items(order, input, currency_code, identity_after_time)
+  let refund_amount = refund_create_requested_amount(input, order)
+  let shipping_amount = refund_shipping_amount(input, order)
+  let #(transaction, next_identity) =
+    build_refund_transaction(
+      input,
+      refund_amount,
+      currency_code,
+      identity_after_lines,
+    )
+  let refund =
+    CapturedObject([
+      #("id", CapturedString(refund_id)),
+      #("note", optional_captured_string(read_string(input, "note"))),
+      #("createdAt", CapturedString(created_at)),
+      #("updatedAt", CapturedString(created_at)),
+      #(
+        "totalRefundedSet",
+        money_set_string(format_decimal_amount(refund_amount), currency_code),
+      ),
+      #(
+        "totalRefundedShippingSet",
+        money_set_string(format_decimal_amount(shipping_amount), currency_code),
+      ),
+      #(
+        "refundLineItems",
+        CapturedObject([#("nodes", CapturedArray(refund_line_items))]),
+      ),
+      #(
+        "transactions",
+        CapturedObject([#("nodes", CapturedArray([transaction]))]),
+      ),
+    ])
+  #(refund, transaction, next_identity)
+}
+
+fn build_refund_line_items(
+  order: OrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+  identity: SyntheticIdentityRegistry,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  read_object_list(input, "refundLineItems")
+  |> list.fold(#([], identity), fn(acc, refund_line_item) {
+    let #(items, current_identity) = acc
+    let #(id, next_identity) =
+      synthetic_identity.make_synthetic_gid(current_identity, "RefundLineItem")
+    let quantity = read_int(refund_line_item, "quantity", 0)
+    let restock_type =
+      read_string(refund_line_item, "restockType")
+      |> option.unwrap("NO_RESTOCK")
+    let line_item =
+      read_string(refund_line_item, "lineItemId")
+      |> option.then(fn(line_item_id) {
+        find_order_line_item(order, line_item_id)
+      })
+    let subtotal = case restock_type {
+      "NO_RESTOCK" -> 0.0
+      _ ->
+        line_item
+        |> option.map(fn(item) {
+          captured_money_amount(item, "originalUnitPriceSet")
+          *. int.to_float(quantity)
+        })
+        |> option.unwrap(0.0)
+    }
+    let restocked = case restock_type {
+      "NO_RESTOCK" -> False
+      _ -> True
+    }
+    let item =
+      CapturedObject([
+        #("id", CapturedString(id)),
+        #("quantity", CapturedInt(quantity)),
+        #("restockType", CapturedString(restock_type)),
+        #("restocked", CapturedBool(restocked)),
+        #("lineItem", refund_line_item_reference(line_item)),
+        #(
+          "subtotalSet",
+          money_set_string(format_decimal_amount(subtotal), currency_code),
+        ),
+      ])
+    #(list.append(items, [item]), next_identity)
+  })
+}
+
+fn refund_line_item_reference(
+  line_item: Option(CapturedJsonValue),
+) -> CapturedJsonValue {
+  case line_item {
+    Some(item) ->
+      CapturedObject([
+        #("id", optional_captured_string(captured_string_field(item, "id"))),
+        #(
+          "title",
+          optional_captured_string(captured_string_field(item, "title")),
+        ),
+      ])
+    None -> CapturedNull
+  }
+}
+
+fn build_refund_transaction(
+  input: Dict(String, root_field.ResolvedValue),
+  fallback_amount: Float,
+  currency_code: String,
+  identity: SyntheticIdentityRegistry,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let transaction_input = case read_object_list(input, "transactions") {
+    [first, ..] -> first
+    [] -> dict.new()
+  }
+  let #(id, next_identity) =
+    synthetic_identity.make_synthetic_gid(identity, "OrderTransaction")
+  let amount =
+    refund_transaction_amount(transaction_input)
+    |> nonzero_float(fallback_amount)
+  let transaction =
+    CapturedObject([
+      #("id", CapturedString(id)),
+      #(
+        "kind",
+        CapturedString(
+          read_string(transaction_input, "kind") |> option.unwrap("REFUND"),
+        ),
+      ),
+      #(
+        "status",
+        CapturedString(
+          read_string(transaction_input, "status") |> option.unwrap("SUCCESS"),
+        ),
+      ),
+      #(
+        "gateway",
+        CapturedString(
+          read_string(transaction_input, "gateway") |> option.unwrap("manual"),
+        ),
+      ),
+      #(
+        "amountSet",
+        money_set_string(format_decimal_amount(amount), currency_code),
+      ),
+    ])
+  #(transaction, next_identity)
+}
+
+fn nonzero_float(value: Float, fallback: Float) -> Float {
+  case value >. 0.0 {
+    True -> value
+    False -> fallback
+  }
+}
+
+fn apply_refund_to_order(
+  order: OrderRecord,
+  refund: CapturedJsonValue,
+  refund_transaction: CapturedJsonValue,
+) -> OrderRecord {
+  let currency_code = order_currency_code(order)
+  let total_refunded =
+    sum_order_refunded_amount(order)
+    +. captured_money_amount(refund, "totalRefundedSet")
+  let shipping_refunded =
+    sum_order_refunded_shipping_amount(order)
+    +. captured_money_amount(refund, "totalRefundedShippingSet")
+  let total = order_total_price(order)
+  let display_status = case total_refunded >=. total && total >. 0.0 {
+    True -> "REFUNDED"
+    False -> "PARTIALLY_REFUNDED"
+  }
+  let updated_data =
+    order.data
+    |> replace_captured_object_fields([
+      #("displayFinancialStatus", CapturedString(display_status)),
+      #(
+        "totalRefundedSet",
+        money_set_string(format_decimal_amount(total_refunded), currency_code),
+      ),
+      #(
+        "totalRefundedShippingSet",
+        money_set_string(
+          format_decimal_amount(shipping_refunded),
+          currency_code,
+        ),
+      ),
+      #(
+        "refunds",
+        CapturedArray(list.append(order_refunds(order.data), [refund])),
+      ),
+      #(
+        "transactions",
+        CapturedArray(
+          list.append(order_transactions(order), [refund_transaction]),
+        ),
+      ),
+    ])
+  OrderRecord(..order, data: updated_data)
 }
 
 fn refund_create_requested_amount(
@@ -3427,6 +3666,13 @@ fn sum_order_refunded_amount(order: OrderRecord) -> Float {
   })
 }
 
+fn sum_order_refunded_shipping_amount(order: OrderRecord) -> Float {
+  order_refunds(order.data)
+  |> list.fold(0.0, fn(sum, refund) {
+    sum +. captured_money_amount(refund, "totalRefundedShippingSet")
+  })
+}
+
 fn order_refunds(order_data: CapturedJsonValue) -> List(CapturedJsonValue) {
   case captured_object_field(order_data, "refunds") {
     Some(CapturedArray(refunds)) -> refunds
@@ -3459,6 +3705,18 @@ fn float_to_fixed_2(value: Float) -> String {
     False -> ""
   }
   sign <> int.to_string(dollars) <> "." <> cents_str
+}
+
+fn format_decimal_amount(value: Float) -> String {
+  let fixed = float_to_fixed_2(value)
+  case string.ends_with(fixed, "00") {
+    True -> string.drop_end(fixed, 3) <> ".0"
+    False ->
+      case string.ends_with(fixed, "0") {
+        True -> string.drop_end(fixed, 1)
+        False -> fixed
+      }
+  }
 }
 
 fn build_updated_order(

@@ -9,6 +9,64 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 145: refund success parity
+
+Promotes the checked-in full and partial `refundCreate` success parity
+scenarios in the Gleam Orders domain. This pass stages synthetic refund,
+refund-line-item, and refund transaction records over captured setup orders,
+updates order financial status and refunded totals, and preserves downstream
+order refund/transaction/returns visibility.
+
+| Module                                                   | Change                                                         |
+| -------------------------------------------------------- | -------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `refundCreate` success staging and downstream order data. |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured setup orders for refund success parity.         |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers partial refund success and downstream reads.            |
+| `config/gleam-port-ci-gates.json`                        | Removes the two newly passing refund success parity specs.     |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records refund success porting notes.                          |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (751 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (747 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 111 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Refund success parity needs the captured setup `orderCreate` order because it
+  carries line-item prices, shipping lines, sale transactions, and original
+  total price needed to calculate status and downstream state.
+- Shopify's captured `NO_RESTOCK` refund line item has `subtotalSet` `0.0`,
+  while `RETURN` uses unit price times refunded quantity. The refund
+  transaction amount drives the total refunded amount when present.
+- Successful refunds append a refund transaction to the order transactions,
+  append a refund to `order.refunds`, preserve the empty returns connection,
+  and mark the order `REFUNDED` only once refunded total reaches the order
+  total.
+
+### Risks / open items
+
+- Direct order creation/delete, payment transaction and mandate roots,
+  fulfillment creation/fulfillment-order workflows, returns, and order-edit
+  sessions remain gated.
+
+### Pass 146 candidates
+
+- Continue with another bounded existing-order lifecycle fixture, or start a
+  coherent return/payment/order-edit slice only if downstream state and parity
+  evidence can be modeled together.
+
+---
+
 ## 2026-05-01 - Pass 144: refund over-refund validation parity
 
 Promotes the checked-in `refundCreate` over-refund user-error parity scenario

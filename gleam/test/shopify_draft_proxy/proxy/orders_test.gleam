@@ -1165,6 +1165,328 @@ pub fn orders_refund_create_over_refund_validation_keeps_order_unchanged_test() 
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830465417449\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"refunds\":[],\"returns\":{\"nodes\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}},\"transactions\":[{\"id\":\"gid://shopify/OrderTransaction/8194169077993\",\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}}],\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}}}}}"
 }
 
+pub fn orders_refund_create_partial_success_stages_refund_and_transaction_test() {
+  let order_id = "gid://shopify/Order/6830465188073"
+  let line_item_id = "gid://shopify/LineItem/16202166272233"
+  let transaction_id = "gid://shopify/OrderTransaction/8194168750313"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1318")),
+          #("displayFinancialStatus", types.CapturedString("PAID")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+          #(
+            "totalPriceSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("25.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "totalRefundedSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("0.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "shippingLines",
+            types.CapturedObject([
+              #(
+                "nodes",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #("title", types.CapturedString("Standard")),
+                    #(
+                      "originalPriceSet",
+                      types.CapturedObject([
+                        #(
+                          "shopMoney",
+                          types.CapturedObject([
+                            #("amount", types.CapturedString("5.0")),
+                            #("currencyCode", types.CapturedString("CAD")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "lineItems",
+            types.CapturedObject([
+              #(
+                "nodes",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #("id", types.CapturedString(line_item_id)),
+                    #(
+                      "title",
+                      types.CapturedString(
+                        "Hermes refundable partial-shipping-restock item",
+                      ),
+                    ),
+                    #("quantity", types.CapturedInt(2)),
+                    #(
+                      "originalUnitPriceSet",
+                      types.CapturedObject([
+                        #(
+                          "shopMoney",
+                          types.CapturedObject([
+                            #("amount", types.CapturedString("10.0")),
+                            #("currencyCode", types.CapturedString("CAD")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "transactions",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString(transaction_id)),
+                #("kind", types.CapturedString("SALE")),
+                #("status", types.CapturedString("SUCCESS")),
+                #("gateway", types.CapturedString("manual")),
+                #(
+                  "amountSet",
+                  types.CapturedObject([
+                    #(
+                      "shopMoney",
+                      types.CapturedObject([
+                        #("amount", types.CapturedString("25.0")),
+                        #("currencyCode", types.CapturedString("CAD")),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+          #("refunds", types.CapturedArray([])),
+          #(
+            "returns",
+            types.CapturedObject([
+              #("nodes", types.CapturedArray([])),
+              #(
+                "pageInfo",
+                types.CapturedObject([
+                  #("hasNextPage", types.CapturedBool(False)),
+                  #("hasPreviousPage", types.CapturedBool(False)),
+                  #("startCursor", types.CapturedNull),
+                  #("endCursor", types.CapturedNull),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation RefundCreateParity($input: RefundInput!) {
+      refundCreate(input: $input) {
+        refund {
+          id
+          note
+          createdAt
+          updatedAt
+          totalRefundedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          refundLineItems(first: 5) {
+            nodes {
+              id
+              quantity
+              restockType
+              lineItem {
+                id
+                title
+              }
+              subtotalSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+          transactions(first: 5) {
+            nodes {
+              id
+              kind
+              status
+              gateway
+              amountSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+        order {
+          id
+          displayFinancialStatus
+          totalRefundedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("orderId", root_field.StringVal(order_id)),
+            #(
+              "note",
+              root_field.StringVal("partial line item and shipping refund"),
+            ),
+            #("notify", root_field.BoolVal(False)),
+            #(
+              "refundLineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("lineItemId", root_field.StringVal(line_item_id)),
+                    #("quantity", root_field.IntVal(1)),
+                    #("restockType", root_field.StringVal("RETURN")),
+                    #(
+                      "locationId",
+                      root_field.StringVal("gid://shopify/Location/68509171945"),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            #(
+              "shipping",
+              root_field.ObjectVal(
+                dict.from_list([#("amount", root_field.StringVal("5.00"))]),
+              ),
+            ),
+            #(
+              "transactions",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("amount", root_field.StringVal("15.00")),
+                    #("gateway", root_field.StringVal("manual")),
+                    #("kind", root_field.StringVal("REFUND")),
+                    #("orderId", root_field.StringVal(order_id)),
+                    #("parentId", root_field.StringVal(transaction_id)),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"refundCreate\":{\"refund\":{\"id\":\"gid://shopify/Refund/1\",\"note\":\"partial line item and shipping refund\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}},\"refundLineItems\":{\"nodes\":[{\"id\":\"gid://shopify/RefundLineItem/2\",\"quantity\":1,\"restockType\":\"RETURN\",\"lineItem\":{\"id\":\"gid://shopify/LineItem/16202166272233\",\"title\":\"Hermes refundable partial-shipping-restock item\"},\"subtotalSet\":{\"shopMoney\":{\"amount\":\"10.0\",\"currencyCode\":\"CAD\"}}}]},\"transactions\":{\"nodes\":[{\"id\":\"gid://shopify/OrderTransaction/3\",\"kind\":\"REFUND\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}}]}},\"order\":{\"id\":\"gid://shopify/Order/6830465188073\",\"displayFinancialStatus\":\"PARTIALLY_REFUNDED\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [order_id]
+  assert list.length(outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query RefundCreateDownstreamRead($id: ID!) {
+      order(id: $id) {
+        id
+        displayFinancialStatus
+        refunds {
+          id
+          note
+          totalRefundedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        returns(first: 5) {
+          nodes {
+            id
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+        transactions {
+          id
+          kind
+          status
+          gateway
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        totalRefundedSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  "
+  let read_variables = dict.from_list([#("id", root_field.StringVal(order_id))])
+  let assert Ok(read) =
+    orders.process(outcome.store, read_query, read_variables)
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830465188073\",\"displayFinancialStatus\":\"PARTIALLY_REFUNDED\",\"refunds\":[{\"id\":\"gid://shopify/Refund/1\",\"note\":\"partial line item and shipping refund\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}}],\"returns\":{\"nodes\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}},\"transactions\":[{\"id\":\"gid://shopify/OrderTransaction/8194168750313\",\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}},{\"id\":\"gid://shopify/OrderTransaction/3\",\"kind\":\"REFUND\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}}],\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}}}}"
+}
+
 pub fn orders_draft_order_delete_read_after_write_test() {
   let draft_order_id = "gid://shopify/DraftOrder/10079785100"
   let seeded =

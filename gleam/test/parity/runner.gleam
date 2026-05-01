@@ -288,7 +288,9 @@ fn seed_capture_preconditions(
     "fulfillment-cancel-live-parity"
     | "fulfillment-tracking-info-update-live-parity" ->
       seed_order_downstream_preconditions(capture, proxy)
-    "refund-create-over-refund-user-errors" ->
+    "refund-create-full-parity"
+    | "refund-create-live-parity"
+    | "refund-create-over-refund-user-errors" ->
       seed_order_create_setup_preconditions(capture, proxy)
     "orderCancel-live-parity" ->
       seed_order_downstream_preconditions(capture, proxy)

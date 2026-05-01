@@ -591,6 +591,16 @@ synthetic-id/timestamp expected differences.
   when the error text depends on the original `totalPriceSet`; downstream reads
   alone may not include that money field. Shopify returns `refund: null`,
   `userErrors.field: null`, and leaves refunds/returns/order totals unchanged.
+- `refundCreate` success parity can be handled as an existing captured-order
+  staging slice. Seed from the setup `orderCreate` order so line-item prices,
+  shipping lines, sale transactions, and order total are available. When a
+  refund transaction amount is present, use it for the refund total; compute
+  `totalRefundedShippingSet` from the shipping input. Shopify's captured
+  `NO_RESTOCK` refund line item has `subtotalSet` `0.0`, while `RETURN` uses
+  unit price times refunded quantity. Append the synthetic refund transaction
+  to order transactions, append the refund to `order.refunds`, preserve the
+  empty returns connection, and mark the order `REFUNDED` only once the total
+  refunded amount reaches the order total.
 
 ## Workflow for a new pass
 
