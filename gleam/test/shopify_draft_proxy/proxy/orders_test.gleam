@@ -121,6 +121,61 @@ pub fn orders_draft_orders_catalog_count_and_search_warning_test() {
     == "{\"data\":{\"draftOrders\":{\"edges\":[{\"cursor\":\"cursor-101\",\"node\":{\"id\":\"gid://shopify/DraftOrder/101\",\"name\":\"#D101\",\"email\":\"first@example.test\",\"status\":\"OPEN\",\"ready\":true}}],\"pageInfo\":{\"hasNextPage\":true,\"hasPreviousPage\":false,\"startCursor\":\"cursor-101\",\"endCursor\":\"cursor-101\"}},\"draftOrdersCount\":{\"count\":2,\"precision\":\"EXACT\"}},\"extensions\":{\"search\":[{\"path\":[\"draftOrders\"],\"query\":\"email:first@example.test\",\"parsed\":{\"field\":\"email\",\"match_all\":\"first@example.test\"},\"warnings\":[{\"field\":\"email\",\"message\":\"Invalid search field for this query.\",\"code\":\"invalid_field\"}]},{\"path\":[\"draftOrdersCount\"],\"query\":\"email:first@example.test\",\"parsed\":{\"field\":\"email\",\"match_all\":\"first@example.test\"},\"warnings\":[{\"field\":\"email\",\"message\":\"Invalid search field for this query.\",\"code\":\"invalid_field\"}]}]}}"
 }
 
+pub fn orders_order_detail_read_and_missing_order_null_test() {
+  let order_id = "gid://shopify/Order/6832000000000"
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1001")),
+          #("email", types.CapturedString("merchant@example.test")),
+          #("displayFinancialStatus", types.CapturedString("PAID")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+          #(
+            "currentTotalPriceSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("42.50")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/6832000000000\") {
+        id
+        name
+        email
+        displayFinancialStatus
+        displayFulfillmentStatus
+        currentTotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+      missing: order(id: \"gid://shopify/Order/0\") {
+        id
+      }
+    }
+  "
+  let assert Ok(result) = orders.process(seeded_store, query, dict.new())
+  assert json.to_string(result)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6832000000000\",\"name\":\"#1001\",\"email\":\"merchant@example.test\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"42.50\",\"currencyCode\":\"CAD\"}}},\"missing\":null}}"
+}
+
 pub fn orders_abandonment_delivery_status_unknown_test() {
   let query =
     "

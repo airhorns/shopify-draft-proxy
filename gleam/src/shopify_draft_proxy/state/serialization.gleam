@@ -48,6 +48,9 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
         draft_order_variant_catalog_json,
       ),
     ),
+    #("orders", dict_to_json(state.orders, order_json)),
+    #("orderOrder", json.array(state.order_order, json.string)),
+    #("deletedOrderIds", bool_dict_to_json(state.deleted_order_ids)),
     #("b2bCompanies", dict_to_json(state.b2b_companies, b2b_company_json)),
     #("b2bCompanyOrder", json.array(state.b2b_company_order, json.string)),
     #("deletedB2BCompanyIds", bool_dict_to_json(state.deleted_b2b_company_ids)),
@@ -477,6 +480,9 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
         draft_order_variant_catalog_json,
       ),
     ),
+    #("orders", dict_to_json(state.orders, order_json)),
+    #("orderOrder", json.array(state.order_order, json.string)),
+    #("deletedOrderIds", bool_dict_to_json(state.deleted_order_ids)),
     #("b2bCompanies", dict_to_json(state.b2b_companies, b2b_company_json)),
     #("b2bCompanyOrder", json.array(state.b2b_company_order, json.string)),
     #("deletedB2BCompanyIds", bool_dict_to_json(state.deleted_b2b_company_ids)),
@@ -1305,6 +1311,14 @@ fn abandonment_json(record: types.AbandonmentRecord) -> Json {
 }
 
 fn draft_order_json(record: types.DraftOrderRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("cursor", optional_string(record.cursor)),
+    #("data", captured_json_value_json(record.data)),
+  ])
+}
+
+fn order_json(record: types.OrderRecord) -> Json {
   json.object([
     #("id", json.string(record.id)),
     #("cursor", optional_string(record.cursor)),
@@ -2441,6 +2455,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     "draftOrderVariantCatalog",
     draft_order_variant_catalog_decoder(),
   )
+  use orders <- dict_field("orders", order_decoder())
+  use order_order <- string_list_field("orderOrder")
+  use deleted_order_ids <- bool_dict_field("deletedOrderIds")
   use store_property_locations <- dict_field(
     "locations",
     store_property_record_decoder(),
@@ -2642,6 +2659,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     draft_order_order: draft_order_order,
     deleted_draft_order_ids: deleted_draft_order_ids,
     draft_order_variant_catalog: draft_order_variant_catalog,
+    orders: orders,
+    order_order: order_order,
+    deleted_order_ids: deleted_order_ids,
     inventory_transfers: empty.inventory_transfers,
     inventory_transfer_order: empty.inventory_transfer_order,
     deleted_inventory_transfer_ids: empty.deleted_inventory_transfer_ids,
@@ -2799,6 +2819,9 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     "draftOrderVariantCatalog",
     draft_order_variant_catalog_decoder(),
   )
+  use orders <- dict_field("orders", order_decoder())
+  use order_order <- string_list_field("orderOrder")
+  use deleted_order_ids <- bool_dict_field("deletedOrderIds")
   use store_property_locations <- dict_field(
     "locations",
     store_property_record_decoder(),
@@ -2994,6 +3017,9 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     draft_order_order: draft_order_order,
     deleted_draft_order_ids: deleted_draft_order_ids,
     draft_order_variant_catalog: draft_order_variant_catalog,
+    orders: orders,
+    order_order: order_order,
+    deleted_order_ids: deleted_order_ids,
     inventory_transfers: empty.inventory_transfers,
     inventory_transfer_order: empty.inventory_transfer_order,
     deleted_inventory_transfer_ids: empty.deleted_inventory_transfer_ids,
@@ -3323,6 +3349,13 @@ fn draft_order_decoder() -> Decoder(types.DraftOrderRecord) {
   use cursor <- optional_string_field("cursor")
   use data <- decode.field("data", captured_json_value_decoder())
   decode.success(types.DraftOrderRecord(id: id, cursor: cursor, data: data))
+}
+
+fn order_decoder() -> Decoder(types.OrderRecord) {
+  use id <- decode.field("id", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use data <- decode.field("data", captured_json_value_decoder())
+  decode.success(types.OrderRecord(id: id, cursor: cursor, data: data))
 }
 
 fn draft_order_variant_catalog_decoder() -> Decoder(

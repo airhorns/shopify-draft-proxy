@@ -140,6 +140,10 @@ pub type DraftOrderRecord {
   DraftOrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
 }
 
+pub type OrderRecord {
+  OrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
 pub type DraftOrderVariantCatalogRecord {
   DraftOrderVariantCatalogRecord(
     variant_id: String,

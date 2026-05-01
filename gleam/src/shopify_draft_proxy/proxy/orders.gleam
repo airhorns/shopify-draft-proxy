@@ -38,7 +38,7 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type AbandonedCheckoutRecord, type AbandonmentRecord, type CapturedJsonValue,
-  type DraftOrderRecord, type DraftOrderVariantCatalogRecord,
+  type DraftOrderRecord, type DraftOrderVariantCatalogRecord, type OrderRecord,
   AbandonmentDeliveryActivityRecord, CapturedArray, CapturedBool, CapturedFloat,
   CapturedInt, CapturedNull, CapturedObject, CapturedString, DraftOrderRecord,
 }
@@ -68,6 +68,7 @@ pub fn is_orders_query_root(name: String) -> Bool {
       "draftOrderAvailableDeliveryOptions",
       "draftOrders",
       "draftOrdersCount",
+      "order",
     ],
     name,
   )
@@ -280,8 +281,31 @@ fn serialize_query_field(
       serialize_draft_order_available_delivery_options(field, fragments)
     "draftOrders" -> serialize_draft_orders(store, field, fragments, variables)
     "draftOrdersCount" -> serialize_draft_orders_count(store, field, fragments)
+    "order" -> {
+      let id = read_string_argument(field, "id", variables)
+      case id {
+        Some(id) ->
+          case store.get_order_by_id(store, id) {
+            Some(order) -> serialize_order_node(field, order, fragments)
+            None -> json.null()
+          }
+        None -> json.null()
+      }
+    }
     _ -> json.null()
   }
+}
+
+fn serialize_order_node(
+  field: Selection,
+  order: OrderRecord,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    captured_json_source(order.data),
+    selection_children(field),
+    fragments,
+  )
 }
 
 fn serialize_draft_orders(

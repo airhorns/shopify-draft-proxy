@@ -323,10 +323,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/orders/order-merchant-detail-read.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/orders/order-payment-mandate-local-staging.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },

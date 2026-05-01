@@ -457,6 +457,12 @@ synthetic-id/timestamp expected differences.
   new draft should reset to open/ready, clear shipping and discounts, allocate
   fresh draft/draft-line-item IDs, and recalculate totals from order line-item
   unit prices.
+- The first standalone `order(id:)` read slice can use a narrow
+  `OrderRecord` store bucket seeded from captured detail payloads and projected
+  with `project_graphql_value`. Add dump/restore serialization with the new
+  bucket immediately, return `null` for missing IDs, and keep `orders`
+  connections/counts/search plus order lifecycle mutations gated until their
+  own executable parity slices are modeled.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or

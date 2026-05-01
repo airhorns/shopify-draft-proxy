@@ -9,6 +9,64 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 132: order merchant detail read
+
+Promotes the checked-in `order-merchant-detail-read` scenario in the Gleam
+Orders domain. This pass introduces the first narrow first-class order state
+slice, seeds the captured merchant-detail order fixture for parity replay, and
+serves `order(id:)` reads by projecting the requested selection from captured
+JSON while preserving Shopify's `null` behavior for missing order IDs.
+
+| Module                                                    | Change                                                                      |
+| --------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`         | Adds `OrderRecord` for captured order payloads.                             |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`         | Adds base/staged order buckets and effective order lookup helpers.          |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam` | Adds order bucket dump/restore serialization.                               |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`        | Adds `order(id:)` query dispatch and captured JSON projection.              |
+| `gleam/test/parity/runner.gleam`                          | Seeds `order-merchant-detail-read` from the captured Shopify order payload. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`  | Covers seeded order detail reads and missing-order `null` responses.        |
+| `config/gleam-port-ci-gates.json`                         | Removes the newly passing merchant-detail order parity spec.                |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (742 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (738 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 130 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- `order(id:)` can be promoted before order catalog/search/counts by seeding
+  only the captured order detail payload and projecting fields from captured
+  JSON. This keeps the slice faithful without inventing broad order behavior.
+- The order state bucket needs dump/restore support immediately because parity
+  seeding uses the same store shape as runtime state snapshots.
+- The local read should return GraphQL `null` when no captured or staged order
+  exists for an ID, matching Shopify's no-data behavior.
+
+### Risks / open items
+
+- This does not add `orders` connection/count/search support or any order
+  lifecycle mutation behavior.
+- Order-edit sessions, fulfillment success paths, refunds, returns, and
+  payment/customer downstream effects remain gated.
+
+### Pass 133 candidates
+
+- Continue with a narrow order no-data/read/count slice if backed by existing
+  captures, or pick the next order lifecycle fixture that can reuse the new
+  `OrderRecord` state without claiming unsupported mutations.
+
+---
+
 ## 2026-05-01 - Pass 131: draft order create from order
 
 Promotes the checked-in `draftOrderCreateFromOrder-parity-plan` scenario in

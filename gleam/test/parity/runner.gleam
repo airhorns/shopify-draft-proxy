@@ -65,9 +65,10 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectFieldDefinitionReferenceRecord,
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
   type MetaobjectJsonValue, type MetaobjectRecord,
-  type MetaobjectStandardTemplateRecord, type Money, type PaymentSettingsRecord,
-  type ProductCategoryRecord, type ProductCollectionRecord,
-  type ProductMediaRecord, type ProductMetafieldRecord, type ProductOptionRecord,
+  type MetaobjectStandardTemplateRecord, type Money, type OrderRecord,
+  type PaymentSettingsRecord, type ProductCategoryRecord,
+  type ProductCollectionRecord, type ProductMediaRecord,
+  type ProductMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
   type PublicationRecord, type SellingPlanGroupRecord, type SellingPlanRecord,
@@ -104,7 +105,7 @@ import shopify_draft_proxy/state/types.{
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
   MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
-  MetaobjectStandardTemplateRecord, MetaobjectString, Money,
+  MetaobjectStandardTemplateRecord, MetaobjectString, Money, OrderRecord,
   PaymentSettingsRecord, ProductCategoryRecord, ProductCollectionRecord,
   ProductMediaRecord, ProductMetafieldRecord, ProductOptionRecord,
   ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
@@ -279,6 +280,8 @@ fn seed_capture_preconditions(
     | "draft-orders-count-read"
     | "draft-orders-invalid-email-query-read" ->
       seed_draft_orders_catalog_preconditions(capture, proxy)
+    "order-merchant-detail-read" ->
+      seed_order_merchant_detail_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "b2b-company-roots-read" ->
@@ -878,6 +881,28 @@ fn make_seed_draft_order(source: JsonValue) -> Result(DraftOrderRecord, Nil) {
     cursor: None,
     data: captured_json_from_parity(source),
   ))
+}
+
+fn seed_order_merchant_detail_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.response.data.order") {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn make_seed_order(source: JsonValue) -> Result(OrderRecord, Nil) {
+  use id <- result.try(required_gid(source, "id", "Order"))
+  Ok(OrderRecord(id: id, cursor: None, data: captured_json_from_parity(source)))
 }
 
 fn draft_order_with_setup_note(
