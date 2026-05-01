@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-01 - Pass 118: reverse logistics and order-edit shipping roots
+## 2026-05-01 - Pass 119: reverse logistics and order-edit shipping roots
 
 Completes the remaining HAR-493 shipping/fulfillment registry roots that are
 owned by broader order flows rather than checked-in shipping parity specs. The
@@ -45,14 +45,14 @@ green with 379 specs and 166 expected failures. `git diff --check` is green.
 - Full order return/order-edit parity remains a future domain porting concern;
   this pass only covers the shipping/fulfillment roots called out by HAR-493.
 
-### Pass 119 candidates
+### Pass 120 candidates
 
 - Pick the next domain with manifest-backed expected failures from
   `config/gleam-port-ci-gates.json`.
 
 ---
 
-## 2026-05-01 - Pass 117: fulfillment order and fulfillment read parity
+## 2026-05-01 - Pass 118: fulfillment order and fulfillment read parity
 
 Promotes the remaining shipping/fulfillment parity specs into the Gleam parity
 suite. The shipping/fulfillments port now seeds captured order-backed
@@ -101,7 +101,7 @@ Gleam parity failures are now zero.
 - The TypeScript shipping/fulfillment runtime remains intact under the port
   preservation rule until the final all-port cutover.
 
-### Pass 118 candidates
+### Pass 119 candidates
 
 - Pick the next domain with manifest-backed expected failures from
   `config/gleam-port-ci-gates.json`.
@@ -110,7 +110,7 @@ Gleam parity failures are now zero.
 
 ---
 
-## 2026-05-01 - Pass 116: delivery profile lifecycle parity
+## 2026-05-01 - Pass 117: delivery profile lifecycle parity
 
 Promotes `delivery-profile-lifecycle.json` into the Gleam parity suite. The
 shipping/fulfillments port now stages delivery profile create/update/remove
@@ -155,7 +155,7 @@ Gleam parity failures are down from 6 to 5.
 - The TypeScript shipping/fulfillment runtime remains intact under the port
   preservation rule until the final all-port cutover.
 
-### Pass 117 candidates
+### Pass 118 candidates
 
 - Continue `fulfillment-top-level-reads.json` if its fulfillment read shapes can
   reuse the fulfillment-service and location substrate.
@@ -164,7 +164,7 @@ Gleam parity failures are down from 6 to 5.
 
 ---
 
-## 2026-05-01 - Pass 115: delivery profile read parity
+## 2026-05-01 - Pass 116: delivery profile read parity
 
 Promotes `delivery-profile-read.json` into the Gleam parity suite. The
 shipping/fulfillments port now has fixture-backed delivery profile state,
@@ -207,7 +207,7 @@ Gleam parity failures are down from 7 to 6.
 - The TypeScript shipping/fulfillment runtime remains intact under the port
   preservation rule until the final all-port cutover.
 
-### Pass 116 candidates
+### Pass 117 candidates
 
 - Continue `delivery-profile-lifecycle.json` now that delivery-profile read
   state and projection are available.
@@ -216,7 +216,7 @@ Gleam parity failures are down from 7 to 6.
 
 ---
 
-## 2026-05-01 - Pass 114: fulfillment service lifecycle parity
+## 2026-05-01 - Pass 115: fulfillment service lifecycle parity
 
 Promotes `fulfillment-service-lifecycle.json` into the Gleam parity suite. The
 shipping/fulfillments port now stages FulfillmentService create/update/delete
@@ -256,7 +256,7 @@ Gleam parity failures are down from 8 to 7.
 - The TypeScript shipping/fulfillment runtime remains intact under the port
   preservation rule until the final all-port cutover.
 
-### Pass 115 candidates
+### Pass 116 candidates
 
 - Continue `fulfillment-top-level-reads.json` if the remaining top-level
   fulfillment read shapes can share the fulfillment-service and location
@@ -266,7 +266,7 @@ Gleam parity failures are down from 8 to 7.
 
 ---
 
-## 2026-05-01 - Pass 113: shipping settings and local pickup parity
+## 2026-05-01 - Pass 114: shipping settings and local pickup parity
 
 Promotes `shipping-settings-package-pickup-constraints.json` into the Gleam
 parity suite. The shipping/fulfillments port now projects available active
@@ -307,7 +307,7 @@ Gleam parity failures are down from 9 to 8.
 - The TypeScript shipping/fulfillment runtime remains intact under the port
   preservation rule until the final all-port cutover.
 
-### Pass 114 candidates
+### Pass 115 candidates
 
 - Continue `fulfillment-service-lifecycle.json` if its mutation/read loop can
   be isolated against the existing Store Properties location seed.
@@ -316,7 +316,7 @@ Gleam parity failures are down from 9 to 8.
 
 ---
 
-## 2026-05-01 - Pass 112: shipping package and carrier service lifecycle parity
+## 2026-05-01 - Pass 113: shipping package and carrier service lifecycle parity
 
 Promotes two shipping/fulfillment lifecycle fixtures into the Gleam parity
 suite. The port now stages custom shipping package update/default/delete roots
@@ -359,13 +359,50 @@ Gleam parity failures are down from 11 to 9.
 - The TypeScript shipping/fulfillment runtime remains intact under the port
   preservation rule until the final all-port cutover.
 
-### Pass 113 candidates
+### Pass 114 candidates
 
 - Continue `shipping-settings-package-pickup-constraints.json` by porting
   available carrier services, locations available for delivery profiles, and
   local pickup enable/disable staging.
 - Continue `fulfillment-service-lifecycle.json` if a smaller mutation/read
   lifecycle slice is preferred.
+---
+
+## 2026-05-01 - Pass 112: HAR-505 mainline refresh seeding
+
+Refreshes the HAR-505 Marketing branch after `origin/main` promoted the
+remaining Product parity gates. The conflict resolution preserves the branch's
+Marketing and localization parity seeding while keeping the mainline
+Products/Inventory runner additions. The merged runner now explicitly seeds the
+captured `inventory-quantity-contracts-2026-04` disposable product from the
+fixture's `setup.product` block before replaying the 2026-04 set/adjust/read
+flow.
+
+| Module                           | Change                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `gleam/test/parity/runner.gleam` | Keeps Marketing capture seeding and seeds the 2026-04 inventory quantity contract fixture. |
+| `gleam/test/parity/spec.gleam`   | Keeps both `selectedPaths` and `upstreamCapturePath` parity target documentation.          |
+| `GLEAM_PORT_LOG.md`              | Preserves mainline Product pass history and the branch-local localization seeding entry.   |
+
+Validation:
+Full JavaScript is green at 718 tests. Docker Erlang is green at 714 tests.
+`corepack pnpm lint`, `git diff --check`, `corepack pnpm
+gleam:port:coverage`, and `corepack pnpm gleam:registry:check` are green.
+Gleam parity coverage reports 379 checked-in specs and 176 expected failures.
+
+### Findings
+
+- The 2026-04 inventory quantity contract fixture stores its disposable Product,
+  Variant, and InventoryItem ids under `setup.product`; without that seed, the
+  success mutation branches correctly reject the unknown inventory item instead
+  of exercising the captured contract path.
+- The Marketing branch did not need parity fixture or request changes for this
+  refresh; the required work was runner seeding and conflict reconciliation.
+
+### Risks / open items
+
+- TypeScript Marketing runtime deletion remains deferred to HAR-518 under the
+  incremental port preservation rule.
 
 ---
 
@@ -421,6 +458,46 @@ specs expected-failing. `corepack pnpm lint` and whitespace checks are green.
 - Continue with the next non-Product expected-failing domain from
   `config/gleam-port-ci-gates.json`, or start the explicit final-cutover plan
   once the whole-port acceptance criteria bind.
+
+---
+
+## 2026-04-30 — Pass 46: localization source-content parity seeding
+
+Keeps the latest mainline localization parity gate green after the HAR-505
+branch was refreshed with webhook evidence. The checked-in
+`localization-disable-clears-translations` capture registers a translation
+against an existing Shopify product, but the Gleam port still lacks the Products
+domain. This pass seeds the captured source title digest into the parity runner
+as a non-target-locale source marker, then lets the localization runtime
+reconstruct the minimal translatable content slot needed for Shopify-like
+`translationsRegister` validation.
+
+| Module                                                                  | Change                                                                                                                                    |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`                                        | Seeds the captured product title digest for `localization-disable-clears-translations` before replaying the enable/register/disable flow. |
+| `gleam/src/shopify_draft_proxy/proxy/localization.gleam`                | Reconstructs translatable content slots from seeded translation/source markers while preserving `RESOURCE_NOT_FOUND` for unknown ids.     |
+| `gleam/test/shopify_draft_proxy/proxy/localization_mutation_test.gleam` | Covers the seeded source marker register-disable-read lifecycle directly.                                                                 |
+
+Validation after the `origin/main@3e99c073` merge: `gleam test --target
+javascript` passed at 681 tests, Erlang passed at 677 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container, `corepack pnpm
+lint`, `git diff --check`, `corepack pnpm gleam:port:coverage`, and `corepack
+pnpm gleam:registry:check` are green.
+
+### Findings
+
+- The source digest already exists in the live capture, so no parity request or
+  fixture shape needed to change.
+- Unknown localization resource ids still fail unless a product/metafield
+  domain record or a capture-seeded source marker exists.
+- The expected Gleam parity-failure manifest now reports 292 remaining failures
+  after this localization scenario passes.
+
+### Risks / open items
+
+- The real Product-backed `find_resource` path remains deferred until the
+  Products domain ports; this seed is only the parity runner bridge for captured
+  upstream resources that already exist.
 
 ---
 
