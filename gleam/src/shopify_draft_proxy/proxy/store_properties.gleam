@@ -589,6 +589,23 @@ fn project_store_property_record(
   )
 }
 
+pub fn serialize_location_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_store_property_location_by_id(store, id) {
+    Some(record) ->
+      project_graphql_value(
+        store_property_data_to_source(record.data),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
 fn store_property_value_to_source(value: StorePropertyValue) -> SourceValue {
   case value {
     StorePropertyNull -> SrcNull

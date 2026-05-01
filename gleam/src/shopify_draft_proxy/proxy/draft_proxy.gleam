@@ -56,6 +56,7 @@ import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
+import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/upstream_dispatch
 import shopify_draft_proxy/proxy/webhooks
@@ -352,7 +353,7 @@ fn serialize_mutation_log_entry(entry: store.MutationLogEntry) -> Json {
         dict.to_list(entry.variables)
         |> list.map(fn(pair) {
           let #(k, v) = pair
-          #(k, json.string(v))
+          #(k, root_field.resolved_value_to_json(v))
         }),
       ),
     ),
@@ -637,6 +638,7 @@ fn finalize_mutation_outcome(
   proxy: DraftProxy,
   request_path: String,
   query: String,
+  variables: Dict(String, root_field.ResolvedValue),
   data: Json,
   next_store: Store,
   next_identity: SyntheticIdentityRegistry,
@@ -648,6 +650,7 @@ fn finalize_mutation_outcome(
       next_identity,
       request_path,
       query,
+      variables,
       log_drafts,
     )
   #(
@@ -684,6 +687,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -709,6 +713,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -732,6 +737,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -754,6 +760,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -776,6 +783,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -801,6 +809,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -823,6 +832,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -845,6 +855,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -867,6 +878,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -892,6 +904,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -917,6 +930,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -942,6 +956,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -964,6 +979,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -989,6 +1005,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -1011,6 +1028,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -1033,6 +1051,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -1058,6 +1077,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -1106,6 +1126,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -1128,6 +1149,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -1170,12 +1192,39 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
             outcome.log_drafts,
           )
         Error(_) -> #(bad_request("Failed to handle payments mutation"), proxy)
+      }
+    Ok(ShippingFulfillmentsDomain) ->
+      case
+        shipping_fulfillments.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(
+          bad_request("Failed to handle shipping fulfillments mutation"),
+          proxy,
+        )
       }
     Ok(OrdersDomain) ->
       case
@@ -1192,6 +1241,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -1351,6 +1401,12 @@ fn route_query(
         payments.process(proxy.store, query, variables),
         "Failed to handle payments query",
       )
+    Ok(ShippingFulfillmentsDomain) ->
+      respond(
+        proxy,
+        shipping_fulfillments.process(proxy.store, query, variables),
+        "Failed to handle shipping fulfillments query",
+      )
     Ok(OrdersDomain) ->
       respond(
         proxy,
@@ -1399,6 +1455,7 @@ type Domain {
   PrivacyDomain
   CustomersDomain
   PaymentsDomain
+  ShippingFulfillmentsDomain
   OrdersDomain
 }
 
@@ -1518,7 +1575,11 @@ fn local_query_dispatch_domain(
         True -> Ok(OnlineStoreDomain)
         False -> Ok(StorePropertiesDomain)
       }
-    "order" -> Ok(OrdersDomain)
+    "order" ->
+      case shipping_fulfillment_order_lifecycle_query(query) {
+        True -> Ok(ShippingFulfillmentsDomain)
+        False -> Ok(OrdersDomain)
+      }
     "draftOrder" ->
       case draft_order_payment_terms_only_query(query) {
         True -> Ok(PaymentsDomain)
@@ -1554,6 +1615,10 @@ fn local_query_dispatch_domain(
         #(segments.is_segment_query_root(name), SegmentsDomain),
         #(products.is_products_query_root(name), ProductsDomain),
         #(customers.is_customer_query_root(name), CustomersDomain),
+        #(
+          shipping_fulfillment_priority_query_root(name),
+          ShippingFulfillmentsDomain,
+        ),
         #(orders.is_orders_query_root(name), OrdersDomain),
         #(
           metafield_definitions.is_metafield_definitions_query_root(name),
@@ -1581,6 +1646,10 @@ fn local_query_dispatch_domain(
         #(
           online_store.is_online_store_query_root(name, query),
           OnlineStoreDomain,
+        ),
+        #(
+          shipping_fulfillments.is_shipping_fulfillment_query_root(name),
+          ShippingFulfillmentsDomain,
         ),
       ])
   }
@@ -1659,6 +1728,25 @@ fn selection_names_request_store_publishable_fields(
   }
 }
 
+fn shipping_fulfillment_priority_query_root(name: String) -> Bool {
+  case name {
+    "deliveryProfile"
+    | "deliveryProfiles"
+    | "fulfillment"
+    | "fulfillmentOrder"
+    | "fulfillmentOrders"
+    | "assignedFulfillmentOrders"
+    | "manualHoldsFulfillmentOrders" -> True
+    _ -> False
+  }
+}
+
+fn shipping_fulfillment_order_lifecycle_query(query: String) -> Bool {
+  string.contains(query, "fulfillmentHolds")
+  || string.contains(query, "fulfillBy")
+  || string.contains(query, "supportedActions")
+}
+
 fn local_mutation_dispatch_domain(
   name: String,
   query: String,
@@ -1673,7 +1761,6 @@ fn local_non_store_publishable_mutation_dispatch_domain(
   name: String,
 ) -> Result(Domain, Nil) {
   first_matching_domain([
-    #(orders.is_orders_mutation_root(name), OrdersDomain),
     #(payments.is_payments_mutation_root(name), PaymentsDomain),
     #(products.is_products_mutation_root(name), ProductsDomain),
     #(
@@ -1707,7 +1794,16 @@ fn local_non_store_publishable_mutation_dispatch_domain(
     #(admin_platform.is_admin_platform_mutation_root(name), AdminPlatformDomain),
     #(online_store.is_online_store_mutation_root(name), OnlineStoreDomain),
     #(privacy.is_privacy_mutation_root(name), PrivacyDomain),
+    #(
+      shipping_fulfillment_priority_mutation_root(name),
+      ShippingFulfillmentsDomain,
+    ),
+    #(orders.is_orders_mutation_root(name), OrdersDomain),
     #(customers.is_customer_mutation_root(name), CustomersDomain),
+    #(
+      shipping_fulfillments.is_shipping_fulfillment_mutation_root(name),
+      ShippingFulfillmentsDomain,
+    ),
   ])
 }
 
@@ -1721,6 +1817,30 @@ fn publishable_mutation_requests_store_properties(
       || string.contains(query, "availablePublicationsCount")
       || string.contains(query, " shop ")
       || string.contains(query, "shop {")
+    _ -> False
+  }
+}
+
+fn shipping_fulfillment_priority_mutation_root(name: String) -> Bool {
+  case name {
+    "fulfillmentEventCreate"
+    | "fulfillmentOrderSubmitFulfillmentRequest"
+    | "fulfillmentOrderAcceptFulfillmentRequest"
+    | "fulfillmentOrderRejectFulfillmentRequest"
+    | "fulfillmentOrderSubmitCancellationRequest"
+    | "fulfillmentOrderAcceptCancellationRequest"
+    | "fulfillmentOrderRejectCancellationRequest"
+    | "fulfillmentOrderHold"
+    | "fulfillmentOrderReleaseHold"
+    | "fulfillmentOrderMove"
+    | "fulfillmentOrderReschedule"
+    | "fulfillmentOrderReportProgress"
+    | "fulfillmentOrderOpen"
+    | "fulfillmentOrderClose"
+    | "fulfillmentOrderCancel"
+    | "fulfillmentOrderSplit"
+    | "fulfillmentOrdersSetFulfillmentDeadline"
+    | "fulfillmentOrderMerge" -> True
     _ -> False
   }
 }
@@ -2168,7 +2288,7 @@ fn mutation_log_entry_decoder() -> decode.Decoder(store.MutationLogEntry) {
   use variables <- decode.optional_field(
     "variables",
     dict.new(),
-    decode.dict(decode.string, decode.string),
+    decode.dict(decode.string, root_field.resolved_value_decoder()),
   )
   use staged_resource_ids <- decode.optional_field(
     "stagedResourceIds",

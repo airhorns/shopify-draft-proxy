@@ -809,6 +809,14 @@ outside Vitest.
   as a raw captured array. `assignedFulfillmentOrders` is now local readback;
   use a different implemented-but-unported sentinel such as
   `fulfillmentService`.
+- Admin Platform `node(id:)` / `nodes(ids:)` support needs its own
+  introspection-backed Gleam coverage. When adding a new owning resource
+  serializer to `admin_platform.gleam`, update
+  `list_supported_admin_platform_node_types()` and the unsupported Node
+  implementor snapshot in `admin_platform_test.gleam` in the same pass. Do not
+  remove a type from the unsupported list until the generic node dispatcher can
+  resolve real local records for that type without falling through to runtime
+  Shopify.
 
 ## Workflow for a new pass
 
