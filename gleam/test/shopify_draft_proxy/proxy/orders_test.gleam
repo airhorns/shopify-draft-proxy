@@ -1059,6 +1059,247 @@ pub fn orders_order_update_validation_guardrails_test() {
   assert store.list_effective_orders(unknown_outcome.store) == []
 }
 
+pub fn orders_order_update_existing_order_read_after_write_test() {
+  let order_id = "gid://shopify/Order/6830627356905"
+  let metafield_id = "gid://shopify/Metafield/35289666519273"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1323")),
+          #("email", types.CapturedString("before@example.com")),
+          #("poNumber", types.CapturedNull),
+          #("note", types.CapturedString("before")),
+          #("tags", types.CapturedArray([types.CapturedString("before")])),
+          #(
+            "customer",
+            types.CapturedObject([
+              #(
+                "id",
+                types.CapturedString("gid://shopify/Customer/9096793751785"),
+              ),
+              #("email", types.CapturedString("operator@example.com")),
+              #("displayName", types.CapturedString("Hermes Operator")),
+            ]),
+          ),
+          #("customAttributes", types.CapturedArray([])),
+          #("shippingAddress", types.CapturedNull),
+          #(
+            "metafields",
+            types.CapturedObject([
+              #(
+                "nodes",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #("id", types.CapturedString(metafield_id)),
+                    #("namespace", types.CapturedString("custom")),
+                    #("key", types.CapturedString("gift")),
+                    #("type", types.CapturedString("single_line_text_field")),
+                    #("value", types.CapturedString("no")),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderUpdateExpandedParityPlan($input: OrderInput!) {
+      orderUpdate(input: $input) {
+        order {
+          id
+          name
+          email
+          poNumber
+          note
+          tags
+          customer {
+            id
+            email
+            displayName
+          }
+          customAttributes {
+            key
+            value
+          }
+          shippingAddress {
+            firstName
+            lastName
+            address1
+            address2
+            company
+            city
+            province
+            provinceCode
+            country
+            countryCodeV2
+            zip
+            phone
+          }
+          gift: metafield(namespace: \"custom\", key: \"gift\") {
+            id
+            namespace
+            key
+            type
+            value
+          }
+          metafields(first: 10) {
+            nodes {
+              id
+              namespace
+              key
+              type
+              value
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("id", root_field.StringVal(order_id)),
+            #(
+              "email",
+              root_field.StringVal("order-update-expanded@example.com"),
+            ),
+            #("poNumber", root_field.StringVal("PO-ORDER-UPDATE-PARITY")),
+            #("note", root_field.StringVal("order update expanded parity plan")),
+            #(
+              "tags",
+              root_field.ListVal([
+                root_field.StringVal("order-update"),
+                root_field.StringVal("expanded-parity"),
+              ]),
+            ),
+            #(
+              "customAttributes",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("key", root_field.StringVal("source")),
+                    #("value", root_field.StringVal("expanded-parity")),
+                  ]),
+                ),
+              ]),
+            ),
+            #(
+              "shippingAddress",
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("firstName", root_field.StringVal("Ada")),
+                  #("lastName", root_field.StringVal("Lovelace")),
+                  #("address1", root_field.StringVal("190 MacLaren")),
+                  #("address2", root_field.StringVal("Suite 200")),
+                  #("company", root_field.StringVal("Analytical Engines Ltd")),
+                  #("city", root_field.StringVal("Sudbury")),
+                  #("province", root_field.StringVal("Ontario")),
+                  #("provinceCode", root_field.StringVal("ON")),
+                  #("country", root_field.StringVal("Canada")),
+                  #("countryCode", root_field.StringVal("CA")),
+                  #("zip", root_field.StringVal("K2P0V6")),
+                  #("phone", root_field.StringVal("+16135552222")),
+                ]),
+              ),
+            ),
+            #(
+              "metafields",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("namespace", root_field.StringVal("custom")),
+                    #("key", root_field.StringVal("gift")),
+                    #("type", root_field.StringVal("single_line_text_field")),
+                    #("value", root_field.StringVal("yes")),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+    )
+  let mutation_json = json.to_string(outcome.data)
+  assert string.contains(
+    mutation_json,
+    "\"email\":\"order-update-expanded@example.com\"",
+  )
+  assert string.contains(
+    mutation_json,
+    "\"poNumber\":\"PO-ORDER-UPDATE-PARITY\"",
+  )
+  assert string.contains(
+    mutation_json,
+    "\"note\":\"order update expanded parity plan\"",
+  )
+  assert string.contains(
+    mutation_json,
+    "\"tags\":[\"expanded-parity\",\"order-update\"]",
+  )
+  assert string.contains(
+    mutation_json,
+    "\"customAttributes\":[{\"key\":\"source\",\"value\":\"expanded-parity\"}]",
+  )
+  assert string.contains(mutation_json, "\"countryCodeV2\":\"CA\"")
+  assert string.contains(
+    mutation_json,
+    "\"gift\":{\"id\":\"gid://shopify/Metafield/35289666519273\",\"namespace\":\"custom\",\"key\":\"gift\",\"type\":\"single_line_text_field\",\"value\":\"yes\"}",
+  )
+  assert outcome.staged_resource_ids == [order_id]
+  assert list.length(outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query OrderUpdateDownstreamRead($id: ID!) {
+      order(id: $id) {
+        id
+        email
+        poNumber
+        note
+        tags
+        customAttributes {
+          key
+          value
+        }
+        gift: metafield(namespace: \"custom\", key: \"gift\") {
+          id
+          namespace
+          key
+          type
+          value
+        }
+      }
+    }
+  "
+  let read_variables = dict.from_list([#("id", root_field.StringVal(order_id))])
+  let assert Ok(read) =
+    orders.process(outcome.store, read_query, read_variables)
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830627356905\",\"email\":\"order-update-expanded@example.com\",\"poNumber\":\"PO-ORDER-UPDATE-PARITY\",\"note\":\"order update expanded parity plan\",\"tags\":[\"expanded-parity\",\"order-update\"],\"customAttributes\":[{\"key\":\"source\",\"value\":\"expanded-parity\"}],\"gift\":{\"id\":\"gid://shopify/Metafield/35289666519273\",\"namespace\":\"custom\",\"key\":\"gift\",\"type\":\"single_line_text_field\",\"value\":\"yes\"}}}}"
+}
+
 pub fn orders_order_open_close_read_after_write_test() {
   let order_id = "gid://shopify/Order/6830646198505"
   let seeded =

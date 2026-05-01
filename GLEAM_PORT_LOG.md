@@ -9,6 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 142: order update field parity
+
+Promotes the checked-in simple and expanded `orderUpdate` parity scenarios in
+the Gleam Orders domain. This pass turns the previous validation-only
+`orderUpdate` handler into a local existing-order update path for the captured
+simple fields and preserves downstream `order(id:)` read visibility.
+
+| Module                                                   | Change                                                   |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Stages existing-order update fields and metafields.      |
+| `gleam/test/parity/runner.gleam`                         | Seeds order-update parity from captured downstream data. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers expanded update payload and downstream read.      |
+| `config/gleam-port-ci-gates.json`                        | Removes the two newly passing order-update parity specs. |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (748 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (744 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 116 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured `orderUpdate` success fixtures are limited to existing-order
+  field staging: note/tags in the simple fixture and email, PO number, note,
+  tags, custom attributes, shipping address, and one order metafield in the
+  expanded fixture. These can be modeled over captured order JSON without
+  claiming order creation, deletion, or order-edit session behavior.
+- The expanded fixture updates an existing `custom/gift` metafield, so the
+  Gleam handler preserves the seeded Shopify metafield id by namespace/key
+  rather than minting a replacement id for that captured path.
+
+### Risks / open items
+
+- Direct order creation/delete success, broader payment transaction and mandate
+  roots, fulfillment success paths, refunds, returns, and order-edit sessions
+  remain gated.
+
+### Pass 143 candidates
+
+- Continue with another bounded existing-order lifecycle fixture, or start a
+  coherent payment/fulfillment/refund slice only if the staged state model can
+  satisfy all asserted downstream reads.
+
+---
+
 ## 2026-05-01 - Pass 141: order mark-as-paid parity
 
 Promotes the checked-in `orderMarkAsPaid` parity scenario in the Gleam Orders

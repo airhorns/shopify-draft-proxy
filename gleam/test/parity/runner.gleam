@@ -295,6 +295,8 @@ fn seed_capture_preconditions(
       seed_order_management_preconditions(capture, proxy, "orderInvoiceSend")
     "orderMarkAsPaid-live-parity" ->
       seed_order_management_preconditions(capture, proxy, "orderMarkAsPaid")
+    "order-update-live-parity" | "order-update-expanded-live-parity" ->
+      seed_order_downstream_preconditions(capture, proxy)
     "orderCustomerSet-live-parity" | "orderCustomerRemove-live-parity" ->
       seed_order_customer_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->

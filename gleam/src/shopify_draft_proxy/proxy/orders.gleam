@@ -1364,21 +1364,31 @@ pub fn process_mutation(
           }
         }
         Field(name: name, ..) if name.value == "orderUpdate" -> {
-          let #(key, payload, next_errors) =
-            handle_order_update_validation_guardrail(
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            staged_ids,
+            next_errors,
+            next_drafts,
+          ) =
+            handle_order_update_mutation(
               current_store,
+              current_identity,
               operation_path,
               field,
+              fragments,
               variables,
             )
           case next_errors {
             [] -> #(
               list.append(entries, [#(key, payload)]),
               errors,
-              current_store,
-              current_identity,
-              ids,
-              drafts,
+              next_store,
+              next_identity,
+              list.append(ids, staged_ids),
+              list.append(drafts, next_drafts),
             )
             _ -> #(
               entries,
@@ -3003,12 +3013,22 @@ fn handle_fulfillment_create_invalid_id_guardrail(
   ])
 }
 
-fn handle_order_update_validation_guardrail(
+fn handle_order_update_mutation(
   store: Store,
+  identity: SyntheticIdentityRegistry,
   operation_path: String,
   field: Selection,
+  fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(String, Json, List(Json)) {
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
   let key = get_field_response_key(field)
   let errors = case field {
     Field(arguments: arguments, ..) ->
@@ -3029,7 +3049,7 @@ fn handle_order_update_validation_guardrail(
     _ -> []
   }
   case errors {
-    [_, ..] -> #(key, json.null(), errors)
+    [_, ..] -> #(key, json.null(), store, identity, [], errors, [])
     [] -> {
       let args = field_arguments(field, variables)
       case dict.get(args, "input") {
@@ -3042,16 +3062,241 @@ fn handle_order_update_validation_guardrail(
                   serialize_order_mutation_error_payload(field, [
                     #(["id"], "Order does not exist"),
                   ]),
+                  store,
+                  identity,
+                  [],
+                  [],
                   [],
                 )
-                Some(_) -> #(key, json.null(), [])
+                Some(order) -> {
+                  let #(updated_order, next_identity) =
+                    build_updated_order(order, input, identity)
+                  let next_store = store.stage_order(store, updated_order)
+                  let payload =
+                    serialize_order_mutation_payload(
+                      field,
+                      Some(updated_order),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "orderUpdate",
+                      [id],
+                      store.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some("Locally staged orderUpdate in shopify-draft-proxy."),
+                    )
+                  #(key, payload, next_store, next_identity, [id], [], [draft])
+                }
               }
-            None -> #(key, json.null(), [])
+            None -> #(key, json.null(), store, identity, [], [], [])
           }
-        _ -> #(key, json.null(), [])
+        _ -> #(key, json.null(), store, identity, [], [], [])
       }
     }
   }
+}
+
+fn build_updated_order(
+  order: OrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(OrderRecord, SyntheticIdentityRegistry) {
+  let #(updated_at, identity_after_time) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let #(metafield_replacements, next_identity) = case
+    dict.has_key(input, "metafields")
+  {
+    True -> {
+      let #(metafields, identity_after_metafields) =
+        build_order_metafields(
+          order,
+          read_object_list(input, "metafields"),
+          identity_after_time,
+        )
+      #(
+        [
+          #("metafield", first_order_metafield(metafields)),
+          #("metafields", order_metafields_connection(metafields)),
+        ],
+        identity_after_metafields,
+      )
+    }
+    False -> #([], identity_after_time)
+  }
+  let replacements =
+    []
+    |> prepend_captured_replacement("updatedAt", CapturedString(updated_at))
+    |> replace_if_present(
+      input,
+      "email",
+      optional_captured_string(read_string(input, "email")),
+    )
+    |> replace_if_present(
+      input,
+      "phone",
+      optional_captured_string(read_string(input, "phone")),
+    )
+    |> replace_if_present(
+      input,
+      "poNumber",
+      optional_captured_string(read_string(input, "poNumber")),
+    )
+    |> replace_if_present(
+      input,
+      "note",
+      optional_captured_string(read_string(input, "note")),
+    )
+    |> replace_if_present(
+      input,
+      "tags",
+      CapturedArray(
+        read_string_list(input, "tags")
+        |> list.sort(by: string.compare)
+        |> list.map(CapturedString),
+      ),
+    )
+    |> replace_if_present(
+      input,
+      "customAttributes",
+      captured_attributes(read_object_list(input, "customAttributes")),
+    )
+    |> replace_if_present(
+      input,
+      "shippingAddress",
+      build_order_update_address(read_object(input, "shippingAddress")),
+    )
+  let updated_data =
+    order.data
+    |> replace_captured_object_fields(list.append(
+      replacements,
+      metafield_replacements,
+    ))
+  #(OrderRecord(..order, data: updated_data), next_identity)
+}
+
+fn build_order_metafields(
+  order: OrderRecord,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  identity: SyntheticIdentityRegistry,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  let existing = order_metafield_nodes(order.data)
+  let initial: #(List(CapturedJsonValue), SyntheticIdentityRegistry) = #(
+    existing,
+    identity,
+  )
+  inputs
+  |> list.fold(initial, fn(acc, input) {
+    let #(metafields, current_identity) = acc
+    let namespace = read_string(input, "namespace") |> option.unwrap("")
+    let key = read_string(input, "key") |> option.unwrap("")
+    let existing_metafield =
+      find_order_metafield(metafields, namespace, key)
+      |> option.or(find_order_metafield(existing, namespace, key))
+    let #(id, next_identity) = case
+      read_string(input, "id")
+      |> option.or(
+        option.then(existing_metafield, fn(metafield) {
+          captured_string_field(metafield, "id")
+        }),
+      )
+    {
+      Some(id) -> #(id, current_identity)
+      None ->
+        synthetic_identity.make_synthetic_gid(current_identity, "Metafield")
+    }
+    let metafield =
+      CapturedObject([
+        #("id", CapturedString(id)),
+        #("namespace", CapturedString(namespace)),
+        #("key", CapturedString(key)),
+        #(
+          "type",
+          optional_captured_string(
+            read_string(input, "type")
+            |> option.or(
+              option.then(existing_metafield, fn(metafield) {
+                captured_string_field(metafield, "type")
+              }),
+            ),
+          ),
+        ),
+        #(
+          "value",
+          optional_captured_string(
+            read_string(input, "value")
+            |> option.or(
+              option.then(existing_metafield, fn(metafield) {
+                captured_string_field(metafield, "value")
+              }),
+            ),
+          ),
+        ),
+      ])
+    #(upsert_order_metafield(metafields, metafield), next_identity)
+  })
+}
+
+fn order_metafield_nodes(
+  order_data: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(order_data, "metafields") {
+    Some(CapturedObject(fields)) ->
+      case list.find(fields, fn(pair) { pair.0 == "nodes" }) {
+        Ok(#(_, CapturedArray(nodes))) -> nodes
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn find_order_metafield(
+  metafields: List(CapturedJsonValue),
+  namespace: String,
+  key: String,
+) -> Option(CapturedJsonValue) {
+  metafields
+  |> list.find(fn(metafield) {
+    captured_string_field(metafield, "namespace") == Some(namespace)
+    && captured_string_field(metafield, "key") == Some(key)
+  })
+  |> option.from_result
+}
+
+fn upsert_order_metafield(
+  metafields: List(CapturedJsonValue),
+  metafield: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  let namespace = captured_string_field(metafield, "namespace")
+  let key = captured_string_field(metafield, "key")
+  case metafields {
+    [] -> [metafield]
+    [first, ..rest] ->
+      case
+        captured_string_field(first, "namespace") == namespace
+        && captured_string_field(first, "key") == key
+      {
+        True -> [metafield, ..rest]
+        False -> [first, ..upsert_order_metafield(rest, metafield)]
+      }
+  }
+}
+
+fn first_order_metafield(
+  metafields: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  case metafields {
+    [first, ..] -> first
+    [] -> CapturedNull
+  }
+}
+
+fn order_metafields_connection(
+  metafields: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  CapturedObject([#("nodes", CapturedArray(metafields))])
 }
 
 fn validate_order_update_inline_input(
@@ -4843,6 +5088,41 @@ fn build_draft_order_address(
           ),
         ),
         #("zip", optional_captured_string(read_string(input, "zip"))),
+      ])
+  }
+}
+
+fn build_order_update_address(
+  input: Option(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  case input {
+    None -> CapturedNull
+    Some(input) ->
+      CapturedObject([
+        #(
+          "firstName",
+          optional_captured_string(read_string(input, "firstName")),
+        ),
+        #("lastName", optional_captured_string(read_string(input, "lastName"))),
+        #("address1", optional_captured_string(read_string(input, "address1"))),
+        #("address2", optional_captured_string(read_string(input, "address2"))),
+        #("company", optional_captured_string(read_string(input, "company"))),
+        #("city", optional_captured_string(read_string(input, "city"))),
+        #("province", optional_captured_string(read_string(input, "province"))),
+        #(
+          "provinceCode",
+          optional_captured_string(read_string(input, "provinceCode")),
+        ),
+        #("country", optional_captured_string(read_string(input, "country"))),
+        #(
+          "countryCodeV2",
+          optional_captured_string(
+            read_string(input, "countryCodeV2")
+            |> option.or(read_string(input, "countryCode")),
+          ),
+        ),
+        #("zip", optional_captured_string(read_string(input, "zip"))),
+        #("phone", optional_captured_string(read_string(input, "phone"))),
       ])
   }
 }

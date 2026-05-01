@@ -512,6 +512,13 @@ synthetic-id/timestamp expected differences.
   successful SALE transaction from the outstanding/current total amount. If the
   seeded order is already paid, serialize it unchanged to avoid duplicate
   transactions in captured parity fixtures.
+- `orderUpdate` success parity is a bounded existing-order field update slice,
+  not order creation or edit-session coverage. Seed from
+  `$.downstreamRead.response.data.order`, keep the nested `input.id`
+  validation guardrails, stage simple captured fields (`email`, `poNumber`,
+  `note`, sorted `tags`, `customAttributes`, `shippingAddress`, and order
+  metafields), and preserve existing metafield ids by namespace/key when the
+  capture updates an already-present metafield.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or
