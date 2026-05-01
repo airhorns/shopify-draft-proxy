@@ -9,6 +9,64 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 138: order cancel downstream parity
+
+Promotes the checked-in `orderCancel` parity scenario in the Gleam Orders
+domain. This pass adds local cancellation staging for existing orders, returns
+the captured immediate empty `orderCancelUserErrors` payload, updates
+closed/cancelled fields for downstream `order(id:)` reads, and seeds the parity
+fixture from its captured downstream order payload.
+
+| Module                                                   | Change                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds local `orderCancel` mutation staging.              |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured downstream order state for cancellation. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers cancel payload and downstream cancelled state.   |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing order cancel parity spec.     |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (745 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (741 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 122 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- Shopify's captured `orderCancel` mutation response can be an immediate
+  payload with only `orderCancelUserErrors: []`; the cancelled state is observed
+  through a downstream order read.
+- For this executable scenario, seeding from
+  `$.downstreamRead.response.data.order` gives the local proxy enough captured
+  order shape to stage cancellation without claiming direct order creation or
+  broader payment/customer side effects.
+- `cancelReason` should come from the captured/requested `reason` argument;
+  local timestamps can use the deterministic synthetic timestamp because the
+  checked-in comparison targets assert closed state and cancel reason, not the
+  exact live timestamp.
+
+### Risks / open items
+
+- Repeated-cancel errors, canceled-order interactions with other roots, direct
+  order creation/update/delete/customer/payment effects, fulfillment, refunds,
+  returns, and order-edit sessions remain gated.
+
+### Pass 139 candidates
+
+- Continue with a narrow order management fixture such as invoice send, or defer
+  to a coherent payment/customer lifecycle slice when the surrounding state
+  effects can be modeled together.
+
+---
+
 ## 2026-05-01 - Pass 137: order open/close lifecycle parity
 
 Promotes the checked-in `orderOpen` and `orderClose` parity scenarios in the

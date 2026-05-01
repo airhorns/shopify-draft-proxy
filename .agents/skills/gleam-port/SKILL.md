@@ -491,6 +491,12 @@ synthetic-id/timestamp expected differences.
   mutation-log draft, and seed parity fixtures from
   `$.mutation.response.data.<root>.order` so downstream `order(id:)` reads see
   the staged state.
+- `orderCancel` is asynchronous in the captured parity slice: the mutation
+  payload may only expose empty `orderCancelUserErrors`, while cancellation is
+  verified through a downstream `order(id:)` read. Seed from
+  `$.downstreamRead.response.data.order`, stage `closed`, `closedAt`,
+  `cancelledAt`, and `cancelReason` locally, and keep broader canceled-order
+  interaction rules gated until their fixtures are executable.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or

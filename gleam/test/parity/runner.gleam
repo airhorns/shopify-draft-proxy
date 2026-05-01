@@ -285,6 +285,8 @@ fn seed_capture_preconditions(
     "order-empty-state-read" -> seed_order_catalog_preconditions(capture, proxy)
     "order-catalog-count-read" ->
       seed_order_catalog_count_preconditions(capture, proxy)
+    "orderCancel-live-parity" ->
+      seed_order_downstream_preconditions(capture, proxy)
     "orderOpen-live-parity" ->
       seed_order_management_preconditions(capture, proxy, "orderOpen")
     "orderClose-live-parity" ->
@@ -923,6 +925,23 @@ fn seed_order_management_preconditions(
       "$.mutation.response.data." <> root_name <> ".order",
     )
   {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_order_downstream_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamRead.response.data.order") {
     Some(source) ->
       case make_seed_order(source) {
         Ok(record) -> {

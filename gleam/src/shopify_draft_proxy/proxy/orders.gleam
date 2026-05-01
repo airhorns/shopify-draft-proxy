@@ -97,6 +97,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "fulfillmentCancel",
       "fulfillmentCreate",
       "fulfillmentTrackingInfoUpdate",
+      "orderCancel",
       "orderClose",
       "orderCreate",
       "orderCreateManualPayment",
@@ -1225,6 +1226,44 @@ pub fn process_mutation(
               operation_path,
               field,
               fragments,
+              variables,
+            )
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            next_ids,
+            next_errors,
+            next_drafts,
+          ) = result
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              next_store,
+              next_identity,
+              list.append(ids, next_ids),
+              list.append(drafts, next_drafts),
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              next_store,
+              next_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
+        Field(name: name, ..) if name.value == "orderCancel" -> {
+          let result =
+            handle_order_cancel_mutation(
+              current_store,
+              current_identity,
+              document,
+              operation_path,
+              field,
               variables,
             )
           let #(
@@ -2471,6 +2510,134 @@ fn serialize_order_mutation_payload(
               None -> json.null()
             })
             "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn handle_order_cancel_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(Json),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "orderCancel",
+      [
+        RequiredArgument(name: "orderId", expected_type: "ID!"),
+        RequiredArgument(name: "restock", expected_type: "Boolean!"),
+        RequiredArgument(name: "reason", expected_type: "OrderCancelReason!"),
+      ],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
+    [] -> {
+      let args = field_arguments(field, variables)
+      case read_string_arg(args, "orderId") {
+        Some(order_id) ->
+          case store.get_order_by_id(store, order_id) {
+            Some(order) -> {
+              let reason =
+                read_string_arg(args, "reason") |> option.unwrap("OTHER")
+              let #(updated_order, next_identity) =
+                apply_order_cancel_update(order, identity, reason)
+              let next_store = store.stage_order(store, updated_order)
+              let #(job_id, identity_after_job) =
+                synthetic_identity.make_synthetic_gid(next_identity, "Job")
+              let payload =
+                serialize_order_cancel_payload(field, Some(job_id), [])
+              let draft =
+                single_root_log_draft(
+                  "orderCancel",
+                  [order_id],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some("Locally staged orderCancel in shopify-draft-proxy."),
+                )
+              #(key, payload, next_store, identity_after_job, [order_id], [], [
+                draft,
+              ])
+            }
+            None -> {
+              let payload =
+                serialize_order_cancel_payload(field, None, [
+                  #(["orderId"], "Order does not exist"),
+                ])
+              #(key, payload, store, identity, [], [], [])
+            }
+          }
+        None -> {
+          let payload =
+            serialize_order_cancel_payload(field, None, [
+              #(["orderId"], "Order does not exist"),
+            ])
+          #(key, payload, store, identity, [], [], [])
+        }
+      }
+    }
+  }
+}
+
+fn apply_order_cancel_update(
+  order: OrderRecord,
+  identity: SyntheticIdentityRegistry,
+  reason: String,
+) -> #(OrderRecord, SyntheticIdentityRegistry) {
+  let #(timestamp, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let updated_data =
+    order.data
+    |> replace_captured_object_fields([
+      #("closed", CapturedBool(True)),
+      #("closedAt", CapturedString(timestamp)),
+      #("cancelledAt", CapturedString(timestamp)),
+      #("cancelReason", CapturedString(reason)),
+      #("updatedAt", CapturedString(timestamp)),
+    ])
+  #(OrderRecord(..order, data: updated_data), next_identity)
+}
+
+fn serialize_order_cancel_payload(
+  field: Selection,
+  job_id: Option(String),
+  user_errors: List(#(List(String), String)),
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "job" -> #(key, case job_id {
+              Some(id) -> serialize_job(child, id)
+              None -> json.null()
+            })
+            "orderCancelUserErrors" | "userErrors" -> #(
               key,
               json.array(user_errors, fn(error) {
                 serialize_user_error(child, error)
