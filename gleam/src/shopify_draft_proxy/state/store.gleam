@@ -15,8 +15,10 @@ import gleam/order
 import gleam/string
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/types.{
-  type AdminPlatformFlowSignatureRecord, type AdminPlatformFlowTriggerRecord,
-  type AppInstallationRecord, type AppOneTimePurchaseRecord, type AppRecord,
+  type AbandonedCheckoutRecord, type AbandonmentDeliveryActivityRecord,
+  type AbandonmentRecord, type AdminPlatformFlowSignatureRecord,
+  type AdminPlatformFlowTriggerRecord, type AppInstallationRecord,
+  type AppOneTimePurchaseRecord, type AppRecord,
   type AppSubscriptionLineItemRecord, type AppSubscriptionRecord,
   type AppUsageRecord, type B2BCompanyContactRecord,
   type B2BCompanyContactRoleRecord, type B2BCompanyLocationRecord,
@@ -29,13 +31,14 @@ import shopify_draft_proxy/state/types.{
   type CustomerOrderSummaryRecord, type CustomerPaymentMethodRecord,
   type CustomerPaymentMethodUpdateUrlRecord, type CustomerRecord,
   type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
+  type DraftOrderRecord, type DraftOrderVariantCatalogRecord,
   type GiftCardConfigurationRecord, type GiftCardRecord,
   type InventoryLevelRecord, type InventoryShipmentRecord,
   type InventoryTransferRecord, type LocaleRecord, type LocationRecord,
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
   type MetafieldDefinitionRecord, type MetaobjectDefinitionRecord,
-  type MetaobjectRecord, type ProductCollectionRecord, type ProductFeedRecord,
-  type ProductMediaRecord, type ProductMetafieldRecord,
+  type MetaobjectRecord, type OrderRecord, type ProductCollectionRecord,
+  type ProductFeedRecord, type ProductMediaRecord, type ProductMetafieldRecord,
   type ProductOperationRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductVariantRecord,
@@ -46,8 +49,8 @@ import shopify_draft_proxy/state/types.{
   type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
   type StorePropertyValue, type TaxAppConfigurationRecord,
   type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
-  BulkOperationRecord, ChannelRecord, MarketingObject, MarketingString,
-  PublicationRecord,
+  AbandonmentRecord, BulkOperationRecord, ChannelRecord, MarketingObject,
+  MarketingString, PublicationRecord,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the ported slices of `StateSnapshot`
@@ -84,6 +87,17 @@ pub type BaseState {
     deleted_product_feed_ids: Dict(String, Bool),
     product_resource_feedback: Dict(String, ProductResourceFeedbackRecord),
     shop_resource_feedback: Dict(String, ShopResourceFeedbackRecord),
+    abandoned_checkouts: Dict(String, AbandonedCheckoutRecord),
+    abandoned_checkout_order: List(String),
+    abandonments: Dict(String, AbandonmentRecord),
+    abandonment_order: List(String),
+    draft_orders: Dict(String, DraftOrderRecord),
+    draft_order_order: List(String),
+    deleted_draft_order_ids: Dict(String, Bool),
+    draft_order_variant_catalog: Dict(String, DraftOrderVariantCatalogRecord),
+    orders: Dict(String, OrderRecord),
+    order_order: List(String),
+    deleted_order_ids: Dict(String, Bool),
     inventory_transfers: Dict(String, InventoryTransferRecord),
     inventory_transfer_order: List(String),
     deleted_inventory_transfer_ids: Dict(String, Bool),
@@ -258,6 +272,17 @@ pub type StagedState {
     deleted_product_feed_ids: Dict(String, Bool),
     product_resource_feedback: Dict(String, ProductResourceFeedbackRecord),
     shop_resource_feedback: Dict(String, ShopResourceFeedbackRecord),
+    abandoned_checkouts: Dict(String, AbandonedCheckoutRecord),
+    abandoned_checkout_order: List(String),
+    abandonments: Dict(String, AbandonmentRecord),
+    abandonment_order: List(String),
+    draft_orders: Dict(String, DraftOrderRecord),
+    draft_order_order: List(String),
+    deleted_draft_order_ids: Dict(String, Bool),
+    draft_order_variant_catalog: Dict(String, DraftOrderVariantCatalogRecord),
+    orders: Dict(String, OrderRecord),
+    order_order: List(String),
+    deleted_order_ids: Dict(String, Bool),
     inventory_transfers: Dict(String, InventoryTransferRecord),
     inventory_transfer_order: List(String),
     deleted_inventory_transfer_ids: Dict(String, Bool),
@@ -498,6 +523,17 @@ pub fn empty_base_state() -> BaseState {
     deleted_product_feed_ids: dict.new(),
     product_resource_feedback: dict.new(),
     shop_resource_feedback: dict.new(),
+    abandoned_checkouts: dict.new(),
+    abandoned_checkout_order: [],
+    abandonments: dict.new(),
+    abandonment_order: [],
+    draft_orders: dict.new(),
+    draft_order_order: [],
+    deleted_draft_order_ids: dict.new(),
+    draft_order_variant_catalog: dict.new(),
+    orders: dict.new(),
+    order_order: [],
+    deleted_order_ids: dict.new(),
     inventory_transfers: dict.new(),
     inventory_transfer_order: [],
     deleted_inventory_transfer_ids: dict.new(),
@@ -647,6 +683,17 @@ pub fn empty_staged_state() -> StagedState {
     deleted_product_feed_ids: dict.new(),
     product_resource_feedback: dict.new(),
     shop_resource_feedback: dict.new(),
+    abandoned_checkouts: dict.new(),
+    abandoned_checkout_order: [],
+    abandonments: dict.new(),
+    abandonment_order: [],
+    draft_orders: dict.new(),
+    draft_order_order: [],
+    deleted_draft_order_ids: dict.new(),
+    draft_order_variant_catalog: dict.new(),
+    orders: dict.new(),
+    order_order: [],
+    deleted_order_ids: dict.new(),
     inventory_transfers: dict.new(),
     inventory_transfer_order: [],
     deleted_inventory_transfer_ids: dict.new(),
@@ -780,6 +827,546 @@ pub fn new() -> Store {
 /// snapshot — equivalent to a fresh store for the slices we ship).
 pub fn reset(_store: Store) -> Store {
   new()
+}
+
+// ---------------------------------------------------------------------------
+// Orders / abandonments slice
+// ---------------------------------------------------------------------------
+
+pub fn upsert_base_abandoned_checkouts(
+  store: Store,
+  records: List(AbandonedCheckoutRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        abandoned_checkouts: dict.insert(
+          base.abandoned_checkouts,
+          record.id,
+          record,
+        ),
+        abandoned_checkout_order: append_unique_id(
+          base.abandoned_checkout_order,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_base_abandonments(
+  store: Store,
+  records: List(AbandonmentRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        abandonments: dict.insert(base.abandonments, record.id, record),
+        abandonment_order: append_unique_id(base.abandonment_order, record.id),
+      ),
+    )
+  })
+}
+
+pub fn upsert_base_draft_orders(
+  store: Store,
+  records: List(DraftOrderRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        draft_orders: dict.insert(base.draft_orders, record.id, record),
+        draft_order_order: append_unique_id(base.draft_order_order, record.id),
+        deleted_draft_order_ids: dict.delete(
+          base.deleted_draft_order_ids,
+          record.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_draft_order_ids: dict.delete(
+          staged.deleted_draft_order_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_base_draft_order_variant_catalog(
+  store: Store,
+  records: List(DraftOrderVariantCatalogRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        draft_order_variant_catalog: dict.insert(
+          base.draft_order_variant_catalog,
+          record.variant_id,
+          record,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_base_orders(store: Store, records: List(OrderRecord)) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        orders: dict.insert(base.orders, record.id, record),
+        order_order: append_unique_id(base.order_order, record.id),
+        deleted_order_ids: dict.delete(base.deleted_order_ids, record.id),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_order_ids: dict.delete(staged.deleted_order_ids, record.id),
+      ),
+    )
+  })
+}
+
+pub fn stage_order(store: Store, record: OrderRecord) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      orders: dict.insert(staged.orders, record.id, record),
+      order_order: append_unique_id(staged.order_order, record.id),
+      deleted_order_ids: dict.delete(staged.deleted_order_ids, record.id),
+    ),
+  )
+}
+
+pub fn stage_draft_order(store: Store, record: DraftOrderRecord) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      draft_orders: dict.insert(staged.draft_orders, record.id, record),
+      draft_order_order: append_unique_id(staged.draft_order_order, record.id),
+      deleted_draft_order_ids: dict.delete(
+        staged.deleted_draft_order_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
+pub fn delete_staged_draft_order(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      draft_orders: dict.delete(staged.draft_orders, id),
+      deleted_draft_order_ids: dict.insert(
+        staged.deleted_draft_order_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn delete_staged_order(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      orders: dict.delete(staged.orders, id),
+      deleted_order_ids: dict.insert(staged.deleted_order_ids, id, True),
+    ),
+  )
+}
+
+pub fn get_abandoned_checkout_by_id(
+  store: Store,
+  id: String,
+) -> Option(AbandonedCheckoutRecord) {
+  case dict.get(store.staged_state.abandoned_checkouts, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.abandoned_checkouts, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn get_draft_order_by_id(
+  store: Store,
+  id: String,
+) -> Option(DraftOrderRecord) {
+  case dict.get(store.staged_state.deleted_draft_order_ids, id) {
+    Ok(True) -> None
+    _ ->
+      case dict.get(store.staged_state.draft_orders, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.deleted_draft_order_ids, id) {
+            Ok(True) -> None
+            _ ->
+              case dict.get(store.base_state.draft_orders, id) {
+                Ok(record) -> Some(record)
+                Error(_) -> None
+              }
+          }
+      }
+  }
+}
+
+pub fn get_order_by_id(store: Store, id: String) -> Option(OrderRecord) {
+  case dict.get(store.staged_state.deleted_order_ids, id) {
+    Ok(True) -> None
+    _ ->
+      case dict.get(store.staged_state.orders, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.deleted_order_ids, id) {
+            Ok(True) -> None
+            _ ->
+              case dict.get(store.base_state.orders, id) {
+                Ok(record) -> Some(record)
+                Error(_) -> None
+              }
+          }
+      }
+  }
+}
+
+pub fn list_effective_draft_orders(store: Store) -> List(DraftOrderRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.draft_order_order,
+      store.staged_state.draft_order_order,
+    )
+  let ordered =
+    ordered_ids
+    |> dedupe_strings()
+    |> list.filter_map(fn(id) {
+      case get_draft_order_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let unordered =
+    dict.values(store.base_state.draft_orders)
+    |> list.append(dict.values(store.staged_state.draft_orders))
+    |> list.filter(fn(record) { !list.contains(ordered_ids, record.id) })
+  list.append(ordered, unordered) |> dedupe_draft_orders()
+}
+
+pub fn list_effective_orders(store: Store) -> List(OrderRecord) {
+  let ordered_ids =
+    list.append(store.base_state.order_order, store.staged_state.order_order)
+  let ordered =
+    ordered_ids
+    |> dedupe_strings()
+    |> list.filter_map(fn(id) {
+      case get_order_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let unordered =
+    dict.values(store.base_state.orders)
+    |> list.append(dict.values(store.staged_state.orders))
+    |> list.filter(fn(record) { !list.contains(ordered_ids, record.id) })
+  list.append(ordered, unordered) |> dedupe_orders()
+}
+
+pub fn get_draft_order_variant_catalog_by_id(
+  store: Store,
+  variant_id: String,
+) -> Option(DraftOrderVariantCatalogRecord) {
+  case dict.get(store.staged_state.draft_order_variant_catalog, variant_id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.draft_order_variant_catalog, variant_id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn get_abandonment_by_id(
+  store: Store,
+  id: String,
+) -> Option(AbandonmentRecord) {
+  case dict.get(store.staged_state.abandonments, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.abandonments, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn get_abandonment_by_abandoned_checkout_id(
+  store: Store,
+  checkout_id: String,
+) -> Option(AbandonmentRecord) {
+  case
+    list_effective_abandonments(store)
+    |> list.find(fn(record) {
+      record.abandoned_checkout_id == Some(checkout_id)
+    })
+  {
+    Ok(record) -> Some(record)
+    Error(_) -> None
+  }
+}
+
+pub fn list_effective_abandoned_checkouts(
+  store: Store,
+) -> List(AbandonedCheckoutRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.abandoned_checkout_order,
+      store.staged_state.abandoned_checkout_order,
+    )
+  let ordered =
+    ordered_ids
+    |> dedupe_strings()
+    |> list.filter_map(fn(id) {
+      case get_abandoned_checkout_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let unordered =
+    dict.values(store.base_state.abandoned_checkouts)
+    |> list.append(dict.values(store.staged_state.abandoned_checkouts))
+    |> list.filter(fn(record) { !list.contains(ordered_ids, record.id) })
+  list.append(ordered, unordered)
+  |> dedupe_abandoned_checkouts()
+  |> list.sort(by: compare_abandoned_checkouts)
+}
+
+pub fn list_effective_abandonments(store: Store) -> List(AbandonmentRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.abandonment_order,
+      store.staged_state.abandonment_order,
+    )
+  let ordered =
+    ordered_ids
+    |> dedupe_strings()
+    |> list.filter_map(fn(id) {
+      case get_abandonment_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let unordered =
+    dict.values(store.base_state.abandonments)
+    |> list.append(dict.values(store.staged_state.abandonments))
+    |> list.filter(fn(record) { !list.contains(ordered_ids, record.id) })
+  list.append(ordered, unordered)
+  |> dedupe_abandonments()
+  |> list.sort(by: compare_abandonments)
+}
+
+pub fn stage_abandonment_delivery_activity(
+  store: Store,
+  abandonment_id: String,
+  activity: AbandonmentDeliveryActivityRecord,
+) -> #(Store, Option(AbandonmentRecord)) {
+  case get_abandonment_by_id(store, abandonment_id) {
+    None -> #(store, None)
+    Some(record) -> {
+      let updated_data =
+        captured_object_upsert(
+          captured_object_upsert(
+            record.data,
+            "emailState",
+            types_mod.CapturedString(activity.delivery_status),
+          ),
+          "emailSentAt",
+          optional_captured_string(activity.delivered_at),
+        )
+      let updated =
+        AbandonmentRecord(
+          ..record,
+          data: updated_data,
+          delivery_activities: dict.insert(
+            record.delivery_activities,
+            activity.marketing_activity_id,
+            activity,
+          ),
+        )
+      let staged = store.staged_state
+      #(
+        Store(
+          ..store,
+          staged_state: StagedState(
+            ..staged,
+            abandonments: dict.insert(staged.abandonments, updated.id, updated),
+            abandonment_order: append_unique_id(
+              staged.abandonment_order,
+              updated.id,
+            ),
+          ),
+        ),
+        Some(updated),
+      )
+    }
+  }
+}
+
+fn optional_captured_string(
+  value: Option(String),
+) -> types_mod.CapturedJsonValue {
+  case value {
+    Some(value) -> types_mod.CapturedString(value)
+    None -> types_mod.CapturedNull
+  }
+}
+
+fn captured_object_upsert(
+  value: types_mod.CapturedJsonValue,
+  key: String,
+  field_value: types_mod.CapturedJsonValue,
+) -> types_mod.CapturedJsonValue {
+  case value {
+    types_mod.CapturedObject(fields) ->
+      types_mod.CapturedObject(upsert_captured_field(fields, key, field_value))
+    _ -> value
+  }
+}
+
+fn upsert_captured_field(
+  fields: List(#(String, types_mod.CapturedJsonValue)),
+  key: String,
+  value: types_mod.CapturedJsonValue,
+) -> List(#(String, types_mod.CapturedJsonValue)) {
+  case fields {
+    [] -> [#(key, value)]
+    [first, ..rest] -> {
+      let #(field_key, _) = first
+      case field_key == key {
+        True -> [#(key, value), ..rest]
+        False -> [first, ..upsert_captured_field(rest, key, value)]
+      }
+    }
+  }
+}
+
+fn captured_string_field(
+  value: types_mod.CapturedJsonValue,
+  key: String,
+) -> String {
+  case value {
+    types_mod.CapturedObject(fields) -> {
+      case list.find(fields, fn(pair) { pair.0 == key }) {
+        Ok(#(_, types_mod.CapturedString(value))) -> value
+        _ -> ""
+      }
+    }
+    _ -> ""
+  }
+}
+
+fn compare_abandoned_checkouts(
+  left: AbandonedCheckoutRecord,
+  right: AbandonedCheckoutRecord,
+) -> order.Order {
+  case
+    string.compare(
+      captured_string_field(right.data, "createdAt"),
+      captured_string_field(left.data, "createdAt"),
+    )
+  {
+    order.Eq -> resource_ids.compare_shopify_resource_ids(right.id, left.id)
+    other -> other
+  }
+}
+
+fn compare_abandonments(
+  left: AbandonmentRecord,
+  right: AbandonmentRecord,
+) -> order.Order {
+  case
+    string.compare(
+      captured_string_field(right.data, "createdAt"),
+      captured_string_field(left.data, "createdAt"),
+    )
+  {
+    order.Eq -> resource_ids.compare_shopify_resource_ids(right.id, left.id)
+    other -> other
+  }
+}
+
+fn dedupe_abandoned_checkouts(
+  records: List(AbandonedCheckoutRecord),
+) -> List(AbandonedCheckoutRecord) {
+  let initial: List(AbandonedCheckoutRecord) = []
+  records
+  |> list.fold(initial, fn(acc, record) {
+    case list.any(acc, fn(existing) { existing.id == record.id }) {
+      True -> acc
+      False -> list.append(acc, [record])
+    }
+  })
+}
+
+fn dedupe_abandonments(
+  records: List(AbandonmentRecord),
+) -> List(AbandonmentRecord) {
+  let initial: List(AbandonmentRecord) = []
+  records
+  |> list.fold(initial, fn(acc, record) {
+    case list.any(acc, fn(existing) { existing.id == record.id }) {
+      True -> acc
+      False -> list.append(acc, [record])
+    }
+  })
+}
+
+fn dedupe_draft_orders(
+  records: List(DraftOrderRecord),
+) -> List(DraftOrderRecord) {
+  let initial: List(DraftOrderRecord) = []
+  records
+  |> list.fold(initial, fn(acc, record) {
+    case list.any(acc, fn(existing) { existing.id == record.id }) {
+      True -> acc
+      False -> list.append(acc, [record])
+    }
+  })
+}
+
+fn dedupe_orders(records: List(OrderRecord)) -> List(OrderRecord) {
+  let initial: List(OrderRecord) = []
+  records
+  |> list.fold(initial, fn(acc, record) {
+    case list.any(acc, fn(existing) { existing.id == record.id }) {
+      True -> acc
+      False -> list.append(acc, [record])
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------

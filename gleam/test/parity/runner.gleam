@@ -49,6 +49,7 @@ import shopify_draft_proxy/state/types.{
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord,
+  type DraftOrderRecord, type DraftOrderVariantCatalogRecord,
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
   type GiftCardRecord, type GiftCardTransactionRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
@@ -64,9 +65,10 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectFieldDefinitionReferenceRecord,
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
   type MetaobjectJsonValue, type MetaobjectRecord,
-  type MetaobjectStandardTemplateRecord, type Money, type PaymentSettingsRecord,
-  type ProductCategoryRecord, type ProductCollectionRecord,
-  type ProductMediaRecord, type ProductMetafieldRecord, type ProductOptionRecord,
+  type MetaobjectStandardTemplateRecord, type Money, type OrderRecord,
+  type PaymentSettingsRecord, type ProductCategoryRecord,
+  type ProductCollectionRecord, type ProductMediaRecord,
+  type ProductMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
   type PublicationRecord, type SegmentRecord, type SellingPlanGroupRecord,
@@ -84,7 +86,8 @@ import shopify_draft_proxy/state/types.{
   CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
   CustomerEmailMarketingConsentRecord, CustomerEventSummaryRecord,
   CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
-  CustomerSmsMarketingConsentRecord, GiftCardConfigurationRecord,
+  CustomerSmsMarketingConsentRecord, DraftOrderRecord,
+  DraftOrderVariantCatalogRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
   InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
   InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
@@ -102,7 +105,7 @@ import shopify_draft_proxy/state/types.{
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
   MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
-  MetaobjectStandardTemplateRecord, MetaobjectString, Money,
+  MetaobjectStandardTemplateRecord, MetaobjectString, Money, OrderRecord,
   PaymentSettingsRecord, ProductCategoryRecord, ProductCollectionRecord,
   ProductMediaRecord, ProductMetafieldRecord, ProductOptionRecord,
   ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
@@ -222,10 +225,6 @@ pub fn run_with_config(
 /// shape — never on `parsed.scenario_id`. This lets new parity specs
 /// land without touching runner code: if a capture exposes the markers
 /// a helper expects, that helper fires.
-/// Each helper self-gates on capture shape and is a no-op when its
-/// markers aren't present. Never branch on `parsed.scenario_id` — new
-/// parity specs must land without runner edits if their capture
-/// exposes the markers existing helpers already check.
 fn seed_capture_preconditions(
   parsed: Spec,
   capture: JsonValue,
@@ -311,8 +310,80 @@ fn seed_capture_preconditions(
     seed_customer_merge_preconditions,
     seed_customer_order_summary_preconditions,
     fn(c, p) { seed_customer_preconditions(parsed, c, p) },
+    fn(c, p) { seed_orders_capture_preconditions(parsed.scenario_id, c, p) },
   ]
   list.fold(helpers, proxy, fn(p, helper) { helper(capture, p) })
+}
+
+fn seed_orders_capture_preconditions(
+  scenario_id: String,
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case scenario_id {
+    "order-edit-begin-live-parity"
+    | "order-edit-add-variant-live-parity"
+    | "order-edit-set-quantity-live-parity"
+    | "order-edit-existing-order-validation"
+    | "order-edit-commit-live-parity"
+    | "order-edit-existing-order-happy-path"
+    | "order-edit-existing-order-zero-removal"
+    | "order-edit-residual-workflow-calculated-edits" ->
+      seed_order_edit_existing_order_preconditions(capture, proxy)
+    "draft-order-detail-read" ->
+      seed_draft_order_detail_preconditions(capture, proxy)
+    "draft-order-create-live-parity" ->
+      seed_draft_order_create_preconditions(capture, proxy)
+    "draft-order-create-from-order-live-parity" ->
+      seed_draft_order_create_from_order_preconditions(capture, proxy)
+    "draft-order-complete-live-parity" ->
+      seed_draft_order_complete_preconditions(capture, proxy)
+    "draft-order-delete-live-parity" ->
+      seed_draft_order_delete_preconditions(capture, proxy)
+    "draft-order-duplicate-live-parity" ->
+      seed_draft_order_duplicate_preconditions(capture, proxy)
+    "draft-order-invoice-send-safety" ->
+      seed_draft_order_invoice_send_preconditions(capture, proxy)
+    "draft-order-update-live-parity" ->
+      seed_draft_order_update_preconditions(capture, proxy)
+    "draft-orders-catalog-read"
+    | "draft-orders-count-read"
+    | "draft-orders-invalid-email-query-read" ->
+      seed_draft_orders_catalog_preconditions(capture, proxy)
+    "order-merchant-detail-read" ->
+      seed_order_merchant_detail_preconditions(capture, proxy)
+    "order-empty-state-read" -> seed_order_catalog_preconditions(capture, proxy)
+    "order-catalog-count-read" ->
+      seed_order_catalog_count_preconditions(capture, proxy)
+    "fulfillment-cancel-live-parity"
+    | "fulfillment-tracking-info-update-live-parity" ->
+      seed_order_downstream_preconditions(capture, proxy)
+    "refund-create-full-parity"
+    | "refund-create-live-parity"
+    | "refund-create-over-refund-user-errors" ->
+      seed_order_create_setup_preconditions(capture, proxy)
+    "orderCancel-live-parity" ->
+      seed_order_downstream_preconditions(capture, proxy)
+    "orderOpen-live-parity" ->
+      seed_order_management_preconditions(capture, proxy, "orderOpen")
+    "orderClose-live-parity" ->
+      seed_order_management_preconditions(capture, proxy, "orderClose")
+    "orderInvoiceSend-live-parity" ->
+      seed_order_management_preconditions(capture, proxy, "orderInvoiceSend")
+    "orderMarkAsPaid-live-parity" ->
+      seed_order_management_preconditions(capture, proxy, "orderMarkAsPaid")
+    "order-update-live-parity" | "order-update-expanded-live-parity" ->
+      seed_order_downstream_preconditions(capture, proxy)
+    "orderCustomerSet-live-parity" | "orderCustomerRemove-live-parity" ->
+      seed_order_customer_preconditions(capture, proxy)
+    "return-lifecycle-local-staging"
+    | "removeFromReturn-local-staging"
+    | "return-request-decline-local-staging"
+    | "return-reverse-logistics-local-staging"
+    | "return-reverse-logistics-recorded" ->
+      seed_return_lifecycle_preconditions(capture, proxy)
+    _ -> proxy
+  }
 }
 
 /// Broad walker — collects every customer-shaped object in the capture
@@ -456,6 +527,789 @@ fn seed_customer_preconditions_unchecked(
     |> store_mod.upsert_base_customer_account_pages(pages)
     |> seed_customer_connections(connections)
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_draft_order_create_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let proxy = seed_customer_preconditions_unchecked(capture, proxy)
+  let catalog = collect_draft_order_variant_catalog(capture)
+  let store =
+    proxy.store |> store_mod.upsert_base_draft_order_variant_catalog(catalog)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_draft_order_detail_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.response.data.draftOrder") {
+    Some(source) ->
+      case make_seed_draft_order(source) {
+        Ok(record) -> {
+          let store =
+            proxy.store |> store_mod.upsert_base_draft_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_draft_orders_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records = collect_draft_order_catalog_records(capture)
+  let desired_count = draft_order_catalog_count(capture, list.length(records))
+  let padded_records =
+    list.append(
+      records,
+      draft_order_placeholder_records(
+        desired_count - list.length(records),
+        list.length(records),
+      ),
+    )
+  let store = proxy.store |> store_mod.upsert_base_draft_orders(padded_records)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn collect_draft_order_catalog_records(
+  capture: JsonValue,
+) -> List(DraftOrderRecord) {
+  case jsonpath.lookup(capture, "$.response.data.draftOrders.edges") {
+    Some(JArray(edges)) ->
+      edges
+      |> list.filter_map(fn(edge) {
+        case make_seed_draft_order_edge(edge) {
+          Ok(record) -> Ok(record)
+          Error(_) -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_draft_order_edge(
+  edge: JsonValue,
+) -> Result(DraftOrderRecord, Nil) {
+  use node <- result.try(read_object_field(edge, "node") |> option_to_result())
+  use id <- result.try(required_gid(node, "id", "DraftOrder"))
+  Ok(DraftOrderRecord(
+    id: id,
+    cursor: read_string_field(edge, "cursor"),
+    data: captured_json_from_parity(node),
+  ))
+}
+
+fn draft_order_catalog_count(capture: JsonValue, edge_count: Int) -> Int {
+  case jsonpath.lookup(capture, "$.response.data.draftOrdersCount.count") {
+    Some(JInt(count)) -> count
+    _ -> {
+      let has_next =
+        jsonpath.lookup(
+          capture,
+          "$.response.data.draftOrders.pageInfo.hasNextPage",
+        )
+      case has_next {
+        Some(JBool(True)) -> edge_count + 1
+        _ -> edge_count
+      }
+    }
+  }
+}
+
+fn draft_order_placeholder_records(
+  count: Int,
+  offset: Int,
+) -> List(DraftOrderRecord) {
+  case count <= 0 {
+    True -> []
+    False ->
+      int_sequence(1, count)
+      |> list.map(fn(index) {
+        let id_number = 9_900_000_000_000 + offset + index
+        let id = "gid://shopify/DraftOrder/" <> int.to_string(id_number)
+        DraftOrderRecord(
+          id: id,
+          cursor: Some(id),
+          data: CapturedObject([
+            #("id", CapturedString(id)),
+            #("name", CapturedString("#D" <> int.to_string(offset + index))),
+            #("status", CapturedString("OPEN")),
+            #("ready", CapturedBool(True)),
+            #(
+              "email",
+              CapturedString(
+                "placeholder-draft-order-"
+                <> int.to_string(offset + index)
+                <> "@example.test",
+              ),
+            ),
+            #("tags", CapturedArray([])),
+            #("createdAt", CapturedString("2026-01-01T00:00:00Z")),
+            #("updatedAt", CapturedString("2026-01-01T00:00:00Z")),
+            #(
+              "totalPriceSet",
+              CapturedObject([
+                #(
+                  "shopMoney",
+                  CapturedObject([
+                    #("amount", CapturedString("0.0")),
+                    #("currencyCode", CapturedString("CAD")),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        )
+      })
+  }
+}
+
+fn int_sequence(current: Int, last: Int) -> List(Int) {
+  case current > last {
+    True -> []
+    False -> [current, ..int_sequence(current + 1, last)]
+  }
+}
+
+fn seed_draft_order_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.variables.input.id") {
+    Some(JString(id)) -> {
+      let record =
+        DraftOrderRecord(
+          id: id,
+          cursor: None,
+          data: CapturedObject([#("id", CapturedString(id))]),
+        )
+      let store = proxy.store |> store_mod.upsert_base_draft_orders([record])
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+    _ -> proxy
+  }
+}
+
+fn seed_draft_order_update_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.draftOrderCreate.mutation.response.data.draftOrderCreate.draftOrder",
+    )
+  {
+    Some(source) ->
+      case make_seed_draft_order(source) {
+        Ok(record) -> {
+          let store =
+            proxy.store |> store_mod.upsert_base_draft_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_draft_order_complete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.draftOrderCreate.mutation.response.data.draftOrderCreate.draftOrder",
+    )
+  {
+    Some(source) ->
+      case make_seed_draft_order(source) {
+        Ok(record) -> {
+          let record = draft_order_with_setup_note(capture, record)
+          let store =
+            proxy.store |> store_mod.upsert_base_draft_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_draft_order_create_from_order_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.draftOrderCreate.mutation.response.data.draftOrderCreate.draftOrder",
+    )
+  {
+    Some(source) ->
+      case make_seed_draft_order(source) {
+        Ok(record) -> {
+          let record = draft_order_with_create_from_order_setup(capture, record)
+          let store =
+            proxy.store |> store_mod.upsert_base_draft_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn draft_order_with_create_from_order_setup(
+  capture: JsonValue,
+  record: DraftOrderRecord,
+) -> DraftOrderRecord {
+  let complete_path =
+    "$.setup.draftOrderComplete.mutation.response.data.draftOrderComplete.draftOrder"
+  let data =
+    record.data
+    |> upsert_captured_json_field_from_path(
+      capture,
+      complete_path <> ".status",
+      "status",
+    )
+    |> upsert_captured_json_field_from_path(
+      capture,
+      complete_path <> ".completedAt",
+      "completedAt",
+    )
+    |> upsert_captured_json_field_from_path(
+      capture,
+      complete_path <> ".order",
+      "order",
+    )
+  DraftOrderRecord(..record, data: data)
+}
+
+fn upsert_captured_json_field_from_path(
+  value: CapturedJsonValue,
+  capture: JsonValue,
+  path: String,
+  name: String,
+) -> CapturedJsonValue {
+  case jsonpath.lookup(capture, path) {
+    Some(replacement) ->
+      upsert_captured_json_field(
+        value,
+        name,
+        captured_json_from_parity(replacement),
+      )
+    None -> value
+  }
+}
+
+fn seed_draft_order_duplicate_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.draftOrderCreate.mutation.response.data.draftOrderCreate.draftOrder",
+    )
+  {
+    Some(source) ->
+      case make_seed_draft_order(source) {
+        Ok(record) -> {
+          let store =
+            proxy.store |> store_mod.upsert_base_draft_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_draft_order_invoice_send_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records =
+    []
+    |> list.append(seed_draft_orders_at_path(
+      capture,
+      "$.recipient.openNoRecipient.setup.draftOrderCreate.mutation.response.data.draftOrderCreate.draftOrder",
+    ))
+    |> list.append(seed_draft_orders_at_path(
+      capture,
+      "$.lifecycle.completedNoRecipient.setup.draftOrderComplete.mutation.response.data.draftOrderComplete.draftOrder",
+    ))
+  let store = proxy.store |> store_mod.upsert_base_draft_orders(records)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_draft_orders_at_path(
+  capture: JsonValue,
+  path: String,
+) -> List(DraftOrderRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(source) ->
+      case make_seed_draft_order(source) {
+        Ok(record) -> [record]
+        Error(_) -> []
+      }
+    None -> []
+  }
+}
+
+fn make_seed_draft_order(source: JsonValue) -> Result(DraftOrderRecord, Nil) {
+  use id <- result.try(required_gid(source, "id", "DraftOrder"))
+  Ok(DraftOrderRecord(
+    id: id,
+    cursor: None,
+    data: captured_json_from_parity(source),
+  ))
+}
+
+fn seed_order_merchant_detail_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.response.data.order") {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn make_seed_order(source: JsonValue) -> Result(OrderRecord, Nil) {
+  use id <- result.try(required_gid(source, "id", "Order"))
+  Ok(OrderRecord(id: id, cursor: None, data: captured_json_from_parity(source)))
+}
+
+fn seed_order_management_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+  root_name: String,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data." <> root_name <> ".order",
+    )
+  {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_order_downstream_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.downstreamRead.response.data.order") {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_order_create_setup_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.orderCreate.response.data.orderCreate.order",
+    )
+  {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> seed_order_downstream_preconditions(capture, proxy)
+  }
+}
+
+fn seed_order_edit_existing_order_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.seedOrder") {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_return_lifecycle_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.seedOrder") {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_order_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records = collect_order_catalog_records(capture)
+  let desired_count = order_catalog_count(capture, list.length(records))
+  let padded_records =
+    list.append(
+      records,
+      order_placeholder_records(
+        desired_count - list.length(records),
+        list.length(records),
+      ),
+    )
+  let store = proxy.store |> store_mod.upsert_base_orders(padded_records)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn collect_order_catalog_records(capture: JsonValue) -> List(OrderRecord) {
+  case jsonpath.lookup(capture, "$.response.data.orders.edges") {
+    Some(JArray(edges)) ->
+      edges
+      |> list.filter_map(fn(edge) {
+        case make_seed_order_edge(edge) {
+          Ok(record) -> Ok(record)
+          Error(_) -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_order_edge(edge: JsonValue) -> Result(OrderRecord, Nil) {
+  use node <- result.try(read_object_field(edge, "node") |> option_to_result())
+  use id <- result.try(required_gid(node, "id", "Order"))
+  Ok(OrderRecord(
+    id: id,
+    cursor: read_string_field(edge, "cursor"),
+    data: captured_json_from_parity(node),
+  ))
+}
+
+fn order_catalog_count(capture: JsonValue, edge_count: Int) -> Int {
+  case jsonpath.lookup(capture, "$.response.data.ordersCount.count") {
+    Some(JInt(count)) -> count
+    _ -> {
+      let has_next =
+        jsonpath.lookup(capture, "$.response.data.orders.pageInfo.hasNextPage")
+      case has_next {
+        Some(JBool(True)) -> edge_count + 1
+        _ -> edge_count
+      }
+    }
+  }
+}
+
+fn order_placeholder_records(count: Int, offset: Int) -> List(OrderRecord) {
+  case count <= 0 {
+    True -> []
+    False ->
+      int_sequence(1, count)
+      |> list.map(fn(index) {
+        let id_number = 9_800_000_000_000 + offset + index
+        let id = "gid://shopify/Order/" <> int.to_string(id_number)
+        OrderRecord(
+          id: id,
+          cursor: Some(id),
+          data: CapturedObject([
+            #("id", CapturedString(id)),
+            #("name", CapturedString("#" <> int.to_string(offset + index))),
+            #("tags", CapturedArray([])),
+            #("createdAt", CapturedString("2026-01-01T00:00:00Z")),
+            #("updatedAt", CapturedString("2026-01-01T00:00:00Z")),
+            #("displayFinancialStatus", CapturedString("PAID")),
+            #("displayFulfillmentStatus", CapturedString("UNFULFILLED")),
+            #("note", CapturedNull),
+            #(
+              "currentTotalPriceSet",
+              CapturedObject([
+                #(
+                  "shopMoney",
+                  CapturedObject([
+                    #("amount", CapturedString("0.0")),
+                    #("currencyCode", CapturedString("CAD")),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        )
+      })
+  }
+}
+
+fn seed_order_catalog_count_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records =
+    []
+    |> list.append(order_records_from_nodes_path(
+      capture,
+      "$.response.data.seedCatalog.nodes",
+    ))
+    |> list.append(order_records_from_nodes_path(
+      capture,
+      "$.response.data.byStatus.nodes",
+    ))
+    |> list.append(order_records_from_nodes_path(
+      capture,
+      "$.nextPage.response.data.nextPage.nodes",
+    ))
+    |> dedupe_seed_orders()
+  let store = proxy.store |> store_mod.upsert_base_orders(records)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn order_records_from_nodes_path(
+  capture: JsonValue,
+  path: String,
+) -> List(OrderRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(nodes)) ->
+      nodes
+      |> list.filter_map(fn(node) {
+        case make_seed_order_node(capture, node) {
+          Ok(record) -> Ok(record)
+          Error(_) -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_order_node(
+  capture: JsonValue,
+  node: JsonValue,
+) -> Result(OrderRecord, Nil) {
+  use id <- result.try(required_gid(node, "id", "Order"))
+  Ok(OrderRecord(
+    id: id,
+    cursor: order_catalog_cursor_for_id(capture, id),
+    data: captured_json_from_parity(node),
+  ))
+}
+
+fn order_catalog_cursor_for_id(
+  capture: JsonValue,
+  id: String,
+) -> Option(String) {
+  [
+    "$.response.data.recent",
+    "$.response.data.oldest",
+    "$.response.data.byName",
+    "$.response.data.byStatus",
+    "$.nextPage.response.data.nextPage",
+  ]
+  |> list.find_map(fn(path) {
+    order_connection_cursor_for_id(capture, path, id)
+  })
+  |> option.from_result
+}
+
+fn order_connection_cursor_for_id(
+  capture: JsonValue,
+  path: String,
+  id: String,
+) -> Result(String, Nil) {
+  case jsonpath.lookup(capture, path <> ".nodes") {
+    Some(JArray(nodes)) -> {
+      let matching_index =
+        nodes
+        |> list.index_map(fn(node, index) { #(node, index) })
+        |> list.find_map(fn(pair) {
+          let #(node, index) = pair
+          case required_gid(node, "id", "Order") {
+            Ok(node_id) if node_id == id -> Ok(index)
+            _ -> Error(Nil)
+          }
+        })
+      case matching_index {
+        Ok(0) -> read_string_jsonpath(capture, path <> ".pageInfo.startCursor")
+        Ok(index) ->
+          case index == list.length(nodes) - 1 {
+            True -> read_string_jsonpath(capture, path <> ".pageInfo.endCursor")
+            False -> Error(Nil)
+          }
+        _ -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
+  }
+}
+
+fn read_string_jsonpath(
+  capture: JsonValue,
+  path: String,
+) -> Result(String, Nil) {
+  case jsonpath.lookup(capture, path) {
+    Some(JString(value)) -> Ok(value)
+    _ -> Error(Nil)
+  }
+}
+
+fn dedupe_seed_orders(records: List(OrderRecord)) -> List(OrderRecord) {
+  let initial: List(OrderRecord) = []
+  records
+  |> list.fold(initial, fn(acc, record) {
+    case list.any(acc, fn(existing) { existing.id == record.id }) {
+      True -> acc
+      False -> list.append(acc, [record])
+    }
+  })
+}
+
+fn draft_order_with_setup_note(
+  capture: JsonValue,
+  record: DraftOrderRecord,
+) -> DraftOrderRecord {
+  case
+    jsonpath.lookup(capture, "$.setup.draftOrderCreate.variables.input.note")
+  {
+    Some(JString(note)) ->
+      DraftOrderRecord(
+        ..record,
+        data: upsert_captured_json_field(
+          record.data,
+          "note",
+          CapturedString(note),
+        ),
+      )
+    _ -> record
+  }
+}
+
+fn upsert_captured_json_field(
+  value: CapturedJsonValue,
+  name: String,
+  replacement: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case value {
+    CapturedObject(fields) ->
+      CapturedObject(upsert_captured_json_fields(fields, name, replacement))
+    _ -> CapturedObject([#(name, replacement)])
+  }
+}
+
+fn upsert_captured_json_fields(
+  fields: List(#(String, CapturedJsonValue)),
+  name: String,
+  replacement: CapturedJsonValue,
+) -> List(#(String, CapturedJsonValue)) {
+  case list.any(fields, fn(pair) { pair.0 == name }) {
+    True ->
+      list.map(fields, fn(pair) {
+        case pair.0 == name {
+          True -> #(name, replacement)
+          False -> pair
+        }
+      })
+    False -> list.append(fields, [#(name, replacement)])
+  }
+}
+
+fn collect_draft_order_variant_catalog(
+  capture: JsonValue,
+) -> List(DraftOrderVariantCatalogRecord) {
+  collect_objects(capture)
+  |> list.filter_map(make_draft_order_variant_catalog)
+  |> dedupe_draft_order_variant_catalog([])
+}
+
+fn make_draft_order_variant_catalog(
+  source: JsonValue,
+) -> Result(DraftOrderVariantCatalogRecord, Nil) {
+  use variant <- result.try(
+    read_object_field(source, "variant") |> option_to_result(),
+  )
+  use variant_id <- result.try(required_gid(variant, "id", "ProductVariant"))
+  let title = read_string_field(source, "title") |> option.unwrap("Variant")
+  let name = read_string_field(source, "name") |> option.unwrap(title)
+  let shop_money =
+    read_object_field(source, "originalUnitPriceSet")
+    |> option.then(read_object_field(_, "shopMoney"))
+  let unit_price =
+    read_string_field_from_option(shop_money, "amount")
+    |> option.unwrap("0.0")
+  let currency_code =
+    read_string_field_from_option(shop_money, "currencyCode")
+    |> option.unwrap("CAD")
+  Ok(DraftOrderVariantCatalogRecord(
+    variant_id: variant_id,
+    title: title,
+    name: name,
+    variant_title: read_string_field(variant, "title"),
+    sku: read_string_field(source, "sku"),
+    requires_shipping: read_bool_field(source, "requiresShipping")
+      |> option.unwrap(True),
+    taxable: read_bool_field(source, "taxable") |> option.unwrap(True),
+    unit_price: unit_price,
+    currency_code: currency_code,
+  ))
+}
+
+fn dedupe_draft_order_variant_catalog(
+  records: List(DraftOrderVariantCatalogRecord),
+  seen: List(String),
+) -> List(DraftOrderVariantCatalogRecord) {
+  case records {
+    [] -> []
+    [record, ..rest] ->
+      case list.contains(seen, record.variant_id) {
+        True -> dedupe_draft_order_variant_catalog(rest, seen)
+        False -> [
+          record,
+          ..dedupe_draft_order_variant_catalog(rest, [record.variant_id, ..seen])
+        ]
+      }
+  }
 }
 
 fn seed_customer_connections(
@@ -689,6 +1543,14 @@ fn seed_customer_order_summary_preconditions(
       )
     }
   }
+}
+
+fn seed_order_customer_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let seeded = seed_customer_preconditions_unchecked(capture, proxy)
+  seed_customer_order_summary_preconditions(capture, seeded)
 }
 
 fn seed_segments_baseline_preconditions(
