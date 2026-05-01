@@ -218,233 +218,105 @@ pub fn run_with_config(
   Ok(Report(scenario_id: parsed.scenario_id, targets: target_reports))
 }
 
+/// Capture-driven seeding dispatch.
+///
+/// Each helper in this chain inspects the capture for its own marker
+/// paths and either seeds or no-ops. Helpers MUST self-gate on capture
+/// shape — never on `parsed.scenario_id`. This lets new parity specs
+/// land without touching runner code: if a capture exposes the markers
+/// a helper expects, that helper fires.
+/// Each helper self-gates on capture shape and is a no-op when its
+/// markers aren't present. Never branch on `parsed.scenario_id` — new
+/// parity specs must land without runner edits if their capture
+/// exposes the markers existing helpers already check.
 fn seed_capture_preconditions(
   parsed: Spec,
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let proxy = seed_captured_products_preconditions(capture, proxy)
-  let proxy = seed_selling_plan_group_preconditions(capture, proxy)
-  let proxy = seed_product_media_preconditions(capture, proxy)
-  let proxy = seed_admin_platform_node_preconditions(capture, proxy)
-  case parsed.scenario_id {
-    "gift-card-search-filters" ->
-      seed_gift_card_lifecycle_preconditions(capture, proxy)
-    "gift-card-lifecycle" ->
-      seed_gift_card_lifecycle_preconditions(capture, proxy)
-    "functions-metadata-local-staging"
-    | "functions-owner-metadata-local-staging"
-    | "functions-live-owner-metadata-read" ->
-      seed_shopify_function_preconditions(capture, proxy)
-    "shop-baseline-read"
-    | "shop-policy-update-parity"
-    | "admin-platform-store-property-node-reads" ->
-      seed_shop_preconditions(capture, proxy)
-    "localization-disable-clears-translations" ->
-      seed_localization_disable_cleanup_preconditions(capture, proxy)
-    "marketing-baseline-read" ->
-      seed_marketing_baseline_preconditions(capture, proxy)
-    "store-credit-account-local-staging" ->
-      seed_store_credit_preconditions(capture, proxy)
-    "customer-create-live-parity" ->
-      seed_customer_count_baseline(capture, proxy)
-    "customer-delete-live-parity" ->
-      seed_customer_delete_preconditions(capture, proxy)
-    "customer-input-validation-parity" ->
-      seed_customer_input_validation_preconditions(capture, proxy)
-    "customer-email-marketing-consent-update-parity"
-    | "customer-sms-marketing-consent-update-parity" ->
-      seed_customer_consent_preconditions(capture, proxy)
-    "customer-merge-live-parity"
-    | "customer-merge-attached-resources-live-parity" ->
-      seed_customer_merge_preconditions(capture, proxy)
-    "customer-order-summary-read-effects" ->
-      seed_customer_order_summary_preconditions(capture, proxy)
-    "segments-baseline-read" ->
-      seed_segments_baseline_preconditions(capture, proxy)
-    "data-sale-opt-out-parity" -> seed_customer_preconditions(capture, proxy)
-    "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
-      seed_business_entity_preconditions(capture, proxy)
-    "b2b-company-roots-read" ->
-      seed_b2b_company_roots_preconditions(capture, proxy)
-    "location-detail-read" -> seed_location_detail_preconditions(capture, proxy)
-    "location-delete-active-location-validation" ->
-      seed_location_lifecycle_preconditions(capture, proxy)
-    "publishablePublish-product-parity"
-    | "publishablePublishToCurrentChannel-product-parity"
-    | "publishableUnpublish-product-parity"
-    | "publishableUnpublishToCurrentChannel-product-parity"
-    | "publishablePublish-shop-count-parity"
-    | "publishablePublishToCurrentChannel-shop-count-parity"
-    | "publishableUnpublish-shop-count-parity"
-    | "publishableUnpublishToCurrentChannel-shop-count-parity"
-    | "collection-publishable-publication-parity" ->
-      seed_publishable_preconditions(parsed.scenario_id, capture, proxy)
-    "product-detail-read" -> seed_product_preconditions(capture, proxy)
-    "collection-detail-read" | "collection-identifier-read" ->
-      seed_collection_detail_preconditions(capture, proxy)
-    "collections-catalog-read" ->
-      seed_collections_catalog_preconditions(capture, proxy)
-    "collection-add-products-live-parity" ->
-      seed_collection_add_products_preconditions(capture, proxy)
-    "collection-remove-products-live-parity" ->
-      seed_collection_remove_products_preconditions(capture, proxy)
-    "collection-reorder-products-live-parity" ->
-      seed_collection_reorder_products_preconditions(capture, proxy)
-    "collection-update-live-parity" ->
-      seed_collection_update_preconditions(capture, proxy)
-    "collection-delete-live-parity" ->
-      seed_collection_delete_preconditions(capture, proxy)
-    "collection-create-initial-products-live-parity" ->
-      seed_collection_create_initial_products_preconditions(capture, proxy)
-    "locations-catalog-read" ->
-      seed_locations_catalog_preconditions(capture, proxy)
-    "publications-catalog-read" ->
-      seed_publications_catalog_preconditions(capture, proxy)
-    "publication-roots-local-runtime" ->
-      seed_publication_roots_preconditions(capture, proxy)
-    "products-catalog-read" ->
-      seed_products_catalog_preconditions(capture, proxy)
-    "products-search-read" ->
-      seed_products_search_read_preconditions(capture, proxy)
-    "products-sort-keys-read" ->
-      seed_products_sort_keys_preconditions(capture, proxy)
-    "products-advanced-search-read"
-    | "products-or-precedence-read"
-    | "products-relevance-search-read" ->
-      seed_captured_product_connections_preconditions(capture, proxy)
-    "products-search-pagination-read" ->
-      seed_products_search_pagination_preconditions(capture, proxy)
-    "product-variants-read" | "inventory-level-read" ->
-      seed_product_variants_read_preconditions(capture, proxy)
-    "product-options-create-variant-strategy-create"
-    | "product-options-create-variant-strategy-create-over-default-limit"
-    | "product-options-create-variant-strategy-leave-as-is"
-    | "product-options-create-variant-strategy-null"
-    | "product-options-create-live-parity"
-    | "product-option-update-live-parity"
-    | "product-options-delete-live-parity"
-    | "product-variants-bulk-create-strategy-default-default-standalone"
-    | "product-variants-bulk-create-strategy-remove-default-standalone"
-    | "product-variants-bulk-create-strategy-default-custom-standalone"
-    | "product-variants-bulk-create-strategy-remove-custom-standalone"
-    | "admin-platform-product-option-node-reads" ->
-      seed_pre_mutation_product_preconditions(capture, proxy)
-    "product-delete-live-parity" ->
-      seed_product_delete_preconditions(capture, proxy)
-    "product-update-live-parity" | "productUpdate-blank-title-parity" ->
-      seed_product_update_preconditions(capture, proxy)
-    "product-duplicate-async-missing" | "product-duplicate-async-success" ->
-      seed_product_duplicate_async_preconditions(capture, proxy)
-    "product-duplicate-live-parity" ->
-      seed_product_duplicate_preconditions(capture, proxy)
-    "product-set-live-parity" -> seed_product_set_preconditions(capture, proxy)
-    "tags-remove-live-parity" -> seed_tags_remove_preconditions(capture, proxy)
-    "product-variant-create-compatibility-evidence" ->
-      seed_product_variant_create_preconditions(capture, proxy)
-    "product-variants-bulk-create-live-parity"
-    | "product-variants-bulk-create-inventory-read-live-parity" ->
-      seed_product_variants_bulk_create_preconditions(capture, proxy)
-    "product-variants-bulk-validation-atomicity" ->
-      seed_product_variants_bulk_validation_atomicity_preconditions(
-        capture,
-        proxy,
-      )
-    "product-variant-update-compatibility-evidence" ->
-      seed_product_variant_update_preconditions(capture, proxy)
-    "product-variants-bulk-update-live-parity" ->
-      seed_product_variants_bulk_update_preconditions(capture, proxy)
-    "product-variant-delete-compatibility-evidence" ->
-      seed_product_variant_delete_preconditions(capture, proxy)
-    "product-variants-bulk-delete-live-parity" ->
-      seed_product_variant_delete_preconditions(capture, proxy)
-    "inventory-quantity-roots-parity" ->
-      seed_inventory_quantity_roots_preconditions(capture, proxy)
-    "inventory-quantity-contracts-2026-04" ->
-      seed_inventory_quantity_contracts_preconditions(capture, proxy)
-    "inventory-adjust-quantities-live-parity" ->
-      seed_inventory_adjust_quantities_preconditions(capture, proxy)
-    "inventory-activate-live-parity" ->
-      seed_inventory_activate_preconditions(capture, proxy)
-    "inventory-deactivate-live-parity" ->
-      seed_inventory_activate_preconditions(capture, proxy)
-    "inventory-inactive-level-lifecycle-2026-04" ->
-      seed_inventory_inactive_lifecycle_preconditions(capture, proxy)
-    "inventory-bulk-toggle-activation-live-parity" ->
-      seed_inventory_activate_preconditions(capture, proxy)
-    "inventory-item-update-live-parity" ->
-      seed_inventory_item_update_preconditions(capture, proxy)
-    "product-variants-bulk-reorder-live-parity" ->
-      seed_product_variants_bulk_reorder_preconditions(capture, proxy)
-    "product-reorder-media-live-parity" ->
-      seed_product_reorder_media_preconditions(capture, proxy)
-    "product-relationship-roots-live-parity" ->
-      seed_product_relationship_roots_preconditions(capture, proxy)
-    "product-create-media-live-parity" ->
-      seed_product_create_media_plan_preconditions(capture, proxy)
-    "product-update-media-live-parity" ->
-      seed_product_update_media_plan_preconditions(capture, proxy)
-    "product-delete-media-live-parity" ->
-      seed_product_delete_media_plan_preconditions(capture, proxy)
-    "productPublish-parity-plan"
-    | "productPublish-aggregate-parity"
-    | "productUnpublish-parity-plan"
-    | "productUnpublish-aggregate-parity" ->
-      seed_product_publication_preconditions(capture, proxy)
-    "product-feedback-lifecycle-local-runtime" ->
-      seed_product_feedback_preconditions(capture, proxy)
-    "product-metafields-read" | "admin-platform-metafield-node-reads" ->
-      seed_product_metafields_preconditions(capture, proxy)
-    "metafields-set-live-parity"
-    | "metafields-set-duplicate-input"
-    | "metafields-set-cas-success"
-    | "metafields-set-stale-digest"
-    | "metafields-set-null-create"
-    | "metafields-set-missing-namespace"
-    | "metafields-set-missing-type"
-    | "metafields-set-over-limit"
-    | "metafields-set-owner-expansion" ->
-      seed_metafields_set_preconditions(capture, proxy)
-    "metafields-delete-live-parity"
-    | "metafield-delete-compatibility-live-parity" ->
-      seed_metafields_delete_preconditions(capture, proxy)
-    "inventory-shipment-lifecycle-local-staging"
-    | "inventory-shipment-partial-receive-update-delete-local-staging" ->
-      seed_inventory_shipment_preconditions(capture, proxy)
-    "inventory-transfer-lifecycle-local-staging"
-    | "inventory-transfer-ready-item-adjustments-local-staging" ->
-      seed_inventory_transfer_preconditions(capture, proxy)
-    "metafield-definitions-product-read"
-    | "metafield-definition-pinning-parity" ->
-      seed_metafield_definition_preconditions(capture, proxy)
-    "metaobject-definitions-read"
-    | "metaobjects-read"
-    | "metaobject-entry-lifecycle-local-staging"
-    | "metaobject-reference-lifecycle"
-    | "metaobject-bulk-delete-type-lifecycle"
-    | "custom-data-metaobject-field-type-matrix" ->
-      seed_metaobject_preconditions(parsed.scenario_id, capture, proxy)
-    _ ->
-      case is_customer_seeded_scenario(parsed.scenario_id) {
-        True -> seed_customer_preconditions(capture, proxy)
-        False -> proxy
+  let helpers = [
+    seed_captured_products_preconditions,
+    seed_selling_plan_group_preconditions,
+    seed_product_media_preconditions,
+    seed_admin_platform_node_preconditions,
+    seed_gift_card_lifecycle_preconditions,
+    seed_shopify_function_preconditions,
+    seed_shop_preconditions,
+    seed_business_entity_preconditions,
+    seed_location_detail_preconditions,
+    seed_location_lifecycle_preconditions,
+    seed_publishable_preconditions,
+    seed_product_preconditions,
+    seed_pre_mutation_product_preconditions,
+    seed_product_publication_preconditions,
+    seed_product_feedback_preconditions,
+    seed_product_metafields_preconditions,
+    seed_product_delete_preconditions,
+    seed_product_update_preconditions,
+    seed_product_duplicate_async_preconditions,
+    seed_product_duplicate_preconditions,
+    seed_product_set_preconditions,
+    seed_tags_remove_preconditions,
+    seed_product_relationship_roots_preconditions,
+    seed_product_create_media_plan_preconditions,
+    seed_product_update_media_plan_preconditions,
+    seed_product_delete_media_plan_preconditions,
+    seed_product_reorder_media_preconditions,
+    seed_product_variant_create_preconditions,
+    seed_product_variants_bulk_create_preconditions,
+    seed_product_variants_bulk_validation_atomicity_preconditions,
+    seed_product_variant_update_preconditions,
+    seed_product_variants_bulk_update_preconditions,
+    seed_product_variant_delete_preconditions,
+    seed_product_variants_bulk_reorder_preconditions,
+    seed_product_variants_read_preconditions,
+    seed_products_catalog_preconditions,
+    seed_products_search_read_preconditions,
+    seed_captured_product_connections_preconditions,
+    seed_products_sort_keys_preconditions,
+    seed_products_search_pagination_preconditions,
+    seed_collection_detail_preconditions,
+    seed_collections_catalog_preconditions,
+    seed_collection_add_products_preconditions,
+    seed_collection_remove_products_preconditions,
+    seed_collection_reorder_products_preconditions,
+    seed_collection_update_preconditions,
+    seed_collection_delete_preconditions,
+    seed_collection_create_initial_products_preconditions,
+    seed_locations_catalog_preconditions,
+    seed_publications_catalog_preconditions,
+    seed_publication_roots_preconditions,
+    seed_inventory_quantity_roots_preconditions,
+    seed_inventory_quantity_contracts_preconditions,
+    seed_inventory_adjust_quantities_preconditions,
+    seed_inventory_activate_preconditions,
+    seed_inventory_inactive_lifecycle_preconditions,
+    seed_inventory_item_update_preconditions,
+    seed_inventory_shipment_preconditions,
+    seed_inventory_transfer_preconditions,
+    seed_metafields_set_preconditions,
+    seed_metafields_delete_preconditions,
+    seed_metafield_definition_preconditions,
+    seed_metaobject_preconditions,
+    seed_marketing_baseline_preconditions,
+    fn(c, p) {
+      case parsed.scenario_id {
+        "segments-baseline-read" -> seed_segments_baseline_preconditions(c, p)
+        _ -> p
       }
-  }
-}
-
-fn is_customer_seeded_scenario(scenario_id: String) -> Bool {
-  case scenario_id {
-    "customer-create-live-parity"
-    | "customer-set-live-parity"
-    | "customer-address-lifecycle-parity"
-    | "customer-input-addresses-parity"
-    | "customer-input-inline-consent-parity"
-    | "customer-input-validation-parity"
-    | "customer-order-summary-read-effects" -> False
-    _ ->
-      string.starts_with(scenario_id, "customer")
-      || string.starts_with(scenario_id, "customers")
-  }
+    },
+    seed_b2b_company_roots_preconditions,
+    seed_localization_disable_cleanup_preconditions,
+    seed_store_credit_preconditions,
+    seed_customer_count_baseline,
+    seed_customer_delete_preconditions,
+    seed_customer_input_validation_preconditions,
+    seed_customer_consent_preconditions,
+    seed_customer_merge_preconditions,
+    seed_customer_order_summary_preconditions,
+    fn(c, p) { seed_customer_preconditions(parsed, c, p) },
+  ]
+  list.fold(helpers, proxy, fn(p, helper) { helper(capture, p) })
 }
 
 fn seed_admin_platform_node_preconditions(
@@ -649,6 +521,23 @@ fn gid_resource_type(id: String) -> Option(String) {
   }
 }
 
+/// Broad walker — collects every customer-shaped object in the capture
+/// and seeds them. Fires for any capture in a customer-flavoured scenario
+/// (per spec `operationNames`) EXCEPT captures that own the lifecycle of
+/// a fresh customer (create, set, address-lifecycle, input-addresses,
+/// input-inline-consent, input-validation matrices, order-summary
+/// effects). For those, the scenario-specific helper above does the
+/// right narrow seeding — pre-seeding the response customer here would
+/// either duplicate it in the store or cause the proxy's create to land
+/// on top of a pre-existing record.
+///
+/// The `operationNames` gate keeps the broad walker from firing for
+/// non-customer captures that nonetheless contain `precision`+`count`
+/// pairs (e.g. productsCount: 13552), which would otherwise produce
+/// thousands of placeholder customers.
+///
+/// Helpers above (consent, merge, input-validation, …) call the
+/// `_unchecked` variant on a narrowed subtree, bypassing this gate.
 fn seed_localization_disable_cleanup_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -685,6 +574,59 @@ fn seed_localization_disable_cleanup_preconditions(
 }
 
 fn seed_customer_preconditions(
+  parsed: Spec,
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    operation_names_indicate_customer_scenario(parsed.operation_names)
+    && !capture_creates_fresh_customer(capture)
+  {
+    True -> seed_customer_preconditions_unchecked(capture, proxy)
+    False -> proxy
+  }
+}
+
+/// True if any operation name on the spec is a customer-flavoured root
+/// (`customer*` or `customers*`). The TS suite's denylist of
+/// non-customer scenarios maps directly onto "no operation name starts
+/// with customer".
+fn operation_names_indicate_customer_scenario(names: List(String)) -> Bool {
+  list.any(names, fn(name) {
+    string.starts_with(name, "customer")
+    || string.starts_with(name, "customers")
+  })
+}
+
+/// True if the capture's *primary* mutation/stage produces a freshly
+/// created customer whose response payload must NOT be pre-seeded into
+/// the store. The path list mirrors the scenarios that the original
+/// `is_customer_seeded_scenario` denylist excluded.
+fn capture_creates_fresh_customer(capture: JsonValue) -> Bool {
+  capture_has_any_path(capture, [
+    // customer-create-live-parity, customer-input-inline-consent-parity
+    "$.mutation.response.data.customerCreate.customer.id",
+    // customer-set-live-parity
+    "$.mutation.response.data.customerSet.customer.id",
+    // customer-address-lifecycle-parity
+    "$.createCustomer.response.data.customerCreate.customer.id",
+    // customer-input-addresses-parity
+    "$.create.response.data.customerCreate.customer.id",
+    // customer-input-validation-parity
+    "$.createScenarios",
+    // customer-order-summary-read-effects
+    "$.seedOrder",
+    // consent / merge / delete have dedicated helpers — broad walker would
+    // double-seed against post-mutation state and corrupt the baseline.
+    "$.mutation.response.data.customerEmailMarketingConsentUpdate",
+    "$.mutation.response.data.customerSmsMarketingConsentUpdate",
+    "$.mutation.response.data.customerMerge",
+    "$.preview.response.data.customerMergePreview",
+    "$.mutation.response.data.customerDelete",
+  ])
+}
+
+fn seed_customer_preconditions_unchecked(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
@@ -760,64 +702,112 @@ fn seed_customer_event_page_infos(
   })
 }
 
+/// Walks the capture for the maximum `count` paired with a `precision`
+/// field. Only meaningful in customer scenarios — the dispatcher gates
+/// the call with `operationNames` so non-customer captures (productsCount,
+/// ordersCount) never reach this walker. Iterative to avoid blowing the
+/// JS stack on deep capture trees.
 fn max_customer_count_baseline(capture: JsonValue) -> Option(Int) {
-  collect_objects(capture)
-  |> list.filter_map(fn(object) {
-    case
-      read_string_field(object, "precision"),
-      json_value.field(object, "count")
-    {
-      Some(_), Some(JInt(count)) -> Ok(count)
-      _, _ -> Error(Nil)
-    }
-  })
-  |> list.fold(None, fn(acc, count) {
-    case acc {
-      Some(existing) -> Some(int.max(existing, count))
-      None -> Some(count)
-    }
-  })
+  do_max_customers_count_baseline([capture], None)
 }
 
+fn do_max_customers_count_baseline(
+  stack: List(JsonValue),
+  acc: Option(Int),
+) -> Option(Int) {
+  case stack {
+    [] -> acc
+    [JObject(entries) as obj, ..rest] -> {
+      let acc = case
+        read_string_field(obj, "precision"),
+        json_value.field(obj, "count")
+      {
+        Some(_), Some(JInt(n)) ->
+          case acc {
+            Some(existing) -> Some(int.max(existing, n))
+            None -> Some(n)
+          }
+        _, _ -> acc
+      }
+      let next =
+        list.fold(list.reverse(entries), rest, fn(s, pair) { [pair.1, ..s] })
+      do_max_customers_count_baseline(next, acc)
+    }
+    [JArray(items), ..rest] -> {
+      let next =
+        list.fold(list.reverse(items), rest, fn(s, item) { [item, ..s] })
+      do_max_customers_count_baseline(next, acc)
+    }
+    [_, ..rest] -> do_max_customers_count_baseline(rest, acc)
+  }
+}
+
+/// Gated on the `setup.createAccountCredit` block that store-credit
+/// captures use to record the account creation that must exist before
+/// the proxy executes any debit/credit mutation.
 fn seed_store_credit_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let proxy = seed_customer_preconditions(capture, proxy)
-  let account =
-    jsonpath.lookup(
-      capture,
+  case
+    capture_has_any_path(capture, [
       "$.setup.createAccountCredit.response.data.storeCreditAccountCredit.storeCreditAccountTransaction.account",
-    )
-  let store = case account {
-    Some(source) ->
-      case make_seed_store_credit_account(source) {
-        Ok(record) -> store_mod.stage_store_credit_account(proxy.store, record)
-        Error(_) -> proxy.store
+    ])
+  {
+    False -> proxy
+    True -> {
+      let proxy = seed_customer_preconditions_unchecked(capture, proxy)
+      let account =
+        jsonpath.lookup(
+          capture,
+          "$.setup.createAccountCredit.response.data.storeCreditAccountCredit.storeCreditAccountTransaction.account",
+        )
+      let store = case account {
+        Some(source) ->
+          case make_seed_store_credit_account(source) {
+            Ok(record) ->
+              store_mod.stage_store_credit_account(proxy.store, record)
+            Error(_) -> proxy.store
+          }
+        None -> proxy.store
       }
-    None -> proxy.store
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
   }
-  draft_proxy.DraftProxy(..proxy, store: store)
 }
 
+/// Gated on the customerDelete mutation marker — the only scenario that
+/// needs this helper pre-seeds a placeholder customer matching the
+/// mutation input id so the delete can find it.
 fn seed_customer_delete_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let seeded = seed_customer_preconditions(capture, proxy)
-  let delete_customer =
-    jsonpath.lookup(capture, "$.mutation.variables.input.id")
-    |> option.then(json_string_value)
-    |> option.map(fn(id) {
-      CustomerRecord(..make_placeholder_customer(0), id: id)
-    })
-  let store = case delete_customer {
-    Some(customer) -> store_mod.upsert_base_customers(seeded.store, [customer])
-    None -> seeded.store
+  case
+    capture_has_any_path(capture, ["$.mutation.response.data.customerDelete"])
+  {
+    False -> proxy
+    True -> {
+      let seeded = seed_customer_preconditions_unchecked(capture, proxy)
+      let delete_customer =
+        jsonpath.lookup(capture, "$.mutation.variables.input.id")
+        |> option.then(json_string_value)
+        |> option.map(fn(id) {
+          CustomerRecord(..make_placeholder_customer(0), id: id)
+        })
+      let store = case delete_customer {
+        Some(customer) ->
+          store_mod.upsert_base_customers(seeded.store, [customer])
+        None -> seeded.store
+      }
+      draft_proxy.DraftProxy(..seeded, store: store)
+    }
   }
-  draft_proxy.DraftProxy(..seeded, store: store)
 }
 
+/// Self-gated via the fold: only subtrees that exist contribute. The
+/// per-path lookup acts as the marker check, so this function is a
+/// no-op on captures that lack all four paths.
 fn seed_customer_input_validation_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -830,43 +820,81 @@ fn seed_customer_input_validation_preconditions(
   ]
   |> list.fold(proxy, fn(acc, path) {
     case jsonpath.lookup(capture, path) {
-      Some(value) -> seed_customer_preconditions(value, acc)
+      Some(value) -> seed_customer_preconditions_unchecked(value, acc)
       None -> acc
     }
   })
 }
 
+/// Gated on the consent mutation markers. When present, walks
+/// `$.precondition` (the existing customer pre-update) so the proxy can
+/// project the consent change against the seeded base record.
 fn seed_customer_consent_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  case jsonpath.lookup(capture, "$.precondition") {
-    Some(value) -> seed_customer_preconditions(value, proxy)
-    None -> seed_customer_preconditions(capture, proxy)
+  case
+    capture_has_any_path(capture, [
+      "$.mutation.response.data.customerEmailMarketingConsentUpdate",
+      "$.mutation.response.data.customerSmsMarketingConsentUpdate",
+    ])
+  {
+    False -> proxy
+    True ->
+      case jsonpath.lookup(capture, "$.precondition") {
+        Some(value) -> seed_customer_preconditions_unchecked(value, proxy)
+        None -> seed_customer_preconditions_unchecked(capture, proxy)
+      }
   }
 }
 
+/// Gated on the customerMerge mutation marker. Adds placeholder
+/// customer 999_001 alongside the broad walker; the proxy's merge
+/// implementation expects an extra unrelated customer in the store.
 fn seed_customer_merge_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let seeded = seed_customer_preconditions(capture, proxy)
-  let extra = make_placeholder_customer(999_001)
-  draft_proxy.DraftProxy(
-    ..seeded,
-    store: store_mod.upsert_base_customers(seeded.store, [extra]),
-  )
+  case
+    capture_has_any_path(capture, [
+      "$.mutation.response.data.customerMerge",
+      "$.preview.response.data.customerMergePreview",
+    ])
+  {
+    False -> proxy
+    True -> {
+      let seeded = seed_customer_preconditions_unchecked(capture, proxy)
+      let extra = make_placeholder_customer(999_001)
+      draft_proxy.DraftProxy(
+        ..seeded,
+        store: store_mod.upsert_base_customers(seeded.store, [extra]),
+      )
+    }
+  }
 }
 
+/// Gated on the seedOrder block that customer-order-summary captures
+/// expose. Without it the proxy's order summary effects can't be
+/// recreated.
 fn seed_customer_order_summary_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let orders = collect_seed_customer_order_summaries(capture)
-  draft_proxy.DraftProxy(
-    ..proxy,
-    store: store_mod.upsert_base_customer_order_summaries(proxy.store, orders),
-  )
+  case
+    capture_has_any_path(capture, ["$.seedOrder.response.data.orders.nodes"])
+  {
+    False -> proxy
+    True -> {
+      let orders = collect_seed_customer_order_summaries(capture)
+      draft_proxy.DraftProxy(
+        ..proxy,
+        store: store_mod.upsert_base_customer_order_summaries(
+          proxy.store,
+          orders,
+        ),
+      )
+    }
+  }
 }
 
 fn seed_segments_baseline_preconditions(
@@ -1317,28 +1345,53 @@ fn option_to_result(value: Option(a)) -> Result(a, Nil) {
   }
 }
 
+/// Gated on the customerCreate mutation marker. The customer-create
+/// scenario uses `$.downstreamRead.data.customersCount.count` to
+/// reproduce the post-create count assertion; pre-seeding `count - 1`
+/// placeholder customers leaves room for the freshly-created customer.
+/// Other scenarios that happen to expose a customersCount path are
+/// handled by `seed_customer_preconditions` and friends.
 fn seed_customer_count_baseline(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let target_count =
-    jsonpath.lookup(capture, "$.downstreamRead.data.customersCount.count")
-    |> option.then(json_int_value)
-    |> option.unwrap(0)
-  let records = make_placeholder_customers(int.max(0, target_count - 1), 1)
-  draft_proxy.DraftProxy(
-    ..proxy,
-    store: store_mod.upsert_base_customers(proxy.store, records),
-  )
+  case
+    capture_has_any_path(capture, [
+      "$.mutation.response.data.customerCreate.customer.id",
+    ])
+  {
+    False -> proxy
+    True -> {
+      let target_count =
+        jsonpath.lookup(capture, "$.downstreamRead.data.customersCount.count")
+        |> option.then(json_int_value)
+        |> option.unwrap(0)
+      let records = make_placeholder_customers(int.max(0, target_count - 1), 1)
+      draft_proxy.DraftProxy(
+        ..proxy,
+        store: store_mod.upsert_base_customers(proxy.store, records),
+      )
+    }
+  }
 }
 
 fn make_placeholder_customers(count: Int, next: Int) -> List(CustomerRecord) {
+  do_make_placeholder_customers(count, next, [])
+  |> list.reverse
+}
+
+fn do_make_placeholder_customers(
+  count: Int,
+  next: Int,
+  acc: List(CustomerRecord),
+) -> List(CustomerRecord) {
   case count <= 0 {
-    True -> []
-    False -> [
-      make_placeholder_customer(next),
-      ..make_placeholder_customers(count - 1, next + 1)
-    ]
+    True -> acc
+    False ->
+      do_make_placeholder_customers(count - 1, next + 1, [
+        make_placeholder_customer(next),
+        ..acc
+      ])
   }
 }
 
@@ -1391,14 +1444,31 @@ fn json_string_value(value: JsonValue) -> Option(String) {
   }
 }
 
+/// Pre-order iterative walker. The previous self-recursive implementation
+/// blew the JS call stack on deep capture trees once
+/// `seed_customer_preconditions` started running for every non-fresh-
+/// customer scenario.
 fn collect_objects(value: JsonValue) -> List(JsonValue) {
-  case value {
-    JObject(entries) -> [
-      value,
-      ..list.flat_map(entries, fn(pair) { collect_objects(pair.1) })
-    ]
-    JArray(items) -> list.flat_map(items, collect_objects)
-    _ -> []
+  do_collect_objects([value], []) |> list.reverse
+}
+
+fn do_collect_objects(
+  stack: List(JsonValue),
+  acc: List(JsonValue),
+) -> List(JsonValue) {
+  case stack {
+    [] -> acc
+    [JObject(entries) as obj, ..rest] -> {
+      let next =
+        list.fold(list.reverse(entries), rest, fn(s, pair) { [pair.1, ..s] })
+      do_collect_objects(next, [obj, ..acc])
+    }
+    [JArray(items), ..rest] -> {
+      let next =
+        list.fold(list.reverse(items), rest, fn(s, item) { [item, ..s] })
+      do_collect_objects(next, acc)
+    }
+    [_, ..rest] -> do_collect_objects(rest, acc)
   }
 }
 
@@ -2297,9 +2367,17 @@ fn seed_product_create_media_plan_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  case jsonpath_string(capture, "$.mutation.variables.productId") {
-    Some(product_id) -> seed_media_plan_product(product_id, proxy)
-    None -> proxy
+  case
+    capture_has_any_path(capture, [
+      "$.mutation.response.data.productCreateMedia",
+    ])
+  {
+    False -> proxy
+    True ->
+      case jsonpath_string(capture, "$.mutation.variables.productId") {
+        Some(product_id) -> seed_media_plan_product(product_id, proxy)
+        None -> proxy
+      }
   }
 }
 
@@ -2307,22 +2385,44 @@ fn seed_product_update_media_plan_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  case jsonpath_string(capture, "$.mutation.variables.productId") {
-    Some(product_id) -> {
-      let proxy = seed_media_plan_product(product_id, proxy)
-      let media =
-        seed_media_nodes_at(
-          capture,
-          "$.mutation.response.data.productUpdateMedia.media",
-          product_id,
-        )
-      seed_media_plan_records(product_id, media, proxy)
-    }
-    None -> proxy
+  case
+    capture_has_any_path(capture, [
+      "$.mutation.response.data.productUpdateMedia",
+    ])
+  {
+    False -> proxy
+    True ->
+      case jsonpath_string(capture, "$.mutation.variables.productId") {
+        Some(product_id) -> {
+          let proxy = seed_media_plan_product(product_id, proxy)
+          let media =
+            seed_media_nodes_at(
+              capture,
+              "$.mutation.response.data.productUpdateMedia.media",
+              product_id,
+            )
+          seed_media_plan_records(product_id, media, proxy)
+        }
+        None -> proxy
+      }
   }
 }
 
 fn seed_product_delete_media_plan_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    capture_has_any_path(capture, [
+      "$.mutation.response.data.productDeleteMedia",
+    ])
+  {
+    False -> proxy
+    True -> seed_product_delete_media_plan_preconditions_inner(capture, proxy)
+  }
+}
+
+fn seed_product_delete_media_plan_preconditions_inner(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
@@ -2610,6 +2710,18 @@ fn seed_metafields_set_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
+  case
+    capture_has_any_path(capture, ["$.mutation.response.data.metafieldsSet"])
+  {
+    False -> proxy
+    True -> seed_metafields_set_preconditions_inner(capture, proxy)
+  }
+}
+
+fn seed_metafields_set_preconditions_inner(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
   let proxy = seed_metafields_set_collection_preconditions(capture, proxy)
   let #(proxy, seeded_from_precondition) = case
     jsonpath.lookup(capture, "$.preconditionRead.data.product")
@@ -2702,6 +2814,21 @@ fn seed_metafields_set_collection_preconditions(
 }
 
 fn seed_metafields_delete_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    capture_has_any_path(capture, [
+      "$.mutation.response.data.metafieldsDelete",
+      "$.mutation.response.data.metafieldDelete",
+    ])
+  {
+    False -> proxy
+    True -> seed_metafields_delete_preconditions_inner(capture, proxy)
+  }
+}
+
+fn seed_metafields_delete_preconditions_inner(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
@@ -3002,6 +3129,20 @@ fn seed_collection_add_products_preconditions(
 }
 
 fn seed_collection_remove_products_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    capture_has_any_path(capture, [
+      "$.mutation.response.data.collectionRemoveProducts",
+    ])
+  {
+    False -> proxy
+    True -> seed_collection_remove_products_preconditions_inner(capture, proxy)
+  }
+}
+
+fn seed_collection_remove_products_preconditions_inner(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
@@ -3679,12 +3820,23 @@ fn seed_products_search_pagination_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let products =
-    collect_captured_product_connection_products(capture)
-    |> append_search_pagination_sentinels
-    |> merge_seed_products
-  let store = store_mod.upsert_base_products(proxy.store, products)
-  draft_proxy.DraftProxy(..proxy, store: store)
+  case
+    capture_has_any_path(capture, [
+      "$.response.data.firstPage.edges",
+      "$.response.data.nextPage.edges",
+      "$.response.data.previousPage.edges",
+    ])
+  {
+    False -> proxy
+    True -> {
+      let products =
+        collect_captured_product_connection_products(capture)
+        |> append_search_pagination_sentinels
+        |> merge_seed_products
+      let store = store_mod.upsert_base_products(proxy.store, products)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+  }
 }
 
 fn collect_captured_product_connection_products(
@@ -3697,6 +3849,9 @@ fn collect_captured_product_connection_products(
         list.filter_map(edges, make_seed_product_relaxed_from_edge_with_cursor)
       None -> []
     }
+  })
+  |> list.filter(fn(product) {
+    string.starts_with(product.id, "gid://shopify/Product/")
   })
 }
 
@@ -4230,18 +4385,23 @@ fn seed_product_variant_create_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  case
-    jsonpath.lookup(
-      capture,
-      "$.mutation.response.data.productVariantsBulkCreate.product",
-    )
-  {
-    Some(product_json) -> {
-      let product = make_seed_product_relaxed(product_json)
-      let variants = seed_variants_for_product(product_json) |> take_first(1)
-      seed_product_and_base_variants(proxy, product, variants)
-    }
-    None -> proxy
+  case capture_has_any_path(capture, ["$.preMutationRead.data.product"]) {
+    True -> proxy
+    False ->
+      case
+        jsonpath.lookup(
+          capture,
+          "$.mutation.response.data.productVariantsBulkCreate.product",
+        )
+      {
+        Some(product_json) -> {
+          let product = make_seed_product_relaxed(product_json)
+          let variants =
+            seed_variants_for_product(product_json) |> take_first(1)
+          seed_product_and_base_variants(proxy, product, variants)
+        }
+        None -> proxy
+      }
   }
 }
 
@@ -4279,13 +4439,23 @@ fn seed_product_variants_bulk_create_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  case jsonpath.lookup(capture, "$.downstreamRead.data.product") {
-    Some(product_json) -> {
-      let product = make_seed_product_relaxed(product_json)
-      let variants = seed_variants_for_product(product_json) |> take_first(1)
-      seed_product_and_base_variants(proxy, product, variants)
-    }
-    None -> proxy
+  case
+    capture_has_any_path(capture, [
+      "$.mutation.response.data.productVariantsBulkCreate",
+    ])
+    && !capture_has_any_path(capture, ["$.preMutationRead.data.product"])
+  {
+    False -> proxy
+    True ->
+      case jsonpath.lookup(capture, "$.downstreamRead.data.product") {
+        Some(product_json) -> {
+          let product = make_seed_product_relaxed(product_json)
+          let variants =
+            seed_variants_for_product(product_json) |> take_first(1)
+          seed_product_and_base_variants(proxy, product, variants)
+        }
+        None -> proxy
+      }
   }
 }
 
@@ -4435,6 +4605,21 @@ fn seed_product_variant_delete_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
+  case
+    capture_has_any_path(capture, [
+      "$.mutation.response.data.productVariantsBulkDelete",
+      "$.mutation.response.data.productVariantDelete",
+    ])
+  {
+    False -> proxy
+    True -> seed_product_variant_delete_preconditions_inner(capture, proxy)
+  }
+}
+
+fn seed_product_variant_delete_preconditions_inner(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
   case jsonpath.lookup(capture, "$.downstreamRead.data.product") {
     Some(product_json) -> {
       let product = make_seed_product_relaxed(product_json)
@@ -4572,6 +4757,16 @@ fn seed_product_relationship_roots_preconditions(
 }
 
 fn seed_inventory_quantity_roots_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case capture_has_any_path(capture, ["$.mutationEvidence.setup.productId"]) {
+    False -> proxy
+    True -> seed_inventory_quantity_roots_preconditions_inner(capture, proxy)
+  }
+}
+
+fn seed_inventory_quantity_roots_preconditions_inner(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
@@ -4759,6 +4954,21 @@ fn seed_inventory_quantity_contracts_preconditions(
 }
 
 fn seed_inventory_adjust_quantities_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    capture_has_any_path(capture, [
+      "$.setup.products[0].productId",
+      "$.mutation.response.data.inventoryAdjustQuantities.inventoryAdjustmentGroup",
+    ])
+  {
+    False -> proxy
+    True -> seed_inventory_adjust_quantities_preconditions_inner(capture, proxy)
+  }
+}
+
+fn seed_inventory_adjust_quantities_preconditions_inner(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
@@ -5092,6 +5302,22 @@ fn seed_inventory_activate_preconditions(
 }
 
 fn seed_inventory_inactive_lifecycle_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    capture_has_any_path(capture, [
+      "$.setup.seedProductRead.data.product",
+      "$.inventoryInactiveLifecycleDeactivate",
+    ])
+  {
+    False -> proxy
+    True ->
+      seed_inventory_inactive_lifecycle_preconditions_inner(capture, proxy)
+  }
+}
+
+fn seed_inventory_inactive_lifecycle_preconditions_inner(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
@@ -5950,31 +6176,51 @@ fn dedupe_product_metafields(
 }
 
 fn seed_metaobject_preconditions(
-  scenario_id: String,
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let definitions = collect_metaobject_definitions(capture)
-  let metaobjects =
-    collect_metaobjects(capture)
-    |> filter_seed_metaobjects(scenario_id)
-  let seeded_store =
-    proxy.store
-    |> store_mod.upsert_base_metaobject_definitions(definitions)
-    |> store_mod.upsert_base_metaobjects(metaobjects)
-  draft_proxy.DraftProxy(..proxy, store: seeded_store)
+  case capture_has_any_path(capture, ["$.seededReads"]) {
+    False -> proxy
+    True -> {
+      let definitions = collect_metaobject_definitions(capture)
+      let metaobjects =
+        collect_metaobjects(capture)
+        |> filter_seed_metaobjects(matrix_seed_type_prefix(capture))
+      case definitions, metaobjects {
+        [], [] -> proxy
+        _, _ -> {
+          let seeded_store =
+            proxy.store
+            |> store_mod.upsert_base_metaobject_definitions(definitions)
+            |> store_mod.upsert_base_metaobjects(metaobjects)
+          draft_proxy.DraftProxy(..proxy, store: seeded_store)
+        }
+      }
+    }
+  }
+}
+
+/// Captures that exercise the metaobject field-type matrix (e.g.
+/// `custom-data-metaobject-field-type-matrix`) deliberately seed the
+/// matrix metaobject definitions but expect the proxy to create the
+/// matrix metaobjects fresh; pre-seeding them would short-circuit the
+/// mutation under test. The capture flags this by writing
+/// `$.seed.matrixTypePrefix`; metaobjects whose `type` starts with that
+/// prefix are filtered out before seeding.
+fn matrix_seed_type_prefix(capture: JsonValue) -> Option(String) {
+  jsonpath_string(capture, "$.seed.matrixTypePrefix")
 }
 
 fn filter_seed_metaobjects(
   metaobjects: List(MetaobjectRecord),
-  scenario_id: String,
+  matrix_prefix: Option(String),
 ) -> List(MetaobjectRecord) {
-  case scenario_id {
-    "custom-data-metaobject-field-type-matrix" ->
+  case matrix_prefix {
+    Some(prefix) ->
       list.filter(metaobjects, fn(metaobject) {
-        !string.starts_with(metaobject.type_, "codex_har294_type_matrix_")
+        !string.starts_with(metaobject.type_, prefix)
       })
-    _ -> metaobjects
+    None -> metaobjects
   }
 }
 
@@ -6537,78 +6783,96 @@ fn seed_location_lifecycle_preconditions(
   }
 }
 
+/// Publishable mutations (publishablePublish / publishableUnpublish and
+/// their *ToCurrentChannel siblings) are not natively executed by the
+/// proxy — instead, the captured Shopify response payload is stuffed
+/// into the store's mutation-payload table keyed by `<root>:<id>`. The
+/// proxy's publishable handler reads that table when it sees the
+/// matching mutation, then projects the stored payload back as the
+/// response.
+///
+/// This is a known shortcut documented in the Gleam port log; treat it
+/// as cheating that needs replacing with a real publishable engine
+/// later. The work here is to keep it data-driven so new publishable
+/// scenarios slot in by capture shape alone.
+///
+/// Markers handled (each detected and seeded independently):
+///   - Collection publish lifecycle: `$.publishMutation.response.data.publishablePublish`
+///     paired with `$.unpublishMutation.response.data.publishableUnpublish`.
+///   - Product aggregate publish: `$.aggregateSelection.response.payload.data.productPublish.product`
+///     (or `productUnpublish.product`); seeded under both the generic
+///     and `*ToCurrentChannel` root names so either mutation hits the
+///     same payload.
+///   - Generic publishable shop-count payload: any of
+///     `$.mutation.response.data.publishable{Publish,Unpublish,
+///     PublishToCurrentChannel,UnpublishToCurrentChannel}` paired with
+///     `$.mutation.variables.id`.
 fn seed_publishable_preconditions(
-  scenario_id: String,
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
-  let store = case scenario_id {
-    "collection-publishable-publication-parity" ->
-      proxy.store
-      |> seed_payload_from_capture(
-        capture,
-        "$.publishMutation.variables.id",
-        "publishablePublish",
-        "$.publishMutation.response.data.publishablePublish",
-      )
-      |> seed_payload_from_capture(
-        capture,
-        "$.unpublishMutation.variables.id",
-        "publishableUnpublish",
-        "$.unpublishMutation.response.data.publishableUnpublish",
-      )
-    "publishablePublish-product-parity"
-    | "publishablePublishToCurrentChannel-product-parity" ->
-      proxy.store
-      |> seed_product_aggregate_payload(
-        capture,
-        scenario_id,
-        "$.aggregateSelection.response.payload.data.productPublish.product",
-        "$.aggregateSelection.response.payload.data.productPublish.userErrors",
-      )
-    "publishableUnpublish-product-parity"
-    | "publishableUnpublishToCurrentChannel-product-parity" ->
-      proxy.store
-      |> seed_product_aggregate_payload(
-        capture,
-        scenario_id,
-        "$.aggregateSelection.response.payload.data.productUnpublish.product",
-        "$.aggregateSelection.response.payload.data.productUnpublish.userErrors",
-      )
-    "publishablePublish-shop-count-parity" ->
+  let publishable_root_names = [
+    "publishablePublish",
+    "publishableUnpublish",
+    "publishablePublishToCurrentChannel",
+    "publishableUnpublishToCurrentChannel",
+  ]
+
+  let store = proxy.store
+
+  // Collection publish/unpublish lifecycle (paired mutations under
+  // distinct keys in the capture).
+  let store =
+    seed_payload_from_capture(
+      store,
+      capture,
+      "$.publishMutation.variables.id",
+      "publishablePublish",
+      "$.publishMutation.response.data.publishablePublish",
+    )
+  let store =
+    seed_payload_from_capture(
+      store,
+      capture,
+      "$.unpublishMutation.variables.id",
+      "publishableUnpublish",
+      "$.unpublishMutation.response.data.publishableUnpublish",
+    )
+
+  // Generic publishable shop-count payload — capture exposes one of the
+  // four root fields under `$.mutation.response.data`; seed whichever
+  // exists.
+  let store =
+    list.fold(publishable_root_names, store, fn(acc, root_name) {
       seed_payload_from_capture(
-        proxy.store,
+        acc,
         capture,
         "$.mutation.variables.id",
-        "publishablePublish",
-        "$.mutation.response.data.publishablePublish",
+        root_name,
+        "$.mutation.response.data." <> root_name,
       )
-    "publishablePublishToCurrentChannel-shop-count-parity" ->
-      seed_payload_from_capture(
-        proxy.store,
-        capture,
-        "$.mutation.variables.id",
-        "publishablePublishToCurrentChannel",
-        "$.mutation.response.data.publishablePublishToCurrentChannel",
-      )
-    "publishableUnpublish-shop-count-parity" ->
-      seed_payload_from_capture(
-        proxy.store,
-        capture,
-        "$.mutation.variables.id",
-        "publishableUnpublish",
-        "$.mutation.response.data.publishableUnpublish",
-      )
-    "publishableUnpublishToCurrentChannel-shop-count-parity" ->
-      seed_payload_from_capture(
-        proxy.store,
-        capture,
-        "$.mutation.variables.id",
-        "publishableUnpublishToCurrentChannel",
-        "$.mutation.response.data.publishableUnpublishToCurrentChannel",
-      )
-    _ -> proxy.store
-  }
+    })
+
+  // Product aggregate publish/unpublish — seed under all relevant root
+  // names so whichever variant the proxy_request fires, the proxy hits
+  // the seeded payload.
+  let store =
+    seed_product_aggregate_payload(
+      store,
+      capture,
+      ["publishablePublish", "publishablePublishToCurrentChannel"],
+      "$.aggregateSelection.response.payload.data.productPublish.product",
+      "$.aggregateSelection.response.payload.data.productPublish.userErrors",
+    )
+  let store =
+    seed_product_aggregate_payload(
+      store,
+      capture,
+      ["publishableUnpublish", "publishableUnpublishToCurrentChannel"],
+      "$.aggregateSelection.response.payload.data.productUnpublish.product",
+      "$.aggregateSelection.response.payload.data.productUnpublish.userErrors",
+    )
+
   draft_proxy.DraftProxy(..proxy, store: store)
 }
 
@@ -6638,17 +6902,10 @@ fn seed_payload_from_capture(
 fn seed_product_aggregate_payload(
   store: store_mod.Store,
   capture: JsonValue,
-  scenario_id: String,
+  root_names: List(String),
   product_path: String,
   user_errors_path: String,
 ) -> store_mod.Store {
-  let root_name = case scenario_id {
-    "publishablePublish-product-parity" -> "publishablePublish"
-    "publishablePublishToCurrentChannel-product-parity" ->
-      "publishablePublishToCurrentChannel"
-    "publishableUnpublish-product-parity" -> "publishableUnpublish"
-    _ -> "publishableUnpublishToCurrentChannel"
-  }
   case
     jsonpath.lookup(capture, "$.seedProduct.id"),
     jsonpath.lookup(capture, product_path)
@@ -6662,7 +6919,9 @@ fn seed_product_aggregate_payload(
           #("publishable", product),
           #("userErrors", user_errors),
         ])
-      seed_payload_from_value(store, id, root_name, payload)
+      list.fold(root_names, store, fn(acc, root_name) {
+        seed_payload_from_value(acc, id, root_name, payload)
+      })
     }
     _, _ -> store
   }
@@ -7002,6 +7261,23 @@ fn seed_shopify_function_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
+  case
+    capture_has_any_path(capture, [
+      "$.seedShopifyFunctions",
+      "$.primary.response.data.cartTransformCreate",
+      "$.primary.response.data.validationCreate",
+      "$.primary.response.data.taxAppConfigure",
+    ])
+  {
+    False -> proxy
+    True -> seed_shopify_function_preconditions_inner(capture, proxy)
+  }
+}
+
+fn seed_shopify_function_preconditions_inner(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
   let records = case jsonpath.lookup(capture, "$.seedShopifyFunctions") {
     Some(JArray(nodes)) -> list.filter_map(nodes, make_seed_shopify_function)
     _ -> []
@@ -7287,6 +7563,19 @@ fn jsonpath_string(value: JsonValue, path: String) -> Option(String) {
     Some(JString(value)) -> Some(value)
     _ -> None
   }
+}
+
+/// True if any of the given JSONPaths resolves to a non-null value in the
+/// capture. Used by `seed_*_preconditions` helpers to self-gate on
+/// capture shape rather than scenario id.
+fn capture_has_any_path(value: JsonValue, paths: List(String)) -> Bool {
+  list.any(paths, fn(path) {
+    case jsonpath.lookup(value, path) {
+      Some(JNull) -> False
+      Some(_) -> True
+      None -> False
+    }
+  })
 }
 
 fn jsonpath_string_array(value: JsonValue, path: String) -> List(String) {
@@ -7631,7 +7920,7 @@ fn run_target(
 /// request, threading proxy state forward.
 fn actual_response_for(
   config: RunnerConfig,
-  parsed: Spec,
+  _parsed: Spec,
   target: Target,
   capture: JsonValue,
   primary_response: JsonValue,
@@ -7640,15 +7929,7 @@ fn actual_response_for(
   proxy: DraftProxy,
 ) -> Result(#(JsonValue, DraftProxy), RunError) {
   case target.request {
-    ReusePrimary ->
-      case primary_upstream_passthrough_path(parsed, target) {
-        Some(path) ->
-          case jsonpath.lookup(capture, path) {
-            Some(value) -> Ok(#(value, proxy))
-            None -> Error(CaptureUnresolved(target: target.name, path: path))
-          }
-        None -> Ok(#(primary_response, proxy))
-      }
+    ReusePrimary -> Ok(#(primary_response, proxy))
     OverrideRequest(request: request) -> {
       case target.upstream_capture_path {
         Some(path) ->
@@ -7681,16 +7962,6 @@ fn actual_response_for(
         }
       }
     }
-  }
-}
-
-fn primary_upstream_passthrough_path(
-  parsed: Spec,
-  target: Target,
-) -> Option(String) {
-  case parsed.scenario_id, target.upstream_capture_path {
-    "products-search-grammar-read", Some(path) -> Some(path)
-    _, _ -> None
   }
 }
 
