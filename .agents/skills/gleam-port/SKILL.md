@@ -454,6 +454,337 @@ broad synthetic-id/timestamp expected differences.
   selection, and mobile app create inputs may be nested under `android`.
   Article metafield inputs need Shopify-shaped `ownerType` and `jsonValue`
   fields for read-after-write parity.
+- Orders abandonment parity can start with the safe abandoned-checkout slice:
+  `abandonedCheckouts`, `abandonedCheckoutsCount`, `abandonment`,
+  `abandonmentByAbandonedCheckoutId`, and
+  `abandonmentUpdateActivitiesDeliveryStatuses`. Keep this dispatch predicate
+  narrow until draft orders, order lifecycle, fulfillments, refunds, and returns
+  have their own executable parity. Unknown-abandonment delivery status updates
+  are a handled local validation branch with a `Failed` mutation-log draft, not
+  a reason to claim broader orders mutation support.
+- Orders access-denied guardrails may be ported when the checked-in capture
+  proves Shopify returns a top-level `ACCESS_DENIED` error plus a selected null
+  root payload. Keep these documented as guardrails, not full lifecycle support:
+  `orderCreateManualPayment` unknown/non-local order access denial does not
+  imply local synthetic-order payment success is ported, and `taxSummaryCreate`
+  access denial does not imply tax-app success semantics are ported.
+- Draft-order create parity can start with raw captured `DraftOrderRecord`
+  staging plus a tiny variant catalog seed derived from the captured created
+  line items. Preserve Shopify's split between line-item `sku`,
+  line-item `variantTitle`, and nested `variant.sku`: default-title variants
+  render `variantTitle` as null, line-item `sku` may be `""`, and nested
+  variant `sku` may still be null.
+- Draft-order create validation should run before minting IDs or staging draft
+  orders. Preserve Shopify's no-line-items precedence, nullable
+  `userErrors.field`, current-time reserve-inventory check, and failed
+  mutation-log drafts for rejected payloads. Payment terms inside
+  `draftOrderCreate` are validation guardrails only; successful payment-terms
+  lifecycle remains owned by the payment terms roots.
+- Standalone draft-order read parity can seed `$.response.data.draftOrder` into
+  base draft-order state as captured JSON. Keep this scenario-specific until
+  the draft-order lifecycle roots prove which normalized fields and indexes are
+  truly needed.
+- Draft-order catalog/count parity can seed captured `draftOrders.edges` into
+  base draft-order state with preserved edge cursors. When a captured response
+  proves there are more records than selected edges, append placeholder records
+  after the captured window so `pageInfo.hasNextPage` and
+  `draftOrdersCount.count` match without exposing fabricated records in the
+  selected page. Invalid `email:` search on `draftOrders`/`draftOrdersCount`
+  returns Shopify search warning extensions while leaving the catalog
+  unfiltered.
+- `draftOrderCreateFromOrder` can be ported narrowly before a general order
+  store exists by finding the source order embedded on a completed
+  `DraftOrderRecord`. Seed parity from the setup `draftOrderCreate` payload,
+  then overlay the setup `draftOrderComplete.order` so the source draft keeps
+  fields such as email while the embedded order carries line-item prices. The
+  new draft should reset to open/ready, clear shipping and discounts, allocate
+  fresh draft/draft-line-item IDs, and recalculate totals from order line-item
+  unit prices.
+- The first standalone `order(id:)` read slice can use a narrow
+  `OrderRecord` store bucket seeded from captured detail payloads and projected
+  with `project_graphql_value`. Add dump/restore serialization with the new
+  bucket immediately, return `null` for missing IDs, and keep `orders`
+  connections/counts/search plus order lifecycle mutations gated until their
+  own executable parity slices are modeled.
+- Initial `orders`/`ordersCount` parity can reuse the `OrderRecord` bucket.
+  Seed captured catalog edges with preserved cursors and pad placeholder orders
+  after the captured window when `ordersCount` proves there are more rows than
+  selected edges. For sparse legacy captures, serialize connection nodes from
+  fields actually present on the captured payload so strict parity does not
+  invent `null` properties that Shopify did not record. This is still not order
+  search/filter/count-limit parity or lifecycle mutation support.
+- Order catalog search/count-limit parity should use the shared
+  `search_query_parser` with an order-specific positive-term matcher rather
+  than a resource-local parser. Keep matching limited to captured/proven fields
+  such as `tag`, `name`, `financial_status`, and `fulfillment_status`; when a
+  node-based capture has no edge cursors, derive raw cursors from the captured
+  connection `pageInfo` windows and store them on `OrderRecord` rows.
+- `orderCreate` no-line-items validation is a payload user-error branch, not a
+  top-level GraphQL validation error: return `order: null`, field
+  `["order", "lineItems"]`, and do not stage an order, mint IDs, or append a
+  mutation-log draft. Keep this as a guardrail until successful direct-order
+  creation and downstream state effects are ported together.
+- `orderUpdate` unknown-id validation is also a payload user-error branch:
+  return `order: null`, field `["id"]`, and message `Order does not exist`.
+  Make the guardrail effective-store aware so it can later distinguish missing
+  orders from locally staged orders when success behavior is ported.
+- Existing-order lifecycle roots `orderOpen` and `orderClose` can stage over a
+  captured `OrderRecord` without claiming direct `orderCreate` support. Preserve
+  captured order fields, update only lifecycle timestamps/closed state, append a
+  mutation-log draft, and seed parity fixtures from
+  `$.mutation.response.data.<root>.order` so downstream `order(id:)` reads see
+  the staged state.
+- `orderCancel` is asynchronous in the captured parity slice: the mutation
+  payload may only expose empty `orderCancelUserErrors`, while cancellation is
+  verified through a downstream `order(id:)` read. Seed from
+  `$.downstreamRead.response.data.order`, stage `closed`, `closedAt`,
+  `cancelledAt`, and `cancelReason` locally, and keep broader canceled-order
+  interaction rules gated until their fixtures are executable.
+- `orderInvoiceSend` can be a no-state-change payload slice when the checked-in
+  comparison only asserts returned order id and empty user errors. Seed from
+  `$.mutation.response.data.orderInvoiceSend.order`, serialize the captured
+  order, and do not claim email delivery semantics or notification side effects.
+- `orderCustomerSet`/`orderCustomerRemove` are owned by the Customers domain in
+  the current Gleam port because they drive Customer.orders/lastOrder summary
+  effects. For Orders parity specs, seed customers plus customer order summaries
+  from the capture; do not also register these roots in the Orders dispatch
+  table or customer order-summary parity will route to the wrong domain.
+- `orderMarkAsPaid` can be ported as a narrow existing-order payment state
+  slice: validate `input.id`, stage `displayFinancialStatus: PAID`,
+  `paymentGatewayNames: ["manual"]`, zero `totalOutstandingSet`, and one manual
+  successful SALE transaction from the outstanding/current total amount. If the
+  seeded order is already paid, serialize it unchanged to avoid duplicate
+  transactions in captured parity fixtures.
+- `orderUpdate` success parity is a bounded existing-order field update slice,
+  not order creation or edit-session coverage. Seed from
+  `$.downstreamRead.response.data.order`, keep the nested `input.id`
+  validation guardrails, stage simple captured fields (`email`, `poNumber`,
+  `note`, sorted `tags`, `customAttributes`, `shippingAddress`, and order
+  metafields), and preserve existing metafield ids by namespace/key when the
+  capture updates an already-present metafield.
+- Fulfillment cancel/tracking update success parity can be handled as
+  existing-fulfillment updates inside captured Order state. Seed from
+  `$.downstreamRead.response.data.order`, preserve the existing validation
+  guardrails, stage tracking-info replacement or cancel status/display status
+  on the matching fulfillment, and keep fulfillment creation/fulfillment-order
+  workflows gated until their full state effects are modeled.
+- Draft-order validation guardrails such as `draftOrderComplete` required-`id`
+  branches should stay documented as guardrails. Do not treat omitted/null
+  argument parity as evidence that completion, payment, source-name handling, or
+  downstream Order materialization is ported.
+- Fulfillment validation guardrails for `fulfillmentCancel` and
+  `fulfillmentTrackingInfoUpdate` can share the required-argument validator, but
+  keep the root-specific argument name exact (`id` vs. `fulfillmentId`). Do not
+  treat these branches as fulfillment lifecycle support; happy paths still need
+  local fulfillment state, order downstream visibility, and mutation-log effects.
+- `orderCreate` missing-order validation can use the same top-level required
+  argument helper with `OrderCreateOrderInput!`. Keep the direct-order happy
+  path gated until local order state, payment/transaction effects, inventory
+  bypass, and downstream reads are implemented.
+- `orderUpdate` missing-id validation is nested inside `OrderInput`, not a
+  top-level required argument. Mirror Shopify's error message/extensions for
+  inline missing/null `input.id` and variable-backed missing id without treating
+  update success, downstream reads, or timestamp behavior as ported.
+- Order-edit missing-id validation for `orderEditBegin`,
+  `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` can use
+  the shared top-level required-argument helper with `ID!`. Keep the edit
+  session lifecycle, calculated edits, commit effects, and downstream order
+  reads gated until those state transitions are modeled together.
+- `fulfillmentCreate` invalid fulfillment-order id is a GraphQL
+  `RESOURCE_NOT_FOUND` error with `data.fulfillmentCreate: null`, not a
+  `userErrors` payload. Treat this as a guardrail only; successful fulfillment
+  creation still needs local fulfillment-order state and downstream order
+  fulfillment visibility.
+- `draftOrderDelete` should delete from staged draft-order state and add a
+  deleted-id marker so downstream `draftOrder(id:)` reads return null even when
+  the draft was seeded in base state. Keep duplicate/update/complete success
+  paths separate until their own parity fixtures are executable.
+- `draftOrderUpdate` parity can seed the setup draft order from
+  `$.setup.draftOrderCreate.mutation.response.data.draftOrderCreate.draftOrder`
+  as captured JSON, then stage field-level updates over that record. Preserve
+  captured stable fields such as id/name/invoice URL/customer/addresses, and
+  recalculate money totals from effective line items, order discount, and
+  shipping line before serializing downstream `draftOrder(id:)` reads.
+- `draftOrderDuplicate` parity uses the same captured setup draft-order seed
+  path, then creates a new staged draft and fresh line-item ids. Shopify's
+  duplicate clears source shipping, order-level discount, line-item discounts,
+  `taxExempt`, and `reserveInventoryUntil`; recalculate totals from the
+  cleared duplicate rather than copying source totals.
+- `draftOrderComplete` parity seeds the captured setup draft-order, then marks
+  that same draft `COMPLETED` and attaches a nested synthetic order on the
+  staged draft. Preserve the TS normalization where any non-null completion
+  `sourceName` becomes `347082227713`, `paymentPending: false` maps to
+  `paymentGatewayNames: ["manual"]` and `displayFinancialStatus: "PAID"`, and
+  order line-item ids are fresh `LineItem` gids while draft line-item ids remain
+  unchanged.
+- `draftOrderInvoiceSend` parity is currently a safety/validation slice only.
+  Seed the captured no-recipient open/completed draft states, leave deleted ids
+  unseeded so they behave as not found, serialize user-error `field` as nullable
+  when Shopify returns `null`, and do not mutate staged draft-order state or
+  claim recipient-backed email-send success behavior.
+- Residual draft-order helper roots can be handled as a coherent local helper
+  slice once `draftOrderCreate` exists. Keep delivery options as Shopify's empty
+  no-data shape, make `draftOrderCalculate` serialize calculate-shaped line item
+  lists instead of stored connection nodes, make invoice preview safe/local
+  without sending email, and let bulk tag/delete helpers return deterministic
+  async `Job` payloads while immediately staging local draft-order tag/delete
+  read-after-write effects.
+- `refundCreate` over-refund parity is a validation guardrail, not refund
+  lifecycle support. Seed from `$.setup.orderCreate.response.data.orderCreate.order`
+  when the error text depends on the original `totalPriceSet`; downstream reads
+  alone may not include that money field. Shopify returns `refund: null`,
+  `userErrors.field: null`, and leaves refunds/returns/order totals unchanged.
+- `refundCreate` success parity can be handled as an existing captured-order
+  staging slice. Seed from the setup `orderCreate` order so line-item prices,
+  shipping lines, sale transactions, and order total are available. When a
+  refund transaction amount is present, use it for the refund total; compute
+  `totalRefundedShippingSet` from the shipping input. Shopify's captured
+  `NO_RESTOCK` refund line item has `subtotalSet` `0.0`, while `RETURN` uses
+  unit price times refunded quantity. Append the synthetic refund transaction
+  to order transactions, append the refund to `order.refunds`, preserve the
+  empty returns connection, and mark the order `REFUNDED` only once the total
+  refunded amount reaches the order total.
+- `orderEditBegin` existing-order parity can be promoted independently from
+  add/set/commit only because the checked-in begin spec compares the stable
+  `calculatedOrder.originalOrder` and empty `userErrors` target. Seed from
+  `$.seedOrder`, mint a synthetic `CalculatedOrder` id and derived
+  `OrderEditSession` id, and clone selected order line-item fields for payload
+  shape. Do not treat this as calculated-order session lifecycle support until
+  add-variant, set-quantity, commit, and downstream order effects persist
+  through local state.
+- `orderEditAddVariant` can be promoted as a payload-only slice when the
+  parity spec compares just the stable `calculatedLineItem`, empty
+  `userErrors`, and `OrderEditSession` GID type. Seed the same `$.seedOrder`
+  begin precondition plus captured `seedProducts`; derive the session id from
+  the calculated-order id input; use product title, variant SKU/id, quantity,
+  and normalized variant price for the calculated line. Keep set/commit
+  persistence and downstream order effects gated until calculated-edit state is
+  modeled.
+- `orderEditSetQuantity` can also be promoted as a payload-only slice when the
+  parity spec compares just the stable zero-quantity `calculatedLineItem` and
+  empty `userErrors`. Seed `$.seedOrder`; map the synthetic
+  `CalculatedLineItem/N` id from the begin payload back to the captured order
+  line item by index; override `quantity` and `currentQuantity` in the payload.
+  Treat this as a bridge for the checked-in payload spec, not persistent
+  calculated-edit state or commit/downstream order support.
+- `orderEditAddVariant` validation parity uses the same `$.seedOrder` begin
+  precondition plus captured `seedProducts`. Shopify returns an in-payload
+  `variantId` user error for `gid://shopify/ProductVariant/0` with null
+  calculated objects/session, while the captured duplicate existing variant
+  path still returns a calculated line item. Keep this as validation/payload
+  coverage, not commit support.
+- Direct `orderCreate` parity should build the staged order from resolved
+  `OrderCreateOrderInput` rather than from fixture copies. Preserve Shopify's
+  direct-order normalization: mint `Order` before timestamps and line/transaction
+  ids, sort tags lexicographically, keep line-item `presentmentMoney`, compute
+  current total as subtotal plus shipping plus tax minus fixed discount, and
+  expose downstream `order(id:)` from the staged order. Payment transaction
+  lifecycle roots still need their own local state transitions before their
+  parity specs can be ungated.
+- Order payment lifecycle parity (`orderCapture`, `transactionVoid`,
+  `orderCreateMandatePayment`) is housed in the Orders module even though the
+  registry domain is `payments`, because the local state transitions mutate
+  staged `OrderRecord` JSON. Preserve mutation-log synthetic-id consumption:
+  primary `orderCreate` and failed validation branches return log drafts, so
+  later transaction, payment, payment-reference, and job ids match the
+  local-runtime fixtures. Store mandate idempotency records as hidden captured
+  JSON on the staged order; selected order reads naturally ignore that
+  bookkeeping.
+- Existing-order `orderEditCommit` parity persists calculated edit sessions as
+  hidden captured JSON on the staged order, not as a broad store slice. Begin
+  stages the session, add/set update it, and commit applies it back onto the
+  original order before removing the hidden session. Existing line items keep
+  historical `quantity` while `currentQuantity` changes; added calculated lines
+  become downstream order line items. Seed every commit workflow scenario ID in
+  the parity runner, because begin/add/set can otherwise fail before commit
+  behavior is exercised.
+- Residual order-edit calculated roots (`orderEditAddCustomItem`,
+  `orderEditAddLineItemDiscount`, `orderEditRemoveDiscount`,
+  `orderEditAddShippingLine`, `orderEditUpdateShippingLine`,
+  `orderEditRemoveShippingLine`) also reuse hidden staged-order session JSON.
+  Keep the claimed behavior to pre-commit calculated-order state unless a spec
+  proves downstream commit effects for those root families. Recalculate
+  selected totals from session line items, discounts, and shipping lines; the
+  residual spec excludes Shopify-allocated calculated ids.
+- Return lifecycle staging is order-backed captured JSON rather than a new
+  broad store slice. Seed the fixture's fulfilled source order in the parity
+  runner, stage returns on the `OrderRecord.data` payload, and use custom
+  serializers for `Return`, `ReturnLineItem`, reverse fulfillment order
+  connections, top-level `return(id:)`, and nested `Order.returns`. Emit log
+  drafts for each return lifecycle mutation; the local-runtime fixture's later
+  return IDs depend on mutation-log synthetic-id consumption between requests.
+  Preserve timestamp order from the TypeScript runtime: `returnClose.closedAt`
+  is minted before the enclosing order `updatedAt`.
+- `removeFromReturn` mutates the same order-backed return JSON. Remove or
+  decrement return line items first, recompute `totalQuantity`, then resync
+  every reverse fulfillment order's line-item array from the remaining return
+  line items. Preserve existing reverse fulfillment line IDs when the
+  corresponding return line remains; only mint a new reverse line ID if a
+  future fixture introduces a retained return line that lacks a reverse line.
+- `returnDeclineRequest` is a narrow requested-return state transition. Read
+  `input.id`, require the target return's status to be `REQUESTED`, then stage
+  `status: DECLINED` and a `decline` object with nullable captured `reason` and
+  `note`. Do not model notification delivery; the local-runtime parity scenario
+  asserts only the staged return payload and no upstream passthrough.
+- Reverse logistics stays on the order-backed return JSON. `returnApproveRequest`
+  converts a `REQUESTED` return to `OPEN` and creates reverse fulfillment order
+  state; reverse delivery create/update then mutates that reverse order's
+  `reverseDeliveries`; disposition mutates reverse fulfillment order line
+  fields; `returnProcess` persists processed quantities and a closed return
+  while returning the captured pre-close payload status. Serializers must expose
+  both local and live-recorded field families (`company`/`carrierName`,
+  `dispositionType`/`dispositions`, top-level `reverseDelivery` and
+  `reverseFulfillmentOrder`) from the same captured reverse-order model.
+- Direct `orderDelete` uses the normal staged-delete collection pattern:
+  remove any staged order, write a staged deleted-id tombstone, and let
+  `get_order_by_id` / `list_effective_orders` suppress both staged and base
+  records. The mutation payload has only `deletedId` and `userErrors`; a repeat
+  delete returns `deletedId: null` with `field: ["orderId"]` rather than
+  throwing or proxying upstream.
+- Fulfillment creation/event support is order-backed. Resolve
+  `lineItemsByFulfillmentOrder.fulfillmentOrderId` against the local order's
+  captured `fulfillmentOrders`, mint a `Fulfillment`, mint selected
+  `FulfillmentLineItem` nodes from the fulfillment-order line items, close the
+  source fulfillment order locally, and append the fulfillment to the owning
+  order. `fulfillmentEventCreate` appends event nodes to the fulfillment's
+  connection-shaped `events` field and updates display/timestamp fields such as
+  `IN_TRANSIT`/`inTransitAt`. Keep external shipping notifications and carrier
+  side effects out of the local model.
+- Fulfillment-order lifecycle support is order-backed and intentionally local.
+  `fulfillmentOrderHold` splits requested line-item quantities, keeps the held
+  order under the original ID with `ON_HOLD` + `fulfillmentHolds`, and appends
+  an `OPEN` remaining fulfillment order when quantities remain.
+  `manualHoldsFulfillmentOrders` lists held local orders; top-level
+  `fulfillmentOrders` filters closed orders unless `includeClosed` is true.
+  `fulfillmentOrderReleaseHold` must merge split sibling quantities back into
+  the released order and close the sibling so downstream supported actions
+  regain `SPLIT`. `fulfillmentOrderMove` creates a moved replacement order and
+  leaves the original as the remaining order for partial moves; progress/open
+  are status transitions; cancel closes the target and appends an open
+  replacement. Keep reschedule/close as captured guardrail payloads until a
+  success path has executable evidence.
+- Fulfillment-order split/deadline/merge roots build on the same order-backed
+  graph. `fulfillmentOrderSplit` keeps the original fulfillment order and line
+  item IDs for the reduced original quantity, mints a replacement fulfillment
+  order plus split line-item ID for the split-off quantity, and stores a
+  `supportedActions` override containing `MERGE`. `fulfillmentOrdersSetFulfillmentDeadline`
+  mutates `fulfillBy` on every requested local fulfillment order and should
+  validate that all IDs exist before staging. `fulfillmentOrderMerge` targets
+  the first merge intent, sums quantities by source line item, preserves the
+  target line-item ID, carries forward the first `fulfillBy`, and closes merged
+  sibling fulfillment orders with zeroed line items.
+- Fulfillment-order request lifecycle roots are also order-backed.
+  `fulfillmentOrderSubmitFulfillmentRequest` splits partially requested
+  line-item quantities, stores a `FULFILLMENT_REQUEST` merchant request,
+  leaves the submitted fulfillment order at the original ID, and mints a new
+  unsubmitted fulfillment order for leftovers. Accept/reject fulfillment
+  requests transition `requestStatus`; cancellation submit appends a
+  `CANCELLATION_REQUEST`; cancellation accept closes and zeroes line items;
+  cancellation reject returns to `IN_PROGRESS` with
+  `CANCELLATION_REJECTED`. Serialize `merchantRequests` as a connection, not
+  as a raw captured array. `assignedFulfillmentOrders` is now local readback;
+  use a different implemented-but-unported sentinel such as
+  `fulfillmentService`.
 
 ## Workflow for a new pass
 
