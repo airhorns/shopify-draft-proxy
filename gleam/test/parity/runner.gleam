@@ -39,12 +39,13 @@ import shopify_draft_proxy/proxy/draft_proxy.{
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type CollectionImageRecord, type CollectionRecord,
-  type CollectionRuleRecord, type CollectionRuleSetRecord,
-  type CustomerAccountPageRecord, type CustomerAddressRecord,
-  type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
-  type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
-  type CustomerDefaultPhoneNumberRecord,
+  type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
+  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
+  type CollectionImageRecord, type CollectionRecord, type CollectionRuleRecord,
+  type CollectionRuleSetRecord, type CustomerAccountPageRecord,
+  type CustomerAddressRecord, type CustomerCatalogConnectionRecord,
+  type CustomerCatalogPageInfoRecord, type CustomerDefaultAddressRecord,
+  type CustomerDefaultEmailAddressRecord, type CustomerDefaultPhoneNumberRecord,
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord,
@@ -73,29 +74,30 @@ import shopify_draft_proxy/state/types.{
   type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
   type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, type StoreCreditAccountRecord,
-  type StorePropertyRecord, type StorePropertyValue, CapturedArray, CapturedBool,
-  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
-  CollectionRuleSetRecord, CustomerAccountPageRecord, CustomerAddressRecord,
-  CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
-  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
-  CustomerEventSummaryRecord, CustomerMetafieldRecord,
-  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
-  GiftCardTransactionRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
-  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
-  LocationRecord, MarketingBool, MarketingFloat, MarketingInt, MarketingList,
-  MarketingNull, MarketingObject, MarketingRecord, MarketingString,
-  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
-  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
-  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, MetaobjectBool,
-  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
-  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
-  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
-  MetaobjectFieldDefinitionReferenceRecord,
+  type StorePropertyRecord, type StorePropertyValue, B2BCompanyContactRecord,
+  B2BCompanyContactRoleRecord, B2BCompanyLocationRecord, B2BCompanyRecord,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, CollectionImageRecord, CollectionRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, CustomerAccountPageRecord,
+  CustomerAddressRecord, CustomerCatalogConnectionRecord,
+  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerEmailMarketingConsentRecord, CustomerEventSummaryRecord,
+  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
+  CustomerSmsMarketingConsentRecord, GiftCardConfigurationRecord,
+  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
+  InventoryWeightInt, InventoryWeightRecord, LocationRecord, MarketingBool,
+  MarketingFloat, MarketingInt, MarketingList, MarketingNull, MarketingObject,
+  MarketingRecord, MarketingString, MetafieldDefinitionCapabilitiesRecord,
+  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintValueRecord,
+  MetafieldDefinitionConstraintsRecord, MetafieldDefinitionRecord,
+  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
+  MetaobjectBool, MetaobjectCapabilitiesRecord,
+  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
+  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
+  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
@@ -259,6 +261,8 @@ fn seed_capture_preconditions(
     "data-sale-opt-out-parity" -> seed_customer_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
+    "b2b-company-roots-read" ->
+      seed_b2b_company_roots_preconditions(capture, proxy)
     "location-detail-read" -> seed_location_detail_preconditions(capture, proxy)
     "location-delete-active-location-validation" ->
       seed_location_lifecycle_preconditions(capture, proxy)
@@ -6137,6 +6141,141 @@ fn seed_business_entity_preconditions(
   draft_proxy.DraftProxy(..proxy, store: store)
 }
 
+fn seed_b2b_company_roots_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let companies = case jsonpath.lookup(capture, "$.data.companies.nodes") {
+    Some(JArray(nodes)) -> nodes
+    _ -> []
+  }
+  let store =
+    list.fold(companies, proxy.store, fn(acc, company) {
+      seed_b2b_company_graph(acc, company)
+    })
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_b2b_company_graph(
+  store: store_mod.Store,
+  company_value: JsonValue,
+) -> store_mod.Store {
+  case make_seed_b2b_company(company_value) {
+    Error(_) -> store
+    Ok(company) -> {
+      let store = store_mod.upsert_base_b2b_company(store, company)
+      let store =
+        connection_nodes(company_value, "contactRoles")
+        |> list.append(
+          optional_object_as_list(read_object_field(
+            company_value,
+            "defaultRole",
+          )),
+        )
+        |> list.fold(store, fn(acc, role_value) {
+          case make_seed_b2b_company_contact_role(role_value, company.id) {
+            Ok(role) ->
+              store_mod.upsert_base_b2b_company_contact_role(acc, role)
+            Error(_) -> acc
+          }
+        })
+      let store =
+        connection_nodes(company_value, "locations")
+        |> list.fold(store, fn(acc, location_value) {
+          case make_seed_b2b_company_location(location_value, company.id) {
+            Ok(location) ->
+              store_mod.upsert_base_b2b_company_location(acc, location)
+            Error(_) -> acc
+          }
+        })
+      optional_object_as_list(read_object_field(company_value, "mainContact"))
+      |> list.append(connection_nodes(company_value, "contacts"))
+      |> list.fold(store, fn(acc, contact_value) {
+        case make_seed_b2b_company_contact(contact_value, company.id) {
+          Ok(contact) -> store_mod.upsert_base_b2b_company_contact(acc, contact)
+          Error(_) -> acc
+        }
+      })
+    }
+  }
+}
+
+fn make_seed_b2b_company(value: JsonValue) -> Result(B2BCompanyRecord, Nil) {
+  use id <- result.try(required_string_field(value, "id"))
+  Ok(B2BCompanyRecord(
+    id: id,
+    cursor: read_string_field(value, "cursor"),
+    data: store_property_object_data(value),
+    contact_ids: connection_nodes(value, "contacts") |> node_ids,
+    location_ids: connection_nodes(value, "locations") |> node_ids,
+    contact_role_ids: connection_nodes(value, "contactRoles") |> node_ids,
+  ))
+}
+
+fn make_seed_b2b_company_contact(
+  value: JsonValue,
+  company_id: String,
+) -> Result(B2BCompanyContactRecord, Nil) {
+  use id <- result.try(required_string_field(value, "id"))
+  Ok(B2BCompanyContactRecord(
+    id: id,
+    cursor: read_string_field(value, "cursor"),
+    company_id: company_id,
+    data: store_property_object_data(value),
+  ))
+}
+
+fn make_seed_b2b_company_contact_role(
+  value: JsonValue,
+  company_id: String,
+) -> Result(B2BCompanyContactRoleRecord, Nil) {
+  use id <- result.try(required_string_field(value, "id"))
+  Ok(B2BCompanyContactRoleRecord(
+    id: id,
+    cursor: read_string_field(value, "cursor"),
+    company_id: company_id,
+    data: store_property_object_data(value),
+  ))
+}
+
+fn make_seed_b2b_company_location(
+  value: JsonValue,
+  company_id: String,
+) -> Result(B2BCompanyLocationRecord, Nil) {
+  use id <- result.try(required_string_field(value, "id"))
+  Ok(B2BCompanyLocationRecord(
+    id: id,
+    cursor: read_string_field(value, "cursor"),
+    company_id: company_id,
+    data: store_property_object_data(value),
+  ))
+}
+
+fn connection_nodes(value: JsonValue, field: String) -> List(JsonValue) {
+  case read_object_field(value, field) {
+    Some(connection) ->
+      read_array_field(connection, "nodes") |> option.unwrap([])
+    None -> []
+  }
+}
+
+fn optional_object_as_list(value: Option(JsonValue)) -> List(JsonValue) {
+  case value {
+    Some(JObject(_) as object) -> [object]
+    _ -> []
+  }
+}
+
+fn node_ids(nodes: List(JsonValue)) -> List(String) {
+  nodes
+  |> list.filter_map(fn(node) {
+    case read_string_field(node, "id") {
+      Some(id) -> Ok(id)
+      None -> Error(Nil)
+    }
+  })
+}
+
 fn seed_location_detail_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -7509,18 +7648,18 @@ fn as_previous_ref(value: JsonValue) -> Option(String) {
   }
 }
 
-/// If `value` is exactly `{"fromProxyResponse": "...", "path": "..."}`
-/// or the same entries in the opposite order, return target/path.
+/// If `value` is exactly an object containing `fromProxyResponse` and
+/// `path` string entries, return target/path regardless of field order.
 fn as_named_response_ref(value: JsonValue) -> Option(#(String, String)) {
   case value {
-    JObject([
-      #("fromProxyResponse", json_value.JString(target)),
-      #("path", json_value.JString(path)),
-    ]) -> Some(#(target, path))
-    JObject([
-      #("path", json_value.JString(path)),
-      #("fromProxyResponse", json_value.JString(target)),
-    ]) -> Some(#(target, path))
+    JObject(entries) -> {
+      let target = object_string_entry(entries, "fromProxyResponse")
+      let path = object_string_entry(entries, "path")
+      case target, path {
+        Some(target), Some(path) -> Some(#(target, path))
+        _, _ -> None
+      }
+    }
     _ -> None
   }
 }
@@ -7531,6 +7670,17 @@ fn as_primary_ref(value: JsonValue) -> Option(String) {
   case value {
     JObject([#("fromPrimaryProxyPath", json_value.JString(path))]) -> Some(path)
     _ -> None
+  }
+}
+
+fn object_string_entry(
+  entries: List(#(String, JsonValue)),
+  name: String,
+) -> Option(String) {
+  case entries {
+    [] -> None
+    [#(key, json_value.JString(value)), ..] if key == name -> Some(value)
+    [_, ..rest] -> object_string_entry(rest, name)
   }
 }
 
