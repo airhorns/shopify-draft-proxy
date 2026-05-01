@@ -805,6 +805,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
