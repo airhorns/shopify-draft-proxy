@@ -74,6 +74,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "draftOrderCreate",
       "fulfillmentCancel",
       "fulfillmentTrackingInfoUpdate",
+      "orderCreate",
       "orderCreateManualPayment",
       "taxSummaryCreate",
     ],
@@ -499,6 +500,33 @@ pub fn process_mutation(
             )
           }
         }
+        Field(name: name, ..) if name.value == "orderCreate" -> {
+          let #(key, payload, next_errors) =
+            handle_order_create_validation_guardrail(
+              document,
+              operation_path,
+              field,
+              variables,
+            )
+          case next_errors {
+            [] -> #(
+              list.append(entries, [#(key, payload)]),
+              errors,
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+            _ -> #(
+              entries,
+              list.append(errors, next_errors),
+              current_store,
+              current_identity,
+              ids,
+              drafts,
+            )
+          }
+        }
         Field(name: name, ..)
           if name.value == "orderCreateManualPayment"
           || name.value == "taxSummaryCreate"
@@ -551,6 +579,30 @@ fn handle_draft_order_complete_guardrail(
       variables,
       "draftOrderComplete",
       [RequiredArgument(name: "id", expected_type: "ID!")],
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] -> #(key, json.null(), validation_errors)
+    [] -> #(key, json.null(), [])
+  }
+}
+
+fn handle_order_create_validation_guardrail(
+  document: String,
+  operation_path: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, List(Json)) {
+  let key = get_field_response_key(field)
+  let validation_errors =
+    validate_required_field_arguments(
+      field,
+      variables,
+      "orderCreate",
+      [
+        RequiredArgument(name: "order", expected_type: "OrderCreateOrderInput!"),
+      ],
       operation_path,
       document,
     )

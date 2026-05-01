@@ -444,6 +444,10 @@ synthetic-id/timestamp expected differences.
   keep the root-specific argument name exact (`id` vs. `fulfillmentId`). Do not
   treat these branches as fulfillment lifecycle support; happy paths still need
   local fulfillment state, order downstream visibility, and mutation-log effects.
+- `orderCreate` missing-order validation can use the same top-level required
+  argument helper with `OrderCreateOrderInput!`. Keep the direct-order happy
+  path gated until local order state, payment/transaction effects, inventory
+  bypass, and downstream reads are implemented.
 
 ## Workflow for a new pass
 

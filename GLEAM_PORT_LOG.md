@@ -9,6 +9,46 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 119: order create validation guardrails
+
+Promotes the captured `orderCreate` required-`order` validation branches in the
+Gleam Orders domain. This pass mirrors Shopify's top-level GraphQL validation
+errors for omitted, inline-null, and missing variable order input values without
+claiming direct order creation, payment staging, inventory effects, or
+downstream order materialization.
+
+| Module                                                   | Change                                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds a narrow `orderCreate` required-order validation guardrail.         |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers inline missing-order and inline null-order error shapes directly. |
+| `config/gleam-port-ci-gates.json`                        | Removes three newly passing `orderCreate` validation parity specs.       |
+
+Validation:
+Full JavaScript is green at 727 tests; Docker Erlang is green at 723 tests.
+Orders now has 22 executable/pass specs and 56 gated specs out of 78.
+
+### Findings
+
+- `orderCreate`'s captured missing-order branches fit the existing top-level
+  required argument helper with `OrderCreateOrderInput!`.
+- These validation branches are not evidence for the happy-path `orderCreate`
+  lifecycle; order creation remains gated until local order state, payments,
+  inventory bypass, and downstream reads are modeled.
+
+### Risks / open items
+
+- `orderCreate-parity-plan` and `orderCreate-validation-matrix` remain gated.
+- Order update/open/close/cancel/customer/payment roots, order editing,
+  fulfillments, refunds, and returns remain unported.
+
+### Pass 120 candidates
+
+- Continue validation branches for `orderUpdate` after adding nested input
+  object validation helpers, or move to a durable draft-order update/delete
+  lifecycle slice.
+
+---
+
 ## 2026-05-01 - Pass 118: fulfillment validation guardrails
 
 Promotes the captured `fulfillmentCancel` and
