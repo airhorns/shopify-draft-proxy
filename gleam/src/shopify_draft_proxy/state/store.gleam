@@ -18,7 +18,9 @@ import shopify_draft_proxy/state/types.{
   type AdminPlatformFlowSignatureRecord, type AdminPlatformFlowTriggerRecord,
   type AppInstallationRecord, type AppOneTimePurchaseRecord, type AppRecord,
   type AppSubscriptionLineItemRecord, type AppSubscriptionRecord,
-  type AppUsageRecord, type BackupRegionRecord, type BulkOperationRecord,
+  type AppUsageRecord, type B2BCompanyContactRecord,
+  type B2BCompanyContactRoleRecord, type B2BCompanyLocationRecord,
+  type B2BCompanyRecord, type BackupRegionRecord, type BulkOperationRecord,
   type CartTransformRecord, type ChannelRecord, type CollectionRecord,
   type CustomerAccountPageRecord, type CustomerAddressRecord,
   type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
@@ -97,6 +99,18 @@ pub type BaseState {
     admin_platform_flow_triggers: Dict(String, AdminPlatformFlowTriggerRecord),
     admin_platform_flow_trigger_order: List(String),
     shop: Option(ShopRecord),
+    b2b_companies: Dict(String, B2BCompanyRecord),
+    b2b_company_order: List(String),
+    deleted_b2b_company_ids: Dict(String, Bool),
+    b2b_company_contacts: Dict(String, B2BCompanyContactRecord),
+    b2b_company_contact_order: List(String),
+    deleted_b2b_company_contact_ids: Dict(String, Bool),
+    b2b_company_contact_roles: Dict(String, B2BCompanyContactRoleRecord),
+    b2b_company_contact_role_order: List(String),
+    deleted_b2b_company_contact_role_ids: Dict(String, Bool),
+    b2b_company_locations: Dict(String, B2BCompanyLocationRecord),
+    b2b_company_location_order: List(String),
+    deleted_b2b_company_location_ids: Dict(String, Bool),
     store_property_locations: Dict(String, StorePropertyRecord),
     store_property_location_order: List(String),
     deleted_store_property_location_ids: Dict(String, Bool),
@@ -262,6 +276,18 @@ pub type StagedState {
     admin_platform_flow_triggers: Dict(String, AdminPlatformFlowTriggerRecord),
     admin_platform_flow_trigger_order: List(String),
     shop: Option(ShopRecord),
+    b2b_companies: Dict(String, B2BCompanyRecord),
+    b2b_company_order: List(String),
+    deleted_b2b_company_ids: Dict(String, Bool),
+    b2b_company_contacts: Dict(String, B2BCompanyContactRecord),
+    b2b_company_contact_order: List(String),
+    deleted_b2b_company_contact_ids: Dict(String, Bool),
+    b2b_company_contact_roles: Dict(String, B2BCompanyContactRoleRecord),
+    b2b_company_contact_role_order: List(String),
+    deleted_b2b_company_contact_role_ids: Dict(String, Bool),
+    b2b_company_locations: Dict(String, B2BCompanyLocationRecord),
+    b2b_company_location_order: List(String),
+    deleted_b2b_company_location_ids: Dict(String, Bool),
     store_property_locations: Dict(String, StorePropertyRecord),
     store_property_location_order: List(String),
     deleted_store_property_location_ids: Dict(String, Bool),
@@ -491,6 +517,18 @@ pub fn empty_base_state() -> BaseState {
     admin_platform_flow_triggers: dict.new(),
     admin_platform_flow_trigger_order: [],
     shop: None,
+    b2b_companies: dict.new(),
+    b2b_company_order: [],
+    deleted_b2b_company_ids: dict.new(),
+    b2b_company_contacts: dict.new(),
+    b2b_company_contact_order: [],
+    deleted_b2b_company_contact_ids: dict.new(),
+    b2b_company_contact_roles: dict.new(),
+    b2b_company_contact_role_order: [],
+    deleted_b2b_company_contact_role_ids: dict.new(),
+    b2b_company_locations: dict.new(),
+    b2b_company_location_order: [],
+    deleted_b2b_company_location_ids: dict.new(),
     store_property_locations: dict.new(),
     store_property_location_order: [],
     deleted_store_property_location_ids: dict.new(),
@@ -631,6 +669,18 @@ pub fn empty_staged_state() -> StagedState {
     admin_platform_flow_triggers: dict.new(),
     admin_platform_flow_trigger_order: [],
     shop: None,
+    b2b_companies: dict.new(),
+    b2b_company_order: [],
+    deleted_b2b_company_ids: dict.new(),
+    b2b_company_contacts: dict.new(),
+    b2b_company_contact_order: [],
+    deleted_b2b_company_contact_ids: dict.new(),
+    b2b_company_contact_roles: dict.new(),
+    b2b_company_contact_role_order: [],
+    deleted_b2b_company_contact_role_ids: dict.new(),
+    b2b_company_locations: dict.new(),
+    b2b_company_location_order: [],
+    deleted_b2b_company_location_ids: dict.new(),
     store_property_locations: dict.new(),
     store_property_location_order: [],
     deleted_store_property_location_ids: dict.new(),
@@ -2679,6 +2729,514 @@ pub fn get_effective_shop(store: Store) -> Option(ShopRecord) {
     Some(shop) -> Some(shop)
     None -> store.base_state.shop
   }
+}
+
+// ---------------------------------------------------------------------------
+// B2B company slice
+// ---------------------------------------------------------------------------
+
+pub fn upsert_base_b2b_company(
+  store: Store,
+  record: B2BCompanyRecord,
+) -> Store {
+  let base = store.base_state
+  let staged = store.staged_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      b2b_companies: dict.insert(base.b2b_companies, record.id, record),
+      b2b_company_order: append_unique_id(base.b2b_company_order, record.id),
+      deleted_b2b_company_ids: dict.delete(
+        base.deleted_b2b_company_ids,
+        record.id,
+      ),
+    ),
+    staged_state: StagedState(
+      ..staged,
+      deleted_b2b_company_ids: dict.delete(
+        staged.deleted_b2b_company_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
+pub fn upsert_staged_b2b_company(
+  store: Store,
+  record: B2BCompanyRecord,
+) -> #(B2BCompanyRecord, Store) {
+  let staged = store.staged_state
+  let known =
+    list.contains(store.base_state.b2b_company_order, record.id)
+    || list.contains(staged.b2b_company_order, record.id)
+    || dict_has(store.base_state.b2b_companies, record.id)
+    || dict_has(staged.b2b_companies, record.id)
+  let order = case known {
+    True -> staged.b2b_company_order
+    False -> list.append(staged.b2b_company_order, [record.id])
+  }
+  #(
+    record,
+    Store(
+      ..store,
+      staged_state: StagedState(
+        ..staged,
+        b2b_companies: dict.insert(staged.b2b_companies, record.id, record),
+        b2b_company_order: order,
+        deleted_b2b_company_ids: dict.delete(
+          staged.deleted_b2b_company_ids,
+          record.id,
+        ),
+      ),
+    ),
+  )
+}
+
+pub fn delete_staged_b2b_company(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      b2b_companies: dict.delete(staged.b2b_companies, id),
+      deleted_b2b_company_ids: dict.insert(
+        staged.deleted_b2b_company_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_b2b_company_by_id(
+  store: Store,
+  id: String,
+) -> Option(B2BCompanyRecord) {
+  case
+    dict_has(store.staged_state.deleted_b2b_company_ids, id)
+    || dict_has(store.base_state.deleted_b2b_company_ids, id)
+  {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.b2b_companies, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.b2b_companies, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_b2b_companies(store: Store) -> List(B2BCompanyRecord) {
+  let ids =
+    append_unique_ids(
+      store.base_state.b2b_company_order,
+      store.staged_state.b2b_company_order,
+    )
+  let ordered =
+    ids
+    |> list.filter_map(fn(id) {
+      case get_effective_b2b_company_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let seen =
+    list.fold(ids, dict.new(), fn(acc, id) { dict.insert(acc, id, True) })
+  let extras =
+    dict.to_list(store.base_state.b2b_companies)
+    |> list.append(dict.to_list(store.staged_state.b2b_companies))
+    |> list.filter_map(fn(pair) {
+      let #(id, _) = pair
+      case dict_has(seen, id) {
+        True -> Error(Nil)
+        False ->
+          case get_effective_b2b_company_by_id(store, id) {
+            Some(record) -> Ok(record)
+            None -> Error(Nil)
+          }
+      }
+    })
+    |> list.sort(fn(a, b) { string.compare(a.id, b.id) })
+  list.append(ordered, extras)
+}
+
+pub fn upsert_base_b2b_company_contact(
+  store: Store,
+  record: B2BCompanyContactRecord,
+) -> Store {
+  let base = store.base_state
+  let staged = store.staged_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      b2b_company_contacts: dict.insert(
+        base.b2b_company_contacts,
+        record.id,
+        record,
+      ),
+      b2b_company_contact_order: append_unique_id(
+        base.b2b_company_contact_order,
+        record.id,
+      ),
+      deleted_b2b_company_contact_ids: dict.delete(
+        base.deleted_b2b_company_contact_ids,
+        record.id,
+      ),
+    ),
+    staged_state: StagedState(
+      ..staged,
+      deleted_b2b_company_contact_ids: dict.delete(
+        staged.deleted_b2b_company_contact_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
+pub fn upsert_staged_b2b_company_contact(
+  store: Store,
+  record: B2BCompanyContactRecord,
+) -> #(B2BCompanyContactRecord, Store) {
+  let staged = store.staged_state
+  let known =
+    list.contains(store.base_state.b2b_company_contact_order, record.id)
+    || list.contains(staged.b2b_company_contact_order, record.id)
+    || dict_has(store.base_state.b2b_company_contacts, record.id)
+    || dict_has(staged.b2b_company_contacts, record.id)
+  let order = case known {
+    True -> staged.b2b_company_contact_order
+    False -> list.append(staged.b2b_company_contact_order, [record.id])
+  }
+  #(
+    record,
+    Store(
+      ..store,
+      staged_state: StagedState(
+        ..staged,
+        b2b_company_contacts: dict.insert(
+          staged.b2b_company_contacts,
+          record.id,
+          record,
+        ),
+        b2b_company_contact_order: order,
+        deleted_b2b_company_contact_ids: dict.delete(
+          staged.deleted_b2b_company_contact_ids,
+          record.id,
+        ),
+      ),
+    ),
+  )
+}
+
+pub fn delete_staged_b2b_company_contact(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      b2b_company_contacts: dict.delete(staged.b2b_company_contacts, id),
+      deleted_b2b_company_contact_ids: dict.insert(
+        staged.deleted_b2b_company_contact_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_b2b_company_contact_by_id(
+  store: Store,
+  id: String,
+) -> Option(B2BCompanyContactRecord) {
+  case
+    dict_has(store.staged_state.deleted_b2b_company_contact_ids, id)
+    || dict_has(store.base_state.deleted_b2b_company_contact_ids, id)
+  {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.b2b_company_contacts, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.b2b_company_contacts, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_b2b_company_contacts(
+  store: Store,
+) -> List(B2BCompanyContactRecord) {
+  append_unique_ids(
+    store.base_state.b2b_company_contact_order,
+    store.staged_state.b2b_company_contact_order,
+  )
+  |> list.filter_map(fn(id) {
+    case get_effective_b2b_company_contact_by_id(store, id) {
+      Some(record) -> Ok(record)
+      None -> Error(Nil)
+    }
+  })
+}
+
+pub fn upsert_base_b2b_company_contact_role(
+  store: Store,
+  record: B2BCompanyContactRoleRecord,
+) -> Store {
+  let base = store.base_state
+  let staged = store.staged_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      b2b_company_contact_roles: dict.insert(
+        base.b2b_company_contact_roles,
+        record.id,
+        record,
+      ),
+      b2b_company_contact_role_order: append_unique_id(
+        base.b2b_company_contact_role_order,
+        record.id,
+      ),
+      deleted_b2b_company_contact_role_ids: dict.delete(
+        base.deleted_b2b_company_contact_role_ids,
+        record.id,
+      ),
+    ),
+    staged_state: StagedState(
+      ..staged,
+      deleted_b2b_company_contact_role_ids: dict.delete(
+        staged.deleted_b2b_company_contact_role_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
+pub fn upsert_staged_b2b_company_contact_role(
+  store: Store,
+  record: B2BCompanyContactRoleRecord,
+) -> #(B2BCompanyContactRoleRecord, Store) {
+  let staged = store.staged_state
+  let known =
+    list.contains(store.base_state.b2b_company_contact_role_order, record.id)
+    || list.contains(staged.b2b_company_contact_role_order, record.id)
+    || dict_has(store.base_state.b2b_company_contact_roles, record.id)
+    || dict_has(staged.b2b_company_contact_roles, record.id)
+  let order = case known {
+    True -> staged.b2b_company_contact_role_order
+    False -> list.append(staged.b2b_company_contact_role_order, [record.id])
+  }
+  #(
+    record,
+    Store(
+      ..store,
+      staged_state: StagedState(
+        ..staged,
+        b2b_company_contact_roles: dict.insert(
+          staged.b2b_company_contact_roles,
+          record.id,
+          record,
+        ),
+        b2b_company_contact_role_order: order,
+        deleted_b2b_company_contact_role_ids: dict.delete(
+          staged.deleted_b2b_company_contact_role_ids,
+          record.id,
+        ),
+      ),
+    ),
+  )
+}
+
+pub fn delete_staged_b2b_company_contact_role(
+  store: Store,
+  id: String,
+) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      b2b_company_contact_roles: dict.delete(
+        staged.b2b_company_contact_roles,
+        id,
+      ),
+      deleted_b2b_company_contact_role_ids: dict.insert(
+        staged.deleted_b2b_company_contact_role_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_b2b_company_contact_role_by_id(
+  store: Store,
+  id: String,
+) -> Option(B2BCompanyContactRoleRecord) {
+  case
+    dict_has(store.staged_state.deleted_b2b_company_contact_role_ids, id)
+    || dict_has(store.base_state.deleted_b2b_company_contact_role_ids, id)
+  {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.b2b_company_contact_roles, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.b2b_company_contact_roles, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn upsert_base_b2b_company_location(
+  store: Store,
+  record: B2BCompanyLocationRecord,
+) -> Store {
+  let base = store.base_state
+  let staged = store.staged_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      b2b_company_locations: dict.insert(
+        base.b2b_company_locations,
+        record.id,
+        record,
+      ),
+      b2b_company_location_order: append_unique_id(
+        base.b2b_company_location_order,
+        record.id,
+      ),
+      deleted_b2b_company_location_ids: dict.delete(
+        base.deleted_b2b_company_location_ids,
+        record.id,
+      ),
+    ),
+    staged_state: StagedState(
+      ..staged,
+      deleted_b2b_company_location_ids: dict.delete(
+        staged.deleted_b2b_company_location_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
+pub fn upsert_staged_b2b_company_location(
+  store: Store,
+  record: B2BCompanyLocationRecord,
+) -> #(B2BCompanyLocationRecord, Store) {
+  let staged = store.staged_state
+  let known =
+    list.contains(store.base_state.b2b_company_location_order, record.id)
+    || list.contains(staged.b2b_company_location_order, record.id)
+    || dict_has(store.base_state.b2b_company_locations, record.id)
+    || dict_has(staged.b2b_company_locations, record.id)
+  let order = case known {
+    True -> staged.b2b_company_location_order
+    False -> list.append(staged.b2b_company_location_order, [record.id])
+  }
+  #(
+    record,
+    Store(
+      ..store,
+      staged_state: StagedState(
+        ..staged,
+        b2b_company_locations: dict.insert(
+          staged.b2b_company_locations,
+          record.id,
+          record,
+        ),
+        b2b_company_location_order: order,
+        deleted_b2b_company_location_ids: dict.delete(
+          staged.deleted_b2b_company_location_ids,
+          record.id,
+        ),
+      ),
+    ),
+  )
+}
+
+pub fn delete_staged_b2b_company_location(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      b2b_company_locations: dict.delete(staged.b2b_company_locations, id),
+      deleted_b2b_company_location_ids: dict.insert(
+        staged.deleted_b2b_company_location_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_b2b_company_location_by_id(
+  store: Store,
+  id: String,
+) -> Option(B2BCompanyLocationRecord) {
+  case
+    dict_has(store.staged_state.deleted_b2b_company_location_ids, id)
+    || dict_has(store.base_state.deleted_b2b_company_location_ids, id)
+  {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.b2b_company_locations, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.b2b_company_locations, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_b2b_company_locations(
+  store: Store,
+) -> List(B2BCompanyLocationRecord) {
+  let ids =
+    append_unique_ids(
+      store.base_state.b2b_company_location_order,
+      store.staged_state.b2b_company_location_order,
+    )
+  let ordered =
+    ids
+    |> list.filter_map(fn(id) {
+      case get_effective_b2b_company_location_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let seen =
+    list.fold(ids, dict.new(), fn(acc, id) { dict.insert(acc, id, True) })
+  let extras =
+    dict.to_list(store.base_state.b2b_company_locations)
+    |> list.append(dict.to_list(store.staged_state.b2b_company_locations))
+    |> list.filter_map(fn(pair) {
+      let #(id, _) = pair
+      case dict_has(seen, id) {
+        True -> Error(Nil)
+        False ->
+          case get_effective_b2b_company_location_by_id(store, id) {
+            Some(record) -> Ok(record)
+            None -> Error(Nil)
+          }
+      }
+    })
+    |> list.sort(fn(a, b) { string.compare(a.id, b.id) })
+  list.append(ordered, extras)
 }
 
 pub fn upsert_base_store_property_location(
