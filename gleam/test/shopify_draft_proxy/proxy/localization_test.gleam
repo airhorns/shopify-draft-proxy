@@ -5,10 +5,13 @@
 
 import gleam/dict
 import gleam/json
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/types.{LocaleRecord, ShopLocaleRecord}
+import shopify_draft_proxy/state/types.{
+  LocaleRecord, ProductRecord, ProductSeoRecord, ShopLocaleRecord,
+  TranslationRecord,
+}
 
 fn run(store_in: store.Store, query: String) -> String {
   let assert Ok(data) =
@@ -149,6 +152,66 @@ pub fn translatable_resources_connection_empty_test() {
       "{ translatableResources(first: 10, resourceType: PRODUCT) { nodes { resourceId } } }",
     )
   assert result == "{\"translatableResources\":{\"nodes\":[]}}"
+}
+
+pub fn translatable_resources_include_effective_products_test() {
+  let product =
+    ProductRecord(
+      id: "gid://shopify/Product/1",
+      legacy_resource_id: None,
+      title: "The Inventory Not Tracked Snowboard",
+      handle: "the-inventory-not-tracked-snowboard",
+      status: "ACTIVE",
+      vendor: None,
+      product_type: Some("snowboard"),
+      tags: [],
+      total_inventory: None,
+      tracks_inventory: None,
+      created_at: None,
+      updated_at: None,
+      published_at: None,
+      description_html: "",
+      online_store_preview_url: None,
+      template_suffix: None,
+      seo: ProductSeoRecord(title: None, description: None),
+      category: None,
+      publication_ids: [],
+      contextual_pricing: None,
+      cursor: None,
+    )
+  let s = store.upsert_base_products(store.new(), [product])
+  let result =
+    run(
+      s,
+      "{ translatableResources(first: 10, resourceType: PRODUCT) { nodes { resourceId translatableContent { key value locale type } } } }",
+    )
+  assert result
+    == "{\"translatableResources\":{\"nodes\":[{\"resourceId\":\"gid://shopify/Product/1\",\"translatableContent\":[{\"key\":\"title\",\"value\":\"The Inventory Not Tracked Snowboard\",\"locale\":\"en\",\"type\":\"SINGLE_LINE_TEXT_FIELD\"},{\"key\":\"handle\",\"value\":\"the-inventory-not-tracked-snowboard\",\"locale\":\"en\",\"type\":\"URI\"},{\"key\":\"product_type\",\"value\":\"snowboard\",\"locale\":\"en\",\"type\":\"SINGLE_LINE_TEXT_FIELD\"}]}]}}"
+}
+
+pub fn translatable_resources_include_seeded_source_markers_test() {
+  let s = store.new()
+  let #(_, s) =
+    store.stage_translation(
+      s,
+      TranslationRecord(
+        resource_id: "gid://shopify/Product/2",
+        key: "title",
+        locale: "__source",
+        value: "Source title",
+        translatable_content_digest: "digest-title",
+        market_id: None,
+        updated_at: "1970-01-01T00:00:00Z",
+        outdated: False,
+      ),
+    )
+  let result =
+    run(
+      s,
+      "{ translatableResources(first: 10, resourceType: PRODUCT) { nodes { resourceId translatableContent { key value digest locale type } } } }",
+    )
+  assert result
+    == "{\"translatableResources\":{\"nodes\":[{\"resourceId\":\"gid://shopify/Product/2\",\"translatableContent\":[{\"key\":\"title\",\"value\":\"Source title\",\"digest\":\"digest-title\",\"locale\":\"en\",\"type\":\"SINGLE_LINE_TEXT_FIELD\"}]}]}}"
 }
 
 pub fn translatable_resources_by_ids_finds_synthesized_test() {
