@@ -6258,7 +6258,12 @@ TypeScript `gleam-interop` Vitest smoke is green.
 
 - The parity runner can stay spec-compatible without mutating
   `config/parity-specs/**`: seed decisions live in runner code, keyed
-  by scenario id, and decode only data already present in the capture.
+  by capture-shape markers (helpers self-gate on JSON paths that
+  uniquely identify the capture family), and decode only data already
+  present in the capture. Pass 27 originally keyed seeding by scenario
+  id; that approach was retired so new parity specs can land without
+  touching runner dispatch — see SKILL.md "Parity runner capture
+  seeding" for the current contract.
 - Gift-card search must preserve TS's permissive unknown-field
   behavior. Some fields, such as `updated_at`, are intentionally not
   interpreted even when the query uses them.
