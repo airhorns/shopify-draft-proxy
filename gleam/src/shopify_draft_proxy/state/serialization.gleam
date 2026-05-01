@@ -320,6 +320,13 @@ fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
       "taxAppConfiguration",
       optional_to_json(state.tax_app_configuration, tax_app_configuration_json),
     ),
+    #("discounts", dict_to_json(state.discounts, discount_json)),
+    #("discountOrder", json.array(state.discount_order, json.string)),
+    #("deletedDiscountIds", bool_dict_to_json(state.deleted_discount_ids)),
+    #(
+      "discountBulkOperations",
+      dict_to_json(state.discount_bulk_operations, discount_bulk_operation_json),
+    ),
     #("giftCards", dict_to_json(state.gift_cards, gift_card_json)),
     #("giftCardOrder", json.array(state.gift_card_order, json.string)),
     #(
@@ -764,6 +771,13 @@ fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
     #(
       "taxAppConfiguration",
       optional_to_json(state.tax_app_configuration, tax_app_configuration_json),
+    ),
+    #("discounts", dict_to_json(state.discounts, discount_json)),
+    #("discountOrder", json.array(state.discount_order, json.string)),
+    #("deletedDiscountIds", bool_dict_to_json(state.deleted_discount_ids)),
+    #(
+      "discountBulkOperations",
+      dict_to_json(state.discount_bulk_operations, discount_bulk_operation_json),
     ),
     #("giftCards", dict_to_json(state.gift_cards, gift_card_json)),
     #("giftCardOrder", json.array(state.gift_card_order, json.string)),
@@ -1388,6 +1402,38 @@ fn captured_json_value_json(value: types.CapturedJsonValue) -> Json {
         }),
       )
   }
+}
+
+fn optional_string_value(value: Option(String)) -> Json {
+  case value {
+    Some(value) -> json.string(value)
+    None -> json.null()
+  }
+}
+
+fn discount_json(record: types.DiscountRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("ownerKind", json.string(record.owner_kind)),
+    #("discountType", json.string(record.discount_type)),
+    #("title", optional_string_value(record.title)),
+    #("status", json.string(record.status)),
+    #("code", optional_string_value(record.code)),
+    #("payload", captured_json_value_json(record.payload)),
+    #("cursor", optional_string_value(record.cursor)),
+  ])
+}
+
+fn discount_bulk_operation_json(
+  record: types.DiscountBulkOperationRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("operation", json.string(record.operation)),
+    #("discountId", json.string(record.discount_id)),
+    #("status", json.string(record.status)),
+    #("payload", captured_json_value_json(record.payload)),
+  ])
 }
 
 fn saved_search_json(record: types.SavedSearchRecord) -> Json {
@@ -2783,6 +2829,10 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     cart_transform_order: cart_transform_order,
     deleted_cart_transform_ids: deleted_cart_transform_ids,
     tax_app_configuration: tax_app_configuration,
+    discounts: empty.discounts,
+    discount_order: empty.discount_order,
+    deleted_discount_ids: empty.deleted_discount_ids,
+    discount_bulk_operations: empty.discount_bulk_operations,
     gift_cards: gift_cards,
     gift_card_order: gift_card_order,
     gift_card_configuration: gift_card_configuration,
@@ -3147,6 +3197,10 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     cart_transform_order: cart_transform_order,
     deleted_cart_transform_ids: deleted_cart_transform_ids,
     tax_app_configuration: tax_app_configuration,
+    discounts: empty.discounts,
+    discount_order: empty.discount_order,
+    deleted_discount_ids: empty.deleted_discount_ids,
+    discount_bulk_operations: empty.discount_bulk_operations,
     gift_cards: gift_cards,
     gift_card_order: gift_card_order,
     gift_card_configuration: gift_card_configuration,
