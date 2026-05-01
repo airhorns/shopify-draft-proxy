@@ -32,8 +32,9 @@ import shopify_draft_proxy/state/types.{
   type CustomerPaymentMethodUpdateUrlRecord, type CustomerRecord,
   type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
   type DiscountBulkOperationRecord, type DiscountRecord, type DraftOrderRecord,
-  type DraftOrderVariantCatalogRecord, type GiftCardConfigurationRecord,
-  type GiftCardRecord, type InventoryLevelRecord, type InventoryShipmentRecord,
+  type DraftOrderVariantCatalogRecord, type FileRecord,
+  type GiftCardConfigurationRecord, type GiftCardRecord,
+  type InventoryLevelRecord, type InventoryShipmentRecord,
   type InventoryTransferRecord, type LocaleRecord, type LocationRecord,
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
   type MetafieldDefinitionRecord, type MetaobjectDefinitionRecord,
@@ -72,6 +73,9 @@ pub type BaseState {
     selling_plan_group_order: List(String),
     deleted_selling_plan_group_ids: Dict(String, Bool),
     product_media: Dict(String, List(ProductMediaRecord)),
+    files: Dict(String, FileRecord),
+    file_order: List(String),
+    deleted_file_ids: Dict(String, Bool),
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
     product_collections: Dict(String, ProductCollectionRecord),
@@ -270,6 +274,9 @@ pub type StagedState {
     selling_plan_group_order: List(String),
     deleted_selling_plan_group_ids: Dict(String, Bool),
     product_media: Dict(String, List(ProductMediaRecord)),
+    files: Dict(String, FileRecord),
+    file_order: List(String),
+    deleted_file_ids: Dict(String, Bool),
     collections: Dict(String, CollectionRecord),
     collection_order: List(String),
     product_collections: Dict(String, ProductCollectionRecord),
@@ -528,6 +535,9 @@ pub fn empty_base_state() -> BaseState {
     selling_plan_group_order: [],
     deleted_selling_plan_group_ids: dict.new(),
     product_media: dict.new(),
+    files: dict.new(),
+    file_order: [],
+    deleted_file_ids: dict.new(),
     collections: dict.new(),
     collection_order: [],
     product_collections: dict.new(),
@@ -701,6 +711,9 @@ pub fn empty_staged_state() -> StagedState {
     selling_plan_group_order: [],
     deleted_selling_plan_group_ids: dict.new(),
     product_media: dict.new(),
+    files: dict.new(),
+    file_order: [],
+    deleted_file_ids: dict.new(),
     collections: dict.new(),
     collection_order: [],
     product_collections: dict.new(),
@@ -1546,6 +1559,175 @@ fn sort_product_media(
       other -> other
     }
   })
+}
+
+// ---------------------------------------------------------------------------
+// Files slice
+// ---------------------------------------------------------------------------
+
+pub fn upsert_base_files(store: Store, files: List(FileRecord)) -> Store {
+  list.fold(files, store, fn(current, file) {
+    let base = current.base_state
+    Store(
+      ..current,
+      base_state: BaseState(
+        ..base,
+        files: dict.insert(base.files, file.id, file),
+        file_order: append_unique_id(base.file_order, file.id),
+        deleted_file_ids: dict.delete(base.deleted_file_ids, file.id),
+      ),
+      staged_state: StagedState(
+        ..current.staged_state,
+        deleted_file_ids: dict.delete(
+          current.staged_state.deleted_file_ids,
+          file.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_staged_files(store: Store, files: List(FileRecord)) -> Store {
+  list.fold(files, store, fn(current, file) {
+    let staged = current.staged_state
+    let already_known =
+      dict.has_key(current.base_state.files, file.id)
+      || dict.has_key(staged.files, file.id)
+      || list.contains(current.base_state.file_order, file.id)
+      || list.contains(staged.file_order, file.id)
+    let file_order = case already_known {
+      True -> staged.file_order
+      False -> list.append(staged.file_order, [file.id])
+    }
+    Store(
+      ..current,
+      staged_state: StagedState(
+        ..staged,
+        files: dict.insert(staged.files, file.id, file),
+        file_order: file_order,
+        deleted_file_ids: dict.delete(staged.deleted_file_ids, file.id),
+      ),
+    )
+  })
+}
+
+pub fn delete_staged_files(store: Store, file_ids: List(String)) -> Store {
+  let store =
+    list.fold(file_ids, store, fn(current, file_id) {
+      let staged = current.staged_state
+      Store(
+        ..current,
+        staged_state: StagedState(
+          ..staged,
+          files: dict.delete(staged.files, file_id),
+          deleted_file_ids: dict.insert(staged.deleted_file_ids, file_id, True),
+        ),
+      )
+    })
+
+  product_ids_with_media_ids(store, file_ids)
+  |> list.fold(store, fn(current, product_id) {
+    let next_media =
+      get_effective_media_by_product_id(current, product_id)
+      |> list.filter(fn(media) {
+        case media.id {
+          Some(id) -> !list.contains(file_ids, id)
+          None -> True
+        }
+      })
+    replace_staged_media_for_product(current, product_id, next_media)
+  })
+}
+
+pub fn has_effective_file_by_id(store: Store, file_id: String) -> Bool {
+  case dict_has(store.staged_state.deleted_file_ids, file_id) {
+    True -> False
+    False ->
+      dict.has_key(store.staged_state.files, file_id)
+      || dict.has_key(store.base_state.files, file_id)
+      || product_media_file_exists(store, file_id)
+  }
+}
+
+pub fn get_effective_file_by_id(
+  store: Store,
+  file_id: String,
+) -> Option(FileRecord) {
+  case dict_has(store.staged_state.deleted_file_ids, file_id) {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.files, file_id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.files, file_id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_files(store: Store) -> List(FileRecord) {
+  let ids =
+    list.append(store.base_state.file_order, store.staged_state.file_order)
+    |> dedupe_strings
+  let ordered =
+    ids
+    |> list.filter_map(fn(id) {
+      case get_effective_file_by_id(store, id) {
+        Some(file) -> Ok(file)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_ids = list.map(ordered, fn(file) { file.id })
+  let unordered =
+    list.append(
+      dict.values(store.base_state.files),
+      dict.values(store.staged_state.files),
+    )
+    |> list.filter(fn(file) { !list.contains(ordered_ids, file.id) })
+    |> list.filter(fn(file) {
+      !dict_has(store.staged_state.deleted_file_ids, file.id)
+    })
+    |> list.sort(fn(left, right) { string_compare(left.id, right.id) })
+  list.append(ordered, unordered)
+}
+
+pub fn list_effective_product_media(store: Store) -> List(ProductMediaRecord) {
+  let product_ids =
+    list.append(
+      dict.keys(store.base_state.product_media),
+      dict.keys(store.staged_state.product_media),
+    )
+    |> dedupe_strings
+  product_ids
+  |> list.flat_map(fn(product_id) {
+    get_effective_media_by_product_id(store, product_id)
+  })
+}
+
+fn product_media_file_exists(store: Store, file_id: String) -> Bool {
+  list.any(list_effective_product_media(store), fn(media) {
+    media.id == Some(file_id)
+  })
+}
+
+fn product_ids_with_media_ids(
+  store: Store,
+  file_ids: List(String),
+) -> List(String) {
+  list_effective_product_media(store)
+  |> list.filter_map(fn(media) {
+    case media.id {
+      Some(id) ->
+        case list.contains(file_ids, id) {
+          True -> Ok(media.product_id)
+          False -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+  |> dedupe_strings
 }
 
 pub fn get_effective_product_by_id(
