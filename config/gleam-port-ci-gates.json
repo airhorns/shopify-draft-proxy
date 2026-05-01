@@ -175,30 +175,6 @@
       "targets": ["erlang"]
     },
     {
-      "specPath": "config/parity-specs/online-store-article-media-navigation-follow-through.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/online-store-content-lifecycle.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/online-store-content-search-filters.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/online-store-integrations-local-staging.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/online-store-page-default-publish-local-staging.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/storefront-access-token-local-staging.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/payments/customer-payment-method-local-staging.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },

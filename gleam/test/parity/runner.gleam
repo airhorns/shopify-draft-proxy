@@ -69,10 +69,10 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectFieldDefinitionReferenceRecord,
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
   type MetaobjectJsonValue, type MetaobjectRecord,
-  type MetaobjectStandardTemplateRecord, type Money, type OrderRecord,
-  type PaymentSettingsRecord, type ProductCategoryRecord,
-  type ProductCollectionRecord, type ProductMediaRecord,
-  type ProductMetafieldRecord, type ProductOptionRecord,
+  type MetaobjectStandardTemplateRecord, type Money,
+  type OnlineStoreContentRecord, type OrderRecord, type PaymentSettingsRecord,
+  type ProductCategoryRecord, type ProductCollectionRecord,
+  type ProductMediaRecord, type ProductMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
   type PublicationRecord, type SegmentRecord, type SellingPlanGroupRecord,
@@ -113,12 +113,13 @@ import shopify_draft_proxy/state/types.{
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
   MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
-  MetaobjectStandardTemplateRecord, MetaobjectString, Money, OrderRecord,
-  PaymentSettingsRecord, ProductCategoryRecord, ProductCollectionRecord,
-  ProductMediaRecord, ProductMetafieldRecord, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
-  SegmentRecord, SellingPlanGroupRecord, SellingPlanRecord, ShippingOrderRecord,
+  MetaobjectStandardTemplateRecord, MetaobjectString, Money,
+  OnlineStoreContentRecord, OrderRecord, PaymentSettingsRecord,
+  ProductCategoryRecord, ProductCollectionRecord, ProductMediaRecord,
+  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord, PublicationRecord, SegmentRecord,
+  SellingPlanGroupRecord, SellingPlanRecord, ShippingOrderRecord,
   ShippingPackageDimensionsRecord, ShippingPackageRecord,
   ShippingPackageWeightRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
@@ -306,6 +307,7 @@ fn seed_capture_preconditions(
     seed_metafield_definition_preconditions,
     seed_metaobject_preconditions,
     seed_marketing_baseline_preconditions,
+    seed_online_store_content_preconditions,
     fn(c, p) {
       case parsed.scenario_id {
         "shipping-package-default-lifecycle-local-runtime" ->
@@ -346,6 +348,100 @@ fn seed_capture_preconditions(
     fn(c, p) { seed_orders_capture_preconditions(parsed.scenario_id, c, p) },
   ]
   list.fold(helpers, proxy, fn(p, helper) { helper(capture, p) })
+}
+
+fn seed_online_store_content_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records =
+    list.append(
+      list.append(
+        online_store_connection_nodes(
+          capture,
+          "$.interactions[0].response.data.blogs.edges",
+        )
+          |> list.filter_map(make_online_store_seed_content(_, "blog")),
+        online_store_connection_nodes(
+          capture,
+          "$.interactions[0].response.data.pages.edges",
+        )
+          |> list.filter_map(make_online_store_seed_content(_, "page")),
+      ),
+      online_store_payload_records(capture, [
+        #("$.interactions[0].response.data.blogCreate.blog", "blog"),
+        #("$.interactions[1].response.data.pageCreate.page", "page"),
+        #("$.interactions[2].response.data.articleCreate.article", "article"),
+      ]),
+    )
+
+  case records {
+    [] -> proxy
+    records -> {
+      let seeded_store =
+        store_mod.upsert_base_online_store_content(proxy.store, records)
+      draft_proxy.DraftProxy(..proxy, store: seeded_store)
+    }
+  }
+}
+
+fn online_store_payload_records(
+  capture: JsonValue,
+  paths: List(#(String, String)),
+) -> List(OnlineStoreContentRecord) {
+  list.filter_map(paths, fn(pair) {
+    let #(path, kind) = pair
+    case jsonpath.lookup(capture, path) {
+      Some(source) -> make_online_store_seed_content(source, kind)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn online_store_connection_nodes(
+  capture: JsonValue,
+  path: String,
+) -> List(JsonValue) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(edges)) ->
+      list.filter_map(edges, fn(edge) {
+        case json_value.field(edge, "node") {
+          Some(node) -> Ok(node)
+          None -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn make_online_store_seed_content(
+  source: JsonValue,
+  kind: String,
+) -> Result(OnlineStoreContentRecord, Nil) {
+  case read_string_field(source, "id") {
+    Some(id) ->
+      Ok(OnlineStoreContentRecord(
+        id: id,
+        kind: kind,
+        cursor: None,
+        parent_id: online_store_parent_id(source, kind),
+        created_at: read_string_field(source, "createdAt"),
+        updated_at: read_string_field(source, "updatedAt"),
+        data: captured_json_from_parity(source),
+      ))
+    None -> Error(Nil)
+  }
+}
+
+fn online_store_parent_id(source: JsonValue, kind: String) -> Option(String) {
+  case kind {
+    "article" ->
+      case read_object_field(source, "blog") {
+        Some(blog) -> read_string_field(blog, "id")
+        None -> None
+      }
+    _ -> None
+  }
 }
 
 fn seed_orders_capture_preconditions(
@@ -9429,7 +9525,7 @@ fn run_target(
 /// request, threading proxy state forward.
 fn actual_response_for(
   config: RunnerConfig,
-  _parsed: Spec,
+  parsed: Spec,
   target: Target,
   capture: JsonValue,
   primary_response: JsonValue,
@@ -9440,13 +9536,16 @@ fn actual_response_for(
   case target.request {
     ReusePrimary -> proxy_source_value(target, primary_response, proxy)
     OverrideRequest(request: request) -> {
-      case target.upstream_capture_path {
-        Some(path) ->
+      case
+        target.upstream_capture_path,
+        override_request_uses_upstream_capture(parsed.scenario_id)
+      {
+        Some(path), True ->
           case jsonpath.lookup(capture, path) {
             Some(value) -> Ok(#(value, proxy))
             None -> Error(CaptureUnresolved(target: target.name, path: path))
           }
-        None -> {
+        _, _ -> {
           use document <- result.try(
             read_file(resolve(config, request.document_path)),
           )
@@ -9502,6 +9601,13 @@ fn meta_response_value(
       Request(method: "GET", path: path, headers: dict.new(), body: ""),
     )
   parse_response_body(response)
+}
+
+fn override_request_uses_upstream_capture(scenario_id: String) -> Bool {
+  case scenario_id {
+    "storefront-access-token-local-staging" -> False
+    _ -> True
+  }
 }
 
 fn parse_spec(source: String) -> Result(Spec, RunError) {

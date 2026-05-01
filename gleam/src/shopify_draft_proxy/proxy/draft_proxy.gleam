@@ -46,6 +46,7 @@ import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/online_store
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/proxy/orders
@@ -1019,6 +1020,31 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(OnlineStoreDomain) ->
+      case
+        online_store.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(
+          bad_request("Failed to handle online-store mutation"),
+          proxy,
+        )
+      }
     Ok(StorePropertiesDomain) ->
       case
         store_properties.process_mutation(
@@ -1281,6 +1307,12 @@ fn route_query(
         store_properties.process(proxy.store, query, variables),
         "Failed to handle store properties query",
       )
+    Ok(OnlineStoreDomain) ->
+      respond(
+        proxy,
+        online_store.process(proxy.store, query, variables),
+        "Failed to handle online-store query",
+      )
     Ok(CustomersDomain) ->
       respond(
         proxy,
@@ -1336,6 +1368,7 @@ type Domain {
   ProductsDomain
   AdminPlatformDomain
   StorePropertiesDomain
+  OnlineStoreDomain
   PrivacyDomain
   CustomersDomain
   ShippingFulfillmentsDomain
@@ -1458,7 +1491,11 @@ fn local_query_dispatch_domain(
         True -> Ok(ShippingFulfillmentsDomain)
         False -> Ok(OrdersDomain)
       }
-    "shop" -> Ok(StorePropertiesDomain)
+    "shop" ->
+      case online_store.is_online_store_query_root(name, query) {
+        True -> Ok(OnlineStoreDomain)
+        False -> Ok(StorePropertiesDomain)
+      }
     "product" | "collection" ->
       case store_publishable_owner_query(name, query) {
         True -> Ok(StorePropertiesDomain)
@@ -1598,18 +1635,30 @@ fn local_query_dispatch_domain(
                                                                                       )
                                                                                     False ->
                                                                                       case
-                                                                                        shipping_fulfillments.is_shipping_fulfillment_query_root(
+                                                                                        online_store.is_online_store_query_root(
                                                                                           name,
+                                                                                          query,
                                                                                         )
                                                                                       {
                                                                                         True ->
                                                                                           Ok(
-                                                                                            ShippingFulfillmentsDomain,
+                                                                                            OnlineStoreDomain,
                                                                                           )
                                                                                         False ->
-                                                                                          Error(
-                                                                                            Nil,
-                                                                                          )
+                                                                                          case
+                                                                                            shipping_fulfillments.is_shipping_fulfillment_query_root(
+                                                                                              name,
+                                                                                            )
+                                                                                          {
+                                                                                            True ->
+                                                                                              Ok(
+                                                                                                ShippingFulfillmentsDomain,
+                                                                                              )
+                                                                                            False ->
+                                                                                              Error(
+                                                                                                Nil,
+                                                                                              )
+                                                                                          }
                                                                                       }
                                                                                   }
                                                                               }
@@ -1803,58 +1852,69 @@ fn local_non_store_publishable_mutation_dispatch_domain(
                                                                       )
                                                                     False ->
                                                                       case
-                                                                        privacy.is_privacy_mutation_root(
+                                                                        online_store.is_online_store_mutation_root(
                                                                           name,
                                                                         )
                                                                       {
                                                                         True ->
                                                                           Ok(
-                                                                            PrivacyDomain,
+                                                                            OnlineStoreDomain,
                                                                           )
                                                                         False ->
                                                                           case
-                                                                            shipping_fulfillment_priority_mutation_root(
+                                                                            privacy.is_privacy_mutation_root(
                                                                               name,
                                                                             )
                                                                           {
                                                                             True ->
                                                                               Ok(
-                                                                                ShippingFulfillmentsDomain,
+                                                                                PrivacyDomain,
                                                                               )
                                                                             False ->
                                                                               case
-                                                                                orders.is_orders_mutation_root(
+                                                                                shipping_fulfillment_priority_mutation_root(
                                                                                   name,
                                                                                 )
                                                                               {
                                                                                 True ->
                                                                                   Ok(
-                                                                                    OrdersDomain,
+                                                                                    ShippingFulfillmentsDomain,
                                                                                   )
                                                                                 False ->
                                                                                   case
-                                                                                    customers.is_customer_mutation_root(
+                                                                                    orders.is_orders_mutation_root(
                                                                                       name,
                                                                                     )
                                                                                   {
                                                                                     True ->
                                                                                       Ok(
-                                                                                        CustomersDomain,
+                                                                                        OrdersDomain,
                                                                                       )
                                                                                     False ->
                                                                                       case
-                                                                                        shipping_fulfillments.is_shipping_fulfillment_mutation_root(
+                                                                                        customers.is_customer_mutation_root(
                                                                                           name,
                                                                                         )
                                                                                       {
                                                                                         True ->
                                                                                           Ok(
-                                                                                            ShippingFulfillmentsDomain,
+                                                                                            CustomersDomain,
                                                                                           )
                                                                                         False ->
-                                                                                          Error(
-                                                                                            Nil,
-                                                                                          )
+                                                                                          case
+                                                                                            shipping_fulfillments.is_shipping_fulfillment_mutation_root(
+                                                                                              name,
+                                                                                            )
+                                                                                          {
+                                                                                            True ->
+                                                                                              Ok(
+                                                                                                ShippingFulfillmentsDomain,
+                                                                                              )
+                                                                                            False ->
+                                                                                              Error(
+                                                                                                Nil,
+                                                                                              )
+                                                                                          }
                                                                                       }
                                                                                   }
                                                                               }
