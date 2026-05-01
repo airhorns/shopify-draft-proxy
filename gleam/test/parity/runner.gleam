@@ -41,11 +41,12 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
   type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
-  type CollectionImageRecord, type CollectionRecord, type CollectionRuleRecord,
-  type CollectionRuleSetRecord, type CustomerAccountPageRecord,
-  type CustomerAddressRecord, type CustomerCatalogConnectionRecord,
-  type CustomerCatalogPageInfoRecord, type CustomerDefaultAddressRecord,
-  type CustomerDefaultEmailAddressRecord, type CustomerDefaultPhoneNumberRecord,
+  type CatalogRecord, type CollectionImageRecord, type CollectionRecord,
+  type CollectionRuleRecord, type CollectionRuleSetRecord,
+  type CustomerAccountPageRecord, type CustomerAddressRecord,
+  type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
+  type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
+  type CustomerDefaultPhoneNumberRecord,
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
   type CustomerPaymentMethodInstrumentRecord, type CustomerPaymentMethodRecord,
@@ -56,8 +57,9 @@ import shopify_draft_proxy/state/types.{
   type GiftCardTransactionRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
-  type InventoryWeightRecord, type LocationRecord, type MarketingRecord,
-  type MarketingValue, type MetafieldDefinitionCapabilitiesRecord,
+  type InventoryWeightRecord, type LocationRecord, type MarketRecord,
+  type MarketingRecord, type MarketingValue,
+  type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord,
   type MetafieldDefinitionConstraintsRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type MetaobjectCapabilitiesRecord,
@@ -69,7 +71,7 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectJsonValue, type MetaobjectRecord,
   type MetaobjectStandardTemplateRecord, type Money,
   type OnlineStoreContentRecord, type OrderRecord, type PaymentSettingsRecord,
-  type ProductCategoryRecord, type ProductCollectionRecord,
+  type PriceListRecord, type ProductCategoryRecord, type ProductCollectionRecord,
   type ProductMediaRecord, type ProductMetafieldRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
@@ -79,11 +81,11 @@ import shopify_draft_proxy/state/types.{
   type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, type StoreCreditAccountRecord,
   type StorePropertyRecord, type StorePropertyValue, type TranslationRecord,
-  B2BCompanyContactRecord, B2BCompanyContactRoleRecord, B2BCompanyLocationRecord,
-  B2BCompanyRecord, CapturedArray, CapturedBool, CapturedFloat, CapturedInt,
-  CapturedNull, CapturedObject, CapturedString, CollectionImageRecord,
-  CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
-  CustomerAccountPageRecord, CustomerAddressRecord,
+  type WebPresenceRecord, B2BCompanyContactRecord, B2BCompanyContactRoleRecord,
+  B2BCompanyLocationRecord, B2BCompanyRecord, CapturedArray, CapturedBool,
+  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  CatalogRecord, CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
+  CollectionRuleSetRecord, CustomerAccountPageRecord, CustomerAddressRecord,
   CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
   CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
   CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
@@ -95,22 +97,22 @@ import shopify_draft_proxy/state/types.{
   GiftCardTransactionRecord, InventoryItemRecord, InventoryLevelRecord,
   InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
   InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord, LocaleRecord,
-  LocationRecord, MarketingBool, MarketingFloat, MarketingInt, MarketingList,
-  MarketingNull, MarketingObject, MarketingRecord, MarketingString,
-  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
-  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
-  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, MetaobjectBool,
-  MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
-  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
-  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
-  MetaobjectFieldDefinitionReferenceRecord,
+  LocationRecord, MarketRecord, MarketingBool, MarketingFloat, MarketingInt,
+  MarketingList, MarketingNull, MarketingObject, MarketingRecord,
+  MarketingString, MetafieldDefinitionCapabilitiesRecord,
+  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintValueRecord,
+  MetafieldDefinitionConstraintsRecord, MetafieldDefinitionRecord,
+  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
+  MetaobjectBool, MetaobjectCapabilitiesRecord,
+  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
+  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
+  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
   MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
   MetaobjectStandardTemplateRecord, MetaobjectString, Money,
-  OnlineStoreContentRecord, OrderRecord, PaymentSettingsRecord,
+  OnlineStoreContentRecord, OrderRecord, PaymentSettingsRecord, PriceListRecord,
   ProductCategoryRecord, ProductCollectionRecord, ProductMediaRecord,
   ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
   ProductRecord, ProductSeoRecord, ProductVariantRecord,
@@ -122,7 +124,7 @@ import shopify_draft_proxy/state/types.{
   ShopifyFunctionAppRecord, ShopifyFunctionRecord, StoreCreditAccountRecord,
   StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
   StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
-  StorePropertyRecord, StorePropertyString, TranslationRecord,
+  StorePropertyRecord, StorePropertyString, TranslationRecord, WebPresenceRecord,
 }
 import simplifile
 
@@ -273,6 +275,7 @@ fn seed_capture_preconditions(
     seed_product_variants_bulk_reorder_preconditions,
     seed_product_variants_read_preconditions,
     seed_products_catalog_preconditions,
+    fn(c, p) { seed_markets_preconditions(parsed.scenario_id, c, p) },
     seed_products_search_read_preconditions,
     seed_captured_product_connections_preconditions,
     seed_products_sort_keys_preconditions,
@@ -4941,6 +4944,82 @@ fn seed_products_catalog_preconditions(
   draft_proxy.DraftProxy(..proxy, store: store)
 }
 
+fn seed_markets_preconditions(
+  scenario_id: String,
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case scenario_id {
+    "web-presence-delete-local-staging"
+    | "web-presence-lifecycle-local-staging" ->
+      seed_markets_web_presence_baseline_preconditions(capture, proxy)
+    "price-list-fixed-prices-by-product-update"
+    | "quantity-pricing-rules-local-staging" ->
+      seed_markets_capture_preconditions(capture, proxy)
+    "market-localization-metafield-default-validation" ->
+      seed_market_localization_metafield_preconditions(capture, proxy)
+    "market-catalog-detail-read"
+    | "market-catalogs-read"
+    | "market-detail-read"
+    | "market-web-presences-read"
+    | "markets-catalog-read"
+    | "markets-resolved-values-read"
+    | "price-list-detail-read"
+    | "price-list-prices-filtered-read"
+    | "price-lists-read" -> seed_markets_capture_preconditions(capture, proxy)
+    _ -> proxy
+  }
+}
+
+fn seed_markets_capture_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let market_records = collect_seed_market_records(capture)
+  let catalog_records = collect_seed_catalog_records(capture)
+  let price_list_records = collect_seed_price_list_records(capture)
+  let web_presence_records = collect_seed_web_presence_records(capture)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_markets(market_records)
+    |> store_mod.upsert_base_catalogs(catalog_records)
+    |> store_mod.upsert_base_price_lists(price_list_records)
+    |> store_mod.upsert_base_web_presences(web_presence_records)
+    |> seed_markets_root_payload(capture, "marketsResolvedValues", [
+      "$.data.marketsResolvedValues",
+      "$.response.payload.data.marketsResolvedValues",
+    ])
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_markets_web_presence_baseline_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records = case jsonpath.lookup(capture, "$.data.webPresences.nodes") {
+    Some(nodes) -> collect_seed_web_presence_records(nodes)
+    None -> []
+  }
+  let store = store_mod.upsert_base_web_presences(proxy.store, records)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_market_localization_metafield_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.productRead.response.payload.data.product",
+    )
+  {
+    Some(product_json) ->
+      seed_product_metafield_product_json(product_json, proxy)
+    None -> proxy
+  }
+}
+
 fn seed_products_search_read_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
@@ -8898,6 +8977,161 @@ fn captured_json_from_parity(value: JsonValue) -> CapturedJsonValue {
         }),
       )
   }
+}
+
+fn collect_seed_market_records(value: JsonValue) -> List(MarketRecord) {
+  collect_captured_resources(value, None)
+  |> list.filter_map(fn(entry) {
+    let #(node, cursor) = entry
+    case read_string_field(node, "id") {
+      Some(id) ->
+        case string.starts_with(id, "gid://shopify/Market/") {
+          True ->
+            Ok(MarketRecord(
+              id: id,
+              cursor: cursor,
+              data: captured_json_from_parity(node),
+            ))
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn collect_seed_catalog_records(value: JsonValue) -> List(CatalogRecord) {
+  collect_captured_resources(value, None)
+  |> list.filter_map(fn(entry) {
+    let #(node, cursor) = entry
+    case read_string_field(node, "id") {
+      Some(id) ->
+        case is_catalog_id(id) {
+          True ->
+            Ok(CatalogRecord(
+              id: id,
+              cursor: cursor,
+              data: captured_json_from_parity(node),
+            ))
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn collect_seed_price_list_records(value: JsonValue) -> List(PriceListRecord) {
+  collect_captured_resources(value, None)
+  |> list.filter_map(fn(entry) {
+    let #(node, cursor) = entry
+    case read_string_field(node, "id") {
+      Some(id) ->
+        case string.starts_with(id, "gid://shopify/PriceList/") {
+          True ->
+            Ok(PriceListRecord(
+              id: id,
+              cursor: cursor,
+              data: captured_json_from_parity(node),
+            ))
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn collect_seed_web_presence_records(
+  value: JsonValue,
+) -> List(WebPresenceRecord) {
+  collect_captured_resources(value, None)
+  |> list.filter_map(fn(entry) {
+    let #(node, cursor) = entry
+    case read_string_field(node, "id") {
+      Some(id) ->
+        case string.starts_with(id, "gid://shopify/MarketWebPresence/") {
+          True ->
+            Ok(WebPresenceRecord(
+              id: id,
+              cursor: cursor,
+              data: captured_json_from_parity(node),
+            ))
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn collect_captured_resources(
+  value: JsonValue,
+  edge_cursor: Option(String),
+) -> List(#(JsonValue, Option(String))) {
+  let self = case value {
+    JObject(_) ->
+      case read_string_field(value, "id") {
+        Some(_) -> [#(value, edge_cursor)]
+        None -> []
+      }
+    _ -> []
+  }
+  let children = case value {
+    JObject(fields) -> {
+      let cursor = read_string_field(value, "cursor") |> option.or(edge_cursor)
+      let node_entries = case json_value.field(value, "node") {
+        Some(node) -> collect_captured_resources(node, cursor)
+        None -> []
+      }
+      let field_entries =
+        fields
+        |> list.flat_map(fn(pair) {
+          let #(key, child) = pair
+          case key {
+            "node" -> []
+            _ -> collect_captured_resources(child, edge_cursor)
+          }
+        })
+      list.append(node_entries, field_entries)
+    }
+    JArray(items) ->
+      list.flat_map(items, fn(item) {
+        collect_captured_resources(item, edge_cursor)
+      })
+    _ -> []
+  }
+  list.append(self, children)
+}
+
+fn is_catalog_id(id: String) -> Bool {
+  string.starts_with(id, "gid://shopify/MarketCatalog/")
+  || string.starts_with(id, "gid://shopify/CompanyLocationCatalog/")
+  || string.starts_with(id, "gid://shopify/AppCatalog/")
+  || string.starts_with(id, "gid://shopify/Catalog/")
+}
+
+fn seed_markets_root_payload(
+  store: store_mod.Store,
+  capture: JsonValue,
+  key: String,
+  paths: List(String),
+) -> store_mod.Store {
+  case first_jsonpath_match(capture, paths) {
+    Some(payload) ->
+      store_mod.upsert_base_markets_root_payload(
+        store,
+        key,
+        captured_json_from_parity(payload),
+      )
+    None -> store
+  }
+}
+
+fn first_jsonpath_match(
+  value: JsonValue,
+  paths: List(String),
+) -> Option(JsonValue) {
+  list.find_map(paths, fn(path) {
+    jsonpath.lookup(value, path) |> option.to_result(Nil)
+  })
+  |> option.from_result
 }
 
 fn read_array_field(value: JsonValue, name: String) -> Option(List(JsonValue)) {
