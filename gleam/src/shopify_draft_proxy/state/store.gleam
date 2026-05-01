@@ -985,6 +985,18 @@ pub fn delete_staged_draft_order(store: Store, id: String) -> Store {
   )
 }
 
+pub fn delete_staged_order(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      orders: dict.delete(staged.orders, id),
+      deleted_order_ids: dict.insert(staged.deleted_order_ids, id, True),
+    ),
+  )
+}
+
 pub fn get_abandoned_checkout_by_id(
   store: Store,
   id: String,

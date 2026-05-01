@@ -1953,6 +1953,83 @@ pub fn orders_draft_order_delete_read_after_write_test() {
   assert store.get_draft_order_by_id(outcome.store, draft_order_id) == None
 }
 
+pub fn orders_order_delete_tombstone_read_after_write_test() {
+  let order_id = "gid://shopify/Order/order-delete"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: Some("cursor-order-delete"),
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#DELETE")),
+          #("displayFinancialStatus", types.CapturedString("PAID")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderDelete($orderId: ID!) {
+      orderDelete(orderId: $orderId) {
+        deletedId
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables = dict.from_list([#("orderId", root_field.StringVal(order_id))])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderDelete\":{\"deletedId\":\"gid://shopify/Order/order-delete\",\"userErrors\":[]}}}"
+  assert store.get_order_by_id(outcome.store, order_id) == None
+
+  let read =
+    "
+    query OrderDeleteRead($id: ID!) {
+      order(id: $id) {
+        id
+      }
+      orders(first: 5) {
+        nodes {
+          id
+        }
+      }
+      ordersCount {
+        count
+        precision
+      }
+    }
+  "
+  let read_variables = dict.from_list([#("id", root_field.StringVal(order_id))])
+  let assert Ok(read_result) =
+    orders.process(outcome.store, read, read_variables)
+  assert json.to_string(read_result)
+    == "{\"data\":{\"order\":null,\"orders\":{\"nodes\":[]},\"ordersCount\":{\"count\":0,\"precision\":\"EXACT\"}}}"
+
+  let assert Ok(repeated) =
+    orders.process_mutation(
+      outcome.store,
+      outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(repeated.data)
+    == "{\"data\":{\"orderDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\"}]}}}"
+  assert repeated.staged_resource_ids == []
+}
+
 pub fn orders_order_create_validation_guardrails_test() {
   let missing_order =
     "

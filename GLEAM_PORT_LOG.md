@@ -9,6 +9,47 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 158: order delete tombstone staging
+
+Adds direct `orderDelete` handling to the Gleam Orders domain. This pass
+matches the existing TypeScript snapshot behavior for supported order deletes:
+known orders are tombstoned locally, downstream reads omit the order, and repeat
+deletes return a payload-level user error without runtime upstream writes.
+
+| Module                                                   | Change                                   |
+| -------------------------------------------------------- | ---------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `orderDelete` mutation handling.    |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`        | Adds staged order tombstone helper.      |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers delete read-after-write behavior. |
+| `.agents/skills/gleam-port/SKILL.md`                     | Records order delete staging notes.      |
+
+Validation:
+
+- Reproduction with the new direct `orderDelete` proof first failed with an
+  empty data payload because the Gleam Orders dispatcher ignored the supported
+  root.
+- `cd gleam && gleam test --target javascript orders_order_delete_tombstone_read_after_write_test`
+  (757 passed).
+
+### Findings
+
+- `OrderRecord` already had deleted-id tracking in the base and staged state
+  shapes; the port only lacked the store helper and mutation wiring.
+- The local delete can use a staged tombstone without mutating base state,
+  preserving isolated proxy instance behavior and read-after-write suppression.
+
+### Risks / open items
+
+- Fulfillment creation and broader fulfillment-order workflows are still not
+  part of this pass.
+
+### Pass 159 candidates
+
+- Port the fulfillment creation/event slice or fulfillment-order lifecycle
+  workflows if HAR-492 is judged to include those legacy Orders-module roots.
+
+---
+
 ## 2026-05-01 - Pass 157: return reverse logistics staging
 
 Promotes the local-runtime and recorded reverse-logistics return scenarios in

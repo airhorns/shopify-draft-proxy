@@ -692,6 +692,12 @@ synthetic-id/timestamp expected differences.
   both local and live-recorded field families (`company`/`carrierName`,
   `dispositionType`/`dispositions`, top-level `reverseDelivery` and
   `reverseFulfillmentOrder`) from the same captured reverse-order model.
+- Direct `orderDelete` uses the normal staged-delete collection pattern:
+  remove any staged order, write a staged deleted-id tombstone, and let
+  `get_order_by_id` / `list_effective_orders` suppress both staged and base
+  records. The mutation payload has only `deletedId` and `userErrors`; a repeat
+  delete returns `deletedId: null` with `field: ["orderId"]` rather than
+  throwing or proxying upstream.
 
 ## Workflow for a new pass
 

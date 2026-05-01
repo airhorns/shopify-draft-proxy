@@ -108,6 +108,7 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "orderCreate",
       "orderCreateMandatePayment",
       "orderCreateManualPayment",
+      "orderDelete",
       "orderEditAddCustomItem",
       "orderEditAddLineItemDiscount",
       "orderEditAddShippingLine",
@@ -1339,6 +1340,19 @@ pub fn process_mutation(
             )
           }
         }
+        Field(name: name, ..) if name.value == "orderDelete" -> {
+          let result =
+            handle_order_delete_mutation(current_store, field, variables)
+          let #(key, payload, next_store, next_ids, next_drafts) = result
+          #(
+            list.append(entries, [#(key, payload)]),
+            errors,
+            next_store,
+            current_identity,
+            list.append(ids, next_ids),
+            list.append(drafts, next_drafts),
+          )
+        }
         Field(name: name, ..)
           if name.value == "orderClose" || name.value == "orderOpen"
         -> {
@@ -2052,6 +2066,79 @@ fn handle_draft_order_delete(
 }
 
 fn serialize_draft_order_delete_payload(
+  field: Selection,
+  deleted_id: Option(String),
+  user_errors: List(#(List(String), String)),
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "deletedId" -> #(key, case deleted_id {
+              Some(id) -> json.string(id)
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn handle_order_delete_mutation(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json, Store, List(String), List(LogDraft)) {
+  let key = get_field_response_key(field)
+  let args = field_arguments(field, variables)
+  let order_id = read_string_arg(args, "orderId")
+  case order_id {
+    Some(order_id) ->
+      case store.get_order_by_id(store, order_id) {
+        Some(_) -> {
+          let next_store = store.delete_staged_order(store, order_id)
+          let payload =
+            serialize_order_delete_payload(field, Some(order_id), [])
+          let draft =
+            single_root_log_draft(
+              "orderDelete",
+              [order_id],
+              store.Staged,
+              "orders",
+              "stage-locally",
+              Some("Locally staged orderDelete in shopify-draft-proxy."),
+            )
+          #(key, payload, next_store, [order_id], [draft])
+        }
+        None -> {
+          let payload =
+            serialize_order_delete_payload(field, None, [
+              #(["orderId"], "Order does not exist"),
+            ])
+          #(key, payload, store, [], [])
+        }
+      }
+    None -> {
+      let payload =
+        serialize_order_delete_payload(field, None, [
+          #(["orderId"], "Order does not exist"),
+        ])
+      #(key, payload, store, [], [])
+    }
+  }
+}
+
+fn serialize_order_delete_payload(
   field: Selection,
   deleted_id: Option(String),
   user_errors: List(#(List(String), String)),
