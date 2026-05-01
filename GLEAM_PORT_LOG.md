@@ -9,6 +9,53 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 154: return lifecycle staging
+
+Promotes the local-runtime return lifecycle scenario in the Gleam Orders
+domain. This pass adds order-backed return creation/request staging, return
+status transitions, top-level `return(id:)` reads, and nested `Order.returns`
+read-after-write serialization for the captured fixture.
+
+| Module                                             | Change                                           |
+| -------------------------------------------------- | ------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam` | Adds return lifecycle mutation/query handling.   |
+| `gleam/test/parity/runner.gleam`                   | Seeds the fulfilled return-flow source order.    |
+| `config/gleam-port-ci-gates.json`                  | Removes the newly passing return lifecycle spec. |
+| `.agents/skills/gleam-port/SKILL.md`               | Records return lifecycle staging notes.          |
+
+Validation:
+
+- Reproduction with `return-lifecycle-local-staging` ungated first failed at
+  missing local dispatcher support for `returnCreate`.
+- After initial implementation, the direct runner showed only
+  `returnClose.closedAt` one second late; the fix now mints `closedAt` before
+  the order `updatedAt` timestamp to preserve local-runtime fixture identity
+  order.
+- `cd gleam && gleam test --target javascript` (756 passed).
+
+### Findings
+
+- Return IDs in the local-runtime fixture rely on mutation-log identity
+  consumption between requests. Return lifecycle handlers must emit log drafts
+  so later requested-return IDs line up with captured local behavior.
+- The fixture stores returns as order-backed captured JSON. Custom serializers
+  are needed for `Return`, `ReturnLineItem`, reverse fulfillment order
+  connections, and nested `Order.returns` because raw captured arrays are not
+  Shopify GraphQL connections.
+
+### Risks / open items
+
+- Reverse-logistics roots and `removeFromReturn` remain gated.
+- Direct order delete success and broader fulfillment creation workflows remain
+  outside the promoted parity set.
+
+### Pass 155 candidates
+
+- Port `removeFromReturn-local-staging`, then use the same return-backed
+  serializers for request decline and reverse-logistics roots.
+
+---
+
 ## 2026-05-01 - Pass 153: residual order edit calculated edits
 
 Promotes the captured residual calculated-order edit scenario in the Gleam

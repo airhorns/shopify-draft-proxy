@@ -315,6 +315,12 @@ fn seed_capture_preconditions(
       seed_order_downstream_preconditions(capture, proxy)
     "orderCustomerSet-live-parity" | "orderCustomerRemove-live-parity" ->
       seed_order_customer_preconditions(capture, proxy)
+    "return-lifecycle-local-staging"
+    | "removeFromReturn-local-staging"
+    | "return-request-decline-local-staging"
+    | "return-reverse-logistics-local-staging"
+    | "return-reverse-logistics-recorded" ->
+      seed_return_lifecycle_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "b2b-company-roots-read" ->
@@ -1001,6 +1007,23 @@ fn seed_order_create_setup_preconditions(
 }
 
 fn seed_order_edit_existing_order_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath.lookup(capture, "$.seedOrder") {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> proxy
+  }
+}
+
+fn seed_return_lifecycle_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {

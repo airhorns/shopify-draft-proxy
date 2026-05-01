@@ -75,6 +75,7 @@ pub fn is_orders_query_root(name: String) -> Bool {
       "order",
       "orders",
       "ordersCount",
+      "return",
     ],
     name,
   )
@@ -120,6 +121,11 @@ pub fn is_orders_mutation_root(name: String) -> Bool {
       "orderOpen",
       "orderUpdate",
       "refundCreate",
+      "returnCancel",
+      "returnClose",
+      "returnCreate",
+      "returnReopen",
+      "returnRequest",
       "taxSummaryCreate",
       "transactionVoid",
     ],
@@ -313,6 +319,20 @@ fn serialize_query_field(
         None -> json.null()
       }
     }
+    "return" -> {
+      let id = read_string_argument(field, "id", variables)
+      case id {
+        Some(id) ->
+          case find_order_return(store, id) {
+            Some(match) -> {
+              let #(order, order_return) = match
+              serialize_order_return(field, order_return, order, fragments)
+            }
+            None -> json.null()
+          }
+        None -> json.null()
+      }
+    }
     "orders" -> serialize_orders(store, field, fragments, variables)
     "ordersCount" -> serialize_orders_count(store, field, fragments, variables)
     _ -> json.null()
@@ -324,11 +344,28 @@ fn serialize_order_node(
   order: OrderRecord,
   fragments: FragmentMap,
 ) -> Json {
-  project_graphql_value(
-    captured_json_source(order.data),
-    selection_children(field),
-    fragments,
-  )
+  let source = captured_json_source(order.data)
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "returns" -> #(
+              key,
+              serialize_order_returns_connection(
+                child,
+                order_returns(order.data),
+                order,
+                fragments,
+              ),
+            )
+            _ -> #(key, project_graphql_field_value(source, child, fragments))
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 fn serialize_orders(
@@ -1709,6 +1746,38 @@ pub fn process_mutation(
             next_identity,
             ids,
             drafts,
+          )
+        }
+        Field(name: name, ..)
+          if name.value == "returnCreate"
+          || name.value == "returnRequest"
+          || name.value == "returnCancel"
+          || name.value == "returnClose"
+          || name.value == "returnReopen"
+        -> {
+          let #(
+            key,
+            payload,
+            next_store,
+            next_identity,
+            staged_ids,
+            next_drafts,
+          ) =
+            handle_return_lifecycle_mutation(
+              current_store,
+              current_identity,
+              name.value,
+              field,
+              fragments,
+              variables,
+            )
+          #(
+            list.append(entries, [#(key, payload)]),
+            errors,
+            next_store,
+            next_identity,
+            list.append(ids, staged_ids),
+            list.append(drafts, next_drafts),
           )
         }
         Field(name: name, ..)
@@ -4703,6 +4772,1007 @@ fn handle_order_edit_residual_mutation(
       }
     }
   }
+}
+
+fn handle_return_lifecycle_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(
+  String,
+  Json,
+  Store,
+  SyntheticIdentityRegistry,
+  List(String),
+  List(LogDraft),
+) {
+  let key = get_field_response_key(field)
+  case root_name {
+    "returnCreate" | "returnRequest" -> {
+      let args = field_arguments(field, variables)
+      let input_key = case root_name {
+        "returnCreate" -> "returnInput"
+        _ -> "input"
+      }
+      let status = case root_name {
+        "returnCreate" -> "OPEN"
+        _ -> "REQUESTED"
+      }
+      let result =
+        apply_return_create(
+          store,
+          identity,
+          read_object(args, input_key),
+          status,
+        )
+      let ReturnMutationResult(
+        order,
+        order_return,
+        next_store,
+        next_identity,
+        user_errors,
+      ) = result
+      let payload =
+        serialize_return_mutation_payload(
+          field,
+          order_return,
+          order,
+          user_errors,
+          fragments,
+        )
+      let staged_ids = case order_return {
+        Some(value) ->
+          captured_string_field(value, "id")
+          |> option.map(fn(id) { [id] })
+          |> option.unwrap([])
+        None -> []
+      }
+      #(key, payload, next_store, next_identity, staged_ids, [
+        return_log_draft(root_name, staged_ids, user_errors),
+      ])
+    }
+    "returnCancel" | "returnClose" | "returnReopen" -> {
+      let status = case root_name {
+        "returnCancel" -> "CANCELED"
+        "returnClose" -> "CLOSED"
+        _ -> "OPEN"
+      }
+      let result =
+        apply_return_status_update(
+          store,
+          identity,
+          read_string_argument(field, "id", variables),
+          status,
+        )
+      let ReturnMutationResult(
+        order,
+        order_return,
+        next_store,
+        next_identity,
+        user_errors,
+      ) = result
+      let payload =
+        serialize_return_mutation_payload(
+          field,
+          order_return,
+          order,
+          user_errors,
+          fragments,
+        )
+      let staged_ids = case order_return {
+        Some(value) ->
+          captured_string_field(value, "id")
+          |> option.map(fn(id) { [id] })
+          |> option.unwrap([])
+        None -> []
+      }
+      #(key, payload, next_store, next_identity, staged_ids, [
+        return_log_draft(root_name, staged_ids, user_errors),
+      ])
+    }
+    _ -> #(key, json.null(), store, identity, [], [])
+  }
+}
+
+type ReturnMutationResult {
+  ReturnMutationResult(
+    order: Option(OrderRecord),
+    order_return: Option(CapturedJsonValue),
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    user_errors: List(#(List(String), String)),
+  )
+}
+
+fn apply_return_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Option(Dict(String, root_field.ResolvedValue)),
+  status: String,
+) -> ReturnMutationResult {
+  case input {
+    None ->
+      ReturnMutationResult(None, None, store, identity, [
+        #(["input"], "Input is required."),
+      ])
+    Some(input) -> {
+      case read_string(input, "orderId") {
+        None ->
+          ReturnMutationResult(None, None, store, identity, [
+            #(["orderId"], "Order does not exist."),
+          ])
+        Some(order_id) ->
+          case store.get_order_by_id(store, order_id) {
+            None ->
+              ReturnMutationResult(None, None, store, identity, [
+                #(["orderId"], "Order does not exist."),
+              ])
+            Some(order) -> {
+              let line_item_result =
+                build_return_line_items(identity, order, input)
+              case line_item_result {
+                Error(user_errors) ->
+                  ReturnMutationResult(
+                    Some(order),
+                    None,
+                    store,
+                    identity,
+                    user_errors,
+                  )
+                Ok(line_item_pack) -> {
+                  let #(line_items, identity_after_line_items) = line_item_pack
+                  let #(order_return, identity_after_return) =
+                    build_order_return(
+                      identity_after_line_items,
+                      order,
+                      line_items,
+                      input,
+                      status,
+                    )
+                  let #(next_store, next_identity, updated_order) =
+                    stage_order_with_returns(
+                      store,
+                      identity_after_return,
+                      order,
+                      [order_return, ..order_returns(order.data)],
+                    )
+                  ReturnMutationResult(
+                    Some(updated_order),
+                    Some(order_return),
+                    next_store,
+                    next_identity,
+                    [],
+                  )
+                }
+              }
+            }
+          }
+      }
+    }
+  }
+}
+
+fn apply_return_status_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  return_id: Option(String),
+  status: String,
+) -> ReturnMutationResult {
+  case return_id {
+    None ->
+      ReturnMutationResult(None, None, store, identity, [
+        #(["id"], "Return does not exist."),
+      ])
+    Some(return_id) ->
+      case find_order_return(store, return_id) {
+        None ->
+          ReturnMutationResult(None, None, store, identity, [
+            #(["id"], "Return does not exist."),
+          ])
+        Some(match) -> {
+          let #(order, order_return) = match
+          let #(closed_at, identity_after_closed) = case status {
+            "CLOSED" -> {
+              let #(timestamp, after_closed) =
+                synthetic_identity.make_synthetic_timestamp(identity)
+              #(CapturedString(timestamp), after_closed)
+            }
+            _ -> #(CapturedNull, identity)
+          }
+          let #(updated_at, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_closed)
+          let updated_return =
+            replace_captured_object_fields(order_return, [
+              #("status", CapturedString(status)),
+              #("closedAt", closed_at),
+            ])
+          let returns =
+            order_returns(order.data)
+            |> list.map(fn(candidate) {
+              case captured_string_field(candidate, "id") == Some(return_id) {
+                True -> updated_return
+                False -> candidate
+              }
+            })
+          let updated_order =
+            OrderRecord(
+              ..order,
+              data: replace_captured_object_fields(order.data, [
+                #("updatedAt", CapturedString(updated_at)),
+                #("returns", CapturedArray(returns)),
+              ]),
+            )
+          ReturnMutationResult(
+            Some(updated_order),
+            Some(updated_return),
+            store.stage_order(store, updated_order),
+            next_identity,
+            [],
+          )
+        }
+      }
+  }
+}
+
+fn build_return_line_items(
+  identity: SyntheticIdentityRegistry,
+  order: OrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Result(
+  #(List(CapturedJsonValue), SyntheticIdentityRegistry),
+  List(#(List(String), String)),
+) {
+  let raw_line_items = read_object_list(input, "returnLineItems")
+  case raw_line_items {
+    [] ->
+      Error([
+        #(["returnLineItems"], "Return must include at least one line item."),
+      ])
+    _ -> {
+      let #(line_items, user_errors, next_identity) =
+        list.index_fold(
+          raw_line_items,
+          #([], [], identity),
+          fn(acc, item, index) {
+            let #(items, errors, current_identity) = acc
+            let fulfillment_line_item_id =
+              read_string(item, "fulfillmentLineItemId")
+            let quantity = read_int(item, "quantity", 0)
+            let fulfillment_line_item =
+              fulfillment_line_item_id
+              |> option.then(fn(id) { find_fulfillment_line_item(order, id) })
+            case fulfillment_line_item {
+              None -> #(
+                items,
+                list.append(errors, [
+                  #(
+                    [
+                      "returnLineItems",
+                      int.to_string(index),
+                      "fulfillmentLineItemId",
+                    ],
+                    "Fulfillment line item does not exist.",
+                  ),
+                ]),
+                current_identity,
+              )
+              Some(fulfillment_line_item) -> {
+                let available_quantity =
+                  captured_int_field(fulfillment_line_item, "quantity")
+                  |> option.unwrap(0)
+                case quantity <= 0 || quantity > available_quantity {
+                  True -> #(
+                    items,
+                    list.append(errors, [
+                      #(
+                        ["returnLineItems", int.to_string(index), "quantity"],
+                        "Quantity is not available for return.",
+                      ),
+                    ]),
+                    current_identity,
+                  )
+                  False -> {
+                    let #(id, next_identity) =
+                      synthetic_identity.make_synthetic_gid(
+                        current_identity,
+                        "ReturnLineItem",
+                      )
+                    #(
+                      list.append(items, [
+                        build_return_line_item(id, fulfillment_line_item, item),
+                      ]),
+                      errors,
+                      next_identity,
+                    )
+                  }
+                }
+              }
+            }
+          },
+        )
+      case user_errors {
+        [] -> Ok(#(line_items, next_identity))
+        _ -> Error(user_errors)
+      }
+    }
+  }
+}
+
+fn build_return_line_item(
+  id: String,
+  fulfillment_line_item: CapturedJsonValue,
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  let line_item =
+    captured_object_field(fulfillment_line_item, "lineItem")
+    |> option.unwrap(CapturedNull)
+  CapturedObject([
+    #("id", CapturedString(id)),
+    #(
+      "fulfillmentLineItemId",
+      captured_field_or_null(fulfillment_line_item, "id"),
+    ),
+    #("lineItemId", captured_field_or_null(line_item, "id")),
+    #("title", captured_field_or_null(line_item, "title")),
+    #("quantity", CapturedInt(read_int(input, "quantity", 0))),
+    #("processedQuantity", CapturedInt(0)),
+    #(
+      "returnReason",
+      CapturedString(
+        read_string(input, "returnReason") |> option.unwrap("UNKNOWN"),
+      ),
+    ),
+    #(
+      "returnReasonNote",
+      CapturedString(
+        read_string(input, "returnReasonNote") |> option.unwrap(""),
+      ),
+    ),
+    #("customerNote", CapturedNull),
+  ])
+}
+
+fn build_order_return(
+  identity: SyntheticIdentityRegistry,
+  order: OrderRecord,
+  line_items: List(CapturedJsonValue),
+  input: Dict(String, root_field.ResolvedValue),
+  status: String,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(created_at, identity_after_time) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let #(return_id, identity_after_return) =
+    synthetic_identity.make_synthetic_gid(identity_after_time, "Return")
+  let base_return =
+    CapturedObject([
+      #("id", CapturedString(return_id)),
+      #("orderId", CapturedString(order.id)),
+      #(
+        "name",
+        CapturedString(
+          captured_string_field(order.data, "name")
+          |> option.unwrap("#ORDER")
+          <> "-R"
+          <> int.to_string(list.length(order_returns(order.data)) + 1),
+        ),
+      ),
+      #("status", CapturedString(status)),
+      #(
+        "createdAt",
+        CapturedString(
+          read_string(input, "requestedAt") |> option.unwrap(created_at),
+        ),
+      ),
+      #("closedAt", CapturedNull),
+      #("decline", CapturedNull),
+      #("totalQuantity", CapturedInt(total_return_quantity(line_items))),
+      #("returnLineItems", CapturedArray(line_items)),
+      #("reverseFulfillmentOrders", CapturedArray([])),
+    ])
+  case status {
+    "OPEN" ->
+      ensure_return_reverse_fulfillment_orders(
+        identity_after_return,
+        order,
+        base_return,
+      )
+    _ -> #(base_return, identity_after_return)
+  }
+}
+
+fn ensure_return_reverse_fulfillment_orders(
+  identity: SyntheticIdentityRegistry,
+  order: OrderRecord,
+  order_return: CapturedJsonValue,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  case order_reverse_fulfillment_orders(order_return) {
+    [_, ..] -> #(order_return, identity)
+    [] -> {
+      let #(reverse_order, next_identity) =
+        build_reverse_fulfillment_order(identity, order, order_return)
+      #(
+        replace_captured_object_fields(order_return, [
+          #("reverseFulfillmentOrders", CapturedArray([reverse_order])),
+        ]),
+        next_identity,
+      )
+    }
+  }
+}
+
+fn build_reverse_fulfillment_order(
+  identity: SyntheticIdentityRegistry,
+  order: OrderRecord,
+  order_return: CapturedJsonValue,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(line_items, identity_after_lines) =
+    order_return_line_items(order_return)
+    |> list.fold(#([], identity), fn(acc, return_line_item) {
+      let #(items, current_identity) = acc
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(
+          current_identity,
+          "ReverseFulfillmentOrderLineItem",
+        )
+      let quantity =
+        captured_int_field(return_line_item, "quantity") |> option.unwrap(0)
+      let processed_quantity =
+        captured_int_field(return_line_item, "processedQuantity")
+        |> option.unwrap(0)
+      #(
+        list.append(items, [
+          CapturedObject([
+            #("id", CapturedString(id)),
+            #(
+              "returnLineItemId",
+              captured_field_or_null(return_line_item, "id"),
+            ),
+            #(
+              "fulfillmentLineItemId",
+              captured_field_or_null(return_line_item, "fulfillmentLineItemId"),
+            ),
+            #(
+              "lineItemId",
+              captured_field_or_null(return_line_item, "lineItemId"),
+            ),
+            #("title", captured_field_or_null(return_line_item, "title")),
+            #("totalQuantity", CapturedInt(quantity)),
+            #(
+              "remainingQuantity",
+              CapturedInt(int.max(0, quantity - processed_quantity)),
+            ),
+            #("disposedQuantity", CapturedInt(0)),
+            #("dispositionType", CapturedNull),
+            #("dispositionLocationId", CapturedNull),
+          ]),
+        ]),
+        next_identity,
+      )
+    })
+  let #(id, next_identity) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_lines,
+      "ReverseFulfillmentOrder",
+    )
+  #(
+    CapturedObject([
+      #("id", CapturedString(id)),
+      #("orderId", CapturedString(order.id)),
+      #("returnId", captured_field_or_null(order_return, "id")),
+      #("status", CapturedString("OPEN")),
+      #("lineItems", CapturedArray(line_items)),
+      #("reverseDeliveries", CapturedArray([])),
+    ]),
+    next_identity,
+  )
+}
+
+fn stage_order_with_returns(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  order: OrderRecord,
+  returns: List(CapturedJsonValue),
+) -> #(Store, SyntheticIdentityRegistry, OrderRecord) {
+  let #(updated_at, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let updated_order =
+    OrderRecord(
+      ..order,
+      data: replace_captured_object_fields(order.data, [
+        #("updatedAt", CapturedString(updated_at)),
+        #("returns", CapturedArray(returns)),
+      ]),
+    )
+  #(store.stage_order(store, updated_order), next_identity, updated_order)
+}
+
+fn find_order_return(
+  store: Store,
+  return_id: String,
+) -> Option(#(OrderRecord, CapturedJsonValue)) {
+  store.list_effective_orders(store)
+  |> list.find_map(fn(order) {
+    case
+      order_returns(order.data)
+      |> list.find(fn(candidate) {
+        captured_string_field(candidate, "id") == Some(return_id)
+      })
+      |> option.from_result
+    {
+      Some(order_return) -> Ok(#(order, order_return))
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn order_returns(order_data: CapturedJsonValue) -> List(CapturedJsonValue) {
+  case captured_object_field(order_data, "returns") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> connection_nodes(value)
+    None -> []
+  }
+}
+
+fn order_return_line_items(
+  order_return: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(order_return, "returnLineItems") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> connection_nodes(value)
+    None -> []
+  }
+}
+
+fn order_reverse_fulfillment_orders(
+  order_return: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(order_return, "reverseFulfillmentOrders") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> connection_nodes(value)
+    None -> []
+  }
+}
+
+fn reverse_fulfillment_order_line_items(
+  reverse_fulfillment_order: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(reverse_fulfillment_order, "lineItems") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> connection_nodes(value)
+    None -> []
+  }
+}
+
+fn connection_nodes(value: CapturedJsonValue) -> List(CapturedJsonValue) {
+  case value {
+    CapturedObject(fields) ->
+      dict.from_list(fields)
+      |> dict.get("nodes")
+      |> result.unwrap(CapturedArray([]))
+      |> captured_array_values
+    _ -> []
+  }
+}
+
+fn total_return_quantity(line_items: List(CapturedJsonValue)) -> Int {
+  line_items
+  |> list.fold(0, fn(sum, line_item) {
+    sum + { captured_int_field(line_item, "quantity") |> option.unwrap(0) }
+  })
+}
+
+fn find_fulfillment_line_item(
+  order: OrderRecord,
+  fulfillment_line_item_id: String,
+) -> Option(CapturedJsonValue) {
+  order_fulfillments(order.data)
+  |> list.flat_map(fn(fulfillment) {
+    case captured_object_field(fulfillment, "fulfillmentLineItems") {
+      Some(value) -> connection_nodes(value)
+      None -> []
+    }
+  })
+  |> list.find(fn(line_item) {
+    captured_string_field(line_item, "id") == Some(fulfillment_line_item_id)
+  })
+  |> option.from_result
+}
+
+fn return_log_draft(
+  root_name: String,
+  staged_ids: List(String),
+  user_errors: List(#(List(String), String)),
+) -> LogDraft {
+  let status = case user_errors {
+    [] -> store.Staged
+    _ -> store.Failed
+  }
+  single_root_log_draft(
+    root_name,
+    staged_ids,
+    status,
+    "orders",
+    "stage-locally",
+    Some("Locally staged " <> root_name <> " in shopify-draft-proxy."),
+  )
+}
+
+fn serialize_return_mutation_payload(
+  field: Selection,
+  order_return: Option(CapturedJsonValue),
+  order: Option(OrderRecord),
+  user_errors: List(#(List(String), String)),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "return" -> #(key, case order_return, order {
+              Some(order_return), Some(order) ->
+                serialize_order_return(child, order_return, order, fragments)
+              _, _ -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_order_return(
+  field: Selection,
+  order_return: CapturedJsonValue,
+  order: OrderRecord,
+  fragments: FragmentMap,
+) -> Json {
+  let source = captured_json_source(order_return)
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "order" -> #(key, serialize_order_node(child, order, fragments))
+            "totalQuantity" -> #(
+              key,
+              json.int(
+                captured_int_field(order_return, "totalQuantity")
+                |> option.unwrap(
+                  total_return_quantity(order_return_line_items(order_return)),
+                ),
+              ),
+            )
+            "returnLineItems" -> #(
+              key,
+              serialize_return_line_items_connection(
+                child,
+                order_return_line_items(order_return),
+                fragments,
+              ),
+            )
+            "reverseFulfillmentOrders" -> #(
+              key,
+              serialize_reverse_fulfillment_orders_connection(
+                child,
+                order_reverse_fulfillment_orders(order_return),
+                order_return,
+                order,
+                fragments,
+              ),
+            )
+            "decline" -> #(
+              key,
+              project_graphql_field_value(source, child, fragments),
+            )
+            _ -> #(key, project_graphql_field_value(source, child, fragments))
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_order_returns_connection(
+  field: Selection,
+  returns: List(CapturedJsonValue),
+  order: OrderRecord,
+  fragments: FragmentMap,
+) -> Json {
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: returns,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(order_return, _index) {
+        captured_string_field(order_return, "id") |> option.unwrap("")
+      },
+      serialize_node: fn(order_return, selection, _index) {
+        serialize_order_return(selection, order_return, order, fragments)
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: True,
+        prefix_cursors: False,
+        include_cursors: False,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn serialize_return_line_items_connection(
+  field: Selection,
+  line_items: List(CapturedJsonValue),
+  fragments: FragmentMap,
+) -> Json {
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: line_items,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(line_item, _index) {
+        captured_string_field(line_item, "id") |> option.unwrap("")
+      },
+      serialize_node: fn(line_item, selection, _index) {
+        serialize_return_line_item(selection, line_item, fragments)
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: True,
+        prefix_cursors: False,
+        include_cursors: False,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn serialize_return_line_item(
+  field: Selection,
+  line_item: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  let source = captured_json_source(line_item)
+  let quantity = captured_int_field(line_item, "quantity") |> option.unwrap(0)
+  let processed =
+    captured_int_field(line_item, "processedQuantity") |> option.unwrap(0)
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "processedQuantity" | "refundedQuantity" -> #(
+              key,
+              json.int(processed),
+            )
+            "unprocessedQuantity" -> #(
+              key,
+              json.int(int.max(0, quantity - processed)),
+            )
+            "quantity" | "refundableQuantity" | "processableQuantity" -> #(
+              key,
+              json.int(quantity),
+            )
+            "fulfillmentLineItem" -> #(
+              key,
+              serialize_return_fulfillment_line_item(
+                child,
+                line_item,
+                fragments,
+              ),
+            )
+            _ -> #(key, project_graphql_field_value(source, child, fragments))
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_return_fulfillment_line_item(
+  field: Selection,
+  line_item: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  let source =
+    src_object([
+      #(
+        "id",
+        captured_string_field(line_item, "fulfillmentLineItemId")
+          |> option.map(SrcString)
+          |> option.unwrap(SrcNull),
+      ),
+      #(
+        "quantity",
+        SrcInt(captured_int_field(line_item, "quantity") |> option.unwrap(0)),
+      ),
+      #(
+        "lineItem",
+        src_object([
+          #(
+            "id",
+            captured_string_field(line_item, "lineItemId")
+              |> option.map(SrcString)
+              |> option.unwrap(SrcNull),
+          ),
+          #(
+            "title",
+            captured_string_field(line_item, "title")
+              |> option.map(SrcString)
+              |> option.unwrap(SrcNull),
+          ),
+        ]),
+      ),
+    ])
+  project_graphql_value(source, selection_children(field), fragments)
+}
+
+fn serialize_reverse_fulfillment_orders_connection(
+  field: Selection,
+  reverse_orders: List(CapturedJsonValue),
+  order_return: CapturedJsonValue,
+  order: OrderRecord,
+  fragments: FragmentMap,
+) -> Json {
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: reverse_orders,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(reverse_order, _index) {
+        captured_string_field(reverse_order, "id") |> option.unwrap("")
+      },
+      serialize_node: fn(reverse_order, selection, _index) {
+        serialize_reverse_fulfillment_order(
+          selection,
+          reverse_order,
+          order_return,
+          order,
+          fragments,
+        )
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: True,
+        prefix_cursors: False,
+        include_cursors: False,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn serialize_reverse_fulfillment_order(
+  field: Selection,
+  reverse_order: CapturedJsonValue,
+  order_return: CapturedJsonValue,
+  order: OrderRecord,
+  fragments: FragmentMap,
+) -> Json {
+  let source = captured_json_source(reverse_order)
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "return" -> #(
+              key,
+              serialize_order_return(child, order_return, order, fragments),
+            )
+            "order" -> #(key, serialize_order_node(child, order, fragments))
+            "lineItems" | "reverseFulfillmentOrderLineItems" -> #(
+              key,
+              serialize_reverse_fulfillment_order_line_items_connection(
+                child,
+                reverse_fulfillment_order_line_items(reverse_order),
+                order_return,
+                fragments,
+              ),
+            )
+            _ -> #(key, project_graphql_field_value(source, child, fragments))
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
+}
+
+fn serialize_reverse_fulfillment_order_line_items_connection(
+  field: Selection,
+  line_items: List(CapturedJsonValue),
+  order_return: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: line_items,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(line_item, _index) {
+        captured_string_field(line_item, "id") |> option.unwrap("")
+      },
+      serialize_node: fn(line_item, selection, _index) {
+        serialize_reverse_fulfillment_order_line_item(
+          selection,
+          line_item,
+          order_return,
+          fragments,
+        )
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: True,
+        prefix_cursors: False,
+        include_cursors: False,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn serialize_reverse_fulfillment_order_line_item(
+  field: Selection,
+  line_item: CapturedJsonValue,
+  order_return: CapturedJsonValue,
+  fragments: FragmentMap,
+) -> Json {
+  let source = captured_json_source(line_item)
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "returnLineItem" -> #(
+              key,
+              case captured_string_field(line_item, "returnLineItemId") {
+                Some(id) ->
+                  order_return_line_items(order_return)
+                  |> list.find(fn(item) {
+                    captured_string_field(item, "id") == Some(id)
+                  })
+                  |> option.from_result
+                  |> option.map(fn(return_line_item) {
+                    serialize_return_line_item(
+                      child,
+                      return_line_item,
+                      fragments,
+                    )
+                  })
+                  |> option.unwrap(json.null())
+                None -> json.null()
+              },
+            )
+            _ -> #(key, project_graphql_field_value(source, child, fragments))
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 fn order_edit_add_custom_item(

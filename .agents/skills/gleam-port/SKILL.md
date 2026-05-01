@@ -663,6 +663,15 @@ synthetic-id/timestamp expected differences.
   proves downstream commit effects for those root families. Recalculate
   selected totals from session line items, discounts, and shipping lines; the
   residual spec excludes Shopify-allocated calculated ids.
+- Return lifecycle staging is order-backed captured JSON rather than a new
+  broad store slice. Seed the fixture's fulfilled source order in the parity
+  runner, stage returns on the `OrderRecord.data` payload, and use custom
+  serializers for `Return`, `ReturnLineItem`, reverse fulfillment order
+  connections, top-level `return(id:)`, and nested `Order.returns`. Emit log
+  drafts for each return lifecycle mutation; the local-runtime fixture's later
+  return IDs depend on mutation-log synthetic-id consumption between requests.
+  Preserve timestamp order from the TypeScript runtime: `returnClose.closedAt`
+  is minted before the enclosing order `updatedAt`.
 
 ## Workflow for a new pass
 
