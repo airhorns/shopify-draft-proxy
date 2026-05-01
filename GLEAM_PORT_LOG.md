@@ -9,6 +9,56 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 114: market web-presence staging
+
+Promotes the captured MarketWebPresence mutation lifecycle into the Gleam
+parity suite. The Markets port now locally stages web presence create, update,
+delete, unknown-id validation, invalid-routing validation, and downstream
+`webPresences` reads without runtime Shopify writes.
+
+| Module                                                  | Change                                                                                                |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`     | Adds MarketWebPresence mutation dispatch, validation payloads, synthetic IDs, and read projection.    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes web-presence Markets mutations through the explicit local mutation dispatcher.                 |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`       | Adds staged upsert/delete helpers for web-presence records.                                           |
+| `gleam/test/parity/runner.gleam`                        | Seeds lifecycle specs from the captured baseline `data.webPresences.nodes` instead of mutation cases. |
+| `config/gleam-port-ci-gates.json`                       | Removes four now-passing MarketWebPresence parity specs.                                              |
+
+Validation:
+Full JavaScript is green at 718 tests. Host `gleam test --target erlang`
+still fails in the local Erlang runtime, so the Docker Erlang fallback using
+mounted Gleam 1.16 on `erlang:27-alpine` is the BEAM proof and is green at 714
+tests. `corepack pnpm gleam:port:coverage` is green with 379 specs and 162
+expected failures. `corepack pnpm gleam:registry:check`, `corepack pnpm lint`,
+and `git diff --check` are green. Markets parity inventory remains 27 checked-in
+specs, with 14 specs now executable in the Gleam parity suite and 13 Markets
+specs still expected-failing.
+
+### Findings
+
+- Web-presence lifecycle captures contain both a stable baseline
+  `data.webPresences.nodes` tree and disposable mutation response IDs; seeding
+  the entire capture would incorrectly preserve deleted disposable live IDs in
+  local read-after-delete results.
+- Shopify returns subfolder web presences with `domain: null` and root URLs
+  derived from the shop's primary baseline web-presence URL.
+
+### Risks / open items
+
+- Market/catalog/price-list mutation lifecycles, quantity pricing/rules, fixed
+  product prices, and market localization metafield lifecycle remain gated for
+  later passes.
+- The TypeScript Markets runtime remains intact under the Gleam port
+  preservation rule until the final all-port cutover.
+
+### Pass 115 candidates
+
+- Continue Markets with price-list fixed-price and quantity-pricing staging,
+  or port market/catalog mutation validation only after the corresponding
+  success lifecycle can be staged locally without overstating operation support.
+
+---
+
 ## 2026-05-01 - Pass 113: markets captured read substrate
 
 Promotes the first captured Markets read slice into the Gleam parity suite.

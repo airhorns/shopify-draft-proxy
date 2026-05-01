@@ -297,6 +297,9 @@ fn seed_capture_preconditions(
       seed_publication_roots_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
+    "web-presence-delete-local-staging"
+    | "web-presence-lifecycle-local-staging" ->
+      seed_markets_web_presence_baseline_preconditions(capture, proxy)
     "market-catalog-detail-read"
     | "market-catalogs-read"
     | "market-detail-read"
@@ -3372,6 +3375,18 @@ fn seed_markets_capture_preconditions(
       "$.data.marketsResolvedValues",
       "$.response.payload.data.marketsResolvedValues",
     ])
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_markets_web_presence_baseline_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records = case jsonpath.lookup(capture, "$.data.webPresences.nodes") {
+    Some(nodes) -> collect_seed_web_presence_records(nodes)
+    None -> []
+  }
+  let store = store_mod.upsert_base_web_presences(proxy.store, records)
   draft_proxy.DraftProxy(..proxy, store: store)
 }
 

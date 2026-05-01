@@ -2744,6 +2744,47 @@ pub fn list_effective_web_presences(store: Store) -> List(WebPresenceRecord) {
   )
 }
 
+pub fn upsert_staged_web_presence(
+  store: Store,
+  record: WebPresenceRecord,
+) -> #(WebPresenceRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.web_presence_order, record.id)
+    || list.contains(staged.web_presence_order, record.id)
+  let new_order = case already_known {
+    True -> staged.web_presence_order
+    False -> list.append(staged.web_presence_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      web_presences: dict.insert(staged.web_presences, record.id, record),
+      web_presence_order: new_order,
+      deleted_web_presence_ids: dict.delete(
+        staged.deleted_web_presence_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn delete_staged_web_presence(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(
+      ..staged,
+      web_presences: dict.delete(staged.web_presences, id),
+      deleted_web_presence_ids: dict.insert(
+        staged.deleted_web_presence_ids,
+        id,
+        True,
+      ),
+    )
+  Store(..store, staged_state: new_staged)
+}
+
 pub fn upsert_base_markets_root_payload(
   store: Store,
   key: String,

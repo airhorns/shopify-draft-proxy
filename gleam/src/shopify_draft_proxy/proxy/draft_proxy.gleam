@@ -925,6 +925,28 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(MarketsDomain) ->
+      case
+        markets.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle markets mutation"), proxy)
+      }
     Ok(AdminPlatformDomain) ->
       case
         admin_platform.process_mutation(
@@ -1562,34 +1584,45 @@ fn local_non_store_publishable_mutation_dispatch_domain(
                                                       Ok(BulkOperationsDomain)
                                                     False ->
                                                       case
-                                                        admin_platform.is_admin_platform_mutation_root(
+                                                        markets.is_markets_mutation_root(
                                                           name,
                                                         )
                                                       {
                                                         True ->
-                                                          Ok(
-                                                            AdminPlatformDomain,
-                                                          )
+                                                          Ok(MarketsDomain)
                                                         False ->
                                                           case
-                                                            privacy.is_privacy_mutation_root(
+                                                            admin_platform.is_admin_platform_mutation_root(
                                                               name,
                                                             )
                                                           {
                                                             True ->
-                                                              Ok(PrivacyDomain)
+                                                              Ok(
+                                                                AdminPlatformDomain,
+                                                              )
                                                             False ->
                                                               case
-                                                                customers.is_customer_mutation_root(
+                                                                privacy.is_privacy_mutation_root(
                                                                   name,
                                                                 )
                                                               {
                                                                 True ->
                                                                   Ok(
-                                                                    CustomersDomain,
+                                                                    PrivacyDomain,
                                                                   )
                                                                 False ->
-                                                                  Error(Nil)
+                                                                  case
+                                                                    customers.is_customer_mutation_root(
+                                                                      name,
+                                                                    )
+                                                                  {
+                                                                    True ->
+                                                                      Ok(
+                                                                        CustomersDomain,
+                                                                      )
+                                                                    False ->
+                                                                      Error(Nil)
+                                                                  }
                                                               }
                                                           }
                                                       }
