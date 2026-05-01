@@ -45,9 +45,10 @@ import shopify_draft_proxy/state/types.{
   type ShopResourceFeedbackRecord, type ShopifyFunctionRecord,
   type StoreCreditAccountRecord, type StoreCreditAccountTransactionRecord,
   type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
-  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
-  type WebhookSubscriptionRecord, BulkOperationRecord, ChannelRecord,
-  MarketingObject, MarketingString, PublicationRecord,
+  type StorePropertyValue, type TaxAppConfigurationRecord,
+  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
+  BulkOperationRecord, ChannelRecord, MarketingObject, MarketingString,
+  PublicationRecord,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the ported slices of `StateSnapshot`
@@ -216,6 +217,7 @@ pub type BaseState {
     segments: Dict(String, SegmentRecord),
     segment_order: List(String),
     deleted_segment_ids: Dict(String, Bool),
+    segment_root_payloads: Dict(String, StorePropertyValue),
     customer_segment_members_queries: Dict(
       String,
       CustomerSegmentMembersQueryRecord,
@@ -609,6 +611,7 @@ pub fn empty_base_state() -> BaseState {
     segments: dict.new(),
     segment_order: [],
     deleted_segment_ids: dict.new(),
+    segment_root_payloads: dict.new(),
     customer_segment_members_queries: dict.new(),
     customer_segment_members_query_order: [],
     available_locales: [],
@@ -7040,6 +7043,24 @@ pub fn get_customer_merge_request(
 // Segment slice (Pass 20)
 // ---------------------------------------------------------------------------
 
+pub fn upsert_base_segments(
+  store: Store,
+  records: List(SegmentRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        segments: dict.insert(base.segments, record.id, record),
+        segment_order: append_unique_id(base.segment_order, record.id),
+        deleted_segment_ids: dict.delete(base.deleted_segment_ids, record.id),
+      ),
+    )
+  })
+}
+
 /// Stage a segment record. Mirrors `upsertStagedSegment`. Returns the
 /// stored record alongside the new store so the caller can build a
 /// mutation payload.
@@ -7135,6 +7156,35 @@ pub fn list_effective_segments(store: Store) -> List(SegmentRecord) {
       }
     })
   list.append(ordered_records, unordered_records)
+}
+
+pub fn set_base_segment_root_payload(
+  store: Store,
+  root_name: String,
+  payload: StorePropertyValue,
+) -> Store {
+  let base = store.base_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      segment_root_payloads: dict.insert(
+        base.segment_root_payloads,
+        root_name,
+        payload,
+      ),
+    ),
+  )
+}
+
+pub fn get_base_segment_root_payload(
+  store: Store,
+  root_name: String,
+) -> Option(StorePropertyValue) {
+  case dict.get(store.base_state.segment_root_payloads, root_name) {
+    Ok(payload) -> Some(payload)
+    Error(_) -> None
+  }
 }
 
 // ---------------------------------------------------------------------------

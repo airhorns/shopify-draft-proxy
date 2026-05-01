@@ -399,6 +399,10 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
     #("segmentOrder", json.array(state.segment_order, json.string)),
     #("deletedSegmentIds", bool_dict_to_json(state.deleted_segment_ids)),
     #(
+      "segmentRootPayloads",
+      dict_to_json(state.segment_root_payloads, store_property_value_json),
+    ),
+    #(
       "customerSegmentMembersQueries",
       dict_to_json(
         state.customer_segment_members_queries,
@@ -2474,6 +2478,11 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
   use segments <- dict_field("segments", segment_decoder())
   use segment_order <- string_list_field("segmentOrder")
   use deleted_segment_ids <- bool_dict_field("deletedSegmentIds")
+  use segment_root_payloads <- optional_field(
+    "segmentRootPayloads",
+    empty.segment_root_payloads,
+    decode.dict(decode.string, store_property_value_decoder()),
+  )
   use customer_segment_members_queries <- dict_field(
     "customerSegmentMembersQueries",
     customer_segment_members_query_decoder(),
@@ -2629,6 +2638,7 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     segments: segments,
     segment_order: segment_order,
     deleted_segment_ids: deleted_segment_ids,
+    segment_root_payloads: segment_root_payloads,
     customer_segment_members_queries: customer_segment_members_queries,
     customer_segment_members_query_order: customer_segment_members_query_order,
     available_locales: available_locales,
