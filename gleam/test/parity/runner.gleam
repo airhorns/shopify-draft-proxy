@@ -50,9 +50,10 @@ import shopify_draft_proxy/state/types.{
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord,
-  type DraftOrderRecord, type DraftOrderVariantCatalogRecord,
-  type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord, type InventoryItemRecord,
+  type DiscountRecord, type DraftOrderRecord,
+  type DraftOrderVariantCatalogRecord, type GiftCardConfigurationRecord,
+  type GiftCardRecipientAttributesRecord, type GiftCardRecord,
+  type GiftCardTransactionRecord, type InventoryItemRecord,
   type InventoryLevelRecord, type InventoryLocationRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
   type InventoryWeightRecord, type LocationRecord, type MarketingRecord,
@@ -89,7 +90,8 @@ import shopify_draft_proxy/state/types.{
   CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
   CustomerEventSummaryRecord, CustomerMetafieldRecord,
   CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  DraftOrderRecord, DraftOrderVariantCatalogRecord, GiftCardConfigurationRecord,
+  DiscountRecord, DraftOrderRecord, DraftOrderVariantCatalogRecord,
+  GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
   InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
   InventoryMeasurementRecord, InventoryQuantityRecord, InventoryWeightFloat,
@@ -234,6 +236,7 @@ fn seed_capture_preconditions(
 ) -> DraftProxy {
   let helpers = [
     seed_captured_products_preconditions,
+    seed_discount_preconditions,
     seed_selling_plan_group_preconditions,
     seed_product_media_preconditions,
     seed_admin_platform_node_preconditions,
@@ -1748,6 +1751,190 @@ fn seed_customer_order_summary_preconditions(
       )
     }
   }
+}
+
+fn seed_discount_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let discount_sources = case jsonpath.lookup(capture, "$.seedDiscounts") {
+    Some(JArray(nodes)) -> nodes
+    _ -> discount_seed_sources_from_response(capture)
+  }
+  let discounts =
+    discount_sources
+    |> list.filter_map(make_seed_discount)
+    |> dedupe_discount_records
+  case discounts {
+    [] -> proxy
+    _ ->
+      draft_proxy.DraftProxy(
+        ..proxy,
+        store: store_mod.upsert_base_discounts(proxy.store, discounts),
+      )
+  }
+}
+
+fn discount_seed_sources_from_response(capture: JsonValue) -> List(JsonValue) {
+  case jsonpath.lookup(capture, "$.response") {
+    Some(response) -> collect_objects(response)
+    None -> []
+  }
+}
+
+fn dedupe_discount_records(
+  records: List(DiscountRecord),
+) -> List(DiscountRecord) {
+  let #(reversed_ids, by_id) =
+    list.fold(records, #([], dict.new()), fn(acc, record) {
+      let #(ids, records_by_id) = acc
+      case dict.get(records_by_id, record.id) {
+        Ok(existing) -> #(
+          ids,
+          dict.insert(
+            records_by_id,
+            record.id,
+            merge_seed_discount_record(existing, record),
+          ),
+        )
+        Error(_) -> #(
+          [record.id, ..ids],
+          dict.insert(records_by_id, record.id, record),
+        )
+      }
+    })
+  reversed_ids
+  |> list.reverse
+  |> list.filter_map(fn(id) { dict.get(by_id, id) })
+}
+
+fn merge_seed_discount_record(
+  existing: DiscountRecord,
+  candidate: DiscountRecord,
+) -> DiscountRecord {
+  DiscountRecord(
+    ..existing,
+    title: candidate.title |> option.or(existing.title),
+    status: candidate.status,
+    code: candidate.code |> option.or(existing.code),
+    payload: merge_captured_objects(existing.payload, candidate.payload),
+    cursor: existing.cursor |> option.or(candidate.cursor),
+  )
+}
+
+fn merge_captured_objects(
+  left: CapturedJsonValue,
+  right: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case left, right {
+    CapturedObject(left_fields), CapturedObject(right_fields) ->
+      CapturedObject(list.append(
+        left_fields
+          |> list.filter(fn(pair) {
+            !list.any(right_fields, fn(right_pair) { right_pair.0 == pair.0 })
+          }),
+        right_fields,
+      ))
+    _, _ -> right
+  }
+}
+
+fn make_seed_discount(source: JsonValue) -> Result(DiscountRecord, Nil) {
+  case read_object_field(source, "node"), read_string_field(source, "cursor") {
+    Some(node), Some(cursor) -> {
+      use record <- result.try(make_seed_discount(node))
+      Ok(DiscountRecord(..record, cursor: Some(cursor)))
+    }
+    _, _ -> make_seed_discount_owner(source)
+  }
+}
+
+fn make_seed_discount_owner(source: JsonValue) -> Result(DiscountRecord, Nil) {
+  use id <- result.try(read_string_field(source, "id") |> option_to_result())
+  let owner_kind = case
+    string.starts_with(id, "gid://shopify/DiscountAutomaticNode/")
+  {
+    True -> "automatic"
+    False ->
+      case string.starts_with(id, "gid://shopify/DiscountCodeNode/") {
+        True -> "code"
+        False -> ""
+      }
+  }
+  case owner_kind {
+    "" -> Error(Nil)
+    _ -> {
+      let discount_field = case owner_kind {
+        "automatic" -> "automaticDiscount"
+        _ -> "codeDiscount"
+      }
+      let discount =
+        read_object_field(source, discount_field)
+        |> option.or(read_object_field(source, "discount"))
+      use discount <- result.try(discount |> option_to_result())
+      let payload =
+        normalize_seed_discount_payload(source, discount_field, discount)
+      Ok(DiscountRecord(
+        id: id,
+        owner_kind: owner_kind,
+        discount_type: seed_discount_type(discount),
+        title: read_string_field(discount, "title"),
+        status: read_string_field(discount, "status") |> option.unwrap("ACTIVE"),
+        code: seed_discount_code(discount),
+        payload: payload,
+        cursor: seed_discount_cursor(source),
+      ))
+    }
+  }
+}
+
+fn normalize_seed_discount_payload(
+  source: JsonValue,
+  discount_field: String,
+  discount: JsonValue,
+) -> CapturedJsonValue {
+  case source {
+    JObject(fields) ->
+      CapturedObject(
+        fields
+        |> list.filter(fn(pair) { pair.0 != "discount" })
+        |> list.append([#(discount_field, discount)])
+        |> list.map(fn(pair) {
+          let #(key, value) = pair
+          #(key, captured_json_from_parity(value))
+        }),
+      )
+    _ ->
+      CapturedObject([
+        #("id", CapturedString("")),
+        #(discount_field, captured_json_from_parity(discount)),
+      ])
+  }
+}
+
+fn seed_discount_type(discount: JsonValue) -> String {
+  case read_string_field(discount, "__typename") {
+    Some("DiscountCodeApp") | Some("DiscountAutomaticApp") -> "app"
+    Some("DiscountCodeBxgy") | Some("DiscountAutomaticBxgy") -> "bxgy"
+    Some("DiscountCodeFreeShipping") | Some("DiscountAutomaticFreeShipping") ->
+      "free_shipping"
+    _ -> "basic"
+  }
+}
+
+fn seed_discount_code(discount: JsonValue) -> Option(String) {
+  case read_object_field(discount, "codes") {
+    Some(codes) ->
+      case read_array_field(codes, "nodes") {
+        Some([first, ..]) -> read_string_field(first, "code")
+        _ -> None
+      }
+    None -> None
+  }
+}
+
+fn seed_discount_cursor(source: JsonValue) -> Option(String) {
+  read_string_field(source, "cursor")
 }
 
 fn seed_order_customer_preconditions(
@@ -8131,11 +8318,31 @@ fn seed_shopify_function_preconditions(
     ])
   {
     False -> proxy
-    True -> seed_shopify_function_preconditions_inner(capture, proxy)
+    True -> {
+      let seeded = seed_shopify_function_records(capture, proxy)
+      case capture_has_any_path(capture, ["$.seedDiscounts"]) {
+        True -> seeded
+        False -> advance_shopify_function_seed_identity(seeded)
+      }
+    }
   }
 }
 
-fn seed_shopify_function_preconditions_inner(
+fn advance_shopify_function_seed_identity(proxy: DraftProxy) -> DraftProxy {
+  // The local-runtime fixture was captured after the function metadata
+  // seed step had advanced the synthetic counters once.
+  let #(_, identity_after_id) =
+    synthetic_identity.make_synthetic_gid(
+      proxy.synthetic_identity,
+      "MutationLogEntry",
+    )
+  let #(_, identity_after_seed) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_id)
+
+  draft_proxy.DraftProxy(..proxy, synthetic_identity: identity_after_seed)
+}
+
+fn seed_shopify_function_records(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
@@ -8151,21 +8358,7 @@ fn seed_shopify_function_preconditions_inner(
       next_store
     })
 
-  // The local-runtime fixture was captured after the function metadata
-  // seed step had advanced the synthetic counters once.
-  let #(_, identity_after_id) =
-    synthetic_identity.make_synthetic_gid(
-      proxy.synthetic_identity,
-      "MutationLogEntry",
-    )
-  let #(_, identity_after_seed) =
-    synthetic_identity.make_synthetic_timestamp(identity_after_id)
-
-  draft_proxy.DraftProxy(
-    ..proxy,
-    store: seeded_store,
-    synthetic_identity: identity_after_seed,
-  )
+  draft_proxy.DraftProxy(..proxy, store: seeded_store)
 }
 
 fn make_seed_shopify_function(
