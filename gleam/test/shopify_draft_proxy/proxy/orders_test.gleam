@@ -898,6 +898,273 @@ pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
     == "{\"errors\":[{\"message\":\"invalid id\",\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"},\"path\":[\"fulfillmentCreate\"]}],\"data\":{\"fulfillmentCreate\":null}}"
 }
 
+pub fn orders_refund_create_over_refund_validation_keeps_order_unchanged_test() {
+  let order_id = "gid://shopify/Order/6830465417449"
+  let line_item_id = "gid://shopify/LineItem/16202166632681"
+  let transaction_id = "gid://shopify/OrderTransaction/8194169077993"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1320")),
+          #("displayFinancialStatus", types.CapturedString("PAID")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+          #(
+            "totalPriceSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("15.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "totalRefundedSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("0.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "shippingLines",
+            types.CapturedObject([
+              #(
+                "nodes",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #("title", types.CapturedString("Standard")),
+                    #(
+                      "originalPriceSet",
+                      types.CapturedObject([
+                        #(
+                          "shopMoney",
+                          types.CapturedObject([
+                            #("amount", types.CapturedString("5.0")),
+                            #("currencyCode", types.CapturedString("CAD")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "lineItems",
+            types.CapturedObject([
+              #(
+                "nodes",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #("id", types.CapturedString(line_item_id)),
+                    #(
+                      "title",
+                      types.CapturedString("Hermes refundable over-refund item"),
+                    ),
+                    #("quantity", types.CapturedInt(1)),
+                    #(
+                      "originalUnitPriceSet",
+                      types.CapturedObject([
+                        #(
+                          "shopMoney",
+                          types.CapturedObject([
+                            #("amount", types.CapturedString("10.0")),
+                            #("currencyCode", types.CapturedString("CAD")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "transactions",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString(transaction_id)),
+                #("kind", types.CapturedString("SALE")),
+                #("status", types.CapturedString("SUCCESS")),
+                #("gateway", types.CapturedString("manual")),
+                #(
+                  "amountSet",
+                  types.CapturedObject([
+                    #(
+                      "shopMoney",
+                      types.CapturedObject([
+                        #("amount", types.CapturedString("15.0")),
+                        #("currencyCode", types.CapturedString("CAD")),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+          #("refunds", types.CapturedArray([])),
+          #(
+            "returns",
+            types.CapturedObject([
+              #("nodes", types.CapturedArray([])),
+              #(
+                "pageInfo",
+                types.CapturedObject([
+                  #("hasNextPage", types.CapturedBool(False)),
+                  #("hasPreviousPage", types.CapturedBool(False)),
+                  #("startCursor", types.CapturedNull),
+                  #("endCursor", types.CapturedNull),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation RefundCreateParity($input: RefundInput!) {
+      refundCreate(input: $input) {
+        refund {
+          id
+        }
+        order {
+          id
+          displayFinancialStatus
+          totalRefundedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("orderId", root_field.StringVal(order_id)),
+            #("note", root_field.StringVal("invalid over refund")),
+            #("notify", root_field.BoolVal(False)),
+            #(
+              "refundLineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("lineItemId", root_field.StringVal(line_item_id)),
+                    #("quantity", root_field.IntVal(1)),
+                    #("restockType", root_field.StringVal("NO_RESTOCK")),
+                  ]),
+                ),
+              ]),
+            ),
+            #(
+              "shipping",
+              root_field.ObjectVal(
+                dict.from_list([#("fullRefund", root_field.BoolVal(True))]),
+              ),
+            ),
+            #(
+              "transactions",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("amount", root_field.StringVal("25.00")),
+                    #("gateway", root_field.StringVal("manual")),
+                    #("kind", root_field.StringVal("REFUND")),
+                    #("orderId", root_field.StringVal(order_id)),
+                    #("parentId", root_field.StringVal(transaction_id)),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let assert Ok(outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":{\"id\":\"gid://shopify/Order/6830465417449\",\"displayFinancialStatus\":\"PAID\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[{\"field\":null,\"message\":\"Refund amount $25.00 is greater than net payment received $15.00\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert list.length(outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query RefundCreateDownstreamRead($id: ID!) {
+      order(id: $id) {
+        id
+        displayFinancialStatus
+        displayFulfillmentStatus
+        refunds {
+          id
+        }
+        returns(first: 5) {
+          nodes {
+            id
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+        transactions {
+          id
+          kind
+          status
+          gateway
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        totalRefundedSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  "
+  let read_variables = dict.from_list([#("id", root_field.StringVal(order_id))])
+  let assert Ok(read) =
+    orders.process(outcome.store, read_query, read_variables)
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830465417449\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"refunds\":[],\"returns\":{\"nodes\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}},\"transactions\":[{\"id\":\"gid://shopify/OrderTransaction/8194169077993\",\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}}],\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}}}}}"
+}
+
 pub fn orders_draft_order_delete_read_after_write_test() {
   let draft_order_id = "gid://shopify/DraftOrder/10079785100"
   let seeded =

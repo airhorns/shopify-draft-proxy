@@ -586,6 +586,11 @@ synthetic-id/timestamp expected differences.
   without sending email, and let bulk tag/delete helpers return deterministic
   async `Job` payloads while immediately staging local draft-order tag/delete
   read-after-write effects.
+- `refundCreate` over-refund parity is a validation guardrail, not refund
+  lifecycle support. Seed from `$.setup.orderCreate.response.data.orderCreate.order`
+  when the error text depends on the original `totalPriceSet`; downstream reads
+  alone may not include that money field. Shopify returns `refund: null`,
+  `userErrors.field: null`, and leaves refunds/returns/order totals unchanged.
 
 ## Workflow for a new pass
 

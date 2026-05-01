@@ -288,6 +288,8 @@ fn seed_capture_preconditions(
     "fulfillment-cancel-live-parity"
     | "fulfillment-tracking-info-update-live-parity" ->
       seed_order_downstream_preconditions(capture, proxy)
+    "refund-create-over-refund-user-errors" ->
+      seed_order_create_setup_preconditions(capture, proxy)
     "orderCancel-live-parity" ->
       seed_order_downstream_preconditions(capture, proxy)
     "orderOpen-live-parity" ->
@@ -962,6 +964,28 @@ fn seed_order_downstream_preconditions(
         Error(_) -> proxy
       }
     None -> proxy
+  }
+}
+
+fn seed_order_create_setup_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case
+    jsonpath.lookup(
+      capture,
+      "$.setup.orderCreate.response.data.orderCreate.order",
+    )
+  {
+    Some(source) ->
+      case make_seed_order(source) {
+        Ok(record) -> {
+          let store = proxy.store |> store_mod.upsert_base_orders([record])
+          draft_proxy.DraftProxy(..proxy, store: store)
+        }
+        Error(_) -> proxy
+      }
+    None -> seed_order_downstream_preconditions(capture, proxy)
   }
 }
 

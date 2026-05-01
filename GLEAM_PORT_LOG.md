@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 144: refund over-refund validation parity
+
+Promotes the checked-in `refundCreate` over-refund user-error parity scenario
+in the Gleam Orders domain. This pass handles only the captured validation
+branch: no refund is staged, the existing paid order is serialized unchanged,
+and downstream `order(id:)` still shows no refunds or returns.
+
+| Module                                                   | Change                                                       |
+| -------------------------------------------------------- | ------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `refundCreate` over-refund validation payload handling. |
+| `gleam/test/parity/runner.gleam`                         | Seeds the captured setup order for refund validation parity. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers over-refund payload and unchanged downstream reads.   |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing over-refund parity spec.           |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (750 passed).
+- Local `cd gleam && gleam test --target erlang` still hit the host runner
+  `undef` issue after compile; Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  passed (746 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 113 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The captured over-refund scenario needs the setup `orderCreate` order, not
+  only the downstream order read, because Shopify's error message compares the
+  requested refund to the order's original `totalPriceSet`.
+- Shopify returns `userErrors.field: null` for this branch and leaves the order
+  unchanged: `refund` is null, financial status remains `PAID`, total refunded
+  stays `0.0`, and downstream `refunds`/`returns` remain empty.
+
+### Risks / open items
+
+- Refund success paths, full/partial refund staging, transaction insertion,
+  return flows, payment transaction roots, order creation/delete, and order-edit
+  sessions remain gated.
+
+### Pass 145 candidates
+
+- Continue with another validation-only existing-resource fixture, or start a
+  coherent refund success slice only if refund records, order totals,
+  transactions, and downstream reads can be modeled together.
+
+---
+
 ## 2026-05-01 - Pass 143: fulfillment cancel and tracking parity
 
 Promotes the checked-in `fulfillmentCancel` and
