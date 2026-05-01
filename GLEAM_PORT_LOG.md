@@ -9,6 +9,55 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 168: HAR-516 customer TypeScript runtime audit
+
+Audits the active TypeScript callers of `src/proxy/customers.ts` after the
+Gleam Customer domain parity work. The audit keeps the TypeScript customer
+runtime in place because the repository is still in an incremental port phase:
+the shipping JavaScript/Koa `DraftProxy` surface, TypeScript Admin Platform
+node resolution, bulk mutation import staging, customer payment-method payload
+serialization, and TypeScript conformance parity runner still call the
+TypeScript customer module.
+
+| Module                               | Decision                                                                                                          |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `src/proxy/routes.ts`                | Retain as the active TypeScript customer route dispatcher until the public TS runtime is backed by Gleam.         |
+| `src/proxy/admin-platform.ts`        | Retain Customer / CustomerPaymentMethod / StoreCreditAccount node lookups while TS Admin Platform remains active. |
+| `src/proxy/bulk-operations.ts`       | Retain customer inner-mutation staging for supported bulk mutation imports.                                       |
+| `src/proxy/payments.ts`              | Retain the customer-owned payment-method serializer dependency; do not split it into a generic payments helper.   |
+| `scripts/conformance-parity-lib.ts`  | Retain TypeScript customer handlers and seeders for the shipping TS conformance parity runner.                    |
+| `docs/endpoints/customers.md`        | Records the runtime-boundary audit and deletion criteria for future cutover work.                                 |
+| `.agents/skills/gleam-port/SKILL.md` | Records the customer runtime retirement guardrail for future agents.                                              |
+
+Validation:
+
+- `corepack pnpm vitest run tests/integration/customer-query-shapes.test.ts tests/integration/customer-draft-flow.test.ts tests/integration/customer-payment-method-flow.test.ts tests/unit/customer-mutation-parity-plan.test.ts tests/unit/customer-parity-plan-fields.test.ts tests/unit/conformance-parity-scenarios.test.ts`
+  (435 passed)
+- `corepack pnpm lint`
+- `corepack pnpm typecheck`
+- `cd gleam && gleam test --target javascript` (773 passed)
+- host `cd gleam && gleam test --target erlang` failed because the workspace
+  Erlang install is OTP 25 and `gleam_json` requires OTP 27+
+- `docker run --rm -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang -- --seed 0'`
+  (769 passed)
+
+### Findings
+
+- Customer parity is ungated in `config/gleam-port-ci-gates.json`, but the
+  green Gleam parity corpus is not equivalent to the whole-port cutover bar in
+  `GLEAM_PORT_INTENT.md`.
+- Removing `src/proxy/customers.ts` now would either break active TypeScript
+  callers or require a new TS-to-Gleam runtime bridge outside the scope of this
+  audit pass.
+
+### Risks / open items
+
+- Final TypeScript customer runtime deletion remains deferred until the whole
+  port can prove the embeddable TypeScript API, Koa route surface, parity
+  runner, and cross-domain callers are served by the replacement runtime.
+
+---
+
 ## 2026-05-01 - Pass 167: HAR-496 payments branch localization refresh
 
 Refreshes the HAR-496 Payments branch after `origin/main` advanced with the

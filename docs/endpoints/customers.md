@@ -4,6 +4,49 @@ The customers group has implemented local slices, but the whole registry domain 
 
 ## Current support and limitations
 
+### TypeScript and Gleam runtime boundary
+
+HAR-516 audited the active TypeScript imports of `src/proxy/customers.ts` after
+the Gleam customer domain reached parity. The TypeScript module remains
+intentionally retained during the incremental port: the JavaScript/Koa
+`DraftProxy` runtime still dispatches customer Admin GraphQL requests through
+`src/proxy/routes.ts`, and the final all-port cutover acceptance bar has not yet
+been met.
+
+Current caller decisions:
+
+- `src/proxy/routes.ts` is the shipping TypeScript route dispatcher for
+  customer reads, live-hybrid hydration, and locally staged customer/privacy
+  mutations. It is retained until the public TypeScript `DraftProxy` surface is
+  backed by the Gleam runtime or an equivalent verified bridge.
+- `src/proxy/admin-platform.ts` resolves Admin `node(id:)` / typed node lookups
+  for `Customer`, `CustomerPaymentMethod`, and `StoreCreditAccount` by delegating
+  to the TypeScript customer query serializer. It is retained while the
+  TypeScript Admin Platform dispatcher remains active.
+- `src/proxy/bulk-operations.ts` reuses `handleCustomerMutation` for supported
+  customer and privacy inner mutations inside locally staged bulk mutation
+  imports. It is retained so supported bulk imports keep staging locally instead
+  of falling back to runtime Shopify writes.
+- `src/proxy/payments.ts` imports
+  `serializeCustomerPaymentMethodSelection` because payment-method mutation
+  payloads serialize customer-owned payment-method records. This is a
+  customer-domain serializer dependency, not a reason to split ownership into a
+  generic payments helper.
+- `scripts/conformance-parity-lib.ts` uses the TypeScript customer handlers and
+  hydration/seed helpers for the TypeScript parity runner. It is retained so the
+  existing conformance harness continues to verify the shipping TypeScript
+  runtime while the Gleam parity runner independently consumes the same checked-
+  in fixtures.
+
+The Gleam customer dispatcher has executable parity for the checked-in customer
+specs, but that proves the Gleam implementation is ready for its own targets; it
+does not by itself retire the TypeScript runtime, TypeScript tests, or
+TypeScript conformance runner. Delete `src/proxy/customers.ts` only in a final
+runtime cutover that also proves the TypeScript embeddable/Koa surfaces, Admin
+Platform node resolution, bulk import staging, customer payment-method payloads,
+and parity harness behavior are served by the replacement path without
+regression.
+
 ### Implemented roots
 
 Overlay reads:

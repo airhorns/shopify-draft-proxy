@@ -281,6 +281,14 @@ Gleam parity/direct tests that then own the behavior. Then run
 `gleam/scripts/sync-operation-registry.sh` so the vendored Gleam registry
 matches the JSON source.
 
+HAR-516 audited Customer runtime retirement after the Customer Gleam parity
+suite was ungated. Do not remove `src/proxy/customers.ts` during incremental
+port work: it still backs the TypeScript Koa route dispatcher, Admin Platform
+node lookups, bulk mutation import staging, customer payment-method payload
+serialization, and the TypeScript conformance parity runner. Customer deletion
+is a final-cutover task unless a dedicated TS-to-Gleam bridge proves those
+surfaces with TypeScript integration and conformance evidence.
+
 ### Functions parity note
 
 Captures with `seedShopifyFunctions` share one runner seeding helper for
