@@ -418,6 +418,8 @@ pub type LogDraft {
     primary_root_field: Option(String),
     domain: String,
     execution: String,
+    query: Option(String),
+    variables: Option(Dict(String, root_field.ResolvedValue)),
     staged_resource_ids: List(String),
     status: store.EntryStatus,
     notes: Option(String),
@@ -443,6 +445,8 @@ pub fn single_root_log_draft(
     primary_root_field: Some(root_field),
     domain: domain,
     execution: execution,
+    query: None,
+    variables: None,
     staged_resource_ids: staged_resource_ids,
     status: status,
     notes: notes,
@@ -458,6 +462,7 @@ pub fn record_log_drafts(
   identity: SyntheticIdentityRegistry,
   request_path: String,
   document: String,
+  variables: Dict(String, root_field.ResolvedValue),
   drafts: List(LogDraft),
 ) -> #(Store, SyntheticIdentityRegistry) {
   list.fold(drafts, #(store, identity), fn(acc, draft) {
@@ -475,8 +480,8 @@ pub fn record_log_drafts(
         received_at: received_at,
         operation_name: draft.operation_name,
         path: request_path,
-        query: document,
-        variables: dict.new(),
+        query: option.unwrap(draft.query, document),
+        variables: option.unwrap(draft.variables, variables),
         staged_resource_ids: draft.staged_resource_ids,
         status: draft.status,
         interpreted: store.InterpretedMetadata(

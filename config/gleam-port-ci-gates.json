@@ -1,10 +1,6 @@
 {
   "expectedGleamParityFailures": [
     {
-      "specPath": "config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json",
       "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
       "targets": ["erlang"]
