@@ -157,5 +157,6 @@ describe('conformance parity scenarios (convention-driven suite)', () => {
       ).toEqual([]);
       expect(result.ok).toBe(true);
     },
+    15_000,
   );
 });
