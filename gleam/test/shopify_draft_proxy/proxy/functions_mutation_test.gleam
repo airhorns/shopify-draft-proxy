@@ -40,6 +40,7 @@ fn run_mutation_outcome(
       outcome.identity,
       request_path,
       document,
+      dict.new(),
       outcome.log_drafts,
     )
   functions.MutationOutcome(

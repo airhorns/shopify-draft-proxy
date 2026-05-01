@@ -472,6 +472,23 @@ fn serialize_product_root(
   }
 }
 
+pub fn serialize_product_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_product_by_id(store, id) {
+    Some(product) ->
+      project_graphql_value(
+        product_source_with_store(store, product),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
 fn serialize_product_by_identifier_root(
   store: Store,
   field: Selection,
@@ -781,6 +798,23 @@ fn serialize_collection_object(
     fragments,
     None,
   )
+}
+
+pub fn serialize_collection_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_collection_by_id(store, id) {
+    Some(collection) ->
+      project_graphql_value(
+        collection_source_with_store(store, collection),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
 }
 
 fn serialize_collection_object_with_options(
@@ -4057,6 +4091,27 @@ pub fn serialize_product_option_value_node_by_id(
         fragments,
       )
     None -> json.null()
+  }
+}
+
+pub fn serialize_selling_plan_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  let plan =
+    store.list_effective_selling_plan_groups(store)
+    |> list.flat_map(fn(group) { group.selling_plans })
+    |> list.find(fn(plan) { plan.id == id })
+  case plan {
+    Ok(plan) ->
+      project_graphql_value(
+        captured_json_source(plan.data),
+        selections,
+        fragments,
+      )
+    Error(_) -> json.null()
   }
 }
 

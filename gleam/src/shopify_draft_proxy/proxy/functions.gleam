@@ -689,6 +689,8 @@ fn handle_mutation_fields(
       primary_root_field: primary_root,
       domain: "functions",
       execution: "stage-locally",
+      query: None,
+      variables: None,
       staged_resource_ids: all_staged,
       status: store.Staged,
       notes: Some(notes),

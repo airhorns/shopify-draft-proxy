@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-01 - Pass 168: HAR-515 Products inventory shipment and transfer root completion
+## 2026-05-01 - Pass 169: HAR-515 Products inventory shipment and transfer root completion
 
 Completes the remaining Products local-dispatch gap for implemented inventory
 shipment and inventory transfer mutation roots in the Gleam port. The Products
@@ -29,10 +29,11 @@ Validation:
 - `cd gleam && gleam test --target javascript -- --module shopify_draft_proxy/proxy/products_mutation_test`
   (775 passed)
 - `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang -- --seed 0`
-  (771 passed)
-- `cd gleam && gleam test --target javascript` (775 passed)
+  (778 passed after merging `origin/main`)
+- `cd gleam && gleam test --target javascript`
+  (782 passed after merging `origin/main`)
 - `cd gleam && gleam format --check`
-- `corepack pnpm gleam:port:coverage` (379 specs; 25 expected failures; passed)
+- `corepack pnpm gleam:port:coverage` (379 specs; 13 expected failures; passed)
 - `corepack pnpm gleam:registry:check`
 - `git diff --check`
 
@@ -53,6 +54,71 @@ Validation:
 
 - TypeScript Products runtime deletion remains deferred under the incremental
   port preservation rule until the final all-port cutover.
+
+---
+
+## 2026-05-01 - Pass 168: bulk operations query and import parity
+
+Promotes the captured BulkOperation status/catalog/cancel/export scenario into
+the Gleam parity suite. The port now stages BulkOperation query exports with
+local Product and ProductVariant JSONL output, keeps in-memory result metadata
+for later HTTP result serving, and replays `bulkOperationRunMutation` JSONL
+imports for locally supported product-domain inner mutation roots. Successful
+bulk import lines now emit replayable inner mutation-log drafts with the
+original inner mutation and structured line variables so commit can replay
+those writes in JSONL order. Unsupported bulk import roots fail locally as
+FAILED mutation jobs with result JSONL instead of passing through to Shopify at
+runtime.
+
+| Module                                                            | Change                                                                                                  |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`       | Adds Product/ProductVariant JSONL exports and local `bulkOperationRunMutation` replay/failure handling. |
+| `gleam/src/shopify_draft_proxy/graphql/root_field.gleam`          | Adds shared conversion/decoding for resolved GraphQL variables used by mutation-log replay.             |
+| `gleam/src/shopify_draft_proxy/proxy/commit.gleam`                | Replays structured mutation-log variables instead of string-only variables.                             |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                 | Adds staged-upload content helpers for the local bulk import executor.                                  |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`         | Initializes staged-upload content when loading serialized staged state.                                 |
+| `gleam/test/parity/runner.gleam`                                  | Seeds captured BulkOperation jobs and product records for the bulk-operations parity scenario.          |
+| `gleam/test/shopify_draft_proxy/proxy/bulk_operations_test.gleam` | Covers run-query JSONL, validation failures, missing uploads, unsupported imports, and Product imports. |
+| `config/gleam-port-ci-gates.json`                                 | Removes `bulk-operation-status-catalog-cancel.json` from expected Gleam parity failures.                |
+
+Validation:
+Host `gleam test --target erlang` still compiles but fails under the known
+local Erlang runner issue. The established container fallback is green at 774
+tests with OTP 28:
+`docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`.
+Host `gleam test --target javascript` is green at 778 tests.
+`corepack pnpm gleam:port:coverage` is green with 379 parity specs and 60
+expected Gleam parity failures.
+
+### Findings
+
+- Bulk query result generation is intentionally bounded to local Product and
+  ProductVariant connection exports for this pass; unsupported query shapes
+  return Shopify-like user errors instead of pretending broader support.
+- Bulk mutation imports are also bounded to single-root product-domain Admin
+  mutations that already stage locally in the Gleam port. Other roots are
+  recorded as local FAILED jobs, preserving the no-runtime-Shopify-write rule
+  for supported bulk operation handling.
+- Bulk import object counts follow staged line counts: validation rows still
+  appear in result JSONL but do not create commit-log entries or increment the
+  completed object count.
+- The TypeScript bulk operations runtime remains intact under the port
+  preservation rule. HAR-500's TypeScript retirement bullet is not actionable
+  during a normal per-domain pass before the final all-port cutover bar is met.
+
+### Risks / open items
+
+- Exact Shopify import result-file schema and partial-failure status semantics
+  still need broader live evidence before expanding beyond the local executor
+  boundary documented in the checked-in parity spec.
+- The future JS result route can consume the in-memory result JSONL, but HTTP
+  serving is still owned by its separate route issue.
+
+### Pass 169 candidates
+
+- Continue with the next non-Product expected-failing domain from
+  `config/gleam-port-ci-gates.json`, or wire the pending JS bulk result route to
+  the in-memory result JSONL now generated by the Gleam bulk operations port.
 
 ---
 
@@ -141,6 +207,52 @@ Validation:
 
 - Final deletion of TypeScript localization runtime remains deferred until the
   whole-port cutover acceptance bar is met.
+
+---
+
+## 2026-05-01 - Pass 164: Admin Platform node coverage proof
+
+Addresses HAR-498 review feedback by adding the Gleam equivalent of the
+TypeScript Admin Platform Node coverage snapshot. The test now reads the
+captured Shopify `Node` interface introspection fixture, subtracts the
+Gleam-supported `node(id:)` / `nodes(ids:)` types, and snapshots the remaining
+unsupported implementors in executable Gleam coverage. The pass also wires
+primary `Domain` GIDs through the existing store-properties domain serializer so
+the supported list reflects actual local `node` behavior.
+
+| Module                                                           | Change                                                                                          |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`       | Exposes the supported Node type list and resolves primary `Domain` IDs through store state.     |
+| `gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam` | Adds the introspection-backed unsupported Node snapshot and focused Domain node readback.       |
+| `.agents/skills/gleam-port/SKILL.md`                             | Records the Admin Platform Node coverage pattern for future domain ports that add node support. |
+| `GLEAM_PORT_LOG.md`                                              | Records the HAR-498 review-feedback rework.                                                     |
+
+Validation: the TypeScript Vitest Node coverage test is green. Targeted
+`gleam test --target javascript admin_platform` is green at 773 tests, and the
+targeted Docker Erlang fallback is green at 769 tests. Full
+`gleam test --target javascript` is green at 773 tests. Host
+`gleam test --target erlang admin_platform` still reproduces the known local
+`undef` runner issue; the full established Docker Erlang fallback with
+`HOME=/tmp` is green at 769 tests. `corepack pnpm gleam:port:coverage` is green
+with 379 specs and 62 expected Gleam failures. `corepack pnpm
+gleam:registry:check`, `corepack pnpm lint`, and `git diff --check` are green.
+
+### Findings
+
+- The unsupported Node coverage proof belongs in Gleam tests, not only in the
+  TypeScript fixture snapshot, because the Gleam node dispatch table is smaller
+  while the incremental port is still in progress.
+- `Domain` is a Shopify `Node` implementor and can resolve safely through the
+  already-ported store-properties primary-domain serializer. Unsupported or
+  missing Domain IDs still return `null`.
+
+### Risks / open items
+
+- Many implemented singular roots from other ported domains still need owning
+  resource serializers before they can be removed from the unsupported Node
+  list; this pass records that truth instead of claiming support early.
+- TypeScript runtime deletion remains deferred to the final all-port cutover
+  under the Gleam port preservation rule.
 
 ---
 

@@ -39,10 +39,11 @@ import shopify_draft_proxy/proxy/draft_proxy.{
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
+  type AdminPlatformGenericNodeRecord, type AdminPlatformTaxonomyCategoryRecord,
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
-  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
-  type CatalogRecord, type CollectionImageRecord, type CollectionRecord,
-  type CollectionRuleRecord, type CollectionRuleSetRecord,
+  type B2BCompanyLocationRecord, type B2BCompanyRecord, type BulkOperationRecord,
+  type CapturedJsonValue, type CatalogRecord, type CollectionImageRecord,
+  type CollectionRecord, type CollectionRuleRecord, type CollectionRuleSetRecord,
   type CustomerAccountPageRecord, type CustomerAddressRecord,
   type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
   type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
@@ -81,10 +82,12 @@ import shopify_draft_proxy/state/types.{
   type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, type StoreCreditAccountRecord,
   type StorePropertyRecord, type StorePropertyValue, type TranslationRecord,
-  type WebPresenceRecord, B2BCompanyContactRecord, B2BCompanyContactRoleRecord,
-  B2BCompanyLocationRecord, B2BCompanyRecord, CapturedArray, CapturedBool,
-  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CatalogRecord, CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
+  type WebPresenceRecord, AdminPlatformGenericNodeRecord,
+  AdminPlatformTaxonomyCategoryRecord, B2BCompanyContactRecord,
+  B2BCompanyContactRoleRecord, B2BCompanyLocationRecord, B2BCompanyRecord,
+  BulkOperationRecord, CapturedArray, CapturedBool, CapturedFloat, CapturedInt,
+  CapturedNull, CapturedObject, CapturedString, CatalogRecord,
+  CollectionImageRecord, CollectionRecord, CollectionRuleRecord,
   CollectionRuleSetRecord, CustomerAccountPageRecord, CustomerAddressRecord,
   CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord,
   CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
@@ -243,6 +246,7 @@ fn seed_capture_preconditions(
     seed_selling_plan_group_preconditions,
     seed_product_media_preconditions,
     seed_file_delete_product_media_preconditions,
+    seed_admin_platform_node_preconditions,
     seed_gift_card_lifecycle_preconditions,
     seed_shopify_function_preconditions,
     seed_shop_preconditions,
@@ -304,6 +308,7 @@ fn seed_capture_preconditions(
     seed_metafield_definition_preconditions,
     seed_metaobject_preconditions,
     seed_marketing_baseline_preconditions,
+    seed_bulk_operation_status_preconditions,
     seed_online_store_content_preconditions,
     fn(c, p) {
       case parsed.scenario_id {
@@ -327,6 +332,350 @@ fn seed_capture_preconditions(
     fn(c, p) { seed_orders_capture_preconditions(parsed.scenario_id, c, p) },
   ]
   list.fold(helpers, proxy, fn(p, helper) { helper(capture, p) })
+}
+
+fn seed_bulk_operation_status_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let product_records = case
+    jsonpath.lookup(capture, "$.lifecycle.queryExportToTerminal.result.records")
+  {
+    Some(JArray(records)) -> list.filter_map(records, make_seed_product_relaxed)
+    _ -> []
+  }
+
+  let base_operations =
+    list.flatten([
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogDefault.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogEmptyRunningQuery.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.reads.catalogEmptyRunningMutation.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_array_at(
+        capture,
+        "$.lifecycle.queryExportToTerminal.catalogById.response.data.bulkOperations.nodes",
+      ),
+      bulk_operation_options_at(capture, [
+        "$.reads.currentQuery.response.data.currentBulkOperation",
+        "$.reads.currentMutation.response.data.currentBulkOperation",
+        "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.bulkOperation",
+        "$.lifecycle.queryExportToTerminal.terminalOperation",
+        "$.lifecycle.queryExportToTerminal.currentQueryOperation.response.data.currentBulkOperation",
+        "$.lifecycle.queryExportToTerminal.terminalCancelAttempt.response.data.bulkOperationCancel.bulkOperation",
+      ]),
+    ])
+
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(product_records)
+    |> store_mod.upsert_base_bulk_operations(base_operations)
+    |> restrict_products_to_bulk_result(product_records)
+
+  let store = case
+    bulk_operation_at(
+      capture,
+      "$.lifecycle.queryExportImmediateCancel.run.response.data.bulkOperationRunQuery.bulkOperation",
+    )
+  {
+    Some(operation) -> {
+      let #(_, staged_store) = store_mod.stage_bulk_operation(store, operation)
+      staged_store
+    }
+    None -> store
+  }
+
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn restrict_products_to_bulk_result(
+  store: store_mod.Store,
+  product_records: List(ProductRecord),
+) -> store_mod.Store {
+  case product_records {
+    [] -> store
+    _ -> {
+      let captured_ids = list.map(product_records, fn(product) { product.id })
+      store_mod.list_effective_products(store)
+      |> list.fold(store, fn(current, product) {
+        case list.contains(captured_ids, product.id) {
+          True -> current
+          False -> store_mod.delete_staged_product(current, product.id)
+        }
+      })
+    }
+  }
+}
+
+fn bulk_operation_array_at(
+  capture: JsonValue,
+  path: String,
+) -> List(BulkOperationRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(nodes)) -> list.filter_map(nodes, make_seed_bulk_operation)
+    _ -> []
+  }
+}
+
+fn bulk_operation_options_at(
+  capture: JsonValue,
+  paths: List(String),
+) -> List(BulkOperationRecord) {
+  list.filter_map(paths, fn(path) {
+    case bulk_operation_at(capture, path) {
+      Some(operation) -> Ok(operation)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn bulk_operation_at(
+  capture: JsonValue,
+  path: String,
+) -> Option(BulkOperationRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(source) ->
+      case make_seed_bulk_operation(source) {
+        Ok(operation) -> Some(operation)
+        Error(_) -> None
+      }
+    _ -> None
+  }
+}
+
+fn make_seed_bulk_operation(
+  source: JsonValue,
+) -> Result(BulkOperationRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  use status <- result.try(required_string_field(source, "status"))
+  use type_ <- result.try(required_string_field(source, "type"))
+  use created_at <- result.try(required_string_field(source, "createdAt"))
+  Ok(BulkOperationRecord(
+    id: id,
+    status: status,
+    type_: type_,
+    error_code: read_string_field(source, "errorCode"),
+    created_at: created_at,
+    completed_at: read_string_field(source, "completedAt"),
+    object_count: read_string_field(source, "objectCount") |> option.unwrap("0"),
+    root_object_count: read_string_field(source, "rootObjectCount")
+      |> option.unwrap("0"),
+    file_size: read_string_field(source, "fileSize"),
+    url: read_string_field(source, "url"),
+    partial_data_url: read_string_field(source, "partialDataUrl"),
+    query: read_string_field(source, "query"),
+    cursor: read_string_field(source, "cursor"),
+    result_jsonl: None,
+  ))
+}
+
+fn seed_admin_platform_node_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let generic_nodes = collect_admin_platform_generic_nodes(capture)
+  let taxonomy_categories = collect_admin_platform_taxonomy_categories(capture)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_admin_platform_generic_nodes(generic_nodes)
+    |> store_mod.upsert_base_admin_platform_taxonomy_categories(
+      taxonomy_categories,
+    )
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn collect_admin_platform_generic_nodes(
+  capture: JsonValue,
+) -> List(AdminPlatformGenericNodeRecord) {
+  collect_objects(capture)
+  |> list.filter_map(fn(object) {
+    use id <- result.try(read_string_field(object, "id") |> option_to_result())
+    case string.starts_with(id, "gid://shopify/") {
+      True -> {
+        let typename =
+          read_string_field(object, "__typename")
+          |> option.or(gid_resource_type(id))
+        case typename {
+          Some(typename) ->
+            Ok(AdminPlatformGenericNodeRecord(
+              id: id,
+              typename: typename,
+              data: captured_json_from_parity(object),
+            ))
+          None -> Error(Nil)
+        }
+      }
+      False -> Error(Nil)
+    }
+  })
+  |> dedupe_generic_admin_nodes(dict.new(), [])
+}
+
+fn dedupe_generic_admin_nodes(
+  records: List(AdminPlatformGenericNodeRecord),
+  seen: Dict(String, AdminPlatformGenericNodeRecord),
+  order: List(String),
+) -> List(AdminPlatformGenericNodeRecord) {
+  case records {
+    [] ->
+      order
+      |> list.reverse
+      |> list.filter_map(fn(id) {
+        case dict.get(seen, id) {
+          Ok(record) -> Ok(record)
+          Error(_) -> Error(Nil)
+        }
+      })
+    [record, ..rest] -> {
+      let current = dict.get(seen, record.id)
+      let next_seen = case current {
+        Ok(existing) ->
+          case
+            captured_object_field_count(record.data)
+            > captured_object_field_count(existing.data)
+          {
+            True -> dict.insert(seen, record.id, record)
+            False -> seen
+          }
+        Error(_) -> dict.insert(seen, record.id, record)
+      }
+      let next_order = case current {
+        Ok(_) -> order
+        Error(_) -> [record.id, ..order]
+      }
+      dedupe_generic_admin_nodes(rest, next_seen, next_order)
+    }
+  }
+}
+
+fn collect_admin_platform_taxonomy_categories(
+  capture: JsonValue,
+) -> List(AdminPlatformTaxonomyCategoryRecord) {
+  let objects = collect_objects(capture)
+  let edge_ids_and_cursors =
+    objects
+    |> list.filter_map(fn(object) {
+      use cursor <- result.try(
+        read_string_field(object, "cursor") |> option_to_result(),
+      )
+      use node <- result.try(
+        read_object_field(object, "node") |> option_to_result(),
+      )
+      use id <- result.try(read_string_field(node, "id") |> option_to_result())
+      case string.starts_with(id, "gid://shopify/TaxonomyCategory/") {
+        True -> Ok(#(id, cursor))
+        False -> Error(Nil)
+      }
+    })
+  let edge_order =
+    edge_ids_and_cursors
+    |> list.map(fn(pair) { pair.0 })
+    |> dedupe_strings_preserving_order
+  let cursors =
+    edge_ids_and_cursors
+    |> dict.from_list
+  objects
+  |> list.filter_map(fn(object) {
+    use id <- result.try(read_string_field(object, "id") |> option_to_result())
+    case string.starts_with(id, "gid://shopify/TaxonomyCategory/") {
+      True ->
+        Ok(AdminPlatformTaxonomyCategoryRecord(
+          id: id,
+          cursor: dict.get(cursors, id) |> option.from_result,
+          data: captured_json_from_parity(object),
+        ))
+      False -> Error(Nil)
+    }
+  })
+  |> dedupe_taxonomy_categories(dict.new(), [])
+  |> order_taxonomy_categories_by_edge_order(edge_order)
+}
+
+fn order_taxonomy_categories_by_edge_order(
+  records: List(AdminPlatformTaxonomyCategoryRecord),
+  edge_order: List(String),
+) -> List(AdminPlatformTaxonomyCategoryRecord) {
+  let by_id =
+    records
+    |> list.map(fn(record) { #(record.id, record) })
+    |> dict.from_list()
+  let ordered = edge_order |> list.filter_map(fn(id) { dict.get(by_id, id) })
+  let ordered_lookup =
+    ordered
+    |> list.map(fn(record) { #(record.id, True) })
+    |> dict.from_list
+  let remaining =
+    records
+    |> list.filter(fn(record) { !dict.has_key(ordered_lookup, record.id) })
+  list.append(ordered, remaining)
+}
+
+fn dedupe_taxonomy_categories(
+  records: List(AdminPlatformTaxonomyCategoryRecord),
+  seen: Dict(String, AdminPlatformTaxonomyCategoryRecord),
+  order: List(String),
+) -> List(AdminPlatformTaxonomyCategoryRecord) {
+  case records {
+    [] ->
+      order
+      |> list.reverse
+      |> list.filter_map(fn(id) {
+        case dict.get(seen, id) {
+          Ok(record) -> Ok(record)
+          Error(_) -> Error(Nil)
+        }
+      })
+    [record, ..rest] -> {
+      let current = dict.get(seen, record.id)
+      let next_seen = case current {
+        Ok(current) -> {
+          let data = case
+            captured_object_field_count(record.data)
+            > captured_object_field_count(current.data)
+          {
+            True -> record.data
+            False -> current.data
+          }
+          dict.insert(
+            seen,
+            record.id,
+            AdminPlatformTaxonomyCategoryRecord(
+              ..record,
+              cursor: record.cursor |> option.or(current.cursor),
+              data: data,
+            ),
+          )
+        }
+        Error(_) -> dict.insert(seen, record.id, record)
+      }
+      let next_order = case current {
+        Ok(_) -> order
+        Error(_) -> [record.id, ..order]
+      }
+      dedupe_taxonomy_categories(rest, next_seen, next_order)
+    }
+  }
+}
+
+fn captured_object_field_count(value: CapturedJsonValue) -> Int {
+  case value {
+    CapturedObject(fields) -> list.length(fields)
+    _ -> 0
+  }
+}
+
+fn gid_resource_type(id: String) -> Option(String) {
+  case string.split(id, on: "/") {
+    ["gid:", "", "shopify", resource_type, ..] -> Some(resource_type)
+    _ -> None
+  }
 }
 
 fn seed_online_store_content_preconditions(
@@ -9456,7 +9805,14 @@ fn resolve_variables(
     VariablesFromFile(path: path) -> {
       let resolved = resolve(config, path)
       use source <- result.try(read_file(resolved))
-      parse_json(resolved, source)
+      use template <- result.try(parse_json(resolved, source))
+      substitute(
+        template,
+        primary_response,
+        previous_response,
+        named_responses,
+        capture,
+      )
     }
     VariablesInline(template: template) -> {
       let _ = context
