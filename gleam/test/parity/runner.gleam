@@ -282,6 +282,7 @@ fn seed_capture_preconditions(
       seed_draft_orders_catalog_preconditions(capture, proxy)
     "order-merchant-detail-read" ->
       seed_order_merchant_detail_preconditions(capture, proxy)
+    "order-empty-state-read" -> seed_order_catalog_preconditions(capture, proxy)
     "business-entities-catalog-read" | "business-entity-fallbacks-read" ->
       seed_business_entity_preconditions(capture, proxy)
     "b2b-company-roots-read" ->
@@ -903,6 +904,100 @@ fn seed_order_merchant_detail_preconditions(
 fn make_seed_order(source: JsonValue) -> Result(OrderRecord, Nil) {
   use id <- result.try(required_gid(source, "id", "Order"))
   Ok(OrderRecord(id: id, cursor: None, data: captured_json_from_parity(source)))
+}
+
+fn seed_order_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records = collect_order_catalog_records(capture)
+  let desired_count = order_catalog_count(capture, list.length(records))
+  let padded_records =
+    list.append(
+      records,
+      order_placeholder_records(
+        desired_count - list.length(records),
+        list.length(records),
+      ),
+    )
+  let store = proxy.store |> store_mod.upsert_base_orders(padded_records)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn collect_order_catalog_records(capture: JsonValue) -> List(OrderRecord) {
+  case jsonpath.lookup(capture, "$.response.data.orders.edges") {
+    Some(JArray(edges)) ->
+      edges
+      |> list.filter_map(fn(edge) {
+        case make_seed_order_edge(edge) {
+          Ok(record) -> Ok(record)
+          Error(_) -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn make_seed_order_edge(edge: JsonValue) -> Result(OrderRecord, Nil) {
+  use node <- result.try(read_object_field(edge, "node") |> option_to_result())
+  use id <- result.try(required_gid(node, "id", "Order"))
+  Ok(OrderRecord(
+    id: id,
+    cursor: read_string_field(edge, "cursor"),
+    data: captured_json_from_parity(node),
+  ))
+}
+
+fn order_catalog_count(capture: JsonValue, edge_count: Int) -> Int {
+  case jsonpath.lookup(capture, "$.response.data.ordersCount.count") {
+    Some(JInt(count)) -> count
+    _ -> {
+      let has_next =
+        jsonpath.lookup(capture, "$.response.data.orders.pageInfo.hasNextPage")
+      case has_next {
+        Some(JBool(True)) -> edge_count + 1
+        _ -> edge_count
+      }
+    }
+  }
+}
+
+fn order_placeholder_records(count: Int, offset: Int) -> List(OrderRecord) {
+  case count <= 0 {
+    True -> []
+    False ->
+      int_sequence(1, count)
+      |> list.map(fn(index) {
+        let id_number = 9_800_000_000_000 + offset + index
+        let id = "gid://shopify/Order/" <> int.to_string(id_number)
+        OrderRecord(
+          id: id,
+          cursor: Some(id),
+          data: CapturedObject([
+            #("id", CapturedString(id)),
+            #("name", CapturedString("#" <> int.to_string(offset + index))),
+            #("tags", CapturedArray([])),
+            #("createdAt", CapturedString("2026-01-01T00:00:00Z")),
+            #("updatedAt", CapturedString("2026-01-01T00:00:00Z")),
+            #("displayFinancialStatus", CapturedString("PAID")),
+            #("displayFulfillmentStatus", CapturedString("UNFULFILLED")),
+            #("note", CapturedNull),
+            #(
+              "currentTotalPriceSet",
+              CapturedObject([
+                #(
+                  "shopMoney",
+                  CapturedObject([
+                    #("amount", CapturedString("0.0")),
+                    #("currencyCode", CapturedString("CAD")),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        )
+      })
+  }
 }
 
 fn draft_order_with_setup_note(

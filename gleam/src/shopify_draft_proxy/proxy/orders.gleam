@@ -69,6 +69,8 @@ pub fn is_orders_query_root(name: String) -> Bool {
       "draftOrders",
       "draftOrdersCount",
       "order",
+      "orders",
+      "ordersCount",
     ],
     name,
   )
@@ -292,6 +294,8 @@ fn serialize_query_field(
         None -> json.null()
       }
     }
+    "orders" -> serialize_orders(store, field, fragments, variables)
+    "ordersCount" -> serialize_orders_count(store, field, fragments)
     _ -> json.null()
   }
 }
@@ -306,6 +310,100 @@ fn serialize_order_node(
     selection_children(field),
     fragments,
   )
+}
+
+fn serialize_orders(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let orders = store.list_effective_orders(store)
+  let args = field_arguments(field, variables)
+  let ordered = case dict.get(args, "reverse") {
+    Ok(root_field.BoolVal(False)) -> list.reverse(orders)
+    _ -> orders
+  }
+  let window =
+    paginate_connection_items(
+      ordered,
+      field,
+      variables,
+      order_cursor,
+      default_connection_window_options(),
+    )
+  let page_info_options =
+    ConnectionPageInfoOptions(
+      include_inline_fragments: True,
+      prefix_cursors: False,
+      include_cursors: True,
+      fallback_start_cursor: None,
+      fallback_end_cursor: None,
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: order_cursor,
+      serialize_node: fn(order, selection, _index) {
+        serialize_order_connection_node(selection, order, fragments)
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: page_info_options,
+    ),
+  )
+}
+
+fn serialize_order_connection_node(
+  field: Selection,
+  order: OrderRecord,
+  fragments: FragmentMap,
+) -> Json {
+  let source = captured_json_source(order.data)
+  case source {
+    SrcObject(fields) ->
+      json.object(
+        selection_children(field)
+        |> list.filter_map(fn(selection) {
+          case selection {
+            Field(name: name, ..) -> {
+              let field_name = name.value
+              case
+                field_name == "__typename" || dict.has_key(fields, field_name)
+              {
+                True ->
+                  Ok(#(
+                    get_field_response_key(selection),
+                    project_graphql_field_value(source, selection, fragments),
+                  ))
+                False -> Error(Nil)
+              }
+            }
+            _ -> Error(Nil)
+          }
+        }),
+      )
+    _ -> project_graphql_value(source, selection_children(field), fragments)
+  }
+}
+
+fn order_cursor(order: OrderRecord, _index: Int) -> String {
+  order.cursor |> option.unwrap(order.id)
+}
+
+fn serialize_orders_count(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let source =
+    src_object([
+      #("count", SrcInt(list.length(store.list_effective_orders(store)))),
+      #("precision", SrcString("EXACT")),
+    ])
+  project_graphql_value(source, selection_children(field), fragments)
 }
 
 fn serialize_draft_orders(

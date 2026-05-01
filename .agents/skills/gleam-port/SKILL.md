@@ -463,6 +463,13 @@ synthetic-id/timestamp expected differences.
   bucket immediately, return `null` for missing IDs, and keep `orders`
   connections/counts/search plus order lifecycle mutations gated until their
   own executable parity slices are modeled.
+- Initial `orders`/`ordersCount` parity can reuse the `OrderRecord` bucket.
+  Seed captured catalog edges with preserved cursors and pad placeholder orders
+  after the captured window when `ordersCount` proves there are more rows than
+  selected edges. For sparse legacy captures, serialize connection nodes from
+  fields actually present on the captured payload so strict parity does not
+  invent `null` properties that Shopify did not record. This is still not order
+  search/filter/count-limit parity or lifecycle mutation support.
 - Draft-order validation guardrails such as `draftOrderComplete` required-`id`
   branches should stay documented as guardrails. Do not treat omitted/null
   argument parity as evidence that completion, payment, source-name handling, or

@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-01 - Pass 133: order empty catalog/count reads
+
+Promotes the checked-in `order-empty-state-read` scenario and the
+`order-edit-residual-local-staging` empty `ordersCount` baseline in the Gleam
+Orders domain. This pass adds narrow `orders`/`ordersCount` query support,
+seeds the captured order catalog edge plus placeholder records for count and
+pageInfo parity, and keeps missing direct order reads as Shopify-style `null`.
+
+| Module                                                   | Change                                                                 |
+| -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Adds `orders` connection and `ordersCount` query serialization.        |
+| `gleam/test/parity/runner.gleam`                         | Seeds captured order catalog edges and count-padding placeholders.     |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Covers order catalog cursor/pageInfo/count output.                     |
+| `gleam/test/shopify_draft_proxy/proxy/*_test.gleam`      | Moves unported-root sentinel assertions from `orders` to fulfillments. |
+| `config/gleam-port-ci-gates.json`                        | Removes the newly passing order empty-state and count-baseline specs.  |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript` (743 passed).
+- Docker Erlang fallback
+  `docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (739 passed).
+- `corepack pnpm gleam:format:check`.
+- `corepack pnpm gleam:port:coverage` (379 specs, 128 expected failures).
+- `corepack pnpm conformance:check` (1402 passed).
+- `corepack pnpm conformance:parity` (384 passed).
+- `corepack pnpm lint`.
+- `corepack pnpm typecheck`.
+- `corepack pnpm gleam:registry:check`.
+- `git diff --check`.
+
+### Findings
+
+- The older `order-empty-state-read` capture includes a selected order catalog
+  node with only `id` and `name`. The connection serializer therefore preserves
+  captured sparse nodes by omitting fields absent from the captured payload,
+  while direct `order(id:)` detail reads still use the normal captured JSON
+  projector.
+- Count/pageInfo parity can be satisfied by padding the seeded order catalog
+  with placeholder records after captured edges, mirroring the draft-order
+  catalog approach without exposing placeholders on the selected first page.
+- Once `orders` is locally dispatched, substrate tests that used it as an
+  unported-root sentinel need to use a still-unported implemented root such as
+  `fulfillmentOrders`.
+
+### Risks / open items
+
+- This pass does not add order search filtering, count `limit:` precision
+  semantics, cursor `after:` replay, or lifecycle mutations.
+- The `order-edit-residual-local-staging` parity target promoted here is only
+  the empty `ordersCount` baseline. It does not claim order-edit session,
+  commit, or order-delete mutation success behavior in Gleam.
+
+### Pass 134 candidates
+
+- Continue into `order-catalog-count-read` if search, sort, cursor, and count
+  precision can be modeled against the captured catalog, or choose another
+  narrow read slice backed by existing order fixtures.
+
+---
+
 ## 2026-05-01 - Pass 132: order merchant detail read
 
 Promotes the checked-in `order-merchant-detail-read` scenario in the Gleam

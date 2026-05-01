@@ -176,6 +176,64 @@ pub fn orders_order_detail_read_and_missing_order_null_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6832000000000\",\"name\":\"#1001\",\"email\":\"merchant@example.test\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"42.50\",\"currencyCode\":\"CAD\"}}},\"missing\":null}}"
 }
 
+pub fn orders_catalog_count_and_page_info_test() {
+  let first_id = "gid://shopify/Order/101"
+  let second_id = "gid://shopify/Order/102"
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: first_id,
+        cursor: Some("cursor-101"),
+        data: types.CapturedObject([
+          #("id", types.CapturedString(first_id)),
+          #("name", types.CapturedString("#101")),
+          #("displayFinancialStatus", types.CapturedString("PAID")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+        ]),
+      ),
+      types.OrderRecord(
+        id: second_id,
+        cursor: Some("cursor-102"),
+        data: types.CapturedObject([
+          #("id", types.CapturedString(second_id)),
+          #("name", types.CapturedString("#102")),
+          #("displayFinancialStatus", types.CapturedString("PENDING")),
+          #("displayFulfillmentStatus", types.CapturedString("FULFILLED")),
+        ]),
+      ),
+    ])
+  let query =
+    "
+    query {
+      orders(first: 1, sortKey: CREATED_AT, reverse: true) {
+        edges {
+          cursor
+          node {
+            id
+            name
+            displayFinancialStatus
+            displayFulfillmentStatus
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      ordersCount {
+        count
+        precision
+      }
+    }
+  "
+  let assert Ok(result) = orders.process(seeded_store, query, dict.new())
+  assert json.to_string(result)
+    == "{\"data\":{\"orders\":{\"edges\":[{\"cursor\":\"cursor-101\",\"node\":{\"id\":\"gid://shopify/Order/101\",\"name\":\"#101\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\"}}],\"pageInfo\":{\"hasNextPage\":true,\"hasPreviousPage\":false,\"startCursor\":\"cursor-101\",\"endCursor\":\"cursor-101\"}},\"ordersCount\":{\"count\":2,\"precision\":\"EXACT\"}}}"
+}
+
 pub fn orders_abandonment_delivery_status_unknown_test() {
   let query =
     "
