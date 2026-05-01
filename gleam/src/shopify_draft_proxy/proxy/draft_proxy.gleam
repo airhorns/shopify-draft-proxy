@@ -42,6 +42,7 @@ import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/gift_cards
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/proxy/marketing
+import shopify_draft_proxy/proxy/markets
 import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
@@ -988,6 +989,29 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(MarketsDomain) ->
+      case
+        markets.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle markets mutation"), proxy)
+      }
     Ok(MediaDomain) ->
       case
         media.process_mutation(
@@ -1302,6 +1326,12 @@ fn route_query(
         bulk_operations.process(proxy.store, query, variables),
         "Failed to handle bulk operations query",
       )
+    Ok(MarketsDomain) ->
+      respond(
+        proxy,
+        markets.process(proxy.store, query, variables),
+        "Failed to handle markets query",
+      )
     Ok(MediaDomain) ->
       respond(
         proxy,
@@ -1383,6 +1413,7 @@ type Domain {
   MetaobjectDefinitionsDomain
   MarketingDomain
   BulkOperationsDomain
+  MarketsDomain
   MediaDomain
   ProductsDomain
   AdminPlatformDomain
@@ -1516,6 +1547,18 @@ fn local_query_dispatch_domain(
         True -> Ok(PaymentsDomain)
         False -> Ok(OrdersDomain)
       }
+    "market"
+    | "markets"
+    | "catalog"
+    | "catalogs"
+    | "catalogsCount"
+    | "priceList"
+    | "priceLists"
+    | "webPresences"
+    | "marketsResolvedValues"
+    | "marketLocalizableResource"
+    | "marketLocalizableResources"
+    | "marketLocalizableResourcesByIds" -> Ok(MarketsDomain)
     "product" | "collection" ->
       case store_publishable_owner_query(name, query) {
         True -> Ok(StorePropertiesDomain)
@@ -1683,6 +1726,7 @@ fn local_non_store_publishable_mutation_dispatch_domain(
       BulkOperationsDomain,
     ),
     #(media.is_media_mutation_root(name), MediaDomain),
+    #(markets.is_markets_mutation_root(name), MarketsDomain),
     #(admin_platform.is_admin_platform_mutation_root(name), AdminPlatformDomain),
     #(online_store.is_online_store_mutation_root(name), OnlineStoreDomain),
     #(privacy.is_privacy_mutation_root(name), PrivacyDomain),
