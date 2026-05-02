@@ -309,7 +309,7 @@ fn read_mode_to_string(mode: ReadMode) -> String {
   case mode {
     Snapshot -> "snapshot"
     LiveHybrid -> "live-hybrid"
-    Live -> "live"
+    Live -> "passthrough"
   }
 }
 

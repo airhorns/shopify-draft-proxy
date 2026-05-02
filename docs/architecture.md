@@ -2,9 +2,11 @@
 
 ## Overview
 
-`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy with a
-Koa webservice adapter. It supports three read execution modes and two mutation
-execution paths.
+`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The
+current TypeScript runtime still ships with the legacy Koa webservice adapter,
+while the in-progress Gleam port now also exposes a JavaScript-target Node
+`http` adapter over the Gleam core. It supports three read execution modes and
+two mutation execution paths.
 
 ### Read execution modes
 
@@ -45,7 +47,7 @@ App/test harness -> DraftProxy instance -> operation classifier
                                           ├─ reset/log/state/config/health
                                           └─ commit replay
 
-Koa server -> DraftProxy instance
+Legacy Koa server or Gleam JS HTTP adapter -> DraftProxy instance
 ```
 
 ## Primary modules
@@ -61,6 +63,18 @@ Koa server -> DraftProxy instance
 - build Koa app
 - register body parser and mount incoming HTTP requests onto a `DraftProxy`
   instance
+
+### `gleam/js/src/app.ts`
+
+- build a JavaScript-target Node `http` adapter over the Gleam-backed
+  `DraftProxy` shim
+- parse incoming request bodies, preserve inbound headers, and route HTTP
+  requests through the same `processRequest(...)` surface as embeddable JS
+  callers
+- expose `callback()` and `listen(...)` helpers so launch scripts can serve
+  `/admin/api/:version/graphql.json`, `/__meta/health`, `/__meta/config`,
+  `/__meta/log`, `/__meta/state`, `/__meta/reset`, and `/__meta/commit`
+  without Koa
 
 ### `src/proxy-instance.ts`
 
@@ -175,9 +189,11 @@ Current implementation note:
   omitted from persistence. Unknown envelope metadata is ignored by v1 restore
   so future dump writers can add extension data without invalidating the current
   reader.
-- The Koa server creates a fresh `DraftProxy` instance when `createApp(config)`
-  is called, unless the caller explicitly provides one to mount. The server does
-  not use a process-wide runtime store or proxy singleton.
+- The legacy Koa server creates a fresh `DraftProxy` instance when
+  `createApp(config)` is called, unless the caller explicitly provides one to
+  mount. The Gleam JS HTTP adapter follows the same instance ownership rule
+  through `gleam/js/src/app.ts`. Neither server adapter uses a process-wide
+  runtime store or proxy singleton.
 - Public `DraftProxy` meta APIs pass their owned store and synthetic identity
   explicitly. GraphQL request processing installs the instance runtime context
   before entering domain handlers.

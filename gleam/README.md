@@ -32,7 +32,8 @@ differs.
 - `Config(read_mode, port, shopify_admin_origin, snapshot_path)` — sanitised
   runtime config. Mirrors what the legacy TS proxy exposes via
   `GET /__meta/config`.
-- `ReadMode` — one of `Snapshot`, `LiveHybrid`, `Live`.
+- `ReadMode` — one of `Snapshot`, `LiveHybrid`, `Live`; the JS-facing shim
+  exposes `Live` as the legacy public string value `passthrough`.
 - `DraftProxy` — opaque-ish state record. Threaded through every request
   call so callers can advance the staged-mutation log.
 
@@ -57,13 +58,13 @@ differs.
 - `config_summary(Config) -> String` — small `read_mode@port` debug string.
 
 Routes handled today: `GET /__meta/health`, `GET /__meta/config`,
-`GET /__meta/log`, `GET /__meta/state`, `POST /__meta/reset`, and
-`POST /admin/api/:version/graphql.json` for the events, delivery_settings,
-saved_searches, webhooks, apps, functions, gift_cards, and segments
-domains. Anything else returns 404.
+`GET /__meta/log`, `GET /__meta/state`, `POST /__meta/reset`,
+`POST /__meta/commit`, and `POST /admin/api/:version/graphql.json` for the
+currently ported Admin API domains. Anything else returns the same JSON error
+envelopes as the legacy webservice for the supported route surface.
 
-> TODO: `POST /__meta/commit`, `GET /__bulk_operations/:id/result.jsonl`, and
-> the staged-uploads routes — required to fully replace the TS proxy. See
+> TODO: `GET /__bulk_operations/:id/result.jsonl` and the staged-uploads
+> routes are still required to fully replace every TS proxy HTTP endpoint. See
 > `../GLEAM_PORT_INTENT.md` "Substrate acceptance criteria".
 
 ## Using from Gleam
@@ -216,7 +217,7 @@ that re-exports the Gleam-emitted modules with stable types.
 > plus a `dist/index.{js,d.ts}` shim. Until the cutover, `../src` ships the
 > legacy implementation under that name.
 
-### Planned public surface
+### Public surface
 
 The TS shim re-exports the same names the legacy `../src/index.ts` exports
 today. Notable items:
@@ -227,6 +228,14 @@ today. Notable items:
 - `DraftProxyCommitError`, `DRAFT_PROXY_STATE_DUMP_SCHEMA`
 - Types: `AppConfig`, `ReadMode`, `DraftProxyRequest`,
   `DraftProxyHttpResponse`, `DraftProxyStateDump`, etc.
+- `createApp(config, proxy?)` constructs the JavaScript-target Node `http`
+  adapter over the Gleam-backed `DraftProxy` shim. The adapter exposes
+  `callback()` and `listen(...)`; `listen(...)` returns the underlying Node
+  `Server`.
+- `loadConfig(env?)` mirrors the legacy package environment parser:
+  `SHOPIFY_ADMIN_ORIGIN` is required, `PORT` defaults to `3000`,
+  `SHOPIFY_DRAFT_PROXY_READ_MODE` defaults to `live-hybrid`, and
+  `SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH` enables snapshot loading.
 
 ### Calling conventions (Gleam → JS)
 
@@ -261,10 +270,18 @@ const response = proxy.processRequest({
 console.log(response.status, response.body);
 ```
 
-> TODO: ship the TS shim (`gleam/ts/`) and wire `package.json#exports` to
-> point at it. Until then, the smoke test in
-> `../tests/integration/gleam-interop.test.ts` imports the raw Gleam ESM
-> directly and exercises `hello()`.
+To launch the JavaScript-target HTTP adapter from `gleam/js` during port work:
+
+```sh
+SHOPIFY_ADMIN_ORIGIN=https://your-store.myshopify.com corepack pnpm dev
+
+corepack pnpm build
+SHOPIFY_ADMIN_ORIGIN=https://your-store.myshopify.com corepack pnpm start
+```
+
+The repository root still ships the legacy TypeScript/Koa runtime until the
+whole-port cutover. The `gleam/js` package is the JS-target adapter under test
+for the port and is not yet the root package export.
 
 ## Development
 

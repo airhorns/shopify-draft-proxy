@@ -67,7 +67,7 @@ function readModeToGleam(mode: ReadMode): Snapshot | LiveHybrid | Live {
       return new Snapshot();
     case 'live-hybrid':
       return new LiveHybrid();
-    case 'live':
+    case 'passthrough':
       return new Live();
   }
 }
