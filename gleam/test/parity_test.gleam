@@ -235,16 +235,20 @@ fn render_section(label: String, values: List(String)) -> String {
 /// failure, so the parity test above is not trivially passing on empty reports.
 pub fn runner_into_assert_flags_mismatches_test() {
   let report =
-    runner.Report(scenario_id: "synthetic", targets: [
-      runner.TargetReport(
-        name: "always-fails",
-        capture_path: "$",
-        proxy_path: "$",
-        mismatches: [
-          diff.Mismatch(path: "$.x", expected: "1", actual: "2"),
-        ],
-      ),
-    ])
+    runner.Report(
+      scenario_id: "synthetic",
+      targets: [
+        runner.TargetReport(
+          name: "always-fails",
+          capture_path: "$",
+          proxy_path: "$",
+          mismatches: [
+            diff.Mismatch(path: "$.x", expected: "1", actual: "2"),
+          ],
+        ),
+      ],
+      operation_name_errors: [],
+    )
   assert runner.has_mismatches(report)
   let assert Error(_) = runner.into_assert(report)
 }

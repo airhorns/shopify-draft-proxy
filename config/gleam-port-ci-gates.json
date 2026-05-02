@@ -9,6 +9,106 @@
       "specPath": "config/parity-specs/metaobjects/metaobject-definitions-read.json",
       "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
       "targets": ["erlang"]
+    },
+    {
+      "specPath": "config/parity-specs/customers/customer-order-summary-read-effects.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for customer.numberOfOrders, orders.edges[*].cursor, and orders.pageInfo cursors; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/customers/customerAddTaxExemptions-parity.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for customer.updatedAt; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/customers/customerAddressLifecycle-parity.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for customers.nodes[*].id; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/customers/customerMerge-attached-resources-parity.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for metafield ids and orders pageInfo cursors; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/customers/customerRemoveTaxExemptions-parity.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for customer.updatedAt; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/customers/customerReplaceTaxExemptions-parity.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for customer.updatedAt; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-automatic-basic-detail-read.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for connection cursors / pageInfo; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-automatic-basic-nodes-read.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for connection cursors / pageInfo; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-catalog-non-empty-read.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for connection cursors / pageInfo; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-catalog-status-filter-read.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for connection cursors / pageInfo; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-code-basic-detail-read.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for connection cursors / pageInfo; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentCancel-parity-plan.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for createdAt; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentTrackingInfoUpdate-parity-plan.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for createdAt; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/collection-identifier-read.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for products edges cursors; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/collections-catalog-read.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for products edges cursors; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryAdjustQuantities-parity-plan.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for matchingCount.count; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldDelete-parity-plan.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for metafields pageInfo; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsDelete-parity-plan.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for metafields pageInfo; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-key.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for graphql-errors locations; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-owner.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for graphql-errors locations; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-value.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for graphql-errors locations; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-owner-expansion.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for metafields[*].id and variant care.id; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-detail-events-lifecycle.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for events / lineItems cursors; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-order-lifecycle-local-staging.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for events / lineItems cursors; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-top-level-reads.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for events / lineItems cursors; rules need pruning."
     }
   ],
   "requiredWorkflowCommands": [

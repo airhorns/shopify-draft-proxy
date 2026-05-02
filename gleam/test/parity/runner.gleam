@@ -23,6 +23,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleam/set
 import gleam/string
 import parity/diff.{type Mismatch}
 import parity/json_value.{
@@ -34,9 +35,14 @@ import parity/spec.{
   ProxyState, ReusePrimary, VariablesFromCapture, VariablesFromFile,
   VariablesInline,
 }
+import shopify_draft_proxy/graphql/parse_operation.{
+  type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
+}
 import shopify_draft_proxy/proxy/draft_proxy.{
   type DraftProxy, type Response, Request,
 }
+import shopify_draft_proxy/proxy/operation_registry
+import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -173,8 +179,23 @@ pub type TargetReport {
   )
 }
 
+/// Operation that was actually executed against the proxy during a
+/// scenario run. Mirrors the TS `ExecutedOperation` type the runner
+/// builds in `executeGraphQLAgainstLocalProxy`.
+pub type ExecutedOperation {
+  ExecutedOperation(
+    type_: GraphQLOperationType,
+    name: Option(String),
+    root_fields: List(String),
+  )
+}
+
 pub type Report {
-  Report(scenario_id: String, targets: List(TargetReport))
+  Report(
+    scenario_id: String,
+    targets: List(TargetReport),
+    operation_name_errors: List(String),
+  )
 }
 
 pub type RunnerConfig {
@@ -218,7 +239,7 @@ pub fn run_with_config(
   let primary_vars = replace_customer_one_variables(capture, primary_vars)
   let proxy = draft_proxy.new()
   let proxy = seed_capture_preconditions(parsed, capture, proxy)
-  use #(primary_response, proxy) <- result.try(execute(
+  use #(primary_response, proxy, primary_op) <- result.try(execute(
     proxy,
     primary_doc,
     primary_vars,
@@ -226,14 +247,21 @@ pub fn run_with_config(
     parsed.proxy_request.api_version,
   ))
   use primary_value <- result.try(parse_response_body(primary_response))
-  use #(_proxy, target_reports) <- result.try(run_targets(
+  use #(_proxy, target_reports, target_ops) <- result.try(run_targets(
     config,
     parsed,
     capture,
     primary_value,
     proxy,
   ))
-  Ok(Report(scenario_id: parsed.scenario_id, targets: target_reports))
+  let executed_operations = [primary_op, ..target_ops]
+  let operation_name_errors =
+    validate_operation_names(parsed, executed_operations)
+  Ok(Report(
+    scenario_id: parsed.scenario_id,
+    targets: target_reports,
+    operation_name_errors: operation_name_errors,
+  ))
 }
 
 /// Capture-driven seeding dispatch.
@@ -10224,14 +10252,22 @@ fn run_targets(
   capture: JsonValue,
   primary_response: JsonValue,
   proxy: DraftProxy,
-) -> Result(#(DraftProxy, List(TargetReport)), RunError) {
+) -> Result(
+  #(DraftProxy, List(TargetReport), List(ExecutedOperation)),
+  RunError,
+) {
   list.try_fold(
     parsed.targets,
-    #(proxy, [], None, dict.new()),
+    #(proxy, [], None, dict.new(), []),
     fn(state, target) {
-      let #(current_proxy, acc_reports, previous_response, named_responses) =
-        state
-      use #(next_proxy, report) <- result.try(run_target(
+      let #(
+        current_proxy,
+        acc_reports,
+        previous_response,
+        named_responses,
+        acc_ops,
+      ) = state
+      use #(next_proxy, report, executed) <- result.try(run_target(
         config,
         parsed,
         target,
@@ -10241,17 +10277,22 @@ fn run_targets(
         named_responses,
         current_proxy,
       ))
+      let next_ops = case executed {
+        Some(op) -> [op, ..acc_ops]
+        None -> acc_ops
+      }
       Ok(#(
         next_proxy,
         [report.0, ..acc_reports],
         Some(report.1),
         dict.insert(named_responses, target.name, report.1),
+        next_ops,
       ))
     },
   )
   |> result.map(fn(state) {
-    let #(final_proxy, reports, _, _) = state
-    #(final_proxy, list.reverse(reports))
+    let #(final_proxy, reports, _, _, ops) = state
+    #(final_proxy, list.reverse(reports), list.reverse(ops))
   })
 }
 
@@ -10264,17 +10305,22 @@ fn run_target(
   previous_response: Option(JsonValue),
   named_responses: Dict(String, JsonValue),
   proxy: DraftProxy,
-) -> Result(#(DraftProxy, #(TargetReport, JsonValue)), RunError) {
-  use #(actual_response, next_proxy) <- result.try(actual_response_for(
-    config,
-    parsed,
-    target,
-    capture,
-    primary_response,
-    previous_response,
-    named_responses,
-    proxy,
-  ))
+) -> Result(
+  #(DraftProxy, #(TargetReport, JsonValue), Option(ExecutedOperation)),
+  RunError,
+) {
+  use #(actual_response, next_proxy, executed) <- result.try(
+    actual_response_for(
+      config,
+      parsed,
+      target,
+      capture,
+      primary_response,
+      previous_response,
+      named_responses,
+      proxy,
+    ),
+  )
   let expected_opt = jsonpath.lookup(capture, target.capture_path)
   let actual_opt = jsonpath.lookup(actual_response, target.proxy_path)
   case expected_opt, actual_opt {
@@ -10290,6 +10336,7 @@ fn run_target(
           ),
           actual_response,
         ),
+        executed,
       ))
     None, _ ->
       Error(CaptureUnresolved(target: target.name, path: target.capture_path))
@@ -10298,9 +10345,9 @@ fn run_target(
     Some(expected), Some(actual) -> {
       let rules = spec.rules_for(parsed, target)
       let mismatches = case target.selected_paths {
-        [] -> diff.diff_with_expected(expected, actual, rules)
+        [] -> diff.compare_payloads(expected, actual, rules)
         selected_paths ->
-          diff.diff_selected_paths(expected, actual, selected_paths, rules)
+          diff.compare_selected_paths(expected, actual, selected_paths, rules)
       }
       Ok(#(
         next_proxy,
@@ -10313,6 +10360,7 @@ fn run_target(
           ),
           actual_response,
         ),
+        executed,
       ))
     }
   }
@@ -10331,9 +10379,16 @@ fn actual_response_for(
   previous_response: Option(JsonValue),
   named_responses: Dict(String, JsonValue),
   proxy: DraftProxy,
-) -> Result(#(JsonValue, DraftProxy), RunError) {
+) -> Result(#(JsonValue, DraftProxy, Option(ExecutedOperation)), RunError) {
   case target.request {
-    ReusePrimary -> proxy_source_value(target, primary_response, proxy)
+    ReusePrimary -> {
+      use #(value, next_proxy) <- result.try(proxy_source_value(
+        target,
+        primary_response,
+        proxy,
+      ))
+      Ok(#(value, next_proxy, None))
+    }
     OverrideRequest(request: request) -> {
       case
         target.upstream_capture_path,
@@ -10341,7 +10396,7 @@ fn actual_response_for(
       {
         Some(path), True ->
           case jsonpath.lookup(capture, path) {
-            Some(value) -> Ok(#(value, proxy))
+            Some(value) -> Ok(#(value, proxy, None))
             None -> Error(CaptureUnresolved(target: target.name, path: path))
           }
         _, _ -> {
@@ -10357,7 +10412,7 @@ fn actual_response_for(
             named_responses,
             target.name,
           ))
-          use #(response, next_proxy) <- result.try(execute(
+          use #(response, next_proxy, executed) <- result.try(execute(
             proxy,
             document,
             variables,
@@ -10365,7 +10420,12 @@ fn actual_response_for(
             request.api_version,
           ))
           use value <- result.try(parse_response_body(response))
-          proxy_source_value(target, value, next_proxy)
+          use #(value, next_proxy) <- result.try(proxy_source_value(
+            target,
+            value,
+            next_proxy,
+          ))
+          Ok(#(value, next_proxy, Some(executed)))
         }
       }
     }
@@ -10627,7 +10687,7 @@ fn execute(
   variables: JsonValue,
   context: String,
   api_version: Option(String),
-) -> Result(#(Response, DraftProxy), RunError) {
+) -> Result(#(Response, DraftProxy, ExecutedOperation), RunError) {
   let body = build_graphql_body(document, variables)
   let version = option.unwrap(api_version, "2025-01")
   let request =
@@ -10638,14 +10698,29 @@ fn execute(
       body: body,
     )
   let #(response, next_proxy) = draft_proxy.process_request(proxy, request)
+  let executed = parse_executed_operation(document)
   case response.status {
-    200 -> Ok(#(response, next_proxy))
+    200 -> Ok(#(response, next_proxy, executed))
     status ->
       Error(ProxyStatus(
         target: context,
         status: status,
         body: json.to_string(response.body),
       ))
+  }
+}
+
+/// Best-effort parse of the executed document into an `ExecutedOperation`
+/// summary. Mirrors `parseOperation` in the TS runner. Parse failures
+/// fall back to a query-shaped no-op entry — the runner's
+/// `validate_operation_names` only inspects mutations, so a degenerate
+/// entry from an unparseable doc is harmless.
+fn parse_executed_operation(document: String) -> ExecutedOperation {
+  case parse_operation.parse_operation(document) {
+    Ok(ParsedOperation(type_: type_, name: name, root_fields: root_fields)) ->
+      ExecutedOperation(type_: type_, name: name, root_fields: root_fields)
+    Error(_) ->
+      ExecutedOperation(type_: QueryOperation, name: None, root_fields: [])
   }
 }
 
@@ -10684,15 +10759,23 @@ fn resolve(config: RunnerConfig, path: String) -> String {
 
 pub fn has_mismatches(report: Report) -> Bool {
   list.any(report.targets, fn(t) { t.mismatches != [] })
+  || report.operation_name_errors != []
 }
 
 pub fn render(report: Report) -> String {
   case has_mismatches(report) {
     False -> "OK: " <> report.scenario_id
-    True ->
-      report.scenario_id
-      <> "\n"
-      <> string.join(list.map(report.targets, render_target), "\n")
+    True -> {
+      let target_section =
+        string.join(list.map(report.targets, render_target), "\n")
+      let op_section = case report.operation_name_errors {
+        [] -> ""
+        errors ->
+          "\n  operation-name validation:\n    "
+          <> string.join(errors, "\n    ")
+      }
+      report.scenario_id <> "\n" <> target_section <> op_section
+    }
   }
 }
 
@@ -10714,6 +10797,91 @@ pub fn into_assert(report: Report) -> Result(Nil, String) {
     False -> Ok(Nil)
     True -> Error(render(report))
   }
+}
+
+/// Compare the spec's declared `operationNames` against the mutations
+/// that actually executed during the run. Mirrors TS
+/// `validateParityScenarioOperationNames`. Returns one error string per
+/// problem (missing or unexpected); empty list means agreement.
+pub fn validate_operation_names(
+  spec: Spec,
+  executed: List(ExecutedOperation),
+) -> List(String) {
+  let actual_mutation_root_fields =
+    executed
+    |> list.flat_map(fn(op) {
+      case op.type_ {
+        MutationOperation -> op.root_fields
+        QueryOperation -> []
+      }
+    })
+    |> unique_sorted
+  let actual_set = set.from_list(actual_mutation_root_fields)
+  let registered = registered_mutation_operation_names()
+  let declared =
+    spec.operation_names
+    |> list.filter(fn(name) {
+      set.contains(registered, name) || set.contains(actual_set, name)
+    })
+    |> unique_sorted
+  let declared_set = set.from_list(declared)
+  let missing =
+    list.filter(declared, fn(name) { !set.contains(actual_set, name) })
+  let unexpected =
+    list.filter(actual_mutation_root_fields, fn(name) {
+      !set.contains(declared_set, name)
+    })
+  let actual_summary = case actual_mutation_root_fields {
+    [] -> "(none)"
+    names -> string.join(names, ", ")
+  }
+  let declared_summary = case declared {
+    [] -> "(none)"
+    names -> string.join(names, ", ")
+  }
+  let missing_errors = case missing {
+    [] -> []
+    names -> [
+      "Scenario "
+      <> spec.scenario_id
+      <> " declares mutation operation(s) "
+      <> string.join(names, ", ")
+      <> " in operationNames but did not execute them. Actual executed mutation operation(s): "
+      <> actual_summary
+      <> ".",
+    ]
+  }
+  let unexpected_errors = case unexpected {
+    [] -> []
+    names -> [
+      "Scenario "
+      <> spec.scenario_id
+      <> " executed mutation operation(s) "
+      <> string.join(names, ", ")
+      <> " but does not declare them in operationNames. Declared mutation operation(s): "
+      <> declared_summary
+      <> ".",
+    ]
+  }
+  list.append(missing_errors, unexpected_errors)
+}
+
+fn registered_mutation_operation_names() -> set.Set(String) {
+  operation_registry_data.default_registry()
+  |> list.filter(fn(entry) {
+    case entry.type_ {
+      operation_registry.Mutation -> True
+      operation_registry.Query -> False
+    }
+  })
+  |> list.flat_map(fn(entry) { [entry.name, ..entry.match_names] })
+  |> set.from_list
+}
+
+fn unique_sorted(values: List(String)) -> List(String) {
+  values
+  |> list.unique
+  |> list.sort(by: string.compare)
 }
 
 pub fn render_error(error: RunError) -> String {
