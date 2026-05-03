@@ -134,7 +134,7 @@ fn log_dispatch(
     Error(_) -> "<unparseable body>"
   }
   case result {
-    Ok(HttpOutcome(status: status, body: body)) ->
+    Ok(HttpOutcome(status: status, body: body, ..)) ->
       io.println_error(
         "[cassette] HIT  "
         <> summary
@@ -167,10 +167,13 @@ fn dispatch(
     Ok(#(operation_name, variables)) ->
       case find_match(entries, operation_name, variables) {
         Some(entry) ->
-          Ok(HttpOutcome(
-            status: entry.response_status,
-            body: encode_response_body(entry.response_body),
-          ))
+          Ok(
+            HttpOutcome(
+              status: entry.response_status,
+              body: encode_response_body(entry.response_body),
+              headers: [],
+            ),
+          )
         None ->
           Error(
             CommitTransportError(message: miss_message(

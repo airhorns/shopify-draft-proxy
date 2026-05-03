@@ -109,7 +109,12 @@ pub fn send_sync(
   req: gleam_http_request.Request(String),
 ) -> Result(commit.HttpOutcome, commit.CommitTransportError) {
   case httpc.send(req) {
-    Ok(resp) -> Ok(commit.HttpOutcome(status: resp.status, body: resp.body))
+    Ok(resp) ->
+      Ok(commit.HttpOutcome(
+        status: resp.status,
+        body: resp.body,
+        headers: resp.headers,
+      ))
     Error(err) ->
       Error(commit.CommitTransportError(message: httpc_error_message(err)))
   }
@@ -132,7 +137,12 @@ pub fn send_async(
   |> promise.try_await(fetch.read_text_body)
   |> promise.map(fn(result) {
     case result {
-      Ok(resp) -> Ok(commit.HttpOutcome(status: resp.status, body: resp.body))
+      Ok(resp) ->
+        Ok(commit.HttpOutcome(
+          status: resp.status,
+          body: resp.body,
+          headers: resp.headers,
+        ))
       Error(err) ->
         Error(commit.CommitTransportError(message: fetch_error_message(err)))
     }
