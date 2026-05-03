@@ -13,20 +13,7 @@
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.shopifyFunctions.pageInfo.startCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque connection cursors; local serializers use deterministic synthetic cursors that clients must not decode.",
-        "regrettable": true
-      },
-      {
-        "path": "$.shopifyFunctions.pageInfo.endCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque connection cursors; local serializers use deterministic synthetic cursors that clients must not decode.",
-        "regrettable": true
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "live-function-owner-read-data",
