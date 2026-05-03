@@ -144,5 +144,62 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/106318463282"
+      },
+      "query": "sha:hand-synthesized-StorePropertiesLocationHydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/106318463282",
+              "legacyResourceId": "106318463282",
+              "name": "103 ossington",
+              "activatable": false,
+              "deactivatable": false,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": true,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "shipsInventory": true,
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/100000000000?inventory_item_id=200000000000",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/200000000000"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/106318463282",
+                      "name": "103 ossington"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 1,
+                        "updatedAt": "2026-04-25T18:31:00Z"
+                      }
+                    ]
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "cursor:location-lifecycle-validation",
+                  "endCursor": "cursor:location-lifecycle-validation"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -135,5 +135,156 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "PriceListDetailRead",
+      "variables": {
+        "priceListId": "gid://shopify/PriceList/31575408946",
+        "priceQuery": null,
+        "originType": null
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/31575408946",
+              "name": "Mexico Buyers",
+              "currency": "MXN",
+              "fixedPricesCount": 0,
+              "parent": {
+                "adjustment": {
+                  "type": "PERCENTAGE_DECREASE",
+                  "value": 5
+                }
+              },
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/128893452594",
+                "title": "Mexico",
+                "status": "ACTIVE"
+              },
+              "prices": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                    "node": {
+                      "price": {
+                        "amount": "902.45",
+                        "currencyCode": "CAD"
+                      },
+                      "compareAtPrice": null,
+                      "originType": "RELATIVE",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/49875425296690",
+                        "sku": "sku-untracked-1",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098789170",
+                          "title": "The Inventory Not Tracked Snowboard"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0=",
+                    "node": {
+                      "price": {
+                        "amount": "9.5",
+                        "currencyCode": "CAD"
+                      },
+                      "compareAtPrice": null,
+                      "originType": "RELATIVE",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/49875425329458",
+                        "sku": null,
+                        "product": {
+                          "id": "gid://shopify/Product/9801098821938",
+                          "title": "Gift Card"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM2MjIyNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzYyMjI2In0=",
+                    "node": {
+                      "price": {
+                        "amount": "23.75",
+                        "currencyCode": "CAD"
+                      },
+                      "compareAtPrice": null,
+                      "originType": "RELATIVE",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/49875425362226",
+                        "sku": null,
+                        "product": {
+                          "id": "gid://shopify/Product/9801098821938",
+                          "title": "Gift Card"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM5NDk5NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mzk0OTk0In0=",
+                    "node": {
+                      "price": {
+                        "amount": "47.5",
+                        "currencyCode": "CAD"
+                      },
+                      "compareAtPrice": null,
+                      "originType": "RELATIVE",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/49875425394994",
+                        "sku": null,
+                        "product": {
+                          "id": "gid://shopify/Product/9801098821938",
+                          "title": "Gift Card"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQyNzc2MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDI3NzYyIn0=",
+                    "node": {
+                      "price": {
+                        "amount": "95.0",
+                        "currencyCode": "CAD"
+                      },
+                      "compareAtPrice": null,
+                      "originType": "RELATIVE",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/49875425427762",
+                        "sku": null,
+                        "product": {
+                          "id": "gid://shopify/Product/9801098821938",
+                          "title": "Gift Card"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQyNzc2MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDI3NzYyIn0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1889,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
