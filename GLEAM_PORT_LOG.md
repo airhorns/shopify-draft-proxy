@@ -17,13 +17,13 @@ handler: cold LiveHybrid reads can still pass through to Shopify, but once the
 app billing/access lifecycle has staged local app state, downstream reads stay
 local and do not require an upstream cassette entry.
 
-| Module / fixture                                        | Change                                                                                                      |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/apps.gleam`        | Adds the app-domain query entrypoint and local app-state gate for `currentAppInstallation` LiveHybrid reads. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes Apps queries through the domain handler so the app module owns its passthrough decision.              |
-| `config/operation-registry.json`                        | Marks `currentAppInstallation` as covered by the app billing/access runtime flow.                           |
-| `config/parity-specs/apps/app-billing-access-local-staging.json` | Records `currentAppInstallation` in scenario operation inventory.                                  |
-| `config/gleam-port-ci-gates.json`                       | Removes the Apps expected-failure entry.                                                                    |
+| Module / fixture                                                 | Change                                                                                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/apps.gleam`                 | Adds the app-domain query entrypoint and local app-state gate for `currentAppInstallation` LiveHybrid reads. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`          | Routes Apps queries through the domain handler so the app module owns its passthrough decision.              |
+| `config/operation-registry.json`                                 | Marks `currentAppInstallation` as covered by the app billing/access runtime flow.                            |
+| `config/parity-specs/apps/app-billing-access-local-staging.json` | Records `currentAppInstallation` in scenario operation inventory.                                            |
+| `config/gleam-port-ci-gates.json`                                | Removes the Apps expected-failure entry.                                                                     |
 
 Validation:
 
