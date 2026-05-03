@@ -137,5 +137,75 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/6834565087465"
+      },
+      "query": "hand-synthesized from checked-in seedOrder for HAR-538 orderEditBegin Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/6834565087465",
+              "name": "#1331",
+              "note": "merchant realistic draft order create parity probe",
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/16209970561257",
+                    "title": "Custom installation service",
+                    "quantity": 2,
+                    "currentQuantity": 2,
+                    "sku": "hermes-custom-service-1777076856718",
+                    "variant": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/16209970594025",
+                    "title": "Test Product - 6635",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": null,
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/48540157378793"
+                    },
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "0.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/16210048319721",
+                    "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "VN-01-burgandy-4",
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/46789254021353"
+                    },
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "29.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
