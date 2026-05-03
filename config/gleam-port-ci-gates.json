@@ -1,10 +1,6 @@
 {
   "expectedGleamParityFailures": [
     {
-      "specPath": "config/parity-specs/apps/app-billing-access-local-staging.json",
-      "reason": "Cassette migrated but missing entry for upstream operation . Re-record cassette or hand-synthesize from fixture."
-    },
-    {
       "specPath": "config/parity-specs/b2b/b2b-company-roots-read.json",
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
