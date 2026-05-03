@@ -23,6 +23,28 @@ import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/proxy/commit.{type JsonValue}
 import shopify_draft_proxy/shopify/upstream_client.{type SyncTransport}
 
+/// Shared upstream-call context. Bundles the three pieces every
+/// handler needs to issue an upstream GraphQL call: the optional
+/// `SyncTransport` (set by parity tests, unset in production), the
+/// origin to address, and the inbound request's headers (so the proxy
+/// can forward auth tokens etc.). `process_request` builds one of these
+/// per inbound request and threads it into any handler that wants to
+/// reach upstream.
+pub type UpstreamContext {
+  UpstreamContext(
+    transport: Option(SyncTransport),
+    origin: String,
+    headers: Dict(String, String),
+  )
+}
+
+/// Context whose `fetch_sync` calls fall through to the live HTTP shim
+/// on Erlang and fail with `NoTransportInstalled` on JS. Useful for
+/// tests and callers that don't have headers or origin in scope.
+pub fn empty_upstream_context() -> UpstreamContext {
+  UpstreamContext(transport: None, origin: "", headers: dict.new())
+}
+
 /// What can go wrong when asking upstream a question. `TransportFailed`
 /// reports the underlying network shim's error message; `HttpStatusError`
 /// surfaces non-2xx responses (the caller decides whether to swallow or

@@ -61,6 +61,7 @@ import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/upstream_dispatch
+import shopify_draft_proxy/proxy/upstream_query
 import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/shopify/upstream_client.{type SyncTransport}
 import shopify_draft_proxy/state/iso_timestamp
@@ -500,55 +501,29 @@ fn live_hybrid_passthrough_target(
   }
 }
 
-/// Per-operation passthrough opt-ins for `LiveHybrid` mode. Each entry
-/// is an operation whose local handler can't compute the right answer
-/// from local state alone, so the dispatcher forwards the request to
-/// upstream verbatim. The handler still serves `Snapshot` mode (where
-/// upstream isn't available) — typically with a degenerate answer
-/// (zero count, empty list) that matches the empty-snapshot
-/// expectation.
-///
-/// Some opt-ins are conditional on local state: `customer(id:)` only
-/// passes through when the requested id isn't already in the store,
-/// so a scenario that stages a customer (via `customerCreate`) and
-/// then reads it back stays local instead of forwarding the staged
-/// synthetic gid to upstream (where it doesn't exist).
+/// Ask each domain whether *its* local handler wants to forward this
+/// operation upstream verbatim under `LiveHybrid` mode. The decision
+/// (which operations passthrough, under what local-state conditions)
+/// lives in the domain module — this function is only the dispatcher's
+/// fan-out.
 fn force_passthrough_in_live_hybrid(
   proxy: DraftProxy,
   type_: GraphQLOperationType,
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Bool {
-  case type_, primary_root_field {
-    QueryOperation, "customersCount" -> True
-    QueryOperation, "customerByIdentifier" -> True
-    QueryOperation, "customer" ->
-      !customers.local_has_customer_id(proxy, variables)
-    QueryOperation, "customers" -> True
-    // Discount reads: forward to upstream verbatim only when the proxy
-    // has nothing local to add. *Node lookups skip passthrough when the
-    // requested id is already staged (read-after-write of a local
-    // create); aggregate / connection / by-code reads skip passthrough
-    // whenever any discount is staged so lifecycle scenarios stay
-    // local-only end-to-end.
-    QueryOperation, "discountNode" ->
-      !discounts.local_has_discount_id(proxy, variables)
-    QueryOperation, "codeDiscountNode" ->
-      !discounts.local_has_discount_id(proxy, variables)
-    QueryOperation, "automaticDiscountNode" ->
-      !discounts.local_has_discount_id(proxy, variables)
-    QueryOperation, "discountNodes" ->
-      !discounts.local_has_staged_discounts(proxy, variables)
-    QueryOperation, "codeDiscountNodes" ->
-      !discounts.local_has_staged_discounts(proxy, variables)
-    QueryOperation, "automaticDiscountNodes" ->
-      !discounts.local_has_staged_discounts(proxy, variables)
-    QueryOperation, "discountNodesCount" ->
-      !discounts.local_has_staged_discounts(proxy, variables)
-    QueryOperation, "codeDiscountNodeByCode" ->
-      !discounts.local_has_staged_discounts(proxy, variables)
-    _, _ -> False
-  }
+  customers.should_passthrough_in_live_hybrid(
+    proxy,
+    type_,
+    primary_root_field,
+    variables,
+  )
+  || discounts.should_passthrough_in_live_hybrid(
+    proxy,
+    type_,
+    primary_root_field,
+    variables,
+  )
 }
 
 @target(erlang)
@@ -878,7 +853,7 @@ fn route_mutation(
           request_path,
           query,
           variables,
-          discounts.UpstreamContext(
+          upstream_query.UpstreamContext(
             transport: proxy.upstream_transport,
             origin: proxy.config.shopify_admin_origin,
             headers: request_headers,

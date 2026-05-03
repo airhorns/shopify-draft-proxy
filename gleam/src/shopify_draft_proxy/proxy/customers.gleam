@@ -15,6 +15,7 @@ import gleam/order
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
@@ -107,6 +108,35 @@ pub fn local_has_customer_id(
         None -> False
       }
     _ -> False
+  }
+}
+
+/// In `LiveHybrid` mode, decide whether the dispatcher should forward
+/// this customer-domain operation to upstream verbatim instead of
+/// answering it locally.
+///
+/// The customer-domain operations on this list are aggregates and
+/// catalog reads that the local handler can't compute the right
+/// answer for without reaching upstream. `customer(id:)` only
+/// passes through when the requested id isn't in local state — a
+/// staged-create-then-read flow stays local end-to-end.
+///
+/// In `Snapshot` mode the same operations stay local (typically
+/// with a degenerate empty answer that matches empty-snapshot
+/// expectations).
+pub fn should_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "customersCount" -> True
+    parse_operation.QueryOperation, "customerByIdentifier" -> True
+    parse_operation.QueryOperation, "customer" ->
+      !local_has_customer_id(proxy, variables)
+    parse_operation.QueryOperation, "customers" -> True
+    _, _ -> False
   }
 }
 

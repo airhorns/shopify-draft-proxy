@@ -28,8 +28,9 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/proxy_state.{type DraftProxy}
-import shopify_draft_proxy/proxy/upstream_query
-import shopify_draft_proxy/shopify/upstream_client.{type SyncTransport}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -39,28 +40,6 @@ import shopify_draft_proxy/state/types.{
   type ShopifyFunctionRecord, CapturedArray, CapturedBool, CapturedFloat,
   CapturedInt, CapturedNull, CapturedObject, CapturedString, DiscountRecord,
   ShopifyFunctionAppRecord, ShopifyFunctionRecord,
-}
-
-/// Upstream context threaded into mutation handlers so they can issue
-/// `upstream_query.fetch_sync` calls when the local store doesn't have
-/// enough information to compute the response. In production, callers
-/// pass `transport: None` and reads fall through to the live HTTP shim
-/// (Erlang) or are skipped (JS). Parity tests install a recorded
-/// cassette as the transport.
-pub type UpstreamContext {
-  UpstreamContext(
-    transport: Option(SyncTransport),
-    origin: String,
-    headers: Dict(String, String),
-  )
-}
-
-/// Build an `UpstreamContext` whose `fetch_sync` calls will fail with
-/// `NoTransportInstalled` on JS and fall through to the live HTTP shim
-/// on Erlang. Used by callers that don't have access to inbound headers
-/// or the proxy config (e.g. legacy tests).
-pub fn empty_upstream_context() -> UpstreamContext {
-  UpstreamContext(transport: None, origin: "", headers: dict.new())
 }
 
 pub type DiscountsError {
@@ -186,6 +165,41 @@ pub fn local_has_staged_discounts(
       }
     })
   has_synthetic || !list.is_empty(store.list_effective_discounts(proxy.store))
+}
+
+/// In `LiveHybrid` mode, decide whether the dispatcher should forward
+/// this discount-domain operation to upstream verbatim instead of
+/// answering it locally.
+///
+/// `*Node` lookups skip passthrough when the requested id is already
+/// staged (read-after-write of a local create); aggregate / connection
+/// / by-code reads skip passthrough whenever any discount is staged so
+/// lifecycle scenarios stay local-only end-to-end.
+pub fn should_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "discountNode" ->
+      !local_has_discount_id(proxy, variables)
+    parse_operation.QueryOperation, "codeDiscountNode" ->
+      !local_has_discount_id(proxy, variables)
+    parse_operation.QueryOperation, "automaticDiscountNode" ->
+      !local_has_discount_id(proxy, variables)
+    parse_operation.QueryOperation, "discountNodes" ->
+      !local_has_staged_discounts(proxy, variables)
+    parse_operation.QueryOperation, "codeDiscountNodes" ->
+      !local_has_staged_discounts(proxy, variables)
+    parse_operation.QueryOperation, "automaticDiscountNodes" ->
+      !local_has_staged_discounts(proxy, variables)
+    parse_operation.QueryOperation, "discountNodesCount" ->
+      !local_has_staged_discounts(proxy, variables)
+    parse_operation.QueryOperation, "codeDiscountNodeByCode" ->
+      !local_has_staged_discounts(proxy, variables)
+    _, _ -> False
+  }
 }
 
 pub fn process(
