@@ -23,9 +23,7 @@
                 "createdAt": "2025-03-26T19:51:38Z",
                 "updatedAt": "2025-03-26T19:51:38Z",
                 "asyncUsageCount": 0,
-                "discountClasses": [
-                  "PRODUCT"
-                ],
+                "discountClasses": ["PRODUCT"],
                 "combinesWith": {
                   "productDiscounts": false,
                   "orderDiscounts": false,
@@ -45,9 +43,7 @@
                 "createdAt": "2025-03-26T19:51:38Z",
                 "updatedAt": "2025-03-26T19:51:38Z",
                 "asyncUsageCount": 0,
-                "discountClasses": [
-                  "PRODUCT"
-                ],
+                "discountClasses": ["PRODUCT"],
                 "combinesWith": {
                   "productDiscounts": true,
                   "orderDiscounts": false,
@@ -127,9 +123,7 @@
                     "createdAt": "2025-03-26T19:51:38Z",
                     "updatedAt": "2025-03-26T19:51:38Z",
                     "asyncUsageCount": 0,
-                    "discountClasses": [
-                      "PRODUCT"
-                    ],
+                    "discountClasses": ["PRODUCT"],
                     "combinesWith": {
                       "productDiscounts": false,
                       "orderDiscounts": false,
@@ -149,9 +143,7 @@
                     "createdAt": "2025-03-26T19:51:38Z",
                     "updatedAt": "2025-03-26T19:51:38Z",
                     "asyncUsageCount": 0,
-                    "discountClasses": [
-                      "PRODUCT"
-                    ],
+                    "discountClasses": ["PRODUCT"],
                     "combinesWith": {
                       "productDiscounts": true,
                       "orderDiscounts": false,

@@ -1,14 +1,8 @@
 {
   "scenarioId": "discount-automatic-basic-nodes-read",
-  "operationNames": [
-    "automaticDiscountNodes"
-  ],
+  "operationNames": ["automaticDiscountNodes"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "selected-fields",
-    "pagination-shape"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-automatic-basic-nodes-read.json"
   ],

@@ -117,11 +117,7 @@
                 "column": 3
               }
             ],
-            "path": [
-              "mutation DiscountCodeBasicCreateInlineNullInput",
-              "discountCodeBasicCreate",
-              "basicCodeDiscount"
-            ],
+            "path": ["mutation DiscountCodeBasicCreateInlineNullInput", "discountCodeBasicCreate", "basicCodeDiscount"],
             "extensions": {
               "code": "argumentLiteralsIncompatible",
               "typeName": "Field",
@@ -183,17 +179,11 @@
             },
             "items": {
               "products": {
-                "productsToAdd": [
-                  "gid://shopify/Product/0"
-                ],
-                "productVariantsToAdd": [
-                  "gid://shopify/ProductVariant/0"
-                ]
+                "productsToAdd": ["gid://shopify/Product/0"],
+                "productVariantsToAdd": ["gid://shopify/ProductVariant/0"]
               },
               "collections": {
-                "add": [
-                  "gid://shopify/Collection/0"
-                ]
+                "add": ["gid://shopify/Collection/0"]
               }
             }
           }
@@ -349,12 +339,8 @@
             }
           }
         },
-        "codeBulkIds": [
-          "gid://shopify/DiscountCodeNode/0"
-        ],
-        "automaticBulkIds": [
-          "gid://shopify/DiscountAutomaticNode/0"
-        ],
+        "codeBulkIds": ["gid://shopify/DiscountCodeNode/0"],
+        "automaticBulkIds": ["gid://shopify/DiscountAutomaticNode/0"],
         "bulkSearch": "status:active"
       },
       "response": {
@@ -363,10 +349,7 @@
             "codeDiscountNode": null,
             "userErrors": [
               {
-                "field": [
-                  "basicCodeDiscount",
-                  "code"
-                ],
+                "field": ["basicCodeDiscount", "code"],
                 "message": "Code must be unique. Please try a different code.",
                 "code": "TAKEN",
                 "extraInfo": null
@@ -377,37 +360,19 @@
             "codeDiscountNode": null,
             "userErrors": [
               {
-                "field": [
-                  "basicCodeDiscount",
-                  "customerGets",
-                  "items",
-                  "collections",
-                  "add"
-                ],
+                "field": ["basicCodeDiscount", "customerGets", "items", "collections", "add"],
                 "message": "Cannot entitle collections in combination with product variants or products",
                 "code": "CONFLICT",
                 "extraInfo": null
               },
               {
-                "field": [
-                  "basicCodeDiscount",
-                  "customerGets",
-                  "items",
-                  "products",
-                  "productsToAdd"
-                ],
+                "field": ["basicCodeDiscount", "customerGets", "items", "products", "productsToAdd"],
                 "message": "Product with id: 0 is invalid",
                 "code": "INVALID",
                 "extraInfo": null
               },
               {
-                "field": [
-                  "basicCodeDiscount",
-                  "customerGets",
-                  "items",
-                  "products",
-                  "productVariantsToAdd"
-                ],
+                "field": ["basicCodeDiscount", "customerGets", "items", "products", "productVariantsToAdd"],
                 "message": "Product variant with id: 0 is invalid",
                 "code": "INVALID",
                 "extraInfo": null
@@ -418,10 +383,7 @@
             "automaticDiscountNode": null,
             "userErrors": [
               {
-                "field": [
-                  "automaticBasicDiscount",
-                  "endsAt"
-                ],
+                "field": ["automaticBasicDiscount", "endsAt"],
                 "message": "Ends at needs to be after starts_at",
                 "code": "INVALID",
                 "extraInfo": null
@@ -432,29 +394,19 @@
             "codeDiscountNode": null,
             "userErrors": [
               {
-                "field": [
-                  "bxgyCodeDiscount",
-                  "customerGets"
-                ],
+                "field": ["bxgyCodeDiscount", "customerGets"],
                 "message": "Items in 'customer get' cannot be set to all",
                 "code": "INVALID",
                 "extraInfo": null
               },
               {
-                "field": [
-                  "bxgyCodeDiscount",
-                  "title"
-                ],
+                "field": ["bxgyCodeDiscount", "title"],
                 "message": "Title can't be blank",
                 "code": "BLANK",
                 "extraInfo": null
               },
               {
-                "field": [
-                  "bxgyCodeDiscount",
-                  "customerBuys",
-                  "items"
-                ],
+                "field": ["bxgyCodeDiscount", "customerBuys", "items"],
                 "message": "Items in 'customer buys' must be defined",
                 "code": "BLANK",
                 "extraInfo": null
@@ -465,29 +417,19 @@
             "automaticDiscountNode": null,
             "userErrors": [
               {
-                "field": [
-                  "automaticBxgyDiscount",
-                  "customerGets"
-                ],
+                "field": ["automaticBxgyDiscount", "customerGets"],
                 "message": "Items in 'customer get' cannot be set to all",
                 "code": "INVALID",
                 "extraInfo": null
               },
               {
-                "field": [
-                  "automaticBxgyDiscount",
-                  "title"
-                ],
+                "field": ["automaticBxgyDiscount", "title"],
                 "message": "Title can't be blank",
                 "code": "BLANK",
                 "extraInfo": null
               },
               {
-                "field": [
-                  "automaticBxgyDiscount",
-                  "customerBuys",
-                  "items"
-                ],
+                "field": ["automaticBxgyDiscount", "customerBuys", "items"],
                 "message": "Items in 'customer buys' must be defined",
                 "code": "BLANK",
                 "extraInfo": null
@@ -498,19 +440,13 @@
             "codeDiscountNode": null,
             "userErrors": [
               {
-                "field": [
-                  "freeShippingCodeDiscount",
-                  "combinesWith"
-                ],
+                "field": ["freeShippingCodeDiscount", "combinesWith"],
                 "message": "The combinesWith settings are not valid for the discount class.",
                 "code": "INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS",
                 "extraInfo": null
               },
               {
-                "field": [
-                  "freeShippingCodeDiscount",
-                  "title"
-                ],
+                "field": ["freeShippingCodeDiscount", "title"],
                 "message": "Title can't be blank",
                 "code": "BLANK",
                 "extraInfo": null
@@ -521,10 +457,7 @@
             "automaticDiscountNode": null,
             "userErrors": [
               {
-                "field": [
-                  "freeShippingAutomaticDiscount",
-                  "combinesWith"
-                ],
+                "field": ["freeShippingAutomaticDiscount", "combinesWith"],
                 "message": "The combinesWith settings are not valid for the discount class.",
                 "code": "INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS",
                 "extraInfo": null
@@ -535,9 +468,7 @@
             "codeDiscountNode": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Discount does not exist",
                 "code": null,
                 "extraInfo": null

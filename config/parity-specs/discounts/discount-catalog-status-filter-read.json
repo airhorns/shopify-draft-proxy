@@ -1,16 +1,8 @@
 {
   "scenarioId": "discount-catalog-status-filter-read",
-  "operationNames": [
-    "discountNodes",
-    "discountNodesCount"
-  ],
+  "operationNames": ["discountNodes", "discountNodesCount"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "selected-fields",
-    "pagination-shape",
-    "search-sort-contract"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "search-sort-contract"],
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-catalog-status-filter-read.json"
   ],

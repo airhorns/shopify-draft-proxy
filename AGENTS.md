@@ -60,7 +60,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Keep runtime state in memory unless the project scope explicitly expands.
 - `DraftProxy` is a value, not a stateful service. Each request returns
   the next proxy alongside the response (`process_request(proxy,
-  request) -> #(Response, DraftProxy)`). Embedders own the value;
+request) -> #(Response, DraftProxy)`). Embedders own the value;
   there is no ambient runtime context, no process-wide singleton.
 - Domain handlers receive the instance-owned store and synthetic
   identity through the proxy value passed into them. Do not introduce
@@ -111,7 +111,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Captured scenarios checked into `config/parity-specs` must be executable
   evidence by schema and inventory validation: either a proxy request with
   strict comparison targets that runs in the Gleam parity runner (`pnpm
-  gleam:test`), or an explicitly runtime-test-backed fixture mode for
+gleam:test`), or an explicitly runtime-test-backed fixture mode for
   multi-step flows the generic parity runner cannot yet replay.
 - Do not add live recordings, checked-in conformance fixtures, or capture
   scripts without adding an explicit conformance spec and executable test path

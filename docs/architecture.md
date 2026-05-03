@@ -72,7 +72,7 @@ The runtime tree lives at `gleam/src/shopify_draft_proxy/`.
 ### `proxy/proxy_state.gleam`
 
 - defines `DraftProxy`, `Config`, and `ReadMode` (`Live | LiveHybrid |
-  Snapshot`)
+Snapshot`)
 - holds the `with_*` builders that any caller composes to configure a
   proxy value
 
@@ -80,7 +80,7 @@ The runtime tree lives at `gleam/src/shopify_draft_proxy/`.
 
 - single chokepoint operation handlers use to call upstream Shopify
 - `fetch_sync(origin, transport, headers, operation_name, query,
-  variables)` returns a parsed `JsonValue` AST
+variables)` returns a parsed `JsonValue` AST
 - in production, falls through to `upstream_client.send_sync` (Erlang)
   or fails on JS until an async helper lands; in parity tests, a
   recorded cassette is installed via `with_upstream_transport`
@@ -117,8 +117,8 @@ The runtime tree lives at `gleam/src/shopify_draft_proxy/`.
   metafields, customers, orders, discounts, markets, b2b companies,
   marketing activities, locales/translations, bulk operations, etc.
 - two-layer overlay: `base_state` (snapshot or hydrated from upstream)
-  + `staged_state` (local mutation effects). Effective reads merge the
-  two; commit drains staged.
+  - `staged_state` (local mutation effects). Effective reads merge the
+    two; commit drains staged.
 
 ### `state/synthetic_identity.gleam`
 
@@ -228,7 +228,7 @@ Implementation:
   value.
 - The proxy is a value, not a stateful service. Every request returns
   the next proxy alongside the response: `process_request(proxy,
-  request) -> #(Response, DraftProxy)`. Embedders own the value and
+request) -> #(Response, DraftProxy)`. Embedders own the value and
   decide whether to thread it through their request loop, store it in
   an Erlang `gen_server`, or hold it in a JS variable.
 - `dump_state(proxy, created_at)` serializes the entire value (store,

@@ -26,9 +26,7 @@
         "createdAt": "2026-04-25T20:00:00Z",
         "updatedAt": "2026-04-25T20:00:00Z",
         "asyncUsageCount": 0,
-        "discountClasses": [
-          "ORDER"
-        ],
+        "discountClasses": ["ORDER"],
         "combinesWith": {
           "productDiscounts": false,
           "orderDiscounts": true,
@@ -61,9 +59,7 @@
         "createdAt": "2026-04-25T20:00:00Z",
         "updatedAt": "2026-04-25T20:00:00Z",
         "asyncUsageCount": 0,
-        "discountClasses": [
-          "ORDER"
-        ],
+        "discountClasses": ["ORDER"],
         "combinesWith": {
           "productDiscounts": false,
           "orderDiscounts": true,
@@ -96,9 +92,7 @@
         "createdAt": "2026-04-25T20:00:00Z",
         "updatedAt": "2026-04-25T20:00:00Z",
         "asyncUsageCount": 0,
-        "discountClasses": [
-          "ORDER"
-        ],
+        "discountClasses": ["ORDER"],
         "combinesWith": {
           "productDiscounts": false,
           "orderDiscounts": true,
@@ -122,9 +116,7 @@
         "createdAt": "2026-04-25T20:00:00Z",
         "updatedAt": "2026-04-25T20:00:00Z",
         "asyncUsageCount": 0,
-        "discountClasses": [
-          "ORDER"
-        ],
+        "discountClasses": ["ORDER"],
         "combinesWith": {
           "productDiscounts": false,
           "orderDiscounts": true,
@@ -325,18 +317,10 @@
   },
   "bulkJobs": {
     "variables": {
-      "activateIds": [
-        "gid://shopify/DiscountCodeNode/366001"
-      ],
-      "deactivateIds": [
-        "gid://shopify/DiscountCodeNode/366001"
-      ],
-      "deleteCodeIds": [
-        "gid://shopify/DiscountCodeNode/366002"
-      ],
-      "deleteAutomaticIds": [
-        "gid://shopify/DiscountAutomaticNode/366003"
-      ]
+      "activateIds": ["gid://shopify/DiscountCodeNode/366001"],
+      "deactivateIds": ["gid://shopify/DiscountCodeNode/366001"],
+      "deleteCodeIds": ["gid://shopify/DiscountCodeNode/366002"],
+      "deleteAutomaticIds": ["gid://shopify/DiscountAutomaticNode/366003"]
     },
     "response": {
       "data": {
@@ -378,13 +362,8 @@
   "redeemCodeBulk": {
     "variables": {
       "discountId": "gid://shopify/DiscountCodeNode/366004",
-      "codes": [
-        "HAR366ADD1",
-        "HAR366ADD2"
-      ],
-      "ids": [
-        "gid://shopify/DiscountRedeemCode/366004"
-      ]
+      "codes": ["HAR366ADD1", "HAR366ADD2"],
+      "ids": ["gid://shopify/DiscountRedeemCode/366004"]
     },
     "response": {
       "data": {

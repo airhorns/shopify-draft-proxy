@@ -1,16 +1,8 @@
 {
   "scenarioId": "discount-automatic-basic-detail-read",
-  "operationNames": [
-    "discountNode",
-    "automaticDiscountNode"
-  ],
+  "operationNames": ["discountNode", "automaticDiscountNode"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "selected-fields",
-    "nested-object-graph",
-    "empty-connection-shape"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "nested-object-graph", "empty-connection-shape"],
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-automatic-basic-detail-read.json"
   ],

@@ -19,9 +19,7 @@
         "createdAt": "2026-04-25T11:37:16Z",
         "updatedAt": "2026-04-25T11:37:16Z",
         "asyncUsageCount": 0,
-        "discountClasses": [
-          "ORDER"
-        ],
+        "discountClasses": ["ORDER"],
         "combinesWith": {
           "productDiscounts": true,
           "orderDiscounts": false,

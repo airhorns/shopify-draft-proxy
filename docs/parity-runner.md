@@ -193,13 +193,13 @@ Two important details:
 1. **Scan every string variable, not just `$id`.** GraphQL operations
    frequently rebind the argument under a different variable name
    (e.g. `discountNode(id: $codeId)`). Keying off `dict.get(variables,
-   "id")` will silently fail on those operations. The existing
+"id")` will silently fail on those operations. The existing
    `customers.local_has_customer_id` helper happens to work only
    because every customer query in the corpus uses `$id` literally;
    don't replicate the pattern verbatim.
 2. **Two flavors of gate**: an "id-keyed" check (passthrough off when
    the requested id is staged or synthetic, used by `*Node` lookups)
-   and a "domain-has-staged-records" check (passthrough off when *any*
+   and a "domain-has-staged-records" check (passthrough off when _any_
    record is staged, used by connection / aggregate / by-code reads).
    Use the right one per operation; don't substitute one for the
    other.
@@ -244,14 +244,14 @@ mode.
 
 ### Picking between the two
 
-| Situation                                           | Pattern |
-|-----------------------------------------------------|---------|
-| Read returns upstream verbatim, proxy adds nothing  | 1       |
-| Read where staged local writes must overlay         | 1, gated on local-state check |
-| Mutation that needs the prior record to merge       | 2       |
-| Operation that persists a slice for future reads    | 2       |
-| Operation whose response can't be computed from one upstream call | 2 |
-| Aggregate / count operations                        | 1       |
+| Situation                                                         | Pattern                       |
+| ----------------------------------------------------------------- | ----------------------------- |
+| Read returns upstream verbatim, proxy adds nothing                | 1                             |
+| Read where staged local writes must overlay                       | 1, gated on local-state check |
+| Mutation that needs the prior record to merge                     | 2                             |
+| Operation that persists a slice for future reads                  | 2                             |
+| Operation whose response can't be computed from one upstream call | 2                             |
+| Aggregate / count operations                                      | 1                             |
 
 Start with pattern 1. Reach for pattern 2 only when the response can't
 be served by forwarding verbatim.
@@ -354,7 +354,7 @@ pnpm parity:record --all
 ```
 
 > **Note on `corepack pnpm` vs `pnpm`.** AGENTS.md prefers `corepack
-> pnpm` for unattended/CI envs, but on local dev boxes `corepack pnpm`
+pnpm` for unattended/CI envs, but on local dev boxes `corepack pnpm`
 > may error with "no longer supported in a global context". If you hit
 > that, drop the `corepack` prefix — bare `pnpm` works wherever it's
 > on `PATH`.
@@ -421,7 +421,7 @@ satisfied`.
 
 When migrating a read scenario, expect to delete cursor /
 `pageInfo` / `cursor` rules that were originally needed because the
-seed-based runner emitted synthetic cursors. AGENTS.md bans *adding*
+seed-based runner emitted synthetic cursors. AGENTS.md bans _adding_
 new `expectedDifferences`; it does not ban removing stale ones.
 
 ### Evolving a hydration query's response shape — keep parsers additive
@@ -477,7 +477,7 @@ Per-scenario steps:
    - Pattern 2: add a `upstream_query.fetch_sync(...)` call inside the
      domain handler and document the choice inline.
    - Re-run `pnpm parity:record <id>` and confirm `wrote N>0
-     upstreamCalls` (or hand-synthesize if recording fails).
+upstreamCalls` (or hand-synthesize if recording fails).
 3. `cd gleam && gleam test --target javascript -- parity_test` to run
    on JS, then `--target erlang` to run on Erlang. If you see:
    - `cassette miss: operation=<X>` — the operation made an upstream
@@ -500,7 +500,7 @@ Per-scenario steps:
    that variant green too.
 7. **Watch for collateral regressions.** Adding an unconditional or
    incorrectly-gated passthrough branch can regress lifecycle
-   scenarios in *other* specs that touch the same root fields. After
+   scenarios in _other_ specs that touch the same root fields. After
    each handler change, run the full domain's tests (or the whole
    suite) — not just your scenario.
 8. Move to the next scenario. When the whole domain is green, open
