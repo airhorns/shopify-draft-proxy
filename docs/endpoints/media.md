@@ -54,7 +54,8 @@ Local staged mutations:
 - File mutations stage local `FileRecord` state and do not proxy supported roots upstream at runtime.
 - `fileCreate` validates original source URLs and alt text length, derives a filename from the source when no filename is supplied, creates stable synthetic Shopify GIDs by content type, and returns uploaded file status.
 - `fileUpdate` validates file ids, URL fields, alt text length, product references, and Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule before updating staged records. `referencesToAdd` can attach a locally staged file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Captured parity covers successful updates after ready-state polling; richer non-ready/locked failure-state behavior remains future work.
-- `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion.
+- In LiveHybrid mode, `fileUpdate.referencesToAdd` may issue a narrow product read before validation when the referenced product is not already local. The read hydrates only the product identity/metadata needed for local product-media attachment; the supported mutation still stages locally and does not write upstream at runtime.
+- `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads.
 - `fileAcknowledgeUpdateFailed(fileIds:)` stages a local acknowledgement for
   existing `READY` Files API records and does not proxy supported requests
   upstream at runtime. The mutation returns selected `files` and `userErrors`
@@ -96,6 +97,11 @@ Local staged mutations:
   evidence because external upload byte transfer is still outside the proxy
   boundary; existing live Files API fixtures anchor the generic create/update
   payload family.
+- HAR-534 migrates the remaining media parity scenarios to cassette-backed
+  LiveHybrid execution. `fileUpdate.referencesToAdd` uses a product hydrate
+  cassette entry before local staging, and `fileDelete` of a product-owned
+  MediaImage uses a media-reference hydrate entry before staging the local
+  delete and downstream product-media removal.
 
 ### Validation anchors
 
