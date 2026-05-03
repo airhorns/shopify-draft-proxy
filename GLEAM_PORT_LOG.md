@@ -18,13 +18,13 @@ lifecycle reads stay local, but `blogsCount` and `pagesCount` fetch narrow
 upstream baseline count cassettes and add newly staged local content so
 read-after-write counts match Shopify without forwarding supported mutations.
 
-| Module / fixture                                                               | Change                                                                                                      |
-| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/online_store.gleam`                       | Adds the upstream-aware query entrypoint, cold-read passthrough gate, and Pattern 2 baseline count fetches. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                        | Routes online-store queries through the upstream-aware domain entrypoint.                                   |
-| `fixtures/conformance/**/online-store/online-store-content-*.json`             | Hand-synthesizes online-store search/count cassette entries from checked-in capture evidence.               |
-| `config/gleam-port-ci-gates.json`                                              | Removes the two Online Store expected-failure entries.                                                      |
-| `docs/endpoints/online-store.md`                                               | Documents the LiveHybrid passthrough/count-baseline choices and cassette-backed evidence.                   |
+| Module / fixture                                                   | Change                                                                                                      |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/online_store.gleam`           | Adds the upstream-aware query entrypoint, cold-read passthrough gate, and Pattern 2 baseline count fetches. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`            | Routes online-store queries through the upstream-aware domain entrypoint.                                   |
+| `fixtures/conformance/**/online-store/online-store-content-*.json` | Hand-synthesizes online-store search/count cassette entries from checked-in capture evidence.               |
+| `config/gleam-port-ci-gates.json`                                  | Removes the two Online Store expected-failure entries.                                                      |
+| `docs/endpoints/online-store.md`                                   | Documents the LiveHybrid passthrough/count-baseline choices and cassette-backed evidence.                   |
 
 Validation:
 
