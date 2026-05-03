@@ -53,14 +53,14 @@ import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/proxy/payments
 import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/products
+import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
-  DraftProxy, Live, LiveHybrid, Snapshot,
+  DraftProxy, Live, LiveHybrid, Request, Response, Snapshot,
 }
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
-import shopify_draft_proxy/proxy/upstream_dispatch
 import shopify_draft_proxy/proxy/upstream_query
 import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/shopify/upstream_client.{type SyncTransport}
@@ -88,33 +88,16 @@ const store_dump_version: Int = 1
 /// the caller doesn't supply one. Mirrors the TS default.
 const default_admin_api_version: String = "2025-01"
 
-/// The HTTP-shaped request the proxy accepts. Mirrors
-/// `DraftProxyRequest`.
-pub type Request {
-  Request(
-    method: String,
-    path: String,
-    headers: Dict(String, String),
-    body: String,
-  )
-}
-
-/// HTTP-shaped response. Mirrors `DraftProxyHttpResponse`. The body is
-/// pre-serialized as a JSON tree so callers can `json.to_string` it
-/// without re-encoding.
-pub type Response {
-  Response(status: Int, body: Json, headers: List(#(String, String)))
-}
-
 /// Re-exports of the runtime types defined in `proxy_state`. The real
 /// definitions live there so domain modules (`customers`, `products`,
-/// …) can take `DraftProxy` as a parameter without importing
-/// `draft_proxy` and creating a cycle. External callers keep using
-/// `draft_proxy.DraftProxy`, `draft_proxy.Config`, and
+/// …) can take `DraftProxy` / `Request` / `Response` as parameters
+/// without importing `draft_proxy` and creating a cycle. External
+/// callers keep using `draft_proxy.DraftProxy`, `draft_proxy.Request`,
+/// `draft_proxy.Response`, `draft_proxy.Config`, and
 /// `draft_proxy.ReadMode` as type names; for the value-level
-/// constructors (`Config(...)`, `Snapshot`, `LiveHybrid`, `Live`,
-/// `DraftProxy(..)`) tests should import from
-/// `shopify_draft_proxy/proxy/proxy_state` directly.
+/// constructors (`Request(..)`, `Response(..)`, `Config(..)`,
+/// `Snapshot`, `LiveHybrid`, `Live`, `DraftProxy(..)`) tests should
+/// import from `shopify_draft_proxy/proxy/proxy_state` directly.
 pub type DraftProxy =
   proxy_state.DraftProxy
 
@@ -123,6 +106,12 @@ pub type Config =
 
 pub type ReadMode =
   proxy_state.ReadMode
+
+pub type Request =
+  proxy_state.Request
+
+pub type Response =
+  proxy_state.Response
 
 /// Default config, mirroring the values the TS test suite uses when no
 /// explicit config is supplied.
@@ -441,11 +430,18 @@ fn dispatch_graphql(
         Error(_) -> #(bad_request("Could not parse GraphQL operation"), proxy)
         Ok(parsed) ->
           case live_hybrid_passthrough_target(proxy, parsed, body.variables) {
-            True -> dispatch_passthrough(proxy, request)
+            True -> passthrough.passthrough_sync(proxy, request)
             False ->
               case parsed.type_, list.first(parsed.root_fields) {
                 QueryOperation, Ok(field) ->
-                  route_query(proxy, parsed, body.query, field, body.variables)
+                  route_query(
+                    proxy,
+                    request,
+                    parsed,
+                    body.query,
+                    field,
+                    body.variables,
+                  )
                 MutationOperation, Ok(field) ->
                   route_mutation(
                     proxy,
@@ -463,20 +459,22 @@ fn dispatch_graphql(
   }
 }
 
-/// Substrate-level passthrough check. Returns `True` only when the
-/// proxy is in `LiveHybrid` mode AND either:
-///   - the operation maps to the `Passthrough` execution branch
-///     (unknown / unimplemented),
-///   - no local dispatcher claims the root field, OR
-///   - the operation is on the per-operation passthrough opt-in list
-///     (`live_hybrid_force_passthrough_root_fields`) — operations whose
-///     local handler can't compute the right answer without reaching
-///     upstream (e.g. aggregates like `customersCount`). The handler
-///     stays in place for `Snapshot` mode; in `LiveHybrid` it's bypassed.
+/// Substrate-level passthrough check. Returns `True` only for the
+/// dispatcher-irreducible cases: the proxy is in `LiveHybrid` mode AND
+/// either the operation maps to the `Passthrough` execution branch
+/// (registry says: unimplemented), or no local dispatcher claims the
+/// root field at all.
+///
+/// Per-operation "forward upstream because the local handler doesn't
+/// have enough state to answer correctly" decisions live in the domain
+/// modules now (`customers.handle_query_request`,
+/// `discounts.handle_query_request`, …) — they call
+/// `passthrough.passthrough_sync` themselves. The dispatcher only
+/// passthroughs when there is no handler to ask.
 fn live_hybrid_passthrough_target(
   proxy: DraftProxy,
   parsed: ParsedOperation,
-  variables: Dict(String, root_field.ResolvedValue),
+  _variables: Dict(String, root_field.ResolvedValue),
 ) -> Bool {
   case proxy.config.read_mode {
     LiveHybrid -> {
@@ -487,55 +485,12 @@ fn live_hybrid_passthrough_target(
           case list.first(parsed.root_fields) {
             Ok(primary_root_field) ->
               !local_dispatch_supported(cap.type_, primary_root_field)
-              || force_passthrough_in_live_hybrid(
-                proxy,
-                cap.type_,
-                primary_root_field,
-                variables,
-              )
             Error(_) -> False
           }
       }
     }
     _ -> False
   }
-}
-
-/// Ask each domain whether *its* local handler wants to forward this
-/// operation upstream verbatim under `LiveHybrid` mode. The decision
-/// (which operations passthrough, under what local-state conditions)
-/// lives in the domain module — this function is only the dispatcher's
-/// fan-out.
-fn force_passthrough_in_live_hybrid(
-  proxy: DraftProxy,
-  type_: GraphQLOperationType,
-  primary_root_field: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Bool {
-  customers.should_passthrough_in_live_hybrid(
-    proxy,
-    type_,
-    primary_root_field,
-    variables,
-  )
-  || discounts.should_passthrough_in_live_hybrid(
-    proxy,
-    type_,
-    primary_root_field,
-    variables,
-  )
-}
-
-@target(erlang)
-fn dispatch_passthrough(
-  proxy: DraftProxy,
-  request: Request,
-) -> #(Response, DraftProxy) {
-  let send = case proxy.upstream_transport {
-    Some(transport) -> transport.send
-    None -> upstream_client.send_sync
-  }
-  passthrough_via(proxy, request, send)
 }
 
 @target(erlang)
@@ -550,7 +505,7 @@ pub fn process_passthrough_sync(
   send: fn(gleam_http_request.Request(String)) ->
     Result(commit.HttpOutcome, commit.CommitTransportError),
 ) -> #(Response, DraftProxy) {
-  passthrough_via(proxy, request, send)
+  passthrough.passthrough_with_send(proxy, request, send)
 }
 
 @target(javascript)
@@ -562,120 +517,7 @@ pub fn process_passthrough_async(
   send: fn(gleam_http_request.Request(String)) ->
     Promise(Result(commit.HttpOutcome, commit.CommitTransportError)),
 ) -> Promise(#(Response, DraftProxy)) {
-  upstream_dispatch.fetch_async(
-    proxy.config.shopify_admin_origin,
-    request.path,
-    request.body,
-    request.headers,
-    send,
-  )
-  |> promise.map(fn(outcome) {
-    #(passthrough_outcome_to_response(outcome), proxy)
-  })
-}
-
-@target(javascript)
-fn dispatch_passthrough(
-  proxy: DraftProxy,
-  request: Request,
-) -> #(Response, DraftProxy) {
-  // Sync passthrough on JS only works when a synchronous transport
-  // (e.g. a parity cassette) is installed via `with_upstream_transport`.
-  // Production JS callers needing live HTTP must use
-  // `process_request_async/2`, which awaits the upstream Promise.
-  case proxy.upstream_transport {
-    Some(transport) -> passthrough_via_sync_js(proxy, request, transport.send)
-    None -> #(passthrough_async_unsupported_response(), proxy)
-  }
-}
-
-@target(javascript)
-fn passthrough_via_sync_js(
-  proxy: DraftProxy,
-  request: Request,
-  send: fn(gleam_http_request.Request(String)) ->
-    Result(commit.HttpOutcome, commit.CommitTransportError),
-) -> #(Response, DraftProxy) {
-  let outcome = case
-    upstream_client.build_graphql_request(
-      proxy.config.shopify_admin_origin,
-      request.path,
-      request.body,
-      request.headers,
-    )
-  {
-    Ok(req) -> send(req)
-    Error(Nil) ->
-      Error(commit.CommitTransportError(
-        message: "invalid upstream url: "
-        <> proxy.config.shopify_admin_origin
-        <> request.path,
-      ))
-  }
-  #(passthrough_outcome_to_response(outcome), proxy)
-}
-
-@target(erlang)
-fn passthrough_via(
-  proxy: DraftProxy,
-  request: Request,
-  send: fn(gleam_http_request.Request(String)) ->
-    Result(commit.HttpOutcome, commit.CommitTransportError),
-) -> #(Response, DraftProxy) {
-  let outcome =
-    upstream_dispatch.fetch_sync(
-      proxy.config.shopify_admin_origin,
-      request.path,
-      request.body,
-      request.headers,
-      send,
-    )
-  #(passthrough_outcome_to_response(outcome), proxy)
-}
-
-fn passthrough_outcome_to_response(
-  outcome: Result(commit.HttpOutcome, commit.CommitTransportError),
-) -> Response {
-  case outcome {
-    Ok(commit.HttpOutcome(status: status, body: body_string)) -> {
-      let parsed_body = commit.parse_json_value(body_string)
-      Response(
-        status: status,
-        body: commit.json_value_to_json(parsed_body),
-        headers: [],
-      )
-    }
-    Error(commit.CommitTransportError(message: msg)) ->
-      Response(
-        status: 502,
-        body: json.object([
-          #(
-            "errors",
-            json.array([json.object([#("message", json.string(msg))])], fn(x) {
-              x
-            }),
-          ),
-        ]),
-        headers: [],
-      )
-  }
-}
-
-@target(javascript)
-fn passthrough_async_unsupported_response() -> Response {
-  Response(
-    status: 501,
-    body: json.object([
-      #("ok", json.bool(False)),
-      #(
-        "message",
-        json.string(
-          "Live-hybrid passthrough requires async dispatch on the JavaScript target. Call process_request_async(proxy, request) and await the returned Promise.",
-        ),
-      ),
-    ]),
-    headers: [],
-  )
+  passthrough.passthrough_with_send_async(proxy, request, send)
 }
 
 /// Single point of mutation log entry recording. Each domain
@@ -1309,6 +1151,7 @@ fn route_mutation(
 
 fn route_query(
   proxy: DraftProxy,
+  request: Request,
   parsed: ParsedOperation,
   query: String,
   primary_root_field: String,
@@ -1354,10 +1197,13 @@ fn route_query(
         "Failed to handle gift cards query",
       )
     Ok(DiscountsDomain) ->
-      respond(
+      discounts.handle_query_request(
         proxy,
-        discounts.process(proxy.store, query, variables),
-        "Failed to handle discounts query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(B2BDomain) ->
       respond(
@@ -1438,10 +1284,13 @@ fn route_query(
         "Failed to handle online-store query",
       )
     Ok(CustomersDomain) ->
-      respond(
+      customers.handle_query_request(
         proxy,
-        customers.process(proxy, query, variables),
-        "Failed to handle customers query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(PaymentsDomain) ->
       respond(
@@ -2560,16 +2409,7 @@ fn dispatch_passthrough_async(
   proxy: DraftProxy,
   request: Request,
 ) -> Promise(#(Response, DraftProxy)) {
-  upstream_dispatch.fetch_async(
-    proxy.config.shopify_admin_origin,
-    request.path,
-    request.body,
-    request.headers,
-    upstream_client.send_async,
-  )
-  |> promise.map(fn(outcome) {
-    #(passthrough_outcome_to_response(outcome), proxy)
-  })
+  passthrough.passthrough_async(proxy, request)
 }
 
 @target(javascript)

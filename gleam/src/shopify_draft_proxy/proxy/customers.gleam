@@ -25,8 +25,11 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/payments
-import shopify_draft_proxy/proxy/proxy_state.{type DraftProxy}
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -111,9 +114,10 @@ pub fn local_has_customer_id(
   }
 }
 
-/// In `LiveHybrid` mode, decide whether the dispatcher should forward
-/// this customer-domain operation to upstream verbatim instead of
-/// answering it locally.
+/// In `LiveHybrid` mode, decide whether this customer-domain
+/// operation should be answered by reaching upstream verbatim instead
+/// of from local state. Internal helper for `handle_query_request` —
+/// the dispatcher does not consult this directly anymore.
 ///
 /// The customer-domain operations on this list are aggregates and
 /// catalog reads that the local handler can't compute the right
@@ -124,7 +128,7 @@ pub fn local_has_customer_id(
 /// In `Snapshot` mode the same operations stay local (typically
 /// with a degenerate empty answer that matches empty-snapshot
 /// expectations).
-pub fn should_passthrough_in_live_hybrid(
+fn should_passthrough_in_live_hybrid(
   proxy: DraftProxy,
   type_: parse_operation.GraphQLOperationType,
   primary_root_field: String,
@@ -137,6 +141,63 @@ pub fn should_passthrough_in_live_hybrid(
       !local_has_customer_id(proxy, variables)
     parse_operation.QueryOperation, "customers" -> True
     _, _ -> False
+  }
+}
+
+/// Domain entrypoint for the customer query path. The dispatcher
+/// always lands here for customer-domain reads regardless of
+/// `read_mode`; the handler itself decides whether to compute the
+/// answer from local state or to forward to upstream verbatim via
+/// `passthrough.passthrough_sync` (when in `LiveHybrid` mode and the
+/// operation is one we know we can't satisfy locally — see
+/// `should_passthrough_in_live_hybrid`).
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_passthrough = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        variables,
+      )
+    _ -> False
+  }
+  case want_passthrough {
+    True -> passthrough.passthrough_sync(proxy, request)
+    False ->
+      case process(proxy, document, variables) {
+        Ok(envelope) -> #(
+          Response(status: 200, body: envelope, headers: []),
+          proxy,
+        )
+        Error(_) -> #(
+          Response(
+            status: 400,
+            body: json.object([
+              #(
+                "errors",
+                json.array(
+                  [
+                    json.object([
+                      #("message", json.string("Failed to handle customers query")),
+                    ]),
+                  ],
+                  fn(x) { x },
+                ),
+              ),
+            ]),
+            headers: [],
+          ),
+          proxy,
+        )
+      }
   }
 }
 

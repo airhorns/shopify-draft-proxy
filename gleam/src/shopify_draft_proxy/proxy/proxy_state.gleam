@@ -10,6 +10,8 @@
 //// (`draft_proxy.new()`, `draft_proxy.with_config(...)`, etc.) keep
 //// compiling unchanged.
 
+import gleam/dict.{type Dict}
+import gleam/json.{type Json}
 import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/operation_registry_data
@@ -17,6 +19,26 @@ import shopify_draft_proxy/shopify/upstream_client.{type SyncTransport}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
+}
+
+/// HTTP-shaped request the proxy accepts. Mirrors `DraftProxyRequest`
+/// in the TS port. Lives here (alongside `DraftProxy`) rather than in
+/// `draft_proxy.gleam` so domain handlers can take a `Request` as a
+/// parameter without importing `draft_proxy` and creating a cycle.
+pub type Request {
+  Request(
+    method: String,
+    path: String,
+    headers: Dict(String, String),
+    body: String,
+  )
+}
+
+/// HTTP-shaped response. Mirrors `DraftProxyHttpResponse`. The body is
+/// pre-serialized as a JSON tree so callers can `json.to_string` it
+/// without re-encoding.
+pub type Response {
+  Response(status: Int, body: Json, headers: List(#(String, String)))
 }
 
 /// How the proxy answers reads. Mirrors the TS `AppConfig['readMode']`.

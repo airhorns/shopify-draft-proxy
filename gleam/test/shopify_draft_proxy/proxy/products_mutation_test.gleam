@@ -3,8 +3,8 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
-import shopify_draft_proxy/proxy/draft_proxy.{type Request, Request, Response}
-import shopify_draft_proxy/proxy/proxy_state
+import shopify_draft_proxy/proxy/draft_proxy.{type Request}
+import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type ProductRecord, type ProductVariantRecord, InventoryItemRecord,

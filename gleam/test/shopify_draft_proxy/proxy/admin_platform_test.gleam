@@ -5,7 +5,8 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/admin_platform
-import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
+import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity

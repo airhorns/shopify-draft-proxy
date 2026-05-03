@@ -1,7 +1,8 @@
 import gleam/dict
 import gleam/json
 import gleam/string
-import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
+import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
   let request =

@@ -14,8 +14,6 @@ import { readFileSync } from 'node:fs';
 import {
   type DraftProxy as GleamDraftProxy,
   GraphQLRequestOptions as GleamGraphQLRequestOptions,
-  Request as GleamRequest,
-  type Response as GleamResponse,
   commit as gleamCommit,
   dump_state,
   dump_state_now,
@@ -34,6 +32,8 @@ import {
   Config,
   Live,
   LiveHybrid,
+  Request as GleamRequest,
+  type Response as GleamResponse,
   Snapshot,
 } from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/proxy_state.mjs';
 import { None, Some } from '../../build/dev/javascript/gleam_stdlib/gleam/option.mjs';

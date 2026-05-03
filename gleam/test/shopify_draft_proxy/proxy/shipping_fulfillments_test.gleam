@@ -663,7 +663,7 @@ pub fn draft_proxy_routes_delivery_profile_to_shipping_domain_test() {
   let #(response, _) =
     draft_proxy.process_request(
       proxy,
-      draft_proxy.Request(
+      proxy_state.Request(
         method: "POST",
         path: "/admin/api/2026-04/graphql.json",
         headers: dict.new(),

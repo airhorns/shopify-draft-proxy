@@ -27,7 +27,10 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type RequiredArgument, RequiredArgument, single_root_log_draft,
   validate_required_field_arguments,
 }
-import shopify_draft_proxy/proxy/proxy_state.{type DraftProxy}
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
 import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, empty_upstream_context,
 }
@@ -167,15 +170,16 @@ pub fn local_has_staged_discounts(
   has_synthetic || !list.is_empty(store.list_effective_discounts(proxy.store))
 }
 
-/// In `LiveHybrid` mode, decide whether the dispatcher should forward
-/// this discount-domain operation to upstream verbatim instead of
-/// answering it locally.
+/// In `LiveHybrid` mode, decide whether this discount-domain
+/// operation should be answered by reaching upstream verbatim instead
+/// of from local state. Internal helper for `handle_query_request` —
+/// the dispatcher does not consult this directly anymore.
 ///
 /// `*Node` lookups skip passthrough when the requested id is already
 /// staged (read-after-write of a local create); aggregate / connection
 /// / by-code reads skip passthrough whenever any discount is staged so
 /// lifecycle scenarios stay local-only end-to-end.
-pub fn should_passthrough_in_live_hybrid(
+fn should_passthrough_in_live_hybrid(
   proxy: DraftProxy,
   type_: parse_operation.GraphQLOperationType,
   primary_root_field: String,
@@ -199,6 +203,63 @@ pub fn should_passthrough_in_live_hybrid(
     parse_operation.QueryOperation, "codeDiscountNodeByCode" ->
       !local_has_staged_discounts(proxy, variables)
     _, _ -> False
+  }
+}
+
+/// Domain entrypoint for the discount query path. The dispatcher
+/// always lands here for discount-domain reads regardless of
+/// `read_mode`; the handler itself decides whether to compute the
+/// answer from local state or to forward to upstream verbatim via
+/// `passthrough.passthrough_sync` (when in `LiveHybrid` mode and the
+/// operation is one we know we can't satisfy locally — see
+/// `should_passthrough_in_live_hybrid`).
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_passthrough = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        variables,
+      )
+    _ -> False
+  }
+  case want_passthrough {
+    True -> passthrough.passthrough_sync(proxy, request)
+    False ->
+      case process(proxy.store, document, variables) {
+        Ok(envelope) -> #(
+          Response(status: 200, body: envelope, headers: []),
+          proxy,
+        )
+        Error(_) -> #(
+          Response(
+            status: 400,
+            body: json.object([
+              #(
+                "errors",
+                json.array(
+                  [
+                    json.object([
+                      #("message", json.string("Failed to handle discounts query")),
+                    ]),
+                  ],
+                  fn(x) { x },
+                ),
+              ),
+            ]),
+            headers: [],
+          ),
+          proxy,
+        )
+      }
   }
 }
 

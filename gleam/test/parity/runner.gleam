@@ -37,12 +37,10 @@ import parity/spec.{
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
 }
-import shopify_draft_proxy/proxy/draft_proxy.{
-  type DraftProxy, type Response, Request,
-}
+import shopify_draft_proxy/proxy/draft_proxy.{type DraftProxy, type Response}
 import shopify_draft_proxy/proxy/operation_registry
 import shopify_draft_proxy/proxy/operation_registry_data
-import shopify_draft_proxy/proxy/proxy_state.{Config, LiveHybrid}
+import shopify_draft_proxy/proxy/proxy_state.{Config, LiveHybrid, Request}
 import simplifile
 
 pub type RunError {

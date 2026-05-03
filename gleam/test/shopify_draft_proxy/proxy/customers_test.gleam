@@ -2,8 +2,8 @@ import gleam/dict
 import gleam/json
 import gleam/option.{None}
 import gleam/string
-import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
-import shopify_draft_proxy/proxy/proxy_state
+import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/types.{Money, StoreCreditAccountRecord}
 

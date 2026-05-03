@@ -3,9 +3,11 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
-import shopify_draft_proxy/proxy/draft_proxy.{type Request, Request, Response}
+import shopify_draft_proxy/proxy/draft_proxy.{type Request}
+import shopify_draft_proxy/proxy/proxy_state.{
+  Config, LiveHybrid, Request, Response, Snapshot,
+}
 import shopify_draft_proxy/proxy/operation_registry
-import shopify_draft_proxy/proxy/proxy_state.{Config, LiveHybrid, Snapshot}
 import shopify_draft_proxy/state/serialization as state_serialization
 
 fn empty_headers() -> dict.Dict(String, String) {

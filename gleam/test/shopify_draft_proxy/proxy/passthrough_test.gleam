@@ -10,8 +10,10 @@ import gleam/javascript/promise
 import gleam/json
 import gleam/option.{None}
 import shopify_draft_proxy/proxy/commit
-import shopify_draft_proxy/proxy/draft_proxy.{type Request, Request, Response}
-import shopify_draft_proxy/proxy/proxy_state.{Config, LiveHybrid}
+import shopify_draft_proxy/proxy/draft_proxy.{type Request}
+import shopify_draft_proxy/proxy/proxy_state.{
+  Config, LiveHybrid, Request, Response,
+}
 import shopify_draft_proxy/shopify/upstream_client
 
 fn live_hybrid_proxy() -> draft_proxy.DraftProxy {

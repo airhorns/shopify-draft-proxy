@@ -38,9 +38,9 @@ import gleam/string
 @target(javascript)
 import shopify_draft_proxy/proxy/commit
 @target(javascript)
-import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
+import shopify_draft_proxy/proxy/draft_proxy
 @target(javascript)
-import shopify_draft_proxy/proxy/proxy_state
+import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 @target(javascript)
 import shopify_draft_proxy/state/store
 
