@@ -64,5 +64,35 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesPublishableUnpublishToCurrentChannelHydrate",
+      "variables": {
+        "id": "gid://shopify/Product/10172067414322"
+      },
+      "query": "sha:hand-synthesized-StorePropertiesPublishableUnpublishToCurrentChannelHydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publishable": {
+              "id": "gid://shopify/Product/10172067414322",
+              "publishedOnCurrentPublication": false,
+              "availablePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "shop": {
+              "publicationCount": 5
+            }
+          }
+        }
+      }
+    }
+  ]
 }
