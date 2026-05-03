@@ -121,14 +121,6 @@
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
     {
-      "specPath": "config/parity-specs/gift-cards/gift-card-lifecycle.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/gift-cards/gift-card-search-filters.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
       "specPath": "config/parity-specs/markets/market-catalog-detail-read.json",
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
@@ -403,10 +395,6 @@
     {
       "specPath": "config/parity-specs/payments/payment-terms-lifecycle-local-staging.json",
       "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
-    },
-    {
-      "specPath": "config/parity-specs/privacy/dataSaleOptOut-parity.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
     {
       "specPath": "config/parity-specs/products/collection-detail-read.json",
