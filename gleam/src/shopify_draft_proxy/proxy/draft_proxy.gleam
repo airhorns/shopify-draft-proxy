@@ -1070,7 +1070,19 @@ fn route_mutation(
         Error(_) -> #(bad_request("Failed to handle privacy mutation"), proxy)
       }
     Ok(CustomersDomain) ->
-      case customers.process_mutation(proxy, request_path, query, variables) {
+      case
+        customers.process_mutation_with_upstream(
+          proxy,
+          request_path,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
+        )
+      {
         Ok(outcome) -> #(
           Response(status: 200, body: outcome.data, headers: []),
           DraftProxy(
@@ -1106,12 +1118,17 @@ fn route_mutation(
       }
     Ok(ShippingFulfillmentsDomain) ->
       case
-        shipping_fulfillments.process_mutation(
+        shipping_fulfillments.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -1319,10 +1336,13 @@ fn route_query(
         "Failed to handle payments query",
       )
     Ok(ShippingFulfillmentsDomain) ->
-      respond(
+      shipping_fulfillments.handle_query_request(
         proxy,
-        shipping_fulfillments.process(proxy.store, query, variables),
-        "Failed to handle shipping fulfillments query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(OrdersDomain) ->
       respond(

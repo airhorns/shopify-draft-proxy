@@ -163,19 +163,9 @@
             "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
           },
           {
-            "path": "$.originalFulfillmentOrder.lineItems.nodes[*].id",
-            "matcher": "shopify-gid:FulfillmentOrderLineItem",
-            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
-          },
-          {
             "path": "$.originalFulfillmentOrder.updatedAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
-          },
-          {
-            "path": "$.remainingFulfillmentOrder.lineItems.nodes[*].id",
-            "matcher": "shopify-gid:FulfillmentOrderLineItem",
-            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
           },
           {
             "path": "$.remainingFulfillmentOrder.updatedAt",
