@@ -248,5 +248,6 @@
     "Partially received shipments still carry incoming inventory for unreceived quantities.",
     "Updating a partially received shipment line adjusts incoming by the unreceived delta.",
     "Deleting a partially received shipment reverses remaining incoming inventory while preserving already accepted available/on_hand quantity."
-  ]
+  ],
+  "upstreamCalls": []
 }

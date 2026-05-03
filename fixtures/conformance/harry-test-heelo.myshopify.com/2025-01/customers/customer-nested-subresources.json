@@ -1,0 +1,305 @@
+{
+  "proxyVariables": {
+    "id": "gid://shopify/Customer/9522206933298"
+  },
+  "data": {
+    "customer": {
+      "id": "gid://shopify/Customer/9522206933298",
+      "addresses": [
+        {
+          "address1": "Box 42 - 151 O'Connor St",
+          "city": "Ottawa"
+        },
+        {
+          "address1": "500 King St W",
+          "city": "Toronto"
+        },
+        {
+          "address1": "123 Queen St W",
+          "city": "Toronto"
+        }
+      ],
+      "addressesV2": {
+        "nodes": [
+          {
+            "address1": "Box 42 - 151 O'Connor St",
+            "city": "Ottawa"
+          },
+          {
+            "address1": "500 King St W",
+            "city": "Toronto"
+          }
+        ],
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMTEzNDk3ODUyMzQ0MiwibGFzdF92YWx1ZSI6IjExMTM0OTc4NTIzNDQyIn0=",
+            "node": {
+              "address1": "Box 42 - 151 O'Connor St",
+              "city": "Ottawa"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMjAzNDM5Njk3OTUwNiwibGFzdF92YWx1ZSI6IjEyMDM0Mzk2OTc5NTA2In0=",
+            "node": {
+              "address1": "500 King St W",
+              "city": "Toronto"
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjoxMTEzNDk3ODUyMzQ0MiwibGFzdF92YWx1ZSI6IjExMTM0OTc4NTIzNDQyIn0=",
+          "endCursor": "eyJsYXN0X2lkIjoxMjAzNDM5Njk3OTUwNiwibGFzdF92YWx1ZSI6IjEyMDM0Mzk2OTc5NTA2In0="
+        }
+      },
+      "companyContactProfiles": [
+        {
+          "id": "gid://shopify/CompanyContact/3321004338"
+        }
+      ],
+      "orders": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/8710692176178"
+          },
+          {
+            "id": "gid://shopify/Order/8710697222450"
+          }
+        ],
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo4NzEwNjkyMTc2MTc4LCJsYXN0X3ZhbHVlIjoiODcxMDY5MjE3NjE3OCJ9",
+            "node": {
+              "id": "gid://shopify/Order/8710692176178"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo4NzEwNjk3MjIyNDUwLCJsYXN0X3ZhbHVlIjoiODcxMDY5NzIyMjQ1MCJ9",
+            "node": {
+              "id": "gid://shopify/Order/8710697222450"
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo4NzEwNjkyMTc2MTc4LCJsYXN0X3ZhbHVlIjoiODcxMDY5MjE3NjE3OCJ9",
+          "endCursor": "eyJsYXN0X2lkIjo4NzEwNjk3MjIyNDUwLCJsYXN0X3ZhbHVlIjoiODcxMDY5NzIyMjQ1MCJ9"
+        }
+      },
+      "events": {
+        "nodes": [
+          {
+            "id": "gid://shopify/BasicEvent/176149718335794"
+          },
+          {
+            "id": "gid://shopify/BasicEvent/176149718597938"
+          }
+        ],
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjoxNzYxNDk3MTgzMzU3OTQsImxhc3RfdmFsdWUiOiIxNzYxNDk3MTgzMzU3OTQifQ==",
+            "node": {
+              "id": "gid://shopify/BasicEvent/176149718335794"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxNzYxNDk3MTg1OTc5MzgsImxhc3RfdmFsdWUiOiIxNzYxNDk3MTg1OTc5MzgifQ==",
+            "node": {
+              "id": "gid://shopify/BasicEvent/176149718597938"
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjoxNzYxNDk3MTgzMzU3OTQsImxhc3RfdmFsdWUiOiIxNzYxNDk3MTgzMzU3OTQifQ==",
+          "endCursor": "eyJsYXN0X2lkIjoxNzYxNDk3MTg1OTc5MzgsImxhc3RfdmFsdWUiOiIxNzYxNDk3MTg1OTc5MzgifQ=="
+        }
+      },
+      "metafield": null,
+      "metafields": {
+        "nodes": [],
+        "edges": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "lastOrder": {
+        "id": "gid://shopify/Order/8710789792050"
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 20,
+      "actualQueryCost": 19,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1981,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerNestedSubresourcesRead",
+      "variables": {
+        "id": "gid://shopify/Customer/9522206933298"
+      },
+      "query": "query CustomerNestedSubresourcesRead($id: ID!) {\n  customer(id: $id) {\n    id\n    addresses {\n      address1\n      city\n    }\n    addressesV2(first: 2) {\n      nodes {\n        address1\n        city\n      }\n      edges {\n        cursor\n        node {\n          address1\n          city\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    companyContactProfiles {\n      id\n    }\n    orders(first: 2) {\n      nodes {\n        id\n      }\n      edges {\n        cursor\n        node {\n          id\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    events(first: 2) {\n      nodes {\n        id\n      }\n      edges {\n        cursor\n        node {\n          id\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    metafield(namespace: \"custom\", key: \"tier\") {\n      id\n      namespace\n      key\n    }\n    metafields(first: 2) {\n      nodes {\n        id\n        namespace\n        key\n      }\n      edges {\n        cursor\n        node {\n          id\n          namespace\n          key\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    lastOrder {\n      id\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/9522206933298",
+              "addresses": [
+                {
+                  "address1": "Box 42 - 151 O'Connor St",
+                  "city": "Ottawa"
+                },
+                {
+                  "address1": "500 King St W",
+                  "city": "Toronto"
+                },
+                {
+                  "address1": "123 Queen St W",
+                  "city": "Toronto"
+                }
+              ],
+              "addressesV2": {
+                "nodes": [
+                  {
+                    "address1": "Box 42 - 151 O'Connor St",
+                    "city": "Ottawa"
+                  },
+                  {
+                    "address1": "500 King St W",
+                    "city": "Toronto"
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxMTEzNDk3ODUyMzQ0MiwibGFzdF92YWx1ZSI6IjExMTM0OTc4NTIzNDQyIn0=",
+                    "node": {
+                      "address1": "Box 42 - 151 O'Connor St",
+                      "city": "Ottawa"
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxMjAzNDM5Njk3OTUwNiwibGFzdF92YWx1ZSI6IjEyMDM0Mzk2OTc5NTA2In0=",
+                    "node": {
+                      "address1": "500 King St W",
+                      "city": "Toronto"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMTEzNDk3ODUyMzQ0MiwibGFzdF92YWx1ZSI6IjExMTM0OTc4NTIzNDQyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjAzNDM5Njk3OTUwNiwibGFzdF92YWx1ZSI6IjEyMDM0Mzk2OTc5NTA2In0="
+                }
+              },
+              "companyContactProfiles": [
+                {
+                  "id": "gid://shopify/CompanyContact/3321004338"
+                }
+              ],
+              "orders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Order/8710692176178"
+                  },
+                  {
+                    "id": "gid://shopify/Order/8710697222450"
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4NzEwNjkyMTc2MTc4LCJsYXN0X3ZhbHVlIjoiODcxMDY5MjE3NjE3OCJ9",
+                    "node": {
+                      "id": "gid://shopify/Order/8710692176178"
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4NzEwNjk3MjIyNDUwLCJsYXN0X3ZhbHVlIjoiODcxMDY5NzIyMjQ1MCJ9",
+                    "node": {
+                      "id": "gid://shopify/Order/8710697222450"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4NzEwNjkyMTc2MTc4LCJsYXN0X3ZhbHVlIjoiODcxMDY5MjE3NjE3OCJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo4NzEwNjk3MjIyNDUwLCJsYXN0X3ZhbHVlIjoiODcxMDY5NzIyMjQ1MCJ9"
+                }
+              },
+              "events": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/BasicEvent/176149718335794"
+                  },
+                  {
+                    "id": "gid://shopify/BasicEvent/176149718597938"
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxNzYxNDk3MTgzMzU3OTQsImxhc3RfdmFsdWUiOiIxNzYxNDk3MTgzMzU3OTQifQ==",
+                    "node": {
+                      "id": "gid://shopify/BasicEvent/176149718335794"
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxNzYxNDk3MTg1OTc5MzgsImxhc3RfdmFsdWUiOiIxNzYxNDk3MTg1OTc5MzgifQ==",
+                    "node": {
+                      "id": "gid://shopify/BasicEvent/176149718597938"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxNzYxNDk3MTgzMzU3OTQsImxhc3RfdmFsdWUiOiIxNzYxNDk3MTgzMzU3OTQifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxNzYxNDk3MTg1OTc5MzgsImxhc3RfdmFsdWUiOiIxNzYxNDk3MTg1OTc5MzgifQ=="
+                }
+              },
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "lastOrder": {
+                "id": "gid://shopify/Order/8710789792050"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

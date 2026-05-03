@@ -1,0 +1,117 @@
+{
+  "proxyVariables": {
+    "id": "gid://shopify/Customer/9522206933298"
+  },
+  "data": {
+    "customer": {
+      "id": "gid://shopify/Customer/9522206933298",
+      "firstName": "Karine",
+      "lastName": "Ruby",
+      "displayName": "Karine Ruby",
+      "email": "karine.ruby@example.com",
+      "legacyResourceId": "9522206933298",
+      "locale": "en",
+      "note": null,
+      "canDelete": false,
+      "verifiedEmail": true,
+      "taxExempt": false,
+      "state": "DISABLED",
+      "tags": [],
+      "numberOfOrders": "5",
+      "amountSpent": {
+        "amount": "4941.0",
+        "currencyCode": "CAD"
+      },
+      "defaultEmailAddress": {
+        "emailAddress": "karine.ruby@example.com"
+      },
+      "defaultPhoneNumber": {
+        "phoneNumber": "+16135550142"
+      },
+      "defaultAddress": {
+        "address1": "Box 42 - 151 O'Connor St",
+        "city": "Ottawa",
+        "province": null,
+        "country": "Canada",
+        "zip": "K2P2L8",
+        "formattedArea": "Ottawa, Canada"
+      },
+      "createdAt": "2025-03-26T19:51:37Z",
+      "updatedAt": "2026-04-25T23:58:18Z"
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 3,
+      "actualQueryCost": 3,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1997,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerDetailParityPlan",
+      "variables": {
+        "id": "gid://shopify/Customer/9522206933298"
+      },
+      "query": "query CustomerDetailParityPlan($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    legacyResourceId\n    locale\n    note\n    canDelete\n    verifiedEmail\n    taxExempt\n    state\n    tags\n    numberOfOrders\n    amountSpent {\n      amount\n      currencyCode\n    }\n    defaultEmailAddress {\n      emailAddress\n    }\n    defaultPhoneNumber {\n      phoneNumber\n    }\n    defaultAddress {\n      address1\n      city\n      province\n      country\n      zip\n      formattedArea\n    }\n    createdAt\n    updatedAt\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/9522206933298",
+              "firstName": "Karine",
+              "lastName": "Ruby",
+              "displayName": "Karine Ruby",
+              "email": "karine.ruby@example.com",
+              "legacyResourceId": "9522206933298",
+              "locale": "en",
+              "note": null,
+              "canDelete": false,
+              "verifiedEmail": true,
+              "taxExempt": false,
+              "state": "DISABLED",
+              "tags": [],
+              "numberOfOrders": "5",
+              "amountSpent": {
+                "amount": "4941.0",
+                "currencyCode": "CAD"
+              },
+              "defaultEmailAddress": {
+                "emailAddress": "karine.ruby@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+16135550142"
+              },
+              "defaultAddress": {
+                "address1": "Box 42 - 151 O'Connor St",
+                "city": "Ottawa",
+                "province": null,
+                "country": "Canada",
+                "zip": "K2P2L8",
+                "formattedArea": "Ottawa, Canada"
+              },
+              "createdAt": "2025-03-26T19:51:37Z",
+              "updatedAt": "2026-04-25T23:58:18Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

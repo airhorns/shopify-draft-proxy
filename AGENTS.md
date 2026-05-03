@@ -54,16 +54,19 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 
 ## Development rules
 
-- Use strict TypeScript.
+- The runtime is **Gleam**, under `gleam/src/shopify_draft_proxy/`,
+  compiling to both Erlang/BEAM and JavaScript. Build/recording/registry
+  scripts under `scripts/` are TypeScript (`tsx`).
 - Keep runtime state in memory unless the project scope explicitly expands.
-- Embeddable `DraftProxy` instances must own isolated in-memory state, mutation
-  logs, and synthetic identity registries. Do not add module-level runtime
-  store, synthetic identity, proxy instance, or other mutable runtime singleton.
-  Domain helpers may access the current instance through explicit request
-  context only, and must fail when no `DraftProxy` runtime is active.
-- Do not use `AsyncLocalStorage` as a runtime state bridge for `DraftProxy`.
-  Thread instance-owned store and synthetic identity objects explicitly through
-  request/runtime APIs instead.
+- `DraftProxy` is a value, not a stateful service. Each request returns
+  the next proxy alongside the response (`process_request(proxy,
+request) -> #(Response, DraftProxy)`). Embedders own the value;
+  there is no ambient runtime context, no process-wide singleton.
+- Domain handlers receive the instance-owned store and synthetic
+  identity through the proxy value passed into them. Do not introduce
+  any mechanism — JS module globals, BEAM `persistent_term`, JS
+  `AsyncLocalStorage`, etc. — that would let a handler reach store or
+  synthetic identity without going through the proxy value.
 - Preserve Shopify-like versioned routes.
 - Forward auth headers unchanged to upstream Shopify.
 - Expose and test the meta API.
@@ -107,27 +110,41 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   description/notes if a capture-only spec is truly justified.
 - Captured scenarios checked into `config/parity-specs` must be executable
   evidence by schema and inventory validation: either a proxy request with
-  strict comparison targets that runs in the `conformance:parity` script, or
-  an explicitly runtime-test-backed fixture mode for multi-step flows the
-  generic parity runner cannot yet replay.
+  strict comparison targets that runs in the Gleam parity runner (`pnpm
+gleam:test`), or an explicitly runtime-test-backed fixture mode for
+  multi-step flows the generic parity runner cannot yet replay.
 - Do not add live recordings, checked-in conformance fixtures, or capture
   scripts without adding an explicit conformance spec and executable test path
   that uses the recording. Recording-only changes are not acceptable evidence,
   even when the fixture was captured from a real store.
-- Conformance parity scenarios are discovered by convention from `config/parity-specs/*.json` and executed by the single vitest suite at `tests/unit/conformance-parity-scenarios.test.ts` (also exposed as `pnpm conformance:parity`). Do not add per-scenario `it(...)` blocks that re-run one scenario — the iterator already covers it. Encode scenario-specific expectations in the parity spec.
+- Conformance parity scenarios are discovered by convention from
+  `config/parity-specs/*.json` and executed by the Gleam parity runner
+  (`gleam/test/parity_test.gleam`, surfaced through `pnpm gleam:test` on
+  both JS and Erlang targets). Each scenario runs the proxy in
+  LiveHybrid mode against a recorded `upstreamCalls` cassette in the
+  capture file (cassette-playback model — see `docs/parity-runner.md`).
+  Do not add per-scenario test files that re-run one scenario — the
+  iterator already covers it. Encode scenario-specific expectations in
+  the parity spec.
 - For parity comparisons, prefer comparing the whole selected resource payload
   and carving out explicit volatile paths such as IDs, timestamps, cursors, and
   throttle metadata. Do not build confidence by allowlisting only the scalar
   fields the current implementation already matches.
-- Treat conformance `expectedDifferences` as a last resort after modeling or
-  fixture seeding has been exhausted; do not add them merely to make parity
-  tests pass. Opaque Shopify connection cursors are an acceptable expected
-  difference because clients must not depend on their internal encoding.
+- Treat conformance `expectedDifferences` as a last resort after the
+  proxy's operation handlers have been adjusted to compute the right
+  response (including, if needed, a narrow `proxy/upstream_query.fetch`
+  call to read the existing record from upstream). Do not add
+  `expectedDifferences` merely to make parity tests pass. Opaque Shopify
+  connection cursors are an acceptable expected difference because
+  clients must not depend on their internal encoding. **Do not pre-seed
+  `base_state` from the captured response** — the runner no longer
+  supports that pattern, and `seedX` keys in capture files are banned.
 - Before handing off a fidelity PR, check the recent rejected-review lessons:
-  - If behavior is claimed to match Shopify, include executable parity evidence
-    (`conformance:parity` via a checked-in parity spec) unless the work is
-    explicitly limited to non-behavioral docs or registry bookkeeping.
-    Integration/unit tests alone prove local code paths, not Shopify fidelity.
+  - If behavior is claimed to match Shopify, include executable parity
+    evidence (a checked-in parity spec running through `pnpm gleam:test`)
+    unless the work is explicitly limited to non-behavioral docs or
+    registry bookkeeping. Integration/unit tests alone prove local code
+    paths, not Shopify fidelity.
   - Do not turn implementation gaps into endpoint documentation as a substitute
     for fixing or proving behavior. Endpoint docs may explain a supported
     boundary after the behavior/evidence is in place; unresolved gaps belong in
@@ -144,33 +161,36 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
     that imply each scenario needs its own top-level runner.
   - If the branch adds no meaningful behavior, evidence, or docs beyond
     current `main`, close/cancel it instead of trying to preserve a no-op PR.
-- Repo scripts must be TypeScript files executed with `tsx` or similar, not
-  `.mjs` files. Do not add `.mjs` files anywhere in this repository.
+- Build/recording scripts must be TypeScript (`.ts` / `.mts`) executed
+  with `tsx` or similar. Do not add `.mjs` files anywhere in this
+  repository.
 - Relative TypeScript import specifiers must use the emitted JavaScript
-  extension that TypeScript expects for NodeNext output (`.js` for `.ts`, `.mjs`
-  for `.mts`, `.cjs` for `.cts`). Do not import local modules with source
-  extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces this with
-  oxlint's `import/extensions` rule.
-- In unattended or CI-like workspaces, prefer `corepack pnpm ...` for package
-  scripts. Bare `pnpm` may not be on `PATH` even though the repo is configured
-  for pnpm through Corepack.
-- Before adding a resource-local parser, serializer, scalar reader, projection
-  helper, or metafield/search/connection utility, read `docs/helpers.md` and
-  search for an existing shared helper. If a new shared helper is genuinely
-  needed, add it to the shared module and document it in `docs/helpers.md` in
-  the same change.
-- Search implementations must use the shared helpers in
-  `src/search-query-parser.ts` for Shopify Admin `query:` parsing, execution,
-  AST traversal, term-list guards, and primitive term matching. Endpoint modules
-  should provide only the domain-specific positive term matcher and documented
-  Shopify quirks; do not add new resource-local query parsers or duplicated
-  `matches*QueryNode` traversal helpers.
-- Connection implementations must use the shared helpers in
-  `src/proxy/graphql-helpers.ts` for cursor windowing, `nodes`/`edges`
-  serialization, and selected `pageInfo` fields. Keep resource-specific sorting,
-  filtering, cursor derivation, and node projection in the owning resource
-  module, then pass those decisions into `paginateConnectionItems(...)` and
-  `serializeConnection(...)` instead of rebuilding connection loops locally.
+  extension that TypeScript expects for NodeNext output (`.js` for `.ts`,
+  `.mjs` for `.mts`, `.cjs` for `.cts`). Do not import local modules with
+  source extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces
+  this with oxlint's `import/extensions` rule.
+- In unattended or CI-like workspaces, prefer `corepack pnpm ...` for
+  package scripts. Bare `pnpm` may not be on `PATH` even though the repo
+  is configured for pnpm through Corepack.
+- Before adding a resource-local parser, serializer, scalar reader,
+  projection helper, or metafield/search/connection utility, read
+  `docs/helpers.md` and search for an existing shared helper. If a new
+  shared helper is genuinely needed, add it to the shared module and
+  document it in `docs/helpers.md` in the same change.
+- Search implementations must use
+  `gleam/src/shopify_draft_proxy/search_query_parser.gleam` for Shopify
+  Admin `query:` parsing, execution, AST traversal, term-list guards,
+  and primitive term matching. Endpoint modules provide only the
+  domain-specific positive term matcher and documented Shopify quirks;
+  do not add resource-local query parsers or duplicated traversal
+  helpers.
+- Connection implementations must use
+  `gleam/src/shopify_draft_proxy/proxy/graphql_helpers.gleam` for
+  cursor windowing, `nodes`/`edges` serialization, and selected
+  `pageInfo` fields. Keep resource-specific sorting, filtering, cursor
+  derivation, and node projection in the owning resource module, then
+  pass those decisions into the shared connection helpers instead of
+  rebuilding connection loops locally.
 
 ## GitHub repository
 
@@ -210,18 +230,18 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   not commit code, push a branch, or open a PR. Record the blocker in the Linear
   workpad and move the issue to Human Review.
 
-## Working in `gleam/` (in-progress port)
+## Working in `gleam/` (the runtime)
 
-The Gleam port re-implements this proxy targeting both Erlang/BEAM and
-JavaScript. It lives under `gleam/` and ports domain-by-domain alongside
-the TypeScript implementation.
+The proxy runtime lives under `gleam/src/shopify_draft_proxy/` and
+compiles to both Erlang/BEAM and JavaScript.
 
 - **Read first:** `GLEAM_PORT_INTENT.md` (non-negotiables) and the most
   recent 2–3 entries at the top of `GLEAM_PORT_LOG.md` (running narrative).
-- **Skill:** `.agents/skills/gleam-port/SKILL.md` covers the port-specific
-  patterns (domain module surface, store slice shapes, `MutationOutcome`,
-  dispatcher wiring, synthetic-id mint helpers, FFI shim layout). Use it
-  whenever a task touches `gleam/`.
+- **Skill:** `.agents/skills/gleam-port/SKILL.md` covers the
+  runtime-specific patterns (domain module surface, store slice shapes,
+  `MutationOutcome`, dispatcher wiring, synthetic-id mint helpers, FFI
+  shim layout, parity cassette playback). Use it whenever a task
+  touches `gleam/`.
 - **Generic Gleam idioms** (decoders, opaque types, OTP, etc.) live in
   the separate `.agents/skills/gleam/SKILL.md`. The two skills are
   complementary.
@@ -230,6 +250,11 @@ the TypeScript implementation.
   expensive bug class.
 - **Append a log entry** to `GLEAM_PORT_LOG.md` for every pass. The log
   is the running narrative; `GLEAM_PORT_INTENT.md` stays stable.
+
+The legacy TypeScript runtime under `src/` is being retired
+domain-by-domain as Gleam ports reach parity. Do not add new behavior
+to `src/`; new operation handling, fidelity work, and domain
+expansions land in Gleam.
 
 ## Suggested workflow
 

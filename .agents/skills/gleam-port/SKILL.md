@@ -222,31 +222,79 @@ If your test fixtures use the wrong form, look-by-id misses silently.
 Trust the actual handler output rather than guessing — Pass 19 + 20 both
 hit this.
 
-### Parity runner capture seeding
+### Parity runner cassette playback
 
-Some parity specs use a setup mutation against an upstream resource
-that already exists in the live capture. Do not edit those specs or
-rewrite the setup request. Seed the Gleam proxy from capture data in
-`test/parity/runner.gleam` before executing the primary request,
-mirroring the TS parity harness.
+Parity tests run the Gleam proxy in `LiveHybrid` mode against a
+recorded cassette of upstream GraphQL traffic. The legacy
+`seed_capture_preconditions` dispatch and every `seed_*_preconditions`
+helper are gone — capture files no longer carry `seedX` keys, and the
+runner does **not** pre-write into `base_state`. The cassette
+(`upstreamCalls` array on the capture file) is installed as the
+proxy's upstream transport via `draft_proxy.with_upstream_transport`.
 
-`seed_capture_preconditions` folds over a flat list of helper
-functions, each of which self-gates on JSON path markers (e.g.
-`$.mutation.response.data.<operationName>`, `$.precondition`,
-`$.seedShopifyFunctions`) and is a no-op when its markers aren't
-present. **Never branch on `parsed.scenario_id`** — new parity specs
-must land without runner edits if their capture exposes the markers
-existing helpers already check. To add a helper, append it to the
-list and gate it on a capture path that uniquely identifies the
-family of captures it should fire for.
+There are **two patterns** for reaching upstream. Start with the
+simpler one and only escalate when it doesn't fit:
 
-A long pipe chain in this position used to break the Erlang compiler
-(20+ minute hang on the optimizer); the list+fold form keeps build
-time under a second on both targets.
+1. **Force passthrough in LiveHybrid** (`force_passthrough_in_live_hybrid`
+   in `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`) — the
+   dispatch layer forwards the GraphQL document verbatim to the
+   upstream transport. Use this for read operations where the proxy
+   has nothing local to add.
 
-Decode only fields present in the capture, upsert them into base
-state, then let the setup mutation produce the staged read-after-write
-state.
+   **Almost always gate on local state.** Unconditional passthrough
+   regresses lifecycle scenarios that stage or delete records.
+   Convention is two helpers per domain: `local_has_<resource>_id`
+   for `*Node` lookups (passthrough off when the requested id is
+   staged or proxy-synthetic) and `local_has_staged_<resources>` for
+   connection / aggregate / by-code reads (passthrough off when any
+   record is staged). See `proxy/discounts.gleam` for the canonical
+   pair. Scan **every** string variable, not just `$id` — operations
+   rebind ids under different variable names like `$codeId`.
+
+2. **Per-handler `upstream_query.fetch_sync`** — a narrow upstream call
+   inside the operation handler. Use this when the operation must do
+   something with the response (merge with staged state, persist a
+   slice, fan out into multiple records, compute a non-verbatim reply).
+   Canonical case: `customerUpdate` reads the prior record before
+   staging the merge. Document the choice — what it fetches, why,
+   what it persists, what `Snapshot` mode does — as a short inline
+   comment next to the handler.
+
+After every handler change, **run the whole domain's tests, not just
+your scenario** — passthrough wiring frequently regresses lifecycle
+scenarios in sibling specs.
+
+When an upstream call is missing from the cassette, the parity runner
+fails loudly with `cassette miss: operation=<name> variables=<json>`.
+Re-record with `pnpm parity:record <scenario-id>`.
+
+When `pnpm parity:record` reports `wrote 0 upstreamCalls` despite the
+spec being a LiveHybrid scenario, that means no operation handler
+reached upstream at all — neither pattern is wired yet. This is the
+dominant failure mode of existing manifest entries.
+
+**Recorder hits the env-configured store, not the per-fixture store.**
+Many older fixtures were captured against
+`very-big-test-store.myshopify.com` but the OAuth currently linked
+points at a different store. When the recorder targets a store that
+doesn't have the right data — or the captured query references a
+since-removed Shopify field — live recording writes a useless
+cassette. Hand-synthesize from the captured response in that case
+(see `docs/parity-runner.md` "Recorder hits the env-configured
+store" for the recipe). Hand-synthesizing is the dominant case for
+older read fixtures.
+
+Stale `expectedDifferences` rules become **hard failures** under
+cassette playback (the runner asserts each rule is satisfied; pattern
+1 forwards upstream cursors verbatim so cursor rules now panic with
+`expectedDifference rule was not satisfied`). AGENTS.md bans adding
+new rules; it does not ban deleting stale ones. Expect to delete
+cursor / `pageInfo` rules originally written for the seed-based
+runner.
+
+See `docs/parity-runner.md` for the full model, code examples for
+both patterns, the cassette schema, spec `mode` field, the
+empty-snapshot variant, and the per-domain migration playbook.
 
 If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
@@ -283,15 +331,14 @@ matches the JSON source.
 
 ### Functions parity note
 
-Captures with `seedShopifyFunctions` share one runner seeding helper for
-local staging and live read-only scenarios. The helper is gated on the
-presence of `$.seedShopifyFunctions` or the captured Functions-flavoured
-mutations (`cartTransformCreate`, `validationCreate`, `taxAppConfigure`)
-in `$.primary.response.data`. When a local-runtime Functions fixture
-appears one synthetic id/timestamp step ahead, check whether the
-TypeScript conformance harness seeds the synthetic registry before the
-primary request; mirror that seed in the Gleam runner rather than adding
-broad synthetic-id/timestamp expected differences.
+Functions parity scenarios (`cartTransformCreate`, `validationCreate`,
+`taxAppConfigure`, …) follow the cassette-playback model like every
+other domain: re-record the cassette with `pnpm parity:record
+<scenario-id>` so any upstream calls the operation handlers issue
+(e.g., to look up an existing function definition before staging a
+mutation) are captured. Do not pre-seed `base_state` and do not add
+broad synthetic-id/timestamp `expectedDifferences` as a workaround
+for a missing cassette entry — fix the recording instead.
 
 ### Porting notes
 

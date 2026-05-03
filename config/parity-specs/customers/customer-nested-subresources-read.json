@@ -4,11 +4,11 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers/customer-nested-subresources.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-nested-subresources.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customer-nested-subresources-read.graphql",
-    "variablesPath": "config/parity-requests/customers/customer-nested-subresources-read.variables.json"
+    "variablesCapturePath": "$.proxyVariables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Strict comparison target covers a captured `customer(id:)` detail slice for directly related customer sub-resource reads that the current conformance credential can access: addresses, addressesV2, companyContactProfiles, orders, events, singular metafield, metafields, and lastOrder. Store credit accounts, payment methods, and subscription contracts are documented deferrals because this credential returned field-level ACCESS_DENIED for those nested reads. Local snapshot/staged reads intentionally model the safe absent-data branch for unsupported nested records instead of hydrating non-empty order/event/address graphs in this issue.",

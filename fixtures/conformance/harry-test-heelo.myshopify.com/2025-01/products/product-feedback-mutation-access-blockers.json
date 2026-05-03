@@ -25,7 +25,12 @@
         "errors": [
           {
             "message": "Access denied for bulkProductResourceFeedbackCreate field. Required access: `write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.",
-            "locations": [{ "line": 1, "column": 71 }],
+            "locations": [
+              {
+                "line": 1,
+                "column": 71
+              }
+            ],
             "extensions": {
               "code": "ACCESS_DENIED",
               "documentation": "https://shopify.dev/api/usage/access-scopes",
@@ -53,7 +58,12 @@
         "errors": [
           {
             "message": "Access denied for shopResourceFeedbackCreate field. Required access: `write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.",
-            "locations": [{ "line": 1, "column": 63 }],
+            "locations": [
+              {
+                "line": 1,
+                "column": 63
+              }
+            ],
             "extensions": {
               "code": "ACCESS_DENIED",
               "documentation": "https://shopify.dev/api/usage/access-scopes",
@@ -67,5 +77,6 @@
         }
       }
     }
-  ]
+  ],
+  "upstreamCalls": []
 }

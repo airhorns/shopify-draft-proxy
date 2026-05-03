@@ -620,7 +620,8 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
         .sort()
     : [];
 
-  const catalogResult = await runGraphqlResult(customersCatalogQuery, { first: 3 });
+  const catalogVariables = { first: 3 };
+  const catalogResult = await runGraphqlResult(customersCatalogQuery, catalogVariables);
   if (isProtectedCustomerDataError(catalogResult)) {
     const failingMessage =
       extractGraphqlError(catalogResult)?.message || 'Protected customer data approval is missing.';
@@ -650,14 +651,22 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
     throw new Error(JSON.stringify(catalogResult, null, 2));
   }
 
-  const catalog = catalogResult.payload;
+  const catalog = { proxyVariables: catalogVariables, ...catalogResult.payload };
   const firstCustomerId = catalog.data?.customers?.edges?.[0]?.node?.id;
   if (typeof firstCustomerId !== 'string' || !firstCustomerId) {
     throw new Error('Customer catalog capture returned no customer ids.');
   }
 
-  const detail = await runGraphql(customerDetailQuery, { id: firstCustomerId });
-  const nestedSubresources = await runGraphql(customerNestedSubresourcesQuery, { id: firstCustomerId });
+  const detailVariables = { id: firstCustomerId };
+  const detail = {
+    proxyVariables: detailVariables,
+    ...(await runGraphql(customerDetailQuery, detailVariables)),
+  };
+  const nestedSubresourcesVariables = { id: firstCustomerId };
+  const nestedSubresources = {
+    proxyVariables: nestedSubresourcesVariables,
+    ...(await runGraphql(customerNestedSubresourcesQuery, nestedSubresourcesVariables)),
+  };
   const detailCustomer = detail.data?.customer;
   const firstCustomerEmail = detailCustomer?.email ?? detailCustomer?.defaultEmailAddress?.emailAddress;
   const firstCustomerPhone = detailCustomer?.defaultPhoneNumber?.phoneNumber;
@@ -691,18 +700,38 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
       idIdentifier: {},
     }),
   };
-  const search = await runGraphql(customersSearchQuery, { first: 2, query: 'state:DISABLED' });
-  const advancedSearch = await runGraphql(customersAdvancedSearchQuery, {
+  const searchVariables = { first: 2, query: 'state:DISABLED' };
+  const search = {
+    proxyVariables: searchVariables,
+    ...(await runGraphql(customersSearchQuery, searchVariables)),
+  };
+  const advancedSearchVariables = {
     prefixQuery: 'How*',
     orQuery: '(tag:VIP OR tag:referral) state:DISABLED',
     groupedQuery: 'state:DISABLED -(tag:VIP OR tag:referral)',
-  });
-  const sortKeys = await runGraphql(customersSortKeysQuery, { first: 5 });
-  const relevanceSearch = await runGraphql(customersRelevanceSearchQuery, { first: 5, query: 'egnition' });
-  const counts = await runGraphql(customersCountQuery, {
+  };
+  const advancedSearch = {
+    proxyVariables: advancedSearchVariables,
+    ...(await runGraphql(customersAdvancedSearchQuery, advancedSearchVariables)),
+  };
+  const sortKeysVariables = { first: 5 };
+  const sortKeys = {
+    proxyVariables: sortKeysVariables,
+    ...(await runGraphql(customersSortKeysQuery, sortKeysVariables)),
+  };
+  const relevanceSearchVariables = { first: 5, query: 'egnition' };
+  const relevanceSearch = {
+    proxyVariables: relevanceSearchVariables,
+    ...(await runGraphql(customersRelevanceSearchQuery, relevanceSearchVariables)),
+  };
+  const countsVariables = {
     query: 'email:grace@example.com',
     disabledQuery: 'state:DISABLED',
-  });
+  };
+  const counts = {
+    proxyVariables: countsVariables,
+    ...(await runGraphql(customersCountQuery, countsVariables)),
+  };
 
   await writeFile(path.join(outputDir, 'customers-catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
   await writeFile(path.join(outputDir, 'customer-detail.json'), `${JSON.stringify(detail, null, 2)}\n`, 'utf8');

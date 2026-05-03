@@ -1,0 +1,121 @@
+{
+  "mutation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/10570166370610"
+      }
+    },
+    "response": {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/10570166370610",
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "customer": null,
+      "customers": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false
+        }
+      },
+      "customersCount": {
+        "count": 70,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 48,
+        "actualQueryCost": 16,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1984,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "validation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/999999999999999"
+      }
+    },
+    "response": {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": null,
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994"
+          },
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Customer can't be found"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerMutationDownstream",
+      "variables": {
+        "id": "gid://shopify/Customer/10570166370610",
+        "query": "__customer_parity_no_match__",
+        "first": 5
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": null,
+            "customers": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "customersCount": {
+              "count": 70,
+              "precision": "EXACT"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -12616,5 +12616,6 @@
       "observedStatusTransition": true,
       "label": "query export with immediate cancel attempt"
     }
-  }
+  },
+  "upstreamCalls": []
 }

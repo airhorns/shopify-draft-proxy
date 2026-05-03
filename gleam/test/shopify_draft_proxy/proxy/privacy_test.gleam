@@ -1,8 +1,8 @@
 import gleam/dict
 import gleam/json
 import gleam/string
-import parity/runner
-import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
+import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
   let request =
@@ -139,10 +139,4 @@ pub fn unsupported_privacy_roots_stay_without_local_dispatch_test() {
     json.to_string(body),
     "No mutation dispatcher implemented for root field: privacyFeaturesDisable",
   )
-}
-
-pub fn data_sale_opt_out_parity_spec_passes_test() {
-  let assert Ok(report) =
-    runner.run("config/parity-specs/privacy/dataSaleOptOut-parity.json")
-  let assert Ok(Nil) = runner.into_assert(report)
 }

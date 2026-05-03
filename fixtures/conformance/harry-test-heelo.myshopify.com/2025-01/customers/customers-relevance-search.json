@@ -1,0 +1,65 @@
+{
+  "proxyVariables": {
+    "first": 5,
+    "query": "egnition"
+  },
+  "data": {
+    "customers": {
+      "edges": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": null,
+        "endCursor": null
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 5,
+      "actualQueryCost": 2,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1998,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomersRelevanceSearchRead",
+      "variables": {
+        "first": 5,
+        "query": "egnition"
+      },
+      "query": "query CustomersRelevanceSearchRead($first: Int!, $query: String!) {\n  customers(first: $first, query: $query, sortKey: RELEVANCE) {\n    edges {\n      cursor\n      node {\n        id\n        displayName\n        email\n        legacyResourceId\n        tags\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

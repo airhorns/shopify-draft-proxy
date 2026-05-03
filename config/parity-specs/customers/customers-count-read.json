@@ -3,7 +3,7 @@
   "operationNames": ["customersCount"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers/customers-count.json"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customers-count.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customers-count-read.graphql",
     "variablesPath": "config/parity-requests/customers/customers-count-read.variables.json"

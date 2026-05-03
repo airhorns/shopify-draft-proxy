@@ -109,5 +109,6 @@
       "Live safe-read probe confirmed themes and shop.storefrontAccessTokens shape.",
       "Current live credential returns ACCESS_DENIED for scriptTags, pixels, and mobile platform applications, so this fixture records executable local-runtime expectations for side-effect-safe proxy staging."
     ]
-  }
+  },
+  "upstreamCalls": []
 }

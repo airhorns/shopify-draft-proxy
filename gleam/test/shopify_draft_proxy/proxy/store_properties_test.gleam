@@ -5,6 +5,7 @@ import gleam/json
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type ShopPolicyRecord, type ShopRecord, type StorePropertyRecord,
@@ -18,7 +19,7 @@ import shopify_draft_proxy/state/types.{
 }
 
 fn graphql_request(body: String) -> draft_proxy.Request {
-  draft_proxy.Request(
+  proxy_state.Request(
     method: "POST",
     path: "/admin/api/2026-04/graphql.json",
     headers: dict.new(),
@@ -27,13 +28,13 @@ fn graphql_request(body: String) -> draft_proxy.Request {
 }
 
 fn meta_get(path: String) -> draft_proxy.Request {
-  draft_proxy.Request(method: "GET", path: path, headers: dict.new(), body: "")
+  proxy_state.Request(method: "GET", path: path, headers: dict.new(), body: "")
 }
 
 fn seeded_proxy() -> draft_proxy.DraftProxy {
   let proxy = draft_proxy.new()
   let seeded_store = store.upsert_base_shop(proxy.store, make_shop([]))
-  draft_proxy.DraftProxy(..proxy, store: seeded_store)
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
 fn make_shop(policies: List(ShopPolicyRecord)) -> ShopRecord {
@@ -154,7 +155,7 @@ fn make_raw_record(
 
 pub fn empty_shop_read_returns_null_test() {
   let body = "{\"query\":\"query { shop { id name } }\"}"
-  let #(draft_proxy.Response(status: status, body: response_body, ..), _) =
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
     draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
 
   assert status == 200
@@ -164,7 +165,7 @@ pub fn empty_shop_read_returns_null_test() {
 pub fn shop_read_serializes_seeded_shop_test() {
   let body =
     "{\"query\":\"query { shop { id name myshopifyDomain primaryDomain { id host sslEnabled } shopAddress { id city formatted } features { bundles { eligibleForBundles } cartTransform { eligibleOperations { expandOperation mergeOperation updateOperation } } } shopPolicies { id } } }\"}"
-  let #(draft_proxy.Response(status: status, body: response_body, ..), _) =
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
     draft_proxy.process_request(seeded_proxy(), graphql_request(body))
   let serialized = json.to_string(response_body)
 
@@ -192,7 +193,7 @@ pub fn shop_policy_update_stages_downstream_read_and_log_test() {
   let mutation_body =
     "{\"query\":\"mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) { shopPolicyUpdate(shopPolicy: $shopPolicy) { shopPolicy { id title body type url createdAt updatedAt translations(locale: \\\"fr\\\") { key } } userErrors { field message code } } }\",\"variables\":{\"shopPolicy\":{\"type\":\"CONTACT_INFORMATION\",\"body\":\"<p>After</p>\"}}}"
   let #(
-    draft_proxy.Response(status: mutation_status, body: mutation_body_json, ..),
+    proxy_state.Response(status: mutation_status, body: mutation_body_json, ..),
     proxy,
   ) =
     draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
@@ -210,7 +211,7 @@ pub fn shop_policy_update_stages_downstream_read_and_log_test() {
   let read_body =
     "{\"query\":\"query { shop { shopPolicies { id title body type url createdAt updatedAt translations(locale: \\\"fr\\\") { key } } } }\"}"
   let #(
-    draft_proxy.Response(status: read_status, body: read_body_json, ..),
+    proxy_state.Response(status: read_status, body: read_body_json, ..),
     proxy,
   ) = draft_proxy.process_request(proxy, graphql_request(read_body))
   let read_serialized = json.to_string(read_body_json)
@@ -234,10 +235,10 @@ pub fn shop_policy_update_reuses_existing_policy_test() {
       proxy.store,
       make_shop([make_policy("<p>Before</p>")]),
     )
-  let proxy = draft_proxy.DraftProxy(..proxy, store: seeded_store)
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
   let mutation_body =
     "{\"query\":\"mutation { shopPolicyUpdate(shopPolicy: { type: CONTACT_INFORMATION, body: \\\"<p>After</p>\\\" }) { shopPolicy { id title body type url createdAt updatedAt } userErrors { field message code } } }\"}"
-  let #(draft_proxy.Response(status: status, body: response_body, ..), _) =
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
     draft_proxy.process_request(proxy, graphql_request(mutation_body))
   let serialized = json.to_string(response_body)
 
@@ -254,7 +255,7 @@ pub fn shop_policy_update_reuses_existing_policy_test() {
 pub fn shop_policy_update_accepts_input_argument_test() {
   let mutation_body =
     "{\"query\":\"mutation { shopPolicyUpdate(input: { type: SHIPPING_POLICY, body: \\\"<p>Ships</p>\\\" }) { shopPolicy { id title body type } userErrors { field message code } } }\"}"
-  let #(draft_proxy.Response(status: status, body: response_body, ..), _) =
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
     draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
   let serialized = json.to_string(response_body)
 
@@ -271,7 +272,7 @@ pub fn oversized_shop_policy_body_returns_user_error_test() {
     "{\"query\":\"mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) { shopPolicyUpdate(shopPolicy: $shopPolicy) { shopPolicy { id } userErrors { field message code } } }\",\"variables\":{\"shopPolicy\":{\"type\":\"CONTACT_INFORMATION\",\"body\":\""
     <> too_big
     <> "\"}}}"
-  let #(draft_proxy.Response(status: status, body: response_body, ..), proxy) =
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
     draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
   let serialized = json.to_string(response_body)
 
@@ -290,10 +291,10 @@ pub fn admin_platform_node_resolves_store_property_records_test() {
   let policy = make_policy("<p>Relay contact policy</p>")
   let proxy = draft_proxy.new()
   let seeded_store = store.upsert_base_shop(proxy.store, make_shop([policy]))
-  let proxy = draft_proxy.DraftProxy(..proxy, store: seeded_store)
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
   let body =
     "{\"query\":\"query($ids: [ID!]!) { node(id: \\\"gid://shopify/ShopAddress/63755419881\\\") { __typename ... on Node { nodeId: id } ... on ShopAddress { city countryCodeV2 } } nodes(ids: $ids) { __typename ... on Node { nodeId: id } ... on ShopPolicy { title body type url } } }\",\"variables\":{\"ids\":[\"gid://shopify/ShopPolicy/42438689001\",\"gid://shopify/Unknown/1\"]}}"
-  let #(draft_proxy.Response(status: status, body: response_body, ..), _) =
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
     draft_proxy.process_request(proxy, graphql_request(body))
   let serialized = json.to_string(response_body)
 
@@ -333,20 +334,20 @@ pub fn location_reads_and_local_mutations_use_store_state_test() {
     ])
   let proxy = draft_proxy.new()
   let proxy =
-    draft_proxy.DraftProxy(
+    proxy_state.DraftProxy(
       ..proxy,
       store: store.upsert_base_store_property_location(proxy.store, location),
     )
   let read_body =
     "{\"query\":\"query($id: ID!) { location(id: $id) { id name legacyResourceId metafields(first: 1) { nodes { id } pageInfo { hasNextPage startCursor } } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\"}}"
-  let #(draft_proxy.Response(status: read_status, body: read_json, ..), proxy) =
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(read_body))
   assert read_status == 200
   assert string.contains(json.to_string(read_json), "\"name\":\"Main\"")
 
   let edit_body =
     "{\"query\":\"mutation($id: ID!, $input: LocationEditInput!) { locationEdit(id: $id, input: $input) { location { id name } userErrors { field message } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\",\"input\":{\"name\":\"Annex\"}}}"
-  let #(draft_proxy.Response(status: edit_status, body: edit_json, ..), proxy) =
+  let #(proxy_state.Response(status: edit_status, body: edit_json, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(edit_body))
   assert edit_status == 200
   assert string.contains(json.to_string(edit_json), "\"name\":\"Annex\"")
@@ -354,7 +355,7 @@ pub fn location_reads_and_local_mutations_use_store_state_test() {
     json.to_string(draft_proxy.get_log_snapshot(proxy)),
     "\"rootFields\":[\"locationEdit\"]",
   )
-  let #(draft_proxy.Response(status: state_status, body: state_json, ..), _) =
+  let #(proxy_state.Response(status: state_status, body: state_json, ..), _) =
     draft_proxy.process_request(proxy, meta_get("/__meta/state"))
   let serialized_state = json.to_string(state_json)
   assert state_status == 200
@@ -373,13 +374,13 @@ pub fn business_entity_reads_use_primary_and_known_ids_test() {
     ])
   let proxy = draft_proxy.new()
   let proxy =
-    draft_proxy.DraftProxy(
+    proxy_state.DraftProxy(
       ..proxy,
       store: store.upsert_base_business_entity(proxy.store, entity),
     )
   let body =
     "{\"query\":\"query($id: ID!) { primary: businessEntity { id displayName primary } known: businessEntity(id: $id) { id displayName primary } businessEntities { id displayName } }\",\"variables\":{\"id\":\"gid://shopify/BusinessEntity/1\"}}"
-  let #(draft_proxy.Response(status: status, body: response_body, ..), _) =
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
     draft_proxy.process_request(proxy, graphql_request(body))
   let serialized = json.to_string(response_body)
 
@@ -452,10 +453,10 @@ pub fn publishable_publish_stages_collection_projection_test() {
     proxy.store
     |> store.upsert_base_publishable(collection)
     |> store.upsert_base_store_property_mutation_payload(payload)
-  let proxy = draft_proxy.DraftProxy(..proxy, store: seeded_store)
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
   let body =
     "{\"query\":\"mutation($id: ID!, $input: [PublicationInput!]!) { publishablePublish(id: $id, input: $input) { publishable { ... on Collection { id title publishedOnCurrentPublication resourcePublicationsCount { count precision } } } userErrors { field message } } }\",\"variables\":{\"id\":\"gid://shopify/Collection/1\",\"input\":[{\"publicationId\":\"gid://shopify/Publication/1\"}]}}"
-  let #(draft_proxy.Response(status: status, body: response_body, ..), proxy) =
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(body))
   let serialized = json.to_string(response_body)
 
@@ -465,7 +466,7 @@ pub fn publishable_publish_stages_collection_projection_test() {
 
   let read_body =
     "{\"query\":\"query($id: ID!) { collection(id: $id) { id publishedOnCurrentPublication resourcePublicationsCount { count } } }\",\"variables\":{\"id\":\"gid://shopify/Collection/1\"}}"
-  let #(draft_proxy.Response(status: read_status, body: read_json, ..), _) =
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), _) =
     draft_proxy.process_request(proxy, graphql_request(read_body))
   assert read_status == 200
   assert string.contains(

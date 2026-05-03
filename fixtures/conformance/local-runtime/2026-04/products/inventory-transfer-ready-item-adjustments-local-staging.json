@@ -274,5 +274,6 @@
     "Ready-to-ship transfer line item increases reserve additional origin inventory.",
     "Ready-to-ship transfer line item removals release previously reserved origin inventory.",
     "Available inventory quantity mirrors reserved deltas while product totalInventory remains outside the selected transfer comparison."
-  ]
+  ],
+  "upstreamCalls": []
 }

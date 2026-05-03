@@ -63,5 +63,49 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountCatalogEmptyRead",
+      "variables": {
+        "query": "code:HAR191CODE1777117036468",
+        "first": 2,
+        "sortKey": "TITLE",
+        "reverse": false,
+        "countLimit": 10000
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "discountNodes": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "discountNodesCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -9,7 +9,7 @@ import {
   classifyParityScenarioState,
   type ParitySpec,
   validateParityScenarioInventoryEntry,
-} from './conformance-parity-lib.js';
+} from './conformance-parity-spec.js';
 import { parseJsonFileWithSchema } from '../src/json-schemas.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

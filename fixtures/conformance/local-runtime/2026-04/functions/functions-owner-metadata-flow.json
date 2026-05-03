@@ -214,5 +214,6 @@
     "appOwnerMetadataProjected": true,
     "supportedMutationsStageLocally": true,
     "externalShopifyFunctionsExecuted": false
-  }
+  },
+  "upstreamCalls": []
 }
