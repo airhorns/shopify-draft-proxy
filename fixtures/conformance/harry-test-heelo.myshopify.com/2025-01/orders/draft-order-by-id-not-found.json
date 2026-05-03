@@ -18,5 +18,32 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DraftOrderByIdNotFound",
+      "variables": {
+        "missingDraftOrderId": "gid://shopify/DraftOrder/999999999999999"
+      },
+      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "missingDraftOrder": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
