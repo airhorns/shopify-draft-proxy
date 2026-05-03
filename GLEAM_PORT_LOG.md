@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 187: HAR-539 payments cassette parity
+## 2026-05-03 - Pass 188: HAR-539 payments cassette parity
 
 Migrates the remaining Payments parity scenarios to cassette-backed LiveHybrid
 execution. Customer payment-method mutations and payment-terms creation now
@@ -56,6 +56,57 @@ Validation:
   selected by the current local-runtime parity evidence. Broader live
   payment-method overlay coverage still depends on safe conformance credentials
   with customer-payment-method scopes.
+
+---
+
+## 2026-05-03 - Pass 187: HAR-537 online-store cassette parity
+
+Migrates the remaining Online Store parity scenarios to cassette-backed
+LiveHybrid execution. Cold content search reads now use domain-gated Pattern 1
+passthrough when no local online-store content state exists. Staged content
+lifecycle reads stay local, but `blogsCount` and `pagesCount` fetch narrow
+upstream baseline count cassettes and add newly staged local content so
+read-after-write counts match Shopify without forwarding supported mutations.
+
+| Module / fixture                                                   | Change                                                                                                      |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/online_store.gleam`           | Adds the upstream-aware query entrypoint, cold-read passthrough gate, and Pattern 2 baseline count fetches. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`            | Routes online-store queries through the upstream-aware domain entrypoint.                                   |
+| `fixtures/conformance/**/online-store/online-store-content-*.json` | Hand-synthesizes online-store search/count cassette entries from checked-in capture evidence.               |
+| `config/gleam-port-ci-gates.json`                                  | Removes the two Online Store expected-failure entries.                                                      |
+| `docs/endpoints/online-store.md`                                   | Documents the LiveHybrid passthrough/count-baseline choices and cassette-backed evidence.                   |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam test --target erlang -- parity_test'` (819 passed)
+- `cd gleam && gleam test --target javascript` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam test --target erlang'` (819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed online-store fixture/gate checks: no online-store expected-failure
+  entries remain, no `seedX` keys, and no new `expectedDifferences`
+
+### Findings
+
+- Pattern 1 is appropriate for `online-store-content-search-filters` because
+  the cold search request has no local overlay to add and the captured upstream
+  response is the expected answer.
+- Pattern 1 is not appropriate for the lifecycle downstream read because it
+  includes proxy-synthetic blog/page/article IDs. Only the count roots need
+  upstream context there, so they use narrow Pattern 2 baseline count reads.
+- The checked-in captures already contained the authoritative search and
+  baseline-count payloads, so the cassette entries were hand-synthesized
+  without live Shopify writes.
+
+### Risks / open items
+
+- The baseline count merge intentionally covers currently captured content
+  count roots (`blogsCount`, `pagesCount`). Broader online-store catalog
+  hydration remains future fidelity work.
 
 ---
 

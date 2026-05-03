@@ -25,14 +25,6 @@
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
     {
-      "specPath": "config/parity-specs/online-store/online-store-content-lifecycle.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/online-store-content-search-filters.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
       "specPath": "config/parity-specs/products/collection-detail-read.json",
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
