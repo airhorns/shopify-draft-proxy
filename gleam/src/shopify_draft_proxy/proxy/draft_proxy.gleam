@@ -905,12 +905,17 @@ fn route_mutation(
       }
     Ok(BulkOperationsDomain) ->
       case
-        bulk_operations.process_mutation(
+        bulk_operations.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -1194,12 +1199,17 @@ fn route_mutation(
       }
     Ok(OrdersDomain) ->
       case
-        orders.process_mutation(
+        orders.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -1404,10 +1414,13 @@ fn route_query(
         variables,
       )
     Ok(OrdersDomain) ->
-      respond(
+      orders.handle_query_request(
         proxy,
-        orders.process(proxy.store, query, variables),
-        "Failed to handle orders query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(PrivacyDomain) -> #(
       bad_request(

@@ -18,6 +18,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionWindow,
   SerializeConnectionConfig, SrcInt, SrcList, SrcNull, SrcString,
@@ -28,6 +29,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
 import shopify_draft_proxy/proxy/products
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -409,6 +413,24 @@ pub fn process_mutation(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(MutationOutcome, BulkOperationsError) {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Result(MutationOutcome, BulkOperationsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
@@ -420,6 +442,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
+        upstream,
       ))
     }
   }
@@ -432,6 +455,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let initial = #([], store, identity, [], [])
   let #(data_entries, final_store, final_identity, all_staged, field_drafts) =
@@ -447,6 +471,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                upstream,
               ))
             "bulkOperationRunMutation" ->
               Some(handle_bulk_operation_run_mutation(
@@ -464,6 +489,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                upstream,
               ))
             _ -> None
           }
@@ -534,6 +560,7 @@ fn handle_bulk_operation_run_query(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = field_args(field, variables)
@@ -583,7 +610,7 @@ fn handle_bulk_operation_run_query(
       identity,
     )
     Some(query_string), False ->
-      case build_run_query_jsonl(store, query_string) {
+      case build_run_query_jsonl(store, query_string, upstream) {
         Error(error) -> #(
           MutationFieldResult(
             key: key,
@@ -600,8 +627,11 @@ fn handle_bulk_operation_run_query(
           identity,
         )
         Ok(result) -> {
-          let BulkQueryResult(result_jsonl: result_jsonl, object_count: count) =
-            result
+          let BulkQueryResult(
+            result_jsonl: result_jsonl,
+            object_count: object_count,
+            root_object_count: root_object_count,
+          ) = result
           let #(operation_id, identity_after_id) =
             synthetic_identity.make_synthetic_gid(identity, "BulkOperation")
           let #(created_at, identity_after_created) =
@@ -616,8 +646,8 @@ fn handle_bulk_operation_run_query(
               error_code: None,
               created_at: created_at,
               completed_at: Some(completed_at),
-              object_count: int.to_string(count),
-              root_object_count: int.to_string(count),
+              object_count: int.to_string(object_count),
+              root_object_count: int.to_string(root_object_count),
               file_size: Some(int.to_string(string.length(result_jsonl))),
               url: Some(build_legacy_bulk_operation_result_url(operation_id)),
               partial_data_url: None,
@@ -648,12 +678,17 @@ fn handle_bulk_operation_run_query(
 }
 
 type BulkQueryResult {
-  BulkQueryResult(result_jsonl: String, object_count: Int)
+  BulkQueryResult(
+    result_jsonl: String,
+    object_count: Int,
+    root_object_count: Int,
+  )
 }
 
 fn build_run_query_jsonl(
   store: Store,
   query_string: String,
+  upstream: UpstreamContext,
 ) -> Result(BulkQueryResult, UserError) {
   case root_field.get_root_fields(query_string) {
     Ok([root]) ->
@@ -663,6 +698,8 @@ fn build_run_query_jsonl(
             Some("products") -> {
               let fragments = get_document_fragments(query_string)
               let products = store.list_effective_products(store)
+              let root_count =
+                local_or_upstream_products_count(products, root, upstream)
               Ok(BulkQueryResult(
                 result_jsonl: make_jsonl(
                   list.map(products, fn(product) {
@@ -673,12 +710,14 @@ fn build_run_query_jsonl(
                     )
                   }),
                 ),
-                object_count: list.length(products),
+                object_count: root_count,
+                root_object_count: root_count,
               ))
             }
             Some("productVariants") -> {
               let fragments = get_document_fragments(query_string)
               let variants = store.list_effective_product_variants(store)
+              let root_count = list.length(variants)
               Ok(BulkQueryResult(
                 result_jsonl: make_jsonl(
                   list.map(variants, fn(variant) {
@@ -689,7 +728,8 @@ fn build_run_query_jsonl(
                     )
                   }),
                 ),
-                object_count: list.length(variants),
+                object_count: root_count,
+                root_object_count: root_count,
               ))
             }
             _ -> Error(no_connection_bulk_query_error())
@@ -704,6 +744,58 @@ fn build_run_query_jsonl(
       ))
     Error(_) -> Error(no_connection_bulk_query_error())
   }
+}
+
+fn local_or_upstream_products_count(
+  products: List(ProductRecord),
+  root: Selection,
+  upstream: UpstreamContext,
+) -> Int {
+  let local_count = list.length(products)
+  case local_count {
+    0 ->
+      option.unwrap(fetch_upstream_products_count(root, upstream), local_count)
+    _ -> local_count
+  }
+}
+
+fn fetch_upstream_products_count(
+  root: Selection,
+  upstream: UpstreamContext,
+) -> Option(Int) {
+  // Pattern 2: bulkOperationRunQuery stays a local staged mutation, but
+  // a cold LiveHybrid product export reads Shopify's product count so
+  // the staged BulkOperation counters match the upstream store.
+  let args = field_args(root, dict.new())
+  let variables = case read_arg_string(args, "query") {
+    Some(query) -> json.object([#("query", json.string(query))])
+    None -> json.object([])
+  }
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "BulkOperationRunQueryProductCount",
+      product_count_hydrate_query(),
+      variables,
+    )
+  {
+    Ok(value) -> product_count_from_response(value)
+    Error(_) -> None
+  }
+}
+
+fn product_count_hydrate_query() -> String {
+  "query BulkOperationRunQueryProductCount($query: String) { "
+  <> "productsCount(query: $query) { count } "
+  <> "}"
+}
+
+fn product_count_from_response(value: commit.JsonValue) -> Option(Int) {
+  use data <- option.then(json_get(value, "data"))
+  use count_obj <- option.then(json_get(data, "productsCount"))
+  json_get_int(count_obj, "count")
 }
 
 fn no_connection_bulk_query_error() -> UserError {
@@ -1295,12 +1387,124 @@ fn variables_dict_decoder() -> decode.Decoder(
   decode.dict(decode.string, root_field.resolved_value_decoder())
 }
 
+fn hydrate_bulk_operation_by_id(
+  store: Store,
+  id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case store.get_effective_bulk_operation_by_id(store, id) {
+    Some(_) -> store
+    None ->
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "BulkOperationHydrate",
+          bulk_operation_hydrate_query(),
+          json.object([#("id", json.string(id))]),
+        )
+      {
+        Ok(value) ->
+          case bulk_operation_from_hydrate_response(value) {
+            Some(operation) ->
+              store.upsert_base_bulk_operations(store, [operation])
+            None -> store
+          }
+        Error(_) -> store
+      }
+  }
+}
+
+fn bulk_operation_hydrate_query() -> String {
+  "query BulkOperationHydrate($id: ID!) { "
+  <> "bulkOperation(id: $id) { "
+  <> "id status type errorCode createdAt completedAt objectCount "
+  <> "rootObjectCount fileSize url partialDataUrl query "
+  <> "} "
+  <> "}"
+}
+
+fn bulk_operation_from_hydrate_response(
+  value: commit.JsonValue,
+) -> Option(BulkOperationRecord) {
+  use data <- option.then(json_get(value, "data"))
+  use operation <- option.then(json_get(data, "bulkOperation"))
+  bulk_operation_from_json(operation)
+}
+
+fn bulk_operation_from_json(
+  value: commit.JsonValue,
+) -> Option(BulkOperationRecord) {
+  use id <- option.then(json_get_string(value, "id"))
+  use status <- option.then(json_get_string(value, "status"))
+  use type_ <- option.then(json_get_string(value, "type"))
+  use created_at <- option.then(json_get_string(value, "createdAt"))
+  use object_count <- option.then(json_get_string(value, "objectCount"))
+  use root_object_count <- option.then(json_get_string(value, "rootObjectCount"))
+  Some(BulkOperationRecord(
+    id: id,
+    status: status,
+    type_: type_,
+    error_code: json_get_optional_string(value, "errorCode"),
+    created_at: created_at,
+    completed_at: json_get_optional_string(value, "completedAt"),
+    object_count: object_count,
+    root_object_count: root_object_count,
+    file_size: json_get_optional_string(value, "fileSize"),
+    url: json_get_optional_string(value, "url"),
+    partial_data_url: json_get_optional_string(value, "partialDataUrl"),
+    query: json_get_optional_string(value, "query"),
+    cursor: None,
+    result_jsonl: None,
+  ))
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(k, v) if k == key -> Ok(v)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get_optional_string(
+  value: commit.JsonValue,
+  key: String,
+) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get_int(value: commit.JsonValue, key: String) -> Option(Int) {
+  case json_get(value, key) {
+    Some(commit.JsonInt(i)) -> Some(i)
+    _ -> None
+  }
+}
+
 fn handle_bulk_operation_cancel(
   store: Store,
   identity: SyntheticIdentityRegistry,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = field_args(field, variables)
@@ -1323,10 +1527,15 @@ fn handle_bulk_operation_cancel(
       identity,
     )
     Some(id) -> {
-      let staged_operation = store.get_staged_bulk_operation_by_id(store, id)
+      // Pattern 2: cancel is still staged locally, but a cold
+      // LiveHybrid request first reads the target BulkOperation so
+      // terminal errors and cancel overlays use Shopify's prior job.
+      let hydrated_store = hydrate_bulk_operation_by_id(store, id, upstream)
+      let staged_operation =
+        store.get_staged_bulk_operation_by_id(hydrated_store, id)
       let effective_operation = case staged_operation {
         Some(op) -> Some(op)
-        None -> store.get_effective_bulk_operation_by_id(store, id)
+        None -> store.get_effective_bulk_operation_by_id(hydrated_store, id)
       }
       case effective_operation {
         None -> #(
@@ -1343,7 +1552,7 @@ fn handle_bulk_operation_cancel(
             staged_resource_ids: [],
             log_drafts: [],
           ),
-          store,
+          hydrated_store,
           identity,
         )
         Some(operation) ->
@@ -1362,31 +1571,39 @@ fn handle_bulk_operation_cancel(
                 staged_resource_ids: [operation.id],
                 log_drafts: [],
               ),
-              store,
+              hydrated_store,
               identity,
             )
             False ->
               case staged_operation {
-                None -> #(
-                  MutationFieldResult(
-                    key: key,
-                    payload: serialize_cancel_payload(
-                      field,
-                      None,
-                      [
-                        missing_bulk_operation_error(),
-                      ],
-                      fragments,
+                None -> {
+                  let canceled =
+                    BulkOperationRecord(
+                      ..operation,
+                      status: "CANCELING",
+                      completed_at: None,
+                    )
+                  let #(staged, next_store) =
+                    store.stage_bulk_operation(hydrated_store, canceled)
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: serialize_cancel_payload(
+                        field,
+                        Some(staged),
+                        [],
+                        fragments,
+                      ),
+                      staged_resource_ids: [staged.id],
+                      log_drafts: [],
                     ),
-                    staged_resource_ids: [],
-                    log_drafts: [],
-                  ),
-                  store,
-                  identity,
-                )
+                    next_store,
+                    identity,
+                  )
+                }
                 Some(_) -> {
                   let #(canceled, next_store) =
-                    store.cancel_staged_bulk_operation(store, id)
+                    store.cancel_staged_bulk_operation(hydrated_store, id)
                   let staged_id = case canceled {
                     Some(op) -> [op.id]
                     None -> []
