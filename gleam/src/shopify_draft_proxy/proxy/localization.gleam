@@ -27,7 +27,9 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
   SelectedFieldOptions, SerializeConnectionConfig,
@@ -38,6 +40,10 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, read_optional_string_array, single_root_log_draft,
 }
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
+}
+import shopify_draft_proxy/proxy/upstream_query
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -150,6 +156,377 @@ pub fn process(
     variables,
   ))
   Ok(wrap_data(data))
+}
+
+/// Pattern 2: cold LiveHybrid localization reads need the captured
+/// upstream product/source-content slice before local translation
+/// mutations can validate digests and stage read-after-write effects.
+/// Once any localization/product state exists, stay local so staged
+/// locale and translation changes are not bypassed by passthrough.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_upstream = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_fetch_upstream_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+      )
+    _ -> False
+  }
+  case want_upstream {
+    True ->
+      fetch_and_hydrate_live_hybrid_query(
+        proxy,
+        request,
+        parsed,
+        document,
+        variables,
+      )
+    False -> local_query_response(proxy, document, variables)
+  }
+}
+
+fn should_fetch_upstream_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "availableLocales" ->
+      !has_local_localization_query_state(proxy)
+    parse_operation.QueryOperation, "shopLocales" ->
+      !has_local_localization_query_state(proxy)
+    parse_operation.QueryOperation, "translatableResource" ->
+      !has_local_localization_query_state(proxy)
+    parse_operation.QueryOperation, "translatableResources" ->
+      !has_local_localization_query_state(proxy)
+    parse_operation.QueryOperation, "translatableResourcesByIds" ->
+      !has_local_localization_query_state(proxy)
+    _, _ -> False
+  }
+}
+
+fn has_local_localization_query_state(proxy: DraftProxy) -> Bool {
+  store.has_localization_state(proxy.store)
+  || !list.is_empty(store.list_effective_products(proxy.store))
+}
+
+fn fetch_and_hydrate_live_hybrid_query(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let operation_name =
+    parsed.name
+    |> option.unwrap("LocalizationLiveHybridRead")
+  case
+    upstream_query.fetch_sync(
+      proxy.config.shopify_admin_origin,
+      proxy.upstream_transport,
+      request.headers,
+      operation_name,
+      document,
+      variables_to_json(variables),
+    )
+  {
+    Ok(value) -> {
+      let next_store = hydrate_from_upstream_response(proxy.store, value)
+      #(
+        Response(
+          status: 200,
+          body: commit.json_value_to_json(value),
+          headers: [],
+        ),
+        DraftProxy(..proxy, store: next_store),
+      )
+    }
+    Error(err) -> #(
+      Response(
+        status: 502,
+        body: json.object([
+          #(
+            "errors",
+            json.array(
+              [
+                json.object([
+                  #("message", json.string(fetch_error_message(err))),
+                ]),
+              ],
+              fn(x) { x },
+            ),
+          ),
+        ]),
+        headers: [],
+      ),
+      proxy,
+    )
+  }
+}
+
+fn local_query_response(
+  proxy: DraftProxy,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  case process(proxy.store, document, variables) {
+    Ok(envelope) -> #(Response(status: 200, body: envelope, headers: []), proxy)
+    Error(_) -> #(
+      Response(
+        status: 400,
+        body: json.object([
+          #(
+            "errors",
+            json.array(
+              [
+                json.object([
+                  #(
+                    "message",
+                    json.string("Failed to handle localization query"),
+                  ),
+                ]),
+              ],
+              fn(x) { x },
+            ),
+          ),
+        ]),
+        headers: [],
+      ),
+      proxy,
+    )
+  }
+}
+
+fn variables_to_json(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  json.object(
+    dict.to_list(variables)
+    |> list.map(fn(pair) {
+      #(pair.0, root_field.resolved_value_to_json(pair.1))
+    }),
+  )
+}
+
+fn fetch_error_message(error: upstream_query.FetchError) -> String {
+  case error {
+    upstream_query.TransportFailed(message) -> message
+    upstream_query.HttpStatusError(status, body) ->
+      "upstream returned HTTP " <> int.to_string(status) <> ": " <> body
+    upstream_query.MalformedResponse(message) -> message
+    upstream_query.NoTransportInstalled -> "no upstream transport installed"
+  }
+}
+
+fn hydrate_from_upstream_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) ->
+      store_in
+      |> hydrate_available_locales(data)
+      |> hydrate_shop_locales(data)
+      |> hydrate_translatable_resources(data)
+    None -> store_in
+  }
+}
+
+fn hydrate_available_locales(store_in: Store, data: commit.JsonValue) -> Store {
+  let locales = case locale_records_from_field(data, "availableLocales") {
+    [] -> locale_records_from_field(data, "availableLocalesExcerpt")
+    records -> records
+  }
+  case locales {
+    [] -> store_in
+    _ -> store.replace_base_available_locales(store_in, locales)
+  }
+}
+
+fn hydrate_shop_locales(store_in: Store, data: commit.JsonValue) -> Store {
+  let locales = case shop_locale_records_from_field(data, "allShopLocales") {
+    [] -> shop_locale_records_from_field(data, "shopLocales")
+    records -> records
+  }
+  case locales {
+    [] -> store_in
+    _ -> store.upsert_base_shop_locales(store_in, locales)
+  }
+}
+
+fn hydrate_translatable_resources(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  let resources =
+    list.append(
+      resources_from_connection_field(data, "resources"),
+      resources_from_connection_field(data, "byIds"),
+    )
+  let resources = case json_get(data, "translatableResource") {
+    Some(commit.JsonNull) | None -> resources
+    Some(node) -> [node, ..resources]
+  }
+  list.fold(resources, store_in, hydrate_resource_source_markers)
+}
+
+fn hydrate_resource_source_markers(
+  store_in: Store,
+  resource: commit.JsonValue,
+) -> Store {
+  case json_get_string(resource, "resourceId") {
+    None -> store_in
+    Some(resource_id) -> {
+      let content = case json_get(resource, "translatableContent") {
+        Some(commit.JsonArray(items)) -> items
+        _ -> []
+      }
+      list.fold(content, store_in, fn(acc, item) {
+        case json_get_string(item, "key") {
+          None -> acc
+          Some(key) -> {
+            let record =
+              TranslationRecord(
+                resource_id: resource_id,
+                key: key,
+                locale: "__source",
+                value: option.unwrap(json_get_string(item, "value"), ""),
+                translatable_content_digest: option.unwrap(
+                  json_get_string(item, "digest"),
+                  "",
+                ),
+                market_id: None,
+                updated_at: "1970-01-01T00:00:00.000Z",
+                outdated: False,
+              )
+            store.upsert_base_translation(acc, record)
+          }
+        }
+      })
+    }
+  }
+}
+
+fn resources_from_connection_field(
+  data: commit.JsonValue,
+  key: String,
+) -> List(commit.JsonValue) {
+  case json_get(data, key) {
+    Some(connection) ->
+      case json_get(connection, "nodes") {
+        Some(commit.JsonArray(items)) -> non_null_json_values(items)
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+fn locale_records_from_field(
+  data: commit.JsonValue,
+  key: String,
+) -> List(LocaleRecord) {
+  case json_get(data, key) {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, locale_record_from_json)
+    _ -> []
+  }
+}
+
+fn locale_record_from_json(
+  value: commit.JsonValue,
+) -> Result(LocaleRecord, Nil) {
+  case json_get_string(value, "isoCode"), json_get_string(value, "name") {
+    Some(iso_code), Some(name) ->
+      Ok(LocaleRecord(iso_code: iso_code, name: name))
+    _, _ -> Error(Nil)
+  }
+}
+
+fn shop_locale_records_from_field(
+  data: commit.JsonValue,
+  key: String,
+) -> List(ShopLocaleRecord) {
+  case json_get(data, key) {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, shop_locale_record_from_json)
+    _ -> []
+  }
+}
+
+fn shop_locale_record_from_json(
+  value: commit.JsonValue,
+) -> Result(ShopLocaleRecord, Nil) {
+  case json_get_string(value, "locale") {
+    Some(locale) ->
+      Ok(ShopLocaleRecord(
+        locale: locale,
+        name: option.unwrap(json_get_string(value, "name"), locale),
+        primary: option.unwrap(json_get_bool(value, "primary"), False),
+        published: option.unwrap(json_get_bool(value, "published"), False),
+        market_web_presence_ids: market_web_presence_ids_from_json(value),
+      ))
+    None -> Error(Nil)
+  }
+}
+
+fn market_web_presence_ids_from_json(value: commit.JsonValue) -> List(String) {
+  case json_get(value, "marketWebPresences") {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, fn(item) {
+        case json_get_string(item, "id") {
+          Some(id) -> Ok(id)
+          None -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn non_null_json_values(
+  values: List(commit.JsonValue),
+) -> List(commit.JsonValue) {
+  list.filter(values, fn(value) {
+    case value {
+      commit.JsonNull -> False
+      _ -> True
+    }
+  })
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
+  case json_get(value, key) {
+    Some(commit.JsonBool(b)) -> Some(b)
+    _ -> None
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(k, v) if k == key -> Ok(v)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
 }
 
 pub fn process_mutation(

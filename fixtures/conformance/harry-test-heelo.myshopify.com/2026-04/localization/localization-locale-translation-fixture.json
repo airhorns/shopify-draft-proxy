@@ -252,5 +252,117 @@
       "translations": []
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "LocalizationLocaleTranslationRead",
+      "variables": {
+        "first": 3,
+        "resourceType": "PRODUCT",
+        "ids": ["gid://shopify/Product/999999999999999"]
+      },
+      "query": "sha:hand-synthesized-from-readCapture-response",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "availableLocalesExcerpt": [
+              {
+                "isoCode": "en",
+                "name": "English"
+              },
+              {
+                "isoCode": "fr",
+                "name": "French"
+              },
+              {
+                "isoCode": "de",
+                "name": "German"
+              }
+            ],
+            "allShopLocales": [
+              {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": [
+                  {
+                    "id": "gid://shopify/MarketWebPresence/62842765618",
+                    "subfolderSuffix": null
+                  }
+                ]
+              }
+            ],
+            "publishedShopLocales": [
+              {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true
+              }
+            ],
+            "resources": {
+              "nodes": [
+                {
+                  "resourceId": "gid://shopify/Product/9801098789170",
+                  "translatableContent": [
+                    {
+                      "key": "title",
+                      "value": "The Inventory Not Tracked Snowboard",
+                      "digest": "43a0ee61d168b8330a4e71f9f034be6513b1729f9190950ae11f30b2d048c142",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    },
+                    {
+                      "key": "handle",
+                      "value": "the-inventory-not-tracked-snowboard",
+                      "digest": "3f55cf19fa37be24cf8030bebc35e9483c6ff462e4164f6f1fa5a565fab81319",
+                      "locale": "en",
+                      "type": "URI"
+                    },
+                    {
+                      "key": "product_type",
+                      "value": "snowboard",
+                      "digest": "5bcb80d0681d6b5e42674b1b224318829266df06c58a0447d51ac6311fafae70",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    }
+                  ],
+                  "translations": [],
+                  "nestedTranslatableResources": {
+                    "nodes": [
+                      {
+                        "resourceId": "gid://shopify/ProductOption/12278832234802"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxMjI3ODgzMjIzNDgwMiwibGFzdF92YWx1ZSI6MTIyNzg4MzIyMzQ4MDJ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxMjI3ODgzMjIzNDgwMiwibGFzdF92YWx1ZSI6MTIyNzg4MzIyMzQ4MDJ9"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false
+              }
+            },
+            "byIds": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "missing": null
+          }
+        }
+      }
+    }
+  ]
 }
