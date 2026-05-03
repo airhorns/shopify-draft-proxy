@@ -10,11 +10,7 @@
           "note": "merchant realistic draft order create parity probe",
           "taxExempt": true,
           "reserveInventoryUntil": "2026-05-25T00:27:36Z",
-          "tags": [
-            "parity-probe",
-            "draft-order-create",
-            "merchant-realistic"
-          ],
+          "tags": ["parity-probe", "draft-order-create", "merchant-realistic"],
           "customAttributes": [
             {
               "key": "source",
@@ -107,11 +103,7 @@
                 "taxesIncluded": false,
                 "reserveInventoryUntil": "2026-05-25T00:27:36Z",
                 "paymentTerms": null,
-                "tags": [
-                  "draft-order-create",
-                  "merchant-realistic",
-                  "parity-probe"
-                ],
+                "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
                 "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/68f894c92dcb9a1b76d9a942fec46f56",
                 "customAttributes": [
                   {
@@ -333,11 +325,7 @@
               "taxesIncluded": false,
               "reserveInventoryUntil": "2026-05-25T00:27:36Z",
               "paymentTerms": null,
-              "tags": [
-                "draft-order-create",
-                "merchant-realistic",
-                "parity-probe"
-              ],
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
               "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/68f894c92dcb9a1b76d9a942fec46f56",
               "customAttributes": [
                 {
@@ -581,17 +569,11 @@
               "id": "gid://shopify/Order/6834565087465",
               "name": "#1331",
               "sourceName": "347082227713",
-              "paymentGatewayNames": [
-                "manual"
-              ],
+              "paymentGatewayNames": ["manual"],
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "note": "merchant realistic draft order create parity probe",
-              "tags": [
-                "draft-order-create",
-                "merchant-realistic",
-                "parity-probe"
-              ],
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
               "currentTotalPriceSet": {
                 "shopMoney": {
                   "amount": "38.25",
@@ -699,17 +681,11 @@
             "id": "gid://shopify/Order/6834565087465",
             "name": "#1331",
             "sourceName": "347082227713",
-            "paymentGatewayNames": [
-              "manual"
-            ],
+            "paymentGatewayNames": ["manual"],
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED",
             "note": "merchant realistic draft order create parity probe",
-            "tags": [
-              "draft-order-create",
-              "merchant-realistic",
-              "parity-probe"
-            ],
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
             "currentTotalPriceSet": {
               "shopMoney": {
                 "amount": "38.25",
@@ -773,11 +749,7 @@
           "name": "#1331",
           "email": "hermes-draft-order-probe-1777076856718@example.com",
           "note": "merchant realistic draft order create parity probe",
-          "tags": [
-            "draft-order-create",
-            "merchant-realistic",
-            "parity-probe"
-          ],
+          "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
           "customAttributes": [
             {
               "key": "source",
@@ -820,9 +792,7 @@
               "currencyCode": "CAD"
             }
           },
-          "discountCodes": [
-            "Loyalty credit"
-          ],
+          "discountCodes": ["Loyalty credit"],
           "currentTotalPriceSet": {
             "shopMoney": {
               "amount": "38.25",
@@ -890,11 +860,7 @@
               "taxesIncluded": false,
               "reserveInventoryUntil": "2026-05-25T00:27:36Z",
               "paymentTerms": null,
-              "tags": [
-                "draft-order-create",
-                "merchant-realistic",
-                "parity-probe"
-              ],
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
               "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/68f894c92dcb9a1b76d9a942fec46f56",
               "customAttributes": [
                 {

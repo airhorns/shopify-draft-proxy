@@ -14,9 +14,7 @@
             "documentation": "https://shopify.dev/api/usage/access-scopes",
             "requiredAccess": "`write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on."
           },
-          "path": [
-            "taxSummaryCreate"
-          ]
+          "path": ["taxSummaryCreate"]
         }
       ],
       "data": {
@@ -44,9 +42,7 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on."
               },
-              "path": [
-                "taxSummaryCreate"
-              ]
+              "path": ["taxSummaryCreate"]
             }
           ],
           "data": {

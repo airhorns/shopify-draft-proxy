@@ -18,15 +18,15 @@ orders mutations still stage locally, using targeted Pattern 2 hydrate reads
 for prior order, draft-order, fulfillment, refund, calculated-order, return,
 customer, and product-variant context before applying local effects.
 
-| Module / fixture                                           | Change                                                                                              |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`         | Adds upstream-aware mutation handling and orders-specific hydration helpers for migrated scenarios. |
-| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`      | Hydrates order/customer context for `orderCustomerSet` and `orderCustomerRemove` read effects.      |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`    | Adds gated LiveHybrid passthrough for cold orders reads and threads upstream context to orders.     |
-| `fixtures/conformance/**/orders/*.json`                   | Hand-synthesizes orders hydrate/passthrough cassette entries from checked-in capture evidence.      |
-| `config/parity-specs/orders/*.json`                        | Prunes stale fulfillment expected-difference rules now covered by captured payload parity.          |
-| `config/gleam-port-ci-gates.json`                          | Removes all remaining Orders expected-failure entries.                                             |
-| `docs/endpoints/orders.md`                                 | Documents the HAR-538 cassette-backed Pattern 1/Pattern 2 boundary for orders.                      |
+| Module / fixture                                        | Change                                                                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`      | Adds upstream-aware mutation handling and orders-specific hydration helpers for migrated scenarios. |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`   | Hydrates order/customer context for `orderCustomerSet` and `orderCustomerRemove` read effects.      |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Adds gated LiveHybrid passthrough for cold orders reads and threads upstream context to orders.     |
+| `fixtures/conformance/**/orders/*.json`                 | Hand-synthesizes orders hydrate/passthrough cassette entries from checked-in capture evidence.      |
+| `config/parity-specs/orders/*.json`                     | Prunes stale fulfillment expected-difference rules now covered by captured payload parity.          |
+| `config/gleam-port-ci-gates.json`                       | Removes all remaining Orders expected-failure entries.                                              |
+| `docs/endpoints/orders.md`                              | Documents the HAR-538 cassette-backed Pattern 1/Pattern 2 boundary for orders.                      |
 
 Validation:
 

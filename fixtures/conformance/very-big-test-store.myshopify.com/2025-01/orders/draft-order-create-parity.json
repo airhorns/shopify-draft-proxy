@@ -8,11 +8,7 @@
       "note": "merchant realistic draft order create parity probe",
       "taxExempt": true,
       "reserveInventoryUntil": "2026-05-25T00:27:36Z",
-      "tags": [
-        "parity-probe",
-        "draft-order-create",
-        "merchant-realistic"
-      ],
+      "tags": ["parity-probe", "draft-order-create", "merchant-realistic"],
       "customAttributes": [
         {
           "key": "source",
@@ -105,11 +101,7 @@
             "taxesIncluded": false,
             "reserveInventoryUntil": "2026-05-25T00:27:36Z",
             "paymentTerms": null,
-            "tags": [
-              "draft-order-create",
-              "merchant-realistic",
-              "parity-probe"
-            ],
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
             "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/68f894c92dcb9a1b76d9a942fec46f56",
             "customAttributes": [
               {
@@ -331,11 +323,7 @@
           "taxesIncluded": false,
           "reserveInventoryUntil": "2026-05-25T00:27:36Z",
           "paymentTerms": null,
-          "tags": [
-            "draft-order-create",
-            "merchant-realistic",
-            "parity-probe"
-          ],
+          "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
           "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/68f894c92dcb9a1b76d9a942fec46f56",
           "customAttributes": [
             {

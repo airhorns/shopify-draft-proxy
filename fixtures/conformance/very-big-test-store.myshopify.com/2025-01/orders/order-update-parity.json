@@ -5,10 +5,7 @@
       "email": "hermes-order-update-1776899624464@example.com",
       "poNumber": "PO-UPDATE-1776899624464",
       "note": "order update expanded live parity captured note",
-      "tags": [
-        "expanded-live-parity",
-        "order-update"
-      ],
+      "tags": ["expanded-live-parity", "order-update"],
       "customAttributes": [
         {
           "key": "source",
@@ -51,10 +48,7 @@
             "phone": null,
             "poNumber": "PO-UPDATE-1776899624464",
             "note": "order update expanded live parity captured note",
-            "tags": [
-              "expanded-live-parity",
-              "order-update"
-            ],
+            "tags": ["expanded-live-parity", "order-update"],
             "customer": {
               "id": "gid://shopify/Customer/9096793751785",
               "email": "hermes-order-probe-1776899624464@example.com",
@@ -129,10 +123,7 @@
           "phone": null,
           "poNumber": "PO-UPDATE-1776899624464",
           "note": "order update expanded live parity captured note",
-          "tags": [
-            "expanded-live-parity",
-            "order-update"
-          ],
+          "tags": ["expanded-live-parity", "order-update"],
           "customer": {
             "id": "gid://shopify/Customer/9096793751785",
             "email": "hermes-order-probe-1776899624464@example.com",
@@ -210,10 +201,7 @@
               "phone": null,
               "poNumber": "PO-UPDATE-1776899624464",
               "note": "order update expanded live parity captured note",
-              "tags": [
-                "expanded-live-parity",
-                "order-update"
-              ],
+              "tags": ["expanded-live-parity", "order-update"],
               "customer": {
                 "id": "gid://shopify/Customer/9096793751785",
                 "email": "hermes-order-probe-1776899624464@example.com",

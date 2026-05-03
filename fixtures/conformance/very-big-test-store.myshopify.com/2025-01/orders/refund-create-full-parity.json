@@ -31,11 +31,7 @@
         "order": {
           "email": "hermes-refund-full-1776892476364@example.com",
           "note": "refundCreate full parity seed order",
-          "tags": [
-            "parity-probe",
-            "refund-create",
-            "full"
-          ],
+          "tags": ["parity-probe", "refund-create", "full"],
           "test": true,
           "customAttributes": [
             {
@@ -123,11 +119,7 @@
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "note": "refundCreate full parity seed order",
-              "tags": [
-                "full",
-                "parity-probe",
-                "refund-create"
-              ],
+              "tags": ["full", "parity-probe", "refund-create"],
               "customAttributes": [
                 {
                   "key": "source",
@@ -442,11 +434,7 @@
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "note": "refundCreate full parity seed order",
-              "tags": [
-                "full",
-                "parity-probe",
-                "refund-create"
-              ],
+              "tags": ["full", "parity-probe", "refund-create"],
               "customAttributes": [
                 {
                   "key": "source",

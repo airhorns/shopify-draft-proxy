@@ -16,9 +16,7 @@
             "cancelledAt": null,
             "cancelReason": null,
             "displayFinancialStatus": "PAID",
-            "paymentGatewayNames": [
-              "manual"
-            ],
+            "paymentGatewayNames": ["manual"],
             "totalOutstandingSet": {
               "shopMoney": {
                 "amount": "0.0",
@@ -65,9 +63,7 @@
           "cancelledAt": null,
           "cancelReason": null,
           "displayFinancialStatus": "PAID",
-          "paymentGatewayNames": [
-            "manual"
-          ],
+          "paymentGatewayNames": ["manual"],
           "totalOutstandingSet": {
             "shopMoney": {
               "amount": "0.0",
@@ -117,9 +113,7 @@
               "cancelledAt": null,
               "cancelReason": null,
               "displayFinancialStatus": "PAID",
-              "paymentGatewayNames": [
-                "manual"
-              ],
+              "paymentGatewayNames": ["manual"],
               "totalOutstandingSet": {
                 "shopMoney": {
                   "amount": "0.0",

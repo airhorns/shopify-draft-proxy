@@ -11,11 +11,7 @@
           "note": "draft order delete setup",
           "taxExempt": true,
           "reserveInventoryUntil": "2026-05-23T12:00:00Z",
-          "tags": [
-            "parity-capture",
-            "draft-order-family",
-            "delete"
-          ],
+          "tags": ["parity-capture", "draft-order-family", "delete"],
           "customAttributes": [
             {
               "key": "source",
@@ -108,11 +104,7 @@
                 "taxesIncluded": false,
                 "reserveInventoryUntil": "2026-05-23T12:00:00Z",
                 "paymentTerms": null,
-                "tags": [
-                  "delete",
-                  "draft-order-family",
-                  "parity-capture"
-                ],
+                "tags": ["delete", "draft-order-family", "parity-capture"],
                 "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/f9c0dd01376e03e9a6de048f4bac8f75",
                 "customAttributes": [
                   {
@@ -334,11 +326,7 @@
               "taxesIncluded": false,
               "reserveInventoryUntil": "2026-05-23T12:00:00Z",
               "paymentTerms": null,
-              "tags": [
-                "delete",
-                "draft-order-family",
-                "parity-capture"
-              ],
+              "tags": ["delete", "draft-order-family", "parity-capture"],
               "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/f9c0dd01376e03e9a6de048f4bac8f75",
               "customAttributes": [
                 {
@@ -612,11 +600,7 @@
               "taxesIncluded": false,
               "reserveInventoryUntil": "2026-05-23T12:00:00Z",
               "paymentTerms": null,
-              "tags": [
-                "delete",
-                "draft-order-family",
-                "parity-capture"
-              ],
+              "tags": ["delete", "draft-order-family", "parity-capture"],
               "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/f9c0dd01376e03e9a6de048f4bac8f75",
               "customAttributes": [
                 {

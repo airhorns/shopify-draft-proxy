@@ -18,15 +18,9 @@
         "cancelReason": null,
         "displayFinancialStatus": "PARTIALLY_REFUNDED",
         "displayFulfillmentStatus": "FULFILLED",
-        "paymentGatewayNames": [
-          "manual",
-          "shopify_payments"
-        ],
+        "paymentGatewayNames": ["manual", "shopify_payments"],
         "note": "Leave at receiving desk",
-        "tags": [
-          "merchant-detail",
-          "priority"
-        ],
+        "tags": ["merchant-detail", "priority"],
         "billingAddress": {
           "firstName": "Ada",
           "lastName": "Lovelace",
@@ -133,9 +127,7 @@
             "currencyCode": "CAD"
           }
         },
-        "discountCodes": [
-          "SPRING10"
-        ],
+        "discountCodes": ["SPRING10"],
         "taxesIncluded": false,
         "customer": {
           "id": "gid://shopify/Customer/9001",
@@ -406,15 +398,9 @@
               "cancelReason": null,
               "displayFinancialStatus": "PARTIALLY_REFUNDED",
               "displayFulfillmentStatus": "FULFILLED",
-              "paymentGatewayNames": [
-                "manual",
-                "shopify_payments"
-              ],
+              "paymentGatewayNames": ["manual", "shopify_payments"],
               "note": "Leave at receiving desk",
-              "tags": [
-                "merchant-detail",
-                "priority"
-              ],
+              "tags": ["merchant-detail", "priority"],
               "billingAddress": {
                 "firstName": "Ada",
                 "lastName": "Lovelace",
@@ -521,9 +507,7 @@
                   "currencyCode": "CAD"
                 }
               },
-              "discountCodes": [
-                "SPRING10"
-              ],
+              "discountCodes": ["SPRING10"],
               "taxesIncluded": false,
               "customer": {
                 "id": "gid://shopify/Customer/9001",

@@ -66,9 +66,7 @@
           "orderEditSession": null,
           "userErrors": [
             {
-              "field": [
-                "variantId"
-              ],
+              "field": ["variantId"],
               "message": "can't convert Integer[0] to a positive Integer to use as an untrusted id"
             }
           ]

@@ -260,11 +260,7 @@
           "return": null,
           "userErrors": [
             {
-              "field": [
-                "returnLineItems",
-                "0",
-                "fulfillmentLineItemId"
-              ],
+              "field": ["returnLineItems", "0", "fulfillmentLineItemId"],
               "message": "Fulfillment line item does not exist.",
               "code": null
             }

@@ -11,11 +11,7 @@
           "note": "draft order duplicate setup",
           "taxExempt": true,
           "reserveInventoryUntil": "2026-05-23T12:00:00Z",
-          "tags": [
-            "parity-capture",
-            "draft-order-family",
-            "duplicate"
-          ],
+          "tags": ["parity-capture", "draft-order-family", "duplicate"],
           "customAttributes": [
             {
               "key": "source",
@@ -108,11 +104,7 @@
                 "taxesIncluded": false,
                 "reserveInventoryUntil": "2026-05-23T12:00:00Z",
                 "paymentTerms": null,
-                "tags": [
-                  "draft-order-family",
-                  "duplicate",
-                  "parity-capture"
-                ],
+                "tags": ["draft-order-family", "duplicate", "parity-capture"],
                 "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/656cbec7c0042f8abc6c95a97834f6a3",
                 "customAttributes": [
                   {
@@ -334,11 +326,7 @@
               "taxesIncluded": false,
               "reserveInventoryUntil": "2026-05-23T12:00:00Z",
               "paymentTerms": null,
-              "tags": [
-                "draft-order-family",
-                "duplicate",
-                "parity-capture"
-              ],
+              "tags": ["draft-order-family", "duplicate", "parity-capture"],
               "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/656cbec7c0042f8abc6c95a97834f6a3",
               "customAttributes": [
                 {
@@ -553,11 +541,7 @@
             "status": "OPEN",
             "ready": true,
             "email": "hermes-draft-order-duplicate-1777156988943@example.com",
-            "tags": [
-              "draft-order-family",
-              "duplicate",
-              "parity-capture"
-            ],
+            "tags": ["draft-order-family", "duplicate", "parity-capture"],
             "customAttributes": [
               {
                 "key": "source",
@@ -634,11 +618,7 @@
           "taxesIncluded": false,
           "reserveInventoryUntil": null,
           "paymentTerms": null,
-          "tags": [
-            "draft-order-family",
-            "duplicate",
-            "parity-capture"
-          ],
+          "tags": ["draft-order-family", "duplicate", "parity-capture"],
           "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/3d24194dcde03fdd0c30b9b9bfb092a5",
           "customAttributes": [
             {
@@ -825,11 +805,7 @@
               "taxesIncluded": false,
               "reserveInventoryUntil": "2026-05-23T12:00:00Z",
               "paymentTerms": null,
-              "tags": [
-                "draft-order-family",
-                "duplicate",
-                "parity-capture"
-              ],
+              "tags": ["draft-order-family", "duplicate", "parity-capture"],
               "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/656cbec7c0042f8abc6c95a97834f6a3",
               "customAttributes": [
                 {

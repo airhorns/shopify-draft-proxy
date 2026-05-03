@@ -49,11 +49,7 @@
         "order": {
           "email": "har-442-return-reverse-20260429110840@example.com",
           "note": "HAR-442 return reverse logistics capture 20260429110840",
-          "tags": [
-            "har-442",
-            "return-reverse-logistics",
-            "20260429110840"
-          ],
+          "tags": ["har-442", "return-reverse-logistics", "20260429110840"],
           "test": true,
           "currency": "USD",
           "shippingAddress": {
@@ -117,11 +113,7 @@
                     "currencyCode": "USD"
                   }
                 },
-                "tags": [
-                  "20260429110840",
-                  "har-442",
-                  "return-reverse-logistics"
-                ],
+                "tags": ["20260429110840", "har-442", "return-reverse-logistics"],
                 "lineItems": {
                   "nodes": [
                     {
@@ -281,11 +273,7 @@
                   "currencyCode": "USD"
                 }
               },
-              "tags": [
-                "20260429110840",
-                "har-442",
-                "return-reverse-logistics"
-              ],
+              "tags": ["20260429110840", "har-442", "return-reverse-logistics"],
               "lineItems": {
                 "nodes": [
                   {
@@ -390,11 +378,7 @@
         "currencyCode": "USD"
       }
     },
-    "tags": [
-      "20260429110840",
-      "har-442",
-      "return-reverse-logistics"
-    ],
+    "tags": ["20260429110840", "har-442", "return-reverse-logistics"],
     "lineItems": {
       "nodes": [
         {
@@ -994,11 +978,7 @@
                   "currencyCode": "USD"
                 }
               },
-              "tags": [
-                "20260429110840",
-                "har-442",
-                "return-reverse-logistics"
-              ],
+              "tags": ["20260429110840", "har-442", "return-reverse-logistics"],
               "lineItems": {
                 "nodes": [
                   {

@@ -22,11 +22,7 @@
             "updatedAt": "2026-04-25T01:08:36Z",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED",
-            "tags": [
-              "draft-order-create",
-              "merchant-realistic",
-              "parity-probe"
-            ],
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
             "email": "hermes-draft-order-probe-1777076856718@example.com",
             "currentTotalPriceSet": {
               "shopMoney": {
@@ -42,11 +38,7 @@
             "updatedAt": "2026-04-25T00:06:32Z",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED",
-            "tags": [
-              "draft-order-create",
-              "merchant-realistic",
-              "parity-probe"
-            ],
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
             "email": "hermes-draft-order-probe-1777074686016@example.com",
             "currentTotalPriceSet": {
               "shopMoney": {
@@ -66,11 +58,7 @@
             "updatedAt": "2026-04-25T01:08:36Z",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED",
-            "tags": [
-              "draft-order-create",
-              "merchant-realistic",
-              "parity-probe"
-            ],
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
             "email": "hermes-draft-order-probe-1777076856718@example.com"
           }
         ],
@@ -90,11 +78,7 @@
             "updatedAt": "2026-04-25T00:06:32Z",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED",
-            "tags": [
-              "draft-order-create",
-              "merchant-realistic",
-              "parity-probe"
-            ],
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
             "email": "hermes-draft-order-probe-1777074686016@example.com"
           }
         ],
@@ -110,11 +94,7 @@
           {
             "id": "gid://shopify/Order/6834565087465",
             "name": "#1331",
-            "tags": [
-              "draft-order-create",
-              "merchant-realistic",
-              "parity-probe"
-            ]
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"]
           }
         ],
         "pageInfo": {
@@ -190,11 +170,7 @@
               "updatedAt": "2026-04-25T00:06:32Z",
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
-              "tags": [
-                "draft-order-create",
-                "merchant-realistic",
-                "parity-probe"
-              ],
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
               "email": "hermes-draft-order-probe-1777074686016@example.com"
             }
           ],
@@ -246,11 +222,7 @@
                   "updatedAt": "2026-04-25T01:08:36Z",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "tags": [
-                    "draft-order-create",
-                    "merchant-realistic",
-                    "parity-probe"
-                  ],
+                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
                   "email": "hermes-draft-order-probe-1777076856718@example.com",
                   "currentTotalPriceSet": {
                     "shopMoney": {
@@ -266,11 +238,7 @@
                   "updatedAt": "2026-04-25T00:06:32Z",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "tags": [
-                    "draft-order-create",
-                    "merchant-realistic",
-                    "parity-probe"
-                  ],
+                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
                   "email": "hermes-draft-order-probe-1777074686016@example.com",
                   "currentTotalPriceSet": {
                     "shopMoney": {
@@ -290,11 +258,7 @@
                   "updatedAt": "2026-04-25T01:08:36Z",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "tags": [
-                    "draft-order-create",
-                    "merchant-realistic",
-                    "parity-probe"
-                  ],
+                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
                   "email": "hermes-draft-order-probe-1777076856718@example.com"
                 }
               ],
@@ -314,11 +278,7 @@
                   "updatedAt": "2026-04-25T00:06:32Z",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "tags": [
-                    "draft-order-create",
-                    "merchant-realistic",
-                    "parity-probe"
-                  ],
+                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
                   "email": "hermes-draft-order-probe-1777074686016@example.com"
                 }
               ],
@@ -334,11 +294,7 @@
                 {
                   "id": "gid://shopify/Order/6834565087465",
                   "name": "#1331",
-                  "tags": [
-                    "draft-order-create",
-                    "merchant-realistic",
-                    "parity-probe"
-                  ]
+                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"]
                 }
               ],
               "pageInfo": {
@@ -420,11 +376,7 @@
                   "updatedAt": "2026-04-25T00:06:32Z",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "tags": [
-                    "draft-order-create",
-                    "merchant-realistic",
-                    "parity-probe"
-                  ],
+                  "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
                   "email": "hermes-draft-order-probe-1777074686016@example.com"
                 }
               ],

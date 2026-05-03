@@ -52,9 +52,7 @@
       },
       "search": [
         {
-          "path": [
-            "draftOrders"
-          ],
+          "path": ["draftOrders"],
           "query": "email:hermes@example.com",
           "parsed": {
             "field": "email",
@@ -69,9 +67,7 @@
           ]
         },
         {
-          "path": [
-            "draftOrdersCount"
-          ],
+          "path": ["draftOrdersCount"],
           "query": "email:hermes@example.com",
           "parsed": {
             "field": "email",
@@ -147,9 +143,7 @@
             },
             "search": [
               {
-                "path": [
-                  "draftOrders"
-                ],
+                "path": ["draftOrders"],
                 "query": "email:hermes@example.com",
                 "parsed": {
                   "field": "email",
@@ -164,9 +158,7 @@
                 ]
               },
               {
-                "path": [
-                  "draftOrdersCount"
-                ],
+                "path": ["draftOrdersCount"],
                 "query": "email:hermes@example.com",
                 "parsed": {
                   "field": "email",

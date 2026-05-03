@@ -32,11 +32,7 @@
         "order": {
           "email": "hermes-refund-partial-shipping-restock-1776892474598@example.com",
           "note": "refundCreate partial-shipping-restock parity seed order",
-          "tags": [
-            "parity-probe",
-            "refund-create",
-            "partial-shipping-restock"
-          ],
+          "tags": ["parity-probe", "refund-create", "partial-shipping-restock"],
           "test": true,
           "customAttributes": [
             {
@@ -124,11 +120,7 @@
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "note": "refundCreate partial-shipping-restock parity seed order",
-              "tags": [
-                "parity-probe",
-                "partial-shipping-restock",
-                "refund-create"
-              ],
+              "tags": ["parity-probe", "partial-shipping-restock", "refund-create"],
               "customAttributes": [
                 {
                   "key": "source",
@@ -443,11 +435,7 @@
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "note": "refundCreate partial-shipping-restock parity seed order",
-              "tags": [
-                "parity-probe",
-                "partial-shipping-restock",
-                "refund-create"
-              ],
+              "tags": ["parity-probe", "partial-shipping-restock", "refund-create"],
               "customAttributes": [
                 {
                   "key": "source",

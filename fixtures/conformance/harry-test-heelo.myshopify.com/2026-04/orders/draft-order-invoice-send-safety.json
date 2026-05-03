@@ -41,10 +41,7 @@
                 "column": 5
               }
             ],
-            "path": [
-              "mutation DraftOrderInvoiceSendInlineMissingId",
-              "draftOrderInvoiceSend"
-            ],
+            "path": ["mutation DraftOrderInvoiceSendInlineMissingId", "draftOrderInvoiceSend"],
             "extensions": {
               "code": "missingRequiredArguments",
               "className": "Field",
@@ -68,11 +65,7 @@
                 "column": 5
               }
             ],
-            "path": [
-              "mutation DraftOrderInvoiceSendInlineNullId",
-              "draftOrderInvoiceSend",
-              "id"
-            ],
+            "path": ["mutation DraftOrderInvoiceSendInlineNullId", "draftOrderInvoiceSend", "id"],
             "extensions": {
               "code": "argumentLiteralsIncompatible",
               "typeName": "Field",
@@ -125,11 +118,7 @@
           "variables": {
             "input": {
               "note": "HAR-275 draft order invoice safety open-no-recipient",
-              "tags": [
-                "har-275",
-                "invoice-safety",
-                "open-no-recipient"
-              ],
+              "tags": ["har-275", "invoice-safety", "open-no-recipient"],
               "lineItems": [
                 {
                   "title": "HAR-275 invoice safety item open-no-recipient",
@@ -240,11 +229,7 @@
           "variables": {
             "input": {
               "note": "HAR-275 draft order invoice safety deleted",
-              "tags": [
-                "har-275",
-                "invoice-safety",
-                "deleted"
-              ],
+              "tags": ["har-275", "invoice-safety", "deleted"],
               "lineItems": [
                 {
                   "title": "HAR-275 invoice safety item deleted",
@@ -348,11 +333,7 @@
           "variables": {
             "input": {
               "note": "HAR-275 draft order invoice safety completed-no-recipient",
-              "tags": [
-                "har-275",
-                "invoice-safety",
-                "completed-no-recipient"
-              ],
+              "tags": ["har-275", "invoice-safety", "completed-no-recipient"],
               "lineItems": [
                 {
                   "title": "HAR-275 invoice safety item completed-no-recipient",

@@ -152,9 +152,7 @@
               ]
             }
           },
-          "successMessages": [
-            "Order updated"
-          ],
+          "successMessages": ["Order updated"],
           "userErrors": []
         }
       }

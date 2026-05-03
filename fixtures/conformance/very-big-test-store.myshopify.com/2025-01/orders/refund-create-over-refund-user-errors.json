@@ -31,11 +31,7 @@
         "order": {
           "email": "hermes-refund-over-refund-1776892478280@example.com",
           "note": "refundCreate over-refund parity seed order",
-          "tags": [
-            "parity-probe",
-            "refund-create",
-            "over-refund"
-          ],
+          "tags": ["parity-probe", "refund-create", "over-refund"],
           "test": true,
           "customAttributes": [
             {
@@ -123,11 +119,7 @@
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "note": "refundCreate over-refund parity seed order",
-              "tags": [
-                "over-refund",
-                "parity-probe",
-                "refund-create"
-              ],
+              "tags": ["over-refund", "parity-probe", "refund-create"],
               "customAttributes": [
                 {
                   "key": "source",
@@ -377,11 +369,7 @@
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "note": "refundCreate over-refund parity seed order",
-              "tags": [
-                "over-refund",
-                "parity-probe",
-                "refund-create"
-              ],
+              "tags": ["over-refund", "parity-probe", "refund-create"],
               "customAttributes": [
                 {
                   "key": "source",
