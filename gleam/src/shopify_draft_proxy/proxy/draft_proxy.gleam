@@ -1224,10 +1224,13 @@ fn route_query(
         "Failed to handle metafield definitions query",
       )
     Ok(LocalizationDomain) ->
-      respond(
+      localization.handle_query_request(
         proxy,
-        localization.process(proxy.store, query, variables),
-        "Failed to handle localization query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(MetaobjectDefinitionsDomain) ->
       respond(

@@ -875,6 +875,13 @@ for a missing cassette entry — fix the recording instead.
   remove a type from the unsupported list until the generic node dispatcher can
   resolve real local records for that type without falling through to runtime
   Shopify.
+- Localization cassette migration uses Pattern 2 for cold LiveHybrid reads:
+  fetch the original localization read from upstream/cassette, hydrate
+  available locales, shop locales, and product source-content markers into base
+  state, then keep `translationsRegister` / `translationsRemove` and downstream
+  `translatableResource` reads local once any localization or product state is
+  present. Do not turn supported localization mutations into passthrough just to
+  obtain product digests.
 
 ## Workflow for a new pass
 
