@@ -5,7 +5,6 @@ import type { AppConfig, DraftProxyHeaderValue, DraftProxyHttpResponse } from '.
 
 type RequestHandler = (req: IncomingMessage, res: ServerResponse) => void;
 
-const LEGACY_BULK_OPERATION_RESULT_ROUTE_PATTERN = /^\/__bulk_operations\/([^/]+)\/result\.jsonl$/u;
 const META_BULK_OPERATION_RESULT_ROUTE_PATTERN = /^\/__meta\/bulk-operations\/(.+)\/result\.jsonl$/u;
 const STAGED_UPLOAD_ROUTE_PATTERN = /^\/staged-uploads\/([^/]+)\/(.+)$/u;
 
@@ -143,21 +142,6 @@ export class DraftProxyHttpApp {
         status: 201,
         body: this.proxy.stageStagedUpload(stagedUploadMatch[1] ?? '', stagedUploadMatch[2] ?? '', rawBody),
       });
-      return;
-    }
-
-    const legacyBulkResultMatch = LEGACY_BULK_OPERATION_RESULT_ROUTE_PATTERN.exec(path);
-    if (legacyBulkResultMatch) {
-      if (!methodIs(req, 'GET')) {
-        sendMethodNotAllowed(res);
-        return;
-      }
-
-      const numericId = legacyBulkResultMatch[1];
-      sendBulkOperationResult(
-        res,
-        numericId ? this.proxy.getBulkOperationResultJsonl(`gid://shopify/BulkOperation/${numericId}`) : null,
-      );
       return;
     }
 

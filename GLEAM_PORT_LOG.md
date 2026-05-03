@@ -17,14 +17,14 @@ instance-owned `DraftProxy` store under the same lookup keys used by local
 `bulkOperationRunMutation`, and bulk result JSONL is read back from the
 per-instance BulkOperation records. No module-global artifact cache is added.
 
-| Module / fixture                                                         | Change                                                                                                                                 |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/js/src/app.ts`                                                    | Adds JS HTTP routing for `/staged-uploads/...`, `/__bulk_operations/.../result.jsonl`, and `/__meta/bulk-operations/.../result.jsonl`. |
-| `gleam/js/src/runtime.ts`                                                | Exposes shim methods for staged-upload writes and bulk JSONL reads against the wrapped Gleam `DraftProxy` value.                       |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                  | Adds small public helpers for instance-scoped staged upload content and bulk result lookup.                                            |
-| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`              | Preserves legacy query-export result URLs while mutation imports expose encoded-GID meta result URLs.                                  |
-| `gleam/js/test/http-adapter.test.ts`                                     | Adds end-to-end JS HTTP coverage for upload handoff, bulk import result serving, legacy result serving, and instance isolation.        |
-| `docs/architecture.md` / `docs/endpoints/media.md` / `GLEAM_PORT_LOG.md` | Documents the JS adapter artifact boundary and the limited staged-upload byte handoff scope.                                           |
+| Module / fixture                                                         | Change                                                                                                           |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `gleam/js/src/app.ts`                                                    | Adds JS HTTP routing for `/staged-uploads/...` and `/__meta/bulk-operations/.../result.jsonl`.                   |
+| `gleam/js/src/runtime.ts`                                                | Exposes shim methods for staged-upload writes and bulk JSONL reads against the wrapped Gleam `DraftProxy` value. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                  | Adds small public helpers for instance-scoped staged upload content and bulk result lookup.                      |
+| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`              | Uses encoded-GID meta result URLs for generated query exports and mutation imports.                              |
+| `gleam/js/test/http-adapter.test.ts`                                     | Adds end-to-end JS HTTP coverage for upload handoff, bulk import result serving, and instance isolation.         |
+| `docs/architecture.md` / `docs/endpoints/media.md` / `GLEAM_PORT_LOG.md` | Documents the JS adapter artifact boundary and the limited staged-upload byte handoff scope.                     |
 
 Validation:
 
@@ -47,9 +47,8 @@ Validation:
   generated URLs fell through to 404.
 - The adapter must pass staged upload bodies as raw text, regardless of
   `content-type`, so JSONL variables files are stored exactly as uploaded.
-- Query exports and mutation imports have distinct historical URL shapes:
-  query exports use `/__bulk_operations/<numeric-id>/result.jsonl`, while
-  mutation imports use `/__meta/bulk-operations/<encoded-gid>/result.jsonl`.
+- Query exports and mutation imports both use the current
+  `/__meta/bulk-operations/<encoded-gid>/result.jsonl` artifact route.
 
 ### Risks / open items
 

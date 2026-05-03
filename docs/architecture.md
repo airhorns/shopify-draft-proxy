@@ -83,8 +83,7 @@ The runtime tree lives at `gleam/src/shopify_draft_proxy/`.
   `/admin/api/:version/graphql.json`, `/__meta/health`, `/__meta/config`,
   `/__meta/log`, `/__meta/state`, `/__meta/reset`, `/__meta/commit`,
   staged-upload targets under `/staged-uploads/...`, and generated bulk
-  operation JSONL artifacts under `/__bulk_operations/...` and
-  `/__meta/bulk-operations/...` without Koa
+  operation JSONL artifacts under `/__meta/bulk-operations/...` without Koa
 
 ### `proxy/proxy_state.gleam`
 

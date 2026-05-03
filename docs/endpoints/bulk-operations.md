@@ -109,7 +109,7 @@ Local `bulkOperationRunQuery` supports:
 - effective local/snapshot state as the export source, including staged products and variants
 - LiveHybrid product-export count hydration from upstream when the local product store is cold, so the staged job counters reflect the upstream store while the export mutation itself remains local-only
 - completed staged `BulkOperation` rows with `status: COMPLETED`, `type: QUERY`, `completedAt`, `objectCount`, `rootObjectCount`, `fileSize`, `url`, `partialDataUrl: null`, and original `query`
-- local result URLs at `https://shopify-draft-proxy.local/__bulk_operations/<id>/result.jsonl`; the Koa app serves the matching path as `application/jsonl` from memory until reset
+- local result URLs at `https://shopify-draft-proxy.local/__meta/bulk-operations/<encoded-gid>/result.jsonl`; the JS adapter serves the matching path as `application/jsonl` from instance-owned memory until reset
 - `fileSize` is the byte length of the generated local JSONL payload. Captured Shopify `fileSize` values can differ from the downloaded JSONL byte length because Shopify reports its stored artifact size.
 - original raw mutation bodies in the meta mutation log for commit/replay observability
 
@@ -137,7 +137,7 @@ BulkOperation jobs are inspectable through the standard meta surfaces:
 
 - `GET /__meta/state` returns `baseState.bulkOperations`, `baseState.bulkOperationOrder`, `stagedState.bulkOperations`, `stagedState.bulkOperationOrder`, and the generated query-export `bulkOperationResults` map. Mutation import jobs also store `resultJsonl` on the staged BulkOperation record so the result artifact is visible next to the job metadata.
 - `GET /__meta/log` returns the original staged mutation log in replay order. Query exports and cancel attempts appear as their original root mutation request. Mutation imports appear as one staged inner mutation entry per JSONL line, preserving the original line variables and carrying `interpreted.bulkOperationImport` metadata for the outer bulk request, staged upload path, inner mutation text, and line number.
-- `GET /__bulk_operations/<numeric-id>/result.jsonl` serves generated query-export JSONL from the in-memory `bulkOperationResults` map. `GET /__meta/bulk-operations/<encoded-gid>/result.jsonl` serves mutation-import result JSONL from the staged BulkOperation record.
+- `GET /__meta/bulk-operations/<encoded-gid>/result.jsonl` serves generated query-export JSONL from the in-memory `bulkOperationResults` map and mutation-import result JSONL from the staged BulkOperation record.
 - `POST /__meta/reset` restores the startup snapshot and clears staged BulkOperation jobs, generated result records, staged uploads, and mutation logs.
 - `POST /__meta/commit` replays only staged mutation-log entries. For mutation imports, that means the inner mutation entries are sent upstream in JSONL line order; the outer `bulkOperationRunMutation` request is not replayed because it is stored as audit metadata for commit review.
 

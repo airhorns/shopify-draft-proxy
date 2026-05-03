@@ -217,7 +217,6 @@ describe('Node HTTP adapter', () => {
 
   it('serves staged uploads and generated bulk operation artifacts from instance-owned state', async () => {
     let resultPath = '';
-    let legacyResultPath = '';
 
     await withApp(baseConfig, async (origin) => {
       const stagedUpload = await jsonRequest(origin, '/admin/api/2026-04/graphql.json', {
@@ -367,7 +366,6 @@ describe('Node HTTP adapter', () => {
       });
 
       resultPath = new URL(bulkOperation.url).pathname;
-      legacyResultPath = `/__bulk_operations/${bulkOperation.id.split('/').at(-1)}/result.jsonl`;
 
       const result = await textRequest(origin, resultPath);
       expect(result.status).toBe(200);
@@ -394,20 +392,10 @@ describe('Node HTTP adapter', () => {
           },
         },
       ]);
-
-      const legacyResult = await textRequest(origin, legacyResultPath);
-      expect(legacyResult).toMatchObject({
-        status: 200,
-        body: result.body,
-      });
     });
 
     await withApp(baseConfig, async (origin) => {
       await expect(textRequest(origin, resultPath)).resolves.toMatchObject({
-        status: 404,
-        body: 'Bulk operation result not found',
-      });
-      await expect(textRequest(origin, legacyResultPath)).resolves.toMatchObject({
         status: 404,
         body: 'Bulk operation result not found',
       });
