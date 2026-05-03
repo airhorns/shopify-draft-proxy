@@ -48,5 +48,55 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MarketLocalizableEmptyRead",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/999999999999",
+        "resourceIds": ["gid://shopify/Metafield/999999999999"],
+        "first": 5,
+        "marketId": "gid://shopify/Market/92276719922"
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketLocalizableResource": null,
+            "marketLocalizableResources": {
+              "edges": [],
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "marketLocalizableResourcesByIds": {
+              "edges": [],
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

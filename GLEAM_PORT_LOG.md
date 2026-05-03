@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 177: HAR-525 admin-platform cassette parity
+## 2026-05-03 - Pass 179: HAR-525 admin-platform cassette parity
 
 Migrates the remaining Admin Platform parity scenarios to cassette-backed
 LiveHybrid execution. Cold platform utility, taxonomy, and selected generic
@@ -55,6 +55,99 @@ Validation:
   model.
 - Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
   Erlang validation used the established OTP 28 container fallback.
+
+---
+
+## 2026-05-03 - Pass 178: HAR-533 markets cassette parity
+
+Migrates the remaining Markets parity scenarios to cassette-backed LiveHybrid
+execution. Cold Markets reads now fetch the captured upstream payload, hydrate
+the local Markets/Product slices from it, and return the captured response
+verbatim for that first read. Supported Markets lifecycle mutations still stage
+locally, with a narrow preflight hydrate for existing upstream price-list,
+product, metafield, and web-presence state needed by the captured flows.
+
+| Module / fixture                                        | Change                                                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`     | Adds Pattern 2 read hydration and mutation preflight hydration for Markets parity cassette replay.              |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes Markets queries through the domain read entrypoint and threads `UpstreamContext` into Markets mutations. |
+| `fixtures/conformance/**/markets/*.json`                | Hand-synthesizes read/preflight cassette entries from checked-in capture evidence.                              |
+| `config/gleam-port-ci-gates.json`                       | Removes the fourteen Markets expected-failure entries.                                                          |
+| `docs/endpoints/markets.md`                             | Documents the LiveHybrid cold-read and mutation preflight hydration boundary.                                   |
+
+Validation:
+
+- `cd gleam && gleam format --check`
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+
+### Findings
+
+- Pattern 1 passthrough is not appropriate for Markets because the domain has
+  supported local lifecycle mutations whose staged effects must remain visible
+  after the initial cassette-backed read.
+- The checked-in captures already contained the authoritative read and setup
+  payloads, so the cassette entries could be hand-synthesized without live
+  Shopify writes.
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+### Risks / open items
+
+- The hydrate queries intentionally persist only the Markets, Product,
+  ProductVariant, and product-metafield fields selected by current parity
+  evidence. Broader Markets branches remain future fidelity work.
+
+---
+
+## 2026-05-03 - Pass 177: HAR-535 metafields cassette parity
+
+Migrates the remaining Metafields parity scenarios to cassette-backed
+LiveHybrid execution. Cold metafield-definition reads now pass through to
+upstream when there is no local definition state to overlay, while pin/unpin
+mutations hydrate the upstream product-owner definition catalog before staging
+local pin position changes.
+
+| Module / fixture                                                      | Change                                                                                                   |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam`     | Adds Pattern 1 cold-read passthrough and Pattern 2 pin/unpin definition hydration.                       |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`               | Threads `UpstreamContext` into metafield-definition mutations and lets the domain own query passthrough. |
+| `fixtures/conformance/**/metafields/*definition*{read,pinning}*.json` | Hand-synthesizes definition read/hydrate cassette entries from checked-in capture evidence.              |
+| `config/gleam-port-ci-gates.json`                                     | Removes the three Metafields expected-failure entries.                                                   |
+| `docs/endpoints/metafields.md`                                        | Documents the LiveHybrid passthrough/hydration boundary and product-shell delete behavior.               |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- inspect_spec_test` temporary
+  inspector before gate removal (824 passed, 3 failures), then after changes
+  each HAR-535 scenario passed and only the expected-failure gate remained.
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang -- parity_test'`
+  (819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed metafields fixture/gate checks: no metafields expected-failure
+  entries remain, no new top-level `seed*` keys, and no new
+  `expectedDifferences`
+
+### Findings
+
+- Pattern 1 is appropriate for cold product-owner definition reads because the
+  proxy adds no local overlay before any definition state exists.
+- Pattern 2 is required for pin/unpin because those supported mutations must
+  stage locally while starting from existing upstream definition records.
+- Definition delete with `deleteAllAssociatedMetafields: true` must preserve a
+  minimal product shell for downstream `product { metafield }` reads after the
+  targeted metafield is removed.
+
+### Risks / open items
+
+- The hydrate parser intentionally captures the product-owner definition fields
+  exercised by the current pinning fixture. Broader owner families and
+  app-managed definition branches remain future fidelity work.
 
 ---
 
