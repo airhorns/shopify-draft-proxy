@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 182: HAR-513 JS live-hybrid passthrough
+## 2026-05-03 - Pass 183: HAR-513 JS live-hybrid passthrough
 
 Completes the JavaScript async upstream forwarding path for live-hybrid
 passthrough requests that are decided inside domain handlers, not only at the
@@ -17,14 +17,14 @@ dispatcher fallback layer. Unsupported mutations that actually passthrough now
 record a visible `proxied` mutation-log entry, and passthrough responses carry
 upstream response headers back to JS callers.
 
-| Module / test                                                      | Change                                                                                                                       |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`            | Retries JS sync-passthrough sentinels through async dispatch, and records proxied mutation log entries for passthrough roots. |
-| `gleam/src/shopify_draft_proxy/proxy/passthrough.gleam`            | Exposes the JS async-required sentinel check and preserves upstream response headers in passthrough responses.                |
-| `gleam/src/shopify_draft_proxy/proxy/commit.gleam`                 | Extends the shared HTTP outcome with response headers while keeping commit replay status/body behavior unchanged.             |
-| `gleam/src/shopify_draft_proxy/shopify/upstream_client.gleam`      | Carries Erlang and JS client response headers into the shared HTTP outcome.                                                   |
-| `gleam/js/test/live-hybrid-passthrough.test.ts`                    | Adds fake-upstream coverage for domain-owned async reads, unsupported mutation observability, network errors, and local writes. |
-| `gleam/test/**`                                                    | Updates fake transports and cassette assertions for the header-carrying HTTP outcome.                                        |
+| Module / test                                                 | Change                                                                                                                          |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Retries JS sync-passthrough sentinels through async dispatch, and records proxied mutation log entries for passthrough roots.   |
+| `gleam/src/shopify_draft_proxy/proxy/passthrough.gleam`       | Exposes the JS async-required sentinel check and preserves upstream response headers in passthrough responses.                  |
+| `gleam/src/shopify_draft_proxy/proxy/commit.gleam`            | Extends the shared HTTP outcome with response headers while keeping commit replay status/body behavior unchanged.               |
+| `gleam/src/shopify_draft_proxy/shopify/upstream_client.gleam` | Carries Erlang and JS client response headers into the shared HTTP outcome.                                                     |
+| `gleam/js/test/live-hybrid-passthrough.test.ts`               | Adds fake-upstream coverage for domain-owned async reads, unsupported mutation observability, network errors, and local writes. |
+| `gleam/test/**`                                               | Updates fake transports and cassette assertions for the header-carrying HTTP outcome.                                           |
 
 Validation:
 
@@ -52,6 +52,50 @@ Validation:
 - Preserving upstream response headers required moving headers into the shared
   `HttpOutcome`; commit replay ignores them, while passthrough serializes them
   back to JS HTTP-shaped responses.
+
+---
+
+## 2026-05-03 - Pass 182: HAR-527 B2B company roots cassette parity
+
+Migrates the remaining B2B parity scenario to cassette-backed LiveHybrid
+execution. Cold B2B company root reads now use Pattern 1 passthrough when no
+local B2B state is involved, while synthetic, staged, and locally deleted B2B
+IDs keep lifecycle reads on the in-memory handler.
+
+| Module / fixture                                          | Change                                                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/b2b.gleam`           | Adds gated Pattern 1 LiveHybrid passthrough for B2B company read roots.                    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`   | Routes B2B queries through the upstream-aware B2B query entrypoint.                        |
+| `fixtures/conformance/**/b2b/b2b-company-roots-read.json` | Hand-synthesizes the `B2BCompanyRootsRead` cassette from the checked-in captured response. |
+| `config/gleam-port-ci-gates.json`                         | Removes the B2B expected-failure entry.                                                    |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed b2b fixture/gate checks: no b2b expected-failure entries remain, no
+  new `seedX` keys, and no new `expectedDifferences`
+
+### Findings
+
+- Pattern 1 is the right fit for the migrated scenario because the captured
+  B2B company roots are read-only catalog/detail data and the proxy should
+  return upstream verbatim when no local B2B lifecycle state exists.
+- Passthrough is gated on staged/deleted/synthetic B2B state so existing local
+  create/update/delete scenarios keep read-after-write behavior in the local
+  model.
+- The checked-in capture already contained the authoritative response payload,
+  so the cassette entry could be hand-synthesized without live Shopify
+  credentials.
+
+### Risks / open items
+
+- Host Erlang is older than the current dependency floor in this workspace;
+  Erlang parity validation used the established OTP 28 container fallback.
 
 ---
 
