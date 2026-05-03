@@ -17,14 +17,14 @@ there is no local functions state to overlay. Supported functions mutations
 still stage locally; they use targeted Pattern 2 ShopifyFunction hydration for
 owner/app metadata before creating or updating validations and cart transforms.
 
-| Module / fixture                                                       | Change                                                                                                       |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `gleam/src/shopify_draft_proxy/proxy/functions.gleam`                  | Adds LiveHybrid cold-read passthrough, mutation ShopifyFunction hydration, and local owner metadata overlay. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                | Routes functions reads/mutations through the upstream-aware functions entrypoints.                           |
-| `gleam/src/shopify_draft_proxy/state/store.gleam`                      | Adds base-state upsert support for upstream-hydrated ShopifyFunction records.                                |
-| `fixtures/conformance/**/functions/*.json`                             | Hand-synthesizes the missing functions cassette entries from checked-in capture evidence.                    |
+| Module / fixture                                                        | Change                                                                                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/functions.gleam`                   | Adds LiveHybrid cold-read passthrough, mutation ShopifyFunction hydration, and local owner metadata overlay. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Routes functions reads/mutations through the upstream-aware functions entrypoints.                           |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                       | Adds base-state upsert support for upstream-hydrated ShopifyFunction records.                                |
+| `fixtures/conformance/**/functions/*.json`                              | Hand-synthesizes the missing functions cassette entries from checked-in capture evidence.                    |
 | `config/parity-specs/functions/functions-live-owner-metadata-read.json` | Prunes stale cursor expected-difference rules now that the cold read is cassette-backed.                     |
-| `config/gleam-port-ci-gates.json`                                      | Removes the three Functions expected-failure entries.                                                        |
+| `config/gleam-port-ci-gates.json`                                       | Removes the three Functions expected-failure entries.                                                        |
 
 Validation:
 
