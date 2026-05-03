@@ -177,5 +177,196 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MarketsCatalogRead",
+      "variables": {
+        "first": 3
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "markets": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo3MTg4MjUwODU3LCJsYXN0X3ZhbHVlIjoiQ2FuYWRhIn0=",
+                  "node": {
+                    "id": "gid://shopify/Market/7188250857",
+                    "name": "Canada",
+                    "handle": "ca",
+                    "status": "ACTIVE",
+                    "type": "REGION",
+                    "conditions": {
+                      "conditionTypes": ["REGION"],
+                      "regionsCondition": {
+                        "applicationLevel": "SPECIFIED",
+                        "regions": {
+                          "edges": [
+                            {
+                              "cursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0=",
+                              "node": {
+                                "__typename": "MarketRegionCountry",
+                                "id": "gid://shopify/MarketRegionCountry/454909493481",
+                                "name": "Canada",
+                                "code": "CA",
+                                "currency": {
+                                  "currencyCode": "CAD",
+                                  "currencyName": "Canadian Dollar",
+                                  "enabled": true
+                                }
+                              }
+                            }
+                          ],
+                          "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0=",
+                            "endCursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0="
+                          }
+                        }
+                      }
+                    },
+                    "currencySettings": {
+                      "baseCurrency": {
+                        "currencyCode": "CAD",
+                        "currencyName": "Canadian Dollar",
+                        "enabled": true
+                      },
+                      "localCurrencies": false,
+                      "roundingEnabled": true
+                    },
+                    "priceInclusions": null,
+                    "catalogs": {
+                      "edges": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    },
+                    "webPresences": {
+                      "edges": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6IkNvbmZvcm1hbmNlIFVTIn0=",
+                  "node": {
+                    "id": "gid://shopify/Market/35532308713",
+                    "name": "Conformance US",
+                    "handle": "conformance-us",
+                    "status": "ACTIVE",
+                    "type": "REGION",
+                    "conditions": {
+                      "conditionTypes": ["REGION"],
+                      "regionsCondition": {
+                        "applicationLevel": "SPECIFIED",
+                        "regions": {
+                          "edges": [
+                            {
+                              "cursor": "eyJsYXN0X2lkIjoxMjcyMjM3ODgzNjI1LCJsYXN0X3ZhbHVlIjoiMTI3MjIzNzg4MzYyNSJ9",
+                              "node": {
+                                "__typename": "MarketRegionCountry",
+                                "id": "gid://shopify/MarketRegionCountry/454910378217",
+                                "name": "United States",
+                                "code": "US",
+                                "currency": {
+                                  "currencyCode": "CAD",
+                                  "currencyName": "Canadian Dollar",
+                                  "enabled": true
+                                }
+                              }
+                            }
+                          ],
+                          "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "eyJsYXN0X2lkIjoxMjcyMjM3ODgzNjI1LCJsYXN0X3ZhbHVlIjoiMTI3MjIzNzg4MzYyNSJ9",
+                            "endCursor": "eyJsYXN0X2lkIjoxMjcyMjM3ODgzNjI1LCJsYXN0X3ZhbHVlIjoiMTI3MjIzNzg4MzYyNSJ9"
+                          }
+                        }
+                      }
+                    },
+                    "currencySettings": null,
+                    "priceInclusions": null,
+                    "catalogs": {
+                      "edges": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    },
+                    "webPresences": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9",
+                          "node": {
+                            "id": "gid://shopify/MarketWebPresence/33131921641",
+                            "subfolderSuffix": null,
+                            "domain": {
+                              "id": "gid://shopify/Domain/93049946345",
+                              "host": "very-big-test-store.myshopify.com",
+                              "url": "https://very-big-test-store.myshopify.com",
+                              "sslEnabled": true
+                            },
+                            "rootUrls": [
+                              {
+                                "locale": "en",
+                                "url": "https://very-big-test-store.myshopify.com/"
+                              }
+                            ],
+                            "defaultLocale": {
+                              "locale": "en",
+                              "name": "English",
+                              "primary": true,
+                              "published": true
+                            },
+                            "alternateLocales": []
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9",
+                        "endCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9"
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo3MTg4MjUwODU3LCJsYXN0X3ZhbHVlIjoiQ2FuYWRhIn0=",
+                "endCursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6IkNvbmZvcm1hbmNlIFVTIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 90,
+              "actualQueryCost": 24,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1929,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

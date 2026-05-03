@@ -2324,5 +2324,428 @@
       "recommendedProbe": "input validation only until a disposable dev store policy fixture is available"
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesLocationDetails",
+      "variables": {
+        "id": "gid://shopify/Location/68509171945",
+        "unknownId": "gid://shopify/Location/999999999999"
+      },
+      "query": "sha:hand-synthesized-StorePropertiesLocationDetails",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "primary": {
+              "id": "gid://shopify/Location/68509171945",
+              "legacyResourceId": "68509171945",
+              "name": "103 ossington",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2022-04-06T14:12:04Z",
+              "deactivatable": false,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillmentService": null,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": true,
+              "hasUnfulfilledOrders": true,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "shipsInventory": true,
+              "updatedAt": "2022-04-06T14:12:04Z",
+              "address": {
+                "address1": "103 ossington",
+                "address2": null,
+                "city": "Ottawa",
+                "country": "Canada",
+                "countryCode": "CA",
+                "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+                "latitude": 45.389817,
+                "longitude": -75.68692920000001,
+                "phone": "",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "k1s3b7"
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341271785",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/48886341271785"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/68509171945",
+                      "name": "103 ossington"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 6,
+                        "updatedAt": "2026-04-25T01:08:36Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": "2026-04-25T01:08:36Z"
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 6,
+                        "updatedAt": "2024-03-14T01:53:42Z"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341304553",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/48886341304553"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/68509171945",
+                      "name": "103 ossington"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 8,
+                        "updatedAt": "2024-03-14T01:53:46Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 8,
+                        "updatedAt": "2024-03-14T01:53:42Z"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341337321",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/48886341337321"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/68509171945",
+                      "name": "103 ossington"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 11,
+                        "updatedAt": "2024-03-14T01:53:47Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 11,
+                        "updatedAt": "2024-03-14T01:53:42Z"
+                      }
+                    ]
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjMyMDIzMywibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzIwMjMzIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjM4NTc2OSwibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzg1NzY5In0="
+                }
+              }
+            },
+            "byId": {
+              "id": "gid://shopify/Location/68509171945",
+              "legacyResourceId": "68509171945",
+              "name": "103 ossington",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2022-04-06T14:12:04Z",
+              "deactivatable": false,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillmentService": null,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": true,
+              "hasUnfulfilledOrders": true,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "shipsInventory": true,
+              "updatedAt": "2022-04-06T14:12:04Z",
+              "address": {
+                "address1": "103 ossington",
+                "address2": null,
+                "city": "Ottawa",
+                "country": "Canada",
+                "countryCode": "CA",
+                "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+                "latitude": 45.389817,
+                "longitude": -75.68692920000001,
+                "phone": "",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "k1s3b7"
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341271785",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/48886341271785"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/68509171945",
+                      "name": "103 ossington"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 6,
+                        "updatedAt": "2026-04-25T01:08:36Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": "2026-04-25T01:08:36Z"
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 6,
+                        "updatedAt": "2024-03-14T01:53:42Z"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341304553",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/48886341304553"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/68509171945",
+                      "name": "103 ossington"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 8,
+                        "updatedAt": "2024-03-14T01:53:46Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 8,
+                        "updatedAt": "2024-03-14T01:53:42Z"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341337321",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/48886341337321"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/68509171945",
+                      "name": "103 ossington"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 11,
+                        "updatedAt": "2024-03-14T01:53:47Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 11,
+                        "updatedAt": "2024-03-14T01:53:42Z"
+                      }
+                    ]
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjMyMDIzMywibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzIwMjMzIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjM4NTc2OSwibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzg1NzY5In0="
+                }
+              }
+            },
+            "byIdentifier": {
+              "id": "gid://shopify/Location/68509171945",
+              "legacyResourceId": "68509171945",
+              "name": "103 ossington",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2022-04-06T14:12:04Z",
+              "deactivatable": false,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillmentService": null,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": true,
+              "hasUnfulfilledOrders": true,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "shipsInventory": true,
+              "updatedAt": "2022-04-06T14:12:04Z",
+              "address": {
+                "address1": "103 ossington",
+                "address2": null,
+                "city": "Ottawa",
+                "country": "Canada",
+                "countryCode": "CA",
+                "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+                "latitude": 45.389817,
+                "longitude": -75.68692920000001,
+                "phone": "",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "k1s3b7"
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341271785",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/48886341271785"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/68509171945",
+                      "name": "103 ossington"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 6,
+                        "updatedAt": "2026-04-25T01:08:36Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": "2026-04-25T01:08:36Z"
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 6,
+                        "updatedAt": "2024-03-14T01:53:42Z"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341304553",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/48886341304553"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/68509171945",
+                      "name": "103 ossington"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 8,
+                        "updatedAt": "2024-03-14T01:53:46Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 8,
+                        "updatedAt": "2024-03-14T01:53:42Z"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341337321",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/48886341337321"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/68509171945",
+                      "name": "103 ossington"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 11,
+                        "updatedAt": "2024-03-14T01:53:47Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 11,
+                        "updatedAt": "2024-03-14T01:53:42Z"
+                      }
+                    ]
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjMyMDIzMywibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzIwMjMzIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjM4NTc2OSwibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzg1NzY5In0="
+                }
+              }
+            },
+            "unknownById": null,
+            "unknownByIdentifier": null
+          }
+        }
+      }
+    }
+  ]
 }

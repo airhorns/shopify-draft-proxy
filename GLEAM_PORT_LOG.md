@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 178: HAR-539 payments cassette parity
+## 2026-05-03 - Pass 180: HAR-539 payments cassette parity
 
 Migrates the remaining Payments parity scenarios to cassette-backed LiveHybrid
 execution. Customer payment-method mutations and payment-terms creation now
@@ -56,6 +56,96 @@ Validation:
   selected by the current local-runtime parity evidence. Broader live
   payment-method overlay coverage still depends on safe conformance credentials
   with customer-payment-method scopes.
+
+---
+
+## 2026-05-03 - Pass 179: HAR-544 store-properties cassette parity
+
+Migrates the remaining Store Properties parity scenarios to cassette-backed
+LiveHybrid execution. Cold singleton/catalog reads use Pattern 1 passthrough
+until local staged state exists, while supported mutations still stage locally
+and use Pattern 2 hydrate reads only to obtain the prior Shopify-shaped data
+needed for validation and downstream read-after-write parity.
+
+| Module / fixture                                             | Change                                                                                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/store_properties.gleam` | Adds gated Pattern 1 passthrough for cold shop/location/business entity/collection reads and Pattern 2 hydrates for mutations. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`      | Routes Store Properties reads through the domain query entrypoint and threads `UpstreamContext` into mutation handling.        |
+| `fixtures/conformance/**/store-properties/*.json`            | Hand-synthesizes missing read/hydrate cassette entries from checked-in capture payloads.                                       |
+| `fixtures/conformance/**/products/product-*parity.json`      | Adds publishable mutation hydrate cassettes for product publish/unpublish scenarios owned by Store Properties parity.          |
+| `config/gleam-port-ci-gates.json`                            | Removes the 15 Store Properties expected-failure entries.                                                                      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed Store Properties fixture/gate checks: no Store Properties
+  expected-failure entries remain, no new `seed*` keys, and no new
+  `expectedDifferences`
+
+### Findings
+
+- Pattern 1 is appropriate for cold Store Properties read roots because those
+  reads have no local staged lifecycle yet, but passthrough must be gated on
+  all variable string IDs so synthetic or staged records stay local.
+- `shopPolicyUpdate`, `locationDelete`, and generic publishable mutations must
+  continue to stage locally; they hydrate only the prior record or payload
+  projection needed to compute Shopify-like mutation results.
+- The checked-in capture payloads already contained the authoritative response
+  data, so the needed cassette entries could be hand-synthesized without live
+  Shopify writes.
+
+### Risks / open items
+
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+---
+
+## 2026-05-03 - Pass 178: HAR-533 markets cassette parity
+
+Migrates the remaining Markets parity scenarios to cassette-backed LiveHybrid
+execution. Cold Markets reads now fetch the captured upstream payload, hydrate
+the local Markets/Product slices from it, and return the captured response
+verbatim for that first read. Supported Markets lifecycle mutations still stage
+locally, with a narrow preflight hydrate for existing upstream price-list,
+product, metafield, and web-presence state needed by the captured flows.
+
+| Module / fixture                                        | Change                                                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`     | Adds Pattern 2 read hydration and mutation preflight hydration for Markets parity cassette replay.              |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes Markets queries through the domain read entrypoint and threads `UpstreamContext` into Markets mutations. |
+| `fixtures/conformance/**/markets/*.json`                | Hand-synthesizes read/preflight cassette entries from checked-in capture evidence.                              |
+| `config/gleam-port-ci-gates.json`                       | Removes the fourteen Markets expected-failure entries.                                                          |
+| `docs/endpoints/markets.md`                             | Documents the LiveHybrid cold-read and mutation preflight hydration boundary.                                   |
+
+Validation:
+
+- `cd gleam && gleam format --check`
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+
+### Findings
+
+- Pattern 1 passthrough is not appropriate for Markets because the domain has
+  supported local lifecycle mutations whose staged effects must remain visible
+  after the initial cassette-backed read.
+- The checked-in captures already contained the authoritative read and setup
+  payloads, so the cassette entries could be hand-synthesized without live
+  Shopify writes.
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+### Risks / open items
+
+- The hydrate queries intentionally persist only the Markets, Product,
+  ProductVariant, and product-metafield fields selected by current parity
+  evidence. Broader Markets branches remain future fidelity work.
 
 ---
 
