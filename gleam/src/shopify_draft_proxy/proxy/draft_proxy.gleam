@@ -773,12 +773,17 @@ fn route_mutation(
       }
     Ok(MetafieldDefinitionsDomain) ->
       case
-        metafield_definitions.process_mutation(
+        metafield_definitions.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -900,12 +905,16 @@ fn route_mutation(
       }
     Ok(MarketsDomain) ->
       case
-        markets.process_mutation(
+        markets.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
-          request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -1257,10 +1266,12 @@ fn route_query(
         "Failed to handle segments query",
       )
     Ok(MetafieldDefinitionsDomain) ->
-      respond(
+      metafield_definitions.handle_query_request(
         proxy,
-        metafield_definitions.process(proxy.store, query, variables),
-        "Failed to handle metafield definitions query",
+        request,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(LocalizationDomain) ->
       localization.handle_query_request(
@@ -1290,10 +1301,13 @@ fn route_query(
         "Failed to handle bulk operations query",
       )
     Ok(MarketsDomain) ->
-      respond(
+      markets.handle_query_request(
         proxy,
-        markets.process(proxy.store, query, variables),
-        "Failed to handle markets query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(MediaDomain) ->
       respond(
