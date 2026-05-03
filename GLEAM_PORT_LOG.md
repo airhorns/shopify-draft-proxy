@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 179: HAR-530 functions cassette parity
+## 2026-05-03 - Pass 180: HAR-530 functions cassette parity
 
 Migrates the remaining Functions parity scenarios to cassette-backed
 LiveHybrid execution. Cold functions reads now use Pattern 1 passthrough when
@@ -57,6 +57,54 @@ Validation:
 - Hydration is intentionally limited to the ShopifyFunction owner/app fields
   selected by current functions parity evidence. Broader Functions API shapes
   remain future fidelity work.
+
+---
+
+## 2026-05-03 - Pass 179: HAR-544 store-properties cassette parity
+
+Migrates the remaining Store Properties parity scenarios to cassette-backed
+LiveHybrid execution. Cold singleton/catalog reads use Pattern 1 passthrough
+until local staged state exists, while supported mutations still stage locally
+and use Pattern 2 hydrate reads only to obtain the prior Shopify-shaped data
+needed for validation and downstream read-after-write parity.
+
+| Module / fixture                                             | Change                                                                                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/store_properties.gleam` | Adds gated Pattern 1 passthrough for cold shop/location/business entity/collection reads and Pattern 2 hydrates for mutations. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`      | Routes Store Properties reads through the domain query entrypoint and threads `UpstreamContext` into mutation handling.        |
+| `fixtures/conformance/**/store-properties/*.json`            | Hand-synthesizes missing read/hydrate cassette entries from checked-in capture payloads.                                       |
+| `fixtures/conformance/**/products/product-*parity.json`      | Adds publishable mutation hydrate cassettes for product publish/unpublish scenarios owned by Store Properties parity.          |
+| `config/gleam-port-ci-gates.json`                            | Removes the 15 Store Properties expected-failure entries.                                                                      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed Store Properties fixture/gate checks: no Store Properties
+  expected-failure entries remain, no new `seed*` keys, and no new
+  `expectedDifferences`
+
+### Findings
+
+- Pattern 1 is appropriate for cold Store Properties read roots because those
+  reads have no local staged lifecycle yet, but passthrough must be gated on
+  all variable string IDs so synthetic or staged records stay local.
+- `shopPolicyUpdate`, `locationDelete`, and generic publishable mutations must
+  continue to stage locally; they hydrate only the prior record or payload
+  projection needed to compute Shopify-like mutation results.
+- The checked-in capture payloads already contained the authoritative response
+  data, so the needed cassette entries could be hand-synthesized without live
+  Shopify writes.
+
+### Risks / open items
+
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
 
 ---
 
