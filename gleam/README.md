@@ -1,76 +1,158 @@
 # shopify_draft_proxy
 
-A Shopify Admin GraphQL digital twin / draft proxy. Implemented in [Gleam](https://gleam.run)
-and compiled to both Erlang (BEAM) and JavaScript so it can be embedded from
-Elixir/Erlang services and from Node/TypeScript without duplicating domain logic.
+`shopify_draft_proxy` is a Shopify Admin GraphQL digital twin / draft proxy
+implemented in Gleam. It compiles to JavaScript and Erlang so Node,
+TypeScript, Elixir, and Erlang test suites can embed the same domain model.
 
-This directory holds the in-progress port from the legacy TypeScript
-implementation in `../src`. It shares parity specs (`../config/parity-specs`)
-and recorded Shopify fixtures (`../fixtures/conformance`) with the legacy
-implementation. See `../GLEAM_PORT_INTENT.md` for the why and the non-goals,
-and `../docs/architecture.md` for the runtime design.
+The proxy stages supported Shopify Admin GraphQL mutations in isolated
+in-memory state, preserves the original raw mutations for commit replay, and
+answers downstream reads as if Shopify had materialized the staged writes. It is
+not a generic GraphQL mock server.
 
-> **Status:** Port in progress. The substrate (request routing, mutation log,
-> snapshot/restore) is wired end-to-end; per-domain coverage is partial. The
-> public API documented below is what the Gleam package will ship — gaps are
-> called out inline as `TODO`.
+## Package API
 
-## Public API
+The core entry point is:
 
-The package's entry point is `shopify_draft_proxy/proxy/draft_proxy`. Every
-target consumes the same surface; only the syntax for calling into it
-differs.
+```gleam
+import shopify_draft_proxy/proxy/draft_proxy
+```
 
-### Types
+Core types:
 
-- `Request(method, path, headers, body)` — HTTP-shaped input. `headers` is a
-  `Dict(String, String)`; `body` is the raw request body string (typically a
-  JSON-encoded `{"query": "...", "variables": {...}}` for GraphQL).
-- `Response(status, body, headers)` — HTTP-shaped output. `body` is a
-  `gleam/json` tree; encode it with `json.to_string` before writing to the
-  wire.
-- `Config(read_mode, port, shopify_admin_origin, snapshot_path)` — sanitised
-  runtime config. Mirrors what the legacy TS proxy exposes via
-  `GET /__meta/config`.
-- `ReadMode` — one of `Snapshot`, `LiveHybrid`, `Live`; the JS-facing shim
-  exposes `Live` as the legacy public string value `passthrough`.
-- `DraftProxy` — opaque-ish state record. Threaded through every request
-  call so callers can advance the staged-mutation log.
+- `Request(method, path, headers, body)` accepts an HTTP-shaped request.
+  `headers` is a `Dict(String, String)` and `body` is the raw request body
+  string.
+- `Response(status, body, headers)` returns an HTTP-shaped response. `body` is a
+  `gleam/json` tree.
+- `Config(read_mode, port, shopify_admin_origin, snapshot_path)` is the
+  sanitized runtime configuration surfaced through `GET /__meta/config`.
+- `ReadMode` is `Snapshot`, `LiveHybrid`, or `Live`; the JavaScript shim maps
+  the live-only debugging posture to the public string value `passthrough`.
+- `DraftProxy` is the instance-owned runtime state value.
 
-### Functions
+Core functions:
 
-- `new() -> DraftProxy` — fresh proxy with `default_config()`.
-- `default_config() -> Config` — defaults matching the TS test suite
-  (`Snapshot` read mode, port 4000, `https://shopify.com` admin origin).
-- `with_config(Config) -> DraftProxy` — fresh proxy with a custom config.
-- `with_registry(DraftProxy, List(RegistryEntry)) -> DraftProxy` — attach a
-  parsed operation registry so dispatch routes by capability instead of the
-  hardcoded predicates. Optional; without a registry the proxy falls back to
-  the legacy domain predicates.
-- `registry_entry_has_local_dispatch(RegistryEntry) -> Bool` — report whether
-  a TS registry entry is both marked implemented and accepted by a currently
-  ported Gleam root predicate. This is intentionally narrower than capability
-  classification so unported TS roots are not advertised as local support.
-- `process_request(DraftProxy, Request) -> #(Response, DraftProxy)` — handle
-  one request and return the response paired with the next proxy state. The
-  TS class mutates itself in place; the Gleam port returns both halves so
-  callers can thread state forward explicitly.
-- `config_summary(Config) -> String` — small `read_mode@port` debug string.
+- `new() -> DraftProxy`
+- `default_config() -> Config`
+- `with_config(Config) -> DraftProxy`
+- `with_registry(DraftProxy, List(RegistryEntry)) -> DraftProxy`
+- `with_default_registry(DraftProxy) -> DraftProxy`
+- `with_upstream_transport(DraftProxy, Transport) -> DraftProxy`
+- `registry_entry_has_local_dispatch(RegistryEntry) -> Bool`
+- `process_request(DraftProxy, Request) -> #(Response, DraftProxy)`
+- `process_request_async(DraftProxy, Request) -> Promise(#(Response, DraftProxy))`
+  on JavaScript
+- `process_graphql_request(DraftProxy, String, GraphQLRequestOptions) -> #(Response, DraftProxy)`
+- `get_config_snapshot(DraftProxy) -> Json`
+- `get_log_snapshot(DraftProxy) -> Json`
+- `get_state_snapshot(DraftProxy) -> Json`
+- `reset(DraftProxy) -> DraftProxy`
+- `dump_state(DraftProxy, created_at: String) -> Json`
+- `dump_state_now(DraftProxy) -> Json`
+- `restore_state(DraftProxy, dump_json: String) -> Result(DraftProxy, StateDumpError)`
+- `commit(DraftProxy, headers)` on each target, synchronous on Erlang and
+  promise-returning on JavaScript
 
-Routes handled today: `GET /__meta/health`, `GET /__meta/config`,
-`GET /__meta/log`, `GET /__meta/state`, `POST /__meta/reset`,
-`POST /__meta/commit`, and `POST /admin/api/:version/graphql.json` for the
-currently ported Admin API domains. Anything else returns the same JSON error
-envelopes as the legacy webservice for the supported route surface.
+Use `process_request_async` on JavaScript when `POST /__meta/commit` or
+live-hybrid upstream passthrough may need to await `fetch`.
 
-> TODO: `GET /__bulk_operations/:id/result.jsonl` and the staged-uploads
-> routes are still required to fully replace every TS proxy HTTP endpoint. See
-> `../GLEAM_PORT_INTENT.md` "Substrate acceptance criteria".
+## Installation
 
-## Using from Gleam
+For repository development:
 
-> TODO: installation. The package is not yet on Hex; once it is, depend on
-> `shopify_draft_proxy = ">= 0.1 and < 1.0"` in your `gleam.toml`.
+```sh
+corepack pnpm install
+cd gleam
+gleam deps download
+```
+
+For Gleam projects before publication, use this package directory as a path
+dependency from a sibling checkout or worktree. After publication:
+
+```toml
+# gleam.toml
+[dependencies]
+shopify_draft_proxy = ">= 0.1.0 and < 1.0.0"
+```
+
+For Node and TypeScript consumers, the npm package name remains
+`shopify-draft-proxy`. The published package will bundle the Gleam-emitted ESM
+and TypeScript declarations behind the stable JavaScript shim.
+
+For Elixir consumers before Hex publication, build an Erlang shipment locally:
+
+```sh
+cd gleam
+gleam export erlang-shipment
+cd elixir_smoke
+mix test
+```
+
+After Hex publication:
+
+```elixir
+defp deps do
+  [
+    {:shopify_draft_proxy, "~> 0.1"}
+  ]
+end
+```
+
+## Supported Routes
+
+The runtime recognizes:
+
+| Route                                                  | Status                                                                                                                                         |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /admin/api/:version/graphql.json`                | Routes query and mutation roots for supported domains.                                                                                         |
+| `GET /__meta/health`                                   | Returns liveness JSON.                                                                                                                         |
+| `GET /__meta/config`                                   | Returns sanitized runtime config.                                                                                                              |
+| `GET /__meta/log`                                      | Returns staged/proxied/committed mutation-log entries in replay order.                                                                         |
+| `GET /__meta/state`                                    | Returns the current base/staged state buckets.                                                                                                 |
+| `POST /__meta/reset`                                   | Clears staged state, logs, and synthetic identity counters.                                                                                    |
+| `POST /__meta/commit`                                  | Replays staged mutations upstream in log order. Erlang can run this synchronously; JavaScript callers use `process_request_async` or `commit`. |
+| `POST` / `PUT /staged-uploads/:target/:filename`       | Stores staged upload bodies in the instance-owned proxy value for local bulk mutation imports.                                                 |
+| `GET /__meta/bulk-operations/:encoded_id/result.jsonl` | Serves generated local bulk operation result JSONL from instance-owned state.                                                                  |
+
+The remaining unsupported HTTP artifact surfaces are:
+
+- `GET /__meta` operator UI
+- staged-upload byte download/serving
+
+## Runtime Modes
+
+`Snapshot` answers locally from snapshot and staged state for supported domains
+and returns Shopify-like empty/null structures when the local store lacks data.
+
+`LiveHybrid` answers supported domains locally and forwards unknown or
+unimplemented reads upstream when the registry and runtime mode allow it. On
+JavaScript, forwarding is async and requires `process_request_async` or the JS
+shim's async `processRequest`.
+
+`Live` is reserved for live-only debugging. It must not be used as a way to
+mark known mutation roots as supported; supported mutations stage locally in
+every mode.
+
+Commit replay is the only normal path that intentionally sends staged raw
+mutation bodies upstream.
+
+## State Threading
+
+`process_request` returns the response and the next proxy state:
+
+```gleam
+let #(response, next_proxy) = draft_proxy.process_request(proxy, request)
+```
+
+Callers must keep `next_proxy` and pass it to subsequent requests. This is how
+the mutation log, staged state, snapshot baseline, and synthetic ID/timestamp
+registry advance without module-level mutable runtime state.
+
+The JavaScript shim wraps this in a mutable class to preserve
+`createDraftProxy(...).processRequest(...)` ergonomics. Elixir and direct Gleam
+callers should thread the returned proxy value explicitly.
+
+## Using From Gleam
 
 ```gleam
 import gleam/dict
@@ -91,20 +173,26 @@ pub fn main() {
 
   let #(response, _next_proxy) = draft_proxy.process_request(proxy, request)
   io.println(json.to_string(response.body))
-  // => {"ok":true,"message":"shopify-draft-proxy is running"}
 }
 ```
 
-To handle a GraphQL request, point `path` at
-`/admin/api/:version/graphql.json` and put the JSON body (with `query` and
-optional `variables`) in `body`. The returned `Response` is the GraphQL
-envelope `{"data": ...}` — encode it with `json.to_string` before sending it
-on the wire. Thread the second element of the tuple back into the next
-`process_request` call to keep the staged mutation log advancing.
-
-To use a non-default config:
+GraphQL requests use the versioned Shopify Admin path and a JSON body string:
 
 ```gleam
+let request =
+  draft_proxy.Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: dict.new(),
+    body: "{\"query\":\"{ shop { name } }\"}",
+  )
+```
+
+Custom configuration:
+
+```gleam
+import gleam/option
+
 let proxy =
   draft_proxy.with_config(draft_proxy.Config(
     read_mode: draft_proxy.LiveHybrid,
@@ -114,79 +202,80 @@ let proxy =
   ))
 ```
 
-## Using from Elixir
+## Using From JavaScript / TypeScript
 
-The Gleam package compiles to BEAM and is publishable to Hex, so Elixir
-consumes it as an ordinary mix dependency. The low-level Gleam modules remain
-available as Erlang modules with `@`-separated path segments, but Elixir
-application code should prefer the thin `ShopifyDraftProxy` wrapper exercised by
-`elixir_smoke/`. The wrapper keeps the Gleam proxy value opaque, returns the
-next proxy state explicitly, and exposes response bodies as JSON strings that
-can be decoded with `Jason.decode/1` or another Elixir JSON library.
+The JavaScript package exports the stable `createDraftProxy(config)` API. The
+shim translates JS-shaped config and requests into Gleam records and unwraps
+Gleam responses back to JS objects.
 
-> TODO: installation. Once published:
->
-> ```elixir
-> # mix.exs
-> defp deps do
->   [
->     {:shopify_draft_proxy, "~> 0.1"}
->   ]
-> end
-> ```
->
-> Until then, the canonical way to consume the package locally is the
-> `gleam export erlang-shipment` artefact loaded by the smoke project in
-> `./elixir_smoke/` — see [Building a release artefact](#building-a-release-artefact).
+```ts
+import { createDraftProxy } from 'shopify-draft-proxy';
 
-### Calling conventions
+const proxy = createDraftProxy({
+  readMode: 'snapshot',
+  port: 4000,
+  shopifyAdminOrigin: 'https://my-shop.myshopify.com',
+});
 
-- `ShopifyDraftProxy.new/0` returns an opaque `%ShopifyDraftProxy{}` value.
-- `ShopifyDraftProxy.graphql/3` and meta helpers return
-  `%ShopifyDraftProxy.Response{status:, body:, headers:, proxy:}`; thread the
-  returned `proxy` into the next call to preserve isolated staged state.
-- `body` is a JSON string converted from the Gleam JSON tree.
-- `ShopifyDraftProxy.dump_state/2` returns the state-dump JSON string;
-  `ShopifyDraftProxy.restore_state/2` returns `{:ok, proxy}` or
-  `{:error, reason}`.
-- `ShopifyDraftProxy.commit_with/4` is the BEAM embedder seam for tests that
-  need deterministic commit reports without real Shopify HTTP.
+const response = await proxy.processRequest({
+  method: 'POST',
+  path: '/admin/api/2025-01/graphql.json',
+  headers: { 'x-shopify-access-token': 'shpat_test_token' },
+  body: { query: '{ shop { name } }' },
+});
 
-### Example
-
-```elixir
-defmodule MyApp.DraftProxyDemo do
-  @moduledoc """
-  Minimal end-to-end use of the Gleam-compiled draft proxy from Elixir.
-  """
-
-  def product_lifecycle do
-    create =
-      ShopifyDraftProxy.graphql(ShopifyDraftProxy.new(), ~s|
-        mutation {
-          productCreate(product: { title: "Wrapper Hat" }) {
-            product { id title handle status }
-            userErrors { field message }
-          }
-        }
-      |)
-
-    %ShopifyDraftProxy.Response{status: 200, body: body, proxy: proxy} = create
-    {:ok, %{"data" => %{"productCreate" => %{"product" => product}}}} =
-      Jason.decode(body)
-
-    read =
-      ShopifyDraftProxy.graphql(
-        proxy,
-        ~s|query { product(id: "#{product["id"]}") { id title handle status } }|
-      )
-
-    {product, read}
-  end
-end
+console.log(response.status, response.body);
 ```
 
-A custom config:
+The JS shim exports `createDraftProxy`, `DraftProxy`, `createApp`,
+`DraftProxyHttpApp`, `loadConfig`, `DRAFT_PROXY_STATE_DUMP_SCHEMA`,
+`DraftProxyCommitError`, and the public config, request, response, state, log,
+and commit result types.
+
+`createApp(config, proxy?)` constructs a Node `http` adapter over a
+Gleam-backed `DraftProxy` instance. The adapter exposes `callback()` and
+`listen(...)`; `listen(...)` returns the underlying Node `Server`.
+
+`loadConfig(env?)` reads the runtime environment:
+
+- `SHOPIFY_ADMIN_ORIGIN` is required
+- `PORT` defaults to `3000`
+- `SHOPIFY_DRAFT_PROXY_READ_MODE` defaults to `live-hybrid`
+- `SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH` enables snapshot loading
+
+Interop notes:
+
+- Gleam records become JS objects/classes in emitted ESM; the shim hides those
+  details from public callers.
+- `Dict` values are converted from and to ordinary JS objects at the boundary.
+- `Option` values become optional or nullable JS values.
+- `processRequest` is async so it can cover JS `fetch` for commit replay and
+  live-hybrid passthrough.
+
+To launch the JavaScript-target HTTP adapter during package work:
+
+```sh
+SHOPIFY_ADMIN_ORIGIN=https://your-store.myshopify.com corepack pnpm dev
+
+corepack pnpm build
+SHOPIFY_ADMIN_ORIGIN=https://your-store.myshopify.com corepack pnpm start
+```
+
+## Using From Elixir
+
+Elixir application code should use the checked-in `ShopifyDraftProxy` wrapper
+when consuming the Erlang shipment.
+
+```elixir
+proxy = ShopifyDraftProxy.new()
+
+%ShopifyDraftProxy.Response{status: 200, body: body, proxy: next_proxy} =
+  ShopifyDraftProxy.graphql(proxy, "{ shop { name } }")
+
+{:ok, decoded} = Jason.decode(body)
+```
+
+Custom config:
 
 ```elixir
 proxy =
@@ -197,142 +286,103 @@ proxy =
   )
 ```
 
+Wrapper conventions:
+
+- `ShopifyDraftProxy.new/0` returns an opaque `%ShopifyDraftProxy{}` value.
+- `ShopifyDraftProxy.graphql/3` and meta helpers return
+  `%ShopifyDraftProxy.Response{status:, body:, headers:, proxy:}`.
+- `body` is a JSON string converted from the Gleam JSON tree.
+- `ShopifyDraftProxy.dump_state/2` returns the state-dump JSON string.
+- `ShopifyDraftProxy.restore_state/2` returns `{:ok, proxy}` or
+  `{:error, reason}`.
+- `ShopifyDraftProxy.commit_with/4` is the BEAM embedder seam for deterministic
+  commit reports without real Shopify HTTP.
+
 The raw Gleam module remains callable as
-`:shopify_draft_proxy@proxy@draft_proxy` for adapter-level code that really
-needs the compiled tuple ABI. Application tests should use the wrapper instead.
+`:shopify_draft_proxy@proxy@draft_proxy` for adapter-level code that needs the
+compiled tuple ABI.
 
-## Using from TypeScript / JavaScript
+## Conformance
 
-The Gleam package emits ESM as a build target, and that emitted ESM **will
-become the only TypeScript implementation** once the port lands. The legacy
-`../src` will be deleted; consumers will continue to import the same
-`createDraftProxy(config)` / `processRequest(...)` names from a thin TS shim
-that re-exports the Gleam-emitted modules with stable types.
+The Gleam runtime consumes the repository's parity specs and recorded Shopify
+fixtures without rewriting their evidence. The parity runner executes
+cassette-backed LiveHybrid scenarios through an injected upstream transport so
+supported mutations still stage locally while reads can use recorded Shopify
+context.
 
-> TODO: delete `../src/**` once Gleam domain coverage matches the legacy
-> proxy. See `../GLEAM_PORT_INTENT.md` "Domain coverage acceptance criteria".
-
-> TODO: installation. `shopify-draft-proxy` will continue to be the npm
-> package name; the published tarball will bundle the Gleam-emitted ESM
-> plus a `dist/index.{js,d.ts}` shim. Until the cutover, `../src` ships the
-> legacy implementation under that name.
-
-### Public surface
-
-The TS shim re-exports the same names the legacy `../src/index.ts` exports
-today. Notable items:
-
-- `createDraftProxy(config?: AppConfig): DraftProxy`
-- `DraftProxy#processRequest(request: DraftProxyRequest): DraftProxyHttpResponse`
-- `DraftProxy#dumpState(): DraftProxyStateDump` / `restoreState(dump)`
-- `DraftProxyCommitError`, `DRAFT_PROXY_STATE_DUMP_SCHEMA`
-- Types: `AppConfig`, `ReadMode`, `DraftProxyRequest`,
-  `DraftProxyHttpResponse`, `DraftProxyStateDump`, etc.
-- `createApp(config, proxy?)` constructs the JavaScript-target Node `http`
-  adapter over the Gleam-backed `DraftProxy` shim. The adapter exposes
-  `callback()` and `listen(...)`; `listen(...)` returns the underlying Node
-  `Server`.
-- `loadConfig(env?)` mirrors the legacy package environment parser:
-  `SHOPIFY_ADMIN_ORIGIN` is required, `PORT` defaults to `3000`,
-  `SHOPIFY_DRAFT_PROXY_READ_MODE` defaults to `live-hybrid`, and
-  `SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH` enables snapshot loading.
-
-### Calling conventions (Gleam → JS)
-
-- Gleam records become plain JS objects with the field names you wrote in
-  the Gleam source: `Request(method:, path:, headers:, body:)` ⇒
-  `{ method, path, headers, body }`. Gleam's compiler emits TypeScript
-  declarations alongside the ESM (`typescript_declarations = true` in
-  `gleam.toml`), so editor IntelliSense works without a hand-written `.d.ts`.
-- Gleam tuples (`#(a, b)`) become JS arrays — `process_request` returns
-  `[response, nextProxy]`.
-- `Option(a)` is a tagged class instance; the shim collapses it to
-  `T | null` for the JS-facing API.
-- `Dict` is a JS `Map`; the shim accepts and returns plain objects.
-- `Result(a, b)` is preserved; the shim throws on `Error(_)` for the
-  imperative TS callers and exposes a `safe`-prefixed variant for callers
-  that want to handle the error tuple directly.
-
-### Example (planned shim shape)
-
-```ts
-import { createDraftProxy } from 'shopify-draft-proxy';
-
-const proxy = createDraftProxy();
-
-const response = proxy.processRequest({
-  method: 'POST',
-  path: '/admin/api/2025-01/graphql.json',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ query: '{ events(first: 1) { nodes { id } } }' }),
-});
-
-console.log(response.status, response.body);
-```
-
-To launch the JavaScript-target HTTP adapter from `gleam/js` during port work:
+Useful checks from the repository root:
 
 ```sh
-SHOPIFY_ADMIN_ORIGIN=https://your-store.myshopify.com corepack pnpm dev
-
-corepack pnpm build
-SHOPIFY_ADMIN_ORIGIN=https://your-store.myshopify.com corepack pnpm start
+corepack pnpm conformance:check
+corepack pnpm parity:run
 ```
 
-The repository root still ships the legacy TypeScript/Koa runtime until the
-whole-port cutover. The `gleam/js` package is the JS-target adapter under test
-for the port and is not yet the root package export.
+Useful checks from this package directory:
+
+```sh
+gleam test --target erlang
+gleam test --target javascript
+gleam format --check
+```
+
+Live conformance capture remains a repository-level workflow driven by the
+TypeScript capture scripts. Those scripts intentionally produce shared fixture
+formats that validate the Gleam runtime as coverage reaches parity.
 
 ## Development
 
 ```sh
-# Install dependencies
+# from gleam/
 gleam deps download
-
-# Run tests on both targets
 gleam test --target erlang
 gleam test --target javascript
+gleam format --check
 ```
 
-## Building a release artefact
-
-For Elixir/Erlang consumers, `gleam export erlang-shipment` produces a
-self-contained directory tree of `.beam` files that can be loaded into any
-mix/rebar3 project without an Elixir-side compile step. The
-`elixir_smoke/` project consumes that shipment to assert the package is
-loadable and callable from Elixir.
+Release-shipment smoke:
 
 ```sh
-# from gleam/
 gleam export erlang-shipment
-
-# then, from gleam/elixir_smoke/
+cd elixir_smoke
 mix test
 ```
 
 From the repository root, `corepack pnpm elixir:smoke` runs the same flow. On
-hosts without native `escript`/`mix`, the script falls back to the
+hosts without native `escript` or `mix`, the script falls back to the
 `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container and installs Elixir
 inside the disposable container before running the smoke project.
 
-This is the local equivalent of `mix deps.get && mix compile` against a
-published Hex release; running it before `gleam publish` catches BEAM-side
-regressions that the JavaScript test target would miss.
+## Remaining Unsupported Boundaries
+
+- The package is not yet published to npm or Hex.
+- `GET /__meta` operator UI is not served by the Gleam HTTP adapter.
+- Staged-upload byte download/serving is not yet served by the Gleam HTTP
+  adapter.
+- Direct Elixir calls below the wrapper use Erlang-shaped tuples.
+- Some endpoint domains and Relay `node`/`nodes` serializers remain partial,
+  as tracked by the generated port issues.
+- `Live` read mode is reserved and should not be treated as complete
+  passthrough behavior.
 
 ## Layout
 
-- `src/` — Gleam source.
-  - `shopify_draft_proxy.gleam` — root module (currently a phase-0 marker).
-  - `shopify_draft_proxy/proxy/draft_proxy.gleam` — public entry point.
-  - `shopify_draft_proxy/proxy/*.gleam` — per-domain dispatchers.
-  - `shopify_draft_proxy/graphql/*.gleam` — lexer, parser, root-field walk.
-  - `shopify_draft_proxy/state/*.gleam` — store, synthetic identity, types.
-- `test/` — gleeunit tests, mirroring `src/`.
-- `elixir_smoke/` — mix project that loads the Erlang shipment and asserts
-  the package is callable from Elixir.
-- `gleam.toml` — package manifest. Default target is JavaScript so
-  `gleam test` exercises the runtime Node consumers will use; the Erlang
-  target is run alongside in CI and via `gleam test --target erlang`.
+- `src/` - Gleam source.
+- `src/shopify_draft_proxy/proxy/draft_proxy.gleam` - public entry point and
+  dispatcher.
+- `src/shopify_draft_proxy/proxy/*.gleam` - per-domain dispatchers.
+- `src/shopify_draft_proxy/graphql/*.gleam` - GraphQL lexer/parser/root-field
+  helpers.
+- `src/shopify_draft_proxy/state/*.gleam` - store, records, synthetic identity,
+  and state dump helpers.
+- `test/` - gleeunit tests.
+- `test/parity/` - Gleam parity runner and comparison helpers.
+- `js/` - TypeScript compatibility shim over the Gleam-emitted JavaScript.
+- `elixir_smoke/` - Mix project that loads the Erlang shipment and verifies
+  BEAM interop.
+- `gleam.toml` - package manifest. JavaScript is the default target; Erlang is
+  tested alongside it.
 
-The package will be promoted to the repository root and the legacy
-TypeScript in `../src` will be deleted once domain coverage reaches parity.
+After full parity is complete, the TypeScript runtime under `../src` will be
+deleted instead of maintained beside this implementation. TypeScript repository
+tooling for capture, registry generation, and packaging may remain where it is
+still useful.
