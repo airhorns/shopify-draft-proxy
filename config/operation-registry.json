@@ -340,10 +340,10 @@
     "type": "query",
     "domain": "apps",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["currentAppInstallation", "CurrentAppInstallation"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 declared current app installation read gap. Captured 2025-01 evidence records access scopes, app identity, empty activeSubscriptions, empty allSubscriptions, and empty oneTimePurchases for the active conformance install."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-526 routes current app installation reads through a gated LiveHybrid app handler: cold reads can pass through to Shopify, while staged/hydrated app billing and access state resolves locally for downstream read-after-write and read-after-uninstall parity."
   },
   {
     "name": "appPurchaseOneTimeCreate",
