@@ -39,18 +39,9 @@
     }
   },
   "schemaEvidence": {
-    "quantityPricingByVariantUpdateArgs": [
-      "priceListId",
-      "input"
-    ],
-    "quantityRulesAddArgs": [
-      "priceListId",
-      "quantityRules"
-    ],
-    "quantityRulesDeleteArgs": [
-      "priceListId",
-      "variantIds"
-    ],
+    "quantityPricingByVariantUpdateArgs": ["priceListId", "input"],
+    "quantityRulesAddArgs": ["priceListId", "quantityRules"],
+    "quantityRulesDeleteArgs": ["priceListId", "variantIds"],
     "quantityPricingByVariantUpdateInputFields": [
       "quantityPriceBreaksToAdd",
       "quantityPriceBreaksToDelete",
@@ -60,10 +51,7 @@
       "pricesToAdd",
       "pricesToDeleteByVariantId"
     ],
-    "downstreamReadTargets": [
-      "PriceList.quantityRules",
-      "PriceList.prices(originType: FIXED).quantityPriceBreaks"
-    ]
+    "downstreamReadTargets": ["PriceList.quantityRules", "PriceList.prices(originType: FIXED).quantityPriceBreaks"]
   },
   "successPath": [
     {
@@ -181,9 +169,7 @@
       "name": "cleanup",
       "response": {
         "quantityRulesDelete": {
-          "deletedQuantityRulesVariantIds": [
-            "gid://shopify/ProductVariant/49875425296690"
-          ],
+          "deletedQuantityRulesVariantIds": ["gid://shopify/ProductVariant/49875425296690"],
           "userErrors": []
         },
         "quantityPricingByVariantUpdate": {
@@ -205,9 +191,7 @@
           "productVariants": null,
           "userErrors": [
             {
-              "field": [
-                "priceListId"
-              ],
+              "field": ["priceListId"],
               "code": "PRICE_LIST_NOT_FOUND",
               "message": "Price list not found."
             }
@@ -222,9 +206,7 @@
           "quantityRules": [],
           "userErrors": [
             {
-              "field": [
-                "priceListId"
-              ],
+              "field": ["priceListId"],
               "code": "PRICE_LIST_DOES_NOT_EXIST",
               "message": "Price list does not exist."
             }
@@ -239,9 +221,7 @@
           "deletedQuantityRulesVariantIds": [],
           "userErrors": [
             {
-              "field": [
-                "priceListId"
-              ],
+              "field": ["priceListId"],
               "code": "PRICE_LIST_DOES_NOT_EXIST",
               "message": "Price list does not exist."
             }
@@ -256,11 +236,7 @@
           "quantityRules": [],
           "userErrors": [
             {
-              "field": [
-                "quantityRules",
-                "0",
-                "variantId"
-              ],
+              "field": ["quantityRules", "0", "variantId"],
               "code": "PRODUCT_VARIANT_DOES_NOT_EXIST",
               "message": "Product variant ID does not exist."
             }
@@ -275,29 +251,17 @@
           "productVariants": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "quantityPriceBreaksToAdd",
-                "0"
-              ],
+              "field": ["input", "quantityPriceBreaksToAdd", "0"],
               "code": "QUANTITY_PRICE_BREAK_ADD_VARIANT_NOT_FOUND",
               "message": "Variant not found."
             },
             {
-              "field": [
-                "input",
-                "quantityRulesToAdd",
-                "0"
-              ],
+              "field": ["input", "quantityRulesToAdd", "0"],
               "code": "QUANTITY_RULE_ADD_VARIANT_NOT_FOUND",
               "message": "Variant not found."
             },
             {
-              "field": [
-                "input",
-                "pricesToAdd",
-                "0"
-              ],
+              "field": ["input", "pricesToAdd", "0"],
               "code": "PRICE_ADD_VARIANT_NOT_FOUND",
               "message": "Variant not found."
             }
@@ -312,10 +276,7 @@
           "deletedQuantityRulesVariantIds": [],
           "userErrors": [
             {
-              "field": [
-                "variantIds",
-                "0"
-              ],
+              "field": ["variantIds", "0"],
               "code": "PRODUCT_VARIANT_DOES_NOT_EXIST",
               "message": "Product variant ID does not exist."
             }
@@ -512,9 +473,7 @@
         "priceListId": {
           "fromCapturePath": "$.setup.priceListId"
         },
-        "variantIds": [
-          "gid://shopify/ProductVariant/0"
-        ]
+        "variantIds": ["gid://shopify/ProductVariant/0"]
       },
       "query": "hand-synthesized from checked-in capture",
       "response": {

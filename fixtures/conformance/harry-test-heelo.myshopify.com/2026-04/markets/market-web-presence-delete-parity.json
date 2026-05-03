@@ -50,9 +50,7 @@
               "deletedId": null,
               "userErrors": [
                 {
-                  "field": [
-                    "id"
-                  ],
+                  "field": ["id"],
                   "message": "The market web presence wasn't found.",
                   "code": "WEB_PRESENCE_NOT_FOUND"
                 }
@@ -136,9 +134,7 @@
               "deletedId": null,
               "userErrors": [
                 {
-                  "field": [
-                    "id"
-                  ],
+                  "field": ["id"],
                   "message": "The market web presence wasn't found.",
                   "code": "WEB_PRESENCE_NOT_FOUND"
                 }

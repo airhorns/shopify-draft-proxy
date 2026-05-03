@@ -5,9 +5,7 @@
   "query": "#graphql\nquery MarketLocalizableEmptyRead($resourceId: ID!, $resourceIds: [ID!]!, $first: Int!, $marketId: ID!) {\n  marketLocalizableResource(resourceId: $resourceId) {\n    resourceId\n    marketLocalizableContent { key value digest }\n    marketLocalizations(marketId: $marketId) { key value updatedAt outdated market { id name } }\n  }\n  marketLocalizableResources(first: $first, resourceType: METAFIELD) {\n    edges { cursor node { resourceId marketLocalizableContent { key value digest } } }\n    nodes { resourceId }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  marketLocalizableResourcesByIds(first: $first, resourceIds: $resourceIds) {\n    edges { cursor node { resourceId marketLocalizableContent { key value digest } } }\n    nodes { resourceId }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
   "variables": {
     "resourceId": "gid://shopify/Metafield/999999999999",
-    "resourceIds": [
-      "gid://shopify/Metafield/999999999999"
-    ],
+    "resourceIds": ["gid://shopify/Metafield/999999999999"],
     "first": 5,
     "marketId": "gid://shopify/Market/92276719922"
   },
@@ -55,9 +53,7 @@
       "operationName": "MarketLocalizableEmptyRead",
       "variables": {
         "resourceId": "gid://shopify/Metafield/999999999999",
-        "resourceIds": [
-          "gid://shopify/Metafield/999999999999"
-        ],
+        "resourceIds": ["gid://shopify/Metafield/999999999999"],
         "first": 5,
         "marketId": "gid://shopify/Market/92276719922"
       },

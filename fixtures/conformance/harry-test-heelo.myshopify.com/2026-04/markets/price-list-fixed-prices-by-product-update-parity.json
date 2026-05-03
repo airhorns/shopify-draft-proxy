@@ -47,25 +47,10 @@
     }
   },
   "schemaEvidence": {
-    "mutationArgs": [
-      "priceListId",
-      "pricesToAdd",
-      "pricesToDeleteByProductIds"
-    ],
-    "priceListProductPriceInputFields": [
-      "productId",
-      "price",
-      "compareAtPrice"
-    ],
-    "payloadFields": [
-      "priceList",
-      "pricesToAddProducts",
-      "pricesToDeleteProducts",
-      "userErrors"
-    ],
-    "downstreamReadTargets": [
-      "PriceList.prices(query: product_id, originType: FIXED)"
-    ]
+    "mutationArgs": ["priceListId", "pricesToAdd", "pricesToDeleteByProductIds"],
+    "priceListProductPriceInputFields": ["productId", "price", "compareAtPrice"],
+    "payloadFields": ["priceList", "pricesToAddProducts", "pricesToDeleteProducts", "userErrors"],
+    "downstreamReadTargets": ["PriceList.prices(query: product_id, originType: FIXED)"]
   },
   "successPath": [
     {
@@ -206,9 +191,7 @@
           "priceListId": "gid://shopify/PriceList/31575376178",
           "priceQuery": "product_id:9801098789170",
           "pricesToAdd": [],
-          "pricesToDeleteByProductIds": [
-            "gid://shopify/Product/9801098789170"
-          ]
+          "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170"]
         }
       },
       "response": {
@@ -302,11 +285,7 @@
               "pricesToDeleteProducts": null,
               "userErrors": [
                 {
-                  "field": [
-                    "pricesToAdd",
-                    "0",
-                    "productId"
-                  ],
+                  "field": ["pricesToAdd", "0", "productId"],
                   "message": "Product gid://shopify/Product/0 in `pricesToAdd` does not exist.",
                   "code": "PRODUCT_DOES_NOT_EXIST"
                 }
@@ -322,9 +301,7 @@
         "variables": {
           "priceListId": "gid://shopify/PriceList/31575376178",
           "pricesToAdd": [],
-          "pricesToDeleteByProductIds": [
-            "gid://shopify/Product/0"
-          ]
+          "pricesToDeleteByProductIds": ["gid://shopify/Product/0"]
         }
       },
       "response": {
@@ -336,10 +313,7 @@
               "pricesToDeleteProducts": null,
               "userErrors": [
                 {
-                  "field": [
-                    "pricesToDeleteByProductIds",
-                    "0"
-                  ],
+                  "field": ["pricesToDeleteByProductIds", "0"],
                   "message": "Product gid://shopify/Product/0 in `pricesToDeleteByProductIds` does not exist.",
                   "code": "PRODUCT_DOES_NOT_EXIST"
                 }
@@ -375,9 +349,7 @@
               "pricesToDeleteProducts": null,
               "userErrors": [
                 {
-                  "field": [
-                    "priceListId"
-                  ],
+                  "field": ["priceListId"],
                   "message": "Price list does not exist.",
                   "code": "PRICE_LIST_DOES_NOT_EXIST"
                 }
@@ -460,9 +432,7 @@
         "priceListId": "gid://shopify/PriceList/31575376178",
         "priceQuery": "product_id:9801098789170",
         "pricesToAdd": [],
-        "pricesToDeleteByProductIds": [
-          "gid://shopify/Product/9801098789170"
-        ]
+        "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170"]
       },
       "query": "hand-synthesized from checked-in capture",
       "response": {
@@ -574,9 +544,7 @@
       "variables": {
         "priceListId": "gid://shopify/PriceList/31575376178",
         "pricesToAdd": [],
-        "pricesToDeleteByProductIds": [
-          "gid://shopify/Product/0"
-        ]
+        "pricesToDeleteByProductIds": ["gid://shopify/Product/0"]
       },
       "query": "hand-synthesized from checked-in capture",
       "response": {

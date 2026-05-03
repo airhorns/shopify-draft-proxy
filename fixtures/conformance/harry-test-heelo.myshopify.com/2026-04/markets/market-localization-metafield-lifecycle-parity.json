@@ -203,11 +203,7 @@
               "marketLocalizations": null,
               "userErrors": [
                 {
-                  "field": [
-                    "marketLocalizations",
-                    "0",
-                    "key"
-                  ],
+                  "field": ["marketLocalizations", "0", "key"],
                   "message": "Key value is not a valid market localizable field",
                   "code": "INVALID_KEY_FOR_MODEL"
                 }
@@ -264,12 +260,8 @@
       "query": "#graphql\n  mutation MarketLocalizationMetafieldRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {\n    marketLocalizationsRemove(\n      resourceId: $resourceId\n      marketLocalizationKeys: $keys\n      marketIds: $marketIds\n    ) {\n      marketLocalizations {\n        key\n        value\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "resourceId": "gid://shopify/Metafield/42994289180978",
-        "keys": [
-          "value"
-        ],
-        "marketIds": [
-          "gid://shopify/Market/92276719922"
-        ]
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276719922"]
       },
       "response": {
         "status": 200,
@@ -448,12 +440,8 @@
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
         "resourceId": "gid://shopify/Metafield/42994289180978",
-        "keys": [
-          "value"
-        ],
-        "marketIds": [
-          "gid://shopify/Market/92276719922"
-        ]
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276719922"]
       },
       "query": "hand-synthesized from checked-in capture",
       "response": {

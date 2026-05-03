@@ -18,13 +18,13 @@ verbatim for that first read. Supported Markets lifecycle mutations still stage
 locally, with a narrow preflight hydrate for existing upstream price-list,
 product, metafield, and web-presence state needed by the captured flows.
 
-| Module / fixture                                        | Change                                                                                                             |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`     | Adds Pattern 2 read hydration and mutation preflight hydration for Markets parity cassette replay.                 |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes Markets queries through the domain read entrypoint and threads `UpstreamContext` into Markets mutations.    |
-| `fixtures/conformance/**/markets/*.json`                | Hand-synthesizes read/preflight cassette entries from checked-in capture evidence.                                 |
-| `config/gleam-port-ci-gates.json`                       | Removes the fourteen Markets expected-failure entries.                                                             |
-| `docs/endpoints/markets.md`                             | Documents the LiveHybrid cold-read and mutation preflight hydration boundary.                                      |
+| Module / fixture                                        | Change                                                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`     | Adds Pattern 2 read hydration and mutation preflight hydration for Markets parity cassette replay.              |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes Markets queries through the domain read entrypoint and threads `UpstreamContext` into Markets mutations. |
+| `fixtures/conformance/**/markets/*.json`                | Hand-synthesizes read/preflight cassette entries from checked-in capture evidence.                              |
+| `config/gleam-port-ci-gates.json`                       | Removes the fourteen Markets expected-failure entries.                                                          |
+| `docs/endpoints/markets.md`                             | Documents the LiveHybrid cold-read and mutation preflight hydration boundary.                                   |
 
 Validation:
 
