@@ -382,6 +382,20 @@ for a missing cassette entry — fix the recording instead.
   before staging, return top-level GraphQL errors with `{data: {root: null}}`,
   and use `changeFromQuantity` as the compare value for successful set/adjust
   mutations.
+- Product inventory shipment roots share one shipment store model but have
+  status-specific inventory side effects. `inventoryShipmentCreate` stages a
+  DRAFT shipment without incoming quantity changes; `inventoryShipmentCreateInTransit`
+  and `inventoryShipmentMarkInTransit` add unreceived quantities to
+  `incoming`; add/remove/update quantity roots adjust only the unreceived
+  incoming delta while received accepted quantities move into `available` and
+  `on_hand`. Keep `InventoryShipmentLineItem` IDs as real synthetic GIDs, not
+  proxy-synthetic GIDs.
+- Product inventory transfer `edit` and `duplicate` roots build on the normal
+  transfer store slice. Edit changes only metadata/location snapshots and
+  preserves line items/reservations. Duplicate mints a fresh transfer GID, a
+  `#T####` name from the effective transfer count, resets status to `DRAFT`,
+  and remints proxy-synthetic transfer line-item IDs without copying ready
+  inventory reservations.
 - Product media validation scenarios need explicit `seedProductMedia`
   hydration in the parity runner before the primary request. Model
   `productCreateMedia` as partial for valid create inputs plus
@@ -846,6 +860,13 @@ for a missing cassette entry — fix the recording instead.
   as a raw captured array. `assignedFulfillmentOrders` is now local readback;
   use a different implemented-but-unported sentinel such as
   `fulfillmentService`.
+- Owner-scoped product metafield deletion roots are custom-data roots in the
+  Gleam port, even when their read-after-write effect is visible through
+  `product.metafield(...)` / `product.metafields(...)`. Keep
+  `metafieldsDelete` and the legacy compatibility `metafieldDelete` routed
+  through `metafield_definitions.gleam`, share the product metafield store
+  helpers, and prove product downstream reads with focused products runtime
+  tests plus the checked-in parity specs.
 - Admin Platform `node(id:)` / `nodes(ids:)` support needs its own
   introspection-backed Gleam coverage. When adding a new owning resource
   serializer to `admin_platform.gleam`, update
