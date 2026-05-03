@@ -25,6 +25,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/location as graphql_location
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -39,9 +40,13 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, single_root_log_draft,
 }
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type CustomerDefaultEmailAddressRecord, type CustomerRecord,
@@ -91,6 +96,46 @@ pub fn is_segment_mutation_root(name: String) -> Bool {
   }
 }
 
+/// True iff any string variable names a segment that local state must
+/// answer itself. This keeps LiveHybrid passthrough from forwarding
+/// staged, deleted, or proxy-synthetic segment IDs upstream.
+pub fn local_has_segment_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id) || local_segment_id_known(proxy.store, id)
+      _ -> False
+    }
+  })
+}
+
+/// True iff segment lifecycle state has been staged locally, or any
+/// variable carries a local segment ID. Connection/count/catalog roots
+/// use this to stay local after segment writes while cold reads can
+/// still pass through verbatim in LiveHybrid mode.
+pub fn local_has_staged_segments(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  store_has_staged_segments(proxy.store)
+  || local_has_segment_id(proxy, variables)
+}
+
+fn local_segment_id_known(store: Store, id: String) -> Bool {
+  case store.get_effective_segment_by_id(store, id) {
+    Some(_) -> True
+    None ->
+      case dict.get(store.staged_state.deleted_segment_ids, id) {
+        Ok(True) -> True
+        _ -> False
+      }
+  }
+}
+
 /// Process a segments query document and return a JSON `data` envelope.
 pub fn handle_segments_query(
   store: Store,
@@ -103,6 +148,84 @@ pub fn handle_segments_query(
       let fragments = get_document_fragments(document)
       Ok(serialize_root_fields(store, fields, fragments, variables))
     }
+  }
+}
+
+fn should_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "segment" ->
+      !local_has_segment_id(proxy, variables)
+    parse_operation.QueryOperation, "segments"
+    | parse_operation.QueryOperation, "segmentsCount"
+    | parse_operation.QueryOperation, "segmentFilters"
+    | parse_operation.QueryOperation, "segmentFilterSuggestions"
+    | parse_operation.QueryOperation, "segmentValueSuggestions"
+    | parse_operation.QueryOperation, "segmentMigrations"
+    -> !local_has_staged_segments(proxy, variables)
+    _, _ -> False
+  }
+}
+
+/// Segments cold catalog reads are Pattern 1 in cassette-backed
+/// LiveHybrid: forward Shopify's baseline payload verbatim until local
+/// segment lifecycle state exists. Snapshot and post-mutation reads
+/// continue through the local serializer so read-after-write stays
+/// local-only.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_passthrough = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        variables,
+      )
+    _ -> False
+  }
+  case want_passthrough {
+    True -> passthrough.passthrough_sync(proxy, request)
+    False ->
+      case process(proxy.store, document, variables) {
+        Ok(envelope) -> #(
+          Response(status: 200, body: envelope, headers: []),
+          proxy,
+        )
+        Error(_) -> #(
+          Response(
+            status: 400,
+            body: json.object([
+              #(
+                "errors",
+                json.array(
+                  [
+                    json.object([
+                      #(
+                        "message",
+                        json.string("Failed to handle segments query"),
+                      ),
+                    ]),
+                  ],
+                  fn(x) { x },
+                ),
+              ),
+            ]),
+            headers: [],
+          ),
+          proxy,
+        )
+      }
   }
 }
 
