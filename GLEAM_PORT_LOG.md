@@ -9,6 +9,43 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-03 - Pass 179: HAR-541 product read cassette parity slice
+
+Migrates a first products read slice to cassette-backed LiveHybrid execution.
+Cold product detail/catalog/search reads now use Pattern 1 passthrough when the
+proxy has no local product state to overlay, while product-owned metafield shell
+reads and staged product lifecycle state continue to resolve locally.
+
+| Module / fixture                                      | Change                                                                                         |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`  | Adds gated LiveHybrid passthrough for cold `product`, `productByIdentifier`, `products`, and `productsCount` reads. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes product queries through the products domain query entrypoint.                           |
+| `fixtures/conformance/**/products/{product*,products*}.json` | Hand-synthesizes read cassette entries from checked-in product capture evidence.       |
+| `config/gleam-port-ci-gates.json`                    | Removes ten products read expected-failure entries that now pass.                              |
+| `docs/endpoints/products.md`                         | Documents the cold-read passthrough boundary.                                                  |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+
+### Findings
+
+- Pattern 1 is appropriate for cold product read scenarios whose captured
+  Shopify response is returned verbatim and where the local proxy has no staged
+  product state to overlay.
+- Product-owned metafield shell reads must be included in the local-state gate;
+  otherwise unrelated metafields scenarios can regress by forwarding local owner
+  shell reads to the cassette.
+
+### Risks / open items
+
+- Broader products scenarios covering collections, inventory, product variants,
+  publications, selling plans, tags, and mutation prior-record hydration remain
+  in HAR-541 follow-up slices.
+
+---
+
 ## 2026-05-03 - Pass 178: HAR-533 markets cassette parity
 
 Migrates the remaining Markets parity scenarios to cassette-backed LiveHybrid

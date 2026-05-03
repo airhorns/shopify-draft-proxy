@@ -1308,10 +1308,13 @@ fn route_query(
         "Failed to handle media query",
       )
     Ok(ProductsDomain) ->
-      respond(
+      products.handle_query_request(
         proxy,
-        products.process(proxy.store, query, variables),
-        "Failed to handle products query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(AdminPlatformDomain) ->
       respond(

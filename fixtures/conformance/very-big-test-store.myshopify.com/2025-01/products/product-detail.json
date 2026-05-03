@@ -35,5 +35,54 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductDetailRead",
+      "variables": {
+        "id": "gid://shopify/Product/8971842846953"
+      },
+      "query": "hand-synthesized from checked-in capture response",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/8971842846953",
+              "title": "Test Product - 6635",
+              "handle": "test-product-ge91cbbd6",
+              "status": "ACTIVE",
+              "descriptionHtml": "",
+              "onlineStorePreviewUrl": "https://very-big-test-store.myshopify.com/products/test-product-ge91cbbd6",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "category": {
+                "id": "gid://shopify/TaxonomyCategory/na",
+                "fullName": "Uncategorized"
+              },
+              "collections": {
+                "edges": []
+              },
+              "media": {
+                "edges": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

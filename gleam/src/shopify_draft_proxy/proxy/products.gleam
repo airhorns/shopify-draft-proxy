@@ -43,12 +43,16 @@ import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, build_null_argument_error, find_argument, single_root_log_draft,
 }
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type ChannelRecord, type CollectionImageRecord,
@@ -225,6 +229,118 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
+  }
+}
+
+/// True iff any string variable in the request points at a product
+/// already present in local state, or at a proxy-synthetic gid. This
+/// gates LiveHybrid passthrough for cold upstream `product` /
+/// `productByIdentifier` reads while keeping staged read-after-write
+/// flows fully local.
+pub fn local_has_product_id(
+  proxy: DraftProxy,
+  variables: Dict(String, ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      StringVal(id) ->
+        is_proxy_synthetic_gid(id)
+        || case store.get_effective_product_by_id(proxy.store, id) {
+          Some(_) -> True
+          None ->
+            case has_effective_product_metafield_owner(proxy.store, id) {
+              True -> True
+              False ->
+                case store.get_effective_product_by_handle(proxy.store, id) {
+                  Some(_) -> True
+                  None -> False
+                }
+            }
+        }
+      _ -> False
+    }
+  })
+}
+
+fn local_has_product_state(proxy: DraftProxy) -> Bool {
+  !list.is_empty(store.list_effective_products(proxy.store))
+  || dict.size(proxy.store.staged_state.deleted_product_ids) > 0
+}
+
+/// Pattern 1: cold product detail and catalog reads in LiveHybrid can
+/// forward the captured Shopify document verbatim. Once local product
+/// state exists, stay in the local serializer so staged lifecycle
+/// effects and staged deletes are observable without runtime writes.
+fn should_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "product" ->
+      !local_has_product_id(proxy, variables)
+    parse_operation.QueryOperation, "productByIdentifier" ->
+      !local_has_product_id(proxy, variables)
+    parse_operation.QueryOperation, "products" ->
+      !local_has_product_state(proxy)
+    parse_operation.QueryOperation, "productsCount" ->
+      !local_has_product_state(proxy)
+    _, _ -> False
+  }
+}
+
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_passthrough = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        variables,
+      )
+    _ -> False
+  }
+  case want_passthrough {
+    True -> passthrough.passthrough_sync(proxy, request)
+    False ->
+      case process(proxy.store, document, variables) {
+        Ok(envelope) -> #(
+          Response(status: 200, body: envelope, headers: []),
+          proxy,
+        )
+        Error(_) -> #(
+          Response(
+            status: 400,
+            body: json.object([
+              #(
+                "errors",
+                json.array(
+                  [
+                    json.object([
+                      #(
+                        "message",
+                        json.string("Failed to handle products query"),
+                      ),
+                    ]),
+                  ],
+                  fn(x) { x },
+                ),
+              ),
+            ]),
+            headers: [],
+          ),
+          proxy,
+        )
+      }
   }
 }
 

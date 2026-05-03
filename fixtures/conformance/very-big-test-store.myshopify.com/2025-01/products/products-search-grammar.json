@@ -16,7 +16,11 @@
               "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
               "vendor": "NIKE",
               "productType": "ACCESSORIES",
-              "tags": ["cap", "egnition-sample-data", "nike"]
+              "tags": [
+                "cap",
+                "egnition-sample-data",
+                "nike"
+              ]
             }
           }
         ]
@@ -34,5 +38,54 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsSearchGrammarRead",
+      "variables": {
+        "phraseQuery": "\"flat peak cap\" accessories -vendor:VANS -tag:vans",
+        "notQuery": "NOT vendor:VANS published_at:*",
+        "tagNotQuery": "tag_not:vans published_at:*"
+      },
+      "query": "hand-synthesized from checked-in capture response",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "phraseCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "phraseMatches": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/Product/8397257375977",
+                    "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
+                    "vendor": "NIKE",
+                    "productType": "ACCESSORIES",
+                    "tags": [
+                      "cap",
+                      "egnition-sample-data",
+                      "nike"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

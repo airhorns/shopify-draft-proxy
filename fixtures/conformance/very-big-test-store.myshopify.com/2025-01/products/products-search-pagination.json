@@ -20,7 +20,11 @@
               "handle": "adidas-classic-backpack-legend-ink-multicolour",
               "vendor": "ADIDAS",
               "productType": "ACCESSORIES",
-              "tags": ["adidas", "backpack", "egnition-sample-data"],
+              "tags": [
+                "adidas",
+                "backpack",
+                "egnition-sample-data"
+              ],
               "updatedAt": "2026-04-17T12:52:42Z"
             }
           }
@@ -42,7 +46,11 @@
               "handle": "adidas-classic-backpack",
               "vendor": "ADIDAS",
               "productType": "ACCESSORIES",
-              "tags": ["adidas", "backpack", "egnition-sample-data"],
+              "tags": [
+                "adidas",
+                "backpack",
+                "egnition-sample-data"
+              ],
               "updatedAt": "2026-04-17T12:52:42Z"
             }
           }
@@ -64,7 +72,11 @@
               "handle": "adidas-classic-backpack-legend-ink-multicolour",
               "vendor": "ADIDAS",
               "productType": "ACCESSORIES",
-              "tags": ["adidas", "backpack", "egnition-sample-data"],
+              "tags": [
+                "adidas",
+                "backpack",
+                "egnition-sample-data"
+              ],
               "updatedAt": "2026-04-17T12:52:42Z"
             }
           }
@@ -78,5 +90,104 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsSearchPaginationRead",
+      "variables": {
+        "query": "tag:egnition-sample-data product_type:ACCESSORIES",
+        "afterCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ==",
+        "beforeCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ=="
+      },
+      "query": "hand-synthesized from checked-in capture response",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "count": {
+              "count": 6,
+              "precision": "EXACT"
+            },
+            "firstPage": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257572585",
+                    "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+                    "handle": "adidas-classic-backpack-legend-ink-multicolour",
+                    "vendor": "ADIDAS",
+                    "productType": "ACCESSORIES",
+                    "tags": [
+                      "adidas",
+                      "backpack",
+                      "egnition-sample-data"
+                    ],
+                    "updatedAt": "2026-04-17T12:52:42Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ=="
+              }
+            },
+            "nextPage": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257474281",
+                    "title": "ADIDAS | CLASSIC BACKPACK",
+                    "handle": "adidas-classic-backpack",
+                    "vendor": "ADIDAS",
+                    "productType": "ACCESSORIES",
+                    "tags": [
+                      "adidas",
+                      "backpack",
+                      "egnition-sample-data"
+                    ],
+                    "updatedAt": "2026-04-17T12:52:42Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ=="
+              }
+            },
+            "previousPage": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257572585",
+                    "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+                    "handle": "adidas-classic-backpack-legend-ink-multicolour",
+                    "vendor": "ADIDAS",
+                    "productType": "ACCESSORIES",
+                    "tags": [
+                      "adidas",
+                      "backpack",
+                      "egnition-sample-data"
+                    ],
+                    "updatedAt": "2026-04-17T12:52:42Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ=="
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
