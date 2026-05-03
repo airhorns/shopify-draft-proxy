@@ -60,16 +60,6 @@
         "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors and the copied source-only metafield receives a local ID."
       },
       {
-        "path": "$.result.orders.pageInfo.startCursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
-      },
-      {
-        "path": "$.result.orders.pageInfo.endCursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
-      },
-      {
         "path": "$.mergeStatus.jobId",
         "matcher": "shopify-gid:Job",
         "reason": "The downstream proxy job-status read uses the locally generated merge job ID."

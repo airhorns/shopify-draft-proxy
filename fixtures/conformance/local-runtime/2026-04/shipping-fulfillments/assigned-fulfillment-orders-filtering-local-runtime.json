@@ -260,16 +260,12 @@
   },
   "locationA": {
     "variables": {
-      "locationIds": [
-        "gid://shopify/Location/A"
-      ]
+      "locationIds": ["gid://shopify/Location/A"]
     }
   },
   "locationB": {
     "variables": {
-      "locationIds": [
-        "gid://shopify/Location/B"
-      ]
+      "locationIds": ["gid://shopify/Location/B"]
     }
   },
   "allLocations": {
@@ -681,9 +677,7 @@
     {
       "operationName": "AssignedFulfillmentOrdersFiltering",
       "variables": {
-        "locationIds": [
-          "gid://shopify/Location/A"
-        ]
+        "locationIds": ["gid://shopify/Location/A"]
       },
       "query": "sha:hand-synthesized",
       "response": {
@@ -837,9 +831,7 @@
     {
       "operationName": "AssignedFulfillmentOrdersFiltering",
       "variables": {
-        "locationIds": [
-          "gid://shopify/Location/B"
-        ]
+        "locationIds": ["gid://shopify/Location/B"]
       },
       "query": "sha:hand-synthesized",
       "response": {

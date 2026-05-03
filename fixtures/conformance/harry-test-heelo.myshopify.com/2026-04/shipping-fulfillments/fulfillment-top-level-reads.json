@@ -537,9 +537,7 @@
               "column": 55
             }
           ],
-          "path": [
-            "assignedFulfillmentOrders"
-          ]
+          "path": ["assignedFulfillmentOrders"]
         }
       ],
       "data": null,

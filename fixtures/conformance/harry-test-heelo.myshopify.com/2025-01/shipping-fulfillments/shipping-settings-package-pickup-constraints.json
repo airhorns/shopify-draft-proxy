@@ -313,9 +313,7 @@
               "localPickupSettings": null,
               "userErrors": [
                 {
-                  "field": [
-                    "localPickupSettings"
-                  ],
+                  "field": ["localPickupSettings"],
                   "message": "Unable to find an active location for location ID 999999999999",
                   "code": "ACTIVE_LOCATION_NOT_FOUND"
                 }
@@ -371,9 +369,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "shippingPackageUpdate"
-              ]
+              "path": ["shippingPackageUpdate"]
             }
           ],
           "data": {
@@ -413,9 +409,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "shippingPackageMakeDefault"
-              ]
+              "path": ["shippingPackageMakeDefault"]
             }
           ],
           "data": {
@@ -455,9 +449,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "shippingPackageDelete"
-              ]
+              "path": ["shippingPackageDelete"]
             }
           ],
           "data": {
@@ -497,9 +489,7 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`read_fulfillment_constraint_rules` access scope."
               },
-              "path": [
-                "fulfillmentConstraintRules"
-              ]
+              "path": ["fulfillmentConstraintRules"]
             }
           ],
           "data": null,
@@ -537,9 +527,7 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`write_fulfillment_constraint_rules` access scope."
               },
-              "path": [
-                "fulfillmentConstraintRuleCreate"
-              ]
+              "path": ["fulfillmentConstraintRuleCreate"]
             }
           ],
           "data": {

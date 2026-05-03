@@ -2342,6 +2342,528 @@
           }
         }
       }
+    },
+    {
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "email:hermes-input-validation-primary-1777159099540@example.com"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10541052985650"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "phone:+14159099541"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10541052985650"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053444402"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053444402",
+              "email": "hermes-input-validation-update-invalid-email-1777159099540@example.com",
+              "displayName": "hermes-input-validation-update-invalid-email-1777159099540@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-invalid-email-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099546"
+              },
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "locale": "en"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053477170"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053477170",
+              "email": "hermes-input-validation-update-invalid-phone-1777159099540@example.com",
+              "displayName": "hermes-input-validation-update-invalid-phone-1777159099540@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-invalid-phone-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099547"
+              },
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "locale": "en"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053542706"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053542706",
+              "email": "hermes-input-validation-update-duplicate-email-1777159099540@example.com",
+              "displayName": "hermes-input-validation-update-duplicate-email-1777159099540@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-duplicate-email-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099548"
+              },
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "locale": "en"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053575474"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053575474",
+              "email": "hermes-input-validation-update-duplicate-phone-1777159099540@example.com",
+              "displayName": "hermes-input-validation-update-duplicate-phone-1777159099540@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-duplicate-phone-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099549"
+              },
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "locale": "en"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053608242"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053608242",
+              "email": "hermes-input-validation-update-invalid-locale-1777159099540@example.com",
+              "displayName": "hermes-input-validation-update-invalid-locale-1777159099540@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-invalid-locale-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099550"
+              },
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "locale": "en"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053706546"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053706546",
+              "email": "hermes-input-validation-update-blank-scalars-1777159099540@example.com",
+              "displayName": "hermes-input-validation-update-blank-scalars-1777159099540@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-blank-scalars-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099551"
+              },
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "locale": "en"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053739314"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053739314",
+              "email": "hermes-input-validation-update-null-scalars-1777159099540@example.com",
+              "displayName": "hermes-input-validation-update-null-scalars-1777159099540@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-null-scalars-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099552"
+              },
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "locale": "en"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053772082"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053772082",
+              "email": "hermes-input-validation-update-tags-1777159099540@example.com",
+              "displayName": "hermes-input-validation-update-tags-1777159099540@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-tags-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099553"
+              },
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "locale": "en"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053804850"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053804850",
+              "email": "hermes-input-validation-update-oversized-tag-1777159099540@example.com",
+              "displayName": "hermes-input-validation-update-oversized-tag-1777159099540@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-oversized-tag-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099554"
+              },
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "locale": "en"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053870386"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053870386",
+              "email": "hermes-input-validation-update-oversized-name-note-1777159099540@example.com",
+              "displayName": "hermes-input-validation-update-oversized-name-note-1777159099540@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-oversized-name-note-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099555"
+              },
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "locale": "en"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "email:hermes-input-validation-duplicate-target-1777159099540@example.com"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10541053051186"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "phone:+14159099542"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10541053051186"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053935922"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541053935922",
+              "firstName": "Hermes",
+              "lastName": "update-deleted",
+              "displayName": "Hermes update-deleted",
+              "email": "hermes-input-validation-update-deleted-1777159099540@example.com",
+              "locale": "en",
+              "note": null,
+              "verifiedEmail": true,
+              "taxExempt": false,
+              "tags": ["input-validation", "update-deleted"],
+              "state": "DISABLED",
+              "canDelete": true,
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-update-deleted-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099556"
+              },
+              "createdAt": "2026-04-25T23:18:25Z",
+              "updatedAt": "2026-04-25T23:18:25Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541054001458"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541054001458",
+              "firstName": "Hermes",
+              "lastName": "merge-source",
+              "displayName": "Hermes merge-source",
+              "email": "hermes-input-validation-merge-source-1777159099540@example.com",
+              "locale": "en",
+              "note": null,
+              "verifiedEmail": true,
+              "taxExempt": false,
+              "tags": ["input-validation", "merge-source"],
+              "state": "DISABLED",
+              "canDelete": true,
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-merge-source-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099557"
+              },
+              "createdAt": "2026-04-25T23:18:26Z",
+              "updatedAt": "2026-04-25T23:18:26Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541054034226"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541054034226",
+              "firstName": "Hermes",
+              "lastName": "merge-target",
+              "displayName": "Hermes merge-target",
+              "email": "hermes-input-validation-merge-target-1777159099540@example.com",
+              "locale": "en",
+              "note": null,
+              "verifiedEmail": true,
+              "taxExempt": false,
+              "tags": ["input-validation", "merge-target"],
+              "state": "DISABLED",
+              "canDelete": true,
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-input-validation-merge-target-1777159099540@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14159099558"
+              },
+              "createdAt": "2026-04-25T23:18:26Z",
+              "updatedAt": "2026-04-25T23:18:26Z"
+            }
+          }
+        }
+      }
     }
   ]
 }

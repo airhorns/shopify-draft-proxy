@@ -14,17 +14,11 @@
     "fulfillmentOrderMerge"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "runtime-staging",
-    "downstream-read-parity",
-    "no-upstream-passthrough"
-  ],
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json"
   ],
-  "runtimeTestFiles": [
-    "tests/integration/order-fulfillment-flow.test.ts"
-  ],
+  "runtimeTestFiles": ["tests/integration/order-fulfillment-flow.test.ts"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-hold.graphql",
     "variablesCapturePath": "$.workflows.holdRelease.hold.variables"

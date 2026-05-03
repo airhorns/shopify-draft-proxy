@@ -8,12 +8,7 @@
     "manualHoldsFulfillmentOrders"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "selected-fields",
-    "null-empty-behavior",
-    "pagination-shape"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior", "pagination-shape"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-top-level-reads.json"
   ],

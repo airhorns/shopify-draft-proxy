@@ -249,17 +249,13 @@
     "orderCancelRejectedCancellationOrder": {
       "userErrors": [
         {
-          "field": [
-            "orderId"
-          ],
+          "field": ["orderId"],
           "message": "Cannot cancel an order that has outstanding fulfillments"
         }
       ],
       "orderCancelUserErrors": [
         {
-          "field": [
-            "orderId"
-          ],
+          "field": ["orderId"],
           "message": "Cannot cancel an order that has outstanding fulfillments",
           "code": "INVALID"
         }

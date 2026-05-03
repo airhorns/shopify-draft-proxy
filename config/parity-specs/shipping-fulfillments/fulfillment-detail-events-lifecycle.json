@@ -1,15 +1,8 @@
 {
   "scenarioId": "fulfillment-detail-events-lifecycle",
-  "operationNames": [
-    "fulfillment"
-  ],
+  "operationNames": ["fulfillment"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "selected-fields",
-    "downstream-read-parity",
-    "runtime-staging"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity", "runtime-staging"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-detail-events-lifecycle.json"
   ],
@@ -18,9 +11,7 @@
     "variablesCapturePath": "$.detailRead.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": [
-    "tests/integration/order-fulfillment-flow.test.ts"
-  ],
+  "runtimeTestFiles": ["tests/integration/order-fulfillment-flow.test.ts"],
   "notes": "HAR-235 captured Admin GraphQL 2026-04 fulfillment detail/event read-after-write behavior. The fixture records a disposable order fulfillment, successful fulfillmentEventCreate, immediate detail reads through top-level fulfillment(id:) and nested Order.fulfillments, tracking update preservation of event history, fulfillment cancel preservation of event history, and cleanup orderCancel.",
   "comparison": {
     "mode": "strict-json",

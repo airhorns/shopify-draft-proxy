@@ -9,20 +9,10 @@
       "shopId": "gid://shopify/Shop/92891250994"
     },
     "schema": {
-      "deliveryProfileCreate": [
-        "profile"
-      ],
-      "deliveryProfileUpdate": [
-        "id",
-        "profile"
-      ],
-      "deliveryProfileRemove": [
-        "id"
-      ],
-      "removePayloadFields": [
-        "job",
-        "userErrors"
-      ]
+      "deliveryProfileCreate": ["profile"],
+      "deliveryProfileUpdate": ["id", "profile"],
+      "deliveryProfileRemove": ["id"],
+      "removePayloadFields": ["job", "userErrors"]
     }
   },
   "mutations": {
@@ -40,10 +30,7 @@
               "profile": null,
               "userErrors": [
                 {
-                  "field": [
-                    "profile",
-                    "name"
-                  ],
+                  "field": ["profile", "name"],
                   "message": "Add a profile name"
                 }
               ]
@@ -58,9 +45,7 @@
           "name": "HAR-247 nested 1777152157411",
           "locationGroupsToCreate": [
             {
-              "locations": [
-                "gid://shopify/Location/106318430514"
-              ],
+              "locations": ["gid://shopify/Location/106318430514"],
               "zonesToCreate": [
                 {
                   "name": "HAR-247 Domestic",
@@ -95,9 +80,7 @@
               ]
             }
           ],
-          "variantsToAssociate": [
-            "gid://shopify/ProductVariant/51098706739506"
-          ]
+          "variantsToAssociate": ["gid://shopify/ProductVariant/51098706739506"]
         }
       },
       "result": {
@@ -187,18 +170,12 @@
         "id": "gid://shopify/DeliveryProfile/131621028146",
         "profile": {
           "name": "HAR-247 nested updated",
-          "variantsToDissociate": [
-            "gid://shopify/ProductVariant/51098706739506"
-          ],
-          "conditionsToDelete": [
-            "gid://shopify/DeliveryCondition/292281450802?operator=greater_than_or_equal_to"
-          ],
+          "variantsToDissociate": ["gid://shopify/ProductVariant/51098706739506"],
+          "conditionsToDelete": ["gid://shopify/DeliveryCondition/292281450802?operator=greater_than_or_equal_to"],
           "locationGroupsToUpdate": [
             {
               "id": "gid://shopify/DeliveryLocationGroup/133308088626",
-              "locationsToAdd": [
-                "gid://shopify/Location/106318463282"
-              ],
+              "locationsToAdd": ["gid://shopify/Location/106318463282"],
               "zonesToUpdate": [
                 {
                   "id": "gid://shopify/DeliveryZone/581656510770",
@@ -378,9 +355,7 @@
     {
       "operationName": "ShippingDeliveryProfileVariantsHydrate",
       "variables": {
-        "ids": [
-          "gid://shopify/ProductVariant/51098706739506"
-        ]
+        "ids": ["gid://shopify/ProductVariant/51098706739506"]
       },
       "query": "sha:hand-synthesized",
       "response": {
