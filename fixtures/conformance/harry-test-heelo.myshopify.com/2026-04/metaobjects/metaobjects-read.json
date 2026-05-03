@@ -1414,5 +1414,796 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MetaobjectDefinitionsReadCatalog",
+      "variables": {},
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinitions": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxNzUzNzE3MTc2MiwibGFzdF92YWx1ZSI6IjE3NTM3MTcxNzYyIn0=",
+                  "node": {
+                    "id": "gid://shopify/MetaobjectDefinition/17537171762",
+                    "type": "codex_har_240_1777156845370",
+                    "name": "Codex HAR-240 1777156845370",
+                    "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+                    "displayNameKey": "title",
+                    "access": {
+                      "admin": "PUBLIC_READ_WRITE",
+                      "storefront": "NONE"
+                    },
+                    "capabilities": {
+                      "publishable": {
+                        "enabled": true
+                      },
+                      "translatable": {
+                        "enabled": false
+                      },
+                      "renderable": {
+                        "enabled": false
+                      },
+                      "onlineStore": {
+                        "enabled": false
+                      }
+                    },
+                    "fieldDefinitions": [
+                      {
+                        "key": "title",
+                        "name": "Title",
+                        "description": "Display title for HAR-240 fixture capture.",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        },
+                        "validations": []
+                      },
+                      {
+                        "key": "body",
+                        "name": "Body",
+                        "description": "Body text for HAR-240 fixture capture.",
+                        "required": false,
+                        "type": {
+                          "name": "multi_line_text_field",
+                          "category": "TEXT"
+                        },
+                        "validations": []
+                      }
+                    ],
+                    "hasThumbnailField": false,
+                    "metaobjectsCount": 1,
+                    "standardTemplate": null
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetaobjectDefinition/17537171762",
+                  "type": "codex_har_240_1777156845370",
+                  "name": "Codex HAR-240 1777156845370",
+                  "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+                  "displayNameKey": "title",
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "publishable": {
+                      "enabled": true
+                    },
+                    "translatable": {
+                      "enabled": false
+                    },
+                    "renderable": {
+                      "enabled": false
+                    },
+                    "onlineStore": {
+                      "enabled": false
+                    }
+                  },
+                  "fieldDefinitions": [
+                    {
+                      "key": "title",
+                      "name": "Title",
+                      "description": "Display title for HAR-240 fixture capture.",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "body",
+                      "name": "Body",
+                      "description": "Body text for HAR-240 fixture capture.",
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    }
+                  ],
+                  "hasThumbnailField": false,
+                  "metaobjectsCount": 1,
+                  "standardTemplate": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNzUzNzE3MTc2MiwibGFzdF92YWx1ZSI6IjE3NTM3MTcxNzYyIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxNzUzNzE3MTc2MiwibGFzdF92YWx1ZSI6IjE3NTM3MTcxNzYyIn0="
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetaobjectDefinitionsReadDetail",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/17537171762"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17537171762",
+              "type": "codex_har_240_1777156845370",
+              "name": "Codex HAR-240 1777156845370",
+              "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": true
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "description": "Display title for HAR-240 fixture capture.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "body",
+                  "name": "Body",
+                  "description": "Body text for HAR-240 fixture capture.",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 1,
+              "standardTemplate": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetaobjectDefinitionsReadByType",
+      "variables": {
+        "type": "codex_har_240_1777156845370"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinitionByType": {
+              "id": "gid://shopify/MetaobjectDefinition/17537171762",
+              "type": "codex_har_240_1777156845370",
+              "name": "Codex HAR-240 1777156845370",
+              "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": true
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "description": "Display title for HAR-240 fixture capture.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "body",
+                  "name": "Body",
+                  "description": "Body text for HAR-240 fixture capture.",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 1,
+              "standardTemplate": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetaobjectDefinitionsReadDetail",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/0"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinition": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetaobjectDefinitionsReadByType",
+      "variables": {
+        "type": "codex_har_351_missing_definition_type"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinitionByType": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetaobjectsReadParity",
+      "variables": {
+        "id": "gid://shopify/Metaobject/185593102642",
+        "handle": {
+          "type": "codex_har_240_1777156845370",
+          "handle": "codex-har-240-1777156845370"
+        },
+        "type": "codex_har_240_1777156845370"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "catalog": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxODU1OTMxMDI2NDIsImxhc3RfdmFsdWUiOiIxODU1OTMxMDI2NDIifQ==",
+                  "node": {
+                    "id": "gid://shopify/Metaobject/185593102642",
+                    "handle": "codex-har-240-1777156845370",
+                    "type": "codex_har_240_1777156845370",
+                    "displayName": "HAR-240 title 1777156845370",
+                    "updatedAt": "2026-04-25T22:40:46Z",
+                    "capabilities": {
+                      "publishable": {
+                        "status": "ACTIVE"
+                      },
+                      "onlineStore": null
+                    },
+                    "fields": [
+                      {
+                        "key": "title",
+                        "type": "single_line_text_field",
+                        "value": "HAR-240 title 1777156845370",
+                        "jsonValue": "HAR-240 title 1777156845370",
+                        "definition": {
+                          "key": "title",
+                          "name": "Title",
+                          "required": true,
+                          "type": {
+                            "name": "single_line_text_field",
+                            "category": "TEXT"
+                          }
+                        }
+                      },
+                      {
+                        "key": "body",
+                        "type": "multi_line_text_field",
+                        "value": "HAR-240 body 1777156845370",
+                        "jsonValue": "HAR-240 body 1777156845370",
+                        "definition": {
+                          "key": "body",
+                          "name": "Body",
+                          "required": false,
+                          "type": {
+                            "name": "multi_line_text_field",
+                            "category": "TEXT"
+                          }
+                        }
+                      }
+                    ],
+                    "titleField": {
+                      "key": "title",
+                      "type": "single_line_text_field",
+                      "value": "HAR-240 title 1777156845370",
+                      "jsonValue": "HAR-240 title 1777156845370",
+                      "definition": {
+                        "key": "title",
+                        "name": "Title",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metaobject/185593102642",
+                  "handle": "codex-har-240-1777156845370",
+                  "type": "codex_har_240_1777156845370",
+                  "displayName": "HAR-240 title 1777156845370",
+                  "updatedAt": "2026-04-25T22:40:46Z",
+                  "capabilities": {
+                    "publishable": {
+                      "status": "ACTIVE"
+                    },
+                    "onlineStore": null
+                  },
+                  "fields": [
+                    {
+                      "key": "title",
+                      "type": "single_line_text_field",
+                      "value": "HAR-240 title 1777156845370",
+                      "jsonValue": "HAR-240 title 1777156845370",
+                      "definition": {
+                        "key": "title",
+                        "name": "Title",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "body",
+                      "type": "multi_line_text_field",
+                      "value": "HAR-240 body 1777156845370",
+                      "jsonValue": "HAR-240 body 1777156845370",
+                      "definition": {
+                        "key": "body",
+                        "name": "Body",
+                        "required": false,
+                        "type": {
+                          "name": "multi_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  ],
+                  "titleField": {
+                    "key": "title",
+                    "type": "single_line_text_field",
+                    "value": "HAR-240 title 1777156845370",
+                    "jsonValue": "HAR-240 title 1777156845370",
+                    "definition": {
+                      "key": "title",
+                      "name": "Title",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxODU1OTMxMDI2NDIsImxhc3RfdmFsdWUiOiIxODU1OTMxMDI2NDIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxODU1OTMxMDI2NDIsImxhc3RfdmFsdWUiOiIxODU1OTMxMDI2NDIifQ=="
+              }
+            },
+            "detail": {
+              "id": "gid://shopify/Metaobject/185593102642",
+              "handle": "codex-har-240-1777156845370",
+              "type": "codex_har_240_1777156845370",
+              "displayName": "HAR-240 title 1777156845370",
+              "updatedAt": "2026-04-25T22:40:46Z",
+              "capabilities": {
+                "publishable": {
+                  "status": "ACTIVE"
+                },
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "HAR-240 title 1777156845370",
+                  "jsonValue": "HAR-240 title 1777156845370",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "HAR-240 body 1777156845370",
+                  "jsonValue": "HAR-240 body 1777156845370",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "titleField": {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-240 title 1777156845370",
+                "jsonValue": "HAR-240 title 1777156845370",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            },
+            "byHandle": {
+              "id": "gid://shopify/Metaobject/185593102642",
+              "handle": "codex-har-240-1777156845370",
+              "type": "codex_har_240_1777156845370",
+              "displayName": "HAR-240 title 1777156845370",
+              "updatedAt": "2026-04-25T22:40:46Z",
+              "capabilities": {
+                "publishable": {
+                  "status": "ACTIVE"
+                },
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "HAR-240 title 1777156845370",
+                  "jsonValue": "HAR-240 title 1777156845370",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "HAR-240 body 1777156845370",
+                  "jsonValue": "HAR-240 body 1777156845370",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "titleField": {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-240 title 1777156845370",
+                "jsonValue": "HAR-240 title 1777156845370",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetaobjectsReadParity",
+      "variables": {
+        "id": "gid://shopify/Metaobject/0",
+        "handle": {
+          "type": "codex_har_240_1777156845370_missing",
+          "handle": "codex-har-240-1777156845370-missing"
+        },
+        "type": "codex_har_240_1777156845370_missing"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "catalog": {
+              "edges": [],
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "detail": null,
+            "byHandle": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetaobjectHydrateById",
+      "variables": {
+        "id": "gid://shopify/Metaobject/185593102642"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/185593102642",
+              "handle": "codex-har-240-1777156845370",
+              "type": "codex_har_240_1777156845370",
+              "displayName": "HAR-240 title 1777156845370",
+              "updatedAt": "2026-04-25T22:40:46Z",
+              "capabilities": {
+                "publishable": {
+                  "status": "ACTIVE"
+                },
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "HAR-240 title 1777156845370",
+                  "jsonValue": "HAR-240 title 1777156845370",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "HAR-240 body 1777156845370",
+                  "jsonValue": "HAR-240 body 1777156845370",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "titleField": {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-240 title 1777156845370",
+                "jsonValue": "HAR-240 title 1777156845370",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            },
+            "definition": {
+              "id": "gid://shopify/MetaobjectDefinition/17537171762",
+              "type": "codex_har_240_1777156845370",
+              "name": "Codex HAR-240 1777156845370",
+              "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": true
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "description": "Display title for HAR-240 fixture capture.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "body",
+                  "name": "Body",
+                  "description": "Body text for HAR-240 fixture capture.",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 1,
+              "standardTemplate": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetaobjectDefinitionHydrateByType",
+      "variables": {
+        "type": "codex_har_240_1777156845370"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinitionByType": {
+              "id": "gid://shopify/MetaobjectDefinition/17537171762",
+              "type": "codex_har_240_1777156845370",
+              "name": "Codex HAR-240 1777156845370",
+              "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": true
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "description": "Display title for HAR-240 fixture capture.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "body",
+                  "name": "Body",
+                  "description": "Body text for HAR-240 fixture capture.",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 1,
+              "standardTemplate": null
+            }
+          }
+        }
+      }
+    }
+  ]
 }
