@@ -26,23 +26,7 @@
         "capturePath": "$.seededReads[3].response.data.metaobjects",
         "proxyPath": "$.data.catalog",
         "upstreamCapturePath": null,
-        "expectedDifferences": [
-          {
-            "path": "$.edges[0].cursor",
-            "matcher": "any-string",
-            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
-          },
-          {
-            "path": "$.pageInfo.startCursor",
-            "matcher": "any-string",
-            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
-          },
-          {
-            "path": "$.pageInfo.endCursor",
-            "matcher": "any-string",
-            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
-          }
-        ]
+        "expectedDifferences": []
       },
       {
         "name": "seeded-entry-by-id",
