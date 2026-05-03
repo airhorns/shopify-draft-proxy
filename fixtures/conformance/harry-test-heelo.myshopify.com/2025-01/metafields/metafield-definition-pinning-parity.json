@@ -1363,5 +1363,123 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MetafieldDefinitionsHydrateByNamespace",
+      "variables": {
+        "ownerType": "PRODUCT",
+        "namespace": "har256_pin_moetk5sb"
+      },
+      "query": "hand-synthesized-from-capture:metafield-definition-pinning-after-pin-by-identifier-read",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metafieldDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/203716165938",
+                  "name": "HAR 256 pin_a",
+                  "namespace": "har256_pin_moetk5sb",
+                  "key": "pin_a",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 3,
+                  "validationStatus": "ALL_VALID"
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/203716198706",
+                  "name": "HAR 256 pin_b",
+                  "namespace": "har256_pin_moetk5sb",
+                  "key": "pin_b",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMDM3MTYxNjU5MzgsImxhc3RfdmFsdWUiOiIzIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMDM3MTYxOTg3MDYsImxhc3RfdmFsdWUiOiIwIn0="
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
