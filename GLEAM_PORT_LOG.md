@@ -9,6 +9,57 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-03 - Pass 177: HAR-530 functions cassette parity
+
+Migrates the remaining Functions parity scenarios to cassette-backed
+LiveHybrid execution. Cold functions reads now use Pattern 1 passthrough when
+there is no local functions state to overlay. Supported functions mutations
+still stage locally; they use targeted Pattern 2 ShopifyFunction hydration for
+owner/app metadata before creating or updating validations and cart transforms.
+
+| Module / fixture                                                       | Change                                                                                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/functions.gleam`                  | Adds LiveHybrid cold-read passthrough, mutation ShopifyFunction hydration, and local owner metadata overlay. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                | Routes functions reads/mutations through the upstream-aware functions entrypoints.                           |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                      | Adds base-state upsert support for upstream-hydrated ShopifyFunction records.                                |
+| `fixtures/conformance/**/functions/*.json`                             | Hand-synthesizes the missing functions cassette entries from checked-in capture evidence.                    |
+| `config/parity-specs/functions/functions-live-owner-metadata-read.json` | Prunes stale cursor expected-difference rules now that the cold read is cassette-backed.                     |
+| `config/gleam-port-ci-gates.json`                                      | Removes the three Functions expected-failure entries.                                                        |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `cd gleam && gleam test --target javascript -- functions_mutation_test` (824 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed functions fixture/spec/gate checks: no new `seed*` keys, no new
+  `expectedDifferences`, and no functions expected-failure entries remain
+
+### Findings
+
+- Pattern 1 was sufficient for the live owner metadata read because the proxy
+  has no local functions state to merge on a cold LiveHybrid read.
+- Pattern 2 was required for local staging mutations so validation and cart
+  transform owner metadata can be hydrated from cassette payloads while the
+  supported mutations continue to stage locally.
+- The local-runtime captures already contained the authoritative
+  ShopifyFunction seed metadata, so the missing cassette entries could be
+  hand-synthesized without live Shopify writes.
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+### Risks / open items
+
+- Hydration is intentionally limited to the ShopifyFunction owner/app fields
+  selected by current functions parity evidence. Broader Functions API shapes
+  remain future fidelity work.
+
+---
+
 ## 2026-05-03 - Pass 176: HAR-543 shipping fulfillments cassette parity
 
 Migrates the remaining Shipping/Fulfillments parity scenarios to

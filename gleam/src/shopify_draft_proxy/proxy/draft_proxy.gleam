@@ -640,12 +640,17 @@ fn route_mutation(
       }
     Ok(FunctionsDomain) ->
       case
-        functions.process_mutation(
+        functions.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -1216,10 +1221,13 @@ fn route_query(
         "Failed to handle apps query",
       )
     Ok(FunctionsDomain) ->
-      respond(
+      functions.handle_query_request(
         proxy,
-        functions.process(proxy.store, query, variables),
-        "Failed to handle functions query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(GiftCardsDomain) ->
       respond(
