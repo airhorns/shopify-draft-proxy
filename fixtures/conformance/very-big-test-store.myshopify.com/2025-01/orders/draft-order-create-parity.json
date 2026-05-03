@@ -8,7 +8,11 @@
       "note": "merchant realistic draft order create parity probe",
       "taxExempt": true,
       "reserveInventoryUntil": "2026-05-25T00:27:36Z",
-      "tags": ["parity-probe", "draft-order-create", "merchant-realistic"],
+      "tags": [
+        "parity-probe",
+        "draft-order-create",
+        "merchant-realistic"
+      ],
       "customAttributes": [
         {
           "key": "source",
@@ -101,7 +105,11 @@
             "taxesIncluded": false,
             "reserveInventoryUntil": "2026-05-25T00:27:36Z",
             "paymentTerms": null,
-            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+            "tags": [
+              "draft-order-create",
+              "merchant-realistic",
+              "parity-probe"
+            ],
             "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/68f894c92dcb9a1b76d9a942fec46f56",
             "customAttributes": [
               {
@@ -323,7 +331,11 @@
           "taxesIncluded": false,
           "reserveInventoryUntil": "2026-05-25T00:27:36Z",
           "paymentTerms": null,
-          "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+          "tags": [
+            "draft-order-create",
+            "merchant-realistic",
+            "parity-probe"
+          ],
           "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/68f894c92dcb9a1b76d9a942fec46f56",
           "customAttributes": [
             {
@@ -522,5 +534,52 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersDraftOrderCustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/6157654556905"
+      },
+      "query": "hand-synthesized from checked-in draftOrderCreate mutation customer for HAR-538 draft order customer hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/6157654556905",
+              "email": "egnition_sample_29@egnition.com",
+              "displayName": "Henry Short"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderVariantHydrate",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/48540157378793"
+      },
+      "query": "hand-synthesized from checked-in draftOrderCreate mutation line item for HAR-538 variant catalog hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Default Title",
+              "sku": "",
+              "taxable": true,
+              "price": "0.0",
+              "inventoryItem": {
+                "requiresShipping": true
+              },
+              "product": {
+                "title": "Test Product - 6635"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -41,7 +41,10 @@
                 "column": 5
               }
             ],
-            "path": ["mutation DraftOrderInvoiceSendInlineMissingId", "draftOrderInvoiceSend"],
+            "path": [
+              "mutation DraftOrderInvoiceSendInlineMissingId",
+              "draftOrderInvoiceSend"
+            ],
             "extensions": {
               "code": "missingRequiredArguments",
               "className": "Field",
@@ -65,7 +68,11 @@
                 "column": 5
               }
             ],
-            "path": ["mutation DraftOrderInvoiceSendInlineNullId", "draftOrderInvoiceSend", "id"],
+            "path": [
+              "mutation DraftOrderInvoiceSendInlineNullId",
+              "draftOrderInvoiceSend",
+              "id"
+            ],
             "extensions": {
               "code": "argumentLiteralsIncompatible",
               "typeName": "Field",
@@ -118,7 +125,11 @@
           "variables": {
             "input": {
               "note": "HAR-275 draft order invoice safety open-no-recipient",
-              "tags": ["har-275", "invoice-safety", "open-no-recipient"],
+              "tags": [
+                "har-275",
+                "invoice-safety",
+                "open-no-recipient"
+              ],
               "lineItems": [
                 {
                   "title": "HAR-275 invoice safety item open-no-recipient",
@@ -229,7 +240,11 @@
           "variables": {
             "input": {
               "note": "HAR-275 draft order invoice safety deleted",
-              "tags": ["har-275", "invoice-safety", "deleted"],
+              "tags": [
+                "har-275",
+                "invoice-safety",
+                "deleted"
+              ],
               "lineItems": [
                 {
                   "title": "HAR-275 invoice safety item deleted",
@@ -333,7 +348,11 @@
           "variables": {
             "input": {
               "note": "HAR-275 draft order invoice safety completed-no-recipient",
-              "tags": ["har-275", "invoice-safety", "completed-no-recipient"],
+              "tags": [
+                "har-275",
+                "invoice-safety",
+                "completed-no-recipient"
+              ],
               "lineItems": [
                 {
                   "title": "HAR-275 invoice safety item completed-no-recipient",
@@ -448,5 +467,76 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersDraftOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/999999999999999"
+      },
+      "query": "hand-synthesized null draftOrder from checked-in unknownDraftOrder validation response for HAR-538 draft order Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249080705330"
+      },
+      "query": "hand-synthesized from checked-in openNoRecipient invoice-send response for HAR-538 draft order Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1249080705330",
+              "status": "OPEN",
+              "email": null,
+              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/ba30948b0be08f53ab736ed2c7835b03"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249080738098"
+      },
+      "query": "hand-synthesized null draftOrder from checked-in deletedDraftOrder invoice-send response for HAR-538 draft order Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249080770866"
+      },
+      "query": "hand-synthesized from checked-in completedNoRecipient invoice-send response for HAR-538 draft order Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1249080770866",
+              "status": "COMPLETED",
+              "email": null,
+              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/0bc59a33dda64c3d823a62c0e073520a"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -10,7 +10,11 @@
           "note": "draft order create-from-order setup",
           "taxExempt": true,
           "reserveInventoryUntil": "2026-05-23T12:00:00Z",
-          "tags": ["parity-capture", "draft-order-family", "create-from-order"],
+          "tags": [
+            "parity-capture",
+            "draft-order-family",
+            "create-from-order"
+          ],
           "customAttributes": [
             {
               "key": "source",
@@ -103,7 +107,11 @@
                 "taxesIncluded": false,
                 "reserveInventoryUntil": "2026-05-23T12:00:00Z",
                 "paymentTerms": null,
-                "tags": ["create-from-order", "draft-order-family", "parity-capture"],
+                "tags": [
+                  "create-from-order",
+                  "draft-order-family",
+                  "parity-capture"
+                ],
                 "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/22b0f9e361a6d0b1a124952932e75281",
                 "customAttributes": [
                   {
@@ -325,7 +333,11 @@
               "taxesIncluded": false,
               "reserveInventoryUntil": "2026-05-23T12:00:00Z",
               "paymentTerms": null,
-              "tags": ["create-from-order", "draft-order-family", "parity-capture"],
+              "tags": [
+                "create-from-order",
+                "draft-order-family",
+                "parity-capture"
+              ],
               "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/22b0f9e361a6d0b1a124952932e75281",
               "customAttributes": [
                 {
@@ -569,11 +581,17 @@
                   "id": "gid://shopify/Order/8710700237106",
                   "name": "#1022",
                   "sourceName": "347082227713",
-                  "paymentGatewayNames": ["manual"],
+                  "paymentGatewayNames": [
+                    "manual"
+                  ],
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
                   "note": "draft order create-from-order setup",
-                  "tags": ["create-from-order", "draft-order-family", "parity-capture"],
+                  "tags": [
+                    "create-from-order",
+                    "draft-order-family",
+                    "parity-capture"
+                  ],
                   "currentTotalPriceSet": {
                     "shopMoney": {
                       "amount": "988.2",
@@ -640,7 +658,11 @@
             "name": "#1022",
             "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
             "note": "draft order create-from-order setup",
-            "tags": ["create-from-order", "draft-order-family", "parity-capture"],
+            "tags": [
+              "create-from-order",
+              "draft-order-family",
+              "parity-capture"
+            ],
             "customAttributes": [
               {
                 "key": "source",
@@ -689,7 +711,9 @@
                 "currencyCode": "CAD"
               }
             },
-            "discountCodes": ["Loyalty credit"],
+            "discountCodes": [
+              "Loyalty credit"
+            ],
             "lineItems": {
               "nodes": [
                 {
@@ -740,7 +764,11 @@
             "status": "OPEN",
             "ready": true,
             "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
-            "tags": ["create-from-order", "draft-order-family", "parity-capture"],
+            "tags": [
+              "create-from-order",
+              "draft-order-family",
+              "parity-capture"
+            ],
             "subtotalPriceSet": {
               "shopMoney": {
                 "amount": "989.95",
@@ -799,7 +827,11 @@
           "status": "OPEN",
           "ready": true,
           "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
-          "tags": ["create-from-order", "draft-order-family", "parity-capture"],
+          "tags": [
+            "create-from-order",
+            "draft-order-family",
+            "parity-capture"
+          ],
           "subtotalPriceSet": {
             "shopMoney": {
               "amount": "989.95",
@@ -843,5 +875,108 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8710700237106"
+      },
+      "query": "hand-synthesized from checked-in setup downstreamOrderRead response for HAR-538 draftOrderCreateFromOrder Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8710700237106",
+              "name": "#1022",
+              "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
+              "note": "draft order create-from-order setup",
+              "tags": [
+                "create-from-order",
+                "draft-order-family",
+                "parity-capture"
+              ],
+              "customAttributes": [
+                {
+                  "key": "source",
+                  "value": "phone-order"
+                },
+                {
+                  "key": "purchase-order",
+                  "value": "PO-117"
+                }
+              ],
+              "billingAddress": {
+                "firstName": "Hermes",
+                "lastName": "Buyer",
+                "address1": "123 Queen St W",
+                "city": "Toronto",
+                "provinceCode": "ON",
+                "countryCodeV2": "CA",
+                "zip": "M5H 2M9"
+              },
+              "shippingAddress": {
+                "firstName": "Hermes",
+                "lastName": "Buyer",
+                "address1": "500 King St W",
+                "city": "Toronto",
+                "provinceCode": "ON",
+                "countryCodeV2": "CA",
+                "zip": "M5V 1L9"
+              },
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "989.95",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalTaxSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "9.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "discountCodes": [
+                "Loyalty credit"
+              ],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "title": "Custom installation service",
+                    "quantity": 2,
+                    "sku": "CUSTOM-INSTALL",
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "title": "The Inventory Not Tracked Snowboard",
+                    "quantity": 1,
+                    "sku": "sku-untracked-1",
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/49875425296690"
+                    },
+                    "taxLines": []
+                  }
+                ]
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "989.95",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

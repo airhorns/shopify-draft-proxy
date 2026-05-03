@@ -66,7 +66,9 @@
           "orderEditSession": null,
           "userErrors": [
             {
-              "field": ["variantId"],
+              "field": [
+                "variantId"
+              ],
               "message": "can't convert Integer[0] to a positive Integer to use as an untrusted id"
             }
           ]
@@ -104,5 +106,68 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/6834565087465"
+      },
+      "query": "hand-synthesized from checked-in seedOrder for HAR-538 orderEditBegin Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/6834565087465",
+              "name": "#1331",
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/16209970594025",
+                    "title": "Test Product - 6635",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": null,
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/48540157378793"
+                    },
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "0.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersProductVariantHydrate",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/48540157378793"
+      },
+      "query": "hand-synthesized from checked-in seedProducts for HAR-538 orderEditAddVariant Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Default Title",
+              "sku": null,
+              "price": "0.00",
+              "product": {
+                "id": "gid://shopify/Product/8971842846953",
+                "title": "Test Product - 6635"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

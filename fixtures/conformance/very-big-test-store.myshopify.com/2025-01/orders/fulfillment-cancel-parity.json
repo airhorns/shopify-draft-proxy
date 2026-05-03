@@ -15,7 +15,11 @@
         "cancelledAt": null,
         "closed": false,
         "note": "merchant realistic draft order create parity probe",
-        "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+        "tags": [
+          "draft-order-create",
+          "merchant-realistic",
+          "parity-probe"
+        ],
         "currentTotalPriceSet": {
           "shopMoney": {
             "amount": "38.25",
@@ -542,5 +546,336 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersFulfillmentHydrate",
+      "variables": {
+        "id": "gid://shopify/Fulfillment/6189151518953"
+      },
+      "query": "hand-synthesized from checked-in downstreamRead order response for HAR-538 orders Pattern 2 fulfillment mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/6189151518953",
+              "order": {
+                "id": "gid://shopify/Order/6834528944361",
+                "name": "#1330",
+                "updatedAt": "2026-04-25T00:06:32Z",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillments": [
+                  {
+                    "id": "gid://shopify/Fulfillment/6189151518953",
+                    "status": "CANCELLED",
+                    "displayStatus": "CANCELED",
+                    "createdAt": "2026-04-25T00:06:31Z",
+                    "updatedAt": "2026-04-25T00:06:32Z",
+                    "trackingInfo": [
+                      {
+                        "number": "HERMES-UPDATE-20260425000631",
+                        "url": "https://example.com/track/HERMES-UPDATE-20260425000631",
+                        "company": "Hermes"
+                      }
+                    ],
+                    "fulfillmentLineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentLineItem/14075137425641",
+                          "quantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/16209897062633",
+                            "title": "Custom installation service"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/Fulfillment/6189145325801",
+                    "status": "CANCELLED",
+                    "displayStatus": "CANCELED",
+                    "createdAt": "2026-04-24T23:57:45Z",
+                    "updatedAt": "2026-04-24T23:57:45Z",
+                    "trackingInfo": [
+                      {
+                        "number": "HERMES-UPDATE-20260424235744",
+                        "url": "https://example.com/track/HERMES-UPDATE-20260424235744",
+                        "company": "Hermes"
+                      }
+                    ],
+                    "fulfillmentLineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentLineItem/14075123499241",
+                          "quantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/16209897062633",
+                            "title": "Custom installation service"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/Fulfillment/6189144244457",
+                    "status": "CANCELLED",
+                    "displayStatus": "CANCELED",
+                    "createdAt": "2026-04-24T23:54:17Z",
+                    "updatedAt": "2026-04-24T23:54:18Z",
+                    "trackingInfo": [
+                      {
+                        "number": "HERMES-UPDATE-20260424235416",
+                        "url": "https://example.com/track/HERMES-UPDATE-20260424235416",
+                        "company": "Hermes"
+                      }
+                    ],
+                    "fulfillmentLineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentLineItem/14075122155753",
+                          "quantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/16209897095401",
+                            "title": "Test Product - 6635"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/7952742809833",
+                      "status": "CLOSED",
+                      "requestStatus": "UNSUBMITTED",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/16472984617193",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/16209897095401",
+                              "title": "Test Product - 6635"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/7952742842601",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/16472984649961",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/16209897062633",
+                              "title": "Custom installation service"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/7952746348777",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/16472991662313",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/16209897095401",
+                              "title": "Test Product - 6635"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrderFulfillmentLifecycleRead",
+      "variables": {
+        "id": "gid://shopify/Order/6834528944361"
+      },
+      "query": "hand-synthesized from checked-in downstreamRead response for HAR-538 orders Pattern 1 passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/6834528944361",
+              "name": "#1330",
+              "updatedAt": "2026-04-25T00:06:32Z",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/6189151518953",
+                  "status": "CANCELLED",
+                  "displayStatus": "CANCELED",
+                  "createdAt": "2026-04-25T00:06:31Z",
+                  "updatedAt": "2026-04-25T00:06:32Z",
+                  "trackingInfo": [
+                    {
+                      "number": "HERMES-UPDATE-20260425000631",
+                      "url": "https://example.com/track/HERMES-UPDATE-20260425000631",
+                      "company": "Hermes"
+                    }
+                  ],
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/14075137425641",
+                        "quantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/16209897062633",
+                          "title": "Custom installation service"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Fulfillment/6189145325801",
+                  "status": "CANCELLED",
+                  "displayStatus": "CANCELED",
+                  "createdAt": "2026-04-24T23:57:45Z",
+                  "updatedAt": "2026-04-24T23:57:45Z",
+                  "trackingInfo": [
+                    {
+                      "number": "HERMES-UPDATE-20260424235744",
+                      "url": "https://example.com/track/HERMES-UPDATE-20260424235744",
+                      "company": "Hermes"
+                    }
+                  ],
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/14075123499241",
+                        "quantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/16209897062633",
+                          "title": "Custom installation service"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Fulfillment/6189144244457",
+                  "status": "CANCELLED",
+                  "displayStatus": "CANCELED",
+                  "createdAt": "2026-04-24T23:54:17Z",
+                  "updatedAt": "2026-04-24T23:54:18Z",
+                  "trackingInfo": [
+                    {
+                      "number": "HERMES-UPDATE-20260424235416",
+                      "url": "https://example.com/track/HERMES-UPDATE-20260424235416",
+                      "company": "Hermes"
+                    }
+                  ],
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/14075122155753",
+                        "quantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/16209897095401",
+                          "title": "Test Product - 6635"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/7952742809833",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/16472984617193",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/16209897095401",
+                            "title": "Test Product - 6635"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/7952742842601",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/16472984649961",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/16209897062633",
+                            "title": "Custom installation service"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/7952746348777",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/16472991662313",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/16209897095401",
+                            "title": "Test Product - 6635"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 40,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

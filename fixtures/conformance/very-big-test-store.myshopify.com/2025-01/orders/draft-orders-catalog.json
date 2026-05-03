@@ -13,7 +13,11 @@
               "name": "#D53",
               "status": "COMPLETED",
               "email": "hermes-draft-order-probe-1777076856718@example.com",
-              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "tags": [
+                "draft-order-create",
+                "merchant-realistic",
+                "parity-probe"
+              ],
               "createdAt": "2026-04-25T00:27:39Z",
               "updatedAt": "2026-04-25T00:27:41Z",
               "totalPriceSet": {
@@ -31,7 +35,11 @@
               "name": "#D52",
               "status": "OPEN",
               "email": "hermes-draft-order-probe-1777075589191@example.com",
-              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "tags": [
+                "draft-order-create",
+                "merchant-realistic",
+                "parity-probe"
+              ],
               "createdAt": "2026-04-25T00:06:34Z",
               "updatedAt": "2026-04-25T00:06:34Z",
               "totalPriceSet": {
@@ -49,7 +57,11 @@
               "name": "#D51",
               "status": "OPEN",
               "email": "hermes-draft-order-probe-1777075062863@example.com",
-              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "tags": [
+                "draft-order-create",
+                "merchant-realistic",
+                "parity-probe"
+              ],
               "createdAt": "2026-04-24T23:57:47Z",
               "updatedAt": "2026-04-24T23:57:47Z",
               "totalPriceSet": {
@@ -67,7 +79,11 @@
               "name": "#D50",
               "status": "OPEN",
               "email": "hermes-draft-order-probe-1777074806796@example.com",
-              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "tags": [
+                "draft-order-create",
+                "merchant-realistic",
+                "parity-probe"
+              ],
               "createdAt": "2026-04-24T23:53:29Z",
               "updatedAt": "2026-04-24T23:53:29Z",
               "totalPriceSet": {
@@ -85,7 +101,11 @@
               "name": "#D49",
               "status": "COMPLETED",
               "email": "hermes-draft-order-probe-1777074686016@example.com",
-              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "tags": [
+                "draft-order-create",
+                "merchant-realistic",
+                "parity-probe"
+              ],
               "createdAt": "2026-04-24T23:51:28Z",
               "updatedAt": "2026-04-24T23:51:30Z",
               "totalPriceSet": {
@@ -117,5 +137,151 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DraftOrdersReadParityPlan",
+      "variables": {
+        "first": 5
+      },
+      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzA3ODI3MjQxMTkzLCJsYXN0X3ZhbHVlIjoiMTMwNzgyNzI0MTE5MyJ9",
+                  "node": {
+                    "id": "gid://shopify/DraftOrder/1307827241193",
+                    "name": "#D53",
+                    "status": "COMPLETED",
+                    "email": "hermes-draft-order-probe-1777076856718@example.com",
+                    "tags": [
+                      "draft-order-create",
+                      "merchant-realistic",
+                      "parity-probe"
+                    ],
+                    "createdAt": "2026-04-25T00:27:39Z",
+                    "updatedAt": "2026-04-25T00:27:41Z",
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "38.25",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzA3ODI0MDYyNjk3LCJsYXN0X3ZhbHVlIjoiMTMwNzgyNDA2MjY5NyJ9",
+                  "node": {
+                    "id": "gid://shopify/DraftOrder/1307824062697",
+                    "name": "#D52",
+                    "status": "OPEN",
+                    "email": "hermes-draft-order-probe-1777075589191@example.com",
+                    "tags": [
+                      "draft-order-create",
+                      "merchant-realistic",
+                      "parity-probe"
+                    ],
+                    "createdAt": "2026-04-25T00:06:34Z",
+                    "updatedAt": "2026-04-25T00:06:34Z",
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "38.25",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzA3ODIyNTU1MzY5LCJsYXN0X3ZhbHVlIjoiMTMwNzgyMjU1NTM2OSJ9",
+                  "node": {
+                    "id": "gid://shopify/DraftOrder/1307822555369",
+                    "name": "#D51",
+                    "status": "OPEN",
+                    "email": "hermes-draft-order-probe-1777075062863@example.com",
+                    "tags": [
+                      "draft-order-create",
+                      "merchant-realistic",
+                      "parity-probe"
+                    ],
+                    "createdAt": "2026-04-24T23:57:47Z",
+                    "updatedAt": "2026-04-24T23:57:47Z",
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "38.25",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzA3ODIxNzM2MTY5LCJsYXN0X3ZhbHVlIjoiMTMwNzgyMTczNjE2OSJ9",
+                  "node": {
+                    "id": "gid://shopify/DraftOrder/1307821736169",
+                    "name": "#D50",
+                    "status": "OPEN",
+                    "email": "hermes-draft-order-probe-1777074806796@example.com",
+                    "tags": [
+                      "draft-order-create",
+                      "merchant-realistic",
+                      "parity-probe"
+                    ],
+                    "createdAt": "2026-04-24T23:53:29Z",
+                    "updatedAt": "2026-04-24T23:53:29Z",
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "38.25",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzA3ODIxMzEwMTg1LCJsYXN0X3ZhbHVlIjoiMTMwNzgyMTMxMDE4NSJ9",
+                  "node": {
+                    "id": "gid://shopify/DraftOrder/1307821310185",
+                    "name": "#D49",
+                    "status": "COMPLETED",
+                    "email": "hermes-draft-order-probe-1777074686016@example.com",
+                    "tags": [
+                      "draft-order-create",
+                      "merchant-realistic",
+                      "parity-probe"
+                    ],
+                    "createdAt": "2026-04-24T23:51:28Z",
+                    "updatedAt": "2026-04-24T23:51:30Z",
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "38.25",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMzA3ODI3MjQxMTkzLCJsYXN0X3ZhbHVlIjoiMTMwNzgyNzI0MTE5MyJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxMzA3ODIxMzEwMTg1LCJsYXN0X3ZhbHVlIjoiMTMwNzgyMTMxMDE4NSJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

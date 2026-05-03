@@ -1,8 +1,14 @@
 {
   "scenarioId": "fulfillment-cancel-live-parity",
-  "operationNames": ["fulfillmentCancel"],
+  "operationNames": [
+    "fulfillmentCancel"
+  ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/fulfillment-cancel-parity.json"
   ],
@@ -15,12 +21,6 @@
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
-      {
-        "path": "$.createdAt",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live fulfillment creation timestamp, while the local proxy keeps the seeded fulfillment timestamp nullable until creation staging is modeled."
-      },
       {
         "path": "$.updatedAt",
         "matcher": "iso-timestamp",
