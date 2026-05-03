@@ -19,7 +19,9 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcBool,
@@ -29,6 +31,13 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, fetch_sync,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -36,8 +45,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type CartTransformRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
-  type ValidationRecord, CartTransformRecord, ShopifyFunctionRecord,
-  TaxAppConfigurationRecord, ValidationRecord,
+  type ValidationRecord, CartTransformRecord, ShopifyFunctionAppRecord,
+  ShopifyFunctionRecord, TaxAppConfigurationRecord, ValidationRecord,
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +113,96 @@ pub fn process(
 ) -> Result(Json, FunctionsError) {
   use data <- result.try(handle_function_query(store, document, variables))
   Ok(wrap_data(data))
+}
+
+/// True when functions-domain reads need local handling because the
+/// proxy already knows about function metadata or staged lifecycle
+/// effects. In LiveHybrid, cold reads can be forwarded upstream
+/// verbatim; once any local function metadata exists, reads must stay
+/// local so staged Validation / CartTransform state remains visible.
+pub fn local_has_function_metadata(proxy: DraftProxy) -> Bool {
+  store_has_function_metadata(proxy.store)
+}
+
+fn store_has_function_metadata(store_in: Store) -> Bool {
+  dict.size(store_in.base_state.shopify_functions) > 0
+  || dict.size(store_in.staged_state.shopify_functions) > 0
+  || dict.size(store_in.base_state.validations) > 0
+  || dict.size(store_in.staged_state.validations) > 0
+  || dict.size(store_in.staged_state.deleted_validation_ids) > 0
+  || dict.size(store_in.base_state.cart_transforms) > 0
+  || dict.size(store_in.staged_state.cart_transforms) > 0
+  || dict.size(store_in.staged_state.deleted_cart_transform_ids) > 0
+  || option.is_some(store_in.base_state.tax_app_configuration)
+  || option.is_some(store_in.staged_state.tax_app_configuration)
+}
+
+fn should_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "validation" ->
+      !local_has_function_metadata(proxy)
+    parse_operation.QueryOperation, "validations" ->
+      !local_has_function_metadata(proxy)
+    parse_operation.QueryOperation, "cartTransforms" ->
+      !local_has_function_metadata(proxy)
+    parse_operation.QueryOperation, "shopifyFunction" ->
+      !local_has_function_metadata(proxy)
+    parse_operation.QueryOperation, "shopifyFunctions" ->
+      !local_has_function_metadata(proxy)
+    _, _ -> False
+  }
+}
+
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_passthrough = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_in_live_hybrid(proxy, parsed.type_, primary_root_field)
+    _ -> False
+  }
+  case want_passthrough {
+    True -> passthrough.passthrough_sync(proxy, request)
+    False ->
+      case process(proxy.store, document, variables) {
+        Ok(envelope) -> #(
+          Response(status: 200, body: envelope, headers: []),
+          proxy,
+        )
+        Error(_) -> #(
+          Response(
+            status: 400,
+            body: json.object([
+              #(
+                "errors",
+                json.array(
+                  [
+                    json.object([
+                      #(
+                        "message",
+                        json.string("Failed to handle functions query"),
+                      ),
+                    ]),
+                  ],
+                  fn(x) { x },
+                ),
+              ),
+            ]),
+            headers: [],
+          ),
+          proxy,
+        )
+      }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -589,6 +688,55 @@ pub fn process_mutation(
         variables,
       ))
     }
+  }
+}
+
+/// Pattern 2: dispatched LiveHybrid function metadata mutations first
+/// try to hydrate referenced ShopifyFunction owner/app metadata from
+/// upstream, then stage the mutation locally. Snapshot/no-transport
+/// paths fall back to the existing local synthetic Function record.
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Result(MutationOutcome, FunctionsError) {
+  case root_field.get_root_fields(document) {
+    Error(err) -> Error(ParseFailed(err))
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      let identity_for_handlers =
+        reserve_multiroot_log_identity(identity, fields)
+      let hydrated_store =
+        hydrate_referenced_shopify_functions(store, fields, variables, upstream)
+      Ok(handle_mutation_fields(
+        hydrated_store,
+        identity_for_handlers,
+        request_path,
+        document,
+        fields,
+        fragments,
+        variables,
+      ))
+    }
+  }
+}
+
+fn reserve_multiroot_log_identity(
+  identity: SyntheticIdentityRegistry,
+  fields: List(Selection),
+) -> SyntheticIdentityRegistry {
+  case list.length(mutation_root_names(fields)) > 1 {
+    True -> {
+      let #(_, identity_after_reserved_id) =
+        synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
+      let #(_, identity_after_reserved_log) =
+        synthetic_identity.make_synthetic_timestamp(identity_after_reserved_id)
+      identity_after_reserved_log
+    }
+    False -> identity
   }
 }
 
@@ -1208,6 +1356,266 @@ fn handle_tax_app_configure(
     next_store,
     next_identity,
   )
+}
+
+// ---------------------------------------------------------------------------
+// Upstream ShopifyFunction hydration
+// ---------------------------------------------------------------------------
+
+fn hydrate_referenced_shopify_functions(
+  store: Store,
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  list.fold(fields, store, fn(acc, field) {
+    case function_reference_for_mutation(field, variables) {
+      Some(#(reference, api_type)) ->
+        hydrate_shopify_function_reference(acc, reference, api_type, upstream)
+      None -> acc
+    }
+  })
+}
+
+fn function_reference_for_mutation(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(#(FunctionReference, String)) {
+  case field {
+    Field(name: name, ..) -> {
+      let args = field_args(field, variables)
+      case name.value {
+        "validationCreate" -> {
+          let input = case input_object(args, "validation") {
+            Some(d) -> d
+            None -> dict.new()
+          }
+          Some(#(read_function_reference(input), "VALIDATION"))
+        }
+        "validationUpdate" -> {
+          let input = case input_object(args, "validation") {
+            Some(d) -> d
+            None -> dict.new()
+          }
+          let reference = read_function_reference(input)
+          case reference.function_id, reference.function_handle {
+            None, None -> None
+            _, _ -> Some(#(reference, "VALIDATION"))
+          }
+        }
+        "cartTransformCreate" -> {
+          let input = case input_object(args, "cartTransform") {
+            Some(d) -> d
+            None -> args
+          }
+          Some(#(read_function_reference(input), "CART_TRANSFORM"))
+        }
+        _ -> None
+      }
+    }
+    _ -> None
+  }
+}
+
+fn hydrate_shopify_function_reference(
+  store: Store,
+  reference: FunctionReference,
+  api_type: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case reference.function_id, reference.function_handle {
+    None, None -> store
+    _, _ ->
+      case find_existing_shopify_function(store, reference) {
+        Some(_) -> store
+        None ->
+          case fetch_shopify_function(upstream, reference, api_type) {
+            Some(record) -> store.upsert_base_shopify_functions(store, [record])
+            None -> store
+          }
+      }
+  }
+}
+
+fn fetch_shopify_function(
+  upstream: UpstreamContext,
+  reference: FunctionReference,
+  api_type: String,
+) -> Option(ShopifyFunctionRecord) {
+  case reference.function_id {
+    Some(id) -> fetch_shopify_function_by_id(upstream, id)
+    None ->
+      case reference.function_handle {
+        Some(handle) ->
+          fetch_shopify_function_by_handle(upstream, handle, api_type)
+        None -> None
+      }
+  }
+}
+
+const function_hydrate_selection: String = " id title handle apiType description appKey app { __typename id title handle apiKey } "
+
+fn fetch_shopify_function_by_id(
+  upstream: UpstreamContext,
+  id: String,
+) -> Option(ShopifyFunctionRecord) {
+  let query =
+    "query FunctionHydrateById($id: String!) { shopifyFunction(id: $id) {"
+    <> function_hydrate_selection
+    <> " } }"
+  let variables = json.object([#("id", json.string(id))])
+  case
+    fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "FunctionHydrateById",
+      query,
+      variables,
+    )
+  {
+    Ok(response) -> shopify_function_from_id_response(response)
+    Error(_) -> None
+  }
+}
+
+fn fetch_shopify_function_by_handle(
+  upstream: UpstreamContext,
+  handle: String,
+  api_type: String,
+) -> Option(ShopifyFunctionRecord) {
+  let query =
+    "query FunctionHydrateByHandle { shopifyFunctions(first: 50, apiType: "
+    <> api_type
+    <> ") { nodes {"
+    <> function_hydrate_selection
+    <> " } } }"
+  let variables =
+    json.object([
+      #("handle", json.string(handle)),
+      #("apiType", json.string(api_type)),
+    ])
+  case
+    fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "FunctionHydrateByHandle",
+      query,
+      variables,
+    )
+  {
+    Ok(response) -> shopify_function_from_handle_response(response, handle)
+    Error(_) -> None
+  }
+}
+
+fn shopify_function_from_id_response(
+  value: commit.JsonValue,
+) -> Option(ShopifyFunctionRecord) {
+  use data <- option.then(json_get(value, "data"))
+  use node <- option.then(non_null_json(json_get(data, "shopifyFunction")))
+  shopify_function_from_json(node)
+}
+
+fn shopify_function_from_handle_response(
+  value: commit.JsonValue,
+  handle: String,
+) -> Option(ShopifyFunctionRecord) {
+  use data <- option.then(json_get(value, "data"))
+  use connection <- option.then(
+    non_null_json(json_get(data, "shopifyFunctions")),
+  )
+  use nodes <- option.then(json_get_array(connection, "nodes"))
+  list.find_map(nodes, fn(node) {
+    case shopify_function_from_json(node) {
+      Some(record) ->
+        case shopify_function_matches_handle(record, handle) {
+          True -> Ok(record)
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+  |> result_to_option
+}
+
+fn shopify_function_matches_handle(
+  record: ShopifyFunctionRecord,
+  handle: String,
+) -> Bool {
+  let normalized = normalize_function_handle(handle)
+  let handle_id = shopify_function_id_from_handle(handle)
+  record.handle == Some(handle)
+  || record.handle == Some(normalized)
+  || record.id == handle_id
+}
+
+fn shopify_function_from_json(
+  node: commit.JsonValue,
+) -> Option(ShopifyFunctionRecord) {
+  use id <- option.then(json_get_string(node, "id"))
+  Some(ShopifyFunctionRecord(
+    id: id,
+    title: json_get_string(node, "title"),
+    handle: json_get_string(node, "handle"),
+    api_type: json_get_string(node, "apiType"),
+    description: json_get_string(node, "description"),
+    app_key: json_get_string(node, "appKey"),
+    app: non_null_json(json_get(node, "app"))
+      |> option.then(shopify_function_app_from_json),
+  ))
+}
+
+fn shopify_function_app_from_json(
+  node: commit.JsonValue,
+) -> Option(ShopifyFunctionAppRecord) {
+  Some(ShopifyFunctionAppRecord(
+    typename: json_get_string(node, "__typename"),
+    id: json_get_string(node, "id"),
+    title: json_get_string(node, "title"),
+    handle: json_get_string(node, "handle"),
+    api_key: json_get_string(node, "apiKey"),
+  ))
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(name, child) if name == key -> Ok(child)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn non_null_json(value: Option(commit.JsonValue)) -> Option(commit.JsonValue) {
+  case value {
+    Some(commit.JsonNull) -> None
+    Some(v) -> Some(v)
+    None -> None
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get_array(
+  value: commit.JsonValue,
+  key: String,
+) -> Option(List(commit.JsonValue)) {
+  case json_get(value, key) {
+    Some(commit.JsonArray(items)) -> Some(items)
+    _ -> None
+  }
 }
 
 // ---------------------------------------------------------------------------
