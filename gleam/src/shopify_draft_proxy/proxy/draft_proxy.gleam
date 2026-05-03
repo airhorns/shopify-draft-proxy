@@ -1183,10 +1183,13 @@ fn route_query(
         "Failed to handle webhooks query",
       )
     Ok(AppsDomain) ->
-      respond(
+      apps.handle_query_request(
         proxy,
-        apps.process(proxy.store, query, variables),
-        "Failed to handle apps query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(FunctionsDomain) ->
       respond(
