@@ -104,5 +104,58 @@
     },
     "blocker": null
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesPublishableUnpublishHydrate",
+      "variables": {
+        "id": "gid://shopify/Product/9264105488617"
+      },
+      "query": "sha:hand-synthesized-StorePropertiesPublishableUnpublishHydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publishable": {
+              "id": "gid://shopify/Product/9264105488617",
+              "publishedOnCurrentPublication": false,
+              "availablePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesPublishableUnpublishToCurrentChannelHydrate",
+      "variables": {
+        "id": "gid://shopify/Product/9264105488617"
+      },
+      "query": "sha:hand-synthesized-StorePropertiesPublishableUnpublishToCurrentChannelHydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publishable": {
+              "id": "gid://shopify/Product/9264105488617",
+              "publishedOnCurrentPublication": false,
+              "availablePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

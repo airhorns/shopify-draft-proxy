@@ -1702,7 +1702,9 @@
           "contactEmail": "shopify@gadget.dev",
           "email": "shopify@gadget.dev",
           "currencyCode": "CAD",
-          "enabledPresentmentCurrencies": ["CAD"],
+          "enabledPresentmentCurrencies": [
+            "CAD"
+          ],
           "ianaTimezone": "America/Toronto",
           "timezoneAbbreviation": "EDT",
           "timezoneOffset": "-0400",
@@ -1720,7 +1722,11 @@
             "coordinatesValidated": false,
             "country": "Canada",
             "countryCodeV2": "CA",
-            "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+            "formatted": [
+              "103 ossington",
+              "Ottawa ON k1s3b7",
+              "Canada"
+            ],
             "formattedArea": "Ottawa ON, Canada",
             "latitude": 45.389817,
             "longitude": -75.68692920000001,
@@ -1861,7 +1867,11 @@
             "documentation": "https://shopify.dev/api/usage/access-scopes",
             "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
           },
-          "path": ["businessEntities", 0, "shopifyPaymentsAccount"]
+          "path": [
+            "businessEntities",
+            0,
+            "shopifyPaymentsAccount"
+          ]
         }
       ],
       "data": {
@@ -1911,7 +1921,10 @@
             "documentation": "https://shopify.dev/api/usage/access-scopes",
             "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
           },
-          "path": ["primary", "shopifyPaymentsAccount"]
+          "path": [
+            "primary",
+            "shopifyPaymentsAccount"
+          ]
         },
         {
           "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
@@ -1926,7 +1939,10 @@
             "documentation": "https://shopify.dev/api/usage/access-scopes",
             "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
           },
-          "path": ["known", "shopifyPaymentsAccount"]
+          "path": [
+            "known",
+            "shopifyPaymentsAccount"
+          ]
         }
       ],
       "data": {
@@ -1980,7 +1996,13 @@
   "mutationValidationProbePlan": [
     {
       "root": "location lifecycle",
-      "operations": ["locationAdd", "locationEdit", "locationActivate", "locationDeactivate", "locationDelete"],
+      "operations": [
+        "locationAdd",
+        "locationEdit",
+        "locationActivate",
+        "locationDeactivate",
+        "locationDelete"
+      ],
       "safety": "side-effect-heavy; do not run happy paths against shared conformance stores",
       "recommendedProbe": "schema/variable validation only with deliberately invalid IDs or missing required input"
     },
@@ -1997,10 +2019,118 @@
     },
     {
       "root": "shopPolicyUpdate",
-      "operations": ["shopPolicyUpdate"],
+      "operations": [
+        "shopPolicyUpdate"
+      ],
       "safety": "updates merchant legal policy content",
       "recommendedProbe": "input validation only until a disposable dev store policy fixture is available"
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesShopBaseline",
+      "variables": {},
+      "query": "sha:hand-synthesized-StorePropertiesShopBaseline",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/63755419881",
+              "name": "very-big-test-store",
+              "myshopifyDomain": "very-big-test-store.myshopify.com",
+              "url": "https://very-big-test-store.myshopify.com",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/93049946345",
+                "host": "very-big-test-store.myshopify.com",
+                "url": "https://very-big-test-store.myshopify.com",
+                "sslEnabled": true
+              },
+              "contactEmail": "shopify@gadget.dev",
+              "email": "shopify@gadget.dev",
+              "currencyCode": "CAD",
+              "enabledPresentmentCurrencies": [
+                "CAD"
+              ],
+              "ianaTimezone": "America/Toronto",
+              "timezoneAbbreviation": "EDT",
+              "timezoneOffset": "-0400",
+              "timezoneOffsetMinutes": -240,
+              "taxesIncluded": false,
+              "taxShipping": false,
+              "unitSystem": "METRIC_SYSTEM",
+              "weightUnit": "KILOGRAMS",
+              "shopAddress": {
+                "id": "gid://shopify/ShopAddress/63755419881",
+                "address1": "103 ossington",
+                "address2": null,
+                "city": "Ottawa",
+                "company": null,
+                "coordinatesValidated": false,
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "formatted": [
+                  "103 ossington",
+                  "Ottawa ON k1s3b7",
+                  "Canada"
+                ],
+                "formattedArea": "Ottawa ON, Canada",
+                "latitude": 45.389817,
+                "longitude": -75.68692920000001,
+                "phone": "",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "k1s3b7"
+              },
+              "plan": {
+                "partnerDevelopment": true,
+                "publicDisplayName": "Development",
+                "shopifyPlus": false
+              },
+              "resourceLimits": {
+                "locationLimit": 1000,
+                "maxProductOptions": 3,
+                "maxProductVariants": 2048,
+                "redirectLimitReached": false
+              },
+              "features": {
+                "avalaraAvatax": false,
+                "branding": "SHOPIFY",
+                "bundles": {
+                  "eligibleForBundles": true,
+                  "ineligibilityReason": null,
+                  "sellsBundles": false
+                },
+                "captcha": true,
+                "cartTransform": {
+                  "eligibleOperations": {
+                    "expandOperation": true,
+                    "mergeOperation": true,
+                    "updateOperation": true
+                  }
+                },
+                "dynamicRemarketing": false,
+                "eligibleForSubscriptionMigration": false,
+                "eligibleForSubscriptions": false,
+                "giftCards": true,
+                "harmonizedSystemCode": true,
+                "legacySubscriptionGatewayEnabled": false,
+                "liveView": true,
+                "paypalExpressSubscriptionGatewayStatus": "DISABLED",
+                "reports": true,
+                "sellsSubscriptions": false,
+                "showMetrics": true,
+                "storefront": true,
+                "unifiedMarkets": true
+              },
+              "paymentSettings": {
+                "supportedDigitalWallets": []
+              },
+              "shopPolicies": []
+            }
+          }
+        }
+      }
+    }
+  ]
 }
