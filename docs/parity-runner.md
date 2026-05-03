@@ -424,6 +424,29 @@ When migrating a read scenario, expect to delete cursor /
 seed-based runner emitted synthetic cursors. AGENTS.md bans *adding*
 new `expectedDifferences`; it does not ban removing stale ones.
 
+### Evolving a hydration query's response shape — keep parsers additive
+
+If two scenarios share the same Pattern 2 `operationName` (e.g. the
+discounts domain reuses `DiscountHydrate` across the redeem-code-bulk
+and app-bulk lifecycle scenarios), and you evolve the query's
+selection set in one scenario's cassette, the **other scenario's
+cassette will silently break** — the cassette HIT still matches on
+`operationName`, but the parser sees the new keys as `null` because
+the older cassette was recorded against the old selection set.
+
+Prefer additive parsing: read new keys first, fall back to old.
+Concretely, if you rewrite `data.codeDiscountNode` to
+`data.codeNode` / `data.automaticNode` aliases, parse with
+`option.or(non_null_node(json_get(data, "codeDiscountNode")))` so
+the legacy cassette shape still resolves. Or: keep the old key in
+the new query (`data { codeDiscountNode: ... codeNode: ... }`) so
+both shapes coexist in the cassette.
+
+When the operation is genuinely scenario-specific, give it a
+scenario-specific name (`DiscountHydrateForBulkAppFlow`) instead of
+overloading a shared one — the operation name is the cassette match
+key.
+
 ## Migration playbook (per-domain agent brief)
 
 Each domain (customers, products, collections, …) is migrated
