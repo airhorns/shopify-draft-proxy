@@ -7613,6 +7613,33 @@ pub fn destroy_delegated_access_token(
 // Functions domain (Pass 18)
 // ---------------------------------------------------------------------------
 
+/// Persist upstream-hydrated `ShopifyFunctionRecord` rows into base state.
+/// Functions cannot be deleted in the proxy — once a record is staged or
+/// hydrated upstream, it stays.
+pub fn upsert_base_shopify_functions(
+  store: Store,
+  records: List(ShopifyFunctionRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        shopify_functions: dict.insert(
+          base.shopify_functions,
+          record.id,
+          record,
+        ),
+        shopify_function_order: append_unique_id(
+          base.shopify_function_order,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
 /// Stage a `ShopifyFunctionRecord`. Mirrors `upsertStagedShopifyFunction`.
 /// Functions cannot be deleted in the proxy — once a record is staged or
 /// hydrated upstream, it stays.
