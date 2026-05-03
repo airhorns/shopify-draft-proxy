@@ -1453,10 +1453,13 @@ fn route_query(
         "Failed to handle products query",
       )
     Ok(AdminPlatformDomain) ->
-      respond(
+      admin_platform.handle_query_request(
         proxy,
-        admin_platform.process(proxy.store, query, variables),
-        "Failed to handle admin platform query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(StorePropertiesDomain) ->
       store_properties.handle_query_request(
