@@ -665,5 +665,38 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OnlineStoreBlogsCountHydrate",
+      "variables": {},
+      "query": "hand-synthesized from captured baseline blogsCount",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blogsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStorePagesCountHydrate",
+      "variables": {},
+      "query": "hand-synthesized from captured baseline pagesCount",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "pagesCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          }
+        }
+      }
+    }
+  ]
 }
