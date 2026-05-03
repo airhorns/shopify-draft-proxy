@@ -6,6 +6,7 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/state/store
@@ -642,7 +643,7 @@ pub fn delivery_profile_read_projects_detail_catalog_and_missing_test() {
 
 pub fn draft_proxy_routes_delivery_profile_to_shipping_domain_test() {
   let proxy =
-    draft_proxy.DraftProxy(..draft_proxy.new(), store: delivery_profile_store())
+    proxy_state.DraftProxy(..draft_proxy.new(), store: delivery_profile_store())
   let body =
     json.object([
       #(
@@ -662,7 +663,7 @@ pub fn draft_proxy_routes_delivery_profile_to_shipping_domain_test() {
   let #(response, _) =
     draft_proxy.process_request(
       proxy,
-      draft_proxy.Request(
+      proxy_state.Request(
         method: "POST",
         path: "/admin/api/2026-04/graphql.json",
         headers: dict.new(),

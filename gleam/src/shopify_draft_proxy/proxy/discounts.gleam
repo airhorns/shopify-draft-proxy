@@ -17,6 +17,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SelectedFieldOptions, SrcBool, SrcFloat,
   SrcInt, SrcList, SrcNull, SrcObject, SrcString, get_document_fragments,
@@ -26,14 +27,22 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type RequiredArgument, RequiredArgument, single_root_log_draft,
   validate_required_field_arguments,
 }
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type DiscountRecord, type ShopifyFunctionRecord,
-  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
-  CapturedObject, CapturedString, DiscountRecord,
+  type CapturedJsonValue, type DiscountRecord, type ShopifyFunctionAppRecord,
+  type ShopifyFunctionRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, DiscountRecord,
+  ShopifyFunctionAppRecord, ShopifyFunctionRecord,
 }
 
 pub type DiscountsError {
@@ -107,6 +116,153 @@ pub fn is_discount_mutation_root(name: String) -> Bool {
     | "discountAutomaticDelete"
     | "discountAutomaticBulkDelete" -> True
     _ -> False
+  }
+}
+
+/// True iff any string-typed variable value in the request resolves to
+/// a discount that's already in local state, or is a proxy-synthetic
+/// gid. The dispatcher uses this to skip `LiveHybrid` passthrough so
+/// that read-after-create reads of a synthetic id stay local (and so
+/// that read-after-delete reads of a synthetic id correctly return
+/// null instead of forwarding a synthetic gid upstream where it would
+/// 404).
+///
+/// We scan every string variable value rather than keying on `"id"`
+/// because GraphQL operations frequently rebind the argument under a
+/// different variable name (e.g. `discountNode(id: $codeId)`).
+pub fn local_has_discount_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id)
+        || case store.get_effective_discount_by_id(proxy.store, id) {
+          Some(_) -> True
+          None -> False
+        }
+      _ -> False
+    }
+  })
+}
+
+/// True iff the local store has any staged discount records, or any
+/// variable carries a proxy-synthetic gid. The dispatcher uses this to
+/// keep aggregate / connection / by-code reads on the local handler
+/// once a lifecycle scenario has staged or deleted discounts —
+/// passthrough would otherwise forward synthetic gids upstream (404)
+/// or skip the empty/null answer the lifecycle test expects after a
+/// delete.
+pub fn local_has_staged_discounts(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  let has_synthetic =
+    dict.values(variables)
+    |> list.any(fn(value) {
+      case value {
+        root_field.StringVal(s) -> is_proxy_synthetic_gid(s)
+        _ -> False
+      }
+    })
+  has_synthetic || !list.is_empty(store.list_effective_discounts(proxy.store))
+}
+
+/// In `LiveHybrid` mode, decide whether this discount-domain
+/// operation should be answered by reaching upstream verbatim instead
+/// of from local state. Internal helper for `handle_query_request` —
+/// the dispatcher does not consult this directly anymore.
+///
+/// `*Node` lookups skip passthrough when the requested id is already
+/// staged (read-after-write of a local create); aggregate / connection
+/// / by-code reads skip passthrough whenever any discount is staged so
+/// lifecycle scenarios stay local-only end-to-end.
+fn should_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "discountNode" ->
+      !local_has_discount_id(proxy, variables)
+    parse_operation.QueryOperation, "codeDiscountNode" ->
+      !local_has_discount_id(proxy, variables)
+    parse_operation.QueryOperation, "automaticDiscountNode" ->
+      !local_has_discount_id(proxy, variables)
+    parse_operation.QueryOperation, "discountNodes" ->
+      !local_has_staged_discounts(proxy, variables)
+    parse_operation.QueryOperation, "codeDiscountNodes" ->
+      !local_has_staged_discounts(proxy, variables)
+    parse_operation.QueryOperation, "automaticDiscountNodes" ->
+      !local_has_staged_discounts(proxy, variables)
+    parse_operation.QueryOperation, "discountNodesCount" ->
+      !local_has_staged_discounts(proxy, variables)
+    parse_operation.QueryOperation, "codeDiscountNodeByCode" ->
+      !local_has_staged_discounts(proxy, variables)
+    _, _ -> False
+  }
+}
+
+/// Domain entrypoint for the discount query path. The dispatcher
+/// always lands here for discount-domain reads regardless of
+/// `read_mode`; the handler itself decides whether to compute the
+/// answer from local state or to forward to upstream verbatim via
+/// `passthrough.passthrough_sync` (when in `LiveHybrid` mode and the
+/// operation is one we know we can't satisfy locally — see
+/// `should_passthrough_in_live_hybrid`).
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_passthrough = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        variables,
+      )
+    _ -> False
+  }
+  case want_passthrough {
+    True -> passthrough.passthrough_sync(proxy, request)
+    False ->
+      case process(proxy.store, document, variables) {
+        Ok(envelope) -> #(
+          Response(status: 200, body: envelope, headers: []),
+          proxy,
+        )
+        Error(_) -> #(
+          Response(
+            status: 400,
+            body: json.object([
+              #(
+                "errors",
+                json.array(
+                  [
+                    json.object([
+                      #(
+                        "message",
+                        json.string("Failed to handle discounts query"),
+                      ),
+                    ]),
+                  ],
+                  fn(x) { x },
+                ),
+              ),
+            ]),
+            headers: [],
+          ),
+          proxy,
+        )
+      }
   }
 }
 
@@ -448,9 +604,32 @@ fn child_fields(field: Selection) -> List(Selection) {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, DiscountsError) {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+/// Variant of `process_mutation` that threads an `UpstreamContext` into
+/// the per-handler logic. Used by the dispatcher when the proxy has an
+/// `upstream_transport` installed (parity cassette in tests, live HTTP
+/// in production), so that handlers like `discountCodeBasicCreate` can
+/// consult upstream for cross-discount uniqueness checks before staging.
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Result(MutationOutcome, DiscountsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
@@ -465,6 +644,7 @@ pub fn process_mutation(
         variables,
         document,
         operation_path,
+        upstream,
       ))
     }
   }
@@ -494,6 +674,7 @@ fn handle_mutation_fields(
   variables: Dict(String, root_field.ResolvedValue),
   document: String,
   operation_path: String,
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let initial = #([], [], store, identity, [], [])
   let #(entries, all_errors, final_store, final_identity, staged_ids, drafts) =
@@ -529,6 +710,7 @@ fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -615,6 +797,7 @@ fn handle_discount_mutation_field(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationResult {
   case root {
     "discountCodeBasicCreate" ->
@@ -628,6 +811,7 @@ fn handle_discount_mutation_field(
         "code",
         "basic",
         "basicCodeDiscount",
+        upstream,
       )
     "discountCodeBasicUpdate" ->
       update_discount(
@@ -651,6 +835,7 @@ fn handle_discount_mutation_field(
         "code",
         "bxgy",
         "bxgyCodeDiscount",
+        upstream,
       )
     "discountCodeBxgyUpdate" ->
       update_discount(
@@ -674,6 +859,7 @@ fn handle_discount_mutation_field(
         "code",
         "free_shipping",
         "freeShippingCodeDiscount",
+        upstream,
       )
     "discountCodeFreeShippingUpdate" ->
       update_discount(
@@ -697,6 +883,7 @@ fn handle_discount_mutation_field(
         "code",
         "app",
         "codeAppDiscount",
+        upstream,
       )
     "discountCodeAppUpdate" ->
       update_discount(
@@ -720,6 +907,7 @@ fn handle_discount_mutation_field(
         "automatic",
         "basic",
         "automaticBasicDiscount",
+        upstream,
       )
     "discountAutomaticBasicUpdate" ->
       update_discount(
@@ -743,6 +931,7 @@ fn handle_discount_mutation_field(
         "automatic",
         "bxgy",
         "automaticBxgyDiscount",
+        upstream,
       )
     "discountAutomaticBxgyUpdate" ->
       update_discount(
@@ -766,6 +955,7 @@ fn handle_discount_mutation_field(
         "automatic",
         "free_shipping",
         "freeShippingAutomaticDiscount",
+        upstream,
       )
     "discountAutomaticFreeShippingUpdate" ->
       update_discount(
@@ -789,6 +979,7 @@ fn handle_discount_mutation_field(
         "automatic",
         "app",
         "automaticAppDiscount",
+        upstream,
       )
     "discountAutomaticAppUpdate" ->
       update_discount(
@@ -811,9 +1002,17 @@ fn handle_discount_mutation_field(
     | "discountCodeBulkDeactivate"
     | "discountCodeBulkDelete"
     | "discountAutomaticBulkDelete" ->
-      bulk_job_payload(store, identity, root, field, variables)
+      bulk_job_payload(store, identity, root, field, variables, upstream)
     "discountRedeemCodeBulkAdd" ->
-      redeem_code_bulk_add(store, identity, root, field, fragments, variables)
+      redeem_code_bulk_add(
+        store,
+        identity,
+        root,
+        field,
+        fragments,
+        variables,
+        upstream,
+      )
     "discountCodeRedeemCodeBulkDelete" | "discountRedeemCodeBulkDelete" ->
       redeem_code_bulk_delete(
         store,
@@ -822,6 +1021,7 @@ fn handle_discount_mutation_field(
         field,
         fragments,
         variables,
+        upstream,
       )
     _ ->
       MutationResult(
@@ -845,6 +1045,7 @@ fn create_discount(
   owner_kind: String,
   discount_type: String,
   input_name: String,
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let input = read_object_arg(field, variables, input_name)
@@ -861,8 +1062,28 @@ fn create_discount(
         top_level_errors: [],
       )
     Some(input) -> {
+      // Local input validation first (structural / pure-function checks).
       let user_errors =
         validate_discount_input(store, input_name, input, discount_type)
+      // Cross-discount uniqueness check: when local validation otherwise
+      // passes and the input carries a `code`, ask upstream whether a
+      // discount with that code already exists. If so, surface a TAKEN
+      // error matching Shopify's response shape. We do this after local
+      // validation so that pure-input errors (badRefs, BXGY shape, free-
+      // shipping combinesWith) are not overshadowed by an upstream
+      // call that would never have been issued in production for those
+      // shapes either. In `Snapshot` mode (no transport, no upstream),
+      // the lookup is skipped — the local-store check inside
+      // `validate_discount_input` already rejects duplicates against
+      // staged records, which is the cold-start expectation.
+      let user_errors = case user_errors {
+        [_, ..] -> user_errors
+        [] ->
+          case fetch_taken_code_error(input, input_name, owner_kind, upstream) {
+            Some(err) -> [err]
+            None -> []
+          }
+      }
       case user_errors {
         [_, ..] ->
           MutationResult(
@@ -874,6 +1095,18 @@ fn create_discount(
             top_level_errors: [],
           )
         [] -> {
+          // Pattern 2: when this is an app discount, hydrate the
+          // referenced Shopify Function from upstream so the staged
+          // record can project the function's metadata onto
+          // `appDiscountType` (appKey, title, description). No-op when
+          // the function is already in the local store, when no
+          // transport is installed (Snapshot mode), or when the
+          // upstream call fails. The miss falls through to the
+          // legacy local-only behavior.
+          let store = case discount_type {
+            "app" -> maybe_hydrate_shopify_function(store, input, upstream)
+            _ -> store
+          }
           let #(id, next_identity) =
             synthetic_identity.make_proxy_synthetic_gid(
               identity,
@@ -1089,6 +1322,7 @@ fn bulk_job_payload(
   root: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let args =
@@ -1111,8 +1345,21 @@ fn bulk_job_payload(
       MutationResult(key, payload, store, identity, [], [])
     }
     [] -> {
+      // Pattern 2: hydrate every id this bulk operation touches before
+      // applying the local effects. Without hydration, references to
+      // base discounts only seeded upstream silently no-op (set-status
+      // checks `get_effective_discount_by_id` first), so subsequent
+      // count and node-by-id read targets see incorrect totals. A
+      // cassette miss is a silent no-op so the legacy local-only
+      // behavior applies in Snapshot mode.
+      let ids = read_string_array(args, "ids", [])
+      let #(store, identity_after_hydrate) =
+        list.fold(ids, #(store, identity), fn(acc, id) {
+          let #(current_store, current_identity) = acc
+          maybe_hydrate_discount(current_store, current_identity, id, upstream)
+        })
       let #(job_id, next_identity) =
-        make_discount_async_gid(store, identity, "Job")
+        make_discount_async_gid(store, identity_after_hydrate, "Job")
       let job =
         SrcObject(
           dict.from_list([
@@ -1145,12 +1392,26 @@ fn redeem_code_bulk_add(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let discount_id = read_string_arg(field, variables, "discountId")
   let codes = read_codes_arg(field, variables, "codes")
   let #(bulk_id, identity_after_bulk) =
     make_discount_async_gid(store, identity, "DiscountRedeemCodeBulkCreation")
+  // Pattern 2: when the bulk-add targets a real Shopify-side discount
+  // we don't have locally yet, fetch its current state from upstream
+  // and seed it into the base store so the staged code-additions
+  // overlay correctly. Subsequent read-after-write queries
+  // (`codeDiscountNode`, `codeDiscountNodeByCode`) then serve from the
+  // local handler with the merged shape. In `Snapshot` mode the
+  // hydration silently no-ops; the existing local-only behavior
+  // applies (codes are appended only when the discount is already
+  // staged).
+  let #(store, identity_after_bulk) = case discount_id {
+    Some(id) -> maybe_hydrate_discount(store, identity_after_bulk, id, upstream)
+    None -> #(store, identity_after_bulk)
+  }
   let #(next_store, identity_after_codes) = case discount_id {
     Some(id) ->
       case store.get_effective_discount_by_id(store, id) {
@@ -1202,10 +1463,18 @@ fn redeem_code_bulk_delete(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let discount_id = read_string_arg(field, variables, "discountId")
   let ids = read_string_list_arg(field, variables, "ids")
+  // Same Pattern 2 hydration as redeem_code_bulk_add: pull the prior
+  // record from upstream so that staged code-deletions overlay on top
+  // of the real codes connection. See the comment on the add handler.
+  let #(store, identity) = case discount_id {
+    Some(id) -> maybe_hydrate_discount(store, identity, id, upstream)
+    None -> #(store, identity)
+  }
   let next_store = case discount_id {
     Some(id) ->
       case store.get_effective_discount_by_id(store, id) {
@@ -1524,6 +1793,552 @@ fn validate_discount_input(
     "basicCodeDiscount" ->
       list.append(errors, validate_basic_refs(input_name, input))
     _ -> errors
+  }
+}
+
+/// Pattern 2: ask upstream whether a discount with the proposed code
+/// already exists. Returns a `TAKEN` userError when the lookup confirms
+/// a hit. Only code-discount creates carry a `code` (automatic
+/// discounts never carry one), so automatics short-circuit immediately.
+/// In `Snapshot` mode (no `SyncTransport` installed) this is a no-op —
+/// the captured-cassette check is the only place a uniqueness signal
+/// can come from when no records have been staged yet.
+fn fetch_taken_code_error(
+  input: Dict(String, root_field.ResolvedValue),
+  input_name: String,
+  owner_kind: String,
+  upstream: UpstreamContext,
+) -> Option(SourceValue) {
+  case owner_kind {
+    "automatic" -> None
+    _ -> {
+      let code =
+        read_string(input, "code")
+        |> option.or(read_string(input, "codePrefix"))
+      case code {
+        None -> None
+        Some(code) -> {
+          let query =
+            "query DiscountUniquenessCheck($code: String!) {\n"
+            <> "  codeDiscountNodeByCode(code: $code) { id }\n"
+            <> "}\n"
+          let variables = json.object([#("code", json.string(code))])
+          case
+            upstream_query.fetch_sync(
+              upstream.origin,
+              upstream.transport,
+              upstream.headers,
+              "DiscountUniquenessCheck",
+              query,
+              variables,
+            )
+          {
+            Ok(value) ->
+              case existing_discount_id(value) {
+                True ->
+                  Some(user_error(
+                    [input_name, "code"],
+                    "Code must be unique. Please try a different code.",
+                    "TAKEN",
+                  ))
+                False -> None
+              }
+            // Snapshot mode (no transport installed) and any other
+            // transport-level failure (cassette miss, malformed
+            // response, HTTP error) silently fall through to the
+            // local-only validation result. Cassette misses surface
+            // through the runner directly when a cassette is in play.
+            Error(_) -> None
+          }
+        }
+      }
+    }
+  }
+}
+
+/// Pattern 2: ask upstream for the current state of a code-discount
+/// (id, basic metadata, codes connection) and seed it into the local
+/// `base_state` so that any subsequent staged mutation overlays on top
+/// of that real shape. Used by `redeem_code_bulk_add` /
+/// `redeem_code_bulk_delete` so the read-after-write `codeDiscountNode`
+/// / `codeDiscountNodeByCode` queries find the discount locally and
+/// project the right `codesCount`.
+///
+/// Returns the original `(store, identity)` when:
+///  - the discount is already in the local store (nothing to do),
+///  - no transport is installed (Snapshot mode / production JS without
+///    cassette: cassette miss = silent no-op so the legacy local-only
+///    behavior applies),
+///  - the upstream response is malformed or contains a null node.
+///
+/// The hydrated record carries only the fields the read-after targets
+/// actually project (id, codeDiscount.codes, codesCount). Other fields
+/// are absent — fine because the read targets in this scenario don't
+/// project them.
+fn maybe_hydrate_discount(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  id: String,
+  upstream: UpstreamContext,
+) -> #(Store, SyntheticIdentityRegistry) {
+  case store.get_effective_discount_by_id(store, id) {
+    Some(_) -> #(store, identity)
+    None -> {
+      // The hydrate query asks for both `codeDiscountNode` and
+      // `automaticDiscountNode` projections under aliases, so callers
+      // that don't know whether the id refers to a code- or
+      // automatic-owned discount can use a single query + cassette
+      // entry. The handler picks the non-null projection. Status and
+      // title are pulled in alongside codes so downstream-read targets
+      // that use `discountNodesCount(query: "status:active")` /
+      // `status:expired` can compute correct counts after the bulk-job
+      // status-mutation effects apply on top of the hydrated base
+      // record.
+      let query =
+        "query DiscountHydrate($id: ID!) {\n"
+        <> "  codeNode: codeDiscountNode(id: $id) {\n"
+        <> "    id\n"
+        <> "    codeDiscount {\n"
+        <> "      __typename\n"
+        <> "      ... on DiscountCodeBasic {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "        codes(first: 250) { nodes { id code } }\n"
+        <> "      }\n"
+        <> "      ... on DiscountCodeApp {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "      ... on DiscountCodeBxgy {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "      ... on DiscountCodeFreeShipping {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "    }\n"
+        <> "  }\n"
+        <> "  automaticNode: automaticDiscountNode(id: $id) {\n"
+        <> "    id\n"
+        <> "    automaticDiscount {\n"
+        <> "      __typename\n"
+        <> "      ... on DiscountAutomaticBasic {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "      ... on DiscountAutomaticApp {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "      ... on DiscountAutomaticBxgy {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "      ... on DiscountAutomaticFreeShipping {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "    }\n"
+        <> "  }\n"
+        <> "}\n"
+      let variables = json.object([#("id", json.string(id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "DiscountHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) ->
+          case discount_record_from_hydrate(value, id) {
+            Some(record) -> #(
+              store.upsert_base_discounts(store, [record]),
+              identity,
+            )
+            None -> #(store, identity)
+          }
+        Error(_) -> #(store, identity)
+      }
+    }
+  }
+}
+
+/// Build a minimal `DiscountRecord` from a `DiscountHydrate` upstream
+/// response. The record carries the codes connection so the read
+/// handlers project `codesCount` and the by-code lookup correctly. The
+/// rest of the discount payload is left empty — the read-after-write
+/// targets in this scenario only project codes-related fields.
+fn discount_record_from_hydrate(
+  value: commit.JsonValue,
+  id: String,
+) -> Option(DiscountRecord) {
+  case json_get(value, "data") {
+    None -> None
+    Some(data) -> {
+      // Prefer the non-null projection. The runtime's response will have
+      // exactly one of `codeNode` / `automaticNode` non-null for any
+      // given id; if both are present (shouldn't happen in practice) we
+      // pick code first to match the legacy lookup order.
+      //
+      // Older cassettes recorded the response under the unaliased
+      // `codeDiscountNode` field (before the query learned to ask for
+      // both code and automatic projections in one round-trip), so
+      // accept that shape too as a fallback.
+      let code_node =
+        non_null_node(json_get(data, "codeNode"))
+        |> option.or(non_null_node(json_get(data, "codeDiscountNode")))
+      let automatic_node = non_null_node(json_get(data, "automaticNode"))
+      case code_node, automatic_node {
+        Some(node), _ -> Some(code_record_from_hydrate_node(node, id))
+        None, Some(node) -> Some(automatic_record_from_hydrate_node(node, id))
+        None, None -> None
+      }
+    }
+  }
+}
+
+fn non_null_node(value: Option(commit.JsonValue)) -> Option(commit.JsonValue) {
+  case value {
+    Some(commit.JsonNull) -> None
+    Some(node) -> Some(node)
+    None -> None
+  }
+}
+
+fn code_record_from_hydrate_node(
+  node: commit.JsonValue,
+  id: String,
+) -> DiscountRecord {
+  let discount = json_get(node, "codeDiscount")
+  let typename =
+    discount
+    |> option.then(fn(d) { json_get_string(d, "__typename") })
+    |> option.unwrap("DiscountCodeBasic")
+  let title = discount |> option.then(fn(d) { json_get_string(d, "title") })
+  let status =
+    discount
+    |> option.then(fn(d) { json_get_string(d, "status") })
+    |> option.unwrap("ACTIVE")
+  let codes = case discount {
+    Some(d) ->
+      case json_get(d, "codes") {
+        Some(codes_obj) ->
+          case json_get(codes_obj, "nodes") {
+            Some(commit.JsonArray(items)) ->
+              list.filter_map(items, json_to_code_pair)
+            _ -> []
+          }
+        None -> []
+      }
+    None -> []
+  }
+  let first_code = case codes {
+    [#(_, code), ..] -> Some(code)
+    [] -> None
+  }
+  let payload =
+    source_to_captured(
+      SrcObject(
+        dict.from_list([
+          #("id", SrcString(id)),
+          #(
+            "codeDiscount",
+            SrcObject(
+              dict.from_list([
+                #("__typename", SrcString(typename)),
+                #(
+                  "title",
+                  title |> option.map(SrcString) |> option.unwrap(SrcNull),
+                ),
+                #("status", SrcString(status)),
+                #(
+                  "codes",
+                  SrcObject(
+                    dict.from_list([
+                      #(
+                        "nodes",
+                        SrcList(
+                          list.map(codes, fn(pair) {
+                            let #(code_id, code) = pair
+                            SrcObject(
+                              dict.from_list([
+                                #("id", SrcString(code_id)),
+                                #("code", SrcString(code)),
+                                #("asyncUsageCount", SrcInt(0)),
+                              ]),
+                            )
+                          }),
+                        ),
+                      ),
+                      #("edges", SrcList([])),
+                      #(
+                        "pageInfo",
+                        SrcObject(
+                          dict.from_list([
+                            #("hasNextPage", SrcBool(False)),
+                            #("hasPreviousPage", SrcBool(False)),
+                            #("startCursor", SrcNull),
+                            #("endCursor", SrcNull),
+                          ]),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+                #("codesCount", count_source(list.length(codes))),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    )
+  DiscountRecord(
+    id: id,
+    owner_kind: "code",
+    discount_type: discount_type_from_typename(typename),
+    title: title,
+    status: status,
+    code: first_code,
+    payload: payload,
+    cursor: None,
+  )
+}
+
+fn automatic_record_from_hydrate_node(
+  node: commit.JsonValue,
+  id: String,
+) -> DiscountRecord {
+  let discount = json_get(node, "automaticDiscount")
+  let typename =
+    discount
+    |> option.then(fn(d) { json_get_string(d, "__typename") })
+    |> option.unwrap("DiscountAutomaticBasic")
+  let title = discount |> option.then(fn(d) { json_get_string(d, "title") })
+  let status =
+    discount
+    |> option.then(fn(d) { json_get_string(d, "status") })
+    |> option.unwrap("ACTIVE")
+  let payload =
+    source_to_captured(
+      SrcObject(
+        dict.from_list([
+          #("id", SrcString(id)),
+          #(
+            "automaticDiscount",
+            SrcObject(
+              dict.from_list([
+                #("__typename", SrcString(typename)),
+                #(
+                  "title",
+                  title |> option.map(SrcString) |> option.unwrap(SrcNull),
+                ),
+                #("status", SrcString(status)),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    )
+  DiscountRecord(
+    id: id,
+    owner_kind: "automatic",
+    discount_type: discount_type_from_typename(typename),
+    title: title,
+    status: status,
+    code: None,
+    payload: payload,
+    cursor: None,
+  )
+}
+
+fn discount_type_from_typename(typename: String) -> String {
+  case typename {
+    "DiscountCodeBxgy" | "DiscountAutomaticBxgy" -> "bxgy"
+    "DiscountCodeFreeShipping" | "DiscountAutomaticFreeShipping" ->
+      "free_shipping"
+    "DiscountCodeApp" | "DiscountAutomaticApp" -> "app"
+    _ -> "basic"
+  }
+}
+
+fn json_to_code_pair(
+  value: commit.JsonValue,
+) -> Result(#(String, String), Nil) {
+  case json_get(value, "id"), json_get(value, "code") {
+    Some(commit.JsonString(id)), Some(commit.JsonString(code)) ->
+      Ok(#(id, code))
+    _, _ -> Error(Nil)
+  }
+}
+
+/// Pattern 2: hydrate a `ShopifyFunctionRecord` from upstream when the
+/// caller supplies an app-discount `functionHandle`/`functionId` and the
+/// local store does not already know about that function. Used at
+/// app-discount-create time so `appDiscountType.appKey` / `title` /
+/// `description` project the real function metadata instead of falling
+/// back to the discount input title.
+///
+/// Cassette miss / Snapshot mode / malformed response is silently
+/// tolerated — the existing local-only behavior takes over (input title
+/// fallback, null app key/description). Returns the original `store`
+/// when the function is already known or the upstream call failed.
+fn maybe_hydrate_shopify_function(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  let reference =
+    read_string(input, "functionId")
+    |> option.or(read_string(input, "functionHandle"))
+  case reference {
+    None -> store
+    Some(reference) ->
+      case find_shopify_function(store, reference) {
+        Some(_) -> store
+        None -> {
+          let query =
+            "query ShopifyFunctionByHandle($handle: String!) {\n"
+            <> "  shopifyFunctions(first: 1, apiType: \"discount\", handle: $handle) {\n"
+            <> "    nodes {\n"
+            <> "      id\n"
+            <> "      title\n"
+            <> "      handle\n"
+            <> "      apiType\n"
+            <> "      description\n"
+            <> "      appKey\n"
+            <> "      app {\n"
+            <> "        id\n"
+            <> "        title\n"
+            <> "        handle\n"
+            <> "        apiKey\n"
+            <> "      }\n"
+            <> "    }\n"
+            <> "  }\n"
+            <> "}\n"
+          let variables = json.object([#("handle", json.string(reference))])
+          case
+            upstream_query.fetch_sync(
+              upstream.origin,
+              upstream.transport,
+              upstream.headers,
+              "ShopifyFunctionByHandle",
+              query,
+              variables,
+            )
+          {
+            Ok(value) ->
+              case shopify_function_record_from_response(value) {
+                Some(record) -> {
+                  let #(_, next_store) =
+                    store.upsert_staged_shopify_function(store, record)
+                  next_store
+                }
+                None -> store
+              }
+            Error(_) -> store
+          }
+        }
+      }
+  }
+}
+
+/// Pull the first `shopifyFunctions.nodes[0]` entry off a
+/// `ShopifyFunctionByHandle` upstream response and lift it into a
+/// `ShopifyFunctionRecord`. Returns `None` for any shape divergence so
+/// the caller falls back to the local-only behavior.
+fn shopify_function_record_from_response(
+  value: commit.JsonValue,
+) -> Option(ShopifyFunctionRecord) {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "shopifyFunctions") {
+        Some(connection) ->
+          case json_get(connection, "nodes") {
+            Some(commit.JsonArray([first, ..])) ->
+              shopify_function_record_from_node(first)
+            _ -> None
+          }
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn shopify_function_record_from_node(
+  value: commit.JsonValue,
+) -> Option(ShopifyFunctionRecord) {
+  case json_get(value, "id") {
+    Some(commit.JsonString(id)) ->
+      Some(ShopifyFunctionRecord(
+        id: id,
+        title: json_get_string(value, "title"),
+        handle: json_get_string(value, "handle"),
+        api_type: json_get_string(value, "apiType"),
+        description: json_get_string(value, "description"),
+        app_key: json_get_string(value, "appKey"),
+        app: shopify_function_app_record_from_node(json_get(value, "app")),
+      ))
+    _ -> None
+  }
+}
+
+fn shopify_function_app_record_from_node(
+  value: Option(commit.JsonValue),
+) -> Option(ShopifyFunctionAppRecord) {
+  case value {
+    Some(node) ->
+      Some(ShopifyFunctionAppRecord(
+        typename: json_get_string(node, "__typename"),
+        id: json_get_string(node, "id"),
+        title: json_get_string(node, "title"),
+        handle: json_get_string(node, "handle"),
+        api_key: json_get_string(node, "apiKey"),
+      ))
+    None -> None
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+/// Read `data.codeDiscountNodeByCode.id` from the upstream response
+/// AST. Treats anything other than a non-null string id as "no such
+/// discount." Walks `commit.JsonValue` so we don't have to round-trip
+/// through serialized JSON.
+fn existing_discount_id(value: commit.JsonValue) -> Bool {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "codeDiscountNodeByCode") {
+        Some(node) ->
+          case json_get(node, "id") {
+            Some(commit.JsonString(_)) -> True
+            _ -> False
+          }
+        None -> False
+      }
+    None -> False
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(k, v) if k == key -> Ok(v)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
   }
 }
 

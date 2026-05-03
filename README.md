@@ -27,7 +27,9 @@ normal test runs mutating a dev store.
 - Exposes a meta API for health, configuration, staged-state inspection, reset,
   and commit.
 - Uses conformance captures and parity tests to keep behavior grounded in real
-  Shopify responses.
+  Shopify responses. Parity tests run the proxy in LiveHybrid mode against a
+  recorded cassette of upstream GraphQL traffic (no pre-seeded fixtures);
+  see `docs/parity-runner.md` for details.
 
 Products are the first deep fidelity target. Other Admin GraphQL areas are
 covered incrementally as they gain local models, fixtures, and tests.

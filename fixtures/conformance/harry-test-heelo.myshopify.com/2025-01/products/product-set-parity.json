@@ -1978,5 +1978,6 @@
     "inventoryQuantitiesLocationIds": ["gid://shopify/Location/106318463282", "gid://shopify/Location/106318430514"],
     "inventoryQuantitiesName": "available",
     "multiLocationInventoryQuantities": true
-  }
+  },
+  "upstreamCalls": []
 }

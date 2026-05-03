@@ -18,5 +18,6 @@
       }
     }
   },
-  "sourceCapture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-change-status-parity.json#validation.unknownProduct"
+  "sourceCapture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-change-status-parity.json#validation.unknownProduct",
+  "upstreamCalls": []
 }

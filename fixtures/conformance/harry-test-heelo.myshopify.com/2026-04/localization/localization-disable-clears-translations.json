@@ -776,5 +776,6 @@
       "resourceId": "gid://shopify/Product/9801098789170",
       "translations": []
     }
-  }
+  },
+  "upstreamCalls": []
 }

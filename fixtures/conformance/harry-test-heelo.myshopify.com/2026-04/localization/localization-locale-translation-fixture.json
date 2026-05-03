@@ -29,9 +29,18 @@
     "response": {
       "data": {
         "availableLocalesExcerpt": [
-          { "isoCode": "en", "name": "English" },
-          { "isoCode": "fr", "name": "French" },
-          { "isoCode": "de", "name": "German" }
+          {
+            "isoCode": "en",
+            "name": "English"
+          },
+          {
+            "isoCode": "fr",
+            "name": "French"
+          },
+          {
+            "isoCode": "de",
+            "name": "German"
+          }
         ],
         "allShopLocales": [
           {
@@ -84,7 +93,11 @@
               ],
               "translations": [],
               "nestedTranslatableResources": {
-                "nodes": [{ "resourceId": "gid://shopify/ProductOption/12278832234802" }],
+                "nodes": [
+                  {
+                    "resourceId": "gid://shopify/ProductOption/12278832234802"
+                  }
+                ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
@@ -154,20 +167,44 @@
   },
   "shopLocaleLifecycle": {
     "locale": "fr",
-    "before": [{ "locale": "en", "name": "English", "primary": true, "published": true }],
+    "before": [
+      {
+        "locale": "en",
+        "name": "English",
+        "primary": true,
+        "published": true
+      }
+    ],
     "enable": {
-      "shopLocale": { "locale": "fr", "name": "French", "primary": false, "published": false },
+      "shopLocale": {
+        "locale": "fr",
+        "name": "French",
+        "primary": false,
+        "published": false
+      },
       "userErrors": []
     },
     "update": {
-      "shopLocale": { "locale": "fr", "name": "French", "primary": false, "published": false },
+      "shopLocale": {
+        "locale": "fr",
+        "name": "French",
+        "primary": false,
+        "published": false
+      },
       "userErrors": []
     },
     "disable": {
       "locale": "fr",
       "userErrors": []
     },
-    "after": [{ "locale": "en", "name": "English", "primary": true, "published": true }]
+    "after": [
+      {
+        "locale": "en",
+        "name": "English",
+        "primary": true,
+        "published": true
+      }
+    ]
   },
   "translationLifecycle": {
     "resourceId": "gid://shopify/Product/9801098789170",
@@ -214,5 +251,6 @@
       "resourceId": "gid://shopify/Product/9801098789170",
       "translations": []
     }
-  }
+  },
+  "upstreamCalls": []
 }

@@ -12,6 +12,7 @@ import shopify_draft_proxy/proxy/operation_registry.{
   Passthrough, Products, Query, RegistryEntry, StageLocally, Unknown,
 }
 import shopify_draft_proxy/proxy/operation_registry_data
+import shopify_draft_proxy/proxy/proxy_state
 
 const sample_json = "[
   {\"name\":\"product\",\"type\":\"query\",\"domain\":\"products\",\"execution\":\"overlay-read\",\"implemented\":true,\"matchNames\":[\"product\",\"Product\"],\"runtimeTests\":[\"a.test.ts\"]},
@@ -219,14 +220,14 @@ pub fn default_registry_marks_only_ported_roots_as_locally_dispatched_test() {
 pub fn default_registry_unimplemented_root_blocks_legacy_fallback_test() {
   let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
   let request =
-    draft_proxy.Request(
+    proxy_state.Request(
       method: "POST",
       path: "/admin/api/2025-01/graphql.json",
       headers: dict.new(),
       body: "{\"query\":\"{ app(id: \\\"gid://shopify/App/1\\\") { id } }\"}",
     )
 
-  let #(draft_proxy.Response(status: status, body: body, ..), _) =
+  let #(proxy_state.Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, request)
 
   assert status == 400

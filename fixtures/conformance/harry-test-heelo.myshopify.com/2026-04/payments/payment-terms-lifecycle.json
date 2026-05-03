@@ -414,5 +414,6 @@
       }
     }
   },
-  "notes": "Captured on a disposable draft order. Shopify computes NET dueAt from issuedAt plus template due days, creates a new PaymentSchedule id on FIXED update, and returns null paymentTerms after delete."
+  "notes": "Captured on a disposable draft order. Shopify computes NET dueAt from issuedAt plus template due days, creates a new PaymentSchedule id on FIXED update, and returns null paymentTerms after delete.",
+  "upstreamCalls": []
 }

@@ -126,5 +126,6 @@
   "unsupportedExternalSideEffects": [
     "The proxy does not upload bytes to Shopify storage in this local-runtime fixture.",
     "The fixture exercises the local product-reference lifecycle after a file source URL is already known."
-  ]
+  ],
+  "upstreamCalls": []
 }

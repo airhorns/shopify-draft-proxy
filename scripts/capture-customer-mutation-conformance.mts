@@ -142,7 +142,7 @@ async function main() {
       lastName: 'Create',
       locale: 'en',
       note: 'customer create parity probe',
-      phone: '+14155550123',
+      phone: `+1415555${String(stamp).slice(-4).padStart(4, '0')}`,
       tags: ['parity', `create-${stamp}`],
       taxExempt: true,
     },

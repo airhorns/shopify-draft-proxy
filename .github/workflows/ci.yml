@@ -63,9 +63,6 @@ jobs:
       - name: Check conformance metadata
         run: corepack pnpm conformance:check
 
-      - name: Check conformance parity scenarios
-        run: corepack pnpm conformance:parity
-
       - name: Check remaining TypeScript conformance capture tooling
         run: corepack pnpm conformance:capture:check
 

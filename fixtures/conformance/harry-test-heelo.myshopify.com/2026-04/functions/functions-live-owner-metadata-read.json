@@ -895,5 +895,6 @@
     "crossAppFunctionReferences": "The unattended conformance setup has one installed app with released Function extensions. The fixture records unknown/unowned handle userErrors as the reachable authority boundary, but true cross-app Function references require a second installed app and are not available in this shop setup.",
     "duplicateValidationConstraint": "Shopify allowed multiple validationCreate calls for the same validation Function in this live shop. The fixture records that success behavior and cleans up both created validations; no duplicate-validation userError was observed to enforce.",
     "taxAppReadiness": "taxAppConfigure is authority-gated by write_taxes and tax calculations app status. The current grant still records Shopify ACCESS_DENIED because the caller must also be a tax calculations app."
-  }
+  },
+  "upstreamCalls": []
 }

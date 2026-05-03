@@ -2,8 +2,10 @@
 
 ## Overview
 
-`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy with a
-Koa webservice adapter. It supports three read execution modes and two mutation
+`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy.
+The runtime is implemented in Gleam under `gleam/src/shopify_draft_proxy/`
+and compiles to both Erlang/BEAM and JavaScript so it can be embedded in
+either ecosystem. It supports three read execution modes and two mutation
 execution paths.
 
 ### Read execution modes
@@ -33,114 +35,172 @@ execution paths.
 ## High-level request flow
 
 ```text
-App/test harness -> DraftProxy instance -> operation classifier
-                                      ├─ Query path
-                                      │   ├─ live Shopify read (optional)
-                                      │   ├─ normalized overlay engine
-                                      │   └─ GraphQL response serializer
-                                      ├─ Mutation path
-                                      │   ├─ supported? yes -> local stage + synthesized response
-                                      │   └─ supported? no  -> passthrough to Shopify
-                                      └─ Meta API path
-                                          ├─ reset/log/state/config/health
-                                          └─ commit replay
-
-Koa server -> DraftProxy instance
+App/test harness -> DraftProxy value -> operation classifier
+                                   ├─ Query path
+                                   │   ├─ live Shopify read (optional, via cassette in tests)
+                                   │   ├─ normalized overlay engine
+                                   │   └─ GraphQL response serializer
+                                   ├─ Mutation path
+                                   │   ├─ supported? yes -> local stage + synthesized response
+                                   │   └─ supported? no  -> passthrough to Shopify
+                                   └─ Meta API path
+                                       ├─ reset/log/state/config/health
+                                       └─ commit replay
 ```
 
-## Primary modules
+`DraftProxy` is a value, not a singleton. Each request returns a new
+`DraftProxy` alongside the response (`process_request(proxy, request) ->
+#(Response, DraftProxy)`), threading state explicitly. There is no
+ambient runtime context — embedders own the value and decide how to
+persist it.
 
-### `src/config.ts`
+## Primary modules (Gleam runtime)
 
-- parse environment/configuration
-- select runtime mode
-- hold Shopify upstream URL/version settings
+The runtime tree lives at `gleam/src/shopify_draft_proxy/`.
 
-### `src/app.ts`
+### `proxy/draft_proxy.gleam`
 
-- build Koa app
-- register body parser and mount incoming HTTP requests onto a `DraftProxy`
-  instance
+- public embeddable API: `new`, `with_config`, `with_upstream_transport`,
+  `process_request`, `dispatch_graphql`, `dump_state`, `restore_state`
+- the `DraftProxy` record carries the active config, synthetic identity
+  registry, store, operation registry, and an optional
+  `upstream_transport` used to inject a cassette in parity tests
+- routes parsed GraphQL operations through `route_query` / `route_mutation`
+  and falls through to `dispatch_passthrough` for unimplemented or
+  force-passthrough roots in `LiveHybrid` mode
 
-### `src/proxy-instance.ts`
+### `proxy/proxy_state.gleam`
 
-- public embeddable API for creating isolated proxy instances
-- owns the runtime `AppConfig`, in-memory store, and synthetic ID/timestamp
-  registry for that instance
-- exposes request-form processing for versioned Shopify Admin GraphQL routes
-  plus public meta-equivalent methods for config, log, state, reset, and commit
-- provides the public object used by the Koa webservice adapter
+- defines `DraftProxy`, `Config`, and `ReadMode` (`Live | LiveHybrid |
+Snapshot`)
+- holds the `with_*` builders that any caller composes to configure a
+  proxy value
 
-### `src/logger.ts`
+### `proxy/upstream_query.gleam`
 
-- create the shared pino structured logger for runtime proxy logs
-- use `pino-pretty` single-line output for local development
-- provide child loggers for server and proxy modules
-- keep unsupported mutation passthrough visible through structured warning logs
+- single chokepoint operation handlers use to call upstream Shopify
+- `fetch_sync(origin, transport, headers, operation_name, query,
+variables)` returns a parsed `JsonValue` AST
+- in production, falls through to `upstream_client.send_sync` (Erlang)
+  or fails on JS until an async helper lands; in parity tests, a
+  recorded cassette is installed via `with_upstream_transport`
 
-### `src/server.ts`
+### `proxy/<domain>.gleam` (one per Admin API area)
 
-- start HTTP server
+- `customers`, `products`, `orders`, `discounts`, `markets`,
+  `metafields`, `metafield_definitions`, `metaobjects`, `b2b`,
+  `marketing`, `shipping_fulfillments`, `gift_cards`, `online_store`,
+  `localization`, `apps`, `admin_platform`, `bulk_operations`,
+  `functions`, `payments`, `media`, `delivery_settings`, `events`
+- each module owns its query payload builders, mutation interpreters,
+  state mutators, and Node serializers for its resource area
+- domains decide on a per-operation basis whether to reach upstream
+  via `upstream_query.fetch_sync` (see `docs/parity-runner.md`)
 
-### `src/graphql/`
+### `proxy/operation_registry.gleam` + `operation_registry_data.gleam`
 
-- parse GraphQL documents
-- identify operation type and operation name
-- eventually map known operations to capability records
+- vendored, pre-compiled mapping from operation name → capability
+  (execution kind, dispatch metadata, type, etc.)
+- regenerated from `config/operation-registry.json` via
+  `gleam/scripts/sync-operation-registry.sh`
 
-### `src/search-query-parser.ts`
+### `proxy/commit.gleam`
 
-- parse Shopify-style Admin search query strings into shared typed terms and expression trees
-- provide reusable term metadata (`field`, comparator, value, negation) and common text/number/date match helpers so endpoint groups do not maintain separate query parsers or comparator implementations
+- replays the staged mutation log against real Shopify on
+  `__meta/commit`
+- `run_commit_sync(store, origin, headers, send)` is parameterised on
+  the transport so tests inject a fake `send`
 
-### `src/state/`
+### `state/store.gleam` + `state/types.gleam`
 
-- define normalized object graph
-- state store interface + in-memory implementation
-- mutation log
-- synthetic ID/timestamp generation
+- normalized in-memory object graph: products, variants, options,
+  metafields, customers, orders, discounts, markets, b2b companies,
+  marketing activities, locales/translations, bulk operations, etc.
+- two-layer overlay: `base_state` (snapshot or hydrated from upstream)
+  - `staged_state` (local mutation effects). Effective reads merge the
+    two; commit drains staged.
 
-### `src/proxy/`
+### `state/synthetic_identity.gleam`
 
-- request classifier
-- read pipeline
-- mutation pipeline
-- response overlay engine
-- GraphQL route dispatch keeps HTTP validation, auth/upstream wiring, and unsupported fallback passthrough in `routes.ts`; domain behavior is selected through a `DomainDispatcher` table whose entries own `canHandle`, mutation handling, query handling, and live-hybrid hydration decisions for their resource area.
+- mints stable proxy-internal GIDs, timestamps, handles, temp IDs
+- per-instance cursor so two `DraftProxy` values produce independent
+  identity streams
 
-### `src/shopify/`
+### `state/serialization.gleam`
 
-- upstream HTTP client
-- request serialization
-- commit executor
-- conformance helpers later
+- versioned dump/restore of the entire `DraftProxy` value as JSON
+- envelope is forward-compatible: unknown extension fields are ignored
+  by current readers
 
-### `src/meta/`
+### `graphql/`
 
-- reset, commit, state, log endpoints
-- shared meta handlers used by both the Koa webservice and the embeddable
-  `DraftProxy` API
+- `lexer.gleam`, `parser.gleam`, `ast.gleam`, `parse_operation.gleam`,
+  `root_field.gleam` — a hand-written GraphQL document parser tuned
+  for the operations Shopify Admin actually serves
+- avoids the dependency footprint and allocator costs of the canonical
+  GraphQL grammar; supports the subset the proxy needs
 
-### `src/testing/`
+### `search_query_parser.gleam`
 
-- scenario fixtures
-- recorder/replayer helpers
-- parity comparators
+- parses Shopify-style Admin search query strings into shared typed
+  terms and expression trees
+- domain modules use it for `query:` parsing instead of maintaining
+  separate per-resource parsers
 
-### `scripts/conformance-scenario-registry.ts`
+### `proxy/graphql_helpers.gleam`
 
-- discovers standard conformance scenarios recursively from `config/parity-specs/**/*.json`
-- keeps scenario-to-operation mapping in parity specs instead of the runtime operation registry
-- builds conformance status JSON for CI comments from discovered specs
-- supports optional override config only for unusual scenario shapes
+- shared cursor windowing, `nodes`/`edges` serialization, `pageInfo`
+  emission used by every connection root in the runtime
+- domain modules pass sort/filter decisions in; the helper handles the
+  connection envelope
 
-### `scripts/conformance-parity-lib.ts`
+### `shopify/upstream_client.gleam`
 
-- classifies conformance scenarios by capture/proxy-request/comparison-contract readiness
-- executes contract-ready proxy requests against local product proxy handlers in snapshot mode
-- blocks live Shopify access during parity execution by rejecting unsupported operations instead of proxying them upstream
-- compares captured Shopify payload slices to proxy payload slices with strict JSON semantics
-- allows nondeterministic values only through explicit path-scoped rules in parity specs
+- HTTP client for upstream Shopify
+- `Transport` type alias used by both `commit` (mutation replay) and
+  `upstream_query` (per-operation reads)
+
+### Build scripts (TypeScript)
+
+The runtime is Gleam, but the build/recording/registry tooling is
+still TypeScript under `scripts/`:
+
+- `scripts/parity-record.mts` — boots the Gleam JS build in
+  `LiveHybrid` against real Shopify and records `upstreamCalls`
+  cassettes into capture files
+- `scripts/conformance-capture-index.ts` — discovers conformance
+  capture scripts and runs them
+- `scripts/shopify-conformance-auth.mts` — OAuth bootstrap for
+  conformance/recording credentials
+- `scripts/sync-operation-registry.sh` (delegating to TS) — keeps the
+  vendored Gleam operation registry in sync with
+  `config/operation-registry.json`
+
+The legacy TypeScript proxy runtime under `src/` is in retirement;
+domain modules are deleted as their Gleam ports reach parity.
+
+### `gleam/test/parity/runner.gleam` + `gleam/test/parity_test.gleam`
+
+Parity runner. Discovers every spec under `config/parity-specs/**` and
+runs each one through `draft_proxy.process_request` on both Erlang and
+JavaScript targets via `pnpm gleam:test`.
+
+- runs the proxy in `LiveHybrid` mode with a recorded cassette
+  (`upstreamCalls` array on the capture file) installed via
+  `draft_proxy.with_upstream_transport`. Operation handlers may call
+  `proxy/upstream_query.fetch_*` to reach upstream; the cassette
+  serves those calls deterministically
+- supports a `snapshot-empty` spec mode that asserts cold-state
+  behavior with no transport installed
+- compares captured Shopify payload slices to proxy payload slices with
+  strict JSON semantics; nondeterministic values are tolerated only via
+  explicit path-scoped rules (`expectedDifferences`) in the spec
+- `expectedDifferences` is a last resort, not a fixture-seeding
+  shortcut; the runner does **not** pre-seed `base_state` from
+  captured responses
+- see `docs/parity-runner.md` for the cassette schema, the two
+  per-operation upstream-access patterns, the empty-snapshot variant,
+  and the per-domain migration playbook
 
 ## State model
 
@@ -159,31 +219,31 @@ The runtime should use a normalized object graph rather than raw GraphQL blobs.
 - `queryCache` (optional)
   - normalized read-through cache useful for overlay operations
 
-Current implementation note:
+Implementation:
 
-- Each `createDraftProxy(config)` call creates an isolated in-memory runtime
-  store, mutation log, and synthetic identity registry. Embedded callers should
-  treat the returned `DraftProxy` object as the owner of runtime APIs such as
-  request processing, state/log inspection, reset, and commit.
-- Embedded callers can persist an instance with `DraftProxy.dumpState()` and
-  rehydrate it with `DraftProxy.restoreState(...)` or
-  `createDraftProxy(config, { state })`. The dump is a plain JSON-compatible,
-  versioned envelope containing the instance-owned store state, mutation log,
-  snapshot/reset baselines, runtime-only caches, and synthetic identity cursor.
-  The store portion is serialized as a full own-field state map rather than a
-  hand-maintained subset so newly added in-memory buckets cannot be silently
-  omitted from persistence. Unknown envelope metadata is ignored by v1 restore
-  so future dump writers can add extension data without invalidating the current
-  reader.
-- The Koa server creates a fresh `DraftProxy` instance when `createApp(config)`
-  is called, unless the caller explicitly provides one to mount. The server does
-  not use a process-wide runtime store or proxy singleton.
-- Public `DraftProxy` meta APIs pass their owned store and synthetic identity
-  explicitly. GraphQL request processing installs the instance runtime context
-  before entering domain handlers.
-- Domain handlers must receive instance-owned runtime state through the proxy
-  request/runtime path. Do not introduce `AsyncLocalStorage` or process-wide
-  mutable runtime singletons to bridge store or synthetic identity access.
+- `draft_proxy.new()` returns a fresh `DraftProxy` value with an empty
+  store, empty mutation log, default config, and a fresh synthetic
+  identity cursor. `with_config(...)`, `with_upstream_transport(...)`,
+  and the other `with_*` builders compose configuration onto the
+  value.
+- The proxy is a value, not a stateful service. Every request returns
+  the next proxy alongside the response: `process_request(proxy,
+request) -> #(Response, DraftProxy)`. Embedders own the value and
+  decide whether to thread it through their request loop, store it in
+  an Erlang `gen_server`, or hold it in a JS variable.
+- `dump_state(proxy, created_at)` serializes the entire value (store,
+  mutation log, snapshot/reset baselines, synthetic identity cursor,
+  runtime caches) as a versioned JSON envelope.
+  `restore_state(proxy, dump_json)` rehydrates one. The store portion
+  is serialized as a full own-field state map rather than a
+  hand-maintained subset, so newly added buckets are persisted
+  automatically. Unknown envelope metadata is ignored on read so
+  future writers can extend the format without breaking current
+  readers.
+- Domain handlers receive the instance-owned store and synthetic
+  identity through the proxy value passed into them. There is no
+  ambient runtime context, no process-wide singleton, and no
+  equivalent of `AsyncLocalStorage`.
 
 ## Admin API domain model
 
@@ -257,7 +317,12 @@ This allows:
 - commit replay from original raw mutation documents
 - future conformance instrumentation per command type
 
-Current route dispatch preserves the same supported/unsupported split through shared staged-log helpers. Supported dispatchers append the original raw request body and interpreted metadata before returning synthesized responses, while unknown or unimplemented mutations fall through to the route-level passthrough logger and upstream request path.
+`dispatch_graphql` in `proxy/draft_proxy.gleam` preserves the
+supported/unsupported split. Supported domain handlers append the
+original raw request body and interpreted metadata to the mutation log
+before returning a synthesized response. Unknown or unimplemented
+mutations fall through to `dispatch_passthrough`, which forwards
+verbatim to the upstream transport.
 
 ## Response overlay strategy
 
@@ -272,22 +337,19 @@ This design is preferred over blind JSON patching because it preserves domain-le
 
 ## Snapshot strategy
 
-The server should accept both:
+A `DraftProxy` value can be seeded from a normalized snapshot rather
+than booted empty. The supported on-disk format is the JSON envelope
+produced by `dump_state(...)`: `base_state` buckets, mutation log,
+synthetic identity cursor, optional connection baselines (product
+search, customer catalog/search). `restore_state(proxy, dump_json)`
+loads it into the value before the first request.
 
-- raw recorded GraphQL fixture bundles
-- normalized state snapshots
+`POST /__meta/reset` restores the startup snapshot baseline, including
+captured connection cursor/pageInfo baselines — it does not wipe
+snapshot mode back to an empty store.
 
-At startup, raw fixture bundles should be compiled into normalized state where possible.
-
-Current implementation note:
-
-- `createApp()` now reads `config.snapshotPath` eagerly when it is set
-- the current supported on-disk format is a normalized snapshot JSON file containing `baseState` plus optional product search connection baselines and customer catalog/search connection baselines
-- normalized snapshot JSON is parsed through Zod schemas at the file boundary; the same schemas derive the runtime snapshot TypeScript types
-- loading that file seeds the in-memory base state before the server handles requests
-- `POST /__meta/reset` restores that startup snapshot baseline, including captured connection cursor/pageInfo baselines, rather than wiping snapshot mode back to an empty store
-
-Snapshot misses should return the same kind of empty/null structure Shopify returns when the backing store has no matching data.
+Snapshot misses return the same kind of empty/null structure Shopify
+returns when the backing store has no matching data.
 
 ## Meta API
 
@@ -301,12 +363,18 @@ Recommended endpoints:
 - `GET /__meta/config`
 - `GET /__meta/health`
 
-Current implementation notes:
+Implementation notes:
 
-- `GET /__meta` serves a small operator web UI backed by the existing meta API and in-memory store; it renders the current mutation log/state and exposes reset/commit controls without adding separate persistent UI state
-- `GET /__meta/config` returns the active `port`, `shopifyAdminOrigin`, `readMode`, and `snapshotPath`
-- `GET /__meta/state` returns cloned `baseState` / `stagedState` buckets for debug inspection, including runtime-only object graph maps such as staged orders, draft orders, and calculated orders that are not part of the normalized snapshot file schema
-- mutation-log entries retain the original GraphQL route path as well as the raw request body, so commit replay can preserve the original versioned Admin API endpoint and GraphQL request fields such as `operationName`
+- `GET /__meta/config` returns the active `port`, `shopifyAdminOrigin`,
+  `readMode`, and `snapshotPath`
+- `GET /__meta/state` returns cloned `base_state` / `staged_state`
+  buckets for debug inspection, including runtime-only object graph
+  maps such as staged orders, draft orders, and calculated orders that
+  are not part of the normalized snapshot file schema
+- mutation-log entries retain the original GraphQL route path as well
+  as the raw request body, so `commit.run_commit_sync` can replay the
+  original versioned Admin API endpoint and GraphQL request fields
+  such as `operationName`
 
 Commit response should include:
 
@@ -354,6 +422,29 @@ The conformance suite should include:
 4. **coverage registry**
    - map every query/mutation to implementation and parity status
 
-Current proxy parity execution is intentionally contract-gated. A captured scenario with a proxy request is not executable until its parity spec declares strict JSON comparison targets and expected differences; captured specs must declare a non-planned comparison mode at the schema boundary. If a capture cannot yet run as proxy-vs-capture evidence, keep the gap in Linear/workpad notes rather than committing a passive scenario file. Within a declared comparison target, missing fields, extra fields, null/empty mismatches, array shape drift, changed `userErrors`, and selected-field changes fail by default. Declared expected differences are also checked in the other direction: if an expected difference no longer appears in the proxy-vs-Shopify comparison, the scenario fails until the stale expectation is removed. Expected differences are a last resort after modeling, hydration, or fixture-seeding options have been exhausted; they should not be used just to make parity tests pass. Opaque Shopify connection cursors are an accepted difference because clients cannot rely on their internal encoding. Multi-step fixture modes are reserved for flows backed by committed runtime tests when the generic parity runner cannot yet chain the fixture directly; they are not a parking place for passive captures.
+Parity execution is contract-gated. A captured scenario is not
+executable until its parity spec declares strict JSON comparison
+targets and any expected differences; captured specs must declare a
+non-planned comparison mode at the schema boundary. If a capture
+cannot yet run as proxy-vs-capture evidence, keep the gap in
+Linear/workpad notes rather than committing a passive scenario file.
 
-Conformance registry JSON, parity specs, parity request variables, and conformance fixture JSON are validated with Zod when read by the registry/parity helpers. Types for operation registry entries, parity specs, proxy request specs, and blocker details are derived from those schemas instead of maintained as separate hand-written TypeScript interfaces.
+Within a declared comparison target, missing fields, extra fields,
+null/empty mismatches, array shape drift, changed `userErrors`, and
+selected-field changes fail by default. Declared expected differences
+are also checked in the other direction: if an expected difference no
+longer appears in the proxy-vs-Shopify comparison, the scenario fails
+until the stale expectation is removed. Expected differences are a
+last resort after the operation handler has been adjusted to compute
+the right response (including, where needed, a narrow
+`upstream_query.fetch_sync` call); they are not a shortcut for making
+parity tests pass. Opaque Shopify connection cursors are an accepted
+difference because clients cannot rely on their internal encoding.
+
+The cassette-playback model is detailed in `docs/parity-runner.md`.
+
+Spec / capture / registry JSON is decoded by typed Gleam decoders at
+the runner boundary (`gleam/test/parity/spec.gleam`) and by Zod
+schemas in the TypeScript build/recording scripts. Both decoders
+share `config/parity-specs/**` and `config/operation-registry.json`
+as the source of truth.

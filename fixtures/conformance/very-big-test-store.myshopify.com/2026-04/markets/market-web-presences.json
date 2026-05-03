@@ -67,5 +67,6 @@
         "restoreRate": 100
       }
     }
-  }
+  },
+  "upstreamCalls": []
 }

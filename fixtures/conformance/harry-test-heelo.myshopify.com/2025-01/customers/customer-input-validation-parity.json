@@ -2163,5 +2163,185 @@
         }
       }
     }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerInputValidationDownstream",
+      "variables": {},
+      "query": "query CustomerInputValidationDownstream(\n  $id: ID!\n  $identifier: CustomerIdentifierInput!\n  $query: String!\n  $first: Int!\n) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    locale\n    note\n    verifiedEmail\n    taxExempt\n    tags\n    state\n    canDelete\n    defaultEmailAddress {\n      emailAddress\n    }\n    defaultPhoneNumber {\n      phoneNumber\n    }\n    createdAt\n    updatedAt\n  }\n  customerByIdentifier(identifier: $identifier) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    locale\n    note\n    verifiedEmail\n    taxExempt\n    tags\n    state\n    canDelete\n    defaultEmailAddress {\n      emailAddress\n    }\n    defaultPhoneNumber {\n      phoneNumber\n    }\n    createdAt\n    updatedAt\n  }\n  customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      locale\n      note\n      verifiedEmail\n      taxExempt\n      tags\n      state\n      canDelete\n      defaultEmailAddress {\n        emailAddress\n      }\n      defaultPhoneNumber {\n        phoneNumber\n      }\n      createdAt\n      updatedAt\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  customersCount {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $identifier of type CustomerIdentifierInput! was provided invalid value",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $query of type String! was provided invalid value",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $first of type Int! was provided invalid value",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "CustomerInputValidationDownstream",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053706546",
+        "identifier": {
+          "id": "gid://shopify/Customer/10541053706546"
+        },
+        "query": "email:hermes-input-validation-update-blank-scalars-1777159099540@example.com",
+        "first": 5
+      },
+      "query": "query CustomerInputValidationDownstream(\n  $id: ID!\n  $identifier: CustomerIdentifierInput!\n  $query: String!\n  $first: Int!\n) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    locale\n    note\n    verifiedEmail\n    taxExempt\n    tags\n    state\n    canDelete\n    defaultEmailAddress {\n      emailAddress\n    }\n    defaultPhoneNumber {\n      phoneNumber\n    }\n    createdAt\n    updatedAt\n  }\n  customerByIdentifier(identifier: $identifier) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    locale\n    note\n    verifiedEmail\n    taxExempt\n    tags\n    state\n    canDelete\n    defaultEmailAddress {\n      emailAddress\n    }\n    defaultPhoneNumber {\n      phoneNumber\n    }\n    createdAt\n    updatedAt\n  }\n  customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      locale\n      note\n      verifiedEmail\n      taxExempt\n      tags\n      state\n      canDelete\n      defaultEmailAddress {\n        emailAddress\n      }\n      defaultPhoneNumber {\n        phoneNumber\n      }\n      createdAt\n      updatedAt\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  customersCount {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": null,
+            "customerByIdentifier": null,
+            "customers": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "customersCount": {
+              "count": 70,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerInputValidationDownstream",
+      "variables": {
+        "id": "gid://shopify/Customer/10541053772082",
+        "identifier": {
+          "id": "gid://shopify/Customer/10541053772082"
+        },
+        "query": "email:hermes-input-validation-update-tags-1777159099540@example.com",
+        "first": 5
+      },
+      "query": "query CustomerInputValidationDownstream(\n  $id: ID!\n  $identifier: CustomerIdentifierInput!\n  $query: String!\n  $first: Int!\n) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    locale\n    note\n    verifiedEmail\n    taxExempt\n    tags\n    state\n    canDelete\n    defaultEmailAddress {\n      emailAddress\n    }\n    defaultPhoneNumber {\n      phoneNumber\n    }\n    createdAt\n    updatedAt\n  }\n  customerByIdentifier(identifier: $identifier) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    locale\n    note\n    verifiedEmail\n    taxExempt\n    tags\n    state\n    canDelete\n    defaultEmailAddress {\n      emailAddress\n    }\n    defaultPhoneNumber {\n      phoneNumber\n    }\n    createdAt\n    updatedAt\n  }\n  customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      locale\n      note\n      verifiedEmail\n      taxExempt\n      tags\n      state\n      canDelete\n      defaultEmailAddress {\n        emailAddress\n      }\n      defaultPhoneNumber {\n        phoneNumber\n      }\n      createdAt\n      updatedAt\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  customersCount {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": null,
+            "customerByIdentifier": null,
+            "customers": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "customersCount": {
+              "count": 70,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
   ]
 }
