@@ -221,5 +221,248 @@
     "unknownRole": null,
     "unknownLocation": null
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "B2BCompanyRootsRead",
+      "variables": {
+        "first": 5,
+        "companyId": "gid://shopify/Company/2983166258",
+        "contactId": "gid://shopify/CompanyContact/3321004338",
+        "roleId": "gid://shopify/CompanyContactRole/5888540978",
+        "locationId": "gid://shopify/CompanyLocation/3926458674",
+        "unknownCompanyId": "gid://shopify/Company/999999999999",
+        "unknownContactId": "gid://shopify/CompanyContact/999999999999",
+        "unknownRoleId": "gid://shopify/CompanyContactRole/999999999999",
+        "unknownLocationId": "gid://shopify/CompanyLocation/999999999999"
+      },
+      "query": "hand-synthesized:b2b-company-roots-read",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "companies": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Company/2983133490",
+                  "name": "Powderbound",
+                  "note": null,
+                  "externalId": null,
+                  "createdAt": "2025-03-26T19:51:37Z",
+                  "updatedAt": "2025-03-26T19:51:37Z",
+                  "contactsCount": {
+                    "count": 0
+                  },
+                  "locationsCount": {
+                    "count": 1
+                  },
+                  "mainContact": null,
+                  "defaultRole": {
+                    "id": "gid://shopify/CompanyContactRole/5888442674",
+                    "name": "Location admin",
+                    "note": "System-defined Location admin role"
+                  },
+                  "contactRoles": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyContactRole/5888442674",
+                        "name": "Location admin",
+                        "note": "System-defined Location admin role"
+                      },
+                      {
+                        "id": "gid://shopify/CompanyContactRole/5888475442",
+                        "name": "Ordering only",
+                        "note": "System-defined Ordering only role"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  },
+                  "locations": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyLocation/3926425906",
+                        "name": "Powderbound",
+                        "externalId": null,
+                        "locale": "en",
+                        "phone": null,
+                        "note": null,
+                        "createdAt": "2025-03-26T19:51:37Z",
+                        "updatedAt": "2025-03-26T19:51:37Z"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  },
+                  "contacts": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Company/2983166258",
+                  "name": "Snowdevil",
+                  "note": "This is a company that was created with all the fields present",
+                  "externalId": "1234",
+                  "createdAt": "2025-03-26T19:51:37Z",
+                  "updatedAt": "2025-03-26T19:51:38Z",
+                  "contactsCount": {
+                    "count": 1
+                  },
+                  "locationsCount": {
+                    "count": 1
+                  },
+                  "mainContact": {
+                    "id": "gid://shopify/CompanyContact/3321004338",
+                    "title": null,
+                    "locale": "en",
+                    "isMainContact": true
+                  },
+                  "defaultRole": {
+                    "id": "gid://shopify/CompanyContactRole/5888508210",
+                    "name": "Location admin",
+                    "note": "System-defined Location admin role"
+                  },
+                  "contactRoles": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyContactRole/5888508210",
+                        "name": "Location admin",
+                        "note": "System-defined Location admin role"
+                      },
+                      {
+                        "id": "gid://shopify/CompanyContactRole/5888540978",
+                        "name": "Ordering only",
+                        "note": "System-defined Ordering only role"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  },
+                  "locations": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyLocation/3926458674",
+                        "name": "Snowdevil",
+                        "externalId": null,
+                        "locale": "CA",
+                        "phone": "+16135550114",
+                        "note": "This Company has a location in Calgary",
+                        "createdAt": "2025-03-26T19:51:37Z",
+                        "updatedAt": "2025-03-26T19:51:38Z"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  },
+                  "contacts": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyContact/3321004338",
+                        "title": null,
+                        "locale": "en",
+                        "isMainContact": true,
+                        "createdAt": "2025-03-26T19:51:38Z",
+                        "updatedAt": "2025-03-26T19:51:38Z"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "companiesCount": {
+              "count": 2
+            },
+            "company": {
+              "id": "gid://shopify/Company/2983166258",
+              "name": "Snowdevil",
+              "note": "This is a company that was created with all the fields present",
+              "externalId": "1234"
+            },
+            "companyContact": {
+              "id": "gid://shopify/CompanyContact/3321004338",
+              "title": null,
+              "locale": "en",
+              "isMainContact": true,
+              "company": {
+                "id": "gid://shopify/Company/2983166258",
+                "name": "Snowdevil"
+              }
+            },
+            "companyContactRole": {
+              "id": "gid://shopify/CompanyContactRole/5888540978",
+              "name": "Ordering only",
+              "note": "System-defined Ordering only role"
+            },
+            "companyLocation": {
+              "id": "gid://shopify/CompanyLocation/3926458674",
+              "name": "Snowdevil",
+              "externalId": null,
+              "locale": "CA",
+              "phone": "+16135550114",
+              "note": "This Company has a location in Calgary",
+              "company": {
+                "id": "gid://shopify/Company/2983166258",
+                "name": "Snowdevil"
+              }
+            },
+            "companyLocations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/3926425906",
+                  "name": "Powderbound",
+                  "externalId": null,
+                  "locale": "en",
+                  "phone": null,
+                  "note": null,
+                  "company": {
+                    "id": "gid://shopify/Company/2983133490",
+                    "name": "Powderbound"
+                  }
+                },
+                {
+                  "id": "gid://shopify/CompanyLocation/3926458674",
+                  "name": "Snowdevil",
+                  "externalId": null,
+                  "locale": "CA",
+                  "phone": "+16135550114",
+                  "note": "This Company has a location in Calgary",
+                  "company": {
+                    "id": "gid://shopify/Company/2983166258",
+                    "name": "Snowdevil"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "unknownCompany": null,
+            "unknownContact": null,
+            "unknownRole": null,
+            "unknownLocation": null
+          }
+        }
+      }
+    }
+  ]
 }
