@@ -61,5 +61,81 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsSearchRead",
+      "variables": {
+        "nikeQuery": "vendor:NIKE",
+        "inventoryQuery": "inventory_total:<=0"
+      },
+      "query": "hand-synthesized from checked-in capture response",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "total": {
+              "count": 13552,
+              "precision": "EXACT"
+            },
+            "nike": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/Product/8397255999721",
+                    "title": "NIKE | CRACKLE PRINT TB TEE",
+                    "vendor": "NIKE",
+                    "status": "ACTIVE",
+                    "totalInventory": 16
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Product/8397257375977",
+                    "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
+                    "vendor": "NIKE",
+                    "status": "ACTIVE",
+                    "totalInventory": 20
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true
+              }
+            },
+            "lowInventory": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/Product/8971371708649",
+                    "title": "Test Product - 8201",
+                    "vendor": "very-big-test-store",
+                    "totalInventory": 0
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Product/8971371741417",
+                    "title": "Test Product - 6726",
+                    "vendor": "very-big-test-store",
+                    "totalInventory": 0
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
