@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 189: HAR-514 JS artifact routes
+## 2026-05-03 - Pass 190: HAR-514 JS artifact routes
 
 Serves staged-upload and generated bulk-operation artifact routes through the
 Gleam-backed JavaScript HTTP adapter. Staged upload posts are stored in the
@@ -57,6 +57,46 @@ Validation:
   proves a local partial-data artifact shape. The JS adapter currently serves
   the generated result artifacts covered by existing local bulk-operation
   behavior.
+
+---
+
+## 2026-05-03 - Pass 189: HAR-541 product read cassette parity slice
+
+Migrates a first products read slice to cassette-backed LiveHybrid execution.
+Cold product detail/catalog/search reads now use Pattern 1 passthrough when the
+proxy has no local product state to overlay, while product-owned metafield shell
+reads and staged product lifecycle state continue to resolve locally.
+
+| Module / fixture                                             | Change                                                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`         | Adds gated LiveHybrid passthrough for cold `product`, `productByIdentifier`, `products`, and `productsCount` reads. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`      | Routes product queries through the products domain query entrypoint.                                                |
+| `fixtures/conformance/**/products/{product*,products*}.json` | Hand-synthesizes read cassette entries from checked-in product capture evidence.                                    |
+| `config/gleam-port-ci-gates.json`                            | Removes ten products read expected-failure entries that now pass.                                                   |
+| `docs/endpoints/products.md`                                 | Documents the cold-read passthrough boundary.                                                                       |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+
+### Findings
+
+- Pattern 1 is appropriate for cold product read scenarios whose captured
+  Shopify response is returned verbatim and where the local proxy has no staged
+  product state to overlay.
+- Product-owned metafield shell reads must be included in the local-state gate;
+  otherwise unrelated metafields scenarios can regress by forwarding local owner
+  shell reads to the cassette.
+- Product-owned `metafield` / `metafields` selections are not part of this cold
+  read slice yet and remain local until the product-metafields scenario gets its
+  own cassette-backed migration.
+
+### Risks / open items
+
+- Broader products scenarios covering collections, inventory, product variants,
+  publications, selling plans, tags, and mutation prior-record hydration remain
+  in HAR-541 follow-up slices.
 
 ---
 
