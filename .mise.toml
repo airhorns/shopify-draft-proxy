@@ -1,0 +1,11 @@
+[env]
+# The unattended host runners do not always have ncurses development headers.
+# Erlang tests are noninteractive, so build without termcap support rather than
+# forcing agents back to the Docker fallback.
+KERL_CONFIGURE_OPTIONS = "--without-termcap"
+
+[tools]
+# gleam_json 3.x uses the Erlang json module introduced in OTP 27.
+# Pin OTP 28 so host Erlang test runs do not fall back to Docker.
+erlang = "28.4.2"
+gleam = "1.16.0"
