@@ -11,6 +11,7 @@ import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field.{
   type ResolvedValue, ListVal, ObjectVal, StringVal,
 }
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SelectedFieldOptions,
   SerializeConnectionConfig, SrcInt, SrcList, SrcNull, SrcString,
@@ -20,12 +21,16 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type FileRecord, type ProductMediaRecord, FileRecord, ProductMediaRecord,
+  type FileRecord, type ProductMediaRecord, type ProductRecord, FileRecord,
+  ProductMediaRecord, ProductRecord, ProductSeoRecord,
 }
 
 pub type MediaError {
@@ -151,11 +156,34 @@ pub fn process_mutation(
   document: String,
   variables: Dict(String, ResolvedValue),
 ) -> Result(MutationOutcome, MediaError) {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
+) -> Result(MutationOutcome, MediaError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
+      Ok(handle_mutation_fields(
+        store,
+        identity,
+        fields,
+        fragments,
+        variables,
+        upstream,
+      ))
     }
   }
 }
@@ -166,6 +194,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let initial = #([], store, identity, [], [])
   let #(data_entries, final_store, final_identity, all_staged, all_drafts) =
@@ -189,6 +218,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                upstream,
               )
             "fileDelete" ->
               handle_file_delete(
@@ -197,6 +227,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                upstream,
               )
             "fileAcknowledgeUpdateFailed" ->
               handle_file_acknowledge_update_failed(
@@ -318,9 +349,15 @@ fn handle_file_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let inputs = field_args(field, variables) |> read_object_list_arg("files")
+  // Pattern 2: `fileUpdate.referencesToAdd` validates product existence before
+  // staging. In LiveHybrid, hydrate those product ids from upstream so attaching
+  // an existing Shopify product stays local-only after the read; Snapshot mode
+  // or a missing cassette preserves the current local validation failure.
+  let store = maybe_hydrate_referenced_products(store, inputs, upstream)
   let errors =
     inputs
     |> enumerate_objects
@@ -383,9 +420,14 @@ fn handle_file_delete(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let file_ids = field_args(field, variables) |> read_string_list_arg("fileIds")
+  // Pattern 2: a Files API delete can target a Product media id whose ownership
+  // is only known upstream. Hydrate the owning product/media rows first, then
+  // stage the delete locally so downstream Product media reads see the removal.
+  let store = maybe_hydrate_file_product_media(store, file_ids, upstream)
   let missing =
     file_ids
     |> list.find(fn(file_id) { !store.has_effective_file_by_id(store, file_id) })
@@ -1233,6 +1275,320 @@ fn file_content_type_to_media_content_type(
   content_type: Option(String),
 ) -> Option(String) {
   content_type
+}
+
+fn maybe_hydrate_referenced_products(
+  store: Store,
+  inputs: List(Dict(String, ResolvedValue)),
+  upstream: UpstreamContext,
+) -> Store {
+  inputs
+  |> list.flat_map(fn(input) {
+    list.append(
+      read_string_list_field(input, "referencesToAdd"),
+      read_string_list_field(input, "referencesToRemove"),
+    )
+  })
+  |> dedupe_strings
+  |> list.fold(store, fn(current, product_id) {
+    maybe_hydrate_product(current, product_id, upstream)
+  })
+}
+
+fn maybe_hydrate_product(
+  store: Store,
+  product_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case store.get_effective_product_by_id(store, product_id) {
+    Some(_) -> store
+    None -> {
+      let query =
+        "query MediaProductHydrate($id: ID!) {\n"
+        <> "  product(id: $id) { id title handle status }\n"
+        <> "}\n"
+      let variables = json.object([#("id", json.string(product_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "MediaProductHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) ->
+          case product_record_from_hydrate(value, product_id) {
+            Some(product) -> store.upsert_base_products(store, [product])
+            None -> store
+          }
+        Error(_) -> store
+      }
+    }
+  }
+}
+
+fn maybe_hydrate_file_product_media(
+  store: Store,
+  file_ids: List(String),
+  upstream: UpstreamContext,
+) -> Store {
+  let missing_file_ids =
+    file_ids
+    |> list.filter(fn(file_id) {
+      !store.has_effective_file_by_id(store, file_id)
+    })
+  case missing_file_ids {
+    [] -> store
+    _ -> {
+      let query =
+        "query MediaFileReferencesHydrate($fileIds: [ID!]!) {\n"
+        <> "  nodes(ids: $fileIds) {\n"
+        <> "    id\n"
+        <> "    __typename\n"
+        <> "    ... on MediaImage {\n"
+        <> "      alt\n"
+        <> "      mediaContentType\n"
+        <> "      status\n"
+        <> "      preview { image { url width height } }\n"
+        <> "      image { url width height }\n"
+        <> "      references(first: 10) { nodes { ... on Product { id title handle status } } }\n"
+        <> "    }\n"
+        <> "  }\n"
+        <> "}\n"
+      let variables =
+        json.object([
+          #("fileIds", json.array(missing_file_ids, json.string)),
+        ])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "MediaFileReferencesHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) ->
+          hydrate_file_product_media_from_response(
+            store,
+            value,
+            missing_file_ids,
+          )
+        Error(_) -> store
+      }
+    }
+  }
+}
+
+fn hydrate_file_product_media_from_response(
+  store: Store,
+  value: commit.JsonValue,
+  file_ids: List(String),
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) ->
+      json_array(json_get(data, "nodes"))
+      |> list.fold(store, fn(current, node) {
+        case json_get_string(node, "id") {
+          Some(file_id) ->
+            case list.contains(file_ids, file_id) {
+              True -> hydrate_file_product_media_node(current, node, file_id)
+              False -> current
+            }
+          _ -> current
+        }
+      })
+    None -> store
+  }
+}
+
+fn hydrate_file_product_media_node(
+  store: Store,
+  node: commit.JsonValue,
+  file_id: String,
+) -> Store {
+  referenced_product_nodes(node)
+  |> list.fold(store, fn(current, product_node) {
+    case product_record_from_node(product_node, None) {
+      Some(product) -> {
+        let current = store.upsert_base_products(current, [product])
+        let existing_media =
+          store.get_effective_media_by_product_id(current, product.id)
+        case product_media_list_has_file(existing_media, file_id) {
+          True -> current
+          False -> {
+            let media =
+              product_media_record_from_node(
+                product.id,
+                file_id,
+                node,
+                list.length(existing_media),
+              )
+            store.replace_base_media_for_product(
+              current,
+              product.id,
+              list.append(existing_media, [media]),
+            )
+          }
+        }
+      }
+      None -> current
+    }
+  })
+}
+
+fn referenced_product_nodes(node: commit.JsonValue) -> List(commit.JsonValue) {
+  case json_get(node, "references") {
+    Some(references) -> json_array(json_get(references, "nodes"))
+    None -> []
+  }
+}
+
+fn product_media_list_has_file(
+  media: List(ProductMediaRecord),
+  file_id: String,
+) -> Bool {
+  list.any(media, fn(record) { record.id == Some(file_id) })
+}
+
+fn product_media_record_from_node(
+  product_id: String,
+  file_id: String,
+  node: commit.JsonValue,
+  position: Int,
+) -> ProductMediaRecord {
+  let image = image_value(node)
+  ProductMediaRecord(
+    key: product_id <> ":media:" <> int.to_string(position),
+    product_id: product_id,
+    position: position,
+    id: Some(file_id),
+    media_content_type: json_get_string(node, "mediaContentType")
+      |> option.or(Some("IMAGE")),
+    alt: json_get_string(node, "alt"),
+    status: json_get_string(node, "status") |> option.or(Some("READY")),
+    product_image_id: None,
+    image_url: image |> option.then(fn(value) { json_get_string(value, "url") }),
+    image_width: image
+      |> option.then(fn(value) { json_get_int(value, "width") }),
+    image_height: image
+      |> option.then(fn(value) { json_get_int(value, "height") }),
+    preview_image_url: preview_image_value(node)
+      |> option.then(fn(value) { json_get_string(value, "url") }),
+    source_url: image
+      |> option.then(fn(value) { json_get_string(value, "url") })
+      |> option.or(
+        preview_image_value(node)
+        |> option.then(fn(value) { json_get_string(value, "url") }),
+      ),
+  )
+}
+
+fn product_record_from_hydrate(
+  value: commit.JsonValue,
+  fallback_id: String,
+) -> Option(ProductRecord) {
+  case json_get(value, "data") {
+    Some(data) ->
+      case non_null_node(json_get(data, "product")) {
+        Some(product) -> product_record_from_node(product, Some(fallback_id))
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn product_record_from_node(
+  node: commit.JsonValue,
+  fallback_id: Option(String),
+) -> Option(ProductRecord) {
+  case json_get_string(node, "id") |> option.or(fallback_id) {
+    Some(id) -> {
+      let title = json_get_string(node, "title") |> option.unwrap("Product")
+      Some(ProductRecord(
+        id: id,
+        legacy_resource_id: None,
+        title: title,
+        handle: json_get_string(node, "handle") |> option.unwrap("product"),
+        status: json_get_string(node, "status") |> option.unwrap("ACTIVE"),
+        vendor: None,
+        product_type: None,
+        tags: [],
+        total_inventory: Some(0),
+        tracks_inventory: Some(False),
+        created_at: None,
+        updated_at: None,
+        published_at: None,
+        description_html: "",
+        online_store_preview_url: None,
+        template_suffix: None,
+        seo: ProductSeoRecord(title: None, description: None),
+        category: None,
+        publication_ids: [],
+        contextual_pricing: None,
+        cursor: None,
+      ))
+    }
+    None -> None
+  }
+}
+
+fn image_value(node: commit.JsonValue) -> Option(commit.JsonValue) {
+  non_null_node(json_get(node, "image"))
+  |> option.or(preview_image_value(node))
+}
+
+fn preview_image_value(node: commit.JsonValue) -> Option(commit.JsonValue) {
+  case json_get(node, "preview") {
+    Some(preview) -> non_null_node(json_get(preview, "image"))
+    None -> None
+  }
+}
+
+fn non_null_node(value: Option(commit.JsonValue)) -> Option(commit.JsonValue) {
+  case value {
+    Some(commit.JsonNull) -> None
+    Some(node) -> Some(node)
+    None -> None
+  }
+}
+
+fn json_array(value: Option(commit.JsonValue)) -> List(commit.JsonValue) {
+  case value {
+    Some(commit.JsonArray(items)) -> items
+    _ -> []
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get_int(value: commit.JsonValue, key: String) -> Option(Int) {
+  case json_get(value, key) {
+    Some(commit.JsonInt(i)) -> Some(i)
+    _ -> None
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(k, v) if k == key -> Ok(v)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
 }
 
 fn field_args(

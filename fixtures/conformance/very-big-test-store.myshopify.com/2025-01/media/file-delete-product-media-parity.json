@@ -167,5 +167,43 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MediaFileReferencesHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/39516006482153"]
+      },
+      "query": "sha:media-file-references-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/39516006482153",
+                "__typename": "MediaImage",
+                "alt": "File delete media reference",
+                "mediaContentType": "IMAGE",
+                "status": "PROCESSING",
+                "preview": {
+                  "image": null
+                },
+                "image": null,
+                "references": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/9264121479401",
+                      "title": "Hermes fileDelete media reference 1777081543067",
+                      "handle": "hermes-filedelete-media-reference-1777081543067",
+                      "status": "DRAFT"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

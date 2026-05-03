@@ -663,12 +663,17 @@ fn route_mutation(
       }
     Ok(GiftCardsDomain) ->
       case
-        gift_cards.process_mutation(
+        gift_cards.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -913,12 +918,16 @@ fn route_mutation(
       }
     Ok(MediaDomain) ->
       case
-        media.process_mutation(
+        media.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
-          request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -1034,12 +1043,17 @@ fn route_mutation(
       }
     Ok(PrivacyDomain) ->
       case
-        privacy.process_mutation(
+        privacy.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
