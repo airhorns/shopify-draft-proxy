@@ -110,35 +110,15 @@
     },
     {
       "specPath": "config/parity-specs/discounts/discount-app-bulk-local-runtime.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/discounts/discount-automatic-basic-detail-read.json",
-      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for connection cursors / pageInfo; rules need pruning."
-    },
-    {
-      "specPath": "config/parity-specs/discounts/discount-automatic-basic-nodes-read.json",
-      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for connection cursors / pageInfo; rules need pruning."
-    },
-    {
-      "specPath": "config/parity-specs/discounts/discount-catalog-non-empty-read.json",
-      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for connection cursors / pageInfo; rules need pruning."
-    },
-    {
-      "specPath": "config/parity-specs/discounts/discount-catalog-status-filter-read.json",
-      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for connection cursors / pageInfo; rules need pruning."
-    },
-    {
-      "specPath": "config/parity-specs/discounts/discount-code-basic-detail-read.json",
-      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for connection cursors / pageInfo; rules need pruning."
+      "reason": "Mutation handlers don't populate appDiscountType (appKey/title/description) on staged app discounts (capture seeded a Function record); synthetic Job id counter drifts across the bulk-jobs flow; downstream-reads target expects active/expired counts and a redeemed-code lookup that the local handler can't compute without seeded function metadata. Needs handler work in proxy/discounts.gleam (project app-discount-type from Function records) plus Pattern 2 wiring for the bulk-jobs flow before this can go green."
     },
     {
       "specPath": "config/parity-specs/discounts/discount-redeem-code-bulk.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+      "reason": "Mutation references an existing real DiscountCodeNode/1639018103090 on harry-test-heelo. Recorder writes 2 upstreamCalls (read targets only; mutations stage locally and never hit upstream). To go green the discountRedeemCodeBulkAdd handler needs Pattern 2 upstream_query.fetch_sync to pull the prior code list and overlay staged adds/deletes on the response of the read-after targets. Substantial handler port work pending."
     },
     {
       "specPath": "config/parity-specs/discounts/discount-validation-branches.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+      "reason": "Pure-mutation scenario (writes 0 upstreamCalls). Validation depends on cross-discount uniqueness checks (e.g. duplicate code returns TAKEN) which the local handler doesn't perform from a cold cassette-mode start. Needs Pattern 2 wiring inside discountCodeBasicCreate/etc. to fetch existing discounts by code/title from upstream before staging."
     },
     {
       "specPath": "config/parity-specs/functions/functions-live-owner-metadata-read.json",

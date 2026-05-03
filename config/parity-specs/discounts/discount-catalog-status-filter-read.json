@@ -1,8 +1,16 @@
 {
   "scenarioId": "discount-catalog-status-filter-read",
-  "operationNames": ["discountNodes", "discountNodesCount"],
+  "operationNames": [
+    "discountNodes",
+    "discountNodesCount"
+  ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "search-sort-contract"],
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "pagination-shape",
+    "search-sort-contract"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-catalog-status-filter-read.json"
   ],
@@ -14,23 +22,6 @@
   "notes": "Executable parity coverage showing `status:active` finds the temporary DiscountCodeBasic fixture through discountNodes and discountNodesCount. The parity harness seeds the captured discount node as base state before issuing the local read.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.discountNodes.edges[0].cursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount catalog records."
-      },
-      {
-        "path": "$.discountNodes.pageInfo.startCursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount catalog records."
-      },
-      {
-        "path": "$.discountNodes.pageInfo.endCursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount catalog records."
-      }
-    ],
     "targets": [
       {
         "name": "status-filter-discount-catalog-read-data",

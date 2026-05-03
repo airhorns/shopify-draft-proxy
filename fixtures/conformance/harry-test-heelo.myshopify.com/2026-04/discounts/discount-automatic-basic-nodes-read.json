@@ -23,7 +23,9 @@
                 "createdAt": "2025-03-26T19:51:38Z",
                 "updatedAt": "2025-03-26T19:51:38Z",
                 "asyncUsageCount": 0,
-                "discountClasses": ["PRODUCT"],
+                "discountClasses": [
+                  "PRODUCT"
+                ],
                 "combinesWith": {
                   "productDiscounts": false,
                   "orderDiscounts": false,
@@ -43,7 +45,9 @@
                 "createdAt": "2025-03-26T19:51:38Z",
                 "updatedAt": "2025-03-26T19:51:38Z",
                 "asyncUsageCount": 0,
-                "discountClasses": ["PRODUCT"],
+                "discountClasses": [
+                  "PRODUCT"
+                ],
                 "combinesWith": {
                   "productDiscounts": true,
                   "orderDiscounts": false,
@@ -98,5 +102,109 @@
     },
     "status": 200
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountAutomaticNodesRead",
+      "variables": {
+        "first": 5,
+        "query": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "automaticDiscountNodes": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
+                  "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBxgy",
+                    "title": "Buy one, get the second 10 percent off",
+                    "status": "EXPIRED",
+                    "summary": "Buy 1 item, get 1 item at 10% off",
+                    "startsAt": "2025-04-10T00:00:00Z",
+                    "endsAt": "2025-04-25T00:00:00Z",
+                    "createdAt": "2025-03-26T19:51:38Z",
+                    "updatedAt": "2025-03-26T19:51:38Z",
+                    "asyncUsageCount": 0,
+                    "discountClasses": [
+                      "PRODUCT"
+                    ],
+                    "combinesWith": {
+                      "productDiscounts": false,
+                      "orderDiscounts": false,
+                      "shippingDiscounts": false
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
+                  "automaticDiscount": {
+                    "__typename": "DiscountAutomaticBasic",
+                    "title": "Buy three, get 30 percent off",
+                    "status": "EXPIRED",
+                    "summary": "30% off The Complete Snowboard (Ice) • Minimum quantity of 3",
+                    "startsAt": "2025-03-26T00:00:00Z",
+                    "endsAt": "2025-04-05T00:00:00Z",
+                    "createdAt": "2025-03-26T19:51:38Z",
+                    "updatedAt": "2025-03-26T19:51:38Z",
+                    "asyncUsageCount": 0,
+                    "discountClasses": [
+                      "PRODUCT"
+                    ],
+                    "combinesWith": {
+                      "productDiscounts": true,
+                      "orderDiscounts": false,
+                      "shippingDiscounts": false
+                    }
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
+                  "node": {
+                    "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
+                    "automaticDiscount": {
+                      "__typename": "DiscountAutomaticBxgy",
+                      "title": "Buy one, get the second 10 percent off",
+                      "status": "EXPIRED"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ==",
+                  "node": {
+                    "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
+                    "automaticDiscount": {
+                      "__typename": "DiscountAutomaticBasic",
+                      "title": "Buy three, get 30 percent off",
+                      "status": "EXPIRED"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

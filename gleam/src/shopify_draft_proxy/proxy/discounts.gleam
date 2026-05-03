@@ -26,9 +26,10 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type RequiredArgument, RequiredArgument, single_root_log_draft,
   validate_required_field_arguments,
 }
+import shopify_draft_proxy/proxy/proxy_state.{type DraftProxy}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type DiscountRecord, type ShopifyFunctionRecord,
@@ -108,6 +109,57 @@ pub fn is_discount_mutation_root(name: String) -> Bool {
     | "discountAutomaticBulkDelete" -> True
     _ -> False
   }
+}
+
+/// True iff any string-typed variable value in the request resolves to
+/// a discount that's already in local state, or is a proxy-synthetic
+/// gid. The dispatcher uses this to skip `LiveHybrid` passthrough so
+/// that read-after-create reads of a synthetic id stay local (and so
+/// that read-after-delete reads of a synthetic id correctly return
+/// null instead of forwarding a synthetic gid upstream where it would
+/// 404).
+///
+/// We scan every string variable value rather than keying on `"id"`
+/// because GraphQL operations frequently rebind the argument under a
+/// different variable name (e.g. `discountNode(id: $codeId)`).
+pub fn local_has_discount_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id)
+        || case store.get_effective_discount_by_id(proxy.store, id) {
+          Some(_) -> True
+          None -> False
+        }
+      _ -> False
+    }
+  })
+}
+
+/// True iff the local store has any staged discount records, or any
+/// variable carries a proxy-synthetic gid. The dispatcher uses this to
+/// keep aggregate / connection / by-code reads on the local handler
+/// once a lifecycle scenario has staged or deleted discounts —
+/// passthrough would otherwise forward synthetic gids upstream (404)
+/// or skip the empty/null answer the lifecycle test expects after a
+/// delete.
+pub fn local_has_staged_discounts(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  let has_synthetic =
+    dict.values(variables)
+    |> list.any(fn(value) {
+      case value {
+        root_field.StringVal(s) -> is_proxy_synthetic_gid(s)
+        _ -> False
+      }
+    })
+  has_synthetic || !list.is_empty(store.list_effective_discounts(proxy.store))
 }
 
 pub fn process(

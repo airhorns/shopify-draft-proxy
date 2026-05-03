@@ -1,8 +1,16 @@
 {
   "scenarioId": "discount-automatic-basic-detail-read",
-  "operationNames": ["discountNode", "automaticDiscountNode"],
+  "operationNames": [
+    "discountNode",
+    "automaticDiscountNode"
+  ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "selected-fields", "nested-object-graph", "empty-connection-shape"],
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "nested-object-graph",
+    "empty-connection-shape"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-automatic-basic-detail-read.json"
   ],
@@ -14,23 +22,6 @@
   "notes": "Executable parity coverage for singular native DiscountAutomaticBasic detail roots after creating a temporary automatic discount. The parity harness seeds the captured detail node as normalized discount state before issuing local discountNode/automaticDiscountNode reads.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.automaticDiscountNode.events.edges[0].cursor",
-        "matcher": "any-string",
-        "reason": "Shopify event connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount event records."
-      },
-      {
-        "path": "$.automaticDiscountNode.events.pageInfo.startCursor",
-        "matcher": "any-string",
-        "reason": "Shopify event connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount event records."
-      },
-      {
-        "path": "$.automaticDiscountNode.events.pageInfo.endCursor",
-        "matcher": "any-string",
-        "reason": "Shopify event connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount event records."
-      }
-    ],
     "targets": [
       {
         "name": "discount-automatic-basic-detail-data",

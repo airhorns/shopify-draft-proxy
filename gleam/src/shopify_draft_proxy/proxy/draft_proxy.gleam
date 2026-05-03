@@ -524,6 +524,28 @@ fn force_passthrough_in_live_hybrid(
     QueryOperation, "customer" ->
       !customers.local_has_customer_id(proxy, variables)
     QueryOperation, "customers" -> True
+    // Discount reads: forward to upstream verbatim only when the proxy
+    // has nothing local to add. *Node lookups skip passthrough when the
+    // requested id is already staged (read-after-write of a local
+    // create); aggregate / connection / by-code reads skip passthrough
+    // whenever any discount is staged so lifecycle scenarios stay
+    // local-only end-to-end.
+    QueryOperation, "discountNode" ->
+      !discounts.local_has_discount_id(proxy, variables)
+    QueryOperation, "codeDiscountNode" ->
+      !discounts.local_has_discount_id(proxy, variables)
+    QueryOperation, "automaticDiscountNode" ->
+      !discounts.local_has_discount_id(proxy, variables)
+    QueryOperation, "discountNodes" ->
+      !discounts.local_has_staged_discounts(proxy, variables)
+    QueryOperation, "codeDiscountNodes" ->
+      !discounts.local_has_staged_discounts(proxy, variables)
+    QueryOperation, "automaticDiscountNodes" ->
+      !discounts.local_has_staged_discounts(proxy, variables)
+    QueryOperation, "discountNodesCount" ->
+      !discounts.local_has_staged_discounts(proxy, variables)
+    QueryOperation, "codeDiscountNodeByCode" ->
+      !discounts.local_has_staged_discounts(proxy, variables)
     _, _ -> False
   }
 }

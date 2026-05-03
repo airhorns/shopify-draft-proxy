@@ -26,7 +26,9 @@
         "createdAt": "2026-04-25T20:00:00Z",
         "updatedAt": "2026-04-25T20:00:00Z",
         "asyncUsageCount": 0,
-        "discountClasses": ["ORDER"],
+        "discountClasses": [
+          "ORDER"
+        ],
         "combinesWith": {
           "productDiscounts": false,
           "orderDiscounts": true,
@@ -59,7 +61,9 @@
         "createdAt": "2026-04-25T20:00:00Z",
         "updatedAt": "2026-04-25T20:00:00Z",
         "asyncUsageCount": 0,
-        "discountClasses": ["ORDER"],
+        "discountClasses": [
+          "ORDER"
+        ],
         "combinesWith": {
           "productDiscounts": false,
           "orderDiscounts": true,
@@ -92,7 +96,9 @@
         "createdAt": "2026-04-25T20:00:00Z",
         "updatedAt": "2026-04-25T20:00:00Z",
         "asyncUsageCount": 0,
-        "discountClasses": ["ORDER"],
+        "discountClasses": [
+          "ORDER"
+        ],
         "combinesWith": {
           "productDiscounts": false,
           "orderDiscounts": true,
@@ -116,7 +122,9 @@
         "createdAt": "2026-04-25T20:00:00Z",
         "updatedAt": "2026-04-25T20:00:00Z",
         "asyncUsageCount": 0,
-        "discountClasses": ["ORDER"],
+        "discountClasses": [
+          "ORDER"
+        ],
         "combinesWith": {
           "productDiscounts": false,
           "orderDiscounts": true,
@@ -317,10 +325,18 @@
   },
   "bulkJobs": {
     "variables": {
-      "activateIds": ["gid://shopify/DiscountCodeNode/366001"],
-      "deactivateIds": ["gid://shopify/DiscountCodeNode/366001"],
-      "deleteCodeIds": ["gid://shopify/DiscountCodeNode/366002"],
-      "deleteAutomaticIds": ["gid://shopify/DiscountAutomaticNode/366003"]
+      "activateIds": [
+        "gid://shopify/DiscountCodeNode/366001"
+      ],
+      "deactivateIds": [
+        "gid://shopify/DiscountCodeNode/366001"
+      ],
+      "deleteCodeIds": [
+        "gid://shopify/DiscountCodeNode/366002"
+      ],
+      "deleteAutomaticIds": [
+        "gid://shopify/DiscountAutomaticNode/366003"
+      ]
     },
     "response": {
       "data": {
@@ -362,8 +378,13 @@
   "redeemCodeBulk": {
     "variables": {
       "discountId": "gid://shopify/DiscountCodeNode/366004",
-      "codes": ["HAR366ADD1", "HAR366ADD2"],
-      "ids": ["gid://shopify/DiscountRedeemCode/366004"]
+      "codes": [
+        "HAR366ADD1",
+        "HAR366ADD2"
+      ],
+      "ids": [
+        "gid://shopify/DiscountRedeemCode/366004"
+      ]
     },
     "response": {
       "data": {
@@ -450,5 +471,163 @@
   "liveBlockers": [
     "The checked-in conformance app currently has payment-customization and publication-target extensions, but no discount Function extension. Live app-discount create/update success capture is blocked until a disposable discount Function extension is added, deployed, and installed for the test shop."
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountAppBulkRead",
+      "variables": {},
+      "query": "query DiscountAppBulkRead(\n  $codeId: ID!\n  $automaticId: ID!\n  $deletedCodeId: ID!\n  $deletedAutomaticId: ID!\n  $redeemDiscountId: ID!\n  $removedCode: String!\n) {\n  codeDiscountNode(id: $codeId) {\n    codeDiscount {\n      ... on DiscountCodeApp {\n        title\n        appDiscountType {\n          functionId\n        }\n        codes(first: 5) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  automaticDiscountNode(id: $automaticId) {\n    automaticDiscount {\n      ... on DiscountAutomaticApp {\n        title\n        recurringCycleLimit\n        appDiscountType {\n          functionId\n        }\n      }\n    }\n  }\n  active: discountNodesCount(query: \"status:active\") {\n    count\n    precision\n  }\n  expired: discountNodesCount(query: \"status:expired\") {\n    count\n    precision\n  }\n  deletedCode: codeDiscountNode(id: $deletedCodeId) {\n    id\n  }\n  deletedAutomatic: automaticDiscountNode(id: $deletedAutomaticId) {\n    id\n  }\n  redeemDiscount: codeDiscountNode(id: $redeemDiscountId) {\n    codeDiscount {\n      ... on DiscountCodeBasic {\n        codes(first: 5) {\n          nodes {\n            code\n          }\n        }\n        codesCount {\n          count\n          precision\n        }\n      }\n    }\n  }\n  removedRedeemCode: codeDiscountNodeByCode(code: $removedCode) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $codeId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $automaticId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $deletedCodeId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $deletedAutomaticId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $redeemDiscountId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 6,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $removedCode of type String! was provided invalid value",
+              "locations": [
+                {
+                  "line": 7,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "DiscountAutomaticAppLifecycleReadAfterDelete",
+      "variables": {},
+      "query": "query DiscountAutomaticAppLifecycleReadAfterDelete($id: ID!) {\n  automaticDiscountNode(id: $id) {\n    id\n  }\n  discountNodesCount(query: \"type:app\") {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 52
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
 }

@@ -55,7 +55,9 @@
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkLiveDelete($discountId: ID!, $ids: [ID!]!) {\n    discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) {\n      job {\n        done\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
         "discountId": "gid://shopify/DiscountCodeNode/1639018103090",
-        "ids": ["gid://shopify/DiscountRedeemCode/21582085751090"]
+        "ids": [
+          "gid://shopify/DiscountRedeemCode/21582085751090"
+        ]
       }
     },
     "cleanup": {
@@ -78,7 +80,9 @@
         "createdAt": "2026-04-28T22:40:23Z",
         "updatedAt": "2026-04-28T22:40:23Z",
         "asyncUsageCount": 0,
-        "discountClasses": ["ORDER"],
+        "discountClasses": [
+          "ORDER"
+        ],
         "combinesWith": {
           "productDiscounts": false,
           "orderDiscounts": true,
@@ -258,7 +262,9 @@
             "createdAt": "2026-04-28T22:40:23Z",
             "updatedAt": "2026-04-28T22:40:23Z",
             "asyncUsageCount": 0,
-            "discountClasses": ["ORDER"],
+            "discountClasses": [
+              "ORDER"
+            ],
             "combinesWith": {
               "productDiscounts": false,
               "orderDiscounts": true,
@@ -364,7 +370,9 @@
             "createdAt": "2026-04-28T22:40:23Z",
             "updatedAt": "2026-04-28T22:40:23Z",
             "asyncUsageCount": 0,
-            "discountClasses": ["ORDER"],
+            "discountClasses": [
+              "ORDER"
+            ],
             "combinesWith": {
               "productDiscounts": false,
               "orderDiscounts": true,
@@ -481,7 +489,9 @@
             "createdAt": "2026-04-28T22:40:23Z",
             "updatedAt": "2026-04-28T22:40:23Z",
             "asyncUsageCount": 0,
-            "discountClasses": ["ORDER"],
+            "discountClasses": [
+              "ORDER"
+            ],
             "combinesWith": {
               "productDiscounts": false,
               "orderDiscounts": true,
@@ -573,5 +583,182 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountRedeemCodeBulkLiveRead",
+      "variables": {},
+      "query": "query DiscountRedeemCodeBulkLiveRead(\n  $id: ID!\n  $exactAddedCode: String!\n  $lowerAddedCode: String!\n  $removedCode: String!\n) {\n  codeDiscountNode(id: $id) {\n    id\n    codeDiscount {\n      ... on DiscountCodeBasic {\n        codesCount {\n          count\n          precision\n        }\n      }\n    }\n  }\n  exactAdded: codeDiscountNodeByCode(code: $exactAddedCode) {\n    id\n  }\n  lowerAdded: codeDiscountNodeByCode(code: $lowerAddedCode) {\n    id\n  }\n  removed: codeDiscountNodeByCode(code: $removedCode) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $exactAddedCode of type String! was provided invalid value",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $lowerAddedCode of type String! was provided invalid value",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $removedCode of type String! was provided invalid value",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "DiscountRedeemCodeBulkLiveRead",
+      "variables": {},
+      "query": "query DiscountRedeemCodeBulkLiveRead(\n  $id: ID!\n  $exactAddedCode: String!\n  $lowerAddedCode: String!\n  $removedCode: String!\n) {\n  codeDiscountNode(id: $id) {\n    id\n    codeDiscount {\n      ... on DiscountCodeBasic {\n        codesCount {\n          count\n          precision\n        }\n      }\n    }\n  }\n  exactAdded: codeDiscountNodeByCode(code: $exactAddedCode) {\n    id\n  }\n  lowerAdded: codeDiscountNodeByCode(code: $lowerAddedCode) {\n    id\n  }\n  removed: codeDiscountNodeByCode(code: $removedCode) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $exactAddedCode of type String! was provided invalid value",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $lowerAddedCode of type String! was provided invalid value",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $removedCode of type String! was provided invalid value",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
 }
