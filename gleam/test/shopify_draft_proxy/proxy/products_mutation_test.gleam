@@ -197,7 +197,7 @@ pub fn product_delete_stages_downstream_no_data_test() {
 
 pub fn metafield_delete_stages_product_owned_deletion_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: metafield_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: metafield_store())
   let query =
     "mutation { metafieldDelete(input: { id: \\\"gid://shopify/Metafield/material\\\" }) { deletedId userErrors { field message } } }"
 
@@ -225,7 +225,7 @@ pub fn metafield_delete_stages_product_owned_deletion_test() {
 
 pub fn metafield_delete_unknown_id_returns_user_error_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: metafield_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: metafield_store())
   let query =
     "mutation { metafieldDelete(input: { id: \\\"gid://shopify/Metafield/missing\\\" }) { deletedId userErrors { field message } } }"
 
@@ -242,7 +242,7 @@ pub fn metafield_delete_unknown_id_returns_user_error_test() {
 
 pub fn metafields_delete_stages_product_owned_deletions_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: metafield_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: metafield_store())
   let query =
     "mutation { metafieldsDelete(metafields: [{ ownerId: \\\"gid://shopify/Product/optioned\\\", namespace: \\\"custom\\\", key: \\\"material\\\" }, { ownerId: \\\"gid://shopify/Product/optioned\\\", namespace: \\\"custom\\\", key: \\\"missing\\\" }]) { deletedMetafields { ownerId namespace key } userErrors { field message } } }"
 
@@ -471,7 +471,7 @@ pub fn product_variant_create_update_delete_stages_lifecycle_test() {
 
 pub fn inventory_shipment_extended_roots_stage_locally_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: tracked_inventory_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
   let create_query =
     "mutation { inventoryShipmentCreate(input: { movementId: \\\"gid://shopify/InventoryTransfer/7001\\\", trackingInput: { trackingNumber: \\\"1Z999\\\", company: \\\"UPS\\\" }, lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 2 }] }) { inventoryShipment { id status lineItemTotalQuantity tracking { trackingNumber company } lineItems(first: 10) { nodes { id quantity unreceivedQuantity } } } userErrors { field message code } } }"
 
@@ -541,7 +541,7 @@ pub fn inventory_shipment_extended_roots_stage_locally_test() {
 
 pub fn inventory_transfer_edit_and_duplicate_stage_locally_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: tracked_inventory_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
   let create_query =
     "mutation { inventoryTransferCreate(input: { originLocationId: \\\"gid://shopify/Location/1\\\", destinationLocationId: \\\"gid://shopify/Location/2\\\", referenceName: \\\"HAR-515\\\", note: \\\"local transfer\\\", tags: [\\\"har-515\\\"], lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 2 }] }) { inventoryTransfer { id name referenceName note tags status lineItems(first: 5) { nodes { id totalQuantity } } } userErrors { field message code } } }"
   let #(Response(status: create_status, body: create_body, ..), proxy) =
