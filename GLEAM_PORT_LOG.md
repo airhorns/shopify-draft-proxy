@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 184: HAR-513 JS live-hybrid passthrough
+## 2026-05-03 - Pass 185: HAR-513 JS live-hybrid passthrough
 
 Completes the JavaScript async upstream forwarding path for live-hybrid
 passthrough requests that are decided inside domain handlers, not only at the
@@ -52,6 +52,53 @@ Validation:
 - Preserving upstream response headers required moving headers into the shared
   `HttpOutcome`; commit replay ignores them, while passthrough serializes them
   back to JS HTTP-shaped responses.
+
+---
+
+## 2026-05-03 - Pass 184: HAR-528 bulk operations cassette parity
+
+Migrates the remaining Bulk Operations parity scenario to cassette-backed
+LiveHybrid execution. Cold cancel requests now hydrate the target
+`BulkOperation` through a narrow Pattern 2 read before deciding whether to
+return Shopify's terminal userError or stage a local `CANCELING` overlay. Cold
+product exports keep `bulkOperationRunQuery` local-only while using an upstream
+product-count read so staged job counters match the captured store.
+
+| Module / fixture                                                                    | Change                                                                                                   |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`                         | Adds upstream-aware mutation handling, Pattern 2 BulkOperation hydration, and product-count hydration.   |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                             | Threads request upstream context into the bulk-operations mutation handler.                              |
+| `fixtures/conformance/**/bulk-operations/bulk-operation-status-catalog-cancel.json` | Hand-synthesizes hydrate/count cassette entries from checked-in capture evidence.                        |
+| `docs/endpoints/bulk-operations.md`                                                 | Documents cassette-backed Pattern 2 behavior for LiveHybrid cancel and product-export counter hydration. |
+| `config/gleam-port-ci-gates.json`                                                   | Removes the Bulk Operations expected-failure entry.                                                      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed bulk fixture/gate checks: no bulk expected-failure entries remain,
+  no added `seedX` keys, and no added `expectedDifferences`
+
+### Findings
+
+- Pattern 1 passthrough is not appropriate here because both supported
+  mutations must remain locally staged. The missing fidelity was prior-record
+  and count context, so Pattern 2 reads fit the scenario.
+- The existing capture already contained the terminal BulkOperation payloads and
+  product count needed by the cassette, so no live Shopify write was required.
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+### Risks / open items
+
+- Product-count hydration currently mirrors the captured unfiltered product
+  export. Broader filtered export count fidelity should be driven by future
+  parity evidence.
 
 ---
 
