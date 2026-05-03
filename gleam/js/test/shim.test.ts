@@ -2,7 +2,7 @@
 // surface lights up end-to-end: create a proxy, hit /__meta/health,
 // dispatch a saved-search mutation, dump and restore state.
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
   createApp,
   createDraftProxy,
@@ -11,12 +11,17 @@ import {
   loadConfig,
   type AppConfig,
 } from '../src/index.js';
+import { ensureGleamJavaScriptBuild } from './support/gleam-build.js';
 
 const baseConfig: AppConfig = {
   readMode: 'snapshot',
   port: 4000,
   shopifyAdminOrigin: 'https://shopify.com',
 };
+
+beforeAll(() => {
+  ensureGleamJavaScriptBuild();
+});
 
 describe('createDraftProxy', () => {
   it('produces a DraftProxy instance', () => {
@@ -45,6 +50,14 @@ describe('createDraftProxy', () => {
       proxy: { port: 4000, shopifyAdminOrigin: 'https://shopify.com' },
       snapshot: { enabled: false, path: null },
     });
+  });
+
+  it('keeps the legacy passthrough read mode string in config snapshots', () => {
+    const proxy = createDraftProxy({
+      ...baseConfig,
+      readMode: 'passthrough',
+    });
+    expect(proxy.getConfig().runtime.readMode).toBe('passthrough');
   });
 
   it('dumps and restores state across instances', () => {
@@ -112,12 +125,25 @@ describe('createDraftProxy', () => {
   });
 });
 
-describe('public API stubs', () => {
-  it('createApp throws not-implemented', () => {
-    expect(() => createApp()).toThrow(/not implemented/);
+describe('public API server helpers', () => {
+  it('createApp returns a Node HTTP adapter over a DraftProxy instance', () => {
+    const proxy = createDraftProxy(baseConfig);
+    const app = createApp(baseConfig, proxy);
+    expect(app.proxy).toBe(proxy);
+    expect(typeof app.callback()).toBe('function');
   });
 
-  it('loadConfig throws not-implemented', () => {
-    expect(() => loadConfig()).toThrow(/not implemented/);
+  it('loadConfig mirrors the legacy package configuration parser', () => {
+    expect(
+      loadConfig({
+        PORT: '4111',
+        SHOPIFY_ADMIN_ORIGIN: 'https://example.myshopify.com',
+        SHOPIFY_DRAFT_PROXY_READ_MODE: 'live-hybrid',
+      }),
+    ).toEqual({
+      port: 4111,
+      shopifyAdminOrigin: 'https://example.myshopify.com',
+      readMode: 'live-hybrid',
+    });
   });
 });
