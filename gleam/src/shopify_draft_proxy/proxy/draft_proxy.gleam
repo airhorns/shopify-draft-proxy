@@ -450,6 +450,7 @@ fn dispatch_graphql(
                     proxy,
                     parsed,
                     request.path,
+                    request.headers,
                     body.query,
                     field,
                     body.variables,
@@ -741,6 +742,7 @@ fn route_mutation(
   proxy: DraftProxy,
   parsed: ParsedOperation,
   request_path: String,
+  request_headers: Dict(String, String),
   query: String,
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
@@ -870,12 +872,17 @@ fn route_mutation(
       }
     Ok(DiscountsDomain) ->
       case
-        discounts.process_mutation(
+        discounts.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          discounts.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->

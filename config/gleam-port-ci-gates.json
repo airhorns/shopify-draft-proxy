@@ -110,15 +110,7 @@
     },
     {
       "specPath": "config/parity-specs/discounts/discount-app-bulk-local-runtime.json",
-      "reason": "Mutation handlers don't populate appDiscountType (appKey/title/description) on staged app discounts (capture seeded a Function record); synthetic Job id counter drifts across the bulk-jobs flow; downstream-reads target expects active/expired counts and a redeemed-code lookup that the local handler can't compute without seeded function metadata. Needs handler work in proxy/discounts.gleam (project app-discount-type from Function records) plus Pattern 2 wiring for the bulk-jobs flow before this can go green."
-    },
-    {
-      "specPath": "config/parity-specs/discounts/discount-redeem-code-bulk.json",
-      "reason": "Mutation references an existing real DiscountCodeNode/1639018103090 on harry-test-heelo. Recorder writes 2 upstreamCalls (read targets only; mutations stage locally and never hit upstream). To go green the discountRedeemCodeBulkAdd handler needs Pattern 2 upstream_query.fetch_sync to pull the prior code list and overlay staged adds/deletes on the response of the read-after targets. Substantial handler port work pending."
-    },
-    {
-      "specPath": "config/parity-specs/discounts/discount-validation-branches.json",
-      "reason": "Pure-mutation scenario (writes 0 upstreamCalls). Validation depends on cross-discount uniqueness checks (e.g. duplicate code returns TAKEN) which the local handler doesn't perform from a cold cassette-mode start. Needs Pattern 2 wiring inside discountCodeBasicCreate/etc. to fetch existing discounts by code/title from upstream before staging."
+      "reason": "Three concrete sub-issues block green: (1) appDiscountType projection — at create the handler invokes `app_discount_type_source` against the local Store, which is empty in cassette mode, so `appKey`/`description` come back null and `title` falls back to the discount input title instead of the Function metadata title; needs a Pattern 2 ShopifyFunction hydration (e.g. `query ShopifyFunctionByHandle($handle: String!)`) wired into create_discount + a hand-synthesized cassette entry. (2) downstream-reads expects active=3/expired=1 and a `codeDiscountNode` redeem lookup that includes staged-add codes; without the fixture's seedDiscounts (366001-366004) the local store has no base records, so `discountNodesCount` returns 2/0 and the redeem `codeDiscountNode($id)` resolves null because the seed isn't hydrated; needs Pattern 2 fallback for `discountNodesCount` and per-id `DiscountHydrate` cassette entries that overlay with the staged redeem code add. (3) synthetic Job id counter drift — `redeemCodeBulk.deleteCodes.job.id` expects `Job/13` but proxy mints `Job/11`, so two synthetic increments are missing between bulkCreation (10) and the delete job; likely an extra synthetic id consumed in the TS path during hydration that we're skipping. Recommend tackling sub-issue (1) standalone first (smallest, isolated handler change + 1 cassette entry); sub-issues (2) and (3) require substantially more cassette synthesis and behavior parity work. Other 220+ scenarios green; not gating broader cassette migration."
     },
     {
       "specPath": "config/parity-specs/functions/functions-live-owner-metadata-read.json",

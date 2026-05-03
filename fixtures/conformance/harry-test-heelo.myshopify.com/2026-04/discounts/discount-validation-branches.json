@@ -76,37 +76,6 @@
     "missingScopes": [],
     "hasRequiredScopes": true
   },
-  "seedDiscounts": [
-    {
-      "id": "gid://shopify/DiscountCodeNode/1638431064370",
-      "discount": {
-        "__typename": "DiscountCodeBasic",
-        "title": "HAR-198 HAR198DUP1777134605940",
-        "status": "ACTIVE",
-        "summary": "10% off entire order",
-        "startsAt": "2026-04-25T00:00:00Z",
-        "endsAt": null,
-        "asyncUsageCount": 0,
-        "discountClasses": [
-          "ORDER"
-        ],
-        "combinesWith": {
-          "productDiscounts": false,
-          "orderDiscounts": true,
-          "shippingDiscounts": false
-        },
-        "codes": {
-          "nodes": [
-            {
-              "id": "gid://shopify/DiscountRedeemCode/1638431064370",
-              "code": "HAR198DUP1777134605940",
-              "asyncUsageCount": 0
-            }
-          ]
-        }
-      }
-    }
-  ],
   "validation": {
     "missingInput": {
       "query": "mutation DiscountCodeBasicCreateMissingInput($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
@@ -631,5 +600,23 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR198DUP1777134605940"
+      },
+      "query": "sha:DiscountUniquenessCheck",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": {
+              "id": "gid://shopify/DiscountCodeNode/1638431064370"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

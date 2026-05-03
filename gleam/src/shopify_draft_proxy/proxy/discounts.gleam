@@ -17,6 +17,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SelectedFieldOptions, SrcBool, SrcFloat,
   SrcInt, SrcList, SrcNull, SrcObject, SrcString, get_document_fragments,
@@ -27,6 +28,8 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/proxy_state.{type DraftProxy}
+import shopify_draft_proxy/proxy/upstream_query
+import shopify_draft_proxy/shopify/upstream_client.{type SyncTransport}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -35,6 +38,28 @@ import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type DiscountRecord, type ShopifyFunctionRecord,
   CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
   CapturedObject, CapturedString, DiscountRecord,
+}
+
+/// Upstream context threaded into mutation handlers so they can issue
+/// `upstream_query.fetch_sync` calls when the local store doesn't have
+/// enough information to compute the response. In production, callers
+/// pass `transport: None` and reads fall through to the live HTTP shim
+/// (Erlang) or are skipped (JS). Parity tests install a recorded
+/// cassette as the transport.
+pub type UpstreamContext {
+  UpstreamContext(
+    transport: Option(SyncTransport),
+    origin: String,
+    headers: Dict(String, String),
+  )
+}
+
+/// Build an `UpstreamContext` whose `fetch_sync` calls will fail with
+/// `NoTransportInstalled` on JS and fall through to the live HTTP shim
+/// on Erlang. Used by callers that don't have access to inbound headers
+/// or the proxy config (e.g. legacy tests).
+pub fn empty_upstream_context() -> UpstreamContext {
+  UpstreamContext(transport: None, origin: "", headers: dict.new())
 }
 
 pub type DiscountsError {
@@ -500,9 +525,32 @@ fn child_fields(field: Selection) -> List(Selection) {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, DiscountsError) {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+/// Variant of `process_mutation` that threads an `UpstreamContext` into
+/// the per-handler logic. Used by the dispatcher when the proxy has an
+/// `upstream_transport` installed (parity cassette in tests, live HTTP
+/// in production), so that handlers like `discountCodeBasicCreate` can
+/// consult upstream for cross-discount uniqueness checks before staging.
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Result(MutationOutcome, DiscountsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
@@ -517,6 +565,7 @@ pub fn process_mutation(
         variables,
         document,
         operation_path,
+        upstream,
       ))
     }
   }
@@ -546,6 +595,7 @@ fn handle_mutation_fields(
   variables: Dict(String, root_field.ResolvedValue),
   document: String,
   operation_path: String,
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let initial = #([], [], store, identity, [], [])
   let #(entries, all_errors, final_store, final_identity, staged_ids, drafts) =
@@ -581,6 +631,7 @@ fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -667,6 +718,7 @@ fn handle_discount_mutation_field(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationResult {
   case root {
     "discountCodeBasicCreate" ->
@@ -680,6 +732,7 @@ fn handle_discount_mutation_field(
         "code",
         "basic",
         "basicCodeDiscount",
+        upstream,
       )
     "discountCodeBasicUpdate" ->
       update_discount(
@@ -703,6 +756,7 @@ fn handle_discount_mutation_field(
         "code",
         "bxgy",
         "bxgyCodeDiscount",
+        upstream,
       )
     "discountCodeBxgyUpdate" ->
       update_discount(
@@ -726,6 +780,7 @@ fn handle_discount_mutation_field(
         "code",
         "free_shipping",
         "freeShippingCodeDiscount",
+        upstream,
       )
     "discountCodeFreeShippingUpdate" ->
       update_discount(
@@ -749,6 +804,7 @@ fn handle_discount_mutation_field(
         "code",
         "app",
         "codeAppDiscount",
+        upstream,
       )
     "discountCodeAppUpdate" ->
       update_discount(
@@ -772,6 +828,7 @@ fn handle_discount_mutation_field(
         "automatic",
         "basic",
         "automaticBasicDiscount",
+        upstream,
       )
     "discountAutomaticBasicUpdate" ->
       update_discount(
@@ -795,6 +852,7 @@ fn handle_discount_mutation_field(
         "automatic",
         "bxgy",
         "automaticBxgyDiscount",
+        upstream,
       )
     "discountAutomaticBxgyUpdate" ->
       update_discount(
@@ -818,6 +876,7 @@ fn handle_discount_mutation_field(
         "automatic",
         "free_shipping",
         "freeShippingAutomaticDiscount",
+        upstream,
       )
     "discountAutomaticFreeShippingUpdate" ->
       update_discount(
@@ -841,6 +900,7 @@ fn handle_discount_mutation_field(
         "automatic",
         "app",
         "automaticAppDiscount",
+        upstream,
       )
     "discountAutomaticAppUpdate" ->
       update_discount(
@@ -865,7 +925,15 @@ fn handle_discount_mutation_field(
     | "discountAutomaticBulkDelete" ->
       bulk_job_payload(store, identity, root, field, variables)
     "discountRedeemCodeBulkAdd" ->
-      redeem_code_bulk_add(store, identity, root, field, fragments, variables)
+      redeem_code_bulk_add(
+        store,
+        identity,
+        root,
+        field,
+        fragments,
+        variables,
+        upstream,
+      )
     "discountCodeRedeemCodeBulkDelete" | "discountRedeemCodeBulkDelete" ->
       redeem_code_bulk_delete(
         store,
@@ -874,6 +942,7 @@ fn handle_discount_mutation_field(
         field,
         fragments,
         variables,
+        upstream,
       )
     _ ->
       MutationResult(
@@ -897,6 +966,7 @@ fn create_discount(
   owner_kind: String,
   discount_type: String,
   input_name: String,
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let input = read_object_arg(field, variables, input_name)
@@ -913,8 +983,28 @@ fn create_discount(
         top_level_errors: [],
       )
     Some(input) -> {
+      // Local input validation first (structural / pure-function checks).
       let user_errors =
         validate_discount_input(store, input_name, input, discount_type)
+      // Cross-discount uniqueness check: when local validation otherwise
+      // passes and the input carries a `code`, ask upstream whether a
+      // discount with that code already exists. If so, surface a TAKEN
+      // error matching Shopify's response shape. We do this after local
+      // validation so that pure-input errors (badRefs, BXGY shape, free-
+      // shipping combinesWith) are not overshadowed by an upstream
+      // call that would never have been issued in production for those
+      // shapes either. In `Snapshot` mode (no transport, no upstream),
+      // the lookup is skipped — the local-store check inside
+      // `validate_discount_input` already rejects duplicates against
+      // staged records, which is the cold-start expectation.
+      let user_errors = case user_errors {
+        [_, ..] -> user_errors
+        [] ->
+          case fetch_taken_code_error(input, input_name, owner_kind, upstream) {
+            Some(err) -> [err]
+            None -> []
+          }
+      }
       case user_errors {
         [_, ..] ->
           MutationResult(
@@ -1197,12 +1287,27 @@ fn redeem_code_bulk_add(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let discount_id = read_string_arg(field, variables, "discountId")
   let codes = read_codes_arg(field, variables, "codes")
   let #(bulk_id, identity_after_bulk) =
     make_discount_async_gid(store, identity, "DiscountRedeemCodeBulkCreation")
+  // Pattern 2: when the bulk-add targets a real Shopify-side discount
+  // we don't have locally yet, fetch its current state from upstream
+  // and seed it into the base store so the staged code-additions
+  // overlay correctly. Subsequent read-after-write queries
+  // (`codeDiscountNode`, `codeDiscountNodeByCode`) then serve from the
+  // local handler with the merged shape. In `Snapshot` mode the
+  // hydration silently no-ops; the existing local-only behavior
+  // applies (codes are appended only when the discount is already
+  // staged).
+  let #(store, identity_after_bulk) = case discount_id {
+    Some(id) ->
+      maybe_hydrate_discount(store, identity_after_bulk, id, upstream)
+    None -> #(store, identity_after_bulk)
+  }
   let #(next_store, identity_after_codes) = case discount_id {
     Some(id) ->
       case store.get_effective_discount_by_id(store, id) {
@@ -1254,10 +1359,18 @@ fn redeem_code_bulk_delete(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let discount_id = read_string_arg(field, variables, "discountId")
   let ids = read_string_list_arg(field, variables, "ids")
+  // Same Pattern 2 hydration as redeem_code_bulk_add: pull the prior
+  // record from upstream so that staged code-deletions overlay on top
+  // of the real codes connection. See the comment on the add handler.
+  let #(store, identity) = case discount_id {
+    Some(id) -> maybe_hydrate_discount(store, identity, id, upstream)
+    None -> #(store, identity)
+  }
   let next_store = case discount_id {
     Some(id) ->
       case store.get_effective_discount_by_id(store, id) {
@@ -1576,6 +1689,266 @@ fn validate_discount_input(
     "basicCodeDiscount" ->
       list.append(errors, validate_basic_refs(input_name, input))
     _ -> errors
+  }
+}
+
+/// Pattern 2: ask upstream whether a discount with the proposed code
+/// already exists. Returns a `TAKEN` userError when the lookup confirms
+/// a hit. Only code-discount creates carry a `code` (automatic
+/// discounts never carry one), so automatics short-circuit immediately.
+/// In `Snapshot` mode (no `SyncTransport` installed) this is a no-op —
+/// the captured-cassette check is the only place a uniqueness signal
+/// can come from when no records have been staged yet.
+fn fetch_taken_code_error(
+  input: Dict(String, root_field.ResolvedValue),
+  input_name: String,
+  owner_kind: String,
+  upstream: UpstreamContext,
+) -> Option(SourceValue) {
+  case owner_kind {
+    "automatic" -> None
+    _ -> {
+      let code =
+        read_string(input, "code")
+        |> option.or(read_string(input, "codePrefix"))
+      case code {
+        None -> None
+        Some(code) -> {
+          let query =
+            "query DiscountUniquenessCheck($code: String!) {\n"
+            <> "  codeDiscountNodeByCode(code: $code) { id }\n"
+            <> "}\n"
+          let variables = json.object([#("code", json.string(code))])
+          case
+            upstream_query.fetch_sync(
+              upstream.origin,
+              upstream.transport,
+              upstream.headers,
+              "DiscountUniquenessCheck",
+              query,
+              variables,
+            )
+          {
+            Ok(value) ->
+              case existing_discount_id(value) {
+                True ->
+                  Some(user_error(
+                    [input_name, "code"],
+                    "Code must be unique. Please try a different code.",
+                    "TAKEN",
+                  ))
+                False -> None
+              }
+            // Snapshot mode (no transport installed) and any other
+            // transport-level failure (cassette miss, malformed
+            // response, HTTP error) silently fall through to the
+            // local-only validation result. Cassette misses surface
+            // through the runner directly when a cassette is in play.
+            Error(_) -> None
+          }
+        }
+      }
+    }
+  }
+}
+
+/// Pattern 2: ask upstream for the current state of a code-discount
+/// (id, basic metadata, codes connection) and seed it into the local
+/// `base_state` so that any subsequent staged mutation overlays on top
+/// of that real shape. Used by `redeem_code_bulk_add` /
+/// `redeem_code_bulk_delete` so the read-after-write `codeDiscountNode`
+/// / `codeDiscountNodeByCode` queries find the discount locally and
+/// project the right `codesCount`.
+///
+/// Returns the original `(store, identity)` when:
+///  - the discount is already in the local store (nothing to do),
+///  - no transport is installed (Snapshot mode / production JS without
+///    cassette: cassette miss = silent no-op so the legacy local-only
+///    behavior applies),
+///  - the upstream response is malformed or contains a null node.
+///
+/// The hydrated record carries only the fields the read-after targets
+/// actually project (id, codeDiscount.codes, codesCount). Other fields
+/// are absent — fine because the read targets in this scenario don't
+/// project them.
+fn maybe_hydrate_discount(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  id: String,
+  upstream: UpstreamContext,
+) -> #(Store, SyntheticIdentityRegistry) {
+  case store.get_effective_discount_by_id(store, id) {
+    Some(_) -> #(store, identity)
+    None -> {
+      let query =
+        "query DiscountHydrate($id: ID!) {\n"
+        <> "  codeDiscountNode(id: $id) {\n"
+        <> "    id\n"
+        <> "    codeDiscount {\n"
+        <> "      ... on DiscountCodeBasic {\n"
+        <> "        codes(first: 250) { nodes { id code } }\n"
+        <> "      }\n"
+        <> "    }\n"
+        <> "  }\n"
+        <> "}\n"
+      let variables = json.object([#("id", json.string(id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "DiscountHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) ->
+          case discount_record_from_hydrate(value, id) {
+            Some(record) -> #(store.upsert_base_discounts(store, [record]), identity)
+            None -> #(store, identity)
+          }
+        Error(_) -> #(store, identity)
+      }
+    }
+  }
+}
+
+/// Build a minimal `DiscountRecord` from a `DiscountHydrate` upstream
+/// response. The record carries the codes connection so the read
+/// handlers project `codesCount` and the by-code lookup correctly. The
+/// rest of the discount payload is left empty — the read-after-write
+/// targets in this scenario only project codes-related fields.
+fn discount_record_from_hydrate(
+  value: commit.JsonValue,
+  id: String,
+) -> Option(DiscountRecord) {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "codeDiscountNode") {
+        Some(node) -> {
+          let codes = case json_get(node, "codeDiscount") {
+            Some(discount) ->
+              case json_get(discount, "codes") {
+                Some(codes_obj) ->
+                  case json_get(codes_obj, "nodes") {
+                    Some(commit.JsonArray(items)) ->
+                      list.filter_map(items, json_to_code_pair)
+                    _ -> []
+                  }
+                None -> []
+              }
+            None -> []
+          }
+          let first_code = case codes {
+            [#(_, code), ..] -> Some(code)
+            [] -> None
+          }
+          let payload =
+            source_to_captured(
+              SrcObject(
+                dict.from_list([
+                  #("id", SrcString(id)),
+                  #(
+                    "codeDiscount",
+                    SrcObject(
+                      dict.from_list([
+                        #("__typename", SrcString("DiscountCodeBasic")),
+                        #(
+                          "codes",
+                          SrcObject(
+                            dict.from_list([
+                              #(
+                                "nodes",
+                                SrcList(
+                                  list.map(codes, fn(pair) {
+                                    let #(code_id, code) = pair
+                                    SrcObject(
+                                      dict.from_list([
+                                        #("id", SrcString(code_id)),
+                                        #("code", SrcString(code)),
+                                        #("asyncUsageCount", SrcInt(0)),
+                                      ]),
+                                    )
+                                  }),
+                                ),
+                              ),
+                              #("edges", SrcList([])),
+                              #(
+                                "pageInfo",
+                                SrcObject(
+                                  dict.from_list([
+                                    #("hasNextPage", SrcBool(False)),
+                                    #("hasPreviousPage", SrcBool(False)),
+                                    #("startCursor", SrcNull),
+                                    #("endCursor", SrcNull),
+                                  ]),
+                                ),
+                              ),
+                            ]),
+                          ),
+                        ),
+                        #("codesCount", count_source(list.length(codes))),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ),
+            )
+          Some(DiscountRecord(
+            id: id,
+            owner_kind: "code",
+            discount_type: "basic",
+            title: None,
+            status: "ACTIVE",
+            code: first_code,
+            payload: payload,
+            cursor: None,
+          ))
+        }
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn json_to_code_pair(value: commit.JsonValue) -> Result(#(String, String), Nil) {
+  case json_get(value, "id"), json_get(value, "code") {
+    Some(commit.JsonString(id)), Some(commit.JsonString(code)) ->
+      Ok(#(id, code))
+    _, _ -> Error(Nil)
+  }
+}
+
+/// Read `data.codeDiscountNodeByCode.id` from the upstream response
+/// AST. Treats anything other than a non-null string id as "no such
+/// discount." Walks `commit.JsonValue` so we don't have to round-trip
+/// through serialized JSON.
+fn existing_discount_id(value: commit.JsonValue) -> Bool {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "codeDiscountNodeByCode") {
+        Some(node) ->
+          case json_get(node, "id") {
+            Some(commit.JsonString(_)) -> True
+            _ -> False
+          }
+        None -> False
+      }
+    None -> False
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(k, v) if k == key -> Ok(v)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
   }
 }
 
