@@ -19,6 +19,7 @@ import shopify_draft_proxy/graphql/ast.{
 }
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   SelectedFieldOptions, SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt,
@@ -32,19 +33,27 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, RequiredArgument, find_argument, single_root_log_draft,
   validate_required_field_arguments,
 }
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type AbandonedCheckoutRecord, type AbandonmentRecord, type CapturedJsonValue,
-  type DraftOrderRecord, type DraftOrderVariantCatalogRecord, type OrderRecord,
-  type ProductRecord, type ProductVariantRecord,
-  AbandonmentDeliveryActivityRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString, DraftOrderRecord,
-  OrderRecord,
+  type CustomerRecord, type DraftOrderRecord,
+  type DraftOrderVariantCatalogRecord, type OrderRecord, type ProductRecord,
+  type ProductVariantRecord, AbandonmentDeliveryActivityRecord, CapturedArray,
+  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString, CustomerRecord, DraftOrderRecord,
+  DraftOrderVariantCatalogRecord, OrderRecord, ProductVariantRecord,
 }
 
 pub type OrdersError {
@@ -214,6 +223,154 @@ fn wrap_query_payload(data: Json, search_extensions: List(Json)) -> Json {
         ),
       ])
   }
+}
+
+/// Pattern 1 for cold LiveHybrid orders reads: if no local staged orders state
+/// can affect the result, forward the read verbatim to the cassette/upstream.
+/// Snapshot mode and locally staged order/draft-order lifecycles stay local.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_upstream = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_order_read(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        variables,
+      )
+    _ -> False
+  }
+  case want_upstream {
+    True -> passthrough.passthrough_sync(proxy, request)
+    False -> respond_query_locally(proxy, document, variables)
+  }
+}
+
+fn respond_query_locally(
+  proxy: DraftProxy,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  case process(proxy.store, document, variables) {
+    Ok(body) -> #(Response(status: 200, body: body, headers: []), proxy)
+    Error(_) -> #(
+      Response(
+        status: 400,
+        body: json.object([
+          #(
+            "errors",
+            json.array(
+              [
+                json.object([
+                  #("message", json.string("Failed to handle orders query")),
+                ]),
+              ],
+              fn(x) { x },
+            ),
+          ),
+        ]),
+        headers: [],
+      ),
+      proxy,
+    )
+  }
+}
+
+fn should_passthrough_order_read(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "draftOrder" ->
+      !local_has_order_domain_id(proxy, variables)
+    parse_operation.QueryOperation, "fulfillment" ->
+      !local_has_order_domain_id(proxy, variables)
+    parse_operation.QueryOperation, "fulfillmentOrder" ->
+      !local_has_order_domain_id(proxy, variables)
+    parse_operation.QueryOperation, "order" ->
+      !local_has_order_domain_id(proxy, variables)
+    parse_operation.QueryOperation, "return" ->
+      !local_has_order_domain_id(proxy, variables)
+    parse_operation.QueryOperation, "reverseDelivery" ->
+      !local_has_order_domain_id(proxy, variables)
+    parse_operation.QueryOperation, "reverseFulfillmentOrder" ->
+      !local_has_order_domain_id(proxy, variables)
+    parse_operation.QueryOperation, "draftOrders" ->
+      !has_local_order_query_state(proxy, variables)
+    parse_operation.QueryOperation, "draftOrdersCount" ->
+      !has_local_order_query_state(proxy, variables)
+    parse_operation.QueryOperation, "fulfillmentOrders" ->
+      !has_local_order_query_state(proxy, variables)
+    parse_operation.QueryOperation, "assignedFulfillmentOrders" ->
+      !has_local_order_query_state(proxy, variables)
+    parse_operation.QueryOperation, "manualHoldsFulfillmentOrders" ->
+      !has_local_order_query_state(proxy, variables)
+    parse_operation.QueryOperation, "orders" ->
+      !has_local_order_query_state(proxy, variables)
+    parse_operation.QueryOperation, "ordersCount" ->
+      dict.size(variables) > 0 && !has_local_order_query_state(proxy, variables)
+    _, _ -> False
+  }
+}
+
+fn local_has_order_domain_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id) || local_order_domain_id_exists(proxy, id)
+      _ -> False
+    }
+  })
+}
+
+fn local_order_domain_id_exists(proxy: DraftProxy, id: String) -> Bool {
+  case store.get_draft_order_by_id(proxy.store, id) {
+    Some(_) -> True
+    None ->
+      case store.get_order_by_id(proxy.store, id) {
+        Some(_) -> True
+        None ->
+          dict.has_key(proxy.store.staged_state.deleted_draft_order_ids, id)
+          || dict.has_key(proxy.store.staged_state.deleted_order_ids, id)
+          || dict.has_key(proxy.store.staged_state.calculated_orders, id)
+          || dict.has_key(proxy.store.base_state.calculated_orders, id)
+      }
+  }
+}
+
+fn has_local_order_query_state(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  let has_synthetic =
+    dict.values(variables)
+    |> list.any(fn(value) {
+      case value {
+        root_field.StringVal(value) -> is_proxy_synthetic_gid(value)
+        _ -> False
+      }
+    })
+  has_synthetic || has_staged_order_query_state(proxy.store)
+}
+
+fn has_staged_order_query_state(store_in: Store) -> Bool {
+  dict.size(store_in.staged_state.draft_orders) > 0
+  || dict.size(store_in.staged_state.deleted_draft_order_ids) > 0
+  || dict.size(store_in.staged_state.orders) > 0
+  || dict.size(store_in.staged_state.deleted_order_ids) > 0
+  || dict.size(store_in.staged_state.calculated_orders) > 0
 }
 
 fn draft_order_search_extensions(
@@ -1351,9 +1508,27 @@ fn serialize_draft_order_node(
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, OrdersError) {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Result(MutationOutcome, OrdersError) {
   use fields <- result.try(
     root_field.get_root_fields(document)
@@ -1424,6 +1599,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           let #(
             key,
@@ -1463,6 +1639,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           let #(
             key,
@@ -1502,6 +1679,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           let #(
             key,
@@ -1539,6 +1717,7 @@ pub fn process_mutation(
               operation_path,
               field,
               variables,
+              upstream,
             )
           let #(key, payload, next_store, next_errors, next_drafts) = result
           case next_errors {
@@ -1568,6 +1747,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
             result
@@ -1673,6 +1853,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           let #(key, payload, next_errors, next_drafts) = result
           case next_errors {
@@ -1704,6 +1885,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           let #(
             key,
@@ -1755,6 +1937,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           case next_errors {
             [] -> #(
@@ -2056,6 +2239,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           let #(
             key,
@@ -2094,6 +2278,7 @@ pub fn process_mutation(
               operation_path,
               field,
               variables,
+              upstream,
             )
           let #(
             key,
@@ -2192,6 +2377,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           case next_errors {
             [] -> #(
@@ -2230,6 +2416,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           case next_errors {
             [] -> #(
@@ -2267,6 +2454,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           case next_errors {
             [] -> #(
@@ -2305,6 +2493,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           case next_errors {
             [] -> #(
@@ -2343,6 +2532,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           case next_errors {
             [] -> #(
@@ -2381,6 +2571,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           case next_errors {
             [] -> #(
@@ -2532,6 +2723,7 @@ pub fn process_mutation(
               field,
               fragments,
               variables,
+              upstream,
             )
           #(
             list.append(entries, [#(key, payload)]),
@@ -2589,6 +2781,7 @@ fn handle_draft_order_complete(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -2614,8 +2807,12 @@ fn handle_draft_order_complete(
       let args = field_arguments(field, variables)
       let id = read_string_arg(args, "id")
       case id {
-        Some(id) ->
-          case store.get_draft_order_by_id(store, id) {
+        Some(id) -> {
+          // Pattern 2: completing an upstream-created draft needs the prior
+          // draft payload before the proxy can stage the completed local copy.
+          let hydrated_store =
+            maybe_hydrate_draft_order_by_id(store, id, upstream)
+          case store.get_draft_order_by_id(hydrated_store, id) {
             Some(draft_order) -> {
               case read_string_arg(args, "paymentGatewayId") {
                 Some(_) -> {
@@ -2638,7 +2835,10 @@ fn handle_draft_order_complete(
                       read_bool(args, "paymentPending", False),
                     )
                   let next_store =
-                    store.stage_draft_order(store, completed_draft_order)
+                    store.stage_draft_order(
+                      hydrated_store,
+                      completed_draft_order,
+                    )
                   let payload =
                     serialize_draft_order_mutation_payload(
                       field,
@@ -2680,6 +2880,7 @@ fn handle_draft_order_complete(
               #(key, payload, store, identity, [], [], [])
             }
           }
+        }
         None -> #(key, json.null(), store, identity, [], [], [])
       }
     }
@@ -2692,6 +2893,7 @@ fn handle_draft_order_delete(
   operation_path: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(String, Json, Store, List(Json), List(LogDraft)) {
   let key = get_field_response_key(field)
   let validation_errors =
@@ -2712,10 +2914,15 @@ fn handle_draft_order_delete(
         None -> None
       }
       case id {
-        Some(id) ->
-          case store.get_draft_order_by_id(store, id) {
+        Some(id) -> {
+          // Pattern 2: deleting a captured upstream draft first hydrates the
+          // draft so the local delete marker can drive downstream null reads.
+          let hydrated_store =
+            maybe_hydrate_draft_order_by_id(store, id, upstream)
+          case store.get_draft_order_by_id(hydrated_store, id) {
             Some(_) -> {
-              let next_store = store.delete_staged_draft_order(store, id)
+              let next_store =
+                store.delete_staged_draft_order(hydrated_store, id)
               let payload =
                 serialize_draft_order_delete_payload(field, Some(id), [])
               let draft =
@@ -2741,6 +2948,7 @@ fn handle_draft_order_delete(
               [],
             )
           }
+        }
         None -> #(
           key,
           serialize_draft_order_delete_payload(field, None, [
@@ -2863,6 +3071,7 @@ fn handle_draft_order_duplicate(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -2877,13 +3086,16 @@ fn handle_draft_order_duplicate(
     read_string_arg(args, "id")
     |> option.or(read_string_arg(args, "draftOrderId"))
   case id {
-    Some(id) ->
-      case store.get_draft_order_by_id(store, id) {
+    Some(id) -> {
+      // Pattern 2: duplication copies Shopify's existing draft payload, then
+      // allocates local IDs for the duplicate and stages it locally.
+      let hydrated_store = maybe_hydrate_draft_order_by_id(store, id, upstream)
+      case store.get_draft_order_by_id(hydrated_store, id) {
         Some(draft_order) -> {
           let #(duplicated_draft_order, next_identity) =
-            duplicate_draft_order(store, identity, draft_order)
+            duplicate_draft_order(hydrated_store, identity, draft_order)
           let next_store =
-            store.stage_draft_order(store, duplicated_draft_order)
+            store.stage_draft_order(hydrated_store, duplicated_draft_order)
           let payload =
             serialize_draft_order_mutation_payload(
               field,
@@ -2918,6 +3130,7 @@ fn handle_draft_order_duplicate(
             fragments,
           )
       }
+    }
     None ->
       unknown_draft_order_duplicate_result(
         key,
@@ -2962,6 +3175,7 @@ fn handle_draft_order_invoice_send(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(String, Json, List(Json), List(LogDraft)) {
   let key = get_field_response_key(field)
   let validation_errors =
@@ -2978,8 +3192,14 @@ fn handle_draft_order_invoice_send(
     [] -> {
       let args = field_arguments(field, variables)
       let id = read_string_arg(args, "id")
+      // Pattern 2: invoiceSend remains a local safety/validation handler, but
+      // captured no-recipient branches need the upstream draft status/email.
+      let hydrated_store = case id {
+        Some(id) -> maybe_hydrate_draft_order_by_id(store, id, upstream)
+        None -> store
+      }
       let draft_order = case id {
-        Some(id) -> store.get_draft_order_by_id(store, id)
+        Some(id) -> store.get_draft_order_by_id(hydrated_store, id)
         None -> None
       }
       let user_errors = invoice_send_user_errors(args, draft_order)
@@ -3522,6 +3742,7 @@ fn handle_draft_order_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -3551,13 +3772,22 @@ fn handle_draft_order_update(
       let id = read_string_arg(args, "id")
       let input = read_object(args, "input")
       case id, input {
-        Some(id), Some(input) ->
-          case store.get_draft_order_by_id(store, id) {
+        Some(id), Some(input) -> {
+          // Pattern 2: updates merge user input into Shopify's existing draft
+          // order payload before staging the changed draft locally.
+          let hydrated_store =
+            maybe_hydrate_draft_order_by_id(store, id, upstream)
+          case store.get_draft_order_by_id(hydrated_store, id) {
             Some(draft_order) -> {
               let #(updated_draft_order, next_identity) =
-                build_updated_draft_order(store, identity, draft_order, input)
+                build_updated_draft_order(
+                  hydrated_store,
+                  identity,
+                  draft_order,
+                  input,
+                )
               let next_store =
-                store.stage_draft_order(store, updated_draft_order)
+                store.stage_draft_order(hydrated_store, updated_draft_order)
               let payload =
                 serialize_draft_order_mutation_payload(
                   field,
@@ -3587,6 +3817,7 @@ fn handle_draft_order_update(
                 fragments,
               )
           }
+        }
         _, _ ->
           unknown_draft_order_update_result(
             key,
@@ -3636,6 +3867,7 @@ fn handle_order_lifecycle_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -3681,8 +3913,12 @@ fn handle_order_lifecycle_mutation(
             )
           #(key, payload, store, identity, [], [], [])
         }
-        Some(id) ->
-          case store.get_order_by_id(store, id) {
+        Some(id) -> {
+          // Pattern 2: order lifecycle mutations need the prior order record
+          // before local staging can project Shopify-shaped mutation and
+          // downstream read payloads.
+          let hydrated_store = maybe_hydrate_order_by_id(store, id, upstream)
+          case store.get_order_by_id(hydrated_store, id) {
             None -> {
               let payload =
                 serialize_order_mutation_payload(
@@ -3693,12 +3929,12 @@ fn handle_order_lifecycle_mutation(
                   ],
                   fragments,
                 )
-              #(key, payload, store, identity, [], [], [])
+              #(key, payload, hydrated_store, identity, [], [], [])
             }
             Some(order) -> {
               let #(updated_order, next_identity) =
                 apply_order_lifecycle_update(order, identity, root_name)
-              let next_store = store.stage_order(store, updated_order)
+              let next_store = store.stage_order(hydrated_store, updated_order)
               let payload =
                 serialize_order_mutation_payload(
                   field,
@@ -3720,6 +3956,7 @@ fn handle_order_lifecycle_mutation(
               #(key, payload, next_store, next_identity, [id], [], [draft])
             }
           }
+        }
       }
     }
   }
@@ -3791,6 +4028,7 @@ fn handle_order_cancel_mutation(
   operation_path: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -3819,14 +4057,19 @@ fn handle_order_cancel_mutation(
     [] -> {
       let args = field_arguments(field, variables)
       case read_string_arg(args, "orderId") {
-        Some(order_id) ->
-          case store.get_order_by_id(store, order_id) {
+        Some(order_id) -> {
+          // Pattern 2: hydrate the target order before staging cancellation
+          // locally; Shopify applies the supported mutation asynchronously, but
+          // the proxy still owns the downstream read-after-write state.
+          let hydrated_store =
+            maybe_hydrate_order_by_id(store, order_id, upstream)
+          case store.get_order_by_id(hydrated_store, order_id) {
             Some(order) -> {
               let reason =
                 read_string_arg(args, "reason") |> option.unwrap("OTHER")
               let #(updated_order, next_identity) =
                 apply_order_cancel_update(order, identity, reason)
-              let next_store = store.stage_order(store, updated_order)
+              let next_store = store.stage_order(hydrated_store, updated_order)
               let #(job_id, identity_after_job) =
                 synthetic_identity.make_synthetic_gid(next_identity, "Job")
               let payload =
@@ -3849,9 +4092,10 @@ fn handle_order_cancel_mutation(
                 serialize_order_cancel_payload(field, None, [
                   #(["orderId"], "Order does not exist"),
                 ])
-              #(key, payload, store, identity, [], [], [])
+              #(key, payload, hydrated_store, identity, [], [], [])
             }
           }
+        }
         None -> {
           let payload =
             serialize_order_cancel_payload(field, None, [
@@ -3919,6 +4163,7 @@ fn handle_order_invoice_send(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(String, Json, List(Json)) {
   let key = get_field_response_key(field)
   let validation_errors =
@@ -3935,8 +4180,12 @@ fn handle_order_invoice_send(
     [] -> {
       let args = field_arguments(field, variables)
       case read_string_arg(args, "id") {
-        Some(order_id) ->
-          case store.get_order_by_id(store, order_id) {
+        Some(order_id) -> {
+          // Pattern 2: invoice send returns the order shape but has no local
+          // state change, so hydrate just enough to answer the selected order.
+          let hydrated_store =
+            maybe_hydrate_order_by_id(store, order_id, upstream)
+          case store.get_order_by_id(hydrated_store, order_id) {
             Some(order) -> #(
               key,
               serialize_order_mutation_payload(
@@ -3960,6 +4209,7 @@ fn handle_order_invoice_send(
               [],
             )
           }
+        }
         None -> #(
           key,
           serialize_order_mutation_payload(
@@ -3985,6 +4235,7 @@ fn handle_order_mark_as_paid_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -4025,8 +4276,11 @@ fn handle_order_mark_as_paid_mutation(
             )
           #(key, payload, store, identity, [], [], [])
         }
-        Some(id) ->
-          case store.get_order_by_id(store, id) {
+        Some(id) -> {
+          // Pattern 2: hydrate the order totals/transactions before applying
+          // the local mark-as-paid projection.
+          let hydrated_store = maybe_hydrate_order_by_id(store, id, upstream)
+          case store.get_order_by_id(hydrated_store, id) {
             None -> {
               let payload =
                 serialize_order_mutation_payload(
@@ -4037,12 +4291,12 @@ fn handle_order_mark_as_paid_mutation(
                   ],
                   fragments,
                 )
-              #(key, payload, store, identity, [], [], [])
+              #(key, payload, hydrated_store, identity, [], [], [])
             }
             Some(order) -> {
               let #(updated_order, next_identity) =
                 apply_order_mark_as_paid_update(order, identity)
-              let next_store = store.stage_order(store, updated_order)
+              let next_store = store.stage_order(hydrated_store, updated_order)
               let payload =
                 serialize_order_mutation_payload(
                   field,
@@ -4062,6 +4316,7 @@ fn handle_order_mark_as_paid_mutation(
               #(key, payload, next_store, next_identity, [id], [], [draft])
             }
           }
+        }
       }
     }
   }
@@ -5250,6 +5505,7 @@ fn handle_order_edit_begin_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -5273,15 +5529,21 @@ fn handle_order_edit_begin_mutation(
     [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
     [] -> {
       let args = field_arguments(field, variables)
+      let hydrated_store = case read_string(args, "id") {
+        Some(id) -> maybe_hydrate_order_by_id(store, id, upstream)
+        None -> store
+      }
+      // Pattern 2: orderEditBegin materializes a calculatedOrder from the
+      // upstream/cassette order and stages an edit session locally.
       let order =
         read_string(args, "id")
-        |> option.then(fn(id) { store.get_order_by_id(store, id) })
+        |> option.then(fn(id) { store.get_order_by_id(hydrated_store, id) })
       case order {
         Some(order) -> {
           let #(calculated_order, next_identity) =
             build_calculated_order_from_order(order, identity)
           let next_store =
-            stage_order_edit_session(store, order, calculated_order)
+            stage_order_edit_session(hydrated_store, order, calculated_order)
           let payload =
             serialize_order_edit_begin_payload(
               field,
@@ -5304,6 +5566,7 @@ fn handle_order_edit_add_variant_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -5329,13 +5592,22 @@ fn handle_order_edit_add_variant_mutation(
       let args = field_arguments(field, variables)
       let calculated_order_id = read_string(args, "id")
       let variant_id = read_string(args, "variantId")
+      let hydrated_store = case variant_id {
+        Some(id) -> maybe_hydrate_product_variant_by_id(store, id, upstream)
+        None -> store
+      }
       let variant =
         variant_id
-        |> option.then(fn(id) { store.get_effective_variant_by_id(store, id) })
+        |> option.then(fn(id) {
+          store.get_effective_variant_by_id(hydrated_store, id)
+        })
       case variant {
         Some(variant) -> {
           let product =
-            store.get_effective_product_by_id(store, variant.product_id)
+            store.get_effective_product_by_id(
+              hydrated_store,
+              variant.product_id,
+            )
           let quantity = read_int(args, "quantity", 1)
           let session_id =
             calculated_order_id
@@ -5350,7 +5622,7 @@ fn handle_order_edit_add_variant_mutation(
             )
           let #(next_store, calculated_order) =
             update_order_edit_session_with_line_item(
-              store,
+              hydrated_store,
               calculated_order_id,
               calculated_line_item,
             )
@@ -5376,7 +5648,7 @@ fn handle_order_edit_add_variant_mutation(
               }
             _ -> json.null()
           }
-          #(key, payload, store, identity, [], [], [])
+          #(key, payload, hydrated_store, identity, [], [], [])
         }
       }
     }
@@ -5616,6 +5888,7 @@ fn handle_return_lifecycle_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -5636,9 +5909,18 @@ fn handle_return_lifecycle_mutation(
         "returnCreate" -> "OPEN"
         _ -> "REQUESTED"
       }
+      // Pattern 2: returnCreate/returnRequest derive return line items from
+      // the source order, so hydrate that order before local return staging.
+      let hydrated_store =
+        read_object(args, input_key)
+        |> option.then(fn(input) { read_string(input, "orderId") })
+        |> option.map(fn(order_id) {
+          maybe_hydrate_order_by_id(store, order_id, upstream)
+        })
+        |> option.unwrap(store)
       let result =
         apply_return_create(
-          store,
+          hydrated_store,
           identity,
           read_object(args, input_key),
           status,
@@ -13250,6 +13532,7 @@ fn handle_order_update_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -13285,14 +13568,18 @@ fn handle_order_update_mutation(
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) ->
           case read_string(input, "id") {
-            Some(id) ->
-              case store.get_order_by_id(store, id) {
+            Some(id) -> {
+              // Pattern 2: orderUpdate merges input into the existing order,
+              // so hydrate the upstream/cassette order before staging locally.
+              let hydrated_store =
+                maybe_hydrate_order_by_id(store, id, upstream)
+              case store.get_order_by_id(hydrated_store, id) {
                 None -> #(
                   key,
                   serialize_order_mutation_error_payload(field, [
                     #(["id"], "Order does not exist"),
                   ]),
-                  store,
+                  hydrated_store,
                   identity,
                   [],
                   [],
@@ -13301,7 +13588,8 @@ fn handle_order_update_mutation(
                 Some(order) -> {
                   let #(updated_order, next_identity) =
                     build_updated_order(order, input, identity)
-                  let next_store = store.stage_order(store, updated_order)
+                  let next_store =
+                    store.stage_order(hydrated_store, updated_order)
                   let payload =
                     serialize_order_mutation_payload(
                       field,
@@ -13321,6 +13609,7 @@ fn handle_order_update_mutation(
                   #(key, payload, next_store, next_identity, [id], [], [draft])
                 }
               }
+            }
             None -> #(key, json.null(), store, identity, [], [], [])
           }
         _ -> #(key, json.null(), store, identity, [], [], [])
@@ -13337,6 +13626,7 @@ fn handle_refund_create_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -13380,8 +13670,14 @@ fn handle_refund_create_mutation(
         )
         Some(input) -> {
           let order_id = read_string(input, "orderId")
+          // Pattern 2: refundCreate needs the existing order to calculate
+          // refundable totals and then locally stage downstream refund state.
+          let hydrated_store = case order_id {
+            Some(id) -> maybe_hydrate_order_by_id(store, id, upstream)
+            None -> store
+          }
           let order = case order_id {
-            Some(id) -> store.get_order_by_id(store, id)
+            Some(id) -> store.get_order_by_id(hydrated_store, id)
             None -> None
           }
           case order {
@@ -13427,7 +13723,7 @@ fn handle_refund_create_mutation(
                       ],
                       fragments,
                     ),
-                    store,
+                    hydrated_store,
                     identity,
                     [],
                     [],
@@ -13439,7 +13735,8 @@ fn handle_refund_create_mutation(
                     build_refund_from_input(order, input, identity)
                   let updated_order =
                     apply_refund_to_order(order, refund, refund_transaction)
-                  let next_store = store.stage_order(store, updated_order)
+                  let next_store =
+                    store.stage_order(hydrated_store, updated_order)
                   let payload =
                     serialize_refund_create_payload(
                       field,
@@ -15007,6 +15304,7 @@ fn handle_fulfillment_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -15043,8 +15341,14 @@ fn handle_fulfillment_mutation(
       }
       case fulfillment_id {
         None -> #(key, json.null(), store, identity, [], [], [])
-        Some(id) ->
-          case find_order_with_fulfillment(store, id) {
+        Some(id) -> {
+          // Pattern 2: fulfillment mutations identify only the fulfillment.
+          // Hydrate the containing order first so the local mutation can stage
+          // the same read-after-write order payload without forwarding the
+          // supported mutation to Shopify.
+          let hydrated_store =
+            maybe_hydrate_order_for_fulfillment(store, id, upstream)
+          case find_order_with_fulfillment(hydrated_store, id) {
             None -> {
               let payload =
                 serialize_fulfillment_mutation_payload(
@@ -15100,8 +15404,484 @@ fn handle_fulfillment_mutation(
               #(key, payload, next_store, next_identity, [order.id], [], [draft])
             }
           }
+        }
       }
     }
+  }
+}
+
+fn maybe_hydrate_order_for_fulfillment(
+  store_in: Store,
+  fulfillment_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_proxy_synthetic_gid(fulfillment_id)
+    || option.is_some(find_order_with_fulfillment(store_in, fulfillment_id))
+  {
+    True -> store_in
+    False -> {
+      let query =
+        "query OrdersFulfillmentHydrate($id: ID!) {\n"
+        <> "  fulfillment(id: $id) {\n"
+        <> "    id\n"
+        <> "    order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } }\n"
+        <> "  }\n"
+        <> "}\n"
+      let variables = json.object([#("id", json.string(fulfillment_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "OrdersFulfillmentHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_order_for_fulfillment_response(store_in, value)
+        Error(_) -> store_in
+      }
+    }
+  }
+}
+
+fn hydrate_order_for_fulfillment_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "fulfillment") |> option.then(non_null_json) {
+        Some(fulfillment) ->
+          case json_get(fulfillment, "order") |> option.then(non_null_json) {
+            Some(order) ->
+              case order_record_from_json(order) {
+                Ok(record) -> store.upsert_base_orders(store_in, [record])
+                Error(_) -> store_in
+              }
+            None -> store_in
+          }
+        None -> store_in
+      }
+    None -> store_in
+  }
+}
+
+fn order_record_from_json(value: commit.JsonValue) -> Result(OrderRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  Ok(OrderRecord(id: id, cursor: None, data: captured_json_from_commit(value)))
+}
+
+fn draft_order_record_from_json(
+  value: commit.JsonValue,
+) -> Result(DraftOrderRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  Ok(DraftOrderRecord(
+    id: id,
+    cursor: None,
+    data: captured_json_from_commit(value),
+  ))
+}
+
+fn maybe_hydrate_draft_order_by_id(
+  store_in: Store,
+  draft_order_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_proxy_synthetic_gid(draft_order_id)
+    || option.is_some(store.get_draft_order_by_id(store_in, draft_order_id))
+  {
+    True -> store_in
+    False -> {
+      let query =
+        "query OrdersDraftOrderHydrate($id: ID!) {\n"
+        <> "  draftOrder(id: $id) { id name status ready email taxExempt taxesIncluded reserveInventoryUntil paymentTerms invoiceUrl note tags customAttributes { key value } customer { id email displayName } billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip phone } shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip phone } shippingLine { title code custom originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } appliedDiscount { title description value valueType amountSet { shopMoney { amount currencyCode } } } subtotalPriceSet { shopMoney { amount currencyCode } } totalDiscountsSet { shopMoney { amount currencyCode } } totalShippingPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } totalQuantityOfLineItems lineItems { nodes { id title name quantity sku variantTitle custom requiresShipping taxable customAttributes { key value } appliedDiscount { title description value valueType amountSet { shopMoney { amount currencyCode } } } originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } discountedTotalSet { shopMoney { amount currencyCode } } totalDiscountSet { shopMoney { amount currencyCode } } variant { id title sku } } } order { id email customer { id email displayName } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } lineItems { nodes { id title name quantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } variant { id title sku } } } } }\n"
+        <> "}\n"
+      let variables = json.object([#("id", json.string(draft_order_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "OrdersDraftOrderHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_draft_order_by_id_response(store_in, value)
+        Error(_) -> store_in
+      }
+    }
+  }
+}
+
+fn hydrate_draft_order_by_id_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "draftOrder") |> option.then(non_null_json) {
+        Some(draft_order) ->
+          case draft_order_record_from_json(draft_order) {
+            Ok(record) -> store.upsert_base_draft_orders(store_in, [record])
+            Error(_) -> store_in
+          }
+        None -> store_in
+      }
+    None -> store_in
+  }
+}
+
+fn maybe_hydrate_draft_order_variant_catalog_from_input(
+  store_in: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  read_object_list(input, "lineItems")
+  |> list.fold(store_in, fn(current_store, line_item) {
+    case read_string(line_item, "variantId") {
+      Some(variant_id) ->
+        maybe_hydrate_draft_order_variant_catalog(
+          current_store,
+          variant_id,
+          upstream,
+        )
+      None -> current_store
+    }
+  })
+}
+
+fn maybe_hydrate_draft_order_customer_from_input(
+  store_in: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  let customer_id =
+    read_object(input, "purchasingEntity")
+    |> option.then(fn(entity) { read_string(entity, "customerId") })
+  case customer_id {
+    Some(id) -> maybe_hydrate_customer_by_id(store_in, id, upstream)
+    None -> store_in
+  }
+}
+
+fn maybe_hydrate_customer_by_id(
+  store_in: Store,
+  customer_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_proxy_synthetic_gid(customer_id)
+    || option.is_some(store.get_effective_customer_by_id(store_in, customer_id))
+  {
+    True -> store_in
+    False -> {
+      let query =
+        "query OrdersDraftOrderCustomerHydrate($id: ID!) {\n"
+        <> "  customer(id: $id) { id email displayName firstName lastName }\n"
+        <> "}\n"
+      let variables = json.object([#("id", json.string(customer_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "OrdersDraftOrderCustomerHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_customer_by_id_response(store_in, value)
+        Error(_) -> store_in
+      }
+    }
+  }
+}
+
+fn hydrate_customer_by_id_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  let customer =
+    json_get(value, "data")
+    |> option.then(fn(data) {
+      json_get(data, "customer")
+      |> option.or(json_get(data, "node"))
+      |> option.then(non_null_json)
+    })
+  case customer {
+    Some(customer) ->
+      case customer_record_from_json(customer) {
+        Ok(record) -> store.upsert_base_customers(store_in, [record])
+        Error(_) -> store_in
+      }
+    None -> store_in
+  }
+}
+
+fn customer_record_from_json(
+  value: commit.JsonValue,
+) -> Result(CustomerRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  Ok(CustomerRecord(
+    id: id,
+    first_name: json_get_string(value, "firstName"),
+    last_name: json_get_string(value, "lastName"),
+    display_name: json_get_string(value, "displayName"),
+    email: json_get_string(value, "email"),
+    legacy_resource_id: None,
+    locale: None,
+    note: None,
+    can_delete: None,
+    verified_email: None,
+    data_sale_opt_out: False,
+    tax_exempt: None,
+    tax_exemptions: [],
+    state: None,
+    tags: [],
+    number_of_orders: None,
+    amount_spent: None,
+    default_email_address: None,
+    default_phone_number: None,
+    email_marketing_consent: None,
+    sms_marketing_consent: None,
+    default_address: None,
+    created_at: None,
+    updated_at: None,
+  ))
+}
+
+fn maybe_hydrate_product_variant_by_id(
+  store_in: Store,
+  variant_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_proxy_synthetic_gid(variant_id)
+    || option.is_some(store.get_effective_variant_by_id(store_in, variant_id))
+  {
+    True -> store_in
+    False -> {
+      let query =
+        "query OrdersProductVariantHydrate($id: ID!) {\n"
+        <> "  productVariant(id: $id) { id title sku price product { id title } }\n"
+        <> "}\n"
+      let variables = json.object([#("id", json.string(variant_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "OrdersProductVariantHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_product_variant_by_id_response(store_in, value)
+        Error(_) -> store_in
+      }
+    }
+  }
+}
+
+fn hydrate_product_variant_by_id_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  let variant =
+    json_get(value, "data")
+    |> option.then(fn(data) {
+      json_get(data, "productVariant")
+      |> option.or(json_get(data, "node"))
+      |> option.then(non_null_json)
+    })
+  case variant {
+    Some(variant) ->
+      case product_variant_record_from_json(variant) {
+        Ok(record) -> store.upsert_base_product_variants(store_in, [record])
+        Error(_) -> store_in
+      }
+    None -> store_in
+  }
+}
+
+fn product_variant_record_from_json(
+  value: commit.JsonValue,
+) -> Result(ProductVariantRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  let product_id =
+    json_get(value, "product")
+    |> option.then(fn(product) { json_get_string(product, "id") })
+    |> option.unwrap("")
+  let product_title =
+    json_get(value, "product")
+    |> option.then(fn(product) { json_get_string(product, "title") })
+  let title =
+    product_title
+    |> option.or(json_get_string(value, "title"))
+    |> option.unwrap("Variant")
+  Ok(ProductVariantRecord(
+    id: id,
+    product_id: product_id,
+    title: title,
+    sku: json_get_string(value, "sku"),
+    barcode: None,
+    price: json_get_string(value, "price"),
+    compare_at_price: None,
+    taxable: None,
+    inventory_policy: None,
+    inventory_quantity: None,
+    selected_options: [],
+    media_ids: [],
+    inventory_item: None,
+    contextual_pricing: None,
+    cursor: None,
+  ))
+}
+
+fn maybe_hydrate_draft_order_variant_catalog(
+  store_in: Store,
+  variant_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_proxy_synthetic_gid(variant_id)
+    || option.is_some(store.get_draft_order_variant_catalog_by_id(
+      store_in,
+      variant_id,
+    ))
+    || option.is_some(store.get_effective_variant_by_id(store_in, variant_id))
+  {
+    True -> store_in
+    False -> {
+      let query =
+        "query OrdersDraftOrderVariantHydrate($id: ID!) {\n"
+        <> "  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n"
+        <> "}\n"
+      let variables = json.object([#("id", json.string(variant_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "OrdersDraftOrderVariantHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) ->
+          hydrate_draft_order_variant_catalog_response(store_in, value)
+        Error(_) -> store_in
+      }
+    }
+  }
+}
+
+fn hydrate_draft_order_variant_catalog_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  let variant =
+    json_get(value, "data")
+    |> option.then(fn(data) {
+      json_get(data, "productVariant")
+      |> option.or(json_get(data, "node"))
+      |> option.then(non_null_json)
+    })
+  case variant {
+    Some(variant) ->
+      case draft_order_variant_catalog_from_json(variant) {
+        Ok(record) ->
+          store.upsert_base_draft_order_variant_catalog(store_in, [record])
+        Error(_) -> store_in
+      }
+    None -> store_in
+  }
+}
+
+fn draft_order_variant_catalog_from_json(
+  value: commit.JsonValue,
+) -> Result(DraftOrderVariantCatalogRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  let product_title =
+    json_get(value, "product")
+    |> option.then(fn(product) { json_get_string(product, "title") })
+  let variant_title = json_get_string(value, "title")
+  let title =
+    product_title
+    |> option.or(variant_title)
+    |> option.unwrap("Variant")
+  let sku = json_get_string(value, "sku")
+  let requires_shipping =
+    json_get(value, "inventoryItem")
+    |> option.then(fn(item) { json_get_bool(item, "requiresShipping") })
+    |> option.unwrap(True)
+  let taxable = json_get_bool(value, "taxable") |> option.unwrap(True)
+  let price = json_get_string(value, "price") |> option.unwrap("0.0")
+  Ok(DraftOrderVariantCatalogRecord(
+    variant_id: id,
+    title: title,
+    name: title,
+    variant_title: variant_title,
+    sku: sku,
+    requires_shipping: requires_shipping,
+    taxable: taxable,
+    unit_price: price,
+    currency_code: "CAD",
+  ))
+}
+
+fn maybe_hydrate_order_by_id(
+  store_in: Store,
+  order_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_proxy_synthetic_gid(order_id)
+    || option.is_some(store.get_order_by_id(store_in, order_id))
+  {
+    True -> store_in
+    False -> {
+      let query =
+        "query OrdersOrderHydrate($id: ID!) {\n"
+        <> "  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } transactions { kind status gateway amountSet { shopMoney { amount currencyCode } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } } lineItems { nodes { id title name quantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } variant { id title sku } } } }\n"
+        <> "}\n"
+      let variables = json.object([#("id", json.string(order_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "OrdersOrderHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_order_by_id_response(store_in, value)
+        Error(_) -> store_in
+      }
+    }
+  }
+}
+
+fn hydrate_order_by_id_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "order") |> option.then(non_null_json) {
+        Some(order) ->
+          case order_record_from_json(order) {
+            Ok(record) -> store.upsert_base_orders(store_in, [record])
+            Error(_) -> store_in
+          }
+        None -> store_in
+      }
+    None -> store_in
   }
 }
 
@@ -15250,6 +16030,7 @@ fn handle_draft_order_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -15275,12 +16056,23 @@ fn handle_draft_order_create(
       let args = field_arguments(field, variables)
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) -> {
-          let user_errors = validate_draft_order_create_input(store, input)
+          // Pattern 2: draftOrderCreate stays local, but real variant IDs in
+          // captured inputs need a narrow upstream variant/catalog hydration.
+          let hydrated_store =
+            maybe_hydrate_draft_order_variant_catalog_from_input(
+              store,
+              input,
+              upstream,
+            )
+            |> maybe_hydrate_draft_order_customer_from_input(input, upstream)
+          let user_errors =
+            validate_draft_order_create_input(hydrated_store, input)
           case user_errors {
             [] -> {
               let #(draft_order, next_identity) =
-                build_draft_order_from_input(store, identity, input)
-              let next_store = store.stage_draft_order(store, draft_order)
+                build_draft_order_from_input(hydrated_store, identity, input)
+              let next_store =
+                store.stage_draft_order(hydrated_store, draft_order)
               let payload =
                 serialize_draft_order_mutation_payload(
                   field,
@@ -15338,6 +16130,7 @@ fn handle_draft_order_create_from_order(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -15362,18 +16155,23 @@ fn handle_draft_order_create_from_order(
     [] -> {
       let args = field_arguments(field, variables)
       case read_string_arg(args, "orderId") {
-        Some(order_id) ->
-          case find_order_source_by_id(store, order_id) {
+        Some(order_id) -> {
+          // Pattern 2: createFromOrder needs the source order read from the
+          // cassette/upstream, then stages the new draft locally.
+          let hydrated_store =
+            maybe_hydrate_order_by_id(store, order_id, upstream)
+          case find_order_source_by_id(hydrated_store, order_id) {
             Some(source) -> {
               let #(order, source_draft_order) = source
               let #(draft_order, next_identity) =
                 build_draft_order_from_order(
-                  store,
+                  hydrated_store,
                   identity,
                   order,
                   source_draft_order,
                 )
-              let next_store = store.stage_draft_order(store, draft_order)
+              let next_store =
+                store.stage_draft_order(hydrated_store, draft_order)
               let payload =
                 serialize_draft_order_mutation_payload(
                   field,
@@ -15397,16 +16195,65 @@ fn handle_draft_order_create_from_order(
               ])
             }
             None -> {
-              let payload =
-                serialize_draft_order_mutation_payload(
-                  field,
-                  None,
-                  [#(["orderId"], "Order does not exist")],
-                  fragments,
-                )
-              #(key, payload, store, identity, [], [], [])
+              case store.get_order_by_id(hydrated_store, order_id) {
+                Some(order) -> {
+                  let empty_source =
+                    DraftOrderRecord(
+                      id: "",
+                      cursor: None,
+                      data: CapturedObject([]),
+                    )
+                  let #(draft_order, next_identity) =
+                    build_draft_order_from_order(
+                      hydrated_store,
+                      identity,
+                      order.data,
+                      empty_source,
+                    )
+                  let next_store =
+                    store.stage_draft_order(hydrated_store, draft_order)
+                  let payload =
+                    serialize_draft_order_mutation_payload(
+                      field,
+                      Some(draft_order),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "draftOrderCreateFromOrder",
+                      [draft_order.id],
+                      store.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged draftOrderCreateFromOrder in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(
+                    key,
+                    payload,
+                    next_store,
+                    next_identity,
+                    [draft_order.id],
+                    [],
+                    [draft],
+                  )
+                }
+                None -> {
+                  let payload =
+                    serialize_draft_order_mutation_payload(
+                      field,
+                      None,
+                      [#(["orderId"], "Order does not exist")],
+                      fragments,
+                    )
+                  #(key, payload, store, identity, [], [], [])
+                }
+              }
             }
           }
+        }
         None -> #(key, json.null(), store, identity, [], [], [])
       }
     }
@@ -15455,6 +16302,7 @@ fn build_draft_order_from_order(
       +. captured_money_amount(item, "originalUnitPriceSet")
       *. int.to_float(captured_int_field(item, "quantity") |> option.unwrap(0))
     })
+    |> nonzero_float(captured_money_amount(order, "currentTotalPriceSet"))
   let data =
     CapturedObject([
       #("id", CapturedString(draft_order_id)),
@@ -17109,6 +17957,59 @@ fn captured_number(
 
 fn parse_amount(value: String) -> Float {
   float.parse(value) |> result.unwrap(0.0)
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(field_key, field_value) if field_key == key -> Ok(field_value)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
+  case json_get(value, key) {
+    Some(commit.JsonBool(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn non_null_json(value: commit.JsonValue) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonNull -> None
+    _ -> Some(value)
+  }
+}
+
+fn captured_json_from_commit(value: commit.JsonValue) -> CapturedJsonValue {
+  case value {
+    commit.JsonNull -> CapturedNull
+    commit.JsonBool(value) -> CapturedBool(value)
+    commit.JsonInt(value) -> CapturedInt(value)
+    commit.JsonFloat(value) -> CapturedFloat(value)
+    commit.JsonString(value) -> CapturedString(value)
+    commit.JsonArray(items) ->
+      CapturedArray(list.map(items, captured_json_from_commit))
+    commit.JsonObject(fields) ->
+      CapturedObject(
+        list.map(fields, fn(pair) {
+          #(pair.0, captured_json_from_commit(pair.1))
+        }),
+      )
+  }
 }
 
 fn optional_captured_string(value: Option(String)) -> CapturedJsonValue {
