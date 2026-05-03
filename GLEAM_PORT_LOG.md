@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-02 - Pass 171: HAR-512 JavaScript HTTP adapter
+## 2026-05-03 - Pass 172: HAR-512 JavaScript HTTP adapter
 
 Adds the JavaScript-target HTTP service adapter for the Gleam-backed TS shim.
 The adapter uses Node's built-in `http` server, not Koa or any BEAM/Elixir HTTP
@@ -54,6 +54,51 @@ Validation:
 - The full TS HTTP endpoint set is not retired here. Bulk-operation result
   JSONL and staged-upload HTTP routes remain full-cutover follow-ups; this pass
   covers only the HAR-512 route list.
+
+---
+
+## 2026-05-03 - Pass 171: HAR-532 localization cassette parity
+
+Migrates the remaining Localization parity scenarios to cassette-backed
+LiveHybrid execution. Cold localization reads now fetch the captured upstream
+locale/source-content payload, hydrate the base localization state, and then
+keep translation lifecycle mutations and downstream reads local-only.
+
+| Module                                                                  | Change                                                                                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/localization.gleam`                | Adds Pattern 2 LiveHybrid read hydration for available locales, shop locales, and translatable source marks. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Routes localization queries through the domain query entrypoint so it can decide when to fetch upstream.     |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                       | Adds base translation upsert support for read-hydrated source-content markers.                               |
+| `fixtures/conformance/**/localization/*.json`                           | Hand-synthesizes one upstream cassette call per localization scenario from checked-in read captures.         |
+| `config/gleam-port-ci-gates.json`                                       | Removes the two Localization expected-failure entries.                                                       |
+| `docs/endpoints/localization.md` / `.agents/skills/gleam-port/SKILL.md` | Documents the LiveHybrid hydration choice and future porting note.                                           |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed localization fixture JSON checks: no `seed*` keys, no new
+  `expectedDifferences`, one `upstreamCalls` entry per migrated fixture
+
+### Findings
+
+- Pattern 1 passthrough was insufficient for these scenarios because the
+  initial upstream read must also teach the local model the product
+  source-content digest used by later `translationsRegister` validation.
+- The checked-in read captures already contained the authoritative upstream
+  payloads, so the cassette entries could be hand-synthesized without live
+  Shopify credentials.
+
+### Risks / open items
+
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation for this pass should use the established OTP 28 container
+  fallback.
 
 ---
 

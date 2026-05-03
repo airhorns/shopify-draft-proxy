@@ -10845,6 +10845,38 @@ pub fn stage_translation(
   #(record, Store(..store, staged_state: new_staged))
 }
 
+/// Upsert a translation record into base state. Used by LiveHybrid
+/// localization reads to remember upstream source-content markers
+/// without treating that hydration as a staged mutation.
+pub fn upsert_base_translation(
+  store: Store,
+  record: TranslationRecord,
+) -> Store {
+  let storage_key =
+    translation_storage_key(
+      record.resource_id,
+      record.locale,
+      record.key,
+      record.market_id,
+    )
+  let base = store.base_state
+  let staged = store.staged_state
+  let new_base =
+    BaseState(
+      ..base,
+      translations: dict.insert(base.translations, storage_key, record),
+    )
+  let new_staged =
+    StagedState(
+      ..staged,
+      deleted_translations: dict.delete(
+        staged.deleted_translations,
+        storage_key,
+      ),
+    )
+  Store(..store, base_state: new_base, staged_state: new_staged)
+}
+
 /// Remove a translation. Returns the record that was effective before
 /// removal (if any). Mirrors `removeTranslation`.
 pub fn remove_translation(
