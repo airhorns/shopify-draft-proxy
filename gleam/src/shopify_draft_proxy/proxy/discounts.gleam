@@ -35,9 +35,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type DiscountRecord, type ShopifyFunctionRecord,
-  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
-  CapturedObject, CapturedString, DiscountRecord,
+  type CapturedJsonValue, type DiscountRecord, type ShopifyFunctionAppRecord,
+  type ShopifyFunctionRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, DiscountRecord,
+  ShopifyFunctionAppRecord, ShopifyFunctionRecord,
 }
 
 /// Upstream context threaded into mutation handlers so they can issue
@@ -923,7 +924,7 @@ fn handle_discount_mutation_field(
     | "discountCodeBulkDeactivate"
     | "discountCodeBulkDelete"
     | "discountAutomaticBulkDelete" ->
-      bulk_job_payload(store, identity, root, field, variables)
+      bulk_job_payload(store, identity, root, field, variables, upstream)
     "discountRedeemCodeBulkAdd" ->
       redeem_code_bulk_add(
         store,
@@ -1016,6 +1017,18 @@ fn create_discount(
             top_level_errors: [],
           )
         [] -> {
+          // Pattern 2: when this is an app discount, hydrate the
+          // referenced Shopify Function from upstream so the staged
+          // record can project the function's metadata onto
+          // `appDiscountType` (appKey, title, description). No-op when
+          // the function is already in the local store, when no
+          // transport is installed (Snapshot mode), or when the
+          // upstream call fails. The miss falls through to the
+          // legacy local-only behavior.
+          let store = case discount_type {
+            "app" -> maybe_hydrate_shopify_function(store, input, upstream)
+            _ -> store
+          }
           let #(id, next_identity) =
             synthetic_identity.make_proxy_synthetic_gid(
               identity,
@@ -1231,6 +1244,7 @@ fn bulk_job_payload(
   root: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let args =
@@ -1253,8 +1267,21 @@ fn bulk_job_payload(
       MutationResult(key, payload, store, identity, [], [])
     }
     [] -> {
+      // Pattern 2: hydrate every id this bulk operation touches before
+      // applying the local effects. Without hydration, references to
+      // base discounts only seeded upstream silently no-op (set-status
+      // checks `get_effective_discount_by_id` first), so subsequent
+      // count and node-by-id read targets see incorrect totals. A
+      // cassette miss is a silent no-op so the legacy local-only
+      // behavior applies in Snapshot mode.
+      let ids = read_string_array(args, "ids", [])
+      let #(store, identity_after_hydrate) =
+        list.fold(ids, #(store, identity), fn(acc, id) {
+          let #(current_store, current_identity) = acc
+          maybe_hydrate_discount(current_store, current_identity, id, upstream)
+        })
       let #(job_id, next_identity) =
-        make_discount_async_gid(store, identity, "Job")
+        make_discount_async_gid(store, identity_after_hydrate, "Job")
       let job =
         SrcObject(
           dict.from_list([
@@ -1304,8 +1331,7 @@ fn redeem_code_bulk_add(
   // applies (codes are appended only when the discount is already
   // staged).
   let #(store, identity_after_bulk) = case discount_id {
-    Some(id) ->
-      maybe_hydrate_discount(store, identity_after_bulk, id, upstream)
+    Some(id) -> maybe_hydrate_discount(store, identity_after_bulk, id, upstream)
     None -> #(store, identity_after_bulk)
   }
   let #(next_store, identity_after_codes) = case discount_id {
@@ -1780,13 +1806,60 @@ fn maybe_hydrate_discount(
   case store.get_effective_discount_by_id(store, id) {
     Some(_) -> #(store, identity)
     None -> {
+      // The hydrate query asks for both `codeDiscountNode` and
+      // `automaticDiscountNode` projections under aliases, so callers
+      // that don't know whether the id refers to a code- or
+      // automatic-owned discount can use a single query + cassette
+      // entry. The handler picks the non-null projection. Status and
+      // title are pulled in alongside codes so downstream-read targets
+      // that use `discountNodesCount(query: "status:active")` /
+      // `status:expired` can compute correct counts after the bulk-job
+      // status-mutation effects apply on top of the hydrated base
+      // record.
       let query =
         "query DiscountHydrate($id: ID!) {\n"
-        <> "  codeDiscountNode(id: $id) {\n"
+        <> "  codeNode: codeDiscountNode(id: $id) {\n"
         <> "    id\n"
         <> "    codeDiscount {\n"
+        <> "      __typename\n"
         <> "      ... on DiscountCodeBasic {\n"
+        <> "        title\n"
+        <> "        status\n"
         <> "        codes(first: 250) { nodes { id code } }\n"
+        <> "      }\n"
+        <> "      ... on DiscountCodeApp {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "      ... on DiscountCodeBxgy {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "      ... on DiscountCodeFreeShipping {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "    }\n"
+        <> "  }\n"
+        <> "  automaticNode: automaticDiscountNode(id: $id) {\n"
+        <> "    id\n"
+        <> "    automaticDiscount {\n"
+        <> "      __typename\n"
+        <> "      ... on DiscountAutomaticBasic {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "      ... on DiscountAutomaticApp {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "      ... on DiscountAutomaticBxgy {\n"
+        <> "        title\n"
+        <> "        status\n"
+        <> "      }\n"
+        <> "      ... on DiscountAutomaticFreeShipping {\n"
+        <> "        title\n"
+        <> "        status\n"
         <> "      }\n"
         <> "    }\n"
         <> "  }\n"
@@ -1804,7 +1877,10 @@ fn maybe_hydrate_discount(
       {
         Ok(value) ->
           case discount_record_from_hydrate(value, id) {
-            Some(record) -> #(store.upsert_base_discounts(store, [record]), identity)
+            Some(record) -> #(
+              store.upsert_base_discounts(store, [record]),
+              identity,
+            )
             None -> #(store, identity)
           }
         Error(_) -> #(store, identity)
@@ -1823,99 +1899,335 @@ fn discount_record_from_hydrate(
   id: String,
 ) -> Option(DiscountRecord) {
   case json_get(value, "data") {
-    Some(data) ->
-      case json_get(data, "codeDiscountNode") {
-        Some(node) -> {
-          let codes = case json_get(node, "codeDiscount") {
-            Some(discount) ->
-              case json_get(discount, "codes") {
-                Some(codes_obj) ->
-                  case json_get(codes_obj, "nodes") {
-                    Some(commit.JsonArray(items)) ->
-                      list.filter_map(items, json_to_code_pair)
-                    _ -> []
-                  }
-                None -> []
-              }
-            None -> []
+    None -> None
+    Some(data) -> {
+      // Prefer the non-null projection. The runtime's response will have
+      // exactly one of `codeNode` / `automaticNode` non-null for any
+      // given id; if both are present (shouldn't happen in practice) we
+      // pick code first to match the legacy lookup order.
+      //
+      // Older cassettes recorded the response under the unaliased
+      // `codeDiscountNode` field (before the query learned to ask for
+      // both code and automatic projections in one round-trip), so
+      // accept that shape too as a fallback.
+      let code_node =
+        non_null_node(json_get(data, "codeNode"))
+        |> option.or(non_null_node(json_get(data, "codeDiscountNode")))
+      let automatic_node = non_null_node(json_get(data, "automaticNode"))
+      case code_node, automatic_node {
+        Some(node), _ -> Some(code_record_from_hydrate_node(node, id))
+        None, Some(node) -> Some(automatic_record_from_hydrate_node(node, id))
+        None, None -> None
+      }
+    }
+  }
+}
+
+fn non_null_node(value: Option(commit.JsonValue)) -> Option(commit.JsonValue) {
+  case value {
+    Some(commit.JsonNull) -> None
+    Some(node) -> Some(node)
+    None -> None
+  }
+}
+
+fn code_record_from_hydrate_node(
+  node: commit.JsonValue,
+  id: String,
+) -> DiscountRecord {
+  let discount = json_get(node, "codeDiscount")
+  let typename =
+    discount
+    |> option.then(fn(d) { json_get_string(d, "__typename") })
+    |> option.unwrap("DiscountCodeBasic")
+  let title = discount |> option.then(fn(d) { json_get_string(d, "title") })
+  let status =
+    discount
+    |> option.then(fn(d) { json_get_string(d, "status") })
+    |> option.unwrap("ACTIVE")
+  let codes = case discount {
+    Some(d) ->
+      case json_get(d, "codes") {
+        Some(codes_obj) ->
+          case json_get(codes_obj, "nodes") {
+            Some(commit.JsonArray(items)) ->
+              list.filter_map(items, json_to_code_pair)
+            _ -> []
           }
-          let first_code = case codes {
-            [#(_, code), ..] -> Some(code)
-            [] -> None
-          }
-          let payload =
-            source_to_captured(
-              SrcObject(
-                dict.from_list([
-                  #("id", SrcString(id)),
-                  #(
-                    "codeDiscount",
-                    SrcObject(
-                      dict.from_list([
-                        #("__typename", SrcString("DiscountCodeBasic")),
-                        #(
-                          "codes",
-                          SrcObject(
-                            dict.from_list([
-                              #(
-                                "nodes",
-                                SrcList(
-                                  list.map(codes, fn(pair) {
-                                    let #(code_id, code) = pair
-                                    SrcObject(
-                                      dict.from_list([
-                                        #("id", SrcString(code_id)),
-                                        #("code", SrcString(code)),
-                                        #("asyncUsageCount", SrcInt(0)),
-                                      ]),
-                                    )
-                                  }),
-                                ),
-                              ),
-                              #("edges", SrcList([])),
-                              #(
-                                "pageInfo",
-                                SrcObject(
-                                  dict.from_list([
-                                    #("hasNextPage", SrcBool(False)),
-                                    #("hasPreviousPage", SrcBool(False)),
-                                    #("startCursor", SrcNull),
-                                    #("endCursor", SrcNull),
-                                  ]),
-                                ),
-                              ),
-                            ]),
-                          ),
+        None -> []
+      }
+    None -> []
+  }
+  let first_code = case codes {
+    [#(_, code), ..] -> Some(code)
+    [] -> None
+  }
+  let payload =
+    source_to_captured(
+      SrcObject(
+        dict.from_list([
+          #("id", SrcString(id)),
+          #(
+            "codeDiscount",
+            SrcObject(
+              dict.from_list([
+                #("__typename", SrcString(typename)),
+                #(
+                  "title",
+                  title |> option.map(SrcString) |> option.unwrap(SrcNull),
+                ),
+                #("status", SrcString(status)),
+                #(
+                  "codes",
+                  SrcObject(
+                    dict.from_list([
+                      #(
+                        "nodes",
+                        SrcList(
+                          list.map(codes, fn(pair) {
+                            let #(code_id, code) = pair
+                            SrcObject(
+                              dict.from_list([
+                                #("id", SrcString(code_id)),
+                                #("code", SrcString(code)),
+                                #("asyncUsageCount", SrcInt(0)),
+                              ]),
+                            )
+                          }),
                         ),
-                        #("codesCount", count_source(list.length(codes))),
-                      ]),
-                    ),
+                      ),
+                      #("edges", SrcList([])),
+                      #(
+                        "pageInfo",
+                        SrcObject(
+                          dict.from_list([
+                            #("hasNextPage", SrcBool(False)),
+                            #("hasPreviousPage", SrcBool(False)),
+                            #("startCursor", SrcNull),
+                            #("endCursor", SrcNull),
+                          ]),
+                        ),
+                      ),
+                    ]),
                   ),
-                ]),
-              ),
+                ),
+                #("codesCount", count_source(list.length(codes))),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    )
+  DiscountRecord(
+    id: id,
+    owner_kind: "code",
+    discount_type: discount_type_from_typename(typename),
+    title: title,
+    status: status,
+    code: first_code,
+    payload: payload,
+    cursor: None,
+  )
+}
+
+fn automatic_record_from_hydrate_node(
+  node: commit.JsonValue,
+  id: String,
+) -> DiscountRecord {
+  let discount = json_get(node, "automaticDiscount")
+  let typename =
+    discount
+    |> option.then(fn(d) { json_get_string(d, "__typename") })
+    |> option.unwrap("DiscountAutomaticBasic")
+  let title = discount |> option.then(fn(d) { json_get_string(d, "title") })
+  let status =
+    discount
+    |> option.then(fn(d) { json_get_string(d, "status") })
+    |> option.unwrap("ACTIVE")
+  let payload =
+    source_to_captured(
+      SrcObject(
+        dict.from_list([
+          #("id", SrcString(id)),
+          #(
+            "automaticDiscount",
+            SrcObject(
+              dict.from_list([
+                #("__typename", SrcString(typename)),
+                #(
+                  "title",
+                  title |> option.map(SrcString) |> option.unwrap(SrcNull),
+                ),
+                #("status", SrcString(status)),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    )
+  DiscountRecord(
+    id: id,
+    owner_kind: "automatic",
+    discount_type: discount_type_from_typename(typename),
+    title: title,
+    status: status,
+    code: None,
+    payload: payload,
+    cursor: None,
+  )
+}
+
+fn discount_type_from_typename(typename: String) -> String {
+  case typename {
+    "DiscountCodeBxgy" | "DiscountAutomaticBxgy" -> "bxgy"
+    "DiscountCodeFreeShipping" | "DiscountAutomaticFreeShipping" ->
+      "free_shipping"
+    "DiscountCodeApp" | "DiscountAutomaticApp" -> "app"
+    _ -> "basic"
+  }
+}
+
+fn json_to_code_pair(
+  value: commit.JsonValue,
+) -> Result(#(String, String), Nil) {
+  case json_get(value, "id"), json_get(value, "code") {
+    Some(commit.JsonString(id)), Some(commit.JsonString(code)) ->
+      Ok(#(id, code))
+    _, _ -> Error(Nil)
+  }
+}
+
+/// Pattern 2: hydrate a `ShopifyFunctionRecord` from upstream when the
+/// caller supplies an app-discount `functionHandle`/`functionId` and the
+/// local store does not already know about that function. Used at
+/// app-discount-create time so `appDiscountType.appKey` / `title` /
+/// `description` project the real function metadata instead of falling
+/// back to the discount input title.
+///
+/// Cassette miss / Snapshot mode / malformed response is silently
+/// tolerated — the existing local-only behavior takes over (input title
+/// fallback, null app key/description). Returns the original `store`
+/// when the function is already known or the upstream call failed.
+fn maybe_hydrate_shopify_function(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  let reference =
+    read_string(input, "functionId")
+    |> option.or(read_string(input, "functionHandle"))
+  case reference {
+    None -> store
+    Some(reference) ->
+      case find_shopify_function(store, reference) {
+        Some(_) -> store
+        None -> {
+          let query =
+            "query ShopifyFunctionByHandle($handle: String!) {\n"
+            <> "  shopifyFunctions(first: 1, apiType: \"discount\", handle: $handle) {\n"
+            <> "    nodes {\n"
+            <> "      id\n"
+            <> "      title\n"
+            <> "      handle\n"
+            <> "      apiType\n"
+            <> "      description\n"
+            <> "      appKey\n"
+            <> "      app {\n"
+            <> "        id\n"
+            <> "        title\n"
+            <> "        handle\n"
+            <> "        apiKey\n"
+            <> "      }\n"
+            <> "    }\n"
+            <> "  }\n"
+            <> "}\n"
+          let variables = json.object([#("handle", json.string(reference))])
+          case
+            upstream_query.fetch_sync(
+              upstream.origin,
+              upstream.transport,
+              upstream.headers,
+              "ShopifyFunctionByHandle",
+              query,
+              variables,
             )
-          Some(DiscountRecord(
-            id: id,
-            owner_kind: "code",
-            discount_type: "basic",
-            title: None,
-            status: "ACTIVE",
-            code: first_code,
-            payload: payload,
-            cursor: None,
-          ))
+          {
+            Ok(value) ->
+              case shopify_function_record_from_response(value) {
+                Some(record) -> {
+                  let #(_, next_store) =
+                    store.upsert_staged_shopify_function(store, record)
+                  next_store
+                }
+                None -> store
+              }
+            Error(_) -> store
+          }
         }
+      }
+  }
+}
+
+/// Pull the first `shopifyFunctions.nodes[0]` entry off a
+/// `ShopifyFunctionByHandle` upstream response and lift it into a
+/// `ShopifyFunctionRecord`. Returns `None` for any shape divergence so
+/// the caller falls back to the local-only behavior.
+fn shopify_function_record_from_response(
+  value: commit.JsonValue,
+) -> Option(ShopifyFunctionRecord) {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "shopifyFunctions") {
+        Some(connection) ->
+          case json_get(connection, "nodes") {
+            Some(commit.JsonArray([first, ..])) ->
+              shopify_function_record_from_node(first)
+            _ -> None
+          }
         None -> None
       }
     None -> None
   }
 }
 
-fn json_to_code_pair(value: commit.JsonValue) -> Result(#(String, String), Nil) {
-  case json_get(value, "id"), json_get(value, "code") {
-    Some(commit.JsonString(id)), Some(commit.JsonString(code)) ->
-      Ok(#(id, code))
-    _, _ -> Error(Nil)
+fn shopify_function_record_from_node(
+  value: commit.JsonValue,
+) -> Option(ShopifyFunctionRecord) {
+  case json_get(value, "id") {
+    Some(commit.JsonString(id)) ->
+      Some(ShopifyFunctionRecord(
+        id: id,
+        title: json_get_string(value, "title"),
+        handle: json_get_string(value, "handle"),
+        api_type: json_get_string(value, "apiType"),
+        description: json_get_string(value, "description"),
+        app_key: json_get_string(value, "appKey"),
+        app: shopify_function_app_record_from_node(json_get(value, "app")),
+      ))
+    _ -> None
+  }
+}
+
+fn shopify_function_app_record_from_node(
+  value: Option(commit.JsonValue),
+) -> Option(ShopifyFunctionAppRecord) {
+  case value {
+    Some(node) ->
+      Some(ShopifyFunctionAppRecord(
+        typename: json_get_string(node, "__typename"),
+        id: json_get_string(node, "id"),
+        title: json_get_string(node, "title"),
+        handle: json_get_string(node, "handle"),
+        api_key: json_get_string(node, "apiKey"),
+      ))
+    None -> None
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
   }
 }
 

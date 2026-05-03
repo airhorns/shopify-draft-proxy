@@ -109,10 +109,6 @@
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
     {
-      "specPath": "config/parity-specs/discounts/discount-app-bulk-local-runtime.json",
-      "reason": "Three concrete sub-issues block green: (1) appDiscountType projection — at create the handler invokes `app_discount_type_source` against the local Store, which is empty in cassette mode, so `appKey`/`description` come back null and `title` falls back to the discount input title instead of the Function metadata title; needs a Pattern 2 ShopifyFunction hydration (e.g. `query ShopifyFunctionByHandle($handle: String!)`) wired into create_discount + a hand-synthesized cassette entry. (2) downstream-reads expects active=3/expired=1 and a `codeDiscountNode` redeem lookup that includes staged-add codes; without the fixture's seedDiscounts (366001-366004) the local store has no base records, so `discountNodesCount` returns 2/0 and the redeem `codeDiscountNode($id)` resolves null because the seed isn't hydrated; needs Pattern 2 fallback for `discountNodesCount` and per-id `DiscountHydrate` cassette entries that overlay with the staged redeem code add. (3) synthetic Job id counter drift — `redeemCodeBulk.deleteCodes.job.id` expects `Job/13` but proxy mints `Job/11`, so two synthetic increments are missing between bulkCreation (10) and the delete job; likely an extra synthetic id consumed in the TS path during hydration that we're skipping. Recommend tackling sub-issue (1) standalone first (smallest, isolated handler change + 1 cassette entry); sub-issues (2) and (3) require substantially more cassette synthesis and behavior parity work. Other 220+ scenarios green; not gating broader cassette migration."
-    },
-    {
       "specPath": "config/parity-specs/functions/functions-live-owner-metadata-read.json",
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
