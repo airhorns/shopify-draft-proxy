@@ -260,12 +260,16 @@
   },
   "locationA": {
     "variables": {
-      "locationIds": ["gid://shopify/Location/A"]
+      "locationIds": [
+        "gid://shopify/Location/A"
+      ]
     }
   },
   "locationB": {
     "variables": {
-      "locationIds": ["gid://shopify/Location/B"]
+      "locationIds": [
+        "gid://shopify/Location/B"
+      ]
     }
   },
   "allLocations": {
@@ -673,5 +677,438 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "AssignedFulfillmentOrdersFiltering",
+      "variables": {
+        "locationIds": [
+          "gid://shopify/Location/A"
+        ]
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "requested": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/102",
+                  "status": "OPEN",
+                  "requestStatus": "SUBMITTED",
+                  "assignedLocation": {
+                    "name": "Fulfillment location A",
+                    "location": {
+                      "id": "gid://shopify/Location/A",
+                      "name": "Fulfillment location A"
+                    }
+                  },
+                  "merchantRequests": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderMerchantRequest/102",
+                        "kind": "FULFILLMENT_REQUEST",
+                        "message": "Please fulfill location A",
+                        "requestOptions": {
+                          "notifyCustomer": false
+                        },
+                        "responseData": null,
+                        "sentAt": "2026-04-25T01:02:00Z"
+                      }
+                    ]
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/102",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/assigned-fulfillment-orders",
+                          "title": "Assigned fulfillment order item",
+                          "quantity": 5,
+                          "fulfillableQuantity": 5
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/FulfillmentOrder/102",
+                "endCursor": "cursor:gid://shopify/FulfillmentOrder/102"
+              }
+            },
+            "accepted": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/104",
+                  "status": "OPEN",
+                  "requestStatus": "ACCEPTED",
+                  "assignedLocation": {
+                    "name": "Fulfillment location A",
+                    "location": {
+                      "id": "gid://shopify/Location/A",
+                      "name": "Fulfillment location A"
+                    }
+                  },
+                  "merchantRequests": {
+                    "nodes": []
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/104",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/assigned-fulfillment-orders",
+                          "title": "Assigned fulfillment order item",
+                          "quantity": 5,
+                          "fulfillableQuantity": 5
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/FulfillmentOrder/104",
+                "endCursor": "cursor:gid://shopify/FulfillmentOrder/104"
+              }
+            },
+            "cancellationRequested": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/105",
+                  "status": "OPEN",
+                  "requestStatus": "ACCEPTED",
+                  "assignedLocation": {
+                    "name": "Fulfillment location A",
+                    "location": {
+                      "id": "gid://shopify/Location/A",
+                      "name": "Fulfillment location A"
+                    }
+                  },
+                  "merchantRequests": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderMerchantRequest/105",
+                        "kind": "CANCELLATION_REQUEST",
+                        "message": "Please cancel location A",
+                        "requestOptions": {},
+                        "responseData": null,
+                        "sentAt": "2026-04-25T01:05:00Z"
+                      }
+                    ]
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/105",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/assigned-fulfillment-orders",
+                          "title": "Assigned fulfillment order item",
+                          "quantity": 5,
+                          "fulfillableQuantity": 5
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/FulfillmentOrder/105",
+                "endCursor": "cursor:gid://shopify/FulfillmentOrder/105"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AssignedFulfillmentOrdersFiltering",
+      "variables": {
+        "locationIds": [
+          "gid://shopify/Location/B"
+        ]
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "requested": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/103",
+                  "status": "OPEN",
+                  "requestStatus": "SUBMITTED",
+                  "assignedLocation": {
+                    "name": "Fulfillment location B",
+                    "location": {
+                      "id": "gid://shopify/Location/B",
+                      "name": "Fulfillment location B"
+                    }
+                  },
+                  "merchantRequests": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderMerchantRequest/103",
+                        "kind": "FULFILLMENT_REQUEST",
+                        "message": "Please fulfill location B",
+                        "requestOptions": {},
+                        "responseData": null,
+                        "sentAt": "2026-04-25T01:03:00Z"
+                      }
+                    ]
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/103",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/assigned-fulfillment-orders",
+                          "title": "Assigned fulfillment order item",
+                          "quantity": 5,
+                          "fulfillableQuantity": 5
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/FulfillmentOrder/103",
+                "endCursor": "cursor:gid://shopify/FulfillmentOrder/103"
+              }
+            },
+            "accepted": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "cancellationRequested": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AssignedFulfillmentOrdersFiltering",
+      "variables": {
+        "locationIds": []
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "requested": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/102",
+                  "status": "OPEN",
+                  "requestStatus": "SUBMITTED",
+                  "assignedLocation": {
+                    "name": "Fulfillment location A",
+                    "location": {
+                      "id": "gid://shopify/Location/A",
+                      "name": "Fulfillment location A"
+                    }
+                  },
+                  "merchantRequests": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderMerchantRequest/102",
+                        "kind": "FULFILLMENT_REQUEST",
+                        "message": "Please fulfill location A",
+                        "requestOptions": {
+                          "notifyCustomer": false
+                        },
+                        "responseData": null,
+                        "sentAt": "2026-04-25T01:02:00Z"
+                      }
+                    ]
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/102",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/assigned-fulfillment-orders",
+                          "title": "Assigned fulfillment order item",
+                          "quantity": 5,
+                          "fulfillableQuantity": 5
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/103",
+                  "status": "OPEN",
+                  "requestStatus": "SUBMITTED",
+                  "assignedLocation": {
+                    "name": "Fulfillment location B",
+                    "location": {
+                      "id": "gid://shopify/Location/B",
+                      "name": "Fulfillment location B"
+                    }
+                  },
+                  "merchantRequests": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderMerchantRequest/103",
+                        "kind": "FULFILLMENT_REQUEST",
+                        "message": "Please fulfill location B",
+                        "requestOptions": {},
+                        "responseData": null,
+                        "sentAt": "2026-04-25T01:03:00Z"
+                      }
+                    ]
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/103",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/assigned-fulfillment-orders",
+                          "title": "Assigned fulfillment order item",
+                          "quantity": 5,
+                          "fulfillableQuantity": 5
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/FulfillmentOrder/102",
+                "endCursor": "cursor:gid://shopify/FulfillmentOrder/103"
+              }
+            },
+            "accepted": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/104",
+                  "status": "OPEN",
+                  "requestStatus": "ACCEPTED",
+                  "assignedLocation": {
+                    "name": "Fulfillment location A",
+                    "location": {
+                      "id": "gid://shopify/Location/A",
+                      "name": "Fulfillment location A"
+                    }
+                  },
+                  "merchantRequests": {
+                    "nodes": []
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/104",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/assigned-fulfillment-orders",
+                          "title": "Assigned fulfillment order item",
+                          "quantity": 5,
+                          "fulfillableQuantity": 5
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/FulfillmentOrder/104",
+                "endCursor": "cursor:gid://shopify/FulfillmentOrder/104"
+              }
+            },
+            "cancellationRequested": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/105",
+                  "status": "OPEN",
+                  "requestStatus": "ACCEPTED",
+                  "assignedLocation": {
+                    "name": "Fulfillment location A",
+                    "location": {
+                      "id": "gid://shopify/Location/A",
+                      "name": "Fulfillment location A"
+                    }
+                  },
+                  "merchantRequests": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderMerchantRequest/105",
+                        "kind": "CANCELLATION_REQUEST",
+                        "message": "Please cancel location A",
+                        "requestOptions": {},
+                        "responseData": null,
+                        "sentAt": "2026-04-25T01:05:00Z"
+                      }
+                    ]
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/105",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/assigned-fulfillment-orders",
+                          "title": "Assigned fulfillment order item",
+                          "quantity": 5,
+                          "fulfillableQuantity": 5
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/FulfillmentOrder/105",
+                "endCursor": "cursor:gid://shopify/FulfillmentOrder/105"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -313,7 +313,9 @@
               "localPickupSettings": null,
               "userErrors": [
                 {
-                  "field": ["localPickupSettings"],
+                  "field": [
+                    "localPickupSettings"
+                  ],
                   "message": "Unable to find an active location for location ID 999999999999",
                   "code": "ACTIVE_LOCATION_NOT_FOUND"
                 }
@@ -369,7 +371,9 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": ["shippingPackageUpdate"]
+              "path": [
+                "shippingPackageUpdate"
+              ]
             }
           ],
           "data": {
@@ -409,7 +413,9 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": ["shippingPackageMakeDefault"]
+              "path": [
+                "shippingPackageMakeDefault"
+              ]
             }
           ],
           "data": {
@@ -449,7 +455,9 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": ["shippingPackageDelete"]
+              "path": [
+                "shippingPackageDelete"
+              ]
             }
           ],
           "data": {
@@ -489,7 +497,9 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`read_fulfillment_constraint_rules` access scope."
               },
-              "path": ["fulfillmentConstraintRules"]
+              "path": [
+                "fulfillmentConstraintRules"
+              ]
             }
           ],
           "data": null,
@@ -527,7 +537,9 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`write_fulfillment_constraint_rules` access scope."
               },
-              "path": ["fulfillmentConstraintRuleCreate"]
+              "path": [
+                "fulfillmentConstraintRuleCreate"
+              ]
             }
           ],
           "data": {
@@ -548,5 +560,81 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingSettingsAvailability",
+      "variables": {},
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "availableCarrierServices": [
+              {
+                "carrierService": {
+                  "id": "gid://shopify/DeliveryCarrierService/95194480946",
+                  "name": "canada_post",
+                  "formattedName": "Canada Post (Discounted rates from Shopify Shipping)",
+                  "active": true,
+                  "supportsServiceDiscovery": true
+                }
+              },
+              {
+                "carrierService": {
+                  "id": "gid://shopify/DeliveryCarrierService/97859273010",
+                  "name": "dhl_express",
+                  "formattedName": "DHL Express (Discounted rates from Shopify Shipping)",
+                  "active": true,
+                  "supportsServiceDiscovery": true
+                }
+              },
+              {
+                "carrierService": {
+                  "id": "gid://shopify/DeliveryCarrierService/95194513714",
+                  "name": "purolator",
+                  "formattedName": "Purolator (Discounted rates from Shopify Shipping)",
+                  "active": true,
+                  "supportsServiceDiscovery": true
+                }
+              }
+            ],
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/106318496050",
+                  "name": "Snow City Warehouse",
+                  "localPickupSettingsV2": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -14,11 +14,17 @@
     "fulfillmentOrderMerge"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json"
   ],
-  "runtimeTestFiles": ["tests/integration/order-fulfillment-flow.test.ts"],
+  "runtimeTestFiles": [
+    "tests/integration/order-fulfillment-flow.test.ts"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-hold.graphql",
     "variablesCapturePath": "$.workflows.holdRelease.hold.variables"
@@ -163,19 +169,9 @@
             "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
           },
           {
-            "path": "$.originalFulfillmentOrder.lineItems.nodes[*].id",
-            "matcher": "shopify-gid:FulfillmentOrderLineItem",
-            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
-          },
-          {
             "path": "$.originalFulfillmentOrder.updatedAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
-          },
-          {
-            "path": "$.remainingFulfillmentOrder.lineItems.nodes[*].id",
-            "matcher": "shopify-gid:FulfillmentOrderLineItem",
-            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
           },
           {
             "path": "$.remainingFulfillmentOrder.updatedAt",

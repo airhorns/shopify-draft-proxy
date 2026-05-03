@@ -249,13 +249,17 @@
     "orderCancelRejectedCancellationOrder": {
       "userErrors": [
         {
-          "field": ["orderId"],
+          "field": [
+            "orderId"
+          ],
           "message": "Cannot cancel an order that has outstanding fulfillments"
         }
       ],
       "orderCancelUserErrors": [
         {
-          "field": ["orderId"],
+          "field": [
+            "orderId"
+          ],
           "message": "Cannot cancel an order that has outstanding fulfillments",
           "code": "INVALID"
         }
@@ -266,5 +270,228 @@
       "userErrors": []
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9633912684850"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/fulfillment-order-request-partial",
+              "name": "#REQUEST-PARTIAL",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9633912684850",
+                    "status": "OPEN",
+                    "requestStatus": "SUBMITTED",
+                    "merchantRequests": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderMerchantRequest/380861677874",
+                          "kind": "FULFILLMENT_REQUEST",
+                          "message": "HAR-233 partial submit",
+                          "requestOptions": {
+                            "notify_customer": false
+                          },
+                          "responseData": null,
+                          "sentAt": "2026-04-26T01:06:46Z"
+                        }
+                      ]
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19417386418482",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19268425515314",
+                            "title": "HAR-233 accept-cancel-accept 1777165605041"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9633912750386",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19417386484018",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19268425515314",
+                            "title": "HAR-233 accept-cancel-accept 1777165605041"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9633912684850",
+              "status": "OPEN",
+              "requestStatus": "SUBMITTED",
+              "merchantRequests": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderMerchantRequest/380861677874",
+                    "kind": "FULFILLMENT_REQUEST",
+                    "message": "HAR-233 partial submit",
+                    "requestOptions": {
+                      "notify_customer": false
+                    },
+                    "responseData": null,
+                    "sentAt": "2026-04-26T01:06:46Z"
+                  }
+                ]
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19417386418482",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19268425515314",
+                      "title": "HAR-233 accept-cancel-accept 1777165605041"
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/fulfillment-order-request-partial",
+                "name": "#REQUEST-PARTIAL",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9633912815922"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/fulfillment-order-request-reject",
+              "name": "#HYDRATE",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9633912815922",
+                    "status": "OPEN",
+                    "requestStatus": "REJECTED"
+                  }
+                ]
+              }
+            },
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9633912815922",
+              "status": "OPEN",
+              "requestStatus": "REJECTED",
+              "order": {
+                "id": "gid://shopify/Order/fulfillment-order-request-reject",
+                "name": "#HYDRATE",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9633912914226"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/fulfillment-order-request-reject-cancel",
+              "name": "#HYDRATE",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9633912914226",
+                    "status": "IN_PROGRESS",
+                    "requestStatus": "CANCELLATION_REJECTED",
+                    "merchantRequests": {
+                      "nodes": [
+                        {
+                          "kind": "FULFILLMENT_REQUEST",
+                          "message": "HAR-233 submit cancel reject",
+                          "requestOptions": {
+                            "notify_customer": false
+                          },
+                          "responseData": null
+                        },
+                        {
+                          "kind": "CANCELLATION_REQUEST",
+                          "message": "HAR-233 cancellation to reject",
+                          "requestOptions": {},
+                          "responseData": null
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9633912914226",
+              "status": "IN_PROGRESS",
+              "requestStatus": "CANCELLATION_REJECTED",
+              "merchantRequests": {
+                "nodes": [
+                  {
+                    "kind": "FULFILLMENT_REQUEST",
+                    "message": "HAR-233 submit cancel reject",
+                    "requestOptions": {
+                      "notify_customer": false
+                    },
+                    "responseData": null
+                  },
+                  {
+                    "kind": "CANCELLATION_REQUEST",
+                    "message": "HAR-233 cancellation to reject",
+                    "requestOptions": {},
+                    "responseData": null
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/fulfillment-order-request-reject-cancel",
+                "name": "#HYDRATE",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

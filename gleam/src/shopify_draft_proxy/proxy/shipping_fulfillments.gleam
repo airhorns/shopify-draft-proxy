@@ -13,7 +13,9 @@ import gleam/order.{type Order}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type ConnectionWindow, type FragmentMap, type SourceValue,
   ConnectionPageInfoOptions, SerializeConnectionConfig, SrcBool, SrcFloat,
@@ -26,25 +28,32 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, single_root_log_draft,
 }
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
+}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store, Staged}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type CalculatedOrderRecord, type CapturedJsonValue, type CarrierServiceRecord,
   type DeliveryProfileRecord, type FulfillmentOrderRecord,
-  type FulfillmentRecord, type FulfillmentServiceRecord,
-  type ReverseDeliveryRecord, type ReverseFulfillmentOrderRecord,
-  type ShippingOrderRecord, type ShippingPackageDimensionsRecord,
-  type ShippingPackageRecord, type ShippingPackageWeightRecord,
-  type StorePropertyRecord, type StorePropertyValue, CalculatedOrderRecord,
-  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
-  CapturedObject, CapturedString, CarrierServiceRecord, DeliveryProfileRecord,
-  FulfillmentOrderRecord, FulfillmentRecord, FulfillmentServiceRecord,
-  ReverseDeliveryRecord, ReverseFulfillmentOrderRecord, ShippingOrderRecord,
-  ShippingPackageDimensionsRecord, ShippingPackageRecord,
+  type FulfillmentRecord, type FulfillmentServiceRecord, type ProductRecord,
+  type ProductVariantRecord, type ReverseDeliveryRecord,
+  type ReverseFulfillmentOrderRecord, type ShippingOrderRecord,
+  type ShippingPackageDimensionsRecord, type ShippingPackageRecord,
+  type ShippingPackageWeightRecord, type StorePropertyRecord,
+  type StorePropertyValue, CalculatedOrderRecord, CapturedArray, CapturedBool,
+  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  CarrierServiceRecord, DeliveryProfileRecord, FulfillmentOrderRecord,
+  FulfillmentRecord, FulfillmentServiceRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ReverseDeliveryRecord, ReverseFulfillmentOrderRecord,
+  ShippingOrderRecord, ShippingPackageDimensionsRecord, ShippingPackageRecord,
   ShippingPackageWeightRecord, StorePropertyBool, StorePropertyFloat,
   StorePropertyInt, StorePropertyList, StorePropertyNull, StorePropertyObject,
   StorePropertyRecord, StorePropertyString,
@@ -177,6 +186,850 @@ pub fn process(
 
 pub fn wrap_data(data: Json) -> Json {
   json.object([#("data", data)])
+}
+
+/// Pattern 2 for cold LiveHybrid shipping reads: fetch the captured
+/// upstream response, hydrate the shipping/store slices needed by
+/// later local lifecycle handlers, and return Shopify's payload
+/// verbatim. Once local shipping state or a proxy-synthetic id is
+/// involved, stay local so staged read-after-write effects are not
+/// bypassed.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_upstream = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_fetch_upstream_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        variables,
+      )
+    _ -> False
+  }
+  case want_upstream {
+    True ->
+      fetch_and_hydrate_live_hybrid_query(
+        proxy,
+        request,
+        parsed,
+        document,
+        variables,
+      )
+    False -> local_query_response(proxy, document, variables)
+  }
+}
+
+fn should_fetch_upstream_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "deliveryProfile" ->
+      !local_has_shipping_resource_id(proxy, variables)
+    parse_operation.QueryOperation, "fulfillment" ->
+      !local_has_shipping_resource_id(proxy, variables)
+    parse_operation.QueryOperation, "fulfillmentOrder" ->
+      !local_has_shipping_resource_id(proxy, variables)
+    parse_operation.QueryOperation, "carrierService" ->
+      !local_has_shipping_resource_id(proxy, variables)
+    parse_operation.QueryOperation, "fulfillmentService" ->
+      !local_has_shipping_resource_id(proxy, variables)
+    parse_operation.QueryOperation, "reverseDelivery" ->
+      !local_has_shipping_resource_id(proxy, variables)
+    parse_operation.QueryOperation, "reverseFulfillmentOrder" ->
+      !local_has_shipping_resource_id(proxy, variables)
+    parse_operation.QueryOperation, "deliveryProfiles" ->
+      !has_local_shipping_query_state(proxy, variables)
+    parse_operation.QueryOperation, "fulfillmentOrders" ->
+      !has_local_shipping_query_state(proxy, variables)
+    parse_operation.QueryOperation, "assignedFulfillmentOrders" ->
+      !has_local_shipping_query_state(proxy, variables)
+    parse_operation.QueryOperation, "manualHoldsFulfillmentOrders" ->
+      !has_local_shipping_query_state(proxy, variables)
+    parse_operation.QueryOperation, "order" ->
+      !local_has_shipping_order_id(proxy, variables)
+    parse_operation.QueryOperation, "availableCarrierServices" ->
+      !has_local_shipping_query_state(proxy, variables)
+    parse_operation.QueryOperation,
+      "locationsAvailableForDeliveryProfilesConnection"
+    -> !has_local_shipping_query_state(proxy, variables)
+    parse_operation.QueryOperation, "carrierServices" ->
+      !has_local_shipping_query_state(proxy, variables)
+    _, _ -> False
+  }
+}
+
+pub fn local_has_shipping_resource_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id)
+        || local_shipping_resource_staged(proxy.store, id)
+      _ -> False
+    }
+  })
+}
+
+fn local_shipping_resource_staged(store_in: Store, id: String) -> Bool {
+  dict.has_key(store_in.staged_state.delivery_profiles, id)
+  || dict.has_key(store_in.staged_state.deleted_delivery_profile_ids, id)
+  || dict.has_key(store_in.staged_state.fulfillments, id)
+  || dict.has_key(store_in.staged_state.fulfillment_orders, id)
+  || dict.has_key(store_in.staged_state.carrier_services, id)
+  || dict.has_key(store_in.staged_state.deleted_carrier_service_ids, id)
+  || dict.has_key(store_in.staged_state.fulfillment_services, id)
+  || dict.has_key(store_in.staged_state.deleted_fulfillment_service_ids, id)
+  || dict.has_key(store_in.staged_state.reverse_deliveries, id)
+  || dict.has_key(store_in.staged_state.reverse_fulfillment_orders, id)
+  || dict.has_key(store_in.staged_state.shipping_packages, id)
+  || dict.has_key(store_in.staged_state.deleted_shipping_package_ids, id)
+}
+
+fn local_has_shipping_order_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id)
+        || dict.has_key(proxy.store.staged_state.shipping_orders, id)
+        || dict.has_key(proxy.store.base_state.shipping_orders, id)
+      _ -> False
+    }
+  })
+}
+
+fn has_local_shipping_query_state(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  let has_synthetic =
+    dict.values(variables)
+    |> list.any(fn(value) {
+      case value {
+        root_field.StringVal(s) -> is_proxy_synthetic_gid(s)
+        _ -> False
+      }
+    })
+  has_synthetic || has_staged_shipping_query_state(proxy.store)
+}
+
+fn has_staged_shipping_query_state(store_in: Store) -> Bool {
+  dict.size(store_in.staged_state.delivery_profiles) > 0
+  || dict.size(store_in.staged_state.deleted_delivery_profile_ids) > 0
+  || dict.size(store_in.staged_state.fulfillments) > 0
+  || dict.size(store_in.staged_state.fulfillment_orders) > 0
+  || dict.size(store_in.staged_state.carrier_services) > 0
+  || dict.size(store_in.staged_state.deleted_carrier_service_ids) > 0
+  || dict.size(store_in.staged_state.fulfillment_services) > 0
+  || dict.size(store_in.staged_state.deleted_fulfillment_service_ids) > 0
+  || dict.size(store_in.staged_state.reverse_deliveries) > 0
+  || dict.size(store_in.staged_state.reverse_fulfillment_orders) > 0
+  || dict.size(store_in.staged_state.shipping_packages) > 0
+  || dict.size(store_in.staged_state.deleted_shipping_package_ids) > 0
+  || dict.size(store_in.staged_state.store_property_locations) > 0
+  || dict.size(store_in.staged_state.deleted_store_property_location_ids) > 0
+}
+
+fn fetch_and_hydrate_live_hybrid_query(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let operation_name =
+    parsed.name
+    |> option.unwrap("ShippingFulfillmentsLiveHybridRead")
+  case
+    upstream_query.fetch_sync(
+      proxy.config.shopify_admin_origin,
+      proxy.upstream_transport,
+      request.headers,
+      operation_name,
+      document,
+      variables_to_json(variables),
+    )
+  {
+    Ok(value) -> {
+      let next_store = hydrate_from_upstream_response(proxy.store, value)
+      #(
+        Response(
+          status: 200,
+          body: commit.json_value_to_json(value),
+          headers: [],
+        ),
+        DraftProxy(..proxy, store: next_store),
+      )
+    }
+    Error(err) -> #(
+      Response(
+        status: 502,
+        body: json.object([
+          #(
+            "errors",
+            json.array(
+              [
+                json.object([
+                  #("message", json.string(fetch_error_message(err))),
+                ]),
+              ],
+              fn(x) { x },
+            ),
+          ),
+        ]),
+        headers: [],
+      ),
+      proxy,
+    )
+  }
+}
+
+fn local_query_response(
+  proxy: DraftProxy,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  case process(proxy.store, document, variables) {
+    Ok(envelope) -> #(Response(status: 200, body: envelope, headers: []), proxy)
+    Error(_) -> #(
+      Response(
+        status: 400,
+        body: json.object([
+          #(
+            "errors",
+            json.array(
+              [
+                json.object([
+                  #(
+                    "message",
+                    json.string("Failed to handle shipping fulfillments query"),
+                  ),
+                ]),
+              ],
+              fn(x) { x },
+            ),
+          ),
+        ]),
+        headers: [],
+      ),
+      proxy,
+    )
+  }
+}
+
+fn variables_to_json(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  json.object(
+    dict.to_list(variables)
+    |> list.map(fn(pair) {
+      #(pair.0, root_field.resolved_value_to_json(pair.1))
+    }),
+  )
+}
+
+fn fetch_error_message(error: upstream_query.FetchError) -> String {
+  case error {
+    upstream_query.TransportFailed(message) -> message
+    upstream_query.HttpStatusError(status, body) ->
+      "upstream returned HTTP " <> int.to_string(status) <> ": " <> body
+    upstream_query.MalformedResponse(message) -> message
+    upstream_query.NoTransportInstalled -> "no upstream transport installed"
+  }
+}
+
+fn hydrate_from_upstream_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) ->
+      store_in
+      |> hydrate_delivery_profile_roots(data)
+      |> hydrate_shipping_order_roots(data)
+      |> hydrate_fulfillment_roots(data)
+      |> hydrate_store_property_locations(data)
+      |> hydrate_available_carrier_services(data)
+    None -> store_in
+  }
+}
+
+fn hydrate_shipping_order_roots(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  let orders =
+    [
+      json_get(data, "order")
+        |> option.then(non_null_json)
+        |> option_to_list,
+      nested_order_roots(data),
+    ]
+    |> list.flatten
+    |> list.filter_map(shipping_order_record_from_json)
+  case orders {
+    [] -> store_in
+    _ -> store.upsert_base_shipping_orders(store_in, orders)
+  }
+}
+
+fn hydrate_delivery_profile_roots(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  let profiles =
+    list.append(
+      json_get(data, "deliveryProfile")
+        |> option.then(non_null_json)
+        |> option_to_list,
+      nodes_from_connection(json_get(data, "deliveryProfiles")),
+    )
+    |> list.filter_map(delivery_profile_record_from_json)
+  case profiles {
+    [] -> store_in
+    _ -> store.upsert_base_delivery_profiles(store_in, profiles)
+  }
+}
+
+fn hydrate_fulfillment_roots(store_in: Store, data: commit.JsonValue) -> Store {
+  let fulfillments =
+    list.append(
+      json_get(data, "fulfillment")
+        |> option.then(non_null_json)
+        |> option_to_list,
+      fulfillments_from_order(data),
+    )
+    |> list.filter_map(fulfillment_record_from_json)
+  let fulfillment_orders =
+    [
+      json_get(data, "fulfillmentOrder")
+        |> option.then(non_null_json)
+        |> option_to_list,
+      nodes_from_connection(json_get(data, "fulfillmentOrders")),
+      nodes_from_connection(json_get(data, "assignedFulfillmentOrders")),
+      nodes_from_connection(json_get(data, "manualHoldsFulfillmentOrders")),
+      fulfillment_orders_from_order(data),
+    ]
+    |> list.flatten
+    |> list.filter_map(fulfillment_order_record_from_json)
+  store_in
+  |> store.upsert_base_fulfillments(fulfillments)
+  |> store.upsert_base_fulfillment_orders(fulfillment_orders)
+}
+
+fn hydrate_product_variant_nodes(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) -> {
+      let variants = json_array(json_get(data, "nodes")) |> non_null_json_values
+      let products =
+        variants
+        |> list.filter_map(product_record_from_variant_node)
+      let variant_records =
+        variants
+        |> list.filter_map(product_variant_record_from_json)
+      store_in
+      |> store.upsert_base_products(products)
+      |> store.upsert_base_product_variants(variant_records)
+    }
+    None -> store_in
+  }
+}
+
+fn hydrate_shipping_package_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "shippingPackage") |> option.then(non_null_json) {
+        Some(package) ->
+          case shipping_package_record_from_json(package) {
+            Ok(record) ->
+              store.upsert_base_shipping_packages(store_in, [record])
+            Error(_) -> store_in
+          }
+        None -> store_in
+      }
+    None -> store_in
+  }
+}
+
+fn hydrate_store_property_locations(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  let locations =
+    nodes_from_connection(json_get(
+      data,
+      "locationsAvailableForDeliveryProfilesConnection",
+    ))
+    |> list.append(location_nodes_from_available_carrier_services(data))
+    |> list.filter_map(store_property_location_from_json)
+  list.fold(locations, store_in, fn(current, location) {
+    store.upsert_base_store_property_location(current, location)
+  })
+}
+
+fn hydrate_available_carrier_services(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  let services =
+    json_array(json_get(data, "availableCarrierServices"))
+    |> list.filter_map(fn(value) {
+      case json_get(value, "carrierService") {
+        Some(service) -> carrier_service_record_from_json(service)
+        None -> Error(Nil)
+      }
+    })
+  case services {
+    [] -> store_in
+    _ -> store.upsert_base_carrier_services(store_in, services)
+  }
+}
+
+fn fulfillments_from_order(data: commit.JsonValue) -> List(commit.JsonValue) {
+  case json_get(data, "order") {
+    Some(order) -> json_array(json_get(order, "fulfillments"))
+    None -> []
+  }
+}
+
+fn fulfillment_orders_from_order(
+  data: commit.JsonValue,
+) -> List(commit.JsonValue) {
+  case json_get(data, "order") {
+    Some(order) -> {
+      let order_id = json_get_string(order, "id")
+      nodes_from_connection(json_get(order, "fulfillmentOrders"))
+      |> list.map(fn(node) {
+        case order_id {
+          Some(id) ->
+            json_insert_object_field(
+              node,
+              "order",
+              commit.JsonObject([
+                #("id", commit.JsonString(id)),
+              ]),
+            )
+          None -> node
+        }
+      })
+    }
+    None -> []
+  }
+}
+
+fn nested_order_roots(data: commit.JsonValue) -> List(commit.JsonValue) {
+  [
+    json_get(data, "fulfillmentOrder")
+      |> option.then(non_null_json)
+      |> option_to_list,
+    json_get(data, "fulfillment")
+      |> option.then(non_null_json)
+      |> option_to_list,
+  ]
+  |> list.flatten
+  |> list.filter_map(fn(value) {
+    json_get(value, "order")
+    |> option.then(non_null_json)
+    |> option.to_result(Nil)
+  })
+}
+
+fn location_nodes_from_available_carrier_services(
+  data: commit.JsonValue,
+) -> List(commit.JsonValue) {
+  json_array(json_get(data, "availableCarrierServices"))
+  |> list.flat_map(fn(value) {
+    case json_get(value, "locations") {
+      Some(commit.JsonArray(items)) -> non_null_json_values(items)
+      _ -> []
+    }
+  })
+}
+
+fn delivery_profile_record_from_json(
+  value: commit.JsonValue,
+) -> Result(DeliveryProfileRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  Ok(DeliveryProfileRecord(
+    id: id,
+    cursor: json_get_string(value, "cursor"),
+    merchant_owned: json_get_bool(value, "merchantOwned")
+      |> option.unwrap(True),
+    data: captured_json_from_commit(value),
+  ))
+}
+
+fn fulfillment_record_from_json(
+  value: commit.JsonValue,
+) -> Result(FulfillmentRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  let order_id = case json_get(value, "order") {
+    Some(order) -> json_get_string(order, "id")
+    None -> None
+  }
+  Ok(FulfillmentRecord(
+    id: id,
+    order_id: order_id,
+    data: captured_json_from_commit(value),
+  ))
+}
+
+fn shipping_order_record_from_json(
+  value: commit.JsonValue,
+) -> Result(ShippingOrderRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  Ok(ShippingOrderRecord(id: id, data: captured_json_from_commit(value)))
+}
+
+fn fulfillment_order_record_from_json(
+  value: commit.JsonValue,
+) -> Result(FulfillmentOrderRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  let order_id = case json_get(value, "order") {
+    Some(order) -> json_get_string(order, "id")
+    None -> None
+  }
+  Ok(FulfillmentOrderRecord(
+    id: id,
+    order_id: order_id,
+    status: json_get_string(value, "status") |> option.unwrap("OPEN"),
+    request_status: json_get_string(value, "requestStatus")
+      |> option.unwrap("UNSUBMITTED"),
+    assigned_location_id: assigned_location_id_from_json(value),
+    assignment_status: None,
+    manually_held: !list.is_empty(captured_array_field(
+      captured_json_from_commit(value),
+      "fulfillmentHolds",
+      "nodes",
+    )),
+    data: captured_json_from_commit(value),
+  ))
+}
+
+fn product_record_from_variant_node(
+  value: commit.JsonValue,
+) -> Result(ProductRecord, Nil) {
+  use product <- result.try(json_get(value, "product") |> option.to_result(Nil))
+  use id <- result.try(json_get_string(product, "id") |> option.to_result(Nil))
+  let title = json_get_string(product, "title") |> option.unwrap("")
+  Ok(ProductRecord(
+    id: id,
+    legacy_resource_id: None,
+    title: title,
+    handle: json_get_string(product, "handle") |> option.unwrap(""),
+    status: "ACTIVE",
+    vendor: None,
+    product_type: None,
+    tags: [],
+    total_inventory: None,
+    tracks_inventory: None,
+    created_at: None,
+    updated_at: None,
+    published_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    category: None,
+    publication_ids: [],
+    contextual_pricing: None,
+    cursor: None,
+  ))
+}
+
+fn product_variant_record_from_json(
+  value: commit.JsonValue,
+) -> Result(ProductVariantRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  use product <- result.try(json_get(value, "product") |> option.to_result(Nil))
+  use product_id <- result.try(
+    json_get_string(product, "id") |> option.to_result(Nil),
+  )
+  Ok(ProductVariantRecord(
+    id: id,
+    product_id: product_id,
+    title: json_get_string(value, "title") |> option.unwrap(""),
+    sku: None,
+    barcode: None,
+    price: None,
+    compare_at_price: None,
+    taxable: None,
+    inventory_policy: None,
+    inventory_quantity: None,
+    selected_options: [],
+    media_ids: [],
+    inventory_item: None,
+    contextual_pricing: None,
+    cursor: json_get_string(value, "cursor"),
+  ))
+}
+
+fn shipping_package_record_from_json(
+  value: commit.JsonValue,
+) -> Result(ShippingPackageRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  Ok(ShippingPackageRecord(
+    id: id,
+    name: json_get_string(value, "name"),
+    type_: json_get_string(value, "type"),
+    default: json_get_bool(value, "default") |> option.unwrap(False),
+    weight: json_get_weight(value, "weight"),
+    dimensions: json_get_dimensions(value, "dimensions"),
+    created_at: json_get_string(value, "createdAt") |> option.unwrap(""),
+    updated_at: json_get_string(value, "updatedAt") |> option.unwrap(""),
+  ))
+}
+
+fn assigned_location_id_from_json(value: commit.JsonValue) -> Option(String) {
+  case json_get(value, "assignedLocation") {
+    Some(assigned) ->
+      case json_get(assigned, "location") {
+        Some(location) -> json_get_string(location, "id")
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn carrier_service_record_from_json(
+  value: commit.JsonValue,
+) -> Result(CarrierServiceRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  Ok(CarrierServiceRecord(
+    id: id,
+    name: json_get_string(value, "name"),
+    formatted_name: json_get_string(value, "formattedName"),
+    callback_url: json_get_string(value, "callbackUrl"),
+    active: json_get_bool(value, "active") |> option.unwrap(True),
+    supports_service_discovery: json_get_bool(value, "supportsServiceDiscovery")
+      |> option.unwrap(False),
+    created_at: json_get_string(value, "createdAt") |> option.unwrap(""),
+    updated_at: json_get_string(value, "updatedAt") |> option.unwrap(""),
+  ))
+}
+
+fn store_property_location_from_json(
+  value: commit.JsonValue,
+) -> Result(StorePropertyRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  let data = case value {
+    commit.JsonObject(fields) ->
+      fields
+      |> list.map(fn(pair) {
+        #(pair.0, store_property_value_from_commit(pair.1))
+      })
+      |> dict.from_list
+    _ -> dict.new()
+  }
+  Ok(StorePropertyRecord(
+    id: id,
+    cursor: json_get_string(value, "cursor"),
+    data: data
+      |> dict.insert("id", StorePropertyString(id))
+      |> dict.insert(
+        "name",
+        StorePropertyString(json_get_string(value, "name") |> option.unwrap("")),
+      )
+      |> dict.insert("isActive", StorePropertyBool(True)),
+  ))
+}
+
+fn nodes_from_connection(
+  value: Option(commit.JsonValue),
+) -> List(commit.JsonValue) {
+  case value {
+    Some(connection) ->
+      json_array(json_get(connection, "nodes"))
+      |> list.append(edge_nodes_from_connection(connection))
+    None -> []
+  }
+  |> non_null_json_values
+}
+
+fn edge_nodes_from_connection(
+  connection: commit.JsonValue,
+) -> List(commit.JsonValue) {
+  json_array(json_get(connection, "edges"))
+  |> list.filter_map(fn(edge) {
+    case json_get(edge, "node") {
+      Some(node) -> Ok(node)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn non_null_json(value: commit.JsonValue) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonNull -> None
+    _ -> Some(value)
+  }
+}
+
+fn option_to_list(value: Option(a)) -> List(a) {
+  case value {
+    Some(item) -> [item]
+    None -> []
+  }
+}
+
+fn non_null_json_values(
+  values: List(commit.JsonValue),
+) -> List(commit.JsonValue) {
+  list.filter(values, fn(value) {
+    case value {
+      commit.JsonNull -> False
+      _ -> True
+    }
+  })
+}
+
+fn json_array(value: Option(commit.JsonValue)) -> List(commit.JsonValue) {
+  case value {
+    Some(commit.JsonArray(items)) -> items
+    _ -> []
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
+  case json_get(value, key) {
+    Some(commit.JsonBool(b)) -> Some(b)
+    _ -> None
+  }
+}
+
+fn json_get_number(value: commit.JsonValue, key: String) -> Option(Float) {
+  case json_get(value, key) {
+    Some(commit.JsonFloat(n)) -> Some(n)
+    Some(commit.JsonInt(n)) -> Some(int.to_float(n))
+    _ -> None
+  }
+}
+
+fn json_get_weight(
+  value: commit.JsonValue,
+  key: String,
+) -> Option(ShippingPackageWeightRecord) {
+  case json_get(value, key) {
+    Some(weight) ->
+      Some(ShippingPackageWeightRecord(
+        value: json_get_number(weight, "value"),
+        unit: json_get_string(weight, "unit"),
+      ))
+    None -> None
+  }
+}
+
+fn json_get_dimensions(
+  value: commit.JsonValue,
+  key: String,
+) -> Option(ShippingPackageDimensionsRecord) {
+  case json_get(value, key) {
+    Some(dimensions) ->
+      Some(ShippingPackageDimensionsRecord(
+        length: json_get_number(dimensions, "length"),
+        width: json_get_number(dimensions, "width"),
+        height: json_get_number(dimensions, "height"),
+        unit: json_get_string(dimensions, "unit"),
+      ))
+    None -> None
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(k, v) if k == key -> Ok(v)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn json_insert_object_field(
+  value: commit.JsonValue,
+  key: String,
+  inserted: commit.JsonValue,
+) -> commit.JsonValue {
+  case value {
+    commit.JsonObject(fields) ->
+      commit.JsonObject([
+        #(key, inserted),
+        ..list.filter(fields, fn(pair) { pair.0 != key })
+      ])
+    _ -> value
+  }
+}
+
+fn captured_json_from_commit(value: commit.JsonValue) -> CapturedJsonValue {
+  case value {
+    commit.JsonNull -> CapturedNull
+    commit.JsonBool(value) -> CapturedBool(value)
+    commit.JsonInt(value) -> CapturedInt(value)
+    commit.JsonFloat(value) -> CapturedFloat(value)
+    commit.JsonString(value) -> CapturedString(value)
+    commit.JsonArray(items) ->
+      CapturedArray(list.map(items, captured_json_from_commit))
+    commit.JsonObject(fields) ->
+      CapturedObject(
+        list.map(fields, fn(pair) {
+          #(pair.0, captured_json_from_commit(pair.1))
+        }),
+      )
+  }
+}
+
+fn store_property_value_from_commit(
+  value: commit.JsonValue,
+) -> StorePropertyValue {
+  case value {
+    commit.JsonNull -> StorePropertyNull
+    commit.JsonBool(value) -> StorePropertyBool(value)
+    commit.JsonInt(value) -> StorePropertyInt(value)
+    commit.JsonFloat(value) -> StorePropertyFloat(value)
+    commit.JsonString(value) -> StorePropertyString(value)
+    commit.JsonArray(items) ->
+      StorePropertyList(list.map(items, store_property_value_from_commit))
+    commit.JsonObject(fields) ->
+      StorePropertyObject(
+        fields
+        |> list.map(fn(pair) {
+          #(pair.0, store_property_value_from_commit(pair.1))
+        })
+        |> dict.from_list,
+      )
+  }
 }
 
 fn handle_query_fields(
@@ -625,15 +1478,40 @@ fn handle_shipping_order_query(
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, ShippingFulfillmentsError) {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Result(MutationOutcome, ShippingFulfillmentsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
+      Ok(handle_mutation_fields(
+        store,
+        identity,
+        fields,
+        fragments,
+        variables,
+        upstream,
+      ))
     }
   }
 }
@@ -644,6 +1522,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let initial = #([], store, identity, [], [], [])
   let #(data_entries, final_store, final_identity, staged_ids, drafts, errors) =
@@ -658,6 +1537,14 @@ fn handle_mutation_fields(
       ) = acc
       case field {
         Field(name: name, ..) -> {
+          let current_store =
+            hydrate_mutation_prerequisites(
+              current_store,
+              name.value,
+              field,
+              variables,
+              upstream,
+            )
           let dispatched = case name.value {
             "carrierServiceCreate" ->
               Some(handle_carrier_service_create(
@@ -1026,6 +1913,250 @@ fn handle_mutation_fields(
     staged_resource_ids: staged_ids,
     log_drafts: drafts,
   )
+}
+
+fn hydrate_mutation_prerequisites(
+  store_in: Store,
+  root_name: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  let args = resolved_args(field, variables)
+  case root_name {
+    "deliveryProfileCreate" -> {
+      // Pattern 2: delivery profiles project `profileItems` with
+      // product/variant titles, which are upstream product-domain data.
+      // Hydrate only the associated variants first; Snapshot mode and
+      // missing cassettes fall back to the existing local-only shape.
+      let variant_ids = case read_object(args, "profile") {
+        Some(profile) -> read_string_array(profile, "variantsToAssociate")
+        None -> []
+      }
+      maybe_hydrate_delivery_profile_variants(store_in, variant_ids, upstream)
+    }
+    "deliveryProfileRemove" ->
+      maybe_hydrate_delivery_profile(
+        store_in,
+        read_string(args, "id"),
+        upstream,
+      )
+    "fulfillmentOrderSubmitFulfillmentRequest"
+    | "fulfillmentOrderAcceptFulfillmentRequest"
+    | "fulfillmentOrderRejectFulfillmentRequest"
+    | "fulfillmentOrderSubmitCancellationRequest"
+    | "fulfillmentOrderAcceptCancellationRequest"
+    | "fulfillmentOrderRejectCancellationRequest"
+    | "fulfillmentOrderHold"
+    | "fulfillmentOrderReleaseHold"
+    | "fulfillmentOrderMove"
+    | "fulfillmentOrderReschedule"
+    | "fulfillmentOrderReportProgress"
+    | "fulfillmentOrderOpen"
+    | "fulfillmentOrderClose"
+    | "fulfillmentOrderCancel" ->
+      maybe_hydrate_fulfillment_order(
+        store_in,
+        read_string(args, "id"),
+        upstream,
+      )
+    "fulfillmentOrderSplit" ->
+      hydrate_fulfillment_order_ids(
+        store_in,
+        fulfillment_order_split_ids(args),
+        upstream,
+      )
+    "fulfillmentOrdersSetFulfillmentDeadline" ->
+      hydrate_fulfillment_order_ids(
+        store_in,
+        read_string_array(args, "fulfillmentOrderIds"),
+        upstream,
+      )
+    "fulfillmentOrderMerge" ->
+      hydrate_fulfillment_order_ids(
+        store_in,
+        fulfillment_order_merge_ids(args),
+        upstream,
+      )
+    "shippingPackageUpdate"
+    | "shippingPackageMakeDefault"
+    | "shippingPackageDelete" ->
+      maybe_hydrate_shipping_package(
+        store_in,
+        read_string(args, "id"),
+        upstream,
+      )
+    _ -> store_in
+  }
+}
+
+fn hydrate_fulfillment_order_ids(
+  store_in: Store,
+  ids: List(String),
+  upstream: UpstreamContext,
+) -> Store {
+  list.fold(ids, store_in, fn(current, id) {
+    maybe_hydrate_fulfillment_order(current, Some(id), upstream)
+  })
+}
+
+fn maybe_hydrate_fulfillment_order(
+  store_in: Store,
+  id: Option(String),
+  upstream: UpstreamContext,
+) -> Store {
+  case id {
+    Some(id) -> {
+      case is_proxy_synthetic_gid(id) {
+        True -> store_in
+        False ->
+          case store.get_effective_fulfillment_order_by_id(store_in, id) {
+            Some(_) -> store_in
+            None -> {
+              let query =
+                "query ShippingFulfillmentOrderHydrate($id: ID!) {\n"
+                <> "  fulfillmentOrder(id: $id) {\n"
+                <> "    id status requestStatus fulfillAt fulfillBy updatedAt\n"
+                <> "    supportedActions { action }\n"
+                <> "    assignedLocation { name location { id name } }\n"
+                <> "    fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }\n"
+                <> "    merchantRequests(first: 10) { nodes { kind message requestOptions } }\n"
+                <> "    lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }\n"
+                <> "    order { id name displayFulfillmentStatus }\n"
+                <> "  }\n"
+                <> "}\n"
+              let variables = json.object([#("id", json.string(id))])
+              case
+                upstream_query.fetch_sync(
+                  upstream.origin,
+                  upstream.transport,
+                  upstream.headers,
+                  "ShippingFulfillmentOrderHydrate",
+                  query,
+                  variables,
+                )
+              {
+                Ok(value) -> hydrate_from_upstream_response(store_in, value)
+                Error(_) -> store_in
+              }
+            }
+          }
+      }
+    }
+    None -> store_in
+  }
+}
+
+fn maybe_hydrate_delivery_profile(
+  store_in: Store,
+  id: Option(String),
+  upstream: UpstreamContext,
+) -> Store {
+  case id {
+    Some(id) ->
+      case store.get_effective_delivery_profile_by_id(store_in, id) {
+        Some(_) -> store_in
+        None -> {
+          let query =
+            "query ShippingDeliveryProfileHydrate($id: ID!) {\n"
+            <> "  deliveryProfile(id: $id) { id name default merchantOwned version }\n"
+            <> "}\n"
+          let variables = json.object([#("id", json.string(id))])
+          case
+            upstream_query.fetch_sync(
+              upstream.origin,
+              upstream.transport,
+              upstream.headers,
+              "ShippingDeliveryProfileHydrate",
+              query,
+              variables,
+            )
+          {
+            Ok(value) -> hydrate_from_upstream_response(store_in, value)
+            Error(_) -> store_in
+          }
+        }
+      }
+    None -> store_in
+  }
+}
+
+fn maybe_hydrate_delivery_profile_variants(
+  store_in: Store,
+  ids: List(String),
+  upstream: UpstreamContext,
+) -> Store {
+  let missing =
+    ids
+    |> list.filter(fn(id) {
+      case store.get_effective_variant_by_id(store_in, id) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  case missing {
+    [] -> store_in
+    _ -> {
+      let query =
+        "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) {\n"
+        <> "  nodes(ids: $ids) {\n"
+        <> "    ... on ProductVariant { id title product { id title handle } }\n"
+        <> "  }\n"
+        <> "}\n"
+      let variables = json.object([#("ids", json.array(missing, json.string))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "ShippingDeliveryProfileVariantsHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_product_variant_nodes(store_in, value)
+        Error(_) -> store_in
+      }
+    }
+  }
+}
+
+fn maybe_hydrate_shipping_package(
+  store_in: Store,
+  id: Option(String),
+  upstream: UpstreamContext,
+) -> Store {
+  case id {
+    Some(id) ->
+      case store.get_effective_shipping_package_by_id(store_in, id) {
+        Some(_) -> store_in
+        None -> {
+          // Pattern 2 for local-runtime shipping-package parity: Admin
+          // GraphQL has no package read root in the captured API version,
+          // so the cassette supplies the recorded local seed package.
+          // Without a cassette/Snapshot mode this remains a no-op.
+          let query =
+            "query ShippingPackageHydrate($id: ID!) {\n"
+            <> "  shippingPackage(id: $id) { id name type default weight { value unit } dimensions { length width height unit } createdAt updatedAt }\n"
+            <> "}\n"
+          let variables = json.object([#("id", json.string(id))])
+          case
+            upstream_query.fetch_sync(
+              upstream.origin,
+              upstream.transport,
+              upstream.headers,
+              "ShippingPackageHydrate",
+              query,
+              variables,
+            )
+          {
+            Ok(value) -> hydrate_shipping_package_response(store_in, value)
+            Error(_) -> store_in
+          }
+        }
+      }
+    None -> store_in
+  }
 }
 
 fn handle_carrier_service_create(
@@ -6437,6 +7568,15 @@ fn fulfillment_order_merge_ids(
     |> list.filter_map(fn(intent) {
       read_string(intent, "fulfillmentOrderId") |> option.to_result(Nil)
     })
+  })
+}
+
+fn fulfillment_order_split_ids(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  read_object_array(args, "fulfillmentOrderSplits")
+  |> list.filter_map(fn(input) {
+    read_string(input, "fulfillmentOrderId") |> option.to_result(Nil)
   })
 }
 

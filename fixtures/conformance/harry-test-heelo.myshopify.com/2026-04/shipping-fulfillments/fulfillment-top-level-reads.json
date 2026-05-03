@@ -537,7 +537,9 @@
               "column": 55
             }
           ],
-          "path": ["assignedFulfillmentOrders"]
+          "path": [
+            "assignedFulfillmentOrders"
+          ]
         }
       ],
       "data": null,
@@ -704,5 +706,267 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "FulfillmentTopLevelDetails",
+      "variables": {
+        "orderId": "gid://shopify/Order/8710564643122",
+        "fulfillmentId": "gid://shopify/Fulfillment/7859173130546",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9633582219570",
+        "missingFulfillmentId": "gid://shopify/Fulfillment/999999999999",
+        "missingFulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999999"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/7859173130546",
+              "status": "SUCCESS",
+              "displayStatus": "FULFILLED",
+              "createdAt": "2026-04-25T21:07:57Z",
+              "updatedAt": "2026-04-25T21:07:57Z",
+              "trackingInfo": [
+                {
+                  "number": "HAR232-20260425210757",
+                  "url": "https://example.com/track/HAR232-20260425210757",
+                  "company": "Hermes"
+                }
+              ],
+              "fulfillmentLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentLineItem/17048215879986",
+                    "quantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19267825172786",
+                      "title": "HAR-232 fulfillment probe"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxNzA0ODIxNTg3OTk4NiwibGFzdF92YWx1ZSI6MTcwNDgyMTU4Nzk5ODZ9",
+                  "endCursor": "eyJsYXN0X2lkIjoxNzA0ODIxNTg3OTk4NiwibGFzdF92YWx1ZSI6MTcwNDgyMTU4Nzk5ODZ9"
+                }
+              }
+            },
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9633582219570",
+              "status": "CLOSED",
+              "requestStatus": "UNSUBMITTED",
+              "assignedLocation": {
+                "name": "Shop location"
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19416788271410",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 0,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19267825172786",
+                      "title": "HAR-232 fulfillment probe"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9",
+                  "endCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9"
+                }
+              }
+            },
+            "missingFulfillment": null,
+            "missingFulfillmentOrder": null,
+            "order": {
+              "id": "gid://shopify/Order/8710564643122",
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/7859173130546",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-04-25T21:07:57Z",
+                  "updatedAt": "2026-04-25T21:07:57Z",
+                  "trackingInfo": [
+                    {
+                      "number": "HAR232-20260425210757",
+                      "url": "https://example.com/track/HAR232-20260425210757",
+                      "company": "Hermes"
+                    }
+                  ],
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17048215879986",
+                        "quantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19267825172786",
+                          "title": "HAR-232 fulfillment probe"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxNzA0ODIxNTg3OTk4NiwibGFzdF92YWx1ZSI6MTcwNDgyMTU4Nzk5ODZ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxNzA0ODIxNTg3OTk4NiwibGFzdF92YWx1ZSI6MTcwNDgyMTU4Nzk5ODZ9"
+                    }
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9633582219570",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Shop location"
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19416788271410",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19267825172786",
+                            "title": "HAR-232 fulfillment probe"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9",
+                        "endCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9"
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 65,
+              "actualQueryCost": 28,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1945,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentTopLevelCatalog",
+      "variables": {
+        "first": 5,
+        "after": null,
+        "query": "status:closed"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "openFulfillmentOrders": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "allFulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633582219570",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "assignedLocation": {
+                    "name": "Shop location"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19416788271410",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19267825172786",
+                          "title": "HAR-232 fulfillment probe"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9",
+                      "endCursor": "eyJsYXN0X2lkIjoxOTQxNjc4ODI3MTQxMCwibGFzdF92YWx1ZSI6MTk0MTY3ODgyNzE0MTB9"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9"
+              }
+            },
+            "reversedFulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9633582219570",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NjMzNTgyMjE5NTcwLCJsYXN0X3ZhbHVlIjoiOTYzMzU4MjIxOTU3MCJ9"
+              }
+            },
+            "manualHoldsFulfillmentOrders": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 50,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1908,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

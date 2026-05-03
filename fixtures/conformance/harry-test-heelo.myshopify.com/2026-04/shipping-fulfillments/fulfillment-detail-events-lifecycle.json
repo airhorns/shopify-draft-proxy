@@ -9,7 +9,11 @@
         "order": {
           "email": "hermes-fulfillment-event-1777156118907@example.com",
           "note": "HAR-235 fulfillment detail/event capture 1777156118907",
-          "tags": ["parity-probe", "har-235", "fulfillment-event"],
+          "tags": [
+            "parity-probe",
+            "har-235",
+            "fulfillment-event"
+          ],
           "test": true,
           "lineItems": [
             {
@@ -55,7 +59,11 @@
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "note": "HAR-235 fulfillment detail/event capture 1777156118907",
-              "tags": ["fulfillment-event", "har-235", "parity-probe"],
+              "tags": [
+                "fulfillment-event",
+                "har-235",
+                "parity-probe"
+              ],
               "customAttributes": [],
               "subtotalPriceSet": {
                 "shopMoney": {
@@ -888,5 +896,190 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "FulfillmentDetailEventsRead",
+      "variables": {
+        "orderId": "gid://shopify/Order/8710681985330",
+        "fulfillmentId": "gid://shopify/Fulfillment/7859241517362"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/7859241517362",
+              "status": "SUCCESS",
+              "displayStatus": "IN_TRANSIT",
+              "createdAt": "2026-04-25T22:28:39Z",
+              "updatedAt": "2026-04-25T22:28:40Z",
+              "deliveredAt": null,
+              "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+              "inTransitAt": "2026-04-25T22:29:38Z",
+              "trackingInfo": [
+                {
+                  "number": "HAR235-CREATE-1777156118907",
+                  "url": "https://example.com/track/HAR235-CREATE-1777156118907",
+                  "company": "Hermes"
+                }
+              ],
+              "events": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentEvent/35254881059122",
+                    "status": "IN_TRANSIT",
+                    "message": "HAR-235 package scanned in transit",
+                    "happenedAt": "2026-04-25T22:29:38Z",
+                    "createdAt": "2026-04-25T22:28:40Z",
+                    "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+                    "city": "Toronto",
+                    "province": "Ontario",
+                    "country": "Canada",
+                    "zip": "M5H 2M9",
+                    "address1": "123 Queen St W",
+                    "latitude": 43.6532,
+                    "longitude": -79.3832
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0="
+                }
+              },
+              "service": {
+                "id": "gid://shopify/FulfillmentService/manual",
+                "handle": "manual",
+                "serviceName": "Manual",
+                "trackingSupport": false,
+                "type": "MANUAL",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              },
+              "originAddress": null,
+              "fulfillmentLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentLineItem/17048347050290",
+                    "quantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19268060250418",
+                      "title": "HAR-235 fulfillment event item 1777156118907"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9",
+                  "endCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9"
+                }
+              }
+            },
+            "order": {
+              "id": "gid://shopify/Order/8710681985330",
+              "displayFulfillmentStatus": "FULFILLED",
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/7859241517362",
+                  "status": "SUCCESS",
+                  "displayStatus": "IN_TRANSIT",
+                  "createdAt": "2026-04-25T22:28:39Z",
+                  "updatedAt": "2026-04-25T22:28:40Z",
+                  "deliveredAt": null,
+                  "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+                  "inTransitAt": "2026-04-25T22:29:38Z",
+                  "trackingInfo": [
+                    {
+                      "number": "HAR235-CREATE-1777156118907",
+                      "url": "https://example.com/track/HAR235-CREATE-1777156118907",
+                      "company": "Hermes"
+                    }
+                  ],
+                  "events": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentEvent/35254881059122",
+                        "status": "IN_TRANSIT",
+                        "message": "HAR-235 package scanned in transit",
+                        "happenedAt": "2026-04-25T22:29:38Z",
+                        "createdAt": "2026-04-25T22:28:40Z",
+                        "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+                        "city": "Toronto",
+                        "province": "Ontario",
+                        "country": "Canada",
+                        "zip": "M5H 2M9",
+                        "address1": "123 Queen St W",
+                        "latitude": 43.6532,
+                        "longitude": -79.3832
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0=",
+                      "endCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0="
+                    }
+                  },
+                  "service": {
+                    "id": "gid://shopify/FulfillmentService/manual",
+                    "handle": "manual",
+                    "serviceName": "Manual",
+                    "trackingSupport": false,
+                    "type": "MANUAL",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    }
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  },
+                  "originAddress": null,
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17048347050290",
+                        "quantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19268060250418",
+                          "title": "HAR-235 fulfillment event item 1777156118907"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9",
+                      "endCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 39,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

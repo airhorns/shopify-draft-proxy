@@ -9,10 +9,20 @@
       "shopId": "gid://shopify/Shop/92891250994"
     },
     "schema": {
-      "deliveryProfileCreate": ["profile"],
-      "deliveryProfileUpdate": ["id", "profile"],
-      "deliveryProfileRemove": ["id"],
-      "removePayloadFields": ["job", "userErrors"]
+      "deliveryProfileCreate": [
+        "profile"
+      ],
+      "deliveryProfileUpdate": [
+        "id",
+        "profile"
+      ],
+      "deliveryProfileRemove": [
+        "id"
+      ],
+      "removePayloadFields": [
+        "job",
+        "userErrors"
+      ]
     }
   },
   "mutations": {
@@ -30,7 +40,10 @@
               "profile": null,
               "userErrors": [
                 {
-                  "field": ["profile", "name"],
+                  "field": [
+                    "profile",
+                    "name"
+                  ],
                   "message": "Add a profile name"
                 }
               ]
@@ -45,7 +58,9 @@
           "name": "HAR-247 nested 1777152157411",
           "locationGroupsToCreate": [
             {
-              "locations": ["gid://shopify/Location/106318430514"],
+              "locations": [
+                "gid://shopify/Location/106318430514"
+              ],
               "zonesToCreate": [
                 {
                   "name": "HAR-247 Domestic",
@@ -80,7 +95,9 @@
               ]
             }
           ],
-          "variantsToAssociate": ["gid://shopify/ProductVariant/51098706739506"]
+          "variantsToAssociate": [
+            "gid://shopify/ProductVariant/51098706739506"
+          ]
         }
       },
       "result": {
@@ -170,12 +187,18 @@
         "id": "gid://shopify/DeliveryProfile/131621028146",
         "profile": {
           "name": "HAR-247 nested updated",
-          "variantsToDissociate": ["gid://shopify/ProductVariant/51098706739506"],
-          "conditionsToDelete": ["gid://shopify/DeliveryCondition/292281450802?operator=greater_than_or_equal_to"],
+          "variantsToDissociate": [
+            "gid://shopify/ProductVariant/51098706739506"
+          ],
+          "conditionsToDelete": [
+            "gid://shopify/DeliveryCondition/292281450802?operator=greater_than_or_equal_to"
+          ],
           "locationGroupsToUpdate": [
             {
               "id": "gid://shopify/DeliveryLocationGroup/133308088626",
-              "locationsToAdd": ["gid://shopify/Location/106318463282"],
+              "locationsToAdd": [
+                "gid://shopify/Location/106318463282"
+              ],
               "zonesToUpdate": [
                 {
                   "id": "gid://shopify/DeliveryZone/581656510770",
@@ -351,5 +374,54 @@
     "The successful lifecycle used a disposable custom delivery profile, then removed it; Shopify removal returned an asynchronous Job with done=false and the profile read became null after a short poll.",
     "No access-scope or manage-delivery-settings blocker was encountered for the active conformance credential."
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingDeliveryProfileVariantsHydrate",
+      "variables": {
+        "ids": [
+          "gid://shopify/ProductVariant/51098706739506"
+        ]
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098706739506",
+                "title": "Default Title",
+                "product": {
+                  "id": "gid://shopify/Product/10170561036594",
+                  "title": "Hermes Variant Search Conformance 1777150673975",
+                  "handle": ""
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingDeliveryProfileHydrate",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/125254992178"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "deliveryProfile": {
+              "id": "gid://shopify/DeliveryProfile/125254992178",
+              "name": "General profile",
+              "default": true,
+              "merchantOwned": true,
+              "version": 1
+            }
+          }
+        }
+      }
+    }
+  ]
 }
