@@ -9,6 +9,54 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-03 - Pass 172: HAR-534 media cassette parity
+
+Migrates the remaining Media parity scenarios to cassette-backed LiveHybrid
+execution. Files API mutations now hydrate only the upstream slices needed to
+stage product-reference effects locally: `fileUpdate.referencesToAdd` hydrates
+the referenced product before validation, and `fileDelete` hydrates the
+product/media ownership for Product-owned media ids before staging the local
+delete.
+
+| Module / fixture                                        | Change                                                                                                      |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/media.gleam`       | Adds Pattern 2 product and product-media hydrate reads before local `fileUpdate` / `fileDelete` staging.    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Threads `UpstreamContext` into the media mutation handler.                                                  |
+| `fixtures/conformance/**/media/*file-*product*.json`    | Hand-synthesizes media/product hydrate cassette entries from checked-in capture evidence.                   |
+| `config/gleam-port-ci-gates.json`                       | Removes the two Media expected-failure entries.                                                             |
+| `docs/endpoints/media.md`                               | Documents the LiveHybrid hydration boundary for Files API product-reference and Product media delete flows. |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed media fixture/gate checks: no media expected-failure entries remain,
+  no new `seed*` keys, and no new `expectedDifferences`
+
+### Findings
+
+- Pattern 1 passthrough is not appropriate for these scenarios because the
+  supported Files API mutations must still stage locally and drive downstream
+  read-after-write effects.
+- The checked-in captures already contained the authoritative product/media
+  evidence, so the needed cassettes could be hand-synthesized without live
+  Shopify writes.
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+### Risks / open items
+
+- The hydrate queries intentionally persist only the product identity/metadata
+  and media ownership fields selected by the current parity evidence. Broader
+  Files API reference shapes remain future fidelity work.
+
+---
+
 ## 2026-05-03 - Pass 171: HAR-532 localization cassette parity
 
 Migrates the remaining Localization parity scenarios to cassette-backed
