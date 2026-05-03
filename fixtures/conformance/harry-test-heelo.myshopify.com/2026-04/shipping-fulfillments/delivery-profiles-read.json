@@ -9666,6 +9666,384 @@
           }
         }
       }
+    },
+    {
+      "operationName": "AdminPlatformDeliveryProfileNodeReads",
+      "variables": {
+        "ids": [
+          "gid://shopify/DeliveryLocationGroup/126728306994"
+        ]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DeliveryLocationGroup/126728306994",
+                "locations": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjoxMDYzMTg0MzA1MTQsImxhc3RfdmFsdWUiOiJTaG9wIGxvY2F0aW9uIn0=",
+                    "endCursor": "eyJsYXN0X2lkIjoxMDYzMTg0MzA1MTQsImxhc3RfdmFsdWUiOiJTaG9wIGxvY2F0aW9uIn0="
+                  }
+                },
+                "locationsCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformDeliveryProfileNodeReads",
+      "variables": {
+        "ids": [
+          "gid://shopify/DeliveryZone/554597843250"
+        ]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DeliveryZone/554597843250",
+                "name": "Domestic",
+                "countries": [
+                  {
+                    "id": "gid://shopify/DeliveryCountry/1185161871666",
+                    "name": "Canada",
+                    "translatedName": "Canada",
+                    "code": {
+                      "countryCode": "CA",
+                      "restOfWorld": false
+                    },
+                    "provinces": [
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499193913650",
+                        "name": "Alberta",
+                        "code": "AB"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499193946418",
+                        "name": "British Columbia",
+                        "code": "BC"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499193979186",
+                        "name": "Manitoba",
+                        "code": "MB"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499194011954",
+                        "name": "New Brunswick",
+                        "code": "NB"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499194044722",
+                        "name": "Newfoundland and Labrador",
+                        "code": "NL"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499194077490",
+                        "name": "Northwest Territories",
+                        "code": "NT"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499194110258",
+                        "name": "Nova Scotia",
+                        "code": "NS"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499194143026",
+                        "name": "Nunavut",
+                        "code": "NU"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499194175794",
+                        "name": "Ontario",
+                        "code": "ON"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499194208562",
+                        "name": "Prince Edward Island",
+                        "code": "PE"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499194241330",
+                        "name": "Quebec",
+                        "code": "QC"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499194274098",
+                        "name": "Saskatchewan",
+                        "code": "SK"
+                      },
+                      {
+                        "id": "gid://shopify/DeliveryProvince/14499194306866",
+                        "name": "Yukon",
+                        "code": "YT"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformDeliveryProfileNodeReads",
+      "variables": {
+        "ids": [
+          "gid://shopify/DeliveryMethodDefinition/961637941554"
+        ]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DeliveryMethodDefinition/961637941554",
+                "name": "Standard",
+                "active": true,
+                "description": null,
+                "rateProvider": {
+                  "id": "gid://shopify/DeliveryRateDefinition/888567267634",
+                  "price": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "methodConditions": [
+                  {
+                    "id": "gid://shopify/DeliveryCondition/215314235698?operator=greater_than_or_equal_to",
+                    "field": "TOTAL_PRICE",
+                    "operator": "GREATER_THAN_OR_EQUAL_TO",
+                    "conditionCriteria": {
+                      "__typename": "MoneyV2",
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformDeliveryProfileNodeReads",
+      "variables": {
+        "ids": [
+          "gid://shopify/DeliveryRateDefinition/888567267634"
+        ]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DeliveryRateDefinition/888567267634",
+                "price": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformDeliveryProfileNodeReads",
+      "variables": {
+        "ids": [
+          "gid://shopify/DeliveryParticipant/81892835634"
+        ]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DeliveryParticipant/81892835634",
+                "fixedFee": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "percentageOfRateFee": 0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformDeliveryProfileNodeReads",
+      "variables": {
+        "ids": [
+          "gid://shopify/DeliveryCondition/215314235698?operator=greater_than_or_equal_to"
+        ]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DeliveryCondition/215314235698?operator=greater_than_or_equal_to",
+                "field": "TOTAL_PRICE",
+                "operator": "GREATER_THAN_OR_EQUAL_TO",
+                "conditionCriteria": {
+                  "__typename": "MoneyV2",
+                  "amount": "100.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformDeliveryProfileNodeReads",
+      "variables": {
+        "ids": [
+          "gid://shopify/DeliveryCountry/1185161871666"
+        ]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DeliveryCountry/1185161871666",
+                "name": "Canada",
+                "translatedName": "Canada",
+                "code": {
+                  "countryCode": "CA",
+                  "restOfWorld": false
+                },
+                "provinces": [
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499193913650",
+                    "name": "Alberta",
+                    "code": "AB"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499193946418",
+                    "name": "British Columbia",
+                    "code": "BC"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499193979186",
+                    "name": "Manitoba",
+                    "code": "MB"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499194011954",
+                    "name": "New Brunswick",
+                    "code": "NB"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499194044722",
+                    "name": "Newfoundland and Labrador",
+                    "code": "NL"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499194077490",
+                    "name": "Northwest Territories",
+                    "code": "NT"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499194110258",
+                    "name": "Nova Scotia",
+                    "code": "NS"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499194143026",
+                    "name": "Nunavut",
+                    "code": "NU"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499194175794",
+                    "name": "Ontario",
+                    "code": "ON"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499194208562",
+                    "name": "Prince Edward Island",
+                    "code": "PE"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499194241330",
+                    "name": "Quebec",
+                    "code": "QC"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499194274098",
+                    "name": "Saskatchewan",
+                    "code": "SK"
+                  },
+                  {
+                    "id": "gid://shopify/DeliveryProvince/14499194306866",
+                    "name": "Yukon",
+                    "code": "YT"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformDeliveryProfileNodeReads",
+      "variables": {
+        "ids": [
+          "gid://shopify/DeliveryProvince/14499193913650"
+        ]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DeliveryProvince/14499193913650",
+                "name": "Alberta",
+                "code": "AB"
+              }
+            ]
+          }
+        }
+      }
     }
   ]
 }

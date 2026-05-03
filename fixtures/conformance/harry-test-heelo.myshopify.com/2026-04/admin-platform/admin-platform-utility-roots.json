@@ -1313,14 +1313,22 @@
     "nodeNoData": {
       "query": "#graphql\n  query NodeNoDataRead($ids: [ID!]!) {\n    node(id: \"gid://shopify/Product/0\") {\n      __typename\n      id\n    }\n    nodes(ids: $ids) {\n      __typename\n      id\n    }\n  }\n",
       "variables": {
-        "ids": ["gid://shopify/Product/0", "gid://shopify/Job/0", "gid://shopify/Domain/0"]
+        "ids": [
+          "gid://shopify/Product/0",
+          "gid://shopify/Job/0",
+          "gid://shopify/Domain/0"
+        ]
       },
       "result": {
         "status": 200,
         "payload": {
           "data": {
             "node": null,
-            "nodes": [null, null, null]
+            "nodes": [
+              null,
+              null,
+              null
+            ]
           },
           "extensions": {
             "cost": {
@@ -1447,7 +1455,10 @@
                     "level": 1,
                     "parentId": null,
                     "ancestorIds": [],
-                    "childrenIds": ["gid://shopify/TaxonomyCategory/ap-1", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-1",
+                      "gid://shopify/TaxonomyCategory/ap-2"
+                    ],
                     "isArchived": false
                   },
                   {
@@ -1775,7 +1786,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-6-1",
                       "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -1826,7 +1840,10 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [],
                     "isArchived": false
                   }
@@ -1922,7 +1939,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-6-1",
                       "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -1973,7 +1993,10 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2080,7 +2103,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2100,7 +2126,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-10-1",
                       "gid://shopify/TaxonomyCategory/ap-2-10-2",
@@ -2116,7 +2145,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-11-1",
                       "gid://shopify/TaxonomyCategory/ap-2-11-2",
@@ -2132,7 +2164,10 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2144,7 +2179,10 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [],
                     "isArchived": false
                   }
@@ -2203,7 +2241,9 @@
                     "isLeaf": true,
                     "level": 2,
                     "parentId": "gid://shopify/TaxonomyCategory/ap",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2215,7 +2255,9 @@
                     "isLeaf": false,
                     "level": 2,
                     "parentId": "gid://shopify/TaxonomyCategory/ap",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1",
                       "gid://shopify/TaxonomyCategory/ap-2-2",
@@ -2275,7 +2317,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2378,7 +2423,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2398,7 +2446,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-10-1",
                       "gid://shopify/TaxonomyCategory/ap-2-10-2",
@@ -2414,7 +2465,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-11-1",
                       "gid://shopify/TaxonomyCategory/ap-2-11-2",
@@ -2430,7 +2484,10 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2442,7 +2499,10 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [],
                     "isArchived": false
                   }
@@ -2534,7 +2594,10 @@
                 "isLeaf": false,
                 "level": 3,
                 "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                "ancestorIds": [
+                  "gid://shopify/TaxonomyCategory/ap-2",
+                  "gid://shopify/TaxonomyCategory/ap"
+                ],
                 "childrenIds": [
                   "gid://shopify/TaxonomyCategory/ap-2-6-1",
                   "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -2590,7 +2653,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2610,7 +2676,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-10-1",
                       "gid://shopify/TaxonomyCategory/ap-2-10-2",
@@ -2626,7 +2695,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-11-1",
                       "gid://shopify/TaxonomyCategory/ap-2-11-2",
@@ -2642,7 +2714,10 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2654,7 +2729,10 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2666,7 +2744,10 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-14-1",
                       "gid://shopify/TaxonomyCategory/ap-2-14-2",
@@ -2878,7 +2959,9 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app."
               },
-              "path": ["staffMember"]
+              "path": [
+                "staffMember"
+              ]
             },
             {
               "message": "Access denied for staffMembers field.",
@@ -2892,7 +2975,9 @@
                 "code": "ACCESS_DENIED",
                 "documentation": "https://shopify.dev/api/usage/access-scopes"
               },
-              "path": ["staffMembers"]
+              "path": [
+                "staffMembers"
+              ]
             }
           ],
           "data": {
@@ -2922,7 +3007,9 @@
             "flowTriggerReceive": {
               "userErrors": [
                 {
-                  "field": ["body"],
+                  "field": [
+                    "body"
+                  ],
                   "message": "Errors validating schema:\n  Invalid handle 'har-374-missing'.\n"
                 }
               ]
@@ -2956,7 +3043,9 @@
             "flowTriggerReceive": {
               "userErrors": [
                 {
-                  "field": ["body"],
+                  "field": [
+                    "body"
+                  ],
                   "message": "Errors validating schema:\n  Properties size exceeds the limit of 50000 bytes.\n"
                 }
               ]
@@ -2993,7 +3082,9 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": ["flowGenerateSignature"]
+              "path": [
+                "flowGenerateSignature"
+              ]
             }
           ],
           "data": {
@@ -3080,7 +3171,9 @@
               "backupRegion": null,
               "userErrors": [
                 {
-                  "field": ["region"],
+                  "field": [
+                    "region"
+                  ],
                   "message": "Region not found.",
                   "code": "REGION_NOT_FOUND"
                 }
@@ -3102,5 +3195,528 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "SupportedNodeRead",
+      "variables": {
+        "ids": [
+          "gid://shopify/Product/9801098789170",
+          "gid://shopify/Collection/494967390514",
+          "gid://shopify/Customer/9522206933298",
+          "gid://shopify/Location/106318463282"
+        ]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard",
+                "handle": "the-inventory-not-tracked-snowboard"
+              },
+              {
+                "__typename": "Collection",
+                "id": "gid://shopify/Collection/494967390514",
+                "title": "Home page",
+                "handle": "frontpage"
+              },
+              {
+                "__typename": "Customer",
+                "id": "gid://shopify/Customer/9522206933298",
+                "displayName": "Karine Ruby",
+                "email": "karine.ruby@example.com"
+              },
+              {
+                "__typename": "Location",
+                "id": "gid://shopify/Location/106318463282",
+                "name": "My Custom Location",
+                "isActive": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformUtilityReads",
+      "variables": {
+        "ids": [
+          "gid://shopify/Product/0",
+          "gid://shopify/Job/0",
+          "gid://shopify/Domain/0"
+        ],
+        "domainId": "gid://shopify/Domain/0",
+        "jobId": "gid://shopify/Job/0",
+        "taxonomyAfter": "eyJpZCI6ODUyfQ=="
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publicApiVersions": [
+              {
+                "handle": "2025-07",
+                "displayName": "2025-07",
+                "supported": true
+              },
+              {
+                "handle": "2025-10",
+                "displayName": "2025-10",
+                "supported": true
+              },
+              {
+                "handle": "2026-01",
+                "displayName": "2026-01",
+                "supported": true
+              },
+              {
+                "handle": "2026-04",
+                "displayName": "2026-04 (Latest)",
+                "supported": true
+              },
+              {
+                "handle": "2026-07",
+                "displayName": "2026-07 (Release candidate)",
+                "supported": false
+              },
+              {
+                "handle": "unstable",
+                "displayName": "unstable",
+                "supported": false
+              }
+            ],
+            "node": null,
+            "nodes": [
+              null,
+              null,
+              null
+            ],
+            "domain": null,
+            "job": {
+              "id": "gid://shopify/Job/0",
+              "done": true,
+              "query": {
+                "__typename": "QueryRoot"
+              }
+            },
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110417202",
+              "name": "Canada",
+              "code": "CA"
+            },
+            "taxonomy": {
+              "emptySearch": {
+                "nodes": [],
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "catalogFirstPage": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap",
+                    "name": "Animals & Pet Supplies",
+                    "fullName": "Animals & Pet Supplies",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-1",
+                      "gid://shopify/TaxonomyCategory/ap-2"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/aa",
+                    "name": "Apparel & Accessories",
+                    "fullName": "Apparel & Accessories",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/aa-1",
+                      "gid://shopify/TaxonomyCategory/aa-2",
+                      "gid://shopify/TaxonomyCategory/aa-3",
+                      "gid://shopify/TaxonomyCategory/aa-4",
+                      "gid://shopify/TaxonomyCategory/aa-5",
+                      "gid://shopify/TaxonomyCategory/aa-6",
+                      "gid://shopify/TaxonomyCategory/aa-7",
+                      "gid://shopify/TaxonomyCategory/aa-8"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ae",
+                    "name": "Arts & Entertainment",
+                    "fullName": "Arts & Entertainment",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ae-1",
+                      "gid://shopify/TaxonomyCategory/ae-2",
+                      "gid://shopify/TaxonomyCategory/ae-3"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/bt",
+                    "name": "Baby & Toddler",
+                    "fullName": "Baby & Toddler",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/bt-1",
+                      "gid://shopify/TaxonomyCategory/bt-2",
+                      "gid://shopify/TaxonomyCategory/bt-3",
+                      "gid://shopify/TaxonomyCategory/bt-4",
+                      "gid://shopify/TaxonomyCategory/bt-5",
+                      "gid://shopify/TaxonomyCategory/bt-6",
+                      "gid://shopify/TaxonomyCategory/bt-7",
+                      "gid://shopify/TaxonomyCategory/bt-9",
+                      "gid://shopify/TaxonomyCategory/bt-10",
+                      "gid://shopify/TaxonomyCategory/bt-11",
+                      "gid://shopify/TaxonomyCategory/bt-12",
+                      "gid://shopify/TaxonomyCategory/bt-8"
+                    ],
+                    "isArchived": false
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJpZCI6MX0=",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap",
+                      "name": "Animals & Pet Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MTI2fQ==",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/aa",
+                      "name": "Apparel & Accessories"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MzUzfQ==",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ae",
+                      "name": "Arts & Entertainment"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6ODUyfQ==",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/bt",
+                      "name": "Baby & Toddler"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpZCI6MX0=",
+                  "endCursor": "eyJpZCI6ODUyfQ=="
+                }
+              },
+              "catalogNextPage": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/bi",
+                    "name": "Business & Industrial",
+                    "fullName": "Business & Industrial",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/bi-1",
+                      "gid://shopify/TaxonomyCategory/bi-2",
+                      "gid://shopify/TaxonomyCategory/bi-3",
+                      "gid://shopify/TaxonomyCategory/bi-4",
+                      "gid://shopify/TaxonomyCategory/bi-5",
+                      "gid://shopify/TaxonomyCategory/bi-6",
+                      "gid://shopify/TaxonomyCategory/bi-7",
+                      "gid://shopify/TaxonomyCategory/bi-8",
+                      "gid://shopify/TaxonomyCategory/bi-9",
+                      "gid://shopify/TaxonomyCategory/bi-10",
+                      "gid://shopify/TaxonomyCategory/bi-11",
+                      "gid://shopify/TaxonomyCategory/bi-12",
+                      "gid://shopify/TaxonomyCategory/bi-13",
+                      "gid://shopify/TaxonomyCategory/bi-14",
+                      "gid://shopify/TaxonomyCategory/bi-15",
+                      "gid://shopify/TaxonomyCategory/bi-16",
+                      "gid://shopify/TaxonomyCategory/bi-17",
+                      "gid://shopify/TaxonomyCategory/bi-18",
+                      "gid://shopify/TaxonomyCategory/bi-19",
+                      "gid://shopify/TaxonomyCategory/bi-20",
+                      "gid://shopify/TaxonomyCategory/bi-21",
+                      "gid://shopify/TaxonomyCategory/bi-22",
+                      "gid://shopify/TaxonomyCategory/bi-23",
+                      "gid://shopify/TaxonomyCategory/bi-24",
+                      "gid://shopify/TaxonomyCategory/bi-25"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/co",
+                    "name": "Cameras & Optics",
+                    "fullName": "Cameras & Optics",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/co-1",
+                      "gid://shopify/TaxonomyCategory/co-2",
+                      "gid://shopify/TaxonomyCategory/co-3",
+                      "gid://shopify/TaxonomyCategory/co-4"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/el",
+                    "name": "Electronics",
+                    "fullName": "Electronics",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/el-1",
+                      "gid://shopify/TaxonomyCategory/el-2",
+                      "gid://shopify/TaxonomyCategory/el-3",
+                      "gid://shopify/TaxonomyCategory/el-4",
+                      "gid://shopify/TaxonomyCategory/el-5",
+                      "gid://shopify/TaxonomyCategory/el-6",
+                      "gid://shopify/TaxonomyCategory/el-7",
+                      "gid://shopify/TaxonomyCategory/el-8",
+                      "gid://shopify/TaxonomyCategory/el-9",
+                      "gid://shopify/TaxonomyCategory/el-10",
+                      "gid://shopify/TaxonomyCategory/el-11",
+                      "gid://shopify/TaxonomyCategory/el-12",
+                      "gid://shopify/TaxonomyCategory/el-13",
+                      "gid://shopify/TaxonomyCategory/el-14",
+                      "gid://shopify/TaxonomyCategory/el-15",
+                      "gid://shopify/TaxonomyCategory/el-16",
+                      "gid://shopify/TaxonomyCategory/el-17",
+                      "gid://shopify/TaxonomyCategory/el-18",
+                      "gid://shopify/TaxonomyCategory/el-19",
+                      "gid://shopify/TaxonomyCategory/el-20"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/fb",
+                    "name": "Food, Beverages & Tobacco",
+                    "fullName": "Food, Beverages & Tobacco",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/fb-1",
+                      "gid://shopify/TaxonomyCategory/fb-2",
+                      "gid://shopify/TaxonomyCategory/fb-3",
+                      "gid://shopify/TaxonomyCategory/fb-4"
+                    ],
+                    "isArchived": false
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJpZCI6OTM5fQ==",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/bi",
+                      "name": "Business & Industrial"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MTE2M30=",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/co",
+                      "name": "Cameras & Optics"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MTI2N30=",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/el",
+                      "name": "Electronics"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MTY4NX0=",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/fb",
+                      "name": "Food, Beverages & Tobacco"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpZCI6OTM5fQ==",
+                  "endCursor": "eyJpZCI6MTY4NX0="
+                }
+              },
+              "apparelSearch": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/aa",
+                    "name": "Apparel & Accessories",
+                    "fullName": "Apparel & Accessories",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/aa-1",
+                      "gid://shopify/TaxonomyCategory/aa-2",
+                      "gid://shopify/TaxonomyCategory/aa-3",
+                      "gid://shopify/TaxonomyCategory/aa-4",
+                      "gid://shopify/TaxonomyCategory/aa-5",
+                      "gid://shopify/TaxonomyCategory/aa-6",
+                      "gid://shopify/TaxonomyCategory/aa-7",
+                      "gid://shopify/TaxonomyCategory/aa-8"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-6",
+                    "name": "Pet Apparel",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-6-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-9",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-10",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-11",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-12",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-13",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-14",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-15",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-16",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-17"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/sg-4-5-5",
+                    "name": "Riding Apparel & Accessories",
+                    "fullName": "Sporting Goods > Outdoor Recreation > Equestrian > Riding Apparel & Accessories",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 4,
+                    "parentId": "gid://shopify/TaxonomyCategory/sg-4-5",
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/sg-4-5",
+                      "gid://shopify/TaxonomyCategory/sg-4",
+                      "gid://shopify/TaxonomyCategory/sg"
+                    ],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-1",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-2",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-3",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-4"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+                    "name": "Pet Apparel Hangers",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
+                    "isRoot": false,
+                    "isLeaf": true,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2",
+                      "gid://shopify/TaxonomyCategory/ap"
+                    ],
+                    "childrenIds": [],
+                    "isArchived": false
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJpZCI6MTI2fQ==",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/aa",
+                      "name": "Apparel & Accessories"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MTE2MjJ9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-6",
+                      "name": "Pet Apparel"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6NDk4MX0=",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/sg-4-5-5",
+                      "name": "Riding Apparel & Accessories"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6NjB9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+                      "name": "Pet Apparel Hangers"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpZCI6MTI2fQ==",
+                  "endCursor": "eyJpZCI6NjB9"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

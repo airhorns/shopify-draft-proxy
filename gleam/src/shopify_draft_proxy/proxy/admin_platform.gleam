@@ -21,6 +21,7 @@ import shopify_draft_proxy/graphql/ast.{
   type Selection, Argument, Field, FragmentDefinition, FragmentSpread,
   InlineFragment, IntValue, Location, NamedType, SelectionSet,
 }
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/b2b
@@ -36,7 +37,11 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/products
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -136,6 +141,149 @@ pub fn is_admin_platform_mutation_root(name: String) -> Bool {
     ["backupRegionUpdate", "flowGenerateSignature", "flowTriggerReceive"],
     name,
   )
+}
+
+/// Pattern 1: cold LiveHybrid utility/node reads should forward to the
+/// cassette/upstream verbatim. Once this proxy has local admin-platform state
+/// or staged node-owning records, keep using the local serializers so snapshot
+/// and read-after-write behavior remain local.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_passthrough = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        variables,
+      )
+    _ -> False
+  }
+  case want_passthrough {
+    True -> passthrough.passthrough_sync(proxy, request)
+    False ->
+      case process(proxy.store, document, variables) {
+        Ok(envelope) -> #(
+          Response(status: 200, body: envelope, headers: []),
+          proxy,
+        )
+        Error(_) -> #(
+          Response(
+            status: 400,
+            body: json.object([
+              #(
+                "errors",
+                json.array(
+                  [
+                    json.object([
+                      #(
+                        "message",
+                        json.string("Failed to handle admin platform query"),
+                      ),
+                    ]),
+                  ],
+                  fn(x) { x },
+                ),
+              ),
+            ]),
+            headers: [],
+          ),
+          proxy,
+        )
+      }
+  }
+}
+
+fn should_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "node" ->
+      !has_local_admin_platform_query_state(proxy)
+      && variables_request_passthrough_node(variables)
+    parse_operation.QueryOperation, "nodes" ->
+      !has_local_admin_platform_query_state(proxy)
+      && variables_request_passthrough_node(variables)
+    parse_operation.QueryOperation, "taxonomy" ->
+      !has_local_admin_platform_query_state(proxy)
+    parse_operation.QueryOperation, "publicApiVersions" ->
+      !has_local_admin_platform_query_state(proxy)
+    _, _ -> False
+  }
+}
+
+fn has_local_admin_platform_query_state(proxy: DraftProxy) -> Bool {
+  let store_in = proxy.store
+  dict.size(store_in.base_state.admin_platform_generic_nodes) > 0
+  || dict.size(store_in.staged_state.admin_platform_generic_nodes) > 0
+  || dict.size(store_in.base_state.admin_platform_taxonomy_categories) > 0
+  || dict.size(store_in.staged_state.admin_platform_taxonomy_categories) > 0
+  || dict.size(store_in.staged_state.products) > 0
+  || dict.size(store_in.staged_state.product_options) > 0
+  || dict.size(store_in.staged_state.product_metafields) > 0
+  || dict.size(store_in.staged_state.collections) > 0
+  || dict.size(store_in.staged_state.customers) > 0
+  || dict.size(store_in.staged_state.store_property_locations) > 0
+  || dict.size(store_in.staged_state.web_presences) > 0
+  || dict.size(store_in.staged_state.selling_plan_groups) > 0
+}
+
+fn variables_request_passthrough_node(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.is_empty(variables) {
+    True -> True
+    False ->
+      dict.values(variables)
+      |> list.any(resolved_value_requests_passthrough_node)
+  }
+}
+
+fn resolved_value_requests_passthrough_node(
+  value: root_field.ResolvedValue,
+) -> Bool {
+  case value {
+    root_field.StringVal(id) ->
+      list.contains(
+        [
+          "Collection",
+          "Customer",
+          "DeliveryCondition",
+          "DeliveryCountry",
+          "DeliveryLocationGroup",
+          "DeliveryMethodDefinition",
+          "DeliveryParticipant",
+          "DeliveryProvince",
+          "DeliveryRateDefinition",
+          "DeliveryZone",
+          "Location",
+          "MarketWebPresence",
+          "Metafield",
+          "Product",
+          "ProductOption",
+          "ProductOptionValue",
+          "SellingPlan",
+          "ShopAddress",
+          "ShopPolicy",
+          "TaxonomyCategory",
+        ],
+        gid_resource_type(id),
+      )
+    root_field.ListVal(values) ->
+      list.any(values, resolved_value_requests_passthrough_node)
+    root_field.ObjectVal(fields) ->
+      dict.values(fields) |> list.any(resolved_value_requests_passthrough_node)
+    _ -> False
+  }
 }
 
 fn captured_backup_region() -> BackupRegionRecord {
