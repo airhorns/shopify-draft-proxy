@@ -1254,10 +1254,13 @@ fn route_query(
         variables,
       )
     Ok(B2BDomain) ->
-      respond(
+      b2b.handle_query_request(
         proxy,
-        b2b.process(proxy.store, query, variables),
-        "Failed to handle B2B query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(SegmentsDomain) ->
       respond(
