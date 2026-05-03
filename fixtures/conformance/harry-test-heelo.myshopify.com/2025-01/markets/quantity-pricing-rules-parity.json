@@ -39,9 +39,18 @@
     }
   },
   "schemaEvidence": {
-    "quantityPricingByVariantUpdateArgs": ["priceListId", "input"],
-    "quantityRulesAddArgs": ["priceListId", "quantityRules"],
-    "quantityRulesDeleteArgs": ["priceListId", "variantIds"],
+    "quantityPricingByVariantUpdateArgs": [
+      "priceListId",
+      "input"
+    ],
+    "quantityRulesAddArgs": [
+      "priceListId",
+      "quantityRules"
+    ],
+    "quantityRulesDeleteArgs": [
+      "priceListId",
+      "variantIds"
+    ],
     "quantityPricingByVariantUpdateInputFields": [
       "quantityPriceBreaksToAdd",
       "quantityPriceBreaksToDelete",
@@ -51,7 +60,10 @@
       "pricesToAdd",
       "pricesToDeleteByVariantId"
     ],
-    "downstreamReadTargets": ["PriceList.quantityRules", "PriceList.prices(originType: FIXED).quantityPriceBreaks"]
+    "downstreamReadTargets": [
+      "PriceList.quantityRules",
+      "PriceList.prices(originType: FIXED).quantityPriceBreaks"
+    ]
   },
   "successPath": [
     {
@@ -169,7 +181,9 @@
       "name": "cleanup",
       "response": {
         "quantityRulesDelete": {
-          "deletedQuantityRulesVariantIds": ["gid://shopify/ProductVariant/49875425296690"],
+          "deletedQuantityRulesVariantIds": [
+            "gid://shopify/ProductVariant/49875425296690"
+          ],
           "userErrors": []
         },
         "quantityPricingByVariantUpdate": {
@@ -191,7 +205,9 @@
           "productVariants": null,
           "userErrors": [
             {
-              "field": ["priceListId"],
+              "field": [
+                "priceListId"
+              ],
               "code": "PRICE_LIST_NOT_FOUND",
               "message": "Price list not found."
             }
@@ -206,7 +222,9 @@
           "quantityRules": [],
           "userErrors": [
             {
-              "field": ["priceListId"],
+              "field": [
+                "priceListId"
+              ],
               "code": "PRICE_LIST_DOES_NOT_EXIST",
               "message": "Price list does not exist."
             }
@@ -221,7 +239,9 @@
           "deletedQuantityRulesVariantIds": [],
           "userErrors": [
             {
-              "field": ["priceListId"],
+              "field": [
+                "priceListId"
+              ],
               "code": "PRICE_LIST_DOES_NOT_EXIST",
               "message": "Price list does not exist."
             }
@@ -236,7 +256,11 @@
           "quantityRules": [],
           "userErrors": [
             {
-              "field": ["quantityRules", "0", "variantId"],
+              "field": [
+                "quantityRules",
+                "0",
+                "variantId"
+              ],
               "code": "PRODUCT_VARIANT_DOES_NOT_EXIST",
               "message": "Product variant ID does not exist."
             }
@@ -251,17 +275,29 @@
           "productVariants": null,
           "userErrors": [
             {
-              "field": ["input", "quantityPriceBreaksToAdd", "0"],
+              "field": [
+                "input",
+                "quantityPriceBreaksToAdd",
+                "0"
+              ],
               "code": "QUANTITY_PRICE_BREAK_ADD_VARIANT_NOT_FOUND",
               "message": "Variant not found."
             },
             {
-              "field": ["input", "quantityRulesToAdd", "0"],
+              "field": [
+                "input",
+                "quantityRulesToAdd",
+                "0"
+              ],
               "code": "QUANTITY_RULE_ADD_VARIANT_NOT_FOUND",
               "message": "Variant not found."
             },
             {
-              "field": ["input", "pricesToAdd", "0"],
+              "field": [
+                "input",
+                "pricesToAdd",
+                "0"
+              ],
               "code": "PRICE_ADD_VARIANT_NOT_FOUND",
               "message": "Variant not found."
             }
@@ -276,7 +312,10 @@
           "deletedQuantityRulesVariantIds": [],
           "userErrors": [
             {
-              "field": ["variantIds", "0"],
+              "field": [
+                "variantIds",
+                "0"
+              ],
               "code": "PRODUCT_VARIANT_DOES_NOT_EXIST",
               "message": "Product variant ID does not exist."
             }
@@ -285,5 +324,236 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "priceListId": "gid://shopify/PriceList/32128106802",
+        "input": {
+          "pricesToAdd": [
+            {
+              "variantId": "gid://shopify/ProductVariant/49875425296690",
+              "price": {
+                "amount": "17.00",
+                "currencyCode": "CAD"
+              }
+            }
+          ],
+          "pricesToDeleteByVariantId": [],
+          "quantityRulesToAdd": [
+            {
+              "variantId": "gid://shopify/ProductVariant/49875425296690",
+              "minimum": 2,
+              "maximum": 10,
+              "increment": 2
+            }
+          ],
+          "quantityRulesToDeleteByVariantId": [],
+          "quantityPriceBreaksToAdd": [
+            {
+              "variantId": "gid://shopify/ProductVariant/49875425296690",
+              "minimumQuantity": 4,
+              "price": {
+                "amount": "15.00",
+                "currencyCode": "CAD"
+              }
+            }
+          ],
+          "quantityPriceBreaksToDelete": []
+        }
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/32128106802",
+              "name": "HAR-321 quantity pricing seed price list",
+              "currency": "CAD",
+              "fixedPricesCount": 0,
+              "quantityRules": {
+                "edges": []
+              },
+              "prices": {
+                "edges": []
+              }
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10000000000001",
+                  "title": "HAR-321 quantity pricing seed product",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "priceListId": {
+          "fromCapturePath": "$.setup.priceListId"
+        },
+        "variantIds": [
+          {
+            "fromCapturePath": "$.setup.variantId"
+          }
+        ]
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/32128106802",
+              "name": "HAR-321 quantity pricing seed price list",
+              "currency": "CAD",
+              "fixedPricesCount": 0,
+              "quantityRules": {
+                "edges": []
+              },
+              "prices": {
+                "edges": []
+              }
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10000000000001",
+                  "title": "HAR-321 quantity pricing seed product",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "priceListId": {
+          "fromCapturePath": "$.setup.priceListId"
+        },
+        "quantityRules": [
+          {
+            "variantId": "gid://shopify/ProductVariant/0",
+            "minimum": 2,
+            "maximum": 10,
+            "increment": 2
+          }
+        ]
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/32128106802",
+              "name": "HAR-321 quantity pricing seed price list",
+              "currency": "CAD",
+              "fixedPricesCount": 0,
+              "quantityRules": {
+                "edges": []
+              },
+              "prices": {
+                "edges": []
+              }
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10000000000001",
+                  "title": "HAR-321 quantity pricing seed product",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "priceListId": {
+          "fromCapturePath": "$.setup.priceListId"
+        },
+        "variantIds": [
+          "gid://shopify/ProductVariant/0"
+        ]
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/32128106802",
+              "name": "HAR-321 quantity pricing seed price list",
+              "currency": "CAD",
+              "fixedPricesCount": 0,
+              "quantityRules": {
+                "edges": []
+              },
+              "prices": {
+                "edges": []
+              }
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10000000000001",
+                  "title": "HAR-321 quantity pricing seed product",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
 }

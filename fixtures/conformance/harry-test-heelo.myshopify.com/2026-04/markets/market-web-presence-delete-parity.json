@@ -50,7 +50,9 @@
               "deletedId": null,
               "userErrors": [
                 {
-                  "field": ["id"],
+                  "field": [
+                    "id"
+                  ],
                   "message": "The market web presence wasn't found.",
                   "code": "WEB_PRESENCE_NOT_FOUND"
                 }
@@ -134,7 +136,9 @@
               "deletedId": null,
               "userErrors": [
                 {
-                  "field": ["id"],
+                  "field": [
+                    "id"
+                  ],
                   "message": "The market web presence wasn't found.",
                   "code": "WEB_PRESENCE_NOT_FOUND"
                 }
@@ -189,5 +193,54 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "input": {
+          "defaultLocale": "en",
+          "alternateLocales": [],
+          "subfolderSuffix": "harcodexzizpzojr"
+        }
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "webPresences": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "domain": {
+                    "id": "gid://shopify/Domain/157391388978",
+                    "host": "harry-test-heelo.myshopify.com",
+                    "url": "https://harry-test-heelo.myshopify.com",
+                    "sslEnabled": true
+                  },
+                  "rootUrls": [
+                    {
+                      "locale": "en",
+                      "url": "https://harry-test-heelo.myshopify.com/"
+                    }
+                  ],
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "alternateLocales": [],
+                  "markets": {
+                    "nodes": []
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
 }
