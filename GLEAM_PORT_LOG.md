@@ -9,6 +9,56 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-03 - Pass 191: HAR-539 payments cassette parity
+
+Migrates the remaining Payments parity scenarios to cassette-backed LiveHybrid
+execution. Customer payment-method mutations and payment-terms creation now
+hydrate the captured upstream owner context through narrow Pattern 2 cassette
+queries before staging locally, so supported mutations still avoid runtime
+Shopify writes while downstream reads observe the staged state.
+
+| Module / fixture                                                                  | Change                                                                                                         |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/payments.gleam`                              | Adds Pattern 2 mutation hydration for customer/payment-method shells and draft-order payment-terms owners.     |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                           | Threads `UpstreamContext` into payments mutations and routes payment-method-only `customer` reads to payments. |
+| `fixtures/conformance/**/payments/*{customer-payment-method,payment-terms}*.json` | Hand-synthesizes hydrate cassette entries from checked-in capture/local-runtime evidence.                      |
+| `config/operation-registry.json`                                                  | Promotes `customerPaymentMethod` overlay read support with the LiveHybrid hydration boundary documented.       |
+| `config/gleam-port-ci-gates.json`                                                 | Removes the two Payments expected-failure entries.                                                             |
+| `docs/endpoints/payments.md`                                                      | Documents the cassette-backed payments hydrate paths and local-staging boundaries.                             |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'`
+  (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed payments fixture/gate checks: no payments expected-failure entries
+  remain, no new top-level `seed*` keys, and no new `expectedDifferences`
+
+### Findings
+
+- Pattern 2 is required for both migrated payments scenarios because supported
+  mutations must stage locally while starting from an existing upstream customer,
+  payment method, or draft-order owner.
+- The checked-in captures and local-runtime fixture already contained the
+  authoritative source payloads, so the missing cassette entries could be
+  hand-synthesized without live Shopify credentials.
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+### Risks / open items
+
+- Customer payment-method hydration intentionally captures only scrubbed shells
+  selected by the current local-runtime parity evidence. Broader live
+  payment-method overlay coverage still depends on safe conformance credentials
+  with customer-payment-method scopes.
+
+---
+
 ## 2026-05-03 - Pass 190: HAR-542 segments cassette parity
 
 Migrates the remaining Segments parity scenario to cassette-backed LiveHybrid
