@@ -17,13 +17,13 @@ until local staged state exists, while supported mutations still stage locally
 and use Pattern 2 hydrate reads only to obtain the prior Shopify-shaped data
 needed for validation and downstream read-after-write parity.
 
-| Module / fixture                                            | Change                                                                                                                   |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Module / fixture                                             | Change                                                                                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
 | `gleam/src/shopify_draft_proxy/proxy/store_properties.gleam` | Adds gated Pattern 1 passthrough for cold shop/location/business entity/collection reads and Pattern 2 hydrates for mutations. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`      | Routes Store Properties reads through the domain query entrypoint and threads `UpstreamContext` into mutation handling.  |
-| `fixtures/conformance/**/store-properties/*.json`            | Hand-synthesizes missing read/hydrate cassette entries from checked-in capture payloads.                                 |
-| `fixtures/conformance/**/products/product-*parity.json`      | Adds publishable mutation hydrate cassettes for product publish/unpublish scenarios owned by Store Properties parity.    |
-| `config/gleam-port-ci-gates.json`                            | Removes the 15 Store Properties expected-failure entries.                                                                |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`      | Routes Store Properties reads through the domain query entrypoint and threads `UpstreamContext` into mutation handling.        |
+| `fixtures/conformance/**/store-properties/*.json`            | Hand-synthesizes missing read/hydrate cassette entries from checked-in capture payloads.                                       |
+| `fixtures/conformance/**/products/product-*parity.json`      | Adds publishable mutation hydrate cassettes for product publish/unpublish scenarios owned by Store Properties parity.          |
+| `config/gleam-port-ci-gates.json`                            | Removes the 15 Store Properties expected-failure entries.                                                                      |
 
 Validation:
 

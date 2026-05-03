@@ -75,9 +75,7 @@
               "extensions": {
                 "code": "BAD_REQUEST"
               },
-              "path": [
-                "locationActivate"
-              ]
+              "path": ["locationActivate"]
             }
           ],
           "data": {
@@ -107,9 +105,7 @@
               "extensions": {
                 "code": "BAD_REQUEST"
               },
-              "path": [
-                "locationDeactivate"
-              ]
+              "path": ["locationDeactivate"]
             }
           ],
           "data": {
@@ -132,16 +128,12 @@
               "deletedLocationId": null,
               "locationDeleteUserErrors": [
                 {
-                  "field": [
-                    "locationId"
-                  ],
+                  "field": ["locationId"],
                   "message": "The location cannot be deleted while it is active.",
                   "code": "LOCATION_IS_ACTIVE"
                 },
                 {
-                  "field": [
-                    "locationId"
-                  ],
+                  "field": ["locationId"],
                   "message": "The location cannot be deleted while it has inventory.",
                   "code": "LOCATION_HAS_INVENTORY"
                 }

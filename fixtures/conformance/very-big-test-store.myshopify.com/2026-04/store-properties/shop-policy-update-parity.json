@@ -19,9 +19,7 @@
           "contactEmail": "shopify@gadget.dev",
           "email": "shopify@gadget.dev",
           "currencyCode": "CAD",
-          "enabledPresentmentCurrencies": [
-            "CAD"
-          ],
+          "enabledPresentmentCurrencies": ["CAD"],
           "ianaTimezone": "America/Toronto",
           "timezoneAbbreviation": "EDT",
           "timezoneOffset": "-0400",
@@ -39,11 +37,7 @@
             "coordinatesValidated": false,
             "country": "Canada",
             "countryCodeV2": "CA",
-            "formatted": [
-              "103 ossington",
-              "Ottawa ON k1s3b7",
-              "Canada"
-            ],
+            "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
             "formattedArea": "Ottawa ON, Canada",
             "latitude": 45.389817,
             "longitude": -75.68692920000001,
@@ -138,10 +132,7 @@
           "shopPolicy": null,
           "userErrors": [
             {
-              "field": [
-                "shopPolicy",
-                "body"
-              ],
+              "field": ["shopPolicy", "body"],
               "message": "Body is too big (maximum is 512 KB)",
               "code": "TOO_BIG"
             }
@@ -330,9 +321,7 @@
               "contactEmail": "shopify@gadget.dev",
               "email": "shopify@gadget.dev",
               "currencyCode": "CAD",
-              "enabledPresentmentCurrencies": [
-                "CAD"
-              ],
+              "enabledPresentmentCurrencies": ["CAD"],
               "ianaTimezone": "America/Toronto",
               "timezoneAbbreviation": "EDT",
               "timezoneOffset": "-0400",
@@ -350,11 +339,7 @@
                 "coordinatesValidated": false,
                 "country": "Canada",
                 "countryCodeV2": "CA",
-                "formatted": [
-                  "103 ossington",
-                  "Ottawa ON k1s3b7",
-                  "Canada"
-                ],
+                "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
                 "formattedArea": "Ottawa ON, Canada",
                 "latitude": 45.389817,
                 "longitude": -75.68692920000001,
