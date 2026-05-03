@@ -15,6 +15,7 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SerializeConnectionConfig, SrcBool, SrcInt,
   SrcList, SrcNull, SrcString, default_connection_page_info_options,
@@ -24,6 +25,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -34,9 +36,9 @@ import shopify_draft_proxy/state/types.{
   type CustomerRecord, type Money, type PaymentCustomizationRecord,
   type PaymentScheduleRecord, type PaymentTermsRecord,
   type PaymentTermsTemplateRecord, CustomerPaymentMethodInstrumentRecord,
-  CustomerPaymentMethodRecord, CustomerPaymentMethodUpdateUrlRecord, Money,
-  PaymentCustomizationRecord, PaymentReminderSendRecord, PaymentScheduleRecord,
-  PaymentTermsRecord, PaymentTermsTemplateRecord,
+  CustomerPaymentMethodRecord, CustomerPaymentMethodUpdateUrlRecord,
+  CustomerRecord, Money, PaymentCustomizationRecord, PaymentReminderSendRecord,
+  PaymentScheduleRecord, PaymentTermsRecord, PaymentTermsTemplateRecord,
 }
 
 const customization_app_id: String = "347082227713"
@@ -790,14 +792,34 @@ fn project_customer_payment_method(
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, PaymentsError) {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    upstream_query.empty_upstream_context(),
+  )
+}
+
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Result(MutationOutcome, PaymentsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
+      let store =
+        hydrate_before_payments_mutation(store, fields, variables, upstream)
       Ok(handle_mutation_fields(
         store,
         identity,
@@ -807,6 +829,101 @@ pub fn process_mutation(
         variables,
       ))
     }
+  }
+}
+
+fn hydrate_before_payments_mutation(
+  store: Store,
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  let #(customer_ids, method_ids, owner_ids) =
+    list.fold(fields, #([], [], []), fn(acc, field) {
+      let #(customer_acc, method_acc, owner_acc) = acc
+      let #(customers, methods, owners) =
+        payment_mutation_hydrate_inputs(field, variables)
+      #(
+        list.append(customer_acc, customers),
+        list.append(method_acc, methods),
+        list.append(owner_acc, owners),
+      )
+    })
+  let with_payment_methods =
+    hydrate_customer_payment_method_context(
+      store,
+      unique_strings(customer_ids, []),
+      unique_strings(method_ids, []),
+      upstream,
+    )
+  list.fold(unique_strings(owner_ids, []), with_payment_methods, fn(acc, id) {
+    maybe_hydrate_payment_terms_owner(acc, id, upstream)
+  })
+}
+
+fn payment_mutation_hydrate_inputs(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(List(String), List(String), List(String)) {
+  case field {
+    Field(name: name, ..) -> {
+      let args = field_args(field, variables)
+      case name.value {
+        "customerPaymentMethodCreditCardCreate"
+        | "customerPaymentMethodRemoteCreate"
+        | "customerPaymentMethodPaypalBillingAgreementCreate" -> #(
+          option_to_list(read_arg_string(args, "customerId")),
+          [],
+          [],
+        )
+        "customerPaymentMethodCreditCardUpdate"
+        | "customerPaymentMethodPaypalBillingAgreementUpdate" -> #(
+          [],
+          option_to_list(read_arg_string(args, "id")),
+          [],
+        )
+        "customerPaymentMethodGetDuplicationData" -> #(
+          option_to_list(read_arg_string(args, "targetCustomerId")),
+          option_to_list(read_arg_string(args, "customerPaymentMethodId")),
+          [],
+        )
+        "customerPaymentMethodCreateFromDuplicationData" -> {
+          let method_id =
+            read_arg_string(args, "encryptedDuplicationData")
+            |> option.then(fn(raw) {
+              case decode_duplication_data(raw) {
+                Ok(payload) ->
+                  dict_string_to_option(payload, "customerPaymentMethodId")
+                Error(_) -> None
+              }
+            })
+          #(
+            option_to_list(read_arg_string(args, "customerId")),
+            option_to_list(method_id),
+            [],
+          )
+        }
+        "customerPaymentMethodGetUpdateUrl" | "customerPaymentMethodRevoke" -> #(
+          [],
+          option_to_list(read_arg_string(args, "customerPaymentMethodId")),
+          [],
+        )
+        "paymentTermsCreate" -> #(
+          [],
+          [],
+          option_to_list(read_arg_string(args, "referenceId")),
+        )
+        _ -> #([], [], [])
+      }
+    }
+    _ -> #([], [], [])
+  }
+}
+
+fn option_to_list(value: Option(String)) -> List(String) {
+  case value {
+    Some(s) -> [s]
+    None -> []
   }
 }
 
@@ -1374,6 +1491,190 @@ fn customer_by_id(
   }
 }
 
+fn hydrate_customer_payment_method_context(
+  store: Store,
+  customer_ids: List(String),
+  method_ids: List(String),
+  upstream: UpstreamContext,
+) -> Store {
+  let missing_customer_ids =
+    customer_ids
+    |> list.filter(fn(id) {
+      is_shopify_gid(Some(id), "Customer")
+      && case store.get_effective_customer_by_id(store, id) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  let missing_method_ids =
+    method_ids
+    |> list.filter(fn(id) {
+      is_shopify_gid(Some(id), "CustomerPaymentMethod")
+      && case
+        store.get_effective_customer_payment_method_by_id(store, id, True)
+      {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  case missing_customer_ids, missing_method_ids {
+    [], [] -> store
+    _, _ -> {
+      // Pattern 2: local-runtime payment-method flows need existing
+      // customers and vaulted-method shells before staging local-only
+      // mutations. Snapshot/no-cassette mode keeps the unknown-resource
+      // userErrors instead of inventing state.
+      let variables =
+        json.object([
+          #("customerIds", json.array(missing_customer_ids, json.string)),
+          #(
+            "customerPaymentMethodIds",
+            json.array(missing_method_ids, json.string),
+          ),
+        ])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "CustomerPaymentMethodHydrate",
+          customer_payment_method_hydrate_query(),
+          variables,
+        )
+      {
+        Ok(value) ->
+          hydrate_customer_payment_methods_from_response(store, value)
+        Error(_) -> store
+      }
+    }
+  }
+}
+
+fn customer_payment_method_hydrate_query() -> String {
+  "query CustomerPaymentMethodHydrate($customerIds: [ID!]!, $customerPaymentMethodIds: [ID!]!) {\n"
+  <> "  customers: nodes(ids: $customerIds) { ... on Customer { id email displayName state } }\n"
+  <> "  customerPaymentMethods: nodes(ids: $customerPaymentMethodIds) {\n"
+  <> "    ... on CustomerPaymentMethod {\n"
+  <> "      id revokedAt revokedReason customer { id }\n"
+  <> "      instrument { __typename ... on CustomerCreditCard { lastDigits maskedNumber } ... on CustomerPaypalBillingAgreement { paypalAccountEmail inactive } }\n"
+  <> "    }\n"
+  <> "  }\n"
+  <> "}\n"
+}
+
+fn hydrate_customer_payment_methods_from_response(
+  store: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) -> {
+      let customers =
+        json_array_items(json_get(data, "customers"))
+        |> list.filter_map(customer_from_hydrate_node)
+      let methods =
+        json_array_items(json_get(data, "customerPaymentMethods"))
+        |> list.filter_map(customer_payment_method_from_hydrate_node)
+      let with_customers = store.upsert_base_customers(store, customers)
+      store.upsert_base_customer_payment_methods(with_customers, methods)
+    }
+    None -> store
+  }
+}
+
+fn customer_from_hydrate_node(
+  node: commit.JsonValue,
+) -> Result(CustomerRecord, Nil) {
+  case json_get_string(node, "id") {
+    Some(id) ->
+      Ok(CustomerRecord(
+        id: id,
+        first_name: None,
+        last_name: None,
+        display_name: json_get_string(node, "displayName"),
+        email: json_get_string(node, "email"),
+        legacy_resource_id: Some(gid_tail(id)),
+        locale: None,
+        note: None,
+        can_delete: None,
+        verified_email: None,
+        data_sale_opt_out: False,
+        tax_exempt: None,
+        tax_exemptions: [],
+        state: json_get_string(node, "state"),
+        tags: [],
+        number_of_orders: None,
+        amount_spent: None,
+        default_email_address: None,
+        default_phone_number: None,
+        email_marketing_consent: None,
+        sms_marketing_consent: None,
+        default_address: None,
+        created_at: None,
+        updated_at: None,
+      ))
+    None -> Error(Nil)
+  }
+}
+
+fn customer_payment_method_from_hydrate_node(
+  node: commit.JsonValue,
+) -> Result(CustomerPaymentMethodRecord, Nil) {
+  let customer_id =
+    json_get_string(node, "customerId")
+    |> option.or(
+      json_get(node, "customer")
+      |> option.then(fn(customer) { json_get_string(customer, "id") }),
+    )
+  case json_get_string(node, "id"), customer_id {
+    Some(id), Some(owner_id) ->
+      Ok(
+        CustomerPaymentMethodRecord(
+          id: id,
+          customer_id: owner_id,
+          cursor: None,
+          instrument: json_get(node, "instrument")
+            |> option.then(instrument_from_hydrate_node),
+          revoked_at: json_get_string(node, "revokedAt"),
+          revoked_reason: json_get_string(node, "revokedReason"),
+          subscription_contracts: [],
+        ),
+      )
+    _, _ -> Error(Nil)
+  }
+}
+
+fn instrument_from_hydrate_node(
+  node: commit.JsonValue,
+) -> Option(CustomerPaymentMethodInstrumentRecord) {
+  let type_name =
+    json_get_string(node, "typeName")
+    |> option.or(json_get_string(node, "__typename"))
+  use resolved_type <- option.then(type_name)
+  let data_node = case json_get(node, "data") {
+    Some(data) -> data
+    None -> node
+  }
+  Some(CustomerPaymentMethodInstrumentRecord(
+    type_name: resolved_type,
+    data: dict.from_list(
+      list.filter_map(
+        [
+          "lastDigits",
+          "maskedNumber",
+          "paypalAccountEmail",
+          "inactive",
+        ],
+        fn(key) {
+          case json_get_data_string(data_node, key) {
+            Some(value) -> Ok(#(key, value))
+            None -> Error(Nil)
+          }
+        },
+      ),
+    ),
+  ))
+}
+
 fn scrubbed_credit_card_instrument() -> CustomerPaymentMethodInstrumentRecord {
   CustomerPaymentMethodInstrumentRecord(
     type_name: "CustomerCreditCard",
@@ -1931,6 +2232,55 @@ fn payment_terms_error(
   UserError(field: field, message: message, code: Some(code))
 }
 
+fn maybe_hydrate_payment_terms_owner(
+  store: Store,
+  owner_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_shopify_gid(Some(owner_id), "DraftOrder"),
+    store.payment_terms_owner_exists(store, owner_id)
+  {
+    True, False -> {
+      // Pattern 2: paymentTermsCreate needs the upstream draft-order
+      // reference to exist before staging local payment terms. Snapshot
+      // or no-cassette mode preserves Shopify-like REFERENCE_DOES_NOT_EXIST.
+      let variables = json.object([#("id", json.string(owner_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "PaymentTermsOwnerHydrate",
+          payment_terms_owner_hydrate_query(),
+          variables,
+        )
+      {
+        Ok(value) ->
+          case payment_terms_owner_exists_in_response(value) {
+            True -> store.register_payment_terms_owner(store, owner_id)
+            False -> store
+          }
+        Error(_) -> store
+      }
+    }
+    _, _ -> store
+  }
+}
+
+fn payment_terms_owner_hydrate_query() -> String {
+  "query PaymentTermsOwnerHydrate($id: ID!) {\n"
+  <> "  draftOrder(id: $id) { id paymentTerms { id } }\n"
+  <> "}\n"
+}
+
+fn payment_terms_owner_exists_in_response(value: commit.JsonValue) -> Bool {
+  json_get(value, "data")
+  |> option.then(fn(data) { json_get(data, "draftOrder") })
+  |> non_null_json
+  |> option.is_some
+}
+
 fn create_payment_terms(store, identity, field, fragments, variables) {
   let args = field_args(field, variables)
   let reference_id = read_arg_string(args, "referenceId")
@@ -2434,6 +2784,59 @@ fn mutation_payload_result(
     store,
     identity,
   )
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(name, child) if name == key -> Ok(child)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn non_null_json(value: Option(commit.JsonValue)) -> Option(commit.JsonValue) {
+  case value {
+    Some(commit.JsonNull) -> None
+    Some(v) -> Some(v)
+    None -> None
+  }
+}
+
+fn json_array_items(value: Option(commit.JsonValue)) -> List(commit.JsonValue) {
+  case non_null_json(value) {
+    Some(commit.JsonArray(items)) -> items
+    _ -> []
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  json_get(value, key) |> option.then(json_scalar_string)
+}
+
+fn json_scalar_string(value: commit.JsonValue) -> Option(String) {
+  case value {
+    commit.JsonString(s) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get_data_string(
+  value: commit.JsonValue,
+  key: String,
+) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonNull) -> Some("__null")
+    Some(commit.JsonString(s)) -> Some(s)
+    Some(commit.JsonBool(True)) -> Some("true")
+    Some(commit.JsonBool(False)) -> Some("false")
+    _ -> None
+  }
 }
 
 fn encode_duplication_data(

@@ -1259,11 +1259,11 @@ pub fn default_registry() -> List(RegistryEntry) {
       type_: Query,
       domain: Payments,
       execution: OverlayRead,
-      implemented: False,
+      implemented: True,
       match_names: ["customerPaymentMethod", "CustomerPaymentMethod"],
       runtime_tests: ["tests/integration/customer-query-shapes.test.ts"],
       support_notes: Some(
-        "Seeded/snapshot customer payment method reads serialize from normalized customerPaymentMethods state, including showRevoked filtering, instrument unions, customer links, and payment-method subscription contracts. Formal live overlay support remains false because the 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_customer_payment_methods; future live capture requires read_customers plus read_customer_payment_methods.",
+        "Local customer payment method reads serialize from normalized customerPaymentMethods state, including showRevoked filtering, instrument unions, customer links, and payment-method subscription contracts. LiveHybrid mutation flows hydrate existing customer/payment-method shells through cassette-backed Pattern 2 reads before local staging; broader live overlay evidence still depends on a conformance grant with read_customer_payment_methods.",
       ),
     ),
     RegistryEntry(
