@@ -11,6 +11,7 @@
     "appUninstall",
     "delegateAccessTokenCreate",
     "delegateAccessTokenDestroy",
+    "currentAppInstallation",
     "node"
   ],
   "scenarioStatus": "captured",
