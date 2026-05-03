@@ -70,5 +70,44 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/6830646198505"
+      },
+      "query": "hand-synthesized from checked-in downstreamRead order response for HAR-538 orders Pattern 2 order mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/6830646198505",
+              "name": "#1324",
+              "closed": true,
+              "closedAt": "2026-04-22T23:29:01Z",
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
+              "paymentGatewayNames": [],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "12.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "customer": null,
+              "transactions": []
+            }
+          }
+        }
+      }
+    }
+  ]
 }
