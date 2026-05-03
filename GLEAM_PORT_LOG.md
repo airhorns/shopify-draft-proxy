@@ -16,12 +16,12 @@ execution. Cold B2B company root reads now use Pattern 1 passthrough when no
 local B2B state is involved, while synthetic, staged, and locally deleted B2B
 IDs keep lifecycle reads on the in-memory handler.
 
-| Module / fixture                                                                 | Change                                                                                                      |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/b2b.gleam`                                  | Adds gated Pattern 1 LiveHybrid passthrough for B2B company read roots.                                     |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                          | Routes B2B queries through the upstream-aware B2B query entrypoint.                                         |
-| `fixtures/conformance/**/b2b/b2b-company-roots-read.json`                        | Hand-synthesizes the `B2BCompanyRootsRead` cassette from the checked-in captured response.                  |
-| `config/gleam-port-ci-gates.json`                                                | Removes the B2B expected-failure entry.                                                                    |
+| Module / fixture                                          | Change                                                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/b2b.gleam`           | Adds gated Pattern 1 LiveHybrid passthrough for B2B company read roots.                    |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`   | Routes B2B queries through the upstream-aware B2B query entrypoint.                        |
+| `fixtures/conformance/**/b2b/b2b-company-roots-read.json` | Hand-synthesizes the `B2BCompanyRootsRead` cassette from the checked-in captured response. |
+| `config/gleam-port-ci-gates.json`                         | Removes the B2B expected-failure entry.                                                    |
 
 Validation:
 
