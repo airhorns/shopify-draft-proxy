@@ -217,10 +217,7 @@
     {
       "operationName": "CustomerPaymentMethodHydrate",
       "variables": {
-        "customerIds": [
-          "gid://shopify/Customer/8801",
-          "gid://shopify/Customer/8802"
-        ],
+        "customerIds": ["gid://shopify/Customer/8801", "gid://shopify/Customer/8802"],
         "customerPaymentMethodIds": [
           "gid://shopify/CustomerPaymentMethod/base-card",
           "gid://shopify/CustomerPaymentMethod/base-paypal"

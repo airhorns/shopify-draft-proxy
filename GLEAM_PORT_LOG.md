@@ -17,14 +17,14 @@ hydrate the captured upstream owner context through narrow Pattern 2 cassette
 queries before staging locally, so supported mutations still avoid runtime
 Shopify writes while downstream reads observe the staged state.
 
-| Module / fixture                                                               | Change                                                                                                            |
-| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/payments.gleam`                           | Adds Pattern 2 mutation hydration for customer/payment-method shells and draft-order payment-terms owners.        |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                        | Threads `UpstreamContext` into payments mutations and routes payment-method-only `customer` reads to payments.    |
-| `fixtures/conformance/**/payments/*{customer-payment-method,payment-terms}*.json` | Hand-synthesizes hydrate cassette entries from checked-in capture/local-runtime evidence.                         |
-| `config/operation-registry.json`                                               | Promotes `customerPaymentMethod` overlay read support with the LiveHybrid hydration boundary documented.          |
-| `config/gleam-port-ci-gates.json`                                              | Removes the two Payments expected-failure entries.                                                                |
-| `docs/endpoints/payments.md`                                                   | Documents the cassette-backed payments hydrate paths and local-staging boundaries.                                |
+| Module / fixture                                                                  | Change                                                                                                         |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/payments.gleam`                              | Adds Pattern 2 mutation hydration for customer/payment-method shells and draft-order payment-terms owners.     |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                           | Threads `UpstreamContext` into payments mutations and routes payment-method-only `customer` reads to payments. |
+| `fixtures/conformance/**/payments/*{customer-payment-method,payment-terms}*.json` | Hand-synthesizes hydrate cassette entries from checked-in capture/local-runtime evidence.                      |
+| `config/operation-registry.json`                                                  | Promotes `customerPaymentMethod` overlay read support with the LiveHybrid hydration boundary documented.       |
+| `config/gleam-port-ci-gates.json`                                                 | Removes the two Payments expected-failure entries.                                                             |
+| `docs/endpoints/payments.md`                                                      | Documents the cassette-backed payments hydrate paths and local-staging boundaries.                             |
 
 Validation:
 
