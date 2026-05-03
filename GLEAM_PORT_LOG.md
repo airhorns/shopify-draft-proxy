@@ -16,13 +16,13 @@ Cold product detail/catalog/search reads now use Pattern 1 passthrough when the
 proxy has no local product state to overlay, while product-owned metafield shell
 reads and staged product lifecycle state continue to resolve locally.
 
-| Module / fixture                                      | Change                                                                                         |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/products.gleam`  | Adds gated LiveHybrid passthrough for cold `product`, `productByIdentifier`, `products`, and `productsCount` reads. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes product queries through the products domain query entrypoint.                           |
-| `fixtures/conformance/**/products/{product*,products*}.json` | Hand-synthesizes read cassette entries from checked-in product capture evidence.       |
-| `config/gleam-port-ci-gates.json`                    | Removes ten products read expected-failure entries that now pass.                              |
-| `docs/endpoints/products.md`                         | Documents the cold-read passthrough boundary.                                                  |
+| Module / fixture                                             | Change                                                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`         | Adds gated LiveHybrid passthrough for cold `product`, `productByIdentifier`, `products`, and `productsCount` reads. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`      | Routes product queries through the products domain query entrypoint.                                                |
+| `fixtures/conformance/**/products/{product*,products*}.json` | Hand-synthesizes read cassette entries from checked-in product capture evidence.                                    |
+| `config/gleam-port-ci-gates.json`                            | Removes ten products read expected-failure entries that now pass.                                                   |
+| `docs/endpoints/products.md`                                 | Documents the cold-read passthrough boundary.                                                                       |
 
 Validation:
 

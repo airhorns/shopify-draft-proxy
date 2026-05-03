@@ -20,24 +20,14 @@
     "cleanup": "The capture deletes the product-level fixed price after reading contextual pricing."
   },
   "schemaEvidence": {
-    "contextualPricingContextFields": [
-      "country",
-      "companyLocationId",
-      "locationId"
-    ],
+    "contextualPricingContextFields": ["country", "companyLocationId", "locationId"],
     "productContextualPricingFields": [
       "fixedQuantityRulesCount",
       "priceRange",
       "minVariantPricing",
       "maxVariantPricing"
     ],
-    "variantContextualPricingFields": [
-      "price",
-      "compareAtPrice",
-      "unitPrice",
-      "quantityRule",
-      "quantityPriceBreaks"
-    ],
+    "variantContextualPricingFields": ["price", "compareAtPrice", "unitPrice", "quantityRule", "quantityPriceBreaks"],
     "downstreamReadTargets": [
       "Product.contextualPricing(context: country)",
       "ProductVariant.contextualPricing(context: country)"
@@ -262,9 +252,7 @@
           "priceListId": "gid://shopify/PriceList/31575408946",
           "priceQuery": "product_id:9801098789170",
           "pricesToAdd": [],
-          "pricesToDeleteByProductIds": [
-            "gid://shopify/Product/9801098789170"
-          ]
+          "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170"]
         }
       },
       "response": {
@@ -717,9 +705,7 @@
           "priceListId": "gid://shopify/PriceList/31575408946",
           "priceQuery": "product_id:9801098789170",
           "pricesToAdd": [],
-          "pricesToDeleteByProductIds": [
-            "gid://shopify/Product/9801098789170"
-          ]
+          "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170"]
         }
       },
       "response": {

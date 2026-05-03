@@ -16,11 +16,7 @@
               "handle": "nike-swoosh-pro-flat-peak-cap",
               "vendor": "NIKE",
               "productType": "ACCESSORIES",
-              "tags": [
-                "cap",
-                "egnition-sample-data",
-                "nike"
-              ]
+              "tags": ["cap", "egnition-sample-data", "nike"]
             }
           }
         ],
@@ -67,11 +63,7 @@
                     "handle": "nike-swoosh-pro-flat-peak-cap",
                     "vendor": "NIKE",
                     "productType": "ACCESSORIES",
-                    "tags": [
-                      "cap",
-                      "egnition-sample-data",
-                      "nike"
-                    ]
+                    "tags": ["cap", "egnition-sample-data", "nike"]
                   }
                 }
               ],
