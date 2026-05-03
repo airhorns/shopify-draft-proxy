@@ -52,6 +52,102 @@ Validation:
 
 ---
 
+## 2026-05-03 - Pass 189: HAR-541 product read cassette parity slice
+
+Migrates a first products read slice to cassette-backed LiveHybrid execution.
+Cold product detail/catalog/search reads now use Pattern 1 passthrough when the
+proxy has no local product state to overlay, while product-owned metafield shell
+reads and staged product lifecycle state continue to resolve locally.
+
+| Module / fixture                                             | Change                                                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`         | Adds gated LiveHybrid passthrough for cold `product`, `productByIdentifier`, `products`, and `productsCount` reads. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`      | Routes product queries through the products domain query entrypoint.                                                |
+| `fixtures/conformance/**/products/{product*,products*}.json` | Hand-synthesizes read cassette entries from checked-in product capture evidence.                                    |
+| `config/gleam-port-ci-gates.json`                            | Removes ten products read expected-failure entries that now pass.                                                   |
+| `docs/endpoints/products.md`                                 | Documents the cold-read passthrough boundary.                                                                       |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+
+### Findings
+
+- Pattern 1 is appropriate for cold product read scenarios whose captured
+  Shopify response is returned verbatim and where the local proxy has no staged
+  product state to overlay.
+- Product-owned metafield shell reads must be included in the local-state gate;
+  otherwise unrelated metafields scenarios can regress by forwarding local owner
+  shell reads to the cassette.
+- Product-owned `metafield` / `metafields` selections are not part of this cold
+  read slice yet and remain local until the product-metafields scenario gets its
+  own cassette-backed migration.
+
+### Risks / open items
+
+- Broader products scenarios covering collections, inventory, product variants,
+  publications, selling plans, tags, and mutation prior-record hydration remain
+  in HAR-541 follow-up slices.
+
+---
+
+## 2026-05-03 - Pass 188: HAR-536 metaobjects cassette parity
+
+Migrates the remaining Metaobjects parity scenarios to cassette-backed
+LiveHybrid execution. Cold metaobject and metaobject-definition reads use
+Pattern 1 passthrough while staged, deleted, or hydrated local state stays
+local. Supported metaobject mutations still stage locally; they use Pattern 2
+hydrate reads only to load upstream definitions or rows needed before local
+mutation handling.
+
+| Module / fixture                                                        | Change                                                                                               |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/metaobject_definitions.gleam`      | Adds cold-read passthrough, mutation prerequisite hydration, and BEAM/JS-stable measurement numbers. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Routes metaobject reads/mutations through the upstream-aware metaobject entrypoints.                 |
+| `fixtures/conformance/**/metaobjects/*.json`                            | Hand-synthesizes metaobject read/hydrate cassette entries from checked-in capture evidence.          |
+| `fixtures/conformance/**/metafields/custom-data-field-type-matrix.json` | Adds definition hydrate cassette entries for the metaobject custom-data matrix.                      |
+| `config/parity-specs/metaobjects/*.json`                                | Prunes stale cursor expected-difference rules where cold passthrough now matches captures.           |
+| `config/gleam-port-ci-gates.json`                                       | Removes the six Metaobjects expected-failure entries.                                                |
+| `docs/endpoints/metaobjects.md`                                         | Documents the cassette-backed cold-read and mutation-hydration behavior.                             |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `cd gleam && gleam test --target javascript` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang` (819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed metaobject fixture/spec/gate checks: no metaobject expected-failure
+  entries remain, no added `seedX` keys, and no new `expectedDifferences`
+  rules
+
+### Findings
+
+- Pattern 1 is appropriate for cold metaobject reads, but passthrough must be
+  gated on local staged/deleted/hydrated state so supported mutations keep
+  read-after-write and read-after-delete behavior local.
+- Pattern 2 is needed for existing upstream rows and definitions referenced by
+  supported mutations; the hydrate calls load prerequisites from cassettes
+  without writing supported mutations upstream.
+- The Erlang target exposed a BEAM/JS numeric representation drift for
+  measurement `jsonValue` fields. Whole measurement floats are now normalized
+  to integer JSON values while fractional measurements remain floats.
+
+### Risks / open items
+
+- Hydration is intentionally limited to the definition and metaobject fields
+  selected by current parity evidence. Broader metaobject shapes remain future
+  fidelity work.
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+---
+
 ## 2026-05-03 - Pass 187: HAR-537 online-store cassette parity
 
 Migrates the remaining Online Store parity scenarios to cassette-backed
@@ -147,8 +243,6 @@ Validation:
   with existing local serializers and cassette-backed parity evidence. Broader
   generic Node support still belongs to each owning domain's lifecycle/read
   model.
-- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
-  Erlang validation used the established OTP 28 container fallback.
 
 ---
 

@@ -1,30 +1,6 @@
 {
   "expectedGleamParityFailures": [
     {
-      "specPath": "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/metaobjects/metaobject-definitions-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/metaobjects/metaobject-entry-lifecycle-local-staging.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/metaobjects/metaobject-reference-lifecycle.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/metaobjects/metaobjects-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
       "specPath": "config/parity-specs/payments/customer-payment-method-local-staging.json",
       "reason": "Cassette migrated; proxy returned non-2xx status due to cassette miss or unhandled operation. Re-record or wire handler."
     },
@@ -181,14 +157,6 @@
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
     {
-      "specPath": "config/parity-specs/products/product-contextual-pricing-price-list-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/products/product-detail-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
       "specPath": "config/parity-specs/products/product-feedback-lifecycle-local-runtime.json",
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
@@ -278,38 +246,6 @@
     },
     {
       "specPath": "config/parity-specs/products/productReorderMedia-parity.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/products/products-advanced-search-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/products/products-catalog-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/products/products-or-precedence-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/products/products-relevance-search-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/products/products-search-grammar-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/products/products-search-pagination-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/products/products-search-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/products/products-sort-keys-read.json",
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
     {

@@ -830,12 +830,17 @@ fn route_mutation(
       }
     Ok(MetaobjectDefinitionsDomain) ->
       case
-        metaobject_definitions.process_mutation(
+        metaobject_definitions.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -1304,10 +1309,13 @@ fn route_query(
         variables,
       )
     Ok(MetaobjectDefinitionsDomain) ->
-      respond(
+      metaobject_definitions.handle_query_request(
         proxy,
-        metaobject_definitions.process(proxy.store, query, variables),
-        "Failed to handle metaobject definitions query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(MarketingDomain) ->
       respond(
@@ -1337,10 +1345,13 @@ fn route_query(
         "Failed to handle media query",
       )
     Ok(ProductsDomain) ->
-      respond(
+      products.handle_query_request(
         proxy,
-        products.process(proxy.store, query, variables),
-        "Failed to handle products query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(AdminPlatformDomain) ->
       admin_platform.handle_query_request(
