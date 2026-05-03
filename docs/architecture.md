@@ -5,7 +5,8 @@
 `shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy.
 The runtime is implemented in Gleam under `gleam/src/shopify_draft_proxy/`
 and compiles to both Erlang/BEAM and JavaScript so it can be embedded in
-either ecosystem. It supports three read execution modes and two mutation
+either ecosystem. The JavaScript target also exposes a Node `http` adapter over
+the Gleam core. It supports three read execution modes and two mutation
 execution paths.
 
 ### Read execution modes
@@ -46,6 +47,8 @@ App/test harness -> DraftProxy value -> operation classifier
                                    └─ Meta API path
                                        ├─ reset/log/state/config/health
                                        └─ commit replay
+
+Gleam JS HTTP adapter -> DraftProxy value
 ```
 
 `DraftProxy` is a value, not a singleton. Each request returns a new
@@ -68,6 +71,18 @@ The runtime tree lives at `gleam/src/shopify_draft_proxy/`.
 - routes parsed GraphQL operations through `route_query` / `route_mutation`
   and falls through to `dispatch_passthrough` for unimplemented or
   force-passthrough roots in `LiveHybrid` mode
+
+### `gleam/js/src/app.ts`
+
+- build a JavaScript-target Node `http` adapter over the Gleam-backed
+  `DraftProxy` shim
+- parse incoming request bodies, preserve inbound headers, and route HTTP
+  requests through the same `processRequest(...)` surface as embeddable JS
+  callers
+- expose `callback()` and `listen(...)` helpers so launch scripts can serve
+  `/admin/api/:version/graphql.json`, `/__meta/health`, `/__meta/config`,
+  `/__meta/log`, `/__meta/state`, `/__meta/reset`, and `/__meta/commit`
+  without Koa
 
 ### `proxy/proxy_state.gleam`
 
@@ -244,6 +259,9 @@ request) -> #(Response, DraftProxy)`. Embedders own the value and
   identity through the proxy value passed into them. There is no
   ambient runtime context, no process-wide singleton, and no
   equivalent of `AsyncLocalStorage`.
+- The Gleam JS HTTP adapter owns one `DraftProxy` value per app instance and
+  replaces it with the returned next value after each request. The adapter does
+  not use a process-wide runtime store or proxy singleton.
 
 ## Admin API domain model
 
