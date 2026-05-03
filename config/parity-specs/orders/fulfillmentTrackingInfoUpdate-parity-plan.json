@@ -16,12 +16,6 @@
     "mode": "strict-json",
     "expectedDifferences": [
       {
-        "path": "$.createdAt",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live fulfillment creation timestamp, while the local proxy keeps the seeded fulfillment timestamp nullable until creation staging is modeled."
-      },
-      {
         "path": "$.updatedAt",
         "matcher": "iso-timestamp",
         "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live tracking update timestamp, while the proxy uses its deterministic staged timestamp."

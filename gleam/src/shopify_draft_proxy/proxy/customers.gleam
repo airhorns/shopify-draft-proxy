@@ -2569,7 +2569,21 @@ fn hydrate_before_customer_mutation(
         read_arg_string(args, "id"),
         upstream,
       )
-    "orderCustomerSet" | "orderCustomerRemove" -> #(
+    "orderCustomerSet" -> {
+      let with_order =
+        hydrate_optional_customer_order_id(
+          store,
+          read_arg_string(args, "orderId"),
+          upstream,
+        )
+      hydrate_optional_customer_id(
+        with_order,
+        identity,
+        read_arg_string(args, "customerId"),
+        upstream,
+      )
+    }
+    "orderCustomerRemove" -> #(
       hydrate_optional_customer_order_id(
         store,
         read_arg_string(args, "orderId"),
