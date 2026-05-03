@@ -3,7 +3,7 @@
 // symbol the existing TS runtime offers must be callable through this
 // shim with the same shape.
 
-export type ReadMode = 'snapshot' | 'live-hybrid' | 'live';
+export type ReadMode = 'snapshot' | 'live-hybrid' | 'passthrough';
 
 export interface AppConfig {
   readMode: ReadMode;
