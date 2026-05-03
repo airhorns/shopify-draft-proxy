@@ -415,5 +415,24 @@
     }
   },
   "notes": "Captured on a disposable draft order. Shopify computes NET dueAt from issuedAt plus template due days, creates a new PaymentSchedule id on FIXED update, and returns null paymentTerms after delete.",
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "PaymentTermsOwnerHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249327055154"
+      },
+      "query": "payment terms owner hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1249327055154",
+              "paymentTerms": null
+            }
+          }
+        }
+      }
+    }
+  ]
 }
