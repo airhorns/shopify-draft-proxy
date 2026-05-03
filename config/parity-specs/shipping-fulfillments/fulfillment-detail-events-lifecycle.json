@@ -15,32 +15,7 @@
   "notes": "HAR-235 captured Admin GraphQL 2026-04 fulfillment detail/event read-after-write behavior. The fixture records a disposable order fulfillment, successful fulfillmentEventCreate, immediate detail reads through top-level fulfillment(id:) and nested Order.fulfillments, tracking update preservation of event history, fulfillment cancel preservation of event history, and cleanup orderCancel.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.events.pageInfo.startCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque fulfillment event connection cursors; local snapshot serializers use deterministic synthetic cursors.",
-        "regrettable": true
-      },
-      {
-        "path": "$.events.pageInfo.endCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque fulfillment event connection cursors; local snapshot serializers use deterministic synthetic cursors.",
-        "regrettable": true
-      },
-      {
-        "path": "$.fulfillmentLineItems.pageInfo.startCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque fulfillment line-item connection cursors; local snapshot serializers intentionally use null cursors for this nested connection.",
-        "regrettable": true
-      },
-      {
-        "path": "$.fulfillmentLineItems.pageInfo.endCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque fulfillment line-item connection cursors; local snapshot serializers intentionally use null cursors for this nested connection.",
-        "regrettable": true
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "fulfillment-detail-events",
