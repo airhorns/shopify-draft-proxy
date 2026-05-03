@@ -1749,6 +1749,16 @@ fn is_terminal_status(status: String) -> Bool {
 
 fn build_bulk_operation_result_url(operation_id: String) -> String {
   "https://shopify-draft-proxy.local/__meta/bulk-operations/"
-  <> last_gid_segment(operation_id)
+  <> encode_url_segment(operation_id)
   <> "/result.jsonl"
+}
+
+fn encode_url_segment(value: String) -> String {
+  value
+  |> string.replace("%", "%25")
+  |> string.replace(":", "%3A")
+  |> string.replace("/", "%2F")
+  |> string.replace("?", "%3F")
+  |> string.replace("&", "%26")
+  |> string.replace("=", "%3D")
 }
