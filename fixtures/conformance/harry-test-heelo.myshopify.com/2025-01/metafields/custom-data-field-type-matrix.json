@@ -6141,9 +6141,7 @@
                   "key": "list_boolean",
                   "type": "list.boolean",
                   "value": "[true]",
-                  "jsonValue": [
-                    true
-                  ],
+                  "jsonValue": [true],
                   "compareDigest": "8f7706756feb0bf85573da745c686b5ec1ebc6e6a2e4092c1a3c8fa038aea7ff",
                   "createdAt": "2026-04-28T23:00:46Z",
                   "updatedAt": "2026-04-28T23:00:46Z",
@@ -6172,9 +6170,7 @@
                   "key": "list_color",
                   "type": "list.color",
                   "value": "[\"#fff123\"]",
-                  "jsonValue": [
-                    "#fff123"
-                  ],
+                  "jsonValue": ["#fff123"],
                   "compareDigest": "812b38ed53e176ee3eb3b46198fa61ae92b48562eb05878a7c6687f433549654",
                   "createdAt": "2026-04-28T23:00:46Z",
                   "updatedAt": "2026-04-28T23:00:46Z",
@@ -6237,9 +6233,7 @@
                   "key": "list_date",
                   "type": "list.date",
                   "value": "[\"2022-02-02\"]",
-                  "jsonValue": [
-                    "2022-02-02"
-                  ],
+                  "jsonValue": ["2022-02-02"],
                   "compareDigest": "14fbe43572f554906701216b83a7683f6639d4c927bfda6369526e2064967be7",
                   "createdAt": "2026-04-28T23:00:46Z",
                   "updatedAt": "2026-04-28T23:00:46Z",
@@ -6251,9 +6245,7 @@
                   "key": "list_date_time",
                   "type": "list.date_time",
                   "value": "[\"2024-01-01T12:30:00+00:00\"]",
-                  "jsonValue": [
-                    "2024-01-01T12:30:00+00:00"
-                  ],
+                  "jsonValue": ["2024-01-01T12:30:00+00:00"],
                   "compareDigest": "d9bf3f7c90d98d3622d2b0abb18b0e073b01a171a8a92568cfeace8dfe8976e5",
                   "createdAt": "2026-04-28T23:00:46Z",
                   "updatedAt": "2026-04-28T23:00:46Z",
@@ -6486,9 +6478,7 @@
                   "key": "list_multi_line_text_field",
                   "type": "list.multi_line_text_field",
                   "value": "[\"Ingredients\\nFlour\\nWater\"]",
-                  "jsonValue": [
-                    "Ingredients\nFlour\nWater"
-                  ],
+                  "jsonValue": ["Ingredients\nFlour\nWater"],
                   "compareDigest": "ee198ab5673dee7d2df6671a4f9946c94c743e638bb35e4eff09a67c31a17dea",
                   "createdAt": "2026-04-28T23:00:46Z",
                   "updatedAt": "2026-04-28T23:00:46Z",
@@ -6500,9 +6490,7 @@
                   "key": "list_number_decimal",
                   "type": "list.number_decimal",
                   "value": "[\"10.4\"]",
-                  "jsonValue": [
-                    "10.4"
-                  ],
+                  "jsonValue": ["10.4"],
                   "compareDigest": "b7e6963effc7aad55ff9bfd223fc14e71180735d3a6b37f01ec41e739c40c579",
                   "createdAt": "2026-04-28T23:00:46Z",
                   "updatedAt": "2026-04-28T23:00:46Z",
@@ -6514,9 +6502,7 @@
                   "key": "list_number_integer",
                   "type": "list.number_integer",
                   "value": "[10]",
-                  "jsonValue": [
-                    10
-                  ],
+                  "jsonValue": [10],
                   "compareDigest": "5c5ffe1ed7833777292fd4a5de7647d48659d857190f6ec31073e44850f4094f",
                   "createdAt": "2026-04-28T23:00:46Z",
                   "updatedAt": "2026-04-28T23:00:46Z",
@@ -7316,9 +7302,7 @@
                     "key": "list_boolean",
                     "type": "list.boolean",
                     "value": "[true]",
-                    "jsonValue": [
-                      true
-                    ],
+                    "jsonValue": [true],
                     "compareDigest": "8f7706756feb0bf85573da745c686b5ec1ebc6e6a2e4092c1a3c8fa038aea7ff",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -7347,9 +7331,7 @@
                     "key": "list_color",
                     "type": "list.color",
                     "value": "[\"#fff123\"]",
-                    "jsonValue": [
-                      "#fff123"
-                    ],
+                    "jsonValue": ["#fff123"],
                     "compareDigest": "812b38ed53e176ee3eb3b46198fa61ae92b48562eb05878a7c6687f433549654",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -7412,9 +7394,7 @@
                     "key": "list_date",
                     "type": "list.date",
                     "value": "[\"2022-02-02\"]",
-                    "jsonValue": [
-                      "2022-02-02"
-                    ],
+                    "jsonValue": ["2022-02-02"],
                     "compareDigest": "14fbe43572f554906701216b83a7683f6639d4c927bfda6369526e2064967be7",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -7426,9 +7406,7 @@
                     "key": "list_date_time",
                     "type": "list.date_time",
                     "value": "[\"2024-01-01T12:30:00+00:00\"]",
-                    "jsonValue": [
-                      "2024-01-01T12:30:00+00:00"
-                    ],
+                    "jsonValue": ["2024-01-01T12:30:00+00:00"],
                     "compareDigest": "d9bf3f7c90d98d3622d2b0abb18b0e073b01a171a8a92568cfeace8dfe8976e5",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -7661,9 +7639,7 @@
                     "key": "list_multi_line_text_field",
                     "type": "list.multi_line_text_field",
                     "value": "[\"Ingredients\\nFlour\\nWater\"]",
-                    "jsonValue": [
-                      "Ingredients\nFlour\nWater"
-                    ],
+                    "jsonValue": ["Ingredients\nFlour\nWater"],
                     "compareDigest": "ee198ab5673dee7d2df6671a4f9946c94c743e638bb35e4eff09a67c31a17dea",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -7675,9 +7651,7 @@
                     "key": "list_number_decimal",
                     "type": "list.number_decimal",
                     "value": "[\"10.4\"]",
-                    "jsonValue": [
-                      "10.4"
-                    ],
+                    "jsonValue": ["10.4"],
                     "compareDigest": "b7e6963effc7aad55ff9bfd223fc14e71180735d3a6b37f01ec41e739c40c579",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -7689,9 +7663,7 @@
                     "key": "list_number_integer",
                     "type": "list.number_integer",
                     "value": "[10]",
-                    "jsonValue": [
-                      10
-                    ],
+                    "jsonValue": [10],
                     "compareDigest": "5c5ffe1ed7833777292fd4a5de7647d48659d857190f6ec31073e44850f4094f",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -7976,9 +7948,7 @@
                   "key": "list_single_line_text_field",
                   "type": "list.single_line_text_field",
                   "value": "[\"VIP shipping method\"]",
-                  "jsonValue": [
-                    "VIP shipping method"
-                  ],
+                  "jsonValue": ["VIP shipping method"],
                   "compareDigest": "8664524ead9411701fd028a63bfa332d75edddd56c652d143a7ba8d1981b3a92",
                   "createdAt": "2026-04-28T23:00:47Z",
                   "updatedAt": "2026-04-28T23:00:47Z",
@@ -8058,9 +8028,7 @@
                   "key": "list_url",
                   "type": "list.url",
                   "value": "[\"https://www.shopify.com\"]",
-                  "jsonValue": [
-                    "https://www.shopify.com"
-                  ],
+                  "jsonValue": ["https://www.shopify.com"],
                   "compareDigest": "20a02af729642a899f7d0e8da25971be96c482cd4be9f46add8ef0d43010acf4",
                   "createdAt": "2026-04-28T23:00:47Z",
                   "updatedAt": "2026-04-28T23:00:47Z",
@@ -8152,9 +8120,7 @@
                   "key": "list_product_reference",
                   "type": "list.product_reference",
                   "value": "[\"gid://shopify/Product/10173071262002\"]",
-                  "jsonValue": [
-                    "gid://shopify/Product/10173071262002"
-                  ],
+                  "jsonValue": ["gid://shopify/Product/10173071262002"],
                   "compareDigest": "72a5a4b45de70ef29d5f2eab6fef813b9c1ca0aea941add509e6eff5de4b7b07",
                   "createdAt": "2026-04-28T23:00:47Z",
                   "updatedAt": "2026-04-28T23:00:47Z",
@@ -8178,9 +8144,7 @@
                   "key": "list_variant_reference",
                   "type": "list.variant_reference",
                   "value": "[\"gid://shopify/ProductVariant/51109306335538\"]",
-                  "jsonValue": [
-                    "gid://shopify/ProductVariant/51109306335538"
-                  ],
+                  "jsonValue": ["gid://shopify/ProductVariant/51109306335538"],
                   "compareDigest": "e3e84a6bea537fceb0d0fbab70dd2c0ca647aa52a40771e654233850db274d44",
                   "createdAt": "2026-04-28T23:00:47Z",
                   "updatedAt": "2026-04-28T23:00:47Z",
@@ -8204,9 +8168,7 @@
                   "key": "list_collection_reference",
                   "type": "list.collection_reference",
                   "value": "[\"gid://shopify/Collection/512228163890\"]",
-                  "jsonValue": [
-                    "gid://shopify/Collection/512228163890"
-                  ],
+                  "jsonValue": ["gid://shopify/Collection/512228163890"],
                   "compareDigest": "67d7593f1bc816fee6784ad50f85b20d8bcb8f358b619faa7bc0ee9f01abd4d5",
                   "createdAt": "2026-04-28T23:00:47Z",
                   "updatedAt": "2026-04-28T23:00:47Z",
@@ -9006,9 +8968,7 @@
                     "key": "list_boolean",
                     "type": "list.boolean",
                     "value": "[true]",
-                    "jsonValue": [
-                      true
-                    ],
+                    "jsonValue": [true],
                     "compareDigest": "8f7706756feb0bf85573da745c686b5ec1ebc6e6a2e4092c1a3c8fa038aea7ff",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -9037,9 +8997,7 @@
                     "key": "list_color",
                     "type": "list.color",
                     "value": "[\"#fff123\"]",
-                    "jsonValue": [
-                      "#fff123"
-                    ],
+                    "jsonValue": ["#fff123"],
                     "compareDigest": "812b38ed53e176ee3eb3b46198fa61ae92b48562eb05878a7c6687f433549654",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -9102,9 +9060,7 @@
                     "key": "list_date",
                     "type": "list.date",
                     "value": "[\"2022-02-02\"]",
-                    "jsonValue": [
-                      "2022-02-02"
-                    ],
+                    "jsonValue": ["2022-02-02"],
                     "compareDigest": "14fbe43572f554906701216b83a7683f6639d4c927bfda6369526e2064967be7",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -9116,9 +9072,7 @@
                     "key": "list_date_time",
                     "type": "list.date_time",
                     "value": "[\"2024-01-01T12:30:00+00:00\"]",
-                    "jsonValue": [
-                      "2024-01-01T12:30:00+00:00"
-                    ],
+                    "jsonValue": ["2024-01-01T12:30:00+00:00"],
                     "compareDigest": "d9bf3f7c90d98d3622d2b0abb18b0e073b01a171a8a92568cfeace8dfe8976e5",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -9351,9 +9305,7 @@
                     "key": "list_multi_line_text_field",
                     "type": "list.multi_line_text_field",
                     "value": "[\"Ingredients\\nFlour\\nWater\"]",
-                    "jsonValue": [
-                      "Ingredients\nFlour\nWater"
-                    ],
+                    "jsonValue": ["Ingredients\nFlour\nWater"],
                     "compareDigest": "ee198ab5673dee7d2df6671a4f9946c94c743e638bb35e4eff09a67c31a17dea",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -9365,9 +9317,7 @@
                     "key": "list_number_decimal",
                     "type": "list.number_decimal",
                     "value": "[\"10.4\"]",
-                    "jsonValue": [
-                      "10.4"
-                    ],
+                    "jsonValue": ["10.4"],
                     "compareDigest": "b7e6963effc7aad55ff9bfd223fc14e71180735d3a6b37f01ec41e739c40c579",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -9379,9 +9329,7 @@
                     "key": "list_number_integer",
                     "type": "list.number_integer",
                     "value": "[10]",
-                    "jsonValue": [
-                      10
-                    ],
+                    "jsonValue": [10],
                     "compareDigest": "5c5ffe1ed7833777292fd4a5de7647d48659d857190f6ec31073e44850f4094f",
                     "createdAt": "2026-04-28T23:00:46Z",
                     "updatedAt": "2026-04-28T23:00:46Z",
@@ -9479,9 +9427,7 @@
                     "key": "list_single_line_text_field",
                     "type": "list.single_line_text_field",
                     "value": "[\"VIP shipping method\"]",
-                    "jsonValue": [
-                      "VIP shipping method"
-                    ],
+                    "jsonValue": ["VIP shipping method"],
                     "compareDigest": "8664524ead9411701fd028a63bfa332d75edddd56c652d143a7ba8d1981b3a92",
                     "createdAt": "2026-04-28T23:00:47Z",
                     "updatedAt": "2026-04-28T23:00:47Z",
@@ -9561,9 +9507,7 @@
                     "key": "list_url",
                     "type": "list.url",
                     "value": "[\"https://www.shopify.com\"]",
-                    "jsonValue": [
-                      "https://www.shopify.com"
-                    ],
+                    "jsonValue": ["https://www.shopify.com"],
                     "compareDigest": "20a02af729642a899f7d0e8da25971be96c482cd4be9f46add8ef0d43010acf4",
                     "createdAt": "2026-04-28T23:00:47Z",
                     "updatedAt": "2026-04-28T23:00:47Z",
@@ -9655,9 +9599,7 @@
                     "key": "list_product_reference",
                     "type": "list.product_reference",
                     "value": "[\"gid://shopify/Product/10173071262002\"]",
-                    "jsonValue": [
-                      "gid://shopify/Product/10173071262002"
-                    ],
+                    "jsonValue": ["gid://shopify/Product/10173071262002"],
                     "compareDigest": "72a5a4b45de70ef29d5f2eab6fef813b9c1ca0aea941add509e6eff5de4b7b07",
                     "createdAt": "2026-04-28T23:00:47Z",
                     "updatedAt": "2026-04-28T23:00:47Z",
@@ -9681,9 +9623,7 @@
                     "key": "list_variant_reference",
                     "type": "list.variant_reference",
                     "value": "[\"gid://shopify/ProductVariant/51109306335538\"]",
-                    "jsonValue": [
-                      "gid://shopify/ProductVariant/51109306335538"
-                    ],
+                    "jsonValue": ["gid://shopify/ProductVariant/51109306335538"],
                     "compareDigest": "e3e84a6bea537fceb0d0fbab70dd2c0ca647aa52a40771e654233850db274d44",
                     "createdAt": "2026-04-28T23:00:47Z",
                     "updatedAt": "2026-04-28T23:00:47Z",
@@ -9707,9 +9647,7 @@
                     "key": "list_collection_reference",
                     "type": "list.collection_reference",
                     "value": "[\"gid://shopify/Collection/512228163890\"]",
-                    "jsonValue": [
-                      "gid://shopify/Collection/512228163890"
-                    ],
+                    "jsonValue": ["gid://shopify/Collection/512228163890"],
                     "compareDigest": "67d7593f1bc816fee6784ad50f85b20d8bcb8f358b619faa7bc0ee9f01abd4d5",
                     "createdAt": "2026-04-28T23:00:47Z",
                     "updatedAt": "2026-04-28T23:00:47Z",
@@ -13336,9 +13274,7 @@
                     "key": "list_color",
                     "type": "list.color",
                     "value": "[\"#fff123\"]",
-                    "jsonValue": [
-                      "#fff123"
-                    ],
+                    "jsonValue": ["#fff123"],
                     "definition": {
                       "key": "list_color",
                       "name": "list.color",
@@ -13413,9 +13349,7 @@
                     "key": "list_date",
                     "type": "list.date",
                     "value": "[\"2022-02-02\"]",
-                    "jsonValue": [
-                      "2022-02-02"
-                    ],
+                    "jsonValue": ["2022-02-02"],
                     "definition": {
                       "key": "list_date",
                       "name": "list.date",
@@ -13430,9 +13364,7 @@
                     "key": "list_date_time",
                     "type": "list.date_time",
                     "value": "[\"2024-01-01T12:30:00+00:00\"]",
-                    "jsonValue": [
-                      "2024-01-01T12:30:00+00:00"
-                    ],
+                    "jsonValue": ["2024-01-01T12:30:00+00:00"],
                     "definition": {
                       "key": "list_date_time",
                       "name": "list.date_time",
@@ -13707,9 +13639,7 @@
                     "key": "list_number_decimal",
                     "type": "list.number_decimal",
                     "value": "[\"10.4\"]",
-                    "jsonValue": [
-                      "10.4"
-                    ],
+                    "jsonValue": ["10.4"],
                     "definition": {
                       "key": "list_number_decimal",
                       "name": "list.number_decimal",
@@ -13724,9 +13654,7 @@
                     "key": "list_number_integer",
                     "type": "list.number_integer",
                     "value": "[10]",
-                    "jsonValue": [
-                      10
-                    ],
+                    "jsonValue": [10],
                     "definition": {
                       "key": "list_number_integer",
                       "name": "list.number_integer",
@@ -13842,9 +13770,7 @@
                     "key": "list_single_line_text_field",
                     "type": "list.single_line_text_field",
                     "value": "[\"VIP shipping method\"]",
-                    "jsonValue": [
-                      "VIP shipping method"
-                    ],
+                    "jsonValue": ["VIP shipping method"],
                     "definition": {
                       "key": "list_single_line_text_field",
                       "name": "list.single_line_text_field",
@@ -14141,9 +14067,7 @@
                   "key": "list_color",
                   "type": "list.color",
                   "value": "[\"#fff123\"]",
-                  "jsonValue": [
-                    "#fff123"
-                  ],
+                  "jsonValue": ["#fff123"],
                   "definition": {
                     "key": "list_color",
                     "name": "list.color",
@@ -14218,9 +14142,7 @@
                   "key": "list_date",
                   "type": "list.date",
                   "value": "[\"2022-02-02\"]",
-                  "jsonValue": [
-                    "2022-02-02"
-                  ],
+                  "jsonValue": ["2022-02-02"],
                   "definition": {
                     "key": "list_date",
                     "name": "list.date",
@@ -14235,9 +14157,7 @@
                   "key": "list_date_time",
                   "type": "list.date_time",
                   "value": "[\"2024-01-01T12:30:00+00:00\"]",
-                  "jsonValue": [
-                    "2024-01-01T12:30:00+00:00"
-                  ],
+                  "jsonValue": ["2024-01-01T12:30:00+00:00"],
                   "definition": {
                     "key": "list_date_time",
                     "name": "list.date_time",
@@ -14512,9 +14432,7 @@
                   "key": "list_number_decimal",
                   "type": "list.number_decimal",
                   "value": "[\"10.4\"]",
-                  "jsonValue": [
-                    "10.4"
-                  ],
+                  "jsonValue": ["10.4"],
                   "definition": {
                     "key": "list_number_decimal",
                     "name": "list.number_decimal",
@@ -14529,9 +14447,7 @@
                   "key": "list_number_integer",
                   "type": "list.number_integer",
                   "value": "[10]",
-                  "jsonValue": [
-                    10
-                  ],
+                  "jsonValue": [10],
                   "definition": {
                     "key": "list_number_integer",
                     "name": "list.number_integer",
@@ -14647,9 +14563,7 @@
                   "key": "list_single_line_text_field",
                   "type": "list.single_line_text_field",
                   "value": "[\"VIP shipping method\"]",
-                  "jsonValue": [
-                    "VIP shipping method"
-                  ],
+                  "jsonValue": ["VIP shipping method"],
                   "definition": {
                     "key": "list_single_line_text_field",
                     "name": "list.single_line_text_field",
@@ -14914,9 +14828,7 @@
                   "key": "list_color",
                   "type": "list.color",
                   "value": "[\"#fff123\"]",
-                  "jsonValue": [
-                    "#fff123"
-                  ],
+                  "jsonValue": ["#fff123"],
                   "definition": {
                     "key": "list_color",
                     "name": "list.color",
@@ -14991,9 +14903,7 @@
                   "key": "list_date",
                   "type": "list.date",
                   "value": "[\"2022-02-02\"]",
-                  "jsonValue": [
-                    "2022-02-02"
-                  ],
+                  "jsonValue": ["2022-02-02"],
                   "definition": {
                     "key": "list_date",
                     "name": "list.date",
@@ -15008,9 +14918,7 @@
                   "key": "list_date_time",
                   "type": "list.date_time",
                   "value": "[\"2024-01-01T12:30:00+00:00\"]",
-                  "jsonValue": [
-                    "2024-01-01T12:30:00+00:00"
-                  ],
+                  "jsonValue": ["2024-01-01T12:30:00+00:00"],
                   "definition": {
                     "key": "list_date_time",
                     "name": "list.date_time",
@@ -15285,9 +15193,7 @@
                   "key": "list_number_decimal",
                   "type": "list.number_decimal",
                   "value": "[\"10.4\"]",
-                  "jsonValue": [
-                    "10.4"
-                  ],
+                  "jsonValue": ["10.4"],
                   "definition": {
                     "key": "list_number_decimal",
                     "name": "list.number_decimal",
@@ -15302,9 +15208,7 @@
                   "key": "list_number_integer",
                   "type": "list.number_integer",
                   "value": "[10]",
-                  "jsonValue": [
-                    10
-                  ],
+                  "jsonValue": [10],
                   "definition": {
                     "key": "list_number_integer",
                     "name": "list.number_integer",
@@ -15420,9 +15324,7 @@
                   "key": "list_single_line_text_field",
                   "type": "list.single_line_text_field",
                   "value": "[\"VIP shipping method\"]",
-                  "jsonValue": [
-                    "VIP shipping method"
-                  ],
+                  "jsonValue": ["VIP shipping method"],
                   "definition": {
                     "key": "list_single_line_text_field",
                     "name": "list.single_line_text_field",
@@ -15689,9 +15591,7 @@
                       "key": "list_color",
                       "type": "list.color",
                       "value": "[\"#fff123\"]",
-                      "jsonValue": [
-                        "#fff123"
-                      ],
+                      "jsonValue": ["#fff123"],
                       "definition": {
                         "key": "list_color",
                         "name": "list.color",
@@ -15766,9 +15666,7 @@
                       "key": "list_date",
                       "type": "list.date",
                       "value": "[\"2022-02-02\"]",
-                      "jsonValue": [
-                        "2022-02-02"
-                      ],
+                      "jsonValue": ["2022-02-02"],
                       "definition": {
                         "key": "list_date",
                         "name": "list.date",
@@ -15783,9 +15681,7 @@
                       "key": "list_date_time",
                       "type": "list.date_time",
                       "value": "[\"2024-01-01T12:30:00+00:00\"]",
-                      "jsonValue": [
-                        "2024-01-01T12:30:00+00:00"
-                      ],
+                      "jsonValue": ["2024-01-01T12:30:00+00:00"],
                       "definition": {
                         "key": "list_date_time",
                         "name": "list.date_time",
@@ -16060,9 +15956,7 @@
                       "key": "list_number_decimal",
                       "type": "list.number_decimal",
                       "value": "[\"10.4\"]",
-                      "jsonValue": [
-                        "10.4"
-                      ],
+                      "jsonValue": ["10.4"],
                       "definition": {
                         "key": "list_number_decimal",
                         "name": "list.number_decimal",
@@ -16077,9 +15971,7 @@
                       "key": "list_number_integer",
                       "type": "list.number_integer",
                       "value": "[10]",
-                      "jsonValue": [
-                        10
-                      ],
+                      "jsonValue": [10],
                       "definition": {
                         "key": "list_number_integer",
                         "name": "list.number_integer",
@@ -16195,9 +16087,7 @@
                       "key": "list_single_line_text_field",
                       "type": "list.single_line_text_field",
                       "value": "[\"VIP shipping method\"]",
-                      "jsonValue": [
-                        "VIP shipping method"
-                      ],
+                      "jsonValue": ["VIP shipping method"],
                       "definition": {
                         "key": "list_single_line_text_field",
                         "name": "list.single_line_text_field",
@@ -16440,9 +16330,7 @@
                     "key": "list_url",
                     "type": "list.url",
                     "value": "[\"https://www.shopify.com\"]",
-                    "jsonValue": [
-                      "https://www.shopify.com"
-                    ],
+                    "jsonValue": ["https://www.shopify.com"],
                     "definition": {
                       "key": "list_url",
                       "name": "list.url",
@@ -16552,9 +16440,7 @@
                     "key": "list_product_reference",
                     "type": "list.product_reference",
                     "value": "[\"gid://shopify/Product/10173071262002\"]",
-                    "jsonValue": [
-                      "gid://shopify/Product/10173071262002"
-                    ],
+                    "jsonValue": ["gid://shopify/Product/10173071262002"],
                     "definition": {
                       "key": "list_product_reference",
                       "name": "list.product_reference",
@@ -16584,9 +16470,7 @@
                     "key": "list_variant_reference",
                     "type": "list.variant_reference",
                     "value": "[\"gid://shopify/ProductVariant/51109306335538\"]",
-                    "jsonValue": [
-                      "gid://shopify/ProductVariant/51109306335538"
-                    ],
+                    "jsonValue": ["gid://shopify/ProductVariant/51109306335538"],
                     "definition": {
                       "key": "list_variant_reference",
                       "name": "list.variant_reference",
@@ -16616,9 +16500,7 @@
                     "key": "list_collection_reference",
                     "type": "list.collection_reference",
                     "value": "[\"gid://shopify/Collection/512228163890\"]",
-                    "jsonValue": [
-                      "gid://shopify/Collection/512228163890"
-                    ],
+                    "jsonValue": ["gid://shopify/Collection/512228163890"],
                     "definition": {
                       "key": "list_collection_reference",
                       "name": "list.collection_reference",
@@ -16648,9 +16530,7 @@
                     "key": "list_metaobject_reference",
                     "type": "list.metaobject_reference",
                     "value": "[\"gid://shopify/Metaobject/185981075762\"]",
-                    "jsonValue": [
-                      "gid://shopify/Metaobject/185981075762"
-                    ],
+                    "jsonValue": ["gid://shopify/Metaobject/185981075762"],
                     "definition": {
                       "key": "list_metaobject_reference",
                       "name": "list.metaobject_reference",
@@ -16680,9 +16560,7 @@
                     "key": "list_mixed_reference",
                     "type": "list.mixed_reference",
                     "value": "[\"gid://shopify/Metaobject/185981075762\"]",
-                    "jsonValue": [
-                      "gid://shopify/Metaobject/185981075762"
-                    ],
+                    "jsonValue": ["gid://shopify/Metaobject/185981075762"],
                     "definition": {
                       "key": "list_mixed_reference",
                       "name": "list.mixed_reference",
@@ -16818,9 +16696,7 @@
                   "key": "list_url",
                   "type": "list.url",
                   "value": "[\"https://www.shopify.com\"]",
-                  "jsonValue": [
-                    "https://www.shopify.com"
-                  ],
+                  "jsonValue": ["https://www.shopify.com"],
                   "definition": {
                     "key": "list_url",
                     "name": "list.url",
@@ -16930,9 +16806,7 @@
                   "key": "list_product_reference",
                   "type": "list.product_reference",
                   "value": "[\"gid://shopify/Product/10173071262002\"]",
-                  "jsonValue": [
-                    "gid://shopify/Product/10173071262002"
-                  ],
+                  "jsonValue": ["gid://shopify/Product/10173071262002"],
                   "definition": {
                     "key": "list_product_reference",
                     "name": "list.product_reference",
@@ -16962,9 +16836,7 @@
                   "key": "list_variant_reference",
                   "type": "list.variant_reference",
                   "value": "[\"gid://shopify/ProductVariant/51109306335538\"]",
-                  "jsonValue": [
-                    "gid://shopify/ProductVariant/51109306335538"
-                  ],
+                  "jsonValue": ["gid://shopify/ProductVariant/51109306335538"],
                   "definition": {
                     "key": "list_variant_reference",
                     "name": "list.variant_reference",
@@ -16994,9 +16866,7 @@
                   "key": "list_collection_reference",
                   "type": "list.collection_reference",
                   "value": "[\"gid://shopify/Collection/512228163890\"]",
-                  "jsonValue": [
-                    "gid://shopify/Collection/512228163890"
-                  ],
+                  "jsonValue": ["gid://shopify/Collection/512228163890"],
                   "definition": {
                     "key": "list_collection_reference",
                     "name": "list.collection_reference",
@@ -17026,9 +16896,7 @@
                   "key": "list_metaobject_reference",
                   "type": "list.metaobject_reference",
                   "value": "[\"gid://shopify/Metaobject/185981075762\"]",
-                  "jsonValue": [
-                    "gid://shopify/Metaobject/185981075762"
-                  ],
+                  "jsonValue": ["gid://shopify/Metaobject/185981075762"],
                   "definition": {
                     "key": "list_metaobject_reference",
                     "name": "list.metaobject_reference",
@@ -17058,9 +16926,7 @@
                   "key": "list_mixed_reference",
                   "type": "list.mixed_reference",
                   "value": "[\"gid://shopify/Metaobject/185981075762\"]",
-                  "jsonValue": [
-                    "gid://shopify/Metaobject/185981075762"
-                  ],
+                  "jsonValue": ["gid://shopify/Metaobject/185981075762"],
                   "definition": {
                     "key": "list_mixed_reference",
                     "name": "list.mixed_reference",
@@ -17164,9 +17030,7 @@
                   "key": "list_url",
                   "type": "list.url",
                   "value": "[\"https://www.shopify.com\"]",
-                  "jsonValue": [
-                    "https://www.shopify.com"
-                  ],
+                  "jsonValue": ["https://www.shopify.com"],
                   "definition": {
                     "key": "list_url",
                     "name": "list.url",
@@ -17276,9 +17140,7 @@
                   "key": "list_product_reference",
                   "type": "list.product_reference",
                   "value": "[\"gid://shopify/Product/10173071262002\"]",
-                  "jsonValue": [
-                    "gid://shopify/Product/10173071262002"
-                  ],
+                  "jsonValue": ["gid://shopify/Product/10173071262002"],
                   "definition": {
                     "key": "list_product_reference",
                     "name": "list.product_reference",
@@ -17308,9 +17170,7 @@
                   "key": "list_variant_reference",
                   "type": "list.variant_reference",
                   "value": "[\"gid://shopify/ProductVariant/51109306335538\"]",
-                  "jsonValue": [
-                    "gid://shopify/ProductVariant/51109306335538"
-                  ],
+                  "jsonValue": ["gid://shopify/ProductVariant/51109306335538"],
                   "definition": {
                     "key": "list_variant_reference",
                     "name": "list.variant_reference",
@@ -17340,9 +17200,7 @@
                   "key": "list_collection_reference",
                   "type": "list.collection_reference",
                   "value": "[\"gid://shopify/Collection/512228163890\"]",
-                  "jsonValue": [
-                    "gid://shopify/Collection/512228163890"
-                  ],
+                  "jsonValue": ["gid://shopify/Collection/512228163890"],
                   "definition": {
                     "key": "list_collection_reference",
                     "name": "list.collection_reference",
@@ -17372,9 +17230,7 @@
                   "key": "list_metaobject_reference",
                   "type": "list.metaobject_reference",
                   "value": "[\"gid://shopify/Metaobject/185981075762\"]",
-                  "jsonValue": [
-                    "gid://shopify/Metaobject/185981075762"
-                  ],
+                  "jsonValue": ["gid://shopify/Metaobject/185981075762"],
                   "definition": {
                     "key": "list_metaobject_reference",
                     "name": "list.metaobject_reference",
@@ -17404,9 +17260,7 @@
                   "key": "list_mixed_reference",
                   "type": "list.mixed_reference",
                   "value": "[\"gid://shopify/Metaobject/185981075762\"]",
-                  "jsonValue": [
-                    "gid://shopify/Metaobject/185981075762"
-                  ],
+                  "jsonValue": ["gid://shopify/Metaobject/185981075762"],
                   "definition": {
                     "key": "list_mixed_reference",
                     "name": "list.mixed_reference",
@@ -17512,9 +17366,7 @@
                       "key": "list_url",
                       "type": "list.url",
                       "value": "[\"https://www.shopify.com\"]",
-                      "jsonValue": [
-                        "https://www.shopify.com"
-                      ],
+                      "jsonValue": ["https://www.shopify.com"],
                       "definition": {
                         "key": "list_url",
                         "name": "list.url",
@@ -17624,9 +17476,7 @@
                       "key": "list_product_reference",
                       "type": "list.product_reference",
                       "value": "[\"gid://shopify/Product/10173071262002\"]",
-                      "jsonValue": [
-                        "gid://shopify/Product/10173071262002"
-                      ],
+                      "jsonValue": ["gid://shopify/Product/10173071262002"],
                       "definition": {
                         "key": "list_product_reference",
                         "name": "list.product_reference",
@@ -17656,9 +17506,7 @@
                       "key": "list_variant_reference",
                       "type": "list.variant_reference",
                       "value": "[\"gid://shopify/ProductVariant/51109306335538\"]",
-                      "jsonValue": [
-                        "gid://shopify/ProductVariant/51109306335538"
-                      ],
+                      "jsonValue": ["gid://shopify/ProductVariant/51109306335538"],
                       "definition": {
                         "key": "list_variant_reference",
                         "name": "list.variant_reference",
@@ -17688,9 +17536,7 @@
                       "key": "list_collection_reference",
                       "type": "list.collection_reference",
                       "value": "[\"gid://shopify/Collection/512228163890\"]",
-                      "jsonValue": [
-                        "gid://shopify/Collection/512228163890"
-                      ],
+                      "jsonValue": ["gid://shopify/Collection/512228163890"],
                       "definition": {
                         "key": "list_collection_reference",
                         "name": "list.collection_reference",
@@ -17720,9 +17566,7 @@
                       "key": "list_metaobject_reference",
                       "type": "list.metaobject_reference",
                       "value": "[\"gid://shopify/Metaobject/185981075762\"]",
-                      "jsonValue": [
-                        "gid://shopify/Metaobject/185981075762"
-                      ],
+                      "jsonValue": ["gid://shopify/Metaobject/185981075762"],
                       "definition": {
                         "key": "list_metaobject_reference",
                         "name": "list.metaobject_reference",
@@ -17752,9 +17596,7 @@
                       "key": "list_mixed_reference",
                       "type": "list.mixed_reference",
                       "value": "[\"gid://shopify/Metaobject/185981075762\"]",
-                      "jsonValue": [
-                        "gid://shopify/Metaobject/185981075762"
-                      ],
+                      "jsonValue": ["gid://shopify/Metaobject/185981075762"],
                       "definition": {
                         "key": "list_mixed_reference",
                         "name": "list.mixed_reference",

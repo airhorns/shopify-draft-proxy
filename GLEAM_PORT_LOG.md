@@ -18,15 +18,15 @@ local. Supported metaobject mutations still stage locally; they use Pattern 2
 hydrate reads only to load upstream definitions or rows needed before local
 mutation handling.
 
-| Module / fixture                                                | Change                                                                                              |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/metaobject_definitions.gleam` | Adds cold-read passthrough, mutation prerequisite hydration, and BEAM/JS-stable measurement numbers. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`         | Routes metaobject reads/mutations through the upstream-aware metaobject entrypoints.                 |
-| `fixtures/conformance/**/metaobjects/*.json`                    | Hand-synthesizes metaobject read/hydrate cassette entries from checked-in capture evidence.          |
+| Module / fixture                                                        | Change                                                                                               |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/metaobject_definitions.gleam`      | Adds cold-read passthrough, mutation prerequisite hydration, and BEAM/JS-stable measurement numbers. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | Routes metaobject reads/mutations through the upstream-aware metaobject entrypoints.                 |
+| `fixtures/conformance/**/metaobjects/*.json`                            | Hand-synthesizes metaobject read/hydrate cassette entries from checked-in capture evidence.          |
 | `fixtures/conformance/**/metafields/custom-data-field-type-matrix.json` | Adds definition hydrate cassette entries for the metaobject custom-data matrix.                      |
-| `config/parity-specs/metaobjects/*.json`                        | Prunes stale cursor expected-difference rules where cold passthrough now matches captures.           |
-| `config/gleam-port-ci-gates.json`                               | Removes the six Metaobjects expected-failure entries.                                                |
-| `docs/endpoints/metaobjects.md`                                 | Documents the cassette-backed cold-read and mutation-hydration behavior.                             |
+| `config/parity-specs/metaobjects/*.json`                                | Prunes stale cursor expected-difference rules where cold passthrough now matches captures.           |
+| `config/gleam-port-ci-gates.json`                                       | Removes the six Metaobjects expected-failure entries.                                                |
+| `docs/endpoints/metaobjects.md`                                         | Documents the cassette-backed cold-read and mutation-hydration behavior.                             |
 
 Validation:
 

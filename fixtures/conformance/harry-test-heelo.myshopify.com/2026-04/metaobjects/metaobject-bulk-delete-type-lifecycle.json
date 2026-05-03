@@ -671,9 +671,7 @@
             "deletedId": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Record not found",
                 "code": "RECORD_NOT_FOUND",
                 "elementKey": null,
@@ -710,9 +708,7 @@
             "deletedId": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Record not found",
                 "code": "RECORD_NOT_FOUND",
                 "elementKey": null,
