@@ -25,14 +25,6 @@
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
     {
-      "specPath": "config/parity-specs/online-store/online-store-content-lifecycle.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/online-store/online-store-content-search-filters.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
       "specPath": "config/parity-specs/payments/customer-payment-method-local-staging.json",
       "reason": "Cassette migrated; proxy returned non-2xx status due to cassette miss or unhandled operation. Re-record or wire handler."
     },

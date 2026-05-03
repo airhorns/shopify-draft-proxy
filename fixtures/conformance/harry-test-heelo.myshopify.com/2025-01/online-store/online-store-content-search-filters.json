@@ -521,5 +521,121 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OnlineStoreContentSearchFilters",
+      "variables": {
+        "articleTagQuery": "tag:har-393-search-20260428020158",
+        "articleAuthorQuery": "author:'HAR 393 Search Author 20260428020158'",
+        "blogTitleQuery": "title:'HAR 393 Search Blog 20260428020158'",
+        "pagePublishedQuery": "published_status:published title:'HAR 393 Search Page 20260428020158'"
+      },
+      "query": "hand-synthesized from captured search-filters response",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "articlesByTag": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Article/683107746098",
+                  "title": "HAR 393 Search Article 20260428020158",
+                  "handle": "har-393-search-article-20260428020158",
+                  "tags": ["har-393-search-20260428020158", "online-store"],
+                  "isPublished": true,
+                  "author": {
+                    "name": "HAR 393 Search Author 20260428020158"
+                  },
+                  "blog": {
+                    "id": "gid://shopify/Blog/120870142258",
+                    "title": "HAR 393 Search Blog 20260428020158",
+                    "handle": "har-393-search-blog-20260428020158"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOjY4MzEwNzc0NjA5OH0=",
+                "endCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOjY4MzEwNzc0NjA5OH0="
+              }
+            },
+            "articlesByAuthor": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Article/683107746098",
+                  "title": "HAR 393 Search Article 20260428020158",
+                  "handle": "har-393-search-article-20260428020158",
+                  "tags": ["har-393-search-20260428020158", "online-store"],
+                  "isPublished": true,
+                  "author": {
+                    "name": "HAR 393 Search Author 20260428020158"
+                  },
+                  "blog": {
+                    "id": "gid://shopify/Blog/120870142258",
+                    "title": "HAR 393 Search Blog 20260428020158",
+                    "handle": "har-393-search-blog-20260428020158"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOiI2ODMxMDc3NDYwOTgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOiI2ODMxMDc3NDYwOTgifQ=="
+              }
+            },
+            "blogsByTitle": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Blog/120870142258",
+                  "title": "HAR 393 Search Blog 20260428020158",
+                  "handle": "har-393-search-blog-20260428020158",
+                  "commentPolicy": "MODERATED",
+                  "articlesCount": {
+                    "count": 1,
+                    "precision": "EXACT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjA4NzAxNDIyNTgsImxhc3RfdmFsdWUiOiIxMjA4NzAxNDIyNTgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMjA4NzAxNDIyNTgsImxhc3RfdmFsdWUiOiIxMjA4NzAxNDIyNTgifQ=="
+              }
+            },
+            "pagesByPublishedTitle": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Page/159399838002",
+                  "title": "HAR 393 Search Page 20260428020158",
+                  "handle": "har-393-search-page-20260428020158",
+                  "isPublished": true,
+                  "publishedAt": "2026-04-28T02:01:58Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNTkzOTk4MzgwMDIsImxhc3RfdmFsdWUiOiIxNTkzOTk4MzgwMDIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxNTkzOTk4MzgwMDIsImxhc3RfdmFsdWUiOiIxNTkzOTk4MzgwMDIifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 62,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1937,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
