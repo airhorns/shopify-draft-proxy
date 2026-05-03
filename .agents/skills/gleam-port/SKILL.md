@@ -222,31 +222,33 @@ If your test fixtures use the wrong form, look-by-id misses silently.
 Trust the actual handler output rather than guessing — Pass 19 + 20 both
 hit this.
 
-### Parity runner capture seeding
+### Parity runner cassette playback
 
-Some parity specs use a setup mutation against an upstream resource
-that already exists in the live capture. Do not edit those specs or
-rewrite the setup request. Seed the Gleam proxy from capture data in
-`test/parity/runner.gleam` before executing the primary request,
-mirroring the TS parity harness.
+Parity tests run the Gleam proxy in `LiveHybrid` mode against a
+recorded cassette of upstream GraphQL traffic. The legacy
+`seed_capture_preconditions` dispatch and every `seed_*_preconditions`
+helper are gone — capture files no longer carry `seedX` keys, and the
+runner does **not** pre-write into `base_state`. The cassette
+(`upstreamCalls` array on the capture file) is installed as the
+proxy's upstream transport via `draft_proxy.with_upstream_transport`,
+and operation handlers reach upstream when they need to via the
+`proxy/upstream_query.fetch_*` chokepoint.
 
-`seed_capture_preconditions` folds over a flat list of helper
-functions, each of which self-gates on JSON path markers (e.g.
-`$.mutation.response.data.<operationName>`, `$.precondition`,
-`$.seedShopifyFunctions`) and is a no-op when its markers aren't
-present. **Never branch on `parsed.scenario_id`** — new parity specs
-must land without runner edits if their capture exposes the markers
-existing helpers already check. To add a helper, append it to the
-list and gate it on a capture path that uniquely identifies the
-family of captures it should fire for.
+When you need a mutation to read the prior record before staging
+(e.g., `customerUpdate` merging fields onto an existing customer),
+add a narrow `upstream_query.fetch_sync` call inside the operation
+handler and document the choice — what it fetches, why, what it
+persists, and what it does in `Snapshot` mode — as a short inline
+comment next to the handler.
 
-A long pipe chain in this position used to break the Erlang compiler
-(20+ minute hang on the optimizer); the list+fold form keeps build
-time under a second on both targets.
+When an `upstream_query.fetch` call is missing from the cassette, the
+parity runner fails loudly with `cassette miss: operation=<name>
+variables=<json>`. Re-record the cassette with `pnpm parity:record
+<scenario-id>` to fix.
 
-Decode only fields present in the capture, upsert them into base
-state, then let the setup mutation produce the staged read-after-write
-state.
+See `docs/parity-runner.md` for the full model, the cassette schema,
+spec `mode` field, the empty-snapshot variant, and the per-domain
+migration playbook.
 
 If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that
@@ -283,15 +285,14 @@ matches the JSON source.
 
 ### Functions parity note
 
-Captures with `seedShopifyFunctions` share one runner seeding helper for
-local staging and live read-only scenarios. The helper is gated on the
-presence of `$.seedShopifyFunctions` or the captured Functions-flavoured
-mutations (`cartTransformCreate`, `validationCreate`, `taxAppConfigure`)
-in `$.primary.response.data`. When a local-runtime Functions fixture
-appears one synthetic id/timestamp step ahead, check whether the
-TypeScript conformance harness seeds the synthetic registry before the
-primary request; mirror that seed in the Gleam runner rather than adding
-broad synthetic-id/timestamp expected differences.
+Functions parity scenarios (`cartTransformCreate`, `validationCreate`,
+`taxAppConfigure`, …) follow the cassette-playback model like every
+other domain: re-record the cassette with `pnpm parity:record
+<scenario-id>` so any upstream calls the operation handlers issue
+(e.g., to look up an existing function definition before staging a
+mutation) are captured. Do not pre-seed `base_state` and do not add
+broad synthetic-id/timestamp `expectedDifferences` as a workaround
+for a missing cassette entry — fix the recording instead.
 
 ### Porting notes
 

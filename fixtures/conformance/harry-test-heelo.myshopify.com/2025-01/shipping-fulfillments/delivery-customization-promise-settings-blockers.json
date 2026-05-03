@@ -118,5 +118,6 @@
     "Customization and promise blockers are not treated as empty successful reads.",
     "Delivery customization mutations are Shopify Function-backed and remain unsupported until authorized success and validation captures exist.",
     "Delivery promise and delivery setting mutations remain unsupported until access, eligibility, and downstream read-after-write behavior are captured."
-  ]
+  ],
+  "upstreamCalls": []
 }

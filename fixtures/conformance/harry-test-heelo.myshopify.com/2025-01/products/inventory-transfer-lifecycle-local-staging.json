@@ -289,5 +289,6 @@
     "productsDeleted": true,
     "readyTransferCanceled": true,
     "canceledTransfersRemainBecauseShopifyRejectsNonDraftDelete": true
-  }
+  },
+  "upstreamCalls": []
 }

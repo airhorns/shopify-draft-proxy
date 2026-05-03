@@ -134,13 +134,28 @@ Koa server -> DraftProxy instance
 - builds conformance status JSON for CI comments from discovered specs
 - supports optional override config only for unusual scenario shapes
 
-### `scripts/conformance-parity-lib.ts`
+### `gleam/test/parity/runner.gleam` + `gleam/test/parity_test.gleam`
 
-- classifies conformance scenarios by capture/proxy-request/comparison-contract readiness
-- executes contract-ready proxy requests against local product proxy handlers in snapshot mode
-- blocks live Shopify access during parity execution by rejecting unsupported operations instead of proxying them upstream
-- compares captured Shopify payload slices to proxy payload slices with strict JSON semantics
-- allows nondeterministic values only through explicit path-scoped rules in parity specs
+The parity runner is implemented in Gleam and runs on both targets via
+`pnpm gleam:test`. It replaces the legacy
+`scripts/conformance-parity-lib.ts` (retired by the cassette-playback
+migration; see `docs/parity-runner.md`).
+
+- discovers every spec under `config/parity-specs/**` and runs each
+  one through `draft_proxy.process_request`
+- runs the proxy in `LiveHybrid` mode with a recorded cassette
+  (`upstreamCalls` array on the capture file) installed via
+  `draft_proxy.with_upstream_transport`. Operation handlers may call
+  `proxy/upstream_query.fetch_*` to reach upstream; the cassette
+  serves those calls deterministically
+- supports a `snapshot-empty` spec mode that asserts cold-state
+  behavior with no transport installed
+- compares captured Shopify payload slices to proxy payload slices with
+  strict JSON semantics; nondeterministic values are tolerated only via
+  explicit path-scoped rules (`expectedDifferences`) in the spec
+- `expectedDifferences` is a last resort, not a fixture-seeding
+  shortcut; the runner does **not** pre-seed `base_state` from
+  captured responses
 
 ## State model
 

@@ -25,6 +25,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/payments
+import shopify_draft_proxy/proxy/proxy_state.{type DraftProxy}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -89,6 +90,26 @@ pub fn is_customer_query_root(name: String) -> Bool {
   }
 }
 
+/// True iff the requested `customer(id:)` argument resolves to a
+/// customer that's already in local state (base or staged). Used by
+/// the dispatcher to skip `LiveHybrid` passthrough when a prior
+/// staged mutation has already produced the record we'd otherwise
+/// fetch — e.g. a `customerCreate` followed by `customer(id: <newly
+/// staged synthetic gid>)` in the same scenario.
+pub fn local_has_customer_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.get(variables, "id") {
+    Ok(root_field.StringVal(id)) ->
+      case store.get_effective_customer_by_id(proxy.store, id) {
+        Some(_) -> True
+        None -> False
+      }
+    _ -> False
+  }
+}
+
 pub fn is_customer_mutation_root(name: String) -> Bool {
   case name {
     "customerCreate"
@@ -119,7 +140,7 @@ pub fn is_customer_mutation_root(name: String) -> Bool {
 }
 
 pub fn handle_customer_query(
-  store: Store,
+  proxy: DraftProxy,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, CustomersError) {
@@ -127,7 +148,7 @@ pub fn handle_customer_query(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(serialize_root_fields(store, fields, fragments, variables))
+      Ok(serialize_root_fields(proxy, fields, fragments, variables))
     }
   }
 }
@@ -137,7 +158,7 @@ pub fn wrap_data(data: Json) -> Json {
 }
 
 pub fn process(
-  store: Store,
+  proxy: DraftProxy,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, CustomersError) {
@@ -145,7 +166,7 @@ pub fn process(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      let data = serialize_root_fields(store, fields, fragments, variables)
+      let data = serialize_root_fields(proxy, fields, fragments, variables)
       let search_extensions =
         customer_count_search_extensions(fields, variables)
       Ok(wrap_query_payload(data, search_extensions))
@@ -246,7 +267,7 @@ fn option_to_result(value: Option(a)) -> Result(a, Nil) {
 }
 
 fn serialize_root_fields(
-  store: Store,
+  proxy: DraftProxy,
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -255,18 +276,19 @@ fn serialize_root_fields(
     list.map(fields, fn(field) {
       #(
         get_field_response_key(field),
-        root_payload_for_field(store, field, fragments, variables),
+        root_payload_for_field(proxy, field, fragments, variables),
       )
     }),
   )
 }
 
 fn root_payload_for_field(
-  store: Store,
+  proxy: DraftProxy,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
+  let store = proxy.store
   case field {
     Field(name: name, ..) ->
       case name.value {
@@ -276,7 +298,7 @@ fn root_payload_for_field(
           serialize_customer_by_identifier(store, field, fragments, variables)
         "customers" ->
           serialize_customers_connection(store, field, fragments, variables)
-        "customersCount" -> serialize_customers_count(store, field, variables)
+        "customersCount" -> serialize_customers_count(proxy, field, variables)
         "customerAccountPage" ->
           serialize_customer_account_page(store, field, fragments, variables)
         "customerAccountPages" ->
@@ -1339,14 +1361,18 @@ fn sort_customers(
   }
 }
 
+/// `customersCount` — in `LiveHybrid` mode the dispatcher passes the
+/// request straight through to upstream (see
+/// `live_hybrid_passthrough_target` in `draft_proxy.gleam`); the local
+/// store can't know the real total. This handler only runs in
+/// `Snapshot` mode and returns the count of effective local customers
+/// (typically zero against an empty store).
 fn serialize_customers_count(
-  store: Store,
+  proxy: DraftProxy,
   field: Selection,
   _variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let count =
-    store.list_effective_customers(store)
-    |> list.length()
+  let count = store.list_effective_customers(proxy.store) |> list.length()
   case field {
     Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
       project_graphql_value(
@@ -1625,12 +1651,13 @@ fn job_source(job_id: String, status: String) -> SourceValue {
 }
 
 pub fn process_mutation(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
+  proxy: DraftProxy,
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(MutationOutcome, CustomersError) {
+  let store = proxy.store
+  let identity = proxy.synthetic_identity
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
@@ -3426,8 +3453,22 @@ fn handle_customer_tax_exemptions(
               })
             _ -> normalize_tags(exemptions)
           }
+          let #(updated_at, next_identity) = case
+            next_exemptions == customer.tax_exemptions
+          {
+            True -> #(customer.updated_at, identity)
+            False -> {
+              let #(ts, after_ts) =
+                synthetic_identity.make_synthetic_timestamp(identity)
+              #(Some(ts), after_ts)
+            }
+          }
           let updated =
-            CustomerRecord(..customer, tax_exemptions: next_exemptions)
+            CustomerRecord(
+              ..customer,
+              tax_exemptions: next_exemptions,
+              updated_at: updated_at,
+            )
           let #(_, next_store) = store.stage_update_customer(store, updated)
           let payload =
             customer_payload_json(
@@ -3448,7 +3489,7 @@ fn handle_customer_tax_exemptions(
               root,
             ),
             next_store,
-            identity,
+            next_identity,
           )
         }
         None ->

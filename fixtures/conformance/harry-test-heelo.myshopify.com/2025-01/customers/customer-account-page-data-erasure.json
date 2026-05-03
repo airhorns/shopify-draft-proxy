@@ -378,5 +378,30 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerDataErasureCustomerRead",
+      "variables": {
+        "id": "gid://shopify/Customer/10547408830770"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10547408830770",
+              "email": "hermes-data-erasure-1777314932891@example.com",
+              "firstName": "Hermes",
+              "lastName": "DataErasure",
+              "tags": ["data-erasure-1777314932891", "parity"],
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

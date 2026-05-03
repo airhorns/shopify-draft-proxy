@@ -5,6 +5,7 @@ import gleam/json
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type ShopPolicyRecord, type ShopRecord, type StorePropertyRecord,
@@ -33,7 +34,7 @@ fn meta_get(path: String) -> draft_proxy.Request {
 fn seeded_proxy() -> draft_proxy.DraftProxy {
   let proxy = draft_proxy.new()
   let seeded_store = store.upsert_base_shop(proxy.store, make_shop([]))
-  draft_proxy.DraftProxy(..proxy, store: seeded_store)
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
 fn make_shop(policies: List(ShopPolicyRecord)) -> ShopRecord {
@@ -234,7 +235,7 @@ pub fn shop_policy_update_reuses_existing_policy_test() {
       proxy.store,
       make_shop([make_policy("<p>Before</p>")]),
     )
-  let proxy = draft_proxy.DraftProxy(..proxy, store: seeded_store)
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
   let mutation_body =
     "{\"query\":\"mutation { shopPolicyUpdate(shopPolicy: { type: CONTACT_INFORMATION, body: \\\"<p>After</p>\\\" }) { shopPolicy { id title body type url createdAt updatedAt } userErrors { field message code } } }\"}"
   let #(draft_proxy.Response(status: status, body: response_body, ..), _) =
@@ -290,7 +291,7 @@ pub fn admin_platform_node_resolves_store_property_records_test() {
   let policy = make_policy("<p>Relay contact policy</p>")
   let proxy = draft_proxy.new()
   let seeded_store = store.upsert_base_shop(proxy.store, make_shop([policy]))
-  let proxy = draft_proxy.DraftProxy(..proxy, store: seeded_store)
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
   let body =
     "{\"query\":\"query($ids: [ID!]!) { node(id: \\\"gid://shopify/ShopAddress/63755419881\\\") { __typename ... on Node { nodeId: id } ... on ShopAddress { city countryCodeV2 } } nodes(ids: $ids) { __typename ... on Node { nodeId: id } ... on ShopPolicy { title body type url } } }\",\"variables\":{\"ids\":[\"gid://shopify/ShopPolicy/42438689001\",\"gid://shopify/Unknown/1\"]}}"
   let #(draft_proxy.Response(status: status, body: response_body, ..), _) =
@@ -333,7 +334,7 @@ pub fn location_reads_and_local_mutations_use_store_state_test() {
     ])
   let proxy = draft_proxy.new()
   let proxy =
-    draft_proxy.DraftProxy(
+    proxy_state.DraftProxy(
       ..proxy,
       store: store.upsert_base_store_property_location(proxy.store, location),
     )
@@ -373,7 +374,7 @@ pub fn business_entity_reads_use_primary_and_known_ids_test() {
     ])
   let proxy = draft_proxy.new()
   let proxy =
-    draft_proxy.DraftProxy(
+    proxy_state.DraftProxy(
       ..proxy,
       store: store.upsert_base_business_entity(proxy.store, entity),
     )
@@ -452,7 +453,7 @@ pub fn publishable_publish_stages_collection_projection_test() {
     proxy.store
     |> store.upsert_base_publishable(collection)
     |> store.upsert_base_store_property_mutation_payload(payload)
-  let proxy = draft_proxy.DraftProxy(..proxy, store: seeded_store)
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
   let body =
     "{\"query\":\"mutation($id: ID!, $input: [PublicationInput!]!) { publishablePublish(id: $id, input: $input) { publishable { ... on Collection { id title publishedOnCurrentPublication resourcePublicationsCount { count precision } } } userErrors { field message } } }\",\"variables\":{\"id\":\"gid://shopify/Collection/1\",\"input\":[{\"publicationId\":\"gid://shopify/Publication/1\"}]}}"
   let #(draft_proxy.Response(status: status, body: response_body, ..), proxy) =

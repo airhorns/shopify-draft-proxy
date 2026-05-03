@@ -12,15 +12,11 @@
 import { readFileSync } from 'node:fs';
 
 import {
-  Config,
   type DraftProxy as GleamDraftProxy,
   GraphQLRequestOptions as GleamGraphQLRequestOptions,
-  Live,
-  LiveHybrid,
   Request as GleamRequest,
   type Response as GleamResponse,
   commit as gleamCommit,
-  Snapshot,
   dump_state,
   dump_state_now,
   get_config_snapshot,
@@ -34,6 +30,12 @@ import {
   with_config,
   with_default_registry,
 } from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/draft_proxy.mjs';
+import {
+  Config,
+  Live,
+  LiveHybrid,
+  Snapshot,
+} from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/proxy_state.mjs';
 import { None, Some } from '../../build/dev/javascript/gleam_stdlib/gleam/option.mjs';
 import { to_string as jsonToString } from '../../build/dev/javascript/gleam_json/gleam/json.mjs';
 import { insert as dictInsert, new$ as dictNew } from '../../build/dev/javascript/gleam_stdlib/gleam/dict.mjs';

@@ -4,6 +4,7 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy.{type Request, Request, Response}
+import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type ProductRecord, type ProductVariantRecord, InventoryItemRecord,
@@ -26,7 +27,7 @@ fn graphql_request(query: String) -> Request {
 
 pub fn product_options_create_stages_default_product_options_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
   let query =
     "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", position: 1, values: [{ name: \\\"Red\\\" }, { name: \\\"Green\\\" }] }]) { product { id options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message } } }"
 
@@ -54,7 +55,7 @@ pub fn product_options_create_stages_default_product_options_test() {
 
 pub fn product_option_update_repositions_values_and_variants_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: option_update_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
   let query =
     "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Shade\\\", position: 2 }, optionValuesToAdd: [{ name: \\\"Blue\\\" }], optionValuesToUpdate: [{ id: \\\"gid://shopify/ProductOptionValue/red\\\", name: \\\"Crimson\\\" }], optionValuesToDelete: [\\\"gid://shopify/ProductOptionValue/green\\\"]) { product { id options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message } } }"
 
@@ -82,7 +83,7 @@ pub fn product_option_update_repositions_values_and_variants_test() {
 
 pub fn product_options_delete_restores_default_option_state_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: option_update_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
   let query =
     "mutation { productOptionsDelete(productId: \\\"gid://shopify/Product/optioned\\\", options: [\\\"gid://shopify/ProductOption/color\\\", \\\"gid://shopify/ProductOption/size\\\"]) { deletedOptionsIds product { id options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message } } }"
 
@@ -110,7 +111,7 @@ pub fn product_options_delete_restores_default_option_state_test() {
 
 pub fn product_options_reorder_reorders_variants_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: option_update_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
   let query =
     "mutation { productOptionsReorder(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ id: \\\"gid://shopify/ProductOption/size\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/small\\\" }] }, { id: \\\"gid://shopify/ProductOption/color\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/green\\\" }, { id: \\\"gid://shopify/ProductOptionValue/red\\\" }] }]) { product { id options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message } } }"
 
@@ -138,7 +139,7 @@ pub fn product_options_reorder_reorders_variants_test() {
 
 pub fn product_change_status_stages_search_lagged_status_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
   let query =
     "mutation { productChangeStatus(productId: \\\"gid://shopify/Product/optioned\\\", status: ARCHIVED) { product { id status updatedAt } userErrors { field message } } }"
 
@@ -166,7 +167,7 @@ pub fn product_change_status_stages_search_lagged_status_test() {
 
 pub fn product_delete_stages_downstream_no_data_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
   let query =
     "mutation { productDelete(input: { id: \\\"gid://shopify/Product/optioned\\\" }) { deletedProductId userErrors { field message } } }"
 
@@ -194,7 +195,7 @@ pub fn product_delete_stages_downstream_no_data_test() {
 
 pub fn tags_add_stages_tags_and_preserves_base_tag_search_lag_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
   let query =
     "mutation { tagsAdd(id: \\\"gid://shopify/Product/optioned\\\", tags: [\\\"winter\\\", \\\"existing\\\", \\\"fall\\\"]) { node { ... on Product { id tags } } userErrors { field message } } }"
 
@@ -222,7 +223,7 @@ pub fn tags_add_stages_tags_and_preserves_base_tag_search_lag_test() {
 
 pub fn tags_remove_stages_tags_and_keeps_removed_tag_searchable_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: tagged_product_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: tagged_product_store())
   let query =
     "mutation { tagsRemove(id: \\\"gid://shopify/Product/optioned\\\", tags: [\\\"sale\\\", \\\"missing\\\"]) { node { ... on Product { id tags } } userErrors { field message } } }"
 
@@ -250,7 +251,7 @@ pub fn tags_remove_stages_tags_and_keeps_removed_tag_searchable_test() {
 
 pub fn product_update_stages_fields_and_downstream_reads_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
   let query =
     "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", title: \\\"Updated Board\\\", vendor: \\\"HERMES\\\", productType: \\\"BOARDS\\\", tags: [\\\"beta\\\", \\\"alpha\\\"], descriptionHtml: \\\"<p>Updated</p>\\\", templateSuffix: \\\"custom\\\", seo: { title: \\\"SEO title\\\", description: \\\"SEO description\\\" } }) { product { id title vendor productType tags descriptionHtml templateSuffix seo { title description } } userErrors { field message } } }"
 
@@ -278,7 +279,7 @@ pub fn product_update_stages_fields_and_downstream_reads_test() {
 
 pub fn product_update_blank_title_returns_existing_product_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: default_option_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
   let query =
     "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", title: \\\"\\\" }) { product { id title handle } userErrors { field message } } }"
 
@@ -352,7 +353,7 @@ pub fn product_create_validation_branches_return_user_errors_test() {
 
 pub fn product_variant_create_update_delete_stages_lifecycle_test() {
   let proxy = draft_proxy.new()
-  let proxy = draft_proxy.DraftProxy(..proxy, store: option_update_store())
+  let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
   let create_query =
     "mutation { productVariantCreate(input: { productId: \\\"gid://shopify/Product/optioned\\\", title: \\\"Blue\\\", sku: \\\"BLUE-1\\\", barcode: \\\"2222222222222\\\", price: \\\"12.00\\\", inventoryQuantity: 5, selectedOptions: [{ name: \\\"Color\\\", value: \\\"Blue\\\" }], inventoryItem: { tracked: true, requiresShipping: false } }) { product { id totalInventory tracksInventory } productVariant { id title sku barcode price inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } userErrors { field message } } }"
 

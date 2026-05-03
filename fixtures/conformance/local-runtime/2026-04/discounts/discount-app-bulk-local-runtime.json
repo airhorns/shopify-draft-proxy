@@ -449,5 +449,6 @@
   },
   "liveBlockers": [
     "The checked-in conformance app currently has payment-customization and publication-target extensions, but no discount Function extension. Live app-discount create/update success capture is blocked until a disposable discount Function extension is added, deployed, and installed for the test shop."
-  ]
+  ],
+  "upstreamCalls": []
 }

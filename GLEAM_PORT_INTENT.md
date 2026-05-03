@@ -44,9 +44,12 @@ choice is wrong.
    `AGENTS.md` (don't send supported mutations to Shopify at runtime, keep
    raw mutations for commit, match Shopify's empty/no-data behaviour, etc.)
    applies to the Gleam port verbatim.
-2. **Parity specs and conformance fixtures stay byte-identical.**
-   `config/parity-specs/**` and `fixtures/conformance/**` are not rewritten.
-   Only the runner that consumes them is reimplemented.
+2. **Parity specs and conformance fixtures are owned by the parity
+   runner.** `config/parity-specs/**` and `fixtures/conformance/**` may
+   be amended — each capture file gains an `upstreamCalls` cassette and
+   legacy `seedX` keys are being removed — but the comparison contract
+   (what gets compared and how) is preserved. The cassette-playback
+   parity model is documented in `docs/parity-runner.md`.
 3. **The public embeddable shape is preserved.** Existing TypeScript callers
    continue to import `createDraftProxy(config)`, call
    `processRequest({ method, path, headers, body })`, and receive

@@ -114,15 +114,28 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   scripts without adding an explicit conformance spec and executable test path
   that uses the recording. Recording-only changes are not acceptable evidence,
   even when the fixture was captured from a real store.
-- Conformance parity scenarios are discovered by convention from `config/parity-specs/*.json` and executed by the single vitest suite at `tests/unit/conformance-parity-scenarios.test.ts` (also exposed as `pnpm conformance:parity`). Do not add per-scenario `it(...)` blocks that re-run one scenario — the iterator already covers it. Encode scenario-specific expectations in the parity spec.
+- Conformance parity scenarios are discovered by convention from
+  `config/parity-specs/*.json` and executed by the Gleam parity runner
+  (`gleam/test/parity_test.gleam`, surfaced through `pnpm gleam:test` on
+  both JS and Erlang targets). Each scenario runs the proxy in
+  LiveHybrid mode against a recorded `upstreamCalls` cassette in the
+  capture file (cassette-playback model — see `docs/parity-runner.md`).
+  Do not add per-scenario test files that re-run one scenario — the
+  iterator already covers it. Encode scenario-specific expectations in
+  the parity spec.
 - For parity comparisons, prefer comparing the whole selected resource payload
   and carving out explicit volatile paths such as IDs, timestamps, cursors, and
   throttle metadata. Do not build confidence by allowlisting only the scalar
   fields the current implementation already matches.
-- Treat conformance `expectedDifferences` as a last resort after modeling or
-  fixture seeding has been exhausted; do not add them merely to make parity
-  tests pass. Opaque Shopify connection cursors are an acceptable expected
-  difference because clients must not depend on their internal encoding.
+- Treat conformance `expectedDifferences` as a last resort after the
+  proxy's operation handlers have been adjusted to compute the right
+  response (including, if needed, a narrow `proxy/upstream_query.fetch`
+  call to read the existing record from upstream). Do not add
+  `expectedDifferences` merely to make parity tests pass. Opaque Shopify
+  connection cursors are an acceptable expected difference because
+  clients must not depend on their internal encoding. **Do not pre-seed
+  `base_state` from the captured response** — the runner no longer
+  supports that pattern, and `seedX` keys in capture files are banned.
 - Before handing off a fidelity PR, check the recent rejected-review lessons:
   - If behavior is claimed to match Shopify, include executable parity evidence
     (`conformance:parity` via a checked-in parity spec) unless the work is

@@ -350,5 +350,6 @@
     "Captured with SHOPIFY_CONFORMANCE_API_VERSION=2026-04 and home-folder conformance auth.",
     "The successful lifecycle used a disposable custom delivery profile, then removed it; Shopify removal returned an asynchronous Job with done=false and the profile read became null after a short poll.",
     "No access-scope or manage-delivery-settings blocker was encountered for the active conformance credential."
-  ]
+  ],
+  "upstreamCalls": []
 }

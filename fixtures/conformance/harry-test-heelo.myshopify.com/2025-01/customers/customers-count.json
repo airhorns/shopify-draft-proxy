@@ -1,0 +1,134 @@
+{
+  "proxyVariables": {
+    "query": "email:grace@example.com",
+    "disabledQuery": "state:DISABLED"
+  },
+  "data": {
+    "total": {
+      "count": 70,
+      "precision": "EXACT"
+    },
+    "matching": {
+      "count": 70,
+      "precision": "EXACT"
+    },
+    "disabled": {
+      "count": 70,
+      "precision": "EXACT"
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 30,
+      "actualQueryCost": 30,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1970,
+        "restoreRate": 100
+      }
+    },
+    "search": [
+      {
+        "path": ["matching"],
+        "query": "email:grace@example.com",
+        "parsed": {
+          "field": "email",
+          "match_all": "grace@example.com"
+        },
+        "warnings": [
+          {
+            "field": "email",
+            "message": "Invalid search field for this query.",
+            "code": "invalid_field"
+          }
+        ]
+      },
+      {
+        "path": ["disabled"],
+        "query": "state:DISABLED",
+        "parsed": {
+          "field": "state",
+          "match_all": "DISABLED"
+        },
+        "warnings": [
+          {
+            "field": "state",
+            "message": "Invalid search field for this query.",
+            "code": "invalid_field"
+          }
+        ]
+      }
+    ]
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomersCountRead",
+      "variables": {
+        "query": "email:grace@example.com",
+        "disabledQuery": "state:DISABLED"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "total": {
+              "count": 70,
+              "precision": "EXACT"
+            },
+            "matching": {
+              "count": 70,
+              "precision": "EXACT"
+            },
+            "disabled": {
+              "count": 70,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            },
+            "search": [
+              {
+                "path": ["matching"],
+                "query": "email:grace@example.com",
+                "parsed": {
+                  "field": "email",
+                  "match_all": "grace@example.com"
+                },
+                "warnings": [
+                  {
+                    "field": "email",
+                    "message": "Invalid search field for this query.",
+                    "code": "invalid_field"
+                  }
+                ]
+              },
+              {
+                "path": ["disabled"],
+                "query": "state:DISABLED",
+                "parsed": {
+                  "field": "state",
+                  "match_all": "DISABLED"
+                },
+                "warnings": [
+                  {
+                    "field": "state",
+                    "message": "Invalid search field for this query.",
+                    "code": "invalid_field"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

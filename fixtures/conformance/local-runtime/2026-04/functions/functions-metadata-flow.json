@@ -199,5 +199,6 @@
     "supportedMutationsStageLocally": true,
     "downstreamReadsReflectStagedMetadata": true,
     "externalShopifyFunctionsExecuted": false
-  }
+  },
+  "upstreamCalls": []
 }

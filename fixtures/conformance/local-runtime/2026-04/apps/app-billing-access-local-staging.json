@@ -330,5 +330,6 @@
         "The raw synthetic token returned by delegateAccessTokenCreate is not serialized in __meta/state."
       ]
     }
-  }
+  },
+  "upstreamCalls": []
 }

@@ -108,5 +108,6 @@
       "financialTransfer"
     ],
     "absentRoots": ["returnApprove", "returnDecline"]
-  }
+  },
+  "upstreamCalls": []
 }

@@ -1,0 +1,155 @@
+{
+  "proxyVariables": {
+    "first": 2,
+    "query": "state:DISABLED"
+  },
+  "data": {
+    "customers": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU1MjgyNDI5OTgyNiwibGFzdF92YWx1ZSI6MTc3NzQ2MDkyMDAwMH0=",
+          "node": {
+            "id": "gid://shopify/Customer/10552824299826",
+            "displayName": "HAR Return",
+            "email": "har-442-return-reverse-20260429110840@example.com",
+            "legacyResourceId": "10552824299826",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "tags": [],
+            "defaultPhoneNumber": null,
+            "defaultAddress": {
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "province": "Ontario",
+              "country": "Canada",
+              "zip": "M5H 2M9",
+              "formattedArea": "Toronto ON, Canada"
+            },
+            "updatedAt": "2026-04-29T11:08:40Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU1MjgyMjg5MDgwMiwibGFzdF92YWx1ZSI6MTc3NzQ2MDg3OTAwMH0=",
+          "node": {
+            "id": "gid://shopify/Customer/10552822890802",
+            "displayName": "HAR Return",
+            "email": "har-442-return-reverse-20260429110759@example.com",
+            "legacyResourceId": "10552822890802",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "tags": [],
+            "defaultPhoneNumber": null,
+            "defaultAddress": {
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "province": "Ontario",
+              "country": "Canada",
+              "zip": "M5H 2M9",
+              "formattedArea": "Toronto ON, Canada"
+            },
+            "updatedAt": "2026-04-29T11:07:59Z"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjoxMDU1MjgyNDI5OTgyNiwibGFzdF92YWx1ZSI6MTc3NzQ2MDkyMDAwMH0=",
+        "endCursor": "eyJsYXN0X2lkIjoxMDU1MjgyMjg5MDgwMiwibGFzdF92YWx1ZSI6MTc3NzQ2MDg3OTAwMH0="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 4,
+      "actualQueryCost": 4,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1996,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomersSearchRead",
+      "variables": {
+        "first": 2,
+        "query": "state:DISABLED"
+      },
+      "query": "query CustomersSearchRead($first: Int!, $query: String!) {\n  customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        displayName\n        email\n        legacyResourceId\n        verifiedEmail\n        state\n        tags\n        defaultPhoneNumber {\n          phoneNumber\n        }\n        defaultAddress {\n          address1\n          city\n          province\n          country\n          zip\n          formattedArea\n        }\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU1MjgyNDI5OTgyNiwibGFzdF92YWx1ZSI6MTc3NzQ2MDkyMDAwMH0=",
+                  "node": {
+                    "id": "gid://shopify/Customer/10552824299826",
+                    "displayName": "HAR Return",
+                    "email": "har-442-return-reverse-20260429110840@example.com",
+                    "legacyResourceId": "10552824299826",
+                    "verifiedEmail": true,
+                    "state": "DISABLED",
+                    "tags": [],
+                    "defaultPhoneNumber": null,
+                    "defaultAddress": {
+                      "address1": "123 Queen St W",
+                      "city": "Toronto",
+                      "province": "Ontario",
+                      "country": "Canada",
+                      "zip": "M5H 2M9",
+                      "formattedArea": "Toronto ON, Canada"
+                    },
+                    "updatedAt": "2026-04-29T11:08:40Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU1MjgyMjg5MDgwMiwibGFzdF92YWx1ZSI6MTc3NzQ2MDg3OTAwMH0=",
+                  "node": {
+                    "id": "gid://shopify/Customer/10552822890802",
+                    "displayName": "HAR Return",
+                    "email": "har-442-return-reverse-20260429110759@example.com",
+                    "legacyResourceId": "10552822890802",
+                    "verifiedEmail": true,
+                    "state": "DISABLED",
+                    "tags": [],
+                    "defaultPhoneNumber": null,
+                    "defaultAddress": {
+                      "address1": "123 Queen St W",
+                      "city": "Toronto",
+                      "province": "Ontario",
+                      "country": "Canada",
+                      "zip": "M5H 2M9",
+                      "formattedArea": "Toronto ON, Canada"
+                    },
+                    "updatedAt": "2026-04-29T11:07:59Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDU1MjgyNDI5OTgyNiwibGFzdF92YWx1ZSI6MTc3NzQ2MDkyMDAwMH0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDU1MjgyMjg5MDgwMiwibGFzdF92YWx1ZSI6MTc3NzQ2MDg3OTAwMH0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

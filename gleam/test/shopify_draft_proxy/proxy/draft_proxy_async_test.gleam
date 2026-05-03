@@ -40,6 +40,8 @@ import shopify_draft_proxy/proxy/commit
 @target(javascript)
 import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
 @target(javascript)
+import shopify_draft_proxy/proxy/proxy_state
+@target(javascript)
 import shopify_draft_proxy/state/store
 
 @target(javascript)
@@ -92,7 +94,7 @@ fn proxy_with_log(
     list.fold(entries, base.store, fn(acc, e) {
       store.record_mutation_log_entry(acc, e)
     })
-  draft_proxy.DraftProxy(..base, store: s)
+  proxy_state.DraftProxy(..base, store: s)
 }
 
 @target(javascript)

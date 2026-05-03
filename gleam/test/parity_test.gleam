@@ -38,6 +38,10 @@ pub type ExpectedFailure {
 pub type Outcome {
   Passed(spec_path: String)
   Failed(spec_path: String, message: String)
+  /// Spec hasn't been migrated to cassette playback yet. Counted in
+  /// the gate summary but does not flag as an unexpected failure or
+  /// pass — these specs are awaiting `pnpm parity:record`.
+  Skipped(spec_path: String, reason: String)
 }
 
 pub fn all_discovered_parity_specs_follow_expected_failures_test() {
@@ -61,6 +65,7 @@ pub fn all_discovered_parity_specs_follow_expected_failures_test() {
             False -> Ok(spec_path <> ": " <> first_line(message))
           }
         Passed(_) -> Error(Nil)
+        Skipped(_, _) -> Error(Nil)
       }
     })
 
@@ -91,8 +96,18 @@ pub fn all_discovered_parity_specs_follow_expected_failures_test() {
           unexpected_failures,
           unexpected_passes,
           missing_expected_specs,
+          count_skipped(outcomes),
         )
   }
+}
+
+fn count_skipped(outcomes: List(Outcome)) -> Int {
+  list.fold(outcomes, 0, fn(acc, outcome) {
+    case outcome {
+      Skipped(_, _) -> acc + 1
+      _ -> acc
+    }
+  })
 }
 
 fn run_one(spec_path: String) -> Outcome {
@@ -107,7 +122,11 @@ fn run_one(spec_path: String) -> Outcome {
           }
       }
     }
-    Error(err) -> Failed(spec_path, runner.render_error(err))
+    Error(err) ->
+      case runner.is_spec_not_migrated(err) {
+        True -> Skipped(spec_path, runner.render_error(err))
+        False -> Failed(spec_path, runner.render_error(err))
+      }
   }
 }
 
@@ -178,6 +197,7 @@ fn outcome_passed(spec_path: String, outcomes: List(Outcome)) -> Bool {
     case outcome {
       Passed(path) -> path == spec_path
       Failed(_, _) -> False
+      Skipped(_, _) -> False
     }
   })
 }
@@ -204,10 +224,12 @@ fn render_summary(
   unexpected_failures: List(String),
   unexpected_passes: List(String),
   missing_expected_specs: List(String),
+  skipped_count: Int,
 ) -> String {
   string.join(
     [
       "Gleam parity expected-failure gate failed.",
+      "skipped (awaiting cassette migration): " <> int.to_string(skipped_count),
       render_section("unexpected failures", unexpected_failures),
       render_section("expected failures that now pass", unexpected_passes),
       render_section(

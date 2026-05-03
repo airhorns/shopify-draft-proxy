@@ -3,6 +3,7 @@ import gleam/json
 import gleam/option.{None}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
+import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/types.{Money, StoreCreditAccountRecord}
 
@@ -124,7 +125,7 @@ pub fn store_credit_credit_debit_readback_test() {
       balance: Money(amount: "10.0", currency_code: "USD"),
     )
   let proxy =
-    draft_proxy.DraftProxy(
+    proxy_state.DraftProxy(
       ..proxy,
       store: store_mod.stage_store_credit_account(proxy.store, account),
     )

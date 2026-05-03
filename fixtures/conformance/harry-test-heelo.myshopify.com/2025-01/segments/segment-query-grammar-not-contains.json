@@ -147,5 +147,6 @@
   "notes": [
     "Live Shopify evidence that customer segment grammar accepts `customer_tags NOT CONTAINS 'tag'` for segmentCreate and customerSegmentMembersQueryCreate.",
     "The segment created for this capture is deleted in the cleanup case. The member-query job is left as Shopify async query state and is not a store resource with a delete mutation."
-  ]
+  ],
+  "upstreamCalls": []
 }

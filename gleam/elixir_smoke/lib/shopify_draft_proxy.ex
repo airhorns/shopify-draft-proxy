@@ -63,9 +63,9 @@ defmodule ShopifyDraftProxy do
   def reset(%__MODULE__{} = proxy), do: request(proxy, "POST", "/__meta/reset")
   def commit(%__MODULE__{} = proxy, headers \\ %{}), do: request(proxy, "POST", "/__meta/commit", "", headers)
 
-  def commit_with(%__MODULE__{raw: {:draft_proxy, config, identity, store, registry}}, origin, headers, send_fun) do
+  def commit_with(%__MODULE__{raw: {:draft_proxy, config, identity, store, registry, upstream_transport}}, origin, headers, send_fun) do
     {next_store, meta} = Commit.run_commit_sync(store, origin, headers, send_fun)
-    next_proxy = %__MODULE__{raw: {:draft_proxy, config, identity, next_store, registry}}
+    next_proxy = %__MODULE__{raw: {:draft_proxy, config, identity, next_store, registry, upstream_transport}}
     {:meta_commit_response, ok, stop_index, attempts} = meta
 
     %CommitReport{
