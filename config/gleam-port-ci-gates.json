@@ -343,10 +343,6 @@
     {
       "specPath": "config/parity-specs/products/tagsRemove-parity-plan.json",
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/segments/segments-baseline-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     }
   ],
   "requiredWorkflowCommands": [

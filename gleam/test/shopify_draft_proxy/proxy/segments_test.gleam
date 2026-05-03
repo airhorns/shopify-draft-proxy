@@ -10,6 +10,8 @@
 import gleam/dict
 import gleam/json
 import gleam/option.{None, Some}
+import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
@@ -106,6 +108,44 @@ pub fn is_segment_mutation_root_test() {
   assert segments.is_segment_mutation_root("segmentDelete")
   assert segments.is_segment_mutation_root("customerSegmentMembersQueryCreate")
   assert !segments.is_segment_mutation_root("segment")
+}
+
+pub fn local_has_segment_id_scans_all_string_variables_test() {
+  let s =
+    store.new()
+    |> seed(segment("gid://shopify/Segment/10", "VIPs", "number_of_orders >= 5"))
+  let proxy = proxy_state.DraftProxy(..proxy_state.new(), store: s)
+  let variables =
+    dict.from_list([
+      #("knownSegmentId", root_field.StringVal("gid://shopify/Segment/10")),
+    ])
+
+  assert segments.local_has_segment_id(proxy, variables)
+}
+
+pub fn local_has_segment_id_treats_deleted_marker_as_local_test() {
+  let id = "gid://shopify/Segment/11"
+  let s =
+    store.new()
+    |> seed(segment(id, "Old", "number_of_orders >= 1"))
+    |> store.delete_staged_segment(id)
+  let proxy = proxy_state.DraftProxy(..proxy_state.new(), store: s)
+  let variables = dict.from_list([#("segmentId", root_field.StringVal(id))])
+
+  assert segments.local_has_segment_id(proxy, variables)
+}
+
+pub fn local_has_staged_segments_detects_connection_overlay_state_test() {
+  let s =
+    store.new()
+    |> seed(segment(
+      "gid://shopify/Segment/12",
+      "Tagged",
+      "customer_tags CONTAINS 'vip'",
+    ))
+  let proxy = proxy_state.DraftProxy(..proxy_state.new(), store: s)
+
+  assert segments.local_has_staged_segments(proxy, dict.new())
 }
 
 // ----------- segment(id:) -----------
