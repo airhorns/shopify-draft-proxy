@@ -67,7 +67,7 @@ pub type CommitTransportError {
 /// Normalised successful HTTP outcome. Both targets convert their library's
 /// response into this so the driver code can remain target-agnostic.
 pub type HttpOutcome {
-  HttpOutcome(status: Int, body: String)
+  HttpOutcome(status: Int, body: String, headers: List(#(String, String)))
 }
 
 // ---------------------------------------------------------------------------
@@ -394,7 +394,7 @@ pub fn step(
   send_outcome: Result(HttpOutcome, CommitTransportError),
 ) -> #(Store, Dict(String, String), CommitAttempt, Bool) {
   case send_outcome {
-    Ok(HttpOutcome(status: status, body: body_string)) -> {
+    Ok(HttpOutcome(status: status, body: body_string, ..)) -> {
       let body = parse_json_value(body_string)
       let failed = status >= 400 || response_body_has_graphql_errors(body)
       case failed {

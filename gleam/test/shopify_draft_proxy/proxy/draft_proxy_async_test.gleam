@@ -103,7 +103,9 @@ fn ok_async_send(
   body: String,
 ) -> fn(_) -> Promise(Result(commit.HttpOutcome, commit.CommitTransportError)) {
   fn(_req) {
-    promise.resolve(Ok(commit.HttpOutcome(status: status, body: body)))
+    promise.resolve(
+      Ok(commit.HttpOutcome(status: status, body: body, headers: [])),
+    )
   }
 }
 

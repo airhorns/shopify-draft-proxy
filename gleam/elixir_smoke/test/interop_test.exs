@@ -65,7 +65,8 @@ defmodule ShopifyDraftProxy.InteropTest do
     fake_send = fn _request ->
       {:ok,
        {:http_outcome, 200,
-        ~s({"data":{"productCreate":{"product":{"id":"gid://shopify/Product/999"},"userErrors":[]}}})}}
+        ~s({"data":{"productCreate":{"product":{"id":"gid://shopify/Product/999"},"userErrors":[]}}}),
+        []}}
     end
 
     commit =
@@ -181,7 +182,7 @@ defmodule ShopifyDraftProxy.InteropTest do
     upstream_body =
       ~s({"data":{"savedSearchCreate":{"savedSearch":{"id":"gid://shopify/SavedSearch/12345"},"userErrors":[]}}})
 
-    fake_send = fn _request -> {:ok, {:http_outcome, 200, upstream_body}} end
+    fake_send = fn _request -> {:ok, {:http_outcome, 200, upstream_body, []}} end
     report = ShopifyDraftProxy.commit_with(created.proxy, "https://shop.example", %{}, fake_send)
 
     assert %ShopifyDraftProxy.CommitReport{ok: true, stop_index: nil, attempt_count: 1} =

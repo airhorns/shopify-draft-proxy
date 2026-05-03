@@ -21,10 +21,15 @@
 import gleam/javascript/promise.{type Promise}
 import gleam/json
 import gleam/option.{None, Some}
+@target(javascript)
+import gleam/string
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/proxy_state.{type DraftProxy, Request, Response}
 import shopify_draft_proxy/proxy/upstream_dispatch
 import shopify_draft_proxy/shopify/upstream_client
+
+@target(javascript)
+pub const async_unsupported_message: String = "Live-hybrid passthrough requires async dispatch on the JavaScript target. Call process_request_async(proxy, request) and await the returned Promise."
 
 @target(erlang)
 pub fn passthrough_sync(
@@ -148,12 +153,16 @@ fn outcome_to_response(
   outcome: Result(commit.HttpOutcome, commit.CommitTransportError),
 ) -> proxy_state.Response {
   case outcome {
-    Ok(commit.HttpOutcome(status: status, body: body_string)) -> {
+    Ok(commit.HttpOutcome(
+      status: status,
+      body: body_string,
+      headers: upstream_headers,
+    )) -> {
       let parsed_body = commit.parse_json_value(body_string)
       Response(
         status: status,
         body: commit.json_value_to_json(parsed_body),
-        headers: [],
+        headers: upstream_headers,
       )
     }
     Error(commit.CommitTransportError(message: msg)) ->
@@ -178,13 +187,14 @@ fn async_unsupported_response() -> proxy_state.Response {
     status: 501,
     body: json.object([
       #("ok", json.bool(False)),
-      #(
-        "message",
-        json.string(
-          "Live-hybrid passthrough requires async dispatch on the JavaScript target. Call process_request_async(proxy, request) and await the returned Promise.",
-        ),
-      ),
+      #("message", json.string(async_unsupported_message)),
     ]),
     headers: [],
   )
+}
+
+@target(javascript)
+pub fn response_is_async_unsupported(response: proxy_state.Response) -> Bool {
+  response.status == 501
+  && string.contains(json.to_string(response.body), async_unsupported_message)
 }

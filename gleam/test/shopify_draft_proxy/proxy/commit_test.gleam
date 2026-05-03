@@ -68,7 +68,7 @@ fn ok_send_factory(
   status: Int,
   body: String,
 ) -> fn(_) -> Result(commit.HttpOutcome, commit.CommitTransportError) {
-  fn(_req) { Ok(commit.HttpOutcome(status: status, body: body)) }
+  fn(_req) { Ok(commit.HttpOutcome(status: status, body: body, headers: [])) }
 }
 
 // ---------------------------------------------------------------------------
