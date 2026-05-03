@@ -1011,12 +1011,17 @@ fn route_mutation(
       }
     Ok(StorePropertiesDomain) ->
       case
-        store_properties.process_mutation(
+        store_properties.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            proxy.upstream_transport,
+            proxy.config.shopify_admin_origin,
+            request_headers,
+          ),
         )
       {
         Ok(outcome) -> #(
@@ -1325,10 +1330,13 @@ fn route_query(
         "Failed to handle admin platform query",
       )
     Ok(StorePropertiesDomain) ->
-      respond(
+      store_properties.handle_query_request(
         proxy,
-        store_properties.process(proxy.store, query, variables),
-        "Failed to handle store properties query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(OnlineStoreDomain) ->
       respond(
