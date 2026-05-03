@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 177: HAR-538 orders cassette parity
+## 2026-05-03 - Pass 182: HAR-538 orders cassette parity
 
 Migrates the remaining Orders parity scenarios to cassette-backed LiveHybrid
 execution. Cold order and draft-order reads now use gated Pattern 1 passthrough
@@ -61,6 +61,238 @@ Validation:
   migration.
 - Host Erlang is too old for this workspace's Gleam dependency set, so Erlang
   validation used the established OTP 28 container fallback.
+
+---
+
+## 2026-05-03 - Pass 181: HAR-512 JavaScript HTTP adapter
+
+Adds the JavaScript-target HTTP service adapter for the Gleam-backed TS shim.
+The adapter uses Node's built-in `http` server, not Koa or any BEAM/Elixir HTTP
+scope, and routes requests through the mutable JS `DraftProxy` wrapper over the
+Gleam core.
+
+| Module                                                           | Change                                                                                                                 |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `gleam/js/src/app.ts`                                            | Adds `DraftProxyHttpApp`, request body parsing, inbound header preservation, JSON/text response writing, and `listen`. |
+| `gleam/js/src/config.ts` / `gleam/js/src/server.ts`              | Adds legacy-compatible env config parsing plus dev/start launch entrypoint for the JS adapter.                         |
+| `gleam/js/src/index.ts` / `gleam/js/src/types.ts`                | Replaces `createApp`/`loadConfig` stubs with real exports and aligns JS read-mode typing with legacy `passthrough`.    |
+| `gleam/js/test/http-adapter.test.ts`                             | Covers meta routes, Admin GraphQL routing, commit auth forwarding, HTTP error envelopes, and dev/start launch scripts. |
+| `tests/integration/gleam-js-http-adapter-parity.test.ts`         | Compares the required Gleam JS route surface against the legacy Koa adapter before any deletion work.                  |
+| `docs/architecture.md` / `gleam/README.md` / `GLEAM_PORT_LOG.md` | Documents the new JS adapter boundary and remaining full-cutover HTTP gaps.                                            |
+
+Validation:
+
+- `corepack pnpm --dir gleam/js test` (14 passed)
+- `corepack pnpm --dir gleam/js build`
+- `corepack pnpm vitest run tests/integration/gleam-js-http-adapter-parity.test.ts`
+  (2 passed)
+- `cd gleam && gleam test --target javascript` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (OTP 28 fallback, 819 passed)
+- `corepack pnpm lint` (passed with the existing
+  `scripts/parity-record.mts:279` warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `git diff --check`
+
+### Findings
+
+- The Gleam core already had async JS dispatch for `/__meta/commit` and
+  live-hybrid passthrough; HAR-512's missing piece was the Node HTTP boundary
+  and JS package launch/config surface.
+- The legacy `createApp(config, proxy).listen(port, listener)` call shape is
+  worth preserving even though the adapter is not Koa, because package launch
+  scripts and simple consumers use that shape.
+- The Gleam internal `Live` read-mode variant must still serialize as the
+  legacy public `passthrough` string on the JS/HTTP config surface.
+
+### Risks / open items
+
+- The full TS HTTP endpoint set is not retired here. Bulk-operation result
+  JSONL and staged-upload HTTP routes remain full-cutover follow-ups; this pass
+  covers only the HAR-512 route list.
+
+---
+
+## 2026-05-03 - Pass 180: HAR-526 apps cassette parity
+
+Migrates the remaining Apps parity scenario to cassette-backed LiveHybrid
+execution. `currentAppInstallation` now uses a gated Pattern 1 app query
+handler: cold LiveHybrid reads can still pass through to Shopify, but once the
+app billing/access lifecycle has staged local app state, downstream reads stay
+local and do not require an upstream cassette entry.
+
+| Module / fixture                                                 | Change                                                                                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/apps.gleam`                 | Adds the app-domain query entrypoint and local app-state gate for `currentAppInstallation` LiveHybrid reads. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`          | Routes Apps queries through the domain handler so the app module owns its passthrough decision.              |
+| `config/operation-registry.json`                                 | Marks `currentAppInstallation` as covered by the app billing/access runtime flow.                            |
+| `config/parity-specs/apps/app-billing-access-local-staging.json` | Records `currentAppInstallation` in scenario operation inventory.                                            |
+| `config/gleam-port-ci-gates.json`                                | Removes the Apps expected-failure entry.                                                                     |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+
+### Findings
+
+- The checked-in local-runtime Apps fixture intentionally has an empty
+  `upstreamCalls` cassette because the scenario should remain local-only after
+  staging billing/access mutations.
+- The failing upstream operation was a symptom of `currentAppInstallation`
+  still being registry-unimplemented in the Gleam dispatcher. A synthesized
+  cassette would have hidden the missing local read-after-write routing.
+
+### Risks / open items
+
+- Broader cold app identity and app installation reads still rely on LiveHybrid
+  passthrough until those roots have their own executable overlay evidence.
+
+---
+
+## 2026-05-03 - Pass 179: HAR-544 store-properties cassette parity
+
+Migrates the remaining Store Properties parity scenarios to cassette-backed
+LiveHybrid execution. Cold singleton/catalog reads use Pattern 1 passthrough
+until local staged state exists, while supported mutations still stage locally
+and use Pattern 2 hydrate reads only to obtain the prior Shopify-shaped data
+needed for validation and downstream read-after-write parity.
+
+| Module / fixture                                             | Change                                                                                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/store_properties.gleam` | Adds gated Pattern 1 passthrough for cold shop/location/business entity/collection reads and Pattern 2 hydrates for mutations. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`      | Routes Store Properties reads through the domain query entrypoint and threads `UpstreamContext` into mutation handling.        |
+| `fixtures/conformance/**/store-properties/*.json`            | Hand-synthesizes missing read/hydrate cassette entries from checked-in capture payloads.                                       |
+| `fixtures/conformance/**/products/product-*parity.json`      | Adds publishable mutation hydrate cassettes for product publish/unpublish scenarios owned by Store Properties parity.          |
+| `config/gleam-port-ci-gates.json`                            | Removes the 15 Store Properties expected-failure entries.                                                                      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed Store Properties fixture/gate checks: no Store Properties
+  expected-failure entries remain, no new `seed*` keys, and no new
+  `expectedDifferences`
+
+### Findings
+
+- Pattern 1 is appropriate for cold Store Properties read roots because those
+  reads have no local staged lifecycle yet, but passthrough must be gated on
+  all variable string IDs so synthetic or staged records stay local.
+- `shopPolicyUpdate`, `locationDelete`, and generic publishable mutations must
+  continue to stage locally; they hydrate only the prior record or payload
+  projection needed to compute Shopify-like mutation results.
+- The checked-in capture payloads already contained the authoritative response
+  data, so the needed cassette entries could be hand-synthesized without live
+  Shopify writes.
+
+### Risks / open items
+
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+---
+
+## 2026-05-03 - Pass 178: HAR-533 markets cassette parity
+
+Migrates the remaining Markets parity scenarios to cassette-backed LiveHybrid
+execution. Cold Markets reads now fetch the captured upstream payload, hydrate
+the local Markets/Product slices from it, and return the captured response
+verbatim for that first read. Supported Markets lifecycle mutations still stage
+locally, with a narrow preflight hydrate for existing upstream price-list,
+product, metafield, and web-presence state needed by the captured flows.
+
+| Module / fixture                                        | Change                                                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`     | Adds Pattern 2 read hydration and mutation preflight hydration for Markets parity cassette replay.              |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes Markets queries through the domain read entrypoint and threads `UpstreamContext` into Markets mutations. |
+| `fixtures/conformance/**/markets/*.json`                | Hand-synthesizes read/preflight cassette entries from checked-in capture evidence.                              |
+| `config/gleam-port-ci-gates.json`                       | Removes the fourteen Markets expected-failure entries.                                                          |
+| `docs/endpoints/markets.md`                             | Documents the LiveHybrid cold-read and mutation preflight hydration boundary.                                   |
+
+Validation:
+
+- `cd gleam && gleam format --check`
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+
+### Findings
+
+- Pattern 1 passthrough is not appropriate for Markets because the domain has
+  supported local lifecycle mutations whose staged effects must remain visible
+  after the initial cassette-backed read.
+- The checked-in captures already contained the authoritative read and setup
+  payloads, so the cassette entries could be hand-synthesized without live
+  Shopify writes.
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+### Risks / open items
+
+- The hydrate queries intentionally persist only the Markets, Product,
+  ProductVariant, and product-metafield fields selected by current parity
+  evidence. Broader Markets branches remain future fidelity work.
+
+---
+
+## 2026-05-03 - Pass 177: HAR-535 metafields cassette parity
+
+Migrates the remaining Metafields parity scenarios to cassette-backed
+LiveHybrid execution. Cold metafield-definition reads now pass through to
+upstream when there is no local definition state to overlay, while pin/unpin
+mutations hydrate the upstream product-owner definition catalog before staging
+local pin position changes.
+
+| Module / fixture                                                      | Change                                                                                                   |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam`     | Adds Pattern 1 cold-read passthrough and Pattern 2 pin/unpin definition hydration.                       |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`               | Threads `UpstreamContext` into metafield-definition mutations and lets the domain own query passthrough. |
+| `fixtures/conformance/**/metafields/*definition*{read,pinning}*.json` | Hand-synthesizes definition read/hydrate cassette entries from checked-in capture evidence.              |
+| `config/gleam-port-ci-gates.json`                                     | Removes the three Metafields expected-failure entries.                                                   |
+| `docs/endpoints/metafields.md`                                        | Documents the LiveHybrid passthrough/hydration boundary and product-shell delete behavior.               |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- inspect_spec_test` temporary
+  inspector before gate removal (824 passed, 3 failures), then after changes
+  each HAR-535 scenario passed and only the expected-failure gate remained.
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang -- parity_test'`
+  (819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed metafields fixture/gate checks: no metafields expected-failure
+  entries remain, no new top-level `seed*` keys, and no new
+  `expectedDifferences`
+
+### Findings
+
+- Pattern 1 is appropriate for cold product-owner definition reads because the
+  proxy adds no local overlay before any definition state exists.
+- Pattern 2 is required for pin/unpin because those supported mutations must
+  stage locally while starting from existing upstream definition records.
+- Definition delete with `deleteAllAssociatedMetafields: true` must preserve a
+  minimal product shell for downstream `product { metafield }` reads after the
+  targeted metafield is removed.
+
+### Risks / open items
+
+- The hydrate parser intentionally captures the product-owner definition fields
+  exercised by the current pinning fixture. Broader owner families and
+  app-managed definition branches remain future fidelity work.
 
 ---
 
