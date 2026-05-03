@@ -101,7 +101,7 @@ pub fn transport_matches_recorded_call_test() {
       "CustomerById",
       "{\"id\":\"gid://shopify/Customer/123\"}",
     ))
-  let assert Ok(commit.HttpOutcome(status: status, body: body)) = send(req)
+  let assert Ok(commit.HttpOutcome(status: status, body: body, ..)) = send(req)
   assert status == 200
   assert string.contains(body, "gid://shopify/Customer/123")
 }
@@ -110,8 +110,8 @@ pub fn transport_returns_first_match_for_repeated_call_test() {
   let assert Ok(transport) = cassette.transport_from_capture(two_calls)
   let upstream_client.SyncTransport(send: send) = transport
   let req_a = build_request(graphql_envelope("CustomerById", "{\"id\":\"A\"}"))
-  let assert Ok(commit.HttpOutcome(status: _, body: body1)) = send(req_a)
-  let assert Ok(commit.HttpOutcome(status: _, body: body2)) = send(req_a)
+  let assert Ok(commit.HttpOutcome(status: _, body: body1, ..)) = send(req_a)
+  let assert Ok(commit.HttpOutcome(status: _, body: body2, ..)) = send(req_a)
   // Stateless replay: same input → same output every time.
   assert body1 == body2
   assert string.contains(body1, "first")
@@ -122,8 +122,8 @@ pub fn transport_distinguishes_variable_values_test() {
   let upstream_client.SyncTransport(send: send) = transport
   let req_a = build_request(graphql_envelope("CustomerById", "{\"id\":\"A\"}"))
   let req_b = build_request(graphql_envelope("CustomerById", "{\"id\":\"B\"}"))
-  let assert Ok(commit.HttpOutcome(status: _, body: body_a)) = send(req_a)
-  let assert Ok(commit.HttpOutcome(status: _, body: body_b)) = send(req_b)
+  let assert Ok(commit.HttpOutcome(status: _, body: body_a, ..)) = send(req_a)
+  let assert Ok(commit.HttpOutcome(status: _, body: body_b, ..)) = send(req_b)
   assert string.contains(body_a, "first")
   assert string.contains(body_b, "second")
 }
@@ -142,7 +142,7 @@ pub fn transport_is_object_key_order_insensitive_test() {
   let assert Ok(transport) = cassette.transport_from_capture(cassette_json)
   let upstream_client.SyncTransport(send: send) = transport
   let req = build_request(graphql_envelope("FindThing", "{\"b\":2,\"a\":1}"))
-  let assert Ok(commit.HttpOutcome(status: status, body: body)) = send(req)
+  let assert Ok(commit.HttpOutcome(status: status, body: body, ..)) = send(req)
   assert status == 200
   assert string.contains(body, "true")
 }

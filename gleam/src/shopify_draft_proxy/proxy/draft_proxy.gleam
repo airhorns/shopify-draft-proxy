@@ -456,7 +456,7 @@ fn dispatch_graphql(
         Error(_) -> #(bad_request("Could not parse GraphQL operation"), proxy)
         Ok(parsed) ->
           case live_hybrid_passthrough_target(proxy, parsed, body.variables) {
-            True -> passthrough.passthrough_sync(proxy, request)
+            True -> dispatch_passthrough_sync(proxy, request)
             False ->
               case parsed.type_, list.first(parsed.root_fields) {
                 QueryOperation, Ok(field) ->
@@ -516,6 +516,116 @@ fn live_hybrid_passthrough_target(
       }
     }
     _ -> False
+  }
+}
+
+fn dispatch_passthrough_sync(
+  proxy: DraftProxy,
+  request: Request,
+) -> #(Response, DraftProxy) {
+  let #(response, next_proxy) = passthrough.passthrough_sync(proxy, request)
+  case passthrough_reached_upstream(response) {
+    True -> #(response, record_proxied_mutation_if_needed(next_proxy, request))
+    False -> #(response, next_proxy)
+  }
+}
+
+@target(erlang)
+fn passthrough_reached_upstream(_response: Response) -> Bool {
+  True
+}
+
+@target(javascript)
+fn passthrough_reached_upstream(response: Response) -> Bool {
+  !passthrough.response_is_async_unsupported(response)
+}
+
+fn record_proxied_mutation_if_needed(
+  proxy: DraftProxy,
+  request: Request,
+) -> DraftProxy {
+  case parse_request_body(request.body) {
+    Error(_) -> proxy
+    Ok(body) ->
+      case parse_operation.parse_operation(body.query) {
+        Ok(parsed) ->
+          case parsed.type_ {
+            MutationOperation ->
+              record_proxied_mutation(proxy, request.path, parsed, body)
+            QueryOperation -> proxy
+          }
+        Error(_) -> proxy
+      }
+  }
+}
+
+fn record_proxied_mutation(
+  proxy: DraftProxy,
+  request_path: String,
+  parsed: ParsedOperation,
+  body: ParsedBody,
+) -> DraftProxy {
+  let cap = capabilities.get_operation_capability(parsed, proxy.registry)
+  let #(domain, execution) = passthrough_capability_strings(proxy, parsed, cap)
+  let draft =
+    mutation_helpers.LogDraft(
+      operation_name: cap.operation_name,
+      root_fields: parsed.root_fields,
+      primary_root_field: list.first(parsed.root_fields) |> result_to_option,
+      domain: domain,
+      execution: execution,
+      query: Some(body.query),
+      variables: Some(body.variables),
+      staged_resource_ids: [],
+      status: store.Proxied,
+      notes: Some(
+        "Mutation passthrough placeholder until supported local staging is implemented.",
+      ),
+    )
+  let #(logged_store, logged_identity) =
+    mutation_helpers.record_log_drafts(
+      proxy.store,
+      proxy.synthetic_identity,
+      request_path,
+      body.query,
+      body.variables,
+      [draft],
+    )
+  DraftProxy(..proxy, store: logged_store, synthetic_identity: logged_identity)
+}
+
+fn passthrough_capability_strings(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+  cap: capabilities.OperationCapability,
+) -> #(String, String) {
+  let candidates =
+    list.append(list.map(parsed.root_fields, Some), case parsed.name {
+      Some(name) -> [Some(name)]
+      None -> []
+    })
+  case
+    operation_registry.find_entry(
+      proxy.registry,
+      operation_registry.Mutation,
+      candidates,
+    )
+  {
+    Some(entry) -> #(
+      operation_registry.domain_to_string(entry.domain),
+      operation_registry.execution_to_string(entry.execution),
+    )
+    None -> #(
+      operation_registry.domain_to_string(cap.domain),
+      operation_registry.execution_to_string(cap.execution),
+    )
+  }
+}
+
+fn result_to_option(r: Result(a, b)) -> Option(a) {
+  case r {
+    Ok(value) -> Some(value)
+    Error(_) -> None
   }
 }
 
@@ -2547,9 +2657,21 @@ pub fn process_request_async(
     GraphQL(version: _) ->
       case is_passthrough_request(proxy, request) {
         True -> dispatch_passthrough_async(proxy, request)
-        False -> promise.resolve(process_request(proxy, request))
+        False -> dispatch_graphql_async_or_sync(proxy, request)
       }
     _ -> promise.resolve(process_request(proxy, request))
+  }
+}
+
+@target(javascript)
+fn dispatch_graphql_async_or_sync(
+  proxy: DraftProxy,
+  request: Request,
+) -> Promise(#(Response, DraftProxy)) {
+  let #(response, next_proxy) = process_request(proxy, request)
+  case passthrough.response_is_async_unsupported(response) {
+    True -> dispatch_passthrough_async(proxy, request)
+    False -> promise.resolve(#(response, next_proxy))
   }
 }
 
@@ -2572,6 +2694,10 @@ fn dispatch_passthrough_async(
   request: Request,
 ) -> Promise(#(Response, DraftProxy)) {
   passthrough.passthrough_async(proxy, request)
+  |> promise.map(fn(pair) {
+    let #(response, next_proxy) = pair
+    #(response, record_proxied_mutation_if_needed(next_proxy, request))
+  })
 }
 
 @target(javascript)

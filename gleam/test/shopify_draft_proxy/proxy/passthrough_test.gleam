@@ -64,7 +64,7 @@ pub fn substrate_passthrough_returns_upstream_body_verbatim_erl_test() {
 
   let upstream_body = "{\"data\":{\"__totallyUnknownRoot\":{\"id\":\"42\"}}}"
   let fake_send = fn(_req: gleam_http_request.Request(String)) {
-    Ok(commit.HttpOutcome(status: 200, body: upstream_body))
+    Ok(commit.HttpOutcome(status: 200, body: upstream_body, headers: []))
   }
 
   let #(Response(status: status, body: body, ..), _next) =
@@ -117,7 +117,9 @@ pub fn substrate_passthrough_returns_upstream_body_verbatim_js_test() {
 
   let upstream_body = "{\"data\":{\"__totallyUnknownRoot\":{\"id\":\"42\"}}}"
   let fake_send = fn(_req: gleam_http_request.Request(String)) {
-    promise.resolve(Ok(commit.HttpOutcome(status: 200, body: upstream_body)))
+    promise.resolve(
+      Ok(commit.HttpOutcome(status: 200, body: upstream_body, headers: [])),
+    )
   }
 
   use pair <- promise.tap(draft_proxy.process_passthrough_async(
@@ -183,7 +185,7 @@ pub fn with_upstream_transport_routes_passthrough_via_sync_send_test() {
   let upstream_body = "{\"data\":{\"__totallyUnknownRoot\":{\"id\":\"99\"}}}"
   let transport =
     upstream_client.SyncTransport(send: fn(_req) {
-      Ok(commit.HttpOutcome(status: 200, body: upstream_body))
+      Ok(commit.HttpOutcome(status: 200, body: upstream_body, headers: []))
     })
   let proxy =
     live_hybrid_proxy()
