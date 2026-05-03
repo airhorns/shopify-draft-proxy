@@ -17,6 +17,7 @@ import {
   commit as gleamCommit,
   dump_state,
   dump_state_now,
+  get_bulk_operation_result_jsonl,
   get_config_snapshot,
   get_log_snapshot,
   get_state_snapshot,
@@ -25,6 +26,7 @@ import {
   reset as gleamReset,
   restore_snapshot,
   restore_state,
+  stage_staged_upload_content,
   with_config,
   with_default_registry,
 } from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/draft_proxy.mjs';
@@ -115,6 +117,10 @@ function responseFromGleam(resp: GleamResponse): DraftProxyHttpResponse {
   return out;
 }
 
+function jsonFromGleam<T>(tree: unknown): T {
+  return JSON.parse(jsonToString(tree));
+}
+
 export class DraftProxy {
   #inner: GleamDraftProxy;
 
@@ -135,6 +141,24 @@ export class DraftProxy {
     const [resp, next] = await process_request_async(this.#inner, requestToGleam(request));
     this.#inner = next;
     return responseFromGleam(resp);
+  }
+
+  stageStagedUpload(encodedTargetId: string, encodedFilename: string, content: string): { ok: true; key: string } {
+    const targetId = decodeURIComponent(encodedTargetId);
+    const filename = decodeURIComponent(encodedFilename);
+    const key = `shopify-draft-proxy/${targetId}/${filename}`;
+    const path = `/staged-uploads/${encodedTargetId}/${encodedFilename}`;
+    const resourceUrl = `https://shopify-draft-proxy.local${path}`;
+
+    for (const lookupKey of [key, path, resourceUrl]) {
+      this.#inner = stage_staged_upload_content(this.#inner, lookupKey, content);
+    }
+
+    return { ok: true, key };
+  }
+
+  getBulkOperationResultJsonl(operationId: string): string | null {
+    return jsonFromGleam<string | null>(get_bulk_operation_result_jsonl(this.#inner, operationId));
   }
 
   async processGraphQLRequest(

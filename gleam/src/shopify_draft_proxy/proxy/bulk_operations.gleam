@@ -619,7 +619,7 @@ fn handle_bulk_operation_run_query(
               object_count: int.to_string(count),
               root_object_count: int.to_string(count),
               file_size: Some(int.to_string(string.length(result_jsonl))),
-              url: Some(build_bulk_operation_result_url(operation_id)),
+              url: Some(build_legacy_bulk_operation_result_url(operation_id)),
               partial_data_url: None,
               query: Some(query_string),
               cursor: None,
@@ -1532,6 +1532,22 @@ fn is_terminal_status(status: String) -> Bool {
 
 fn build_bulk_operation_result_url(operation_id: String) -> String {
   "https://shopify-draft-proxy.local/__meta/bulk-operations/"
+  <> encode_url_segment(operation_id)
+  <> "/result.jsonl"
+}
+
+fn build_legacy_bulk_operation_result_url(operation_id: String) -> String {
+  "https://shopify-draft-proxy.local/__bulk_operations/"
   <> last_gid_segment(operation_id)
   <> "/result.jsonl"
+}
+
+fn encode_url_segment(value: String) -> String {
+  value
+  |> string.replace("%", "%25")
+  |> string.replace(":", "%3A")
+  |> string.replace("/", "%2F")
+  |> string.replace("?", "%3F")
+  |> string.replace("&", "%26")
+  |> string.replace("=", "%3D")
 }

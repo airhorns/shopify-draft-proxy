@@ -46,6 +46,15 @@ async function jsonRequest(origin: string, path: string, init: RequestInit = {})
   };
 }
 
+async function textRequest(origin: string, path: string, init: RequestInit = {}) {
+  const response = await fetch(`${origin}${path}`, init);
+  return {
+    status: response.status,
+    contentType: response.headers.get('content-type') ?? '',
+    body: await response.text(),
+  };
+}
+
 describe('Node HTTP adapter', () => {
   it('loads config from the legacy service environment variables', () => {
     expect(
@@ -202,6 +211,205 @@ describe('Node HTTP adapter', () => {
       await expect(jsonRequest(origin, '/__meta/health', { method: 'POST' })).resolves.toMatchObject({
         status: 405,
         body: { errors: [{ message: 'Method not allowed' }] },
+      });
+    });
+  });
+
+  it('serves staged uploads and generated bulk operation artifacts from instance-owned state', async () => {
+    let resultPath = '';
+    let legacyResultPath = '';
+
+    await withApp(baseConfig, async (origin) => {
+      const stagedUpload = await jsonRequest(origin, '/admin/api/2026-04/graphql.json', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          query: `mutation StagedUploadsCreate($input: [StagedUploadInput!]!) {
+            stagedUploadsCreate(input: $input) {
+              stagedTargets {
+                resourceUrl
+                parameters {
+                  name
+                  value
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          variables: {
+            input: [
+              {
+                resource: 'BULK_MUTATION_VARIABLES',
+                filename: 'product-create.jsonl',
+                mimeType: 'text/jsonl',
+                httpMethod: 'POST',
+              },
+            ],
+          },
+        }),
+      });
+      const target = (
+        stagedUpload.body as {
+          data: {
+            stagedUploadsCreate: {
+              stagedTargets: Array<{
+                resourceUrl: string;
+                parameters: Array<{ name: string; value: string }>;
+              }>;
+              userErrors: unknown[];
+            };
+          };
+        }
+      ).data.stagedUploadsCreate.stagedTargets[0];
+      const stagedUploadPath = target?.parameters.find((parameter) => parameter.name === 'key')?.value;
+
+      expect(stagedUpload.status).toBe(200);
+      expect(stagedUploadPath).toEqual(
+        expect.stringMatching(
+          /^shopify-draft-proxy\/gid:\/\/shopify\/StagedUploadTarget0\/\d+\/product-create\.jsonl$/,
+        ),
+      );
+      expect(
+        (stagedUpload.body as { data: { stagedUploadsCreate: { userErrors: unknown[] } } }).data.stagedUploadsCreate
+          .userErrors,
+      ).toEqual([]);
+      if (target === undefined || stagedUploadPath === undefined) {
+        throw new Error('stagedUploadsCreate did not return an upload target.');
+      }
+
+      const upload = await jsonRequest(origin, new URL(target.resourceUrl).pathname, {
+        method: 'POST',
+        headers: { 'content-type': 'text/jsonl' },
+        body: `${JSON.stringify({ product: { title: 'Bulk HTTP Hat', status: 'DRAFT' } })}\n`,
+      });
+
+      expect(upload).toMatchObject({
+        status: 201,
+        body: { ok: true, key: stagedUploadPath },
+      });
+
+      const innerMutation = `mutation ProductCreate($product: ProductCreateInput!) {
+        productCreate(product: $product) {
+          product {
+            id
+            title
+            handle
+            status
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`;
+      const bulkRun = await jsonRequest(origin, '/admin/api/2026-04/graphql.json', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+            bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+              bulkOperation {
+                id
+                status
+                type
+                objectCount
+                rootObjectCount
+                fileSize
+                url
+                partialDataUrl
+                query
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          variables: {
+            mutation: innerMutation,
+            stagedUploadPath,
+          },
+        }),
+      });
+      const bulkOperation = (
+        bulkRun.body as {
+          data: {
+            bulkOperationRunMutation: {
+              bulkOperation: {
+                id: string;
+                status: string;
+                type: string;
+                objectCount: string;
+                rootObjectCount: string;
+                url: string;
+                partialDataUrl: string | null;
+              };
+              userErrors: unknown[];
+            };
+          };
+        }
+      ).data.bulkOperationRunMutation.bulkOperation;
+
+      expect(bulkRun.status).toBe(200);
+      expect(
+        (bulkRun.body as { data: { bulkOperationRunMutation: { userErrors: unknown[] } } }).data
+          .bulkOperationRunMutation.userErrors,
+      ).toEqual([]);
+      expect(bulkOperation).toMatchObject({
+        status: 'COMPLETED',
+        type: 'MUTATION',
+        objectCount: '1',
+        rootObjectCount: '1',
+        partialDataUrl: null,
+      });
+
+      resultPath = new URL(bulkOperation.url).pathname;
+      legacyResultPath = `/__bulk_operations/${bulkOperation.id.split('/').at(-1)}/result.jsonl`;
+
+      const result = await textRequest(origin, resultPath);
+      expect(result.status).toBe(200);
+      expect(result.contentType).toContain('application/jsonl');
+      const rows = result.body
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+      expect(rows).toMatchObject([
+        {
+          line: 1,
+          response: {
+            data: {
+              productCreate: {
+                product: {
+                  id: expect.stringMatching(/^gid:\/\/shopify\/Product\/\d+\?shopify-draft-proxy=synthetic$/),
+                  title: 'Bulk HTTP Hat',
+                  handle: 'bulk-http-hat',
+                  status: 'DRAFT',
+                },
+                userErrors: [],
+              },
+            },
+          },
+        },
+      ]);
+
+      const legacyResult = await textRequest(origin, legacyResultPath);
+      expect(legacyResult).toMatchObject({
+        status: 200,
+        body: result.body,
+      });
+    });
+
+    await withApp(baseConfig, async (origin) => {
+      await expect(textRequest(origin, resultPath)).resolves.toMatchObject({
+        status: 404,
+        body: 'Bulk operation result not found',
+      });
+      await expect(textRequest(origin, legacyResultPath)).resolves.toMatchObject({
+        status: 404,
+        body: 'Bulk operation result not found',
       });
     });
   });

@@ -309,6 +309,32 @@ pub fn get_state_snapshot(proxy: DraftProxy) -> Json {
   ])
 }
 
+/// Store staged-upload bytes under a caller-supplied lookup key.
+///
+/// The JavaScript HTTP adapter owns URL decoding/route matching so this core
+/// helper can stay explicit and instance-scoped.
+pub fn stage_staged_upload_content(
+  proxy: DraftProxy,
+  staged_upload_path: String,
+  content: String,
+) -> DraftProxy {
+  DraftProxy(
+    ..proxy,
+    store: store.stage_staged_upload_content(
+      proxy.store,
+      staged_upload_path,
+      content,
+    ),
+  )
+}
+
+pub fn get_bulk_operation_result_jsonl(proxy: DraftProxy, id: String) -> Json {
+  case store.get_effective_bulk_operation_result_jsonl(proxy.store, id) {
+    Some(jsonl) -> json.string(jsonl)
+    None -> json.null()
+  }
+}
+
 fn serialize_mutation_log_entry(entry: store.MutationLogEntry) -> Json {
   json.object([
     #("id", json.string(entry.id)),

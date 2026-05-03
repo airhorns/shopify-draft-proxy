@@ -9,6 +9,57 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-03 - Pass 184: HAR-514 JS artifact routes
+
+Serves staged-upload and generated bulk-operation artifact routes through the
+Gleam-backed JavaScript HTTP adapter. Staged upload posts are stored in the
+instance-owned `DraftProxy` store under the same lookup keys used by local
+`bulkOperationRunMutation`, and bulk result JSONL is read back from the
+per-instance BulkOperation records. No module-global artifact cache is added.
+
+| Module / fixture                                                         | Change                                                                                                                                 |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/js/src/app.ts`                                                    | Adds JS HTTP routing for `/staged-uploads/...`, `/__bulk_operations/.../result.jsonl`, and `/__meta/bulk-operations/.../result.jsonl`. |
+| `gleam/js/src/runtime.ts`                                                | Exposes shim methods for staged-upload writes and bulk JSONL reads against the wrapped Gleam `DraftProxy` value.                       |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                  | Adds small public helpers for instance-scoped staged upload content and bulk result lookup.                                            |
+| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`              | Preserves legacy query-export result URLs while mutation imports expose encoded-GID meta result URLs.                                  |
+| `gleam/js/test/http-adapter.test.ts`                                     | Adds end-to-end JS HTTP coverage for upload handoff, bulk import result serving, legacy result serving, and instance isolation.        |
+| `docs/architecture.md` / `docs/endpoints/media.md` / `GLEAM_PORT_LOG.md` | Documents the JS adapter artifact boundary and the limited staged-upload byte handoff scope.                                           |
+
+Validation:
+
+- `corepack pnpm --dir gleam/js test -- --runInBand` (15 passed)
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'` (OTP 28, 819 passed)
+- `corepack pnpm lint` (passed with existing `scripts/parity-record.mts:279` warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+
+### Findings
+
+- The JS adapter was the missing boundary: the Gleam core already generated
+  staged upload targets and stored bulk result JSONL, but HTTP requests to the
+  generated URLs fell through to 404.
+- The adapter must pass staged upload bodies as raw text, regardless of
+  `content-type`, so JSONL variables files are stored exactly as uploaded.
+- Query exports and mutation imports have distinct historical URL shapes:
+  query exports use `/__bulk_operations/<numeric-id>/result.jsonl`, while
+  mutation imports use `/__meta/bulk-operations/<encoded-gid>/result.jsonl`.
+
+### Risks / open items
+
+- `partialDataUrl` remains `null` for local jobs until live fixture evidence
+  proves a local partial-data artifact shape. The JS adapter currently serves
+  the generated result artifacts covered by existing local bulk-operation
+  behavior.
+
+---
+
 ## 2026-05-03 - Pass 183: HAR-530 functions cassette parity
 
 Migrates the remaining Functions parity scenarios to cassette-backed
