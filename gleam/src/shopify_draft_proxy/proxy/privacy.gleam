@@ -11,12 +11,16 @@ import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type SourceValue, SrcList, SrcNull, SrcString, get_field_response_key,
   project_graphql_value, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, single_root_log_draft,
+}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
 }
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -62,13 +66,32 @@ pub fn is_privacy_mutation_root(name: String) -> Bool {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  _request_path: String,
+  request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(MutationOutcome, PrivacyError) {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  _request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Result(MutationOutcome, PrivacyError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
-    Ok(fields) -> Ok(handle_mutation_fields(store, identity, fields, variables))
+    Ok(fields) ->
+      Ok(handle_mutation_fields(store, identity, fields, variables, upstream))
   }
 }
 
@@ -77,6 +100,7 @@ fn handle_mutation_fields(
   identity: SyntheticIdentityRegistry,
   fields: List(Selection),
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let initial = #([], store, identity, [], [])
   let #(entries, final_store, final_identity, staged_ids, log_drafts) =
@@ -90,6 +114,7 @@ fn handle_mutation_fields(
               current_identity,
               field,
               variables,
+              upstream,
             )
           let next_drafts = case result.staged_resource_ids {
             [] -> drafts
@@ -132,6 +157,7 @@ fn handle_data_sale_opt_out(
   identity: SyntheticIdentityRegistry,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let email =
     field_args(field, variables)
@@ -146,7 +172,18 @@ fn handle_data_sale_opt_out(
           {
             Some(customer) ->
               opt_out_existing_customer(store, identity, field, customer)
-            None -> opt_out_new_customer(store, identity, field, value)
+            None -> {
+              // Pattern 2: in LiveHybrid, read the existing upstream
+              // customer by email so the supported mutation still stages
+              // locally but uses Shopify's authoritative customer id.
+              // Snapshot/default no-transport execution falls back to a
+              // local synthetic customer when no staged customer exists.
+              case fetch_upstream_customer_by_email(value, upstream) {
+                Some(customer) ->
+                  opt_out_existing_customer(store, identity, field, customer)
+                None -> opt_out_new_customer(store, identity, field, value)
+              }
+            }
           }
         False -> failed_data_sale_opt_out(store, identity, field)
       }
@@ -340,6 +377,103 @@ fn find_customer_by_email(
   }
 }
 
+fn fetch_upstream_customer_by_email(
+  email: String,
+  upstream: UpstreamContext,
+) -> Option(CustomerRecord) {
+  let query =
+    "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) {\n"
+    <> "  customerByIdentifier(identifier: $identifier) {\n"
+    <> "    id\n"
+    <> "    email\n"
+    <> "    dataSaleOptOut\n"
+    <> "    defaultEmailAddress { emailAddress }\n"
+    <> "  }\n"
+    <> "}\n"
+  let variables =
+    json.object([
+      #("identifier", json.object([#("emailAddress", json.string(email))])),
+    ])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "DataSaleOptOutCustomerLookup",
+      query,
+      variables,
+    )
+  {
+    Ok(value) -> customer_from_upstream_lookup(value, email)
+    Error(_) -> None
+  }
+}
+
+fn customer_from_upstream_lookup(
+  value: commit.JsonValue,
+  fallback_email: String,
+) -> Option(CustomerRecord) {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "customerByIdentifier") {
+        Some(commit.JsonNull) | None -> None
+        Some(node) -> customer_record_from_upstream_node(node, fallback_email)
+      }
+    None -> None
+  }
+}
+
+fn customer_record_from_upstream_node(
+  node: commit.JsonValue,
+  fallback_email: String,
+) -> Option(CustomerRecord) {
+  case json_get_string(node, "id") {
+    None -> None
+    Some(id) -> {
+      let email = option.unwrap(json_get_string(node, "email"), fallback_email)
+      let default_email = case json_get(node, "defaultEmailAddress") {
+        Some(address) ->
+          option.unwrap(json_get_string(address, "emailAddress"), email)
+        None -> email
+      }
+      Some(CustomerRecord(
+        id: id,
+        first_name: None,
+        last_name: None,
+        display_name: Some(email),
+        email: Some(email),
+        legacy_resource_id: gid_tail(id),
+        locale: None,
+        note: None,
+        can_delete: Some(True),
+        verified_email: Some(True),
+        data_sale_opt_out: option.unwrap(
+          json_get_bool(node, "dataSaleOptOut"),
+          False,
+        ),
+        tax_exempt: Some(False),
+        tax_exemptions: [],
+        state: Some("DISABLED"),
+        tags: [],
+        number_of_orders: Some("0"),
+        amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
+        default_email_address: Some(CustomerDefaultEmailAddressRecord(
+          email_address: Some(default_email),
+          marketing_state: None,
+          marketing_opt_in_level: None,
+          marketing_updated_at: None,
+        )),
+        default_phone_number: None,
+        email_marketing_consent: None,
+        sms_marketing_consent: None,
+        default_address: None,
+        created_at: None,
+        updated_at: None,
+      ))
+    }
+  }
+}
+
 fn is_valid_data_sale_email(email: String) -> Bool {
   let trimmed = string.trim(email)
   case trimmed == email && !string.contains(trimmed, " ") {
@@ -362,6 +496,34 @@ fn gid_tail(id: String) -> Option(String) {
   case string.split(id, "/") |> list.last {
     Ok(value) -> Some(value)
     Error(_) -> None
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
+  case json_get(value, key) {
+    Some(commit.JsonBool(b)) -> Some(b)
+    _ -> None
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(k, v) if k == key -> Ok(v)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
   }
 }
 
