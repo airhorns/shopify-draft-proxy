@@ -265,5 +265,84 @@
       ]
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/9102966915305"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/9102966915305",
+              "firstName": "Hermes",
+              "lastName": "Updated",
+              "displayName": "Hermes Updated",
+              "email": "hermes-customer-create-1777081266467@example.com",
+              "locale": "en",
+              "note": "customer update parity probe",
+              "verifiedEmail": true,
+              "taxExempt": false,
+              "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
+              "tags": ["parity", "updated"],
+              "state": "DISABLED",
+              "canDelete": true,
+              "loyalty": {
+                "id": "gid://shopify/Metafield/35326959976681",
+                "namespace": "custom",
+                "key": "loyalty",
+                "type": "single_line_text_field",
+                "value": "gold-1777081266467"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/35326959976681",
+                    "namespace": "custom",
+                    "key": "loyalty",
+                    "type": "single_line_text_field",
+                    "value": "gold-1777081266467"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjozNTMyNjk1OTk3NjY4MSwibGFzdF92YWx1ZSI6IjM1MzI2OTU5OTc2NjgxIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjozNTMyNjk1OTk3NjY4MSwibGFzdF92YWx1ZSI6IjM1MzI2OTU5OTc2NjgxIn0="
+                }
+              },
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-customer-create-1777081266467@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14155550123"
+              },
+              "defaultAddress": null,
+              "createdAt": "2026-04-25T01:41:06Z",
+              "updatedAt": "2026-04-25T01:41:06Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerCountHydrate",
+      "variables": {},
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customersCount": {
+              "count": 177,
+              "precision": "EXACT"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

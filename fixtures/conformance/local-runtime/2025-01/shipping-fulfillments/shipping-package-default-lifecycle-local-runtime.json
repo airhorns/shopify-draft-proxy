@@ -263,5 +263,70 @@
       ]
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingPackageHydrate",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/1"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shippingPackage": {
+              "id": "gid://shopify/ShippingPackage/1",
+              "name": "Starter box",
+              "type": "BOX",
+              "default": true,
+              "weight": {
+                "value": 1,
+                "unit": "KILOGRAMS"
+              },
+              "dimensions": {
+                "length": 10,
+                "width": 8,
+                "height": 4,
+                "unit": "CENTIMETERS"
+              },
+              "createdAt": "2026-04-27T00:00:00.000Z",
+              "updatedAt": "2026-04-27T00:00:00.000Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingPackageHydrate",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/2"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shippingPackage": {
+              "id": "gid://shopify/ShippingPackage/2",
+              "name": "Backup mailer",
+              "type": "ENVELOPE",
+              "default": false,
+              "weight": {
+                "value": 0.5,
+                "unit": "KILOGRAMS"
+              },
+              "dimensions": {
+                "length": 8,
+                "width": 6,
+                "height": 1,
+                "unit": "CENTIMETERS"
+              },
+              "createdAt": "2026-04-27T00:00:00.000Z",
+              "updatedAt": "2026-04-27T00:00:00.000Z"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

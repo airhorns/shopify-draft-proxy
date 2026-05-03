@@ -20,44 +20,7 @@
   "notes": "HAR-232 captured Admin GraphQL 2026-04 top-level fulfillment and fulfillment-order read evidence. The fixture records detail reads for a disposable live order/fulfillment, missing singular null behavior, fulfillmentOrders includeClosed/query/reverse catalog branches, manualHoldsFulfillmentOrders empty behavior, root argument introspection, and the current assignedFulfillmentOrders access-scope blocker for this app credential.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.fulfillmentLineItems.pageInfo.startCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque connection cursors; local snapshot serializers use null or synthetic cursors that clients must not decode.",
-        "regrettable": true
-      },
-      {
-        "path": "$.fulfillmentLineItems.pageInfo.endCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque connection cursors; local snapshot serializers use null or synthetic cursors that clients must not decode.",
-        "regrettable": true
-      },
-      {
-        "path": "$.lineItems.pageInfo.startCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque connection cursors; local snapshot serializers use null or synthetic cursors that clients must not decode.",
-        "regrettable": true
-      },
-      {
-        "path": "$.lineItems.pageInfo.endCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque connection cursors; local snapshot serializers use null or synthetic cursors that clients must not decode.",
-        "regrettable": true
-      },
-      {
-        "path": "$[*].lineItems.pageInfo.startCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque connection cursors; local snapshot serializers use null or synthetic cursors that clients must not decode.",
-        "regrettable": true
-      },
-      {
-        "path": "$[*].lineItems.pageInfo.endCursor",
-        "ignore": true,
-        "reason": "Shopify returns opaque connection cursors; local snapshot serializers use null or synthetic cursors that clients must not decode.",
-        "regrettable": true
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "fulfillment-detail",
