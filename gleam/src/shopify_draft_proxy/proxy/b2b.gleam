@@ -13,6 +13,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type ConnectionWindow, type FragmentMap, type SourceValue,
@@ -26,9 +27,13 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, single_root_log_draft,
 }
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
@@ -136,6 +141,156 @@ pub fn is_b2b_mutation_root(name: String) -> Bool {
     // Explicit boundary: local staging cannot emulate outbound email delivery.
     "companyContactSendWelcomeEmail" -> False
     _ -> False
+  }
+}
+
+/// True iff any string variable names a B2B resource that is already
+/// local, deleted locally, or proxy-synthetic. LiveHybrid passthrough
+/// is disabled in that case so read-after-write and read-after-delete
+/// flows stay on the in-memory B2B model.
+pub fn local_has_b2b_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id) || local_b2b_id_known(proxy.store, id)
+      _ -> False
+    }
+  })
+}
+
+fn local_b2b_id_known(store: Store, id: String) -> Bool {
+  case store.get_effective_b2b_company_by_id(store, id) {
+    Some(_) -> True
+    None ->
+      case store.get_effective_b2b_company_contact_by_id(store, id) {
+        Some(_) -> True
+        None ->
+          case store.get_effective_b2b_company_contact_role_by_id(store, id) {
+            Some(_) -> True
+            None ->
+              case store.get_effective_b2b_company_location_by_id(store, id) {
+                Some(_) -> True
+                None -> local_b2b_id_deleted(store, id)
+              }
+          }
+      }
+  }
+}
+
+fn local_b2b_id_deleted(store: Store, id: String) -> Bool {
+  dict.has_key(store.staged_state.deleted_b2b_company_ids, id)
+  || dict.has_key(store.staged_state.deleted_b2b_company_contact_ids, id)
+  || dict.has_key(store.staged_state.deleted_b2b_company_contact_role_ids, id)
+  || dict.has_key(store.staged_state.deleted_b2b_company_location_ids, id)
+}
+
+/// True iff any B2B record or deletion has been staged locally, or any
+/// variable carries a proxy-synthetic gid. Connection and aggregate
+/// reads must stay local once a B2B lifecycle scenario has staged state.
+pub fn local_has_staged_b2b(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  let has_synthetic =
+    dict.values(variables)
+    |> list.any(fn(value) {
+      case value {
+        root_field.StringVal(s) -> is_proxy_synthetic_gid(s)
+        _ -> False
+      }
+    })
+  has_synthetic
+  || dict.size(proxy.store.staged_state.b2b_companies) > 0
+  || dict.size(proxy.store.staged_state.deleted_b2b_company_ids) > 0
+  || dict.size(proxy.store.staged_state.b2b_company_contacts) > 0
+  || dict.size(proxy.store.staged_state.deleted_b2b_company_contact_ids) > 0
+  || dict.size(proxy.store.staged_state.b2b_company_contact_roles) > 0
+  || dict.size(proxy.store.staged_state.deleted_b2b_company_contact_role_ids)
+  > 0
+  || dict.size(proxy.store.staged_state.b2b_company_locations) > 0
+  || dict.size(proxy.store.staged_state.deleted_b2b_company_location_ids) > 0
+}
+
+/// Pattern 1: cold LiveHybrid B2B reads forward upstream verbatim because
+/// the local handler has no base-state catalog to merge. Snapshot mode and
+/// any request touching local/synthetic B2B state continue through the
+/// in-memory handler.
+fn should_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "company" ->
+      !local_has_b2b_id(proxy, variables)
+    parse_operation.QueryOperation, "companyContact" ->
+      !local_has_b2b_id(proxy, variables)
+    parse_operation.QueryOperation, "companyContactRole" ->
+      !local_has_b2b_id(proxy, variables)
+    parse_operation.QueryOperation, "companyLocation" ->
+      !local_has_b2b_id(proxy, variables)
+    parse_operation.QueryOperation, "companies" ->
+      !local_has_staged_b2b(proxy, variables)
+    parse_operation.QueryOperation, "companiesCount" ->
+      !local_has_staged_b2b(proxy, variables)
+    parse_operation.QueryOperation, "companyLocations" ->
+      !local_has_staged_b2b(proxy, variables)
+    _, _ -> False
+  }
+}
+
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_passthrough = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        variables,
+      )
+    _ -> False
+  }
+  case want_passthrough {
+    True -> passthrough.passthrough_sync(proxy, request)
+    False ->
+      case process(proxy.store, document, variables) {
+        Ok(envelope) -> #(
+          Response(status: 200, body: envelope, headers: []),
+          proxy,
+        )
+        Error(_) -> #(
+          Response(
+            status: 400,
+            body: json.object([
+              #(
+                "errors",
+                json.array(
+                  [
+                    json.object([
+                      #("message", json.string("Failed to handle B2B query")),
+                    ]),
+                  ],
+                  fn(x) { x },
+                ),
+              ),
+            ]),
+            headers: [],
+          ),
+          proxy,
+        )
+      }
   }
 }
 
