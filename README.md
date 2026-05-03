@@ -40,7 +40,15 @@ Prerequisites:
 
 - Node 22 or newer
 - Corepack
+- Erlang/OTP 28 and Gleam 1.16.0 for host Gleam test runs
 - A Shopify dev store plus an app Admin API access token
+
+This repository includes a `.mise.toml` that pins the Gleam host toolchain.
+If you use Mise, run `mise install` from the repository root and the checked-in
+`.envrc` will activate those tools automatically when `direnv` is enabled.
+When Mise has to compile Erlang from source, the host must provide OpenSSL
+development headers so OTP includes the `ssl` application used by the test
+suite.
 
 Install dependencies:
 

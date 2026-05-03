@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 185: HAR-513 JS live-hybrid passthrough
+## 2026-05-03 - Pass 186: HAR-513 JS live-hybrid passthrough
 
 Completes the JavaScript async upstream forwarding path for live-hybrid
 passthrough requests that are decided inside domain handlers, not only at the
@@ -52,6 +52,61 @@ Validation:
 - Preserving upstream response headers required moving headers into the shared
   `HttpOutcome`; commit replay ignores them, while passthrough serializes them
   back to JS HTTP-shaped responses.
+
+---
+
+## 2026-05-03 - Pass 185: HAR-538 orders cassette parity
+
+Migrates the remaining Orders parity scenarios to cassette-backed LiveHybrid
+execution. Cold order and draft-order reads now use gated Pattern 1 passthrough
+only when no staged local orders state can affect the response. Supported
+orders mutations still stage locally, using targeted Pattern 2 hydrate reads
+for prior order, draft-order, fulfillment, refund, calculated-order, return,
+customer, and product-variant context before applying local effects.
+
+| Module / fixture                                        | Change                                                                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`      | Adds upstream-aware mutation handling and orders-specific hydration helpers for migrated scenarios. |
+| `gleam/src/shopify_draft_proxy/proxy/customers.gleam`   | Hydrates order/customer context for `orderCustomerSet` and `orderCustomerRemove` read effects.      |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Adds gated LiveHybrid passthrough for cold orders reads and threads upstream context to orders.     |
+| `fixtures/conformance/**/orders/*.json`                 | Hand-synthesizes orders hydrate/passthrough cassette entries from checked-in capture evidence.      |
+| `config/parity-specs/orders/*.json`                     | Prunes stale fulfillment expected-difference rules now covered by captured payload parity.          |
+| `config/gleam-port-ci-gates.json`                       | Removes all remaining Orders expected-failure entries.                                              |
+| `docs/endpoints/orders.md`                              | Documents the HAR-538 cassette-backed Pattern 1/Pattern 2 boundary for orders.                      |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed orders fixture/spec/gate checks: no orders expected-failure entries
+  remain, no top-level `seedX` capture precondition keys were added, and no new
+  `expectedDifferences` rules were added
+
+### Findings
+
+- Pattern 1 is appropriate only for cold read scenarios. Lifecycle specs that
+  stage orders, draft orders, returns, or calculated-order state rely on the
+  existing local serializers after Pattern 2 hydration.
+- Existing checked-in captures carried the authoritative upstream payloads, so
+  missing cassette entries could be hand-synthesized without live Shopify
+  writes.
+- `orderCustomerSet` and `orderCustomerRemove` belong in the customers-domain
+  hydration path for customer order-summary read effects, even though they are
+  order relationship mutations.
+
+### Risks / open items
+
+- Hydration is intentionally scoped to fields selected by current orders parity
+  evidence. Broader order-edit, refund, return, fulfillment, and draft-order
+  Shopify behavior remains future fidelity work outside this cassette
+  migration.
+- Host Erlang is too old for this workspace's Gleam dependency set, so Erlang
+  validation used the established OTP 28 container fallback.
 
 ---
 
@@ -150,6 +205,49 @@ Validation:
 - Hydration is intentionally limited to the ShopifyFunction owner/app fields
   selected by current functions parity evidence. Broader Functions API shapes
   remain future fidelity work.
+
+---
+
+## 2026-05-03 - HAR-547 host Erlang toolchain pin
+
+Adds a repo-local Mise toolchain pin so future worktrees can run the Erlang
+target on the host instead of using the established Docker fallback for OTP 28.
+
+| File         | Change                                                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.mise.toml` | Pins Erlang/OTP 28.4.2 and Gleam 1.16.0 for host Gleam validation; builds Erlang without termcap so unattended hosts without ncurses headers can install it. |
+| `.envrc`     | Activates Mise when available while preserving the existing dotenv loading behavior.                                                                         |
+| `README.md`  | Documents the host Gleam/Erlang prerequisites and the `mise install` setup path.                                                                             |
+
+Validation:
+
+- `cd gleam && gleam test --target erlang` currently fails before this pin is
+  installed because `/usr/bin/erl` is OTP 25 and `gleam_json` requires OTP 27+.
+- A repo-local `mise install` proof initially installed Gleam 1.16.0 but Erlang
+  28.4.2 failed on missing ncurses/termcap headers; the pin now sets
+  `KERL_CONFIGURE_OPTIONS=--without-termcap` for noninteractive test hosts.
+- The same proof showed that a source-built OTP must include OpenSSL support:
+  a build without OpenSSL headers installed successfully but failed the suite
+  because the Erlang `ssl` application was absent.
+- With repo-local OpenSSL headers/libraries supplied for the proof install:
+  `mise exec -- erl -eval 'io:format("OTP=~s~n", [erlang:system_info(otp_release)]), io:format("ssl=~p~n", [application:ensure_all_started(ssl)]), halt().' -noshell`
+  reported `OTP=28` and `ssl={ok,[crypto,asn1,public_key,ssl]}`.
+- `mise exec -- bash -c 'cd gleam && gleam clean && gleam test --target erlang'`
+  (OTP 28.4.2, 819 passed)
+- `mise exec -- bash -c 'cd gleam && gleam test --target javascript'`
+  (Gleam 1.16.0, 824 passed)
+
+### Findings
+
+- The repeated Docker fallback notes below were caused by the same host
+  mismatch: the workspace Erlang executable was OTP 25 while checked-in Gleam
+  dependencies require OTP 27 or newer on the BEAM target.
+
+### Risks / open items
+
+- This change does not mutate global host state. Existing shells without Mise
+  still see `/usr/bin/erl` until the repo-local toolchain is installed and
+  activated.
 
 ---
 

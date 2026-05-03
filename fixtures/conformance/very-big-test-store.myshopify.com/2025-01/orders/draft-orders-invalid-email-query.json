@@ -84,5 +84,98 @@
       ]
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DraftOrdersInvalidEmailQueryRead",
+      "variables": {
+        "first": 2,
+        "query": "email:hermes@example.com"
+      },
+      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzA1Mzk4NzA2NDA5LCJsYXN0X3ZhbHVlIjoiMTMwNTM5ODcwNjQwOSJ9",
+                  "node": {
+                    "id": "gid://shopify/DraftOrder/1305398706409",
+                    "name": "#D1",
+                    "email": "hermes-draft-order-probe-1776520350289@example.com",
+                    "status": "OPEN",
+                    "ready": true
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzA1Mzk5Mjk2MjMzLCJsYXN0X3ZhbHVlIjoiMTMwNTM5OTI5NjIzMyJ9",
+                  "node": {
+                    "id": "gid://shopify/DraftOrder/1305399296233",
+                    "name": "#D2",
+                    "email": "hermes-draft-order-parity-9cd2782dadf9@example.com",
+                    "status": "COMPLETED",
+                    "ready": true
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMzA1Mzk4NzA2NDA5LCJsYXN0X3ZhbHVlIjoiMTMwNTM5ODcwNjQwOSJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxMzA1Mzk5Mjk2MjMzLCJsYXN0X3ZhbHVlIjoiMTMwNTM5OTI5NjIzMyJ9"
+              }
+            },
+            "draftOrdersCount": {
+              "count": 53,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            },
+            "search": [
+              {
+                "path": ["draftOrders"],
+                "query": "email:hermes@example.com",
+                "parsed": {
+                  "field": "email",
+                  "match_all": "hermes@example.com"
+                },
+                "warnings": [
+                  {
+                    "field": "email",
+                    "message": "Invalid search field for this query.",
+                    "code": "invalid_field"
+                  }
+                ]
+              },
+              {
+                "path": ["draftOrdersCount"],
+                "query": "email:hermes@example.com",
+                "parsed": {
+                  "field": "email",
+                  "match_all": "hermes@example.com"
+                },
+                "warnings": [
+                  {
+                    "field": "email",
+                    "message": "Invalid search field for this query.",
+                    "code": "invalid_field"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

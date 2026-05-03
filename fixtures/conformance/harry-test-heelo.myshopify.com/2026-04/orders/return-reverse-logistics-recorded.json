@@ -942,5 +942,109 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8716803244338"
+      },
+      "query": "hand-synthesized from checked-in seedOrder for HAR-538 return lifecycle Pattern 2 order hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8716803244338",
+              "name": "#1048",
+              "createdAt": "2026-04-29T11:08:40Z",
+              "updatedAt": "2026-04-29T11:08:41Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "tags": ["20260429110840", "har-442", "return-reverse-logistics"],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19279731425586",
+                    "title": "HAR-442 return item 20260429110840",
+                    "quantity": 2,
+                    "currentQuantity": 2
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/7866624508210",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-04-29T11:08:41Z",
+                  "updatedAt": "2026-04-29T11:08:41Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17062242058546",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19279731425586",
+                          "title": "HAR-442 return item 20260429110840"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9640339407154",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19428779852082",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19279731425586",
+                            "title": "HAR-442 return item 20260429110840"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "returns": {
+                "nodes": []
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
