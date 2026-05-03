@@ -9,6 +9,57 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-03 - Pass 173: HAR-535 metafields cassette parity
+
+Migrates the remaining Metafields parity scenarios to cassette-backed
+LiveHybrid execution. Cold metafield-definition reads now pass through to
+upstream when there is no local definition state to overlay, while pin/unpin
+mutations hydrate the upstream product-owner definition catalog before staging
+local pin position changes.
+
+| Module / fixture                                                    | Change                                                                                                      |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam`   | Adds Pattern 1 cold-read passthrough and Pattern 2 pin/unpin definition hydration.                          |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`             | Threads `UpstreamContext` into metafield-definition mutations and lets the domain own query passthrough.    |
+| `fixtures/conformance/**/metafields/*definition*{read,pinning}*.json` | Hand-synthesizes definition read/hydrate cassette entries from checked-in capture evidence.                 |
+| `config/gleam-port-ci-gates.json`                                   | Removes the three Metafields expected-failure entries.                                                      |
+| `docs/endpoints/metafields.md`                                      | Documents the LiveHybrid passthrough/hydration boundary and product-shell delete behavior.                  |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- inspect_spec_test` temporary
+  inspector before gate removal (824 passed, 3 failures), then after changes
+  each HAR-535 scenario passed and only the expected-failure gate remained.
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang -- parity_test'`
+  (819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed metafields fixture/gate checks: no metafields expected-failure
+  entries remain, no new top-level `seed*` keys, and no new
+  `expectedDifferences`
+
+### Findings
+
+- Pattern 1 is appropriate for cold product-owner definition reads because the
+  proxy adds no local overlay before any definition state exists.
+- Pattern 2 is required for pin/unpin because those supported mutations must
+  stage locally while starting from existing upstream definition records.
+- Definition delete with `deleteAllAssociatedMetafields: true` must preserve a
+  minimal product shell for downstream `product { metafield }` reads after the
+  targeted metafield is removed.
+
+### Risks / open items
+
+- The hydrate parser intentionally captures the product-owner definition fields
+  exercised by the current pinning fixture. Broader owner families and
+  app-managed definition branches remain future fidelity work.
+
+---
+
 ## 2026-05-03 - Pass 172: HAR-534 media cassette parity
 
 Migrates the remaining Media parity scenarios to cassette-backed LiveHybrid
