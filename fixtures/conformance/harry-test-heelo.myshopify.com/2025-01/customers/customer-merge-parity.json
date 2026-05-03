@@ -815,5 +815,144 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10546995200306"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10546995200306",
+              "firstName": "Merge",
+              "lastName": "One",
+              "displayName": "Merge One",
+              "email": "hermes-merge-one-1777304264870@example.com",
+              "note": "merge-one-note",
+              "tags": ["har-291-merge", "merge-1777304264870", "merge-one"],
+              "numberOfOrders": "0",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-merge-one-1777304264870@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+16475554870"
+              },
+              "defaultAddress": null,
+              "addressesV2": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "orders": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "lastOrder": null,
+              "createdAt": "2026-04-27T15:37:44Z",
+              "updatedAt": "2026-04-27T15:37:44Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10546995233074"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10546995233074",
+              "firstName": "Merge",
+              "lastName": "Two",
+              "displayName": "Merge Two",
+              "email": "hermes-merge-two-1777304264870@example.com",
+              "note": "merge-two-note",
+              "tags": ["har-291-merge", "merge-1777304264870", "merge-two"],
+              "numberOfOrders": "0",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-merge-two-1777304264870@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+16476664870"
+              },
+              "defaultAddress": null,
+              "addressesV2": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "orders": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "lastOrder": null,
+              "createdAt": "2026-04-27T15:37:45Z",
+              "updatedAt": "2026-04-27T15:37:45Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerCountHydrate",
+      "variables": {},
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customersCount": {
+              "count": 40,
+              "precision": "EXACT"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

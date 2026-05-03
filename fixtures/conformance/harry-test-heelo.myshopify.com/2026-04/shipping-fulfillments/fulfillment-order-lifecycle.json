@@ -8562,5 +8562,763 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9637818073394"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8714446799154",
+              "name": "#1035",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9637818073394",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillAt": "2026-04-28T02:00:00Z",
+                    "fulfillBy": null,
+                    "updatedAt": "2026-04-28T02:25:32Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      }
+                    },
+                    "fulfillmentHolds": [],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19424271892786",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19275256267058",
+                            "title": "HAR-234 fulfillment item hold-release 20260428022531",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9637818073394",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-04-28T02:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-04-28T02:25:32Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19424271892786",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19275256267058",
+                      "title": "HAR-234 fulfillment item hold-release 20260428022531",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8714446799154",
+                "name": "#1035",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9637818237234"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8714446864690",
+              "name": "#1036",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9637818237234",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillAt": "2026-04-28T02:00:00Z",
+                    "fulfillBy": null,
+                    "updatedAt": "2026-04-28T02:25:35Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      }
+                    },
+                    "fulfillmentHolds": [],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19424272318770",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19275256496434",
+                            "title": "HAR-234 fulfillment item move 20260428022534",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9637818237234",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-04-28T02:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-04-28T02:25:35Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19424272318770",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19275256496434",
+                      "title": "HAR-234 fulfillment item move 20260428022534",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8714446864690",
+                "name": "#1036",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9637818302770"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8714446897458",
+              "name": "#1037",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9637818302770",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillAt": "2026-04-28T02:00:00Z",
+                    "fulfillBy": null,
+                    "updatedAt": "2026-04-28T02:25:37Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      }
+                    },
+                    "fulfillmentHolds": [],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19424272384306",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19275256529202",
+                            "title": "HAR-234 fulfillment item schedule-progress-open-close 20260428022536",
+                            "quantity": 1,
+                            "fulfillableQuantity": 1
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9637818302770",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-04-28T02:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-04-28T02:25:37Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19424272384306",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19275256529202",
+                      "title": "HAR-234 fulfillment item schedule-progress-open-close 20260428022536",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8714446897458",
+                "name": "#1037",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9637818368306"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8714446962994",
+              "name": "#1038",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9637818368306",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillAt": "2026-04-28T02:00:00Z",
+                    "fulfillBy": null,
+                    "updatedAt": "2026-04-28T02:25:41Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      }
+                    },
+                    "fulfillmentHolds": [],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19424272449842",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19275256594738",
+                            "title": "HAR-234 fulfillment item reroute-cancel 20260428022540",
+                            "quantity": 1,
+                            "fulfillableQuantity": 1
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9637818368306",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-04-28T02:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-04-28T02:25:41Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19424272449842",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19275256594738",
+                      "title": "HAR-234 fulfillment item reroute-cancel 20260428022540",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8714446962994",
+                "name": "#1038",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9637818433842"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8714446995762",
+              "name": "#1039",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9637818433842",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillAt": "2026-04-28T02:00:00Z",
+                    "fulfillBy": null,
+                    "updatedAt": "2026-04-28T02:25:44Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      }
+                    },
+                    "fulfillmentHolds": [],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19424272482610",
+                          "totalQuantity": 3,
+                          "remainingQuantity": 3,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19275256627506",
+                            "title": "HAR-234 fulfillment item residual-split-deadline-merge 20260428022543",
+                            "quantity": 3,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9637818433842",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-04-28T02:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-04-28T02:25:44Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19424272482610",
+                    "totalQuantity": 3,
+                    "remainingQuantity": 3,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19275256627506",
+                      "title": "HAR-234 fulfillment item residual-split-deadline-merge 20260428022543",
+                      "quantity": 3,
+                      "fulfillableQuantity": 3
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8714446995762",
+                "name": "#1039",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentOrderRescheduleLifecycle",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9637818302770",
+        "fulfillAt": "2026-05-01T02:25:37.635Z"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrderReschedule": {
+              "fulfillmentOrder": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Fulfillment order must be scheduled."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 23,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentOrderCloseLifecycle",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9637818302770",
+        "message": "HAR-234 close lifecycle capture"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrderClose": {
+              "fulfillmentOrder": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The fulfillment order's assigned fulfillment service must be of api type"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 23,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentOrderLifecycleOrderRead",
+      "variables": {
+        "id": "gid://shopify/Order/8714446897458"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8714446897458",
+              "name": "#1037",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9637818302770",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillAt": "2026-04-28T02:00:00Z",
+                    "fulfillBy": null,
+                    "updatedAt": "2026-04-28T02:25:37Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      }
+                    },
+                    "fulfillmentHolds": [],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19424272384306",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19275256529202",
+                            "title": "HAR-234 fulfillment item schedule-progress-open-close 20260428022536",
+                            "quantity": 1,
+                            "fulfillableQuantity": 1
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 59,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
