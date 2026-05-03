@@ -230,25 +230,39 @@ recorded cassette of upstream GraphQL traffic. The legacy
 helper are gone — capture files no longer carry `seedX` keys, and the
 runner does **not** pre-write into `base_state`. The cassette
 (`upstreamCalls` array on the capture file) is installed as the
-proxy's upstream transport via `draft_proxy.with_upstream_transport`,
-and operation handlers reach upstream when they need to via the
-`proxy/upstream_query.fetch_*` chokepoint.
+proxy's upstream transport via `draft_proxy.with_upstream_transport`.
 
-When you need a mutation to read the prior record before staging
-(e.g., `customerUpdate` merging fields onto an existing customer),
-add a narrow `upstream_query.fetch_sync` call inside the operation
-handler and document the choice — what it fetches, why, what it
-persists, and what it does in `Snapshot` mode — as a short inline
-comment next to the handler.
+There are **two patterns** for reaching upstream. Start with the
+simpler one and only escalate when it doesn't fit:
 
-When an `upstream_query.fetch` call is missing from the cassette, the
-parity runner fails loudly with `cassette miss: operation=<name>
-variables=<json>`. Re-record the cassette with `pnpm parity:record
-<scenario-id>` to fix.
+1. **Force passthrough in LiveHybrid** (`force_passthrough_in_live_hybrid`
+   in `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`) — the
+   dispatch layer forwards the GraphQL document verbatim to the
+   upstream transport. Use this for read operations where the proxy
+   has nothing local to add. One-line addition per root field. Already
+   used by `customersCount`, `customerByIdentifier`, `customer` (gated
+   on local presence), `customers`.
+2. **Per-handler `upstream_query.fetch_sync`** — a narrow upstream call
+   inside the operation handler. Use this when the operation must do
+   something with the response (merge with staged state, persist a
+   slice, fan out into multiple records, compute a non-verbatim reply).
+   Canonical case: `customerUpdate` reads the prior record before
+   staging the merge. Document the choice — what it fetches, why,
+   what it persists, what `Snapshot` mode does — as a short inline
+   comment next to the handler.
 
-See `docs/parity-runner.md` for the full model, the cassette schema,
-spec `mode` field, the empty-snapshot variant, and the per-domain
-migration playbook.
+When an upstream call is missing from the cassette, the parity runner
+fails loudly with `cassette miss: operation=<name> variables=<json>`.
+Re-record with `pnpm parity:record <scenario-id>`.
+
+When `pnpm parity:record` reports `wrote 0 upstreamCalls` despite the
+spec being a LiveHybrid scenario, that means no operation handler
+reached upstream at all — neither pattern is wired yet. This is the
+dominant failure mode of existing manifest entries.
+
+See `docs/parity-runner.md` for the full model, code examples for
+both patterns, the cassette schema, spec `mode` field, the
+empty-snapshot variant, and the per-domain migration playbook.
 
 If an existing parity spec uses wildcard expected-difference paths such as
 `$.shop.shopPolicies[*].updatedAt`, teach the Gleam diff layer to honor that

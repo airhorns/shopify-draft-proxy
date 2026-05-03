@@ -100,12 +100,74 @@ the cassette to fix.
 
 ## Per-operation upstream access
 
-Operation handlers in `gleam/src/shopify_draft_proxy/shopify/<domain>.gleam`
-call upstream via the `proxy/upstream_query.fetch_sync` chokepoint.
-There is **no** uniform `hydrate_*_from_upstream_response` pattern. Each
-operation decides, per-operation:
+There are **two patterns** for reaching upstream. Pick the simpler one
+that fits the operation; do not over-engineer.
 
-- whether it needs anything from upstream at all (many won't);
+### Pattern 1 — Force passthrough in LiveHybrid (the simple default)
+
+For read operations where the proxy has nothing local to add (the
+captured response is exactly what upstream returns and the proxy's job
+is just to forward), opt the operation into the dispatch-layer
+passthrough list:
+
+```gleam
+// gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam
+fn force_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    QueryOperation, "customersCount" -> True
+    QueryOperation, "customerByIdentifier" -> True
+    QueryOperation, "customer" ->
+      !customers.local_has_customer_id(proxy, variables)
+    QueryOperation, "customers" -> True
+    // Add your operation here:
+    QueryOperation, "discountNode" -> True
+    _, _ -> False
+  }
+}
+```
+
+When this returns `True`, `dispatch_graphql` forwards the entire
+GraphQL document verbatim to the upstream transport (cassette in
+tests, real HTTP in production). The proxy adds nothing to the
+response; cassette replay is trivially correct because the cassette
+captured the same response the spec is being graded against.
+
+`Snapshot` mode is unaffected — `force_passthrough_in_live_hybrid`
+only fires when `read_mode == LiveHybrid`. The local handler keeps
+serving Snapshot reads.
+
+You can also gate the passthrough on local state, like the existing
+`customer` branch does (`!customers.local_has_customer_id` — passthrough
+only when the proxy doesn't already have the customer locally, so a
+prior staged create still wins).
+
+This is the right pattern for: `*Node` lookups, list/connection reads
+where the proxy has no local writes layered on, count aggregates, and
+anything else where the proxy is a transparent forwarder.
+
+### Pattern 2 — Per-handler `upstream_query.fetch_sync`
+
+For operations that genuinely need to do something with the upstream
+response — merge it with staged state, persist a slice into
+`base_state`, fan out into multiple staged records, or compute a reply
+that isn't just the upstream response verbatim — the handler issues
+its own narrow upstream call via the `proxy/upstream_query.fetch_sync`
+chokepoint.
+
+The canonical case is a mutation that reads the prior record before
+staging: `customerUpdate` fetches the existing customer (so the merged
+result has fields the request didn't touch), then stages the update
+locally. The fetch is captured in the cassette; the stage is not (it's
+a local effect).
+
+There is **no** uniform `hydrate_*_from_upstream_response` pattern.
+Each operation decides, per-operation:
+
 - what minimal slice it needs (one ID-keyed read, a narrow filter, the
   prior record so a mutation can merge fields);
 - whether to persist the result into `base_state` (so the same operation
@@ -114,14 +176,27 @@ operation decides, per-operation:
 - what `Snapshot` mode does — typically: serve from local state if
   present, otherwise return null/empty.
 
-Reads can fetch upstream. **Mutations can fetch upstream too** — e.g., a
-`customerUpdate` that needs the existing record to merge fields. Mutations
-still stage their side effect locally; what they may also do is read from
-upstream first.
+Reads can fetch upstream. **Mutations can fetch upstream too.** Mutations
+still stage their side effect locally; what they may also do is read
+from upstream first.
 
 The choice for each operation is a short inline comment next to the
 handler explaining what it fetches, why, and what it does in `Snapshot`
 mode.
+
+### Picking between the two
+
+| Situation                                           | Pattern |
+|-----------------------------------------------------|---------|
+| Read returns upstream verbatim, proxy adds nothing  | 1       |
+| Read where staged local writes must overlay         | 1, gated on local-state check |
+| Mutation that needs the prior record to merge       | 2       |
+| Operation that persists a slice for future reads    | 2       |
+| Operation whose response can't be computed from one upstream call | 2 |
+| Aggregate / count operations                        | 1       |
+
+Start with pattern 1. Reach for pattern 2 only when the response can't
+be served by forwarding verbatim.
 
 ## Running
 
@@ -242,23 +317,38 @@ domains.
 Per-scenario steps:
 
 1. `pnpm parity:record <id>` — records the cassette into the capture file.
-2. Update the spec: drop any seeding-related fields; add `"mode":
-"live-hybrid"` if not default.
+   - **If the recorder reports `wrote 0 upstreamCalls`**, the operation
+     handler isn't reaching upstream at all. That's the dominant failure
+     mode of the existing manifest entries and is what you're here to
+     fix. Continue to step 2.
+   - **If it wrote N>0 upstreamCalls**, the cassette is populated; skip
+     to step 3.
+2. Decide the pattern (1 or 2 above) and wire the operation:
+   - Pattern 1: add the root field to `force_passthrough_in_live_hybrid`
+     in `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`.
+   - Pattern 2: add a `upstream_query.fetch_sync(...)` call inside the
+     domain handler (`gleam/src/shopify_draft_proxy/shopify/<domain>.gleam`
+     or `gleam/src/shopify_draft_proxy/proxy/<domain>.gleam`) and
+     document the choice inline.
+   - Re-run `pnpm parity:record <id>` and confirm `wrote N>0
+     upstreamCalls`.
 3. `pnpm parity:run <id>` on both targets. If you see:
-   - `cassette miss: operation=<X>` — the operation needs an upstream
-     call we didn't record. Re-record. (Or, the operation should be
-     reading from local state — adjust the handler.)
+   - `cassette miss: operation=<X>` — the operation made an upstream
+     call we didn't record. Re-record.
    - parity diff — the operation isn't computing the right response.
-     Either the handler needs to add a narrow `upstream_query.fetch`
-     call, persist the result, or compute the response differently.
-4. Document any new per-operation upstream-fetch choice as a short inline
-   comment next to the handler.
+     Adjust the handler (escalate to pattern 2 if pattern 1 was used,
+     persist the result if needed, or change the projection).
+4. Once green, drop the spec's entry from
+   `config/gleam-port-ci-gates.json`'s `expectedGleamParityFailures`.
+   Re-run `pnpm gleam:port:coverage` to confirm the gate is satisfied
+   without the entry.
 5. If the scenario qualifies for an empty-snapshot variant (per the
    duplication heuristic in the migration plan), create
    `<id>-empty-snapshot.json` with `"mode": "snapshot-empty"`, no
    cassette, and assertions adjusted for cold-state expectations. Run
    that variant green too.
-6. Once green, delete any seeders that scenario was the last consumer of.
+6. Move to the next scenario. When the whole domain is green, open the
+   sub-PR.
 
 ## What `seedX` keys mean (legacy)
 
