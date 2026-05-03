@@ -1150,12 +1150,17 @@ fn route_mutation(
       }
     Ok(PaymentsDomain) ->
       case
-        payments.process_mutation(
+        payments.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -1614,6 +1619,11 @@ fn local_query_dispatch_domain(
         True -> Ok(PaymentsDomain)
         False -> Ok(OrdersDomain)
       }
+    "customer" ->
+      case customer_payment_methods_only_query(query) {
+        True -> Ok(PaymentsDomain)
+        False -> Ok(CustomersDomain)
+      }
     "market"
     | "markets"
     | "catalog"
@@ -1696,6 +1706,26 @@ fn draft_order_payment_terms_only_query(query: String) -> Bool {
             !list.is_empty(selection_names)
             && list.all(selection_names, fn(name) {
               name == "id" || name == "paymentTerms" || name == "__typename"
+            })
+          }
+          _ -> False
+        }
+      })
+  }
+}
+
+fn customer_payment_methods_only_query(query: String) -> Bool {
+  case root_field.get_root_fields(query) {
+    Error(_) -> False
+    Ok(fields) ->
+      fields
+      |> list.any(fn(field) {
+        case field {
+          Field(name: field_name, ..) if field_name.value == "customer" -> {
+            let selection_names = root_field.get_selection_names(field)
+            !list.is_empty(selection_names)
+            && list.all(selection_names, fn(name) {
+              name == "id" || name == "paymentMethods" || name == "__typename"
             })
           }
           _ -> False
