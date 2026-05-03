@@ -239,9 +239,18 @@ simpler one and only escalate when it doesn't fit:
    in `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`) — the
    dispatch layer forwards the GraphQL document verbatim to the
    upstream transport. Use this for read operations where the proxy
-   has nothing local to add. One-line addition per root field. Already
-   used by `customersCount`, `customerByIdentifier`, `customer` (gated
-   on local presence), `customers`.
+   has nothing local to add.
+
+   **Almost always gate on local state.** Unconditional passthrough
+   regresses lifecycle scenarios that stage or delete records.
+   Convention is two helpers per domain: `local_has_<resource>_id`
+   for `*Node` lookups (passthrough off when the requested id is
+   staged or proxy-synthetic) and `local_has_staged_<resources>` for
+   connection / aggregate / by-code reads (passthrough off when any
+   record is staged). See `proxy/discounts.gleam` for the canonical
+   pair. Scan **every** string variable, not just `$id` — operations
+   rebind ids under different variable names like `$codeId`.
+
 2. **Per-handler `upstream_query.fetch_sync`** — a narrow upstream call
    inside the operation handler. Use this when the operation must do
    something with the response (merge with staged state, persist a
@@ -251,6 +260,10 @@ simpler one and only escalate when it doesn't fit:
    what it persists, what `Snapshot` mode does — as a short inline
    comment next to the handler.
 
+After every handler change, **run the whole domain's tests, not just
+your scenario** — passthrough wiring frequently regresses lifecycle
+scenarios in sibling specs.
+
 When an upstream call is missing from the cassette, the parity runner
 fails loudly with `cassette miss: operation=<name> variables=<json>`.
 Re-record with `pnpm parity:record <scenario-id>`.
@@ -259,6 +272,25 @@ When `pnpm parity:record` reports `wrote 0 upstreamCalls` despite the
 spec being a LiveHybrid scenario, that means no operation handler
 reached upstream at all — neither pattern is wired yet. This is the
 dominant failure mode of existing manifest entries.
+
+**Recorder hits the env-configured store, not the per-fixture store.**
+Many older fixtures were captured against
+`very-big-test-store.myshopify.com` but the OAuth currently linked
+points at a different store. When the recorder targets a store that
+doesn't have the right data — or the captured query references a
+since-removed Shopify field — live recording writes a useless
+cassette. Hand-synthesize from the captured response in that case
+(see `docs/parity-runner.md` "Recorder hits the env-configured
+store" for the recipe). Hand-synthesizing is the dominant case for
+older read fixtures.
+
+Stale `expectedDifferences` rules become **hard failures** under
+cassette playback (the runner asserts each rule is satisfied; pattern
+1 forwards upstream cursors verbatim so cursor rules now panic with
+`expectedDifference rule was not satisfied`). AGENTS.md bans adding
+new rules; it does not ban deleting stale ones. Expect to delete
+cursor / `pageInfo` rules originally written for the seed-based
+runner.
 
 See `docs/parity-runner.md` for the full model, code examples for
 both patterns, the cassette schema, spec `mode` field, the

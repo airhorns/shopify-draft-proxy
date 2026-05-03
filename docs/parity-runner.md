@@ -124,8 +124,11 @@ fn force_passthrough_in_live_hybrid(
     QueryOperation, "customer" ->
       !customers.local_has_customer_id(proxy, variables)
     QueryOperation, "customers" -> True
-    // Add your operation here:
-    QueryOperation, "discountNode" -> True
+    // Add your operation here, gated on local state:
+    QueryOperation, "discountNode" ->
+      !discounts.local_has_discount_id(proxy, variables)
+    QueryOperation, "discountNodes" ->
+      !discounts.local_has_staged_discounts(proxy, variables)
     _, _ -> False
   }
 }
@@ -141,10 +144,65 @@ captured the same response the spec is being graded against.
 only fires when `read_mode == LiveHybrid`. The local handler keeps
 serving Snapshot reads.
 
-You can also gate the passthrough on local state, like the existing
-`customer` branch does (`!customers.local_has_customer_id` — passthrough
-only when the proxy doesn't already have the customer locally, so a
-prior staged create still wins).
+#### **Almost always gate passthrough on local state**
+
+Unconditional passthrough (`-> True`) regresses lifecycle scenarios
+that stage or delete records, because passthrough forwards
+proxy-synthetic gids upstream (where they 404) and bypasses the
+empty/null answer the test expects after a delete. The discounts
+domain demonstrates the pattern:
+
+```gleam
+// gleam/src/shopify_draft_proxy/proxy/discounts.gleam
+pub fn local_has_discount_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id)
+        || case store.get_effective_discount_by_id(proxy.store, id) {
+          Some(_) -> True
+          None -> False
+        }
+      _ -> False
+    }
+  })
+}
+
+pub fn local_has_staged_discounts(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  let has_synthetic =
+    dict.values(variables)
+    |> list.any(fn(value) {
+      case value {
+        root_field.StringVal(s) -> is_proxy_synthetic_gid(s)
+        _ -> False
+      }
+    })
+  has_synthetic || !list.is_empty(store.list_effective_discounts(proxy.store))
+}
+```
+
+Two important details:
+
+1. **Scan every string variable, not just `$id`.** GraphQL operations
+   frequently rebind the argument under a different variable name
+   (e.g. `discountNode(id: $codeId)`). Keying off `dict.get(variables,
+   "id")` will silently fail on those operations. The existing
+   `customers.local_has_customer_id` helper happens to work only
+   because every customer query in the corpus uses `$id` literally;
+   don't replicate the pattern verbatim.
+2. **Two flavors of gate**: an "id-keyed" check (passthrough off when
+   the requested id is staged or synthetic, used by `*Node` lookups)
+   and a "domain-has-staged-records" check (passthrough off when *any*
+   record is staged, used by connection / aggregate / by-code reads).
+   Use the right one per operation; don't substitute one for the
+   other.
 
 This is the right pattern for: `*Node` lookups, list/connection reads
 where the proxy has no local writes layered on, count aggregates, and
@@ -295,6 +353,12 @@ pnpm parity:record customer-detail-parity-plan
 pnpm parity:record --all
 ```
 
+> **Note on `corepack pnpm` vs `pnpm`.** AGENTS.md prefers `corepack
+> pnpm` for unattended/CI envs, but on local dev boxes `corepack pnpm`
+> may error with "no longer supported in a global context". If you hit
+> that, drop the `corepack` prefix — bare `pnpm` works wherever it's
+> on `PATH`.
+
 The recorder boots an in-memory `DraftProxy` (Gleam JS target) in
 `LiveHybrid` mode against real Shopify, plays the spec's primary +
 targets through it, intercepts every upstream call the operation
@@ -303,7 +367,62 @@ handlers issue, and writes the result into the capture file's
 
 Credentials come from the existing OAuth flow:
 `pnpm conformance:auth-link`, `pnpm conformance:exchange-auth`,
-`pnpm conformance:probe`. Stored in `~/.config/shopify-draft-proxy/`.
+`pnpm conformance:probe`. Stored in `~/.shopify-draft-proxy/`.
+
+### Recorder hits the env-configured store, not the per-fixture store
+
+The recorder reads `SHOPIFY_CONFORMANCE_ADMIN_ORIGIN` and runs the
+live query there. Many fixtures in this repo were captured against
+older stores (e.g. `very-big-test-store.myshopify.com`) but the OAuth
+token that's currently linked points at a different store (e.g.
+`harry-test-heelo.myshopify.com`). When the recorder targets a store
+that doesn't have the same data the original capture was against —
+or worse, when the captured query references a Shopify schema field
+that's since been removed (e.g. `DiscountAutomaticBasic.context`) —
+the live recording will write a useless cassette: `{ errors:
+[{undefinedField}] }` or simply `wrote 0 upstreamCalls`.
+
+**Hand-synthesize the cassette from the captured response in this
+case.** The captured response is already in the fixture file; the
+cassette just wraps it as a single recorded call. Recipe:
+
+```sh
+# Capture lives at .response in most files; check .capturePath in the
+# spec for the actual location (a few files use .response.response).
+RESPONSE_BODY=$(jq '.response' fixtures/conformance/<store>/<api>/<domain>/<scenario>.json)
+
+jq --argjson body "$RESPONSE_BODY" \
+  --arg op "<OperationName>" \
+  --argjson vars "$(jq '.proxyRequest.variables' config/parity-specs/<domain>/<scenario>.json)" \
+  '.upstreamCalls = [{
+     operationName: $op,
+     variables: $vars,
+     query: "<sha placeholder>",
+     response: { status: 200, body: $body }
+   }]' \
+  fixtures/conformance/<store>/<api>/<domain>/<scenario>.json \
+  > /tmp/cassette.json && mv /tmp/cassette.json fixtures/conformance/<store>/<api>/<domain>/<scenario>.json
+```
+
+Hand-synthesizing is the dominant case for older read fixtures; it's
+faster and more reliable than re-pointing OAuth at the original
+store. Reserve live re-recording for scenarios whose schema or
+underlying data is current.
+
+### Stale `expectedDifferences` rules become hard failures
+
+Once a scenario is on cassette playback, **stale
+`expectedDifferences` rules become hard failures, not silent
+permissions.** The runner asserts each rule was satisfied — if a rule
+declares "expect a difference at `$.events.pageInfo.endCursor`" but
+the proxy now emits the upstream cursor verbatim (because pattern 1
+forwards it), the test panics with `expectedDifference rule was not
+satisfied`.
+
+When migrating a read scenario, expect to delete cursor /
+`pageInfo` / `cursor` rules that were originally needed because the
+seed-based runner emitted synthetic cursors. AGENTS.md bans *adding*
+new `expectedDifferences`; it does not ban removing stale ones.
 
 ## Migration playbook (per-domain agent brief)
 
@@ -317,38 +436,52 @@ domains.
 Per-scenario steps:
 
 1. `pnpm parity:record <id>` — records the cassette into the capture file.
-   - **If the recorder reports `wrote 0 upstreamCalls`**, the operation
-     handler isn't reaching upstream at all. That's the dominant failure
-     mode of the existing manifest entries and is what you're here to
-     fix. Continue to step 2.
-   - **If it wrote N>0 upstreamCalls**, the cassette is populated; skip
-     to step 3.
+   - **If the recorder reports `wrote 0 upstreamCalls`** AND the live
+     recording succeeded (no errors visible): the operation handler
+     isn't reaching upstream at all. Continue to step 2.
+   - **If the live recording produced GraphQL errors** (e.g.
+     `undefinedField`, schema drift, missing data): hand-synthesize
+     the cassette from the captured response (recipe above). Skip to
+     step 3.
+   - **If it wrote N>0 upstreamCalls cleanly**, the cassette is
+     populated; skip to step 3.
 2. Decide the pattern (1 or 2 above) and wire the operation:
    - Pattern 1: add the root field to `force_passthrough_in_live_hybrid`
-     in `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`.
+     in `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`. **Gate
+     it on local state** (use or add a `local_has_*_id` /
+     `local_has_staged_*` helper in the domain module — see Pattern 1
+     section above for the discounts example).
    - Pattern 2: add a `upstream_query.fetch_sync(...)` call inside the
-     domain handler (`gleam/src/shopify_draft_proxy/shopify/<domain>.gleam`
-     or `gleam/src/shopify_draft_proxy/proxy/<domain>.gleam`) and
-     document the choice inline.
+     domain handler and document the choice inline.
    - Re-run `pnpm parity:record <id>` and confirm `wrote N>0
-     upstreamCalls`.
-3. `pnpm parity:run <id>` on both targets. If you see:
+     upstreamCalls` (or hand-synthesize if recording fails).
+3. `cd gleam && gleam test --target javascript -- parity_test` to run
+   on JS, then `--target erlang` to run on Erlang. If you see:
    - `cassette miss: operation=<X>` — the operation made an upstream
-     call we didn't record. Re-record.
+     call we didn't record. Re-record or extend the cassette.
+   - `expectedDifference rule was not satisfied at <path>` — a stale
+     `expectedDifferences` rule. Delete the rule from the spec.
    - parity diff — the operation isn't computing the right response.
-     Adjust the handler (escalate to pattern 2 if pattern 1 was used,
-     persist the result if needed, or change the projection).
-4. Once green, drop the spec's entry from
+     Adjust the handler.
+4. **Verify on both targets.** Drift between Erlang and JS is the
+   most expensive bug class.
+5. Once both targets are green for this scenario, drop its entry from
    `config/gleam-port-ci-gates.json`'s `expectedGleamParityFailures`.
-   Re-run `pnpm gleam:port:coverage` to confirm the gate is satisfied
-   without the entry.
-5. If the scenario qualifies for an empty-snapshot variant (per the
+   Then re-run the full gate (`gleam test --target javascript` and
+   `--target erlang`) — the gate will fail if a now-passing scenario
+   is still in the manifest, so dropping is required not optional.
+6. If the scenario qualifies for an empty-snapshot variant (per the
    duplication heuristic in the migration plan), create
    `<id>-empty-snapshot.json` with `"mode": "snapshot-empty"`, no
    cassette, and assertions adjusted for cold-state expectations. Run
    that variant green too.
-6. Move to the next scenario. When the whole domain is green, open the
-   sub-PR.
+7. **Watch for collateral regressions.** Adding an unconditional or
+   incorrectly-gated passthrough branch can regress lifecycle
+   scenarios in *other* specs that touch the same root fields. After
+   each handler change, run the full domain's tests (or the whole
+   suite) — not just your scenario.
+8. Move to the next scenario. When the whole domain is green, open
+   the sub-PR.
 
 ## What `seedX` keys mean (legacy)
 
