@@ -1,42 +1,6 @@
 {
   "expectedGleamParityFailures": [
     {
-      "specPath": "config/parity-specs/admin-platform/admin-platform-delivery-profile-node-reads.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/admin-platform/admin-platform-market-web-presence-node-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/admin-platform/admin-platform-metafield-node-reads.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/admin-platform/admin-platform-product-option-node-reads.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/admin-platform/admin-platform-supported-node-reads.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/admin-platform/admin-platform-utility-reads.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
       "specPath": "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json",
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },

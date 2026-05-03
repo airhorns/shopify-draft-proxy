@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 186: HAR-542 segments cassette parity
+## 2026-05-03 - Pass 187: HAR-542 segments cassette parity
 
 Migrates the remaining Segments parity scenario to cassette-backed LiveHybrid
 execution. Cold segment catalog/detail/count/filter reads now use gated Pattern
@@ -56,6 +56,55 @@ Validation:
 
 ### Risks / open items
 
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+---
+
+## 2026-05-03 - Pass 186: HAR-525 admin-platform cassette parity
+
+Migrates the remaining Admin Platform parity scenarios to cassette-backed
+LiveHybrid execution. Cold platform utility, taxonomy, and selected generic
+Node reads now use Pattern 1 passthrough when no local admin-platform or staged
+node-owning state exists, while snapshot and read-after-write paths continue to
+use the local admin-platform serializers.
+
+| Module / fixture                                                                                          | Change                                                                                           |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`                                                | Adds a LiveHybrid query entrypoint with gated Pattern 1 passthrough for cold utility/node reads. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                                                   | Routes admin-platform queries through the upstream-aware admin-platform entrypoint.              |
+| `fixtures/conformance/**/{admin-platform,markets,products,shipping-fulfillments,store-properties}/*.json` | Hand-synthesizes admin-platform cassette entries from checked-in capture evidence.               |
+| `config/gleam-port-ci-gates.json`                                                                         | Removes the nine Admin Platform expected-failure entries.                                        |
+| `docs/endpoints/admin-platform.md`                                                                        | Documents the endpoint-specific LiveHybrid Pattern 1 choice and migrated scenario set.           |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed admin-platform fixture/gate checks: no admin-platform expected-failure
+  entries remain, no added `seedX` keys, and no new `expectedDifferences`
+
+### Findings
+
+- Pattern 1 is sufficient for the migrated admin-platform scenarios because
+  these are cold read scenarios whose cassette payload is already the desired
+  Shopify-shaped response. The handler is gated on absence of local/staged
+  state so staged lifecycle scenarios continue to exercise local serializers.
+- The checked-in captures already contained the authoritative response payloads,
+  so the missing cassette entries could be hand-synthesized without live
+  Shopify credentials.
+
+### Risks / open items
+
+- The passthrough GID families are intentionally limited to Node implementors
+  with existing local serializers and cassette-backed parity evidence. Broader
+  generic Node support still belongs to each owning domain's lifecycle/read
+  model.
 - Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
   Erlang validation used the established OTP 28 container fallback.
 
