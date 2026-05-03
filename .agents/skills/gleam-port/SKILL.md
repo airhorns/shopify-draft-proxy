@@ -528,7 +528,11 @@ for a missing cassette entry — fix the recording instead.
   such as `WebPixel.settings` must project the raw object even with no child
   selection, and mobile app create inputs may be nested under `android`.
   Article metafield inputs need Shopify-shaped `ownerType` and `jsonValue`
-  fields for read-after-write parity.
+  fields for read-after-write parity. Cold content catalog/search reads can use
+  Pattern 1 passthrough when no local content state exists, but staged content
+  lifecycle reads must stay local; fetch only narrow upstream baselines such as
+  `blogsCount` / `pagesCount` when the downstream document contains
+  proxy-synthetic IDs.
 - Orders abandonment parity can start with the safe abandoned-checkout slice:
   `abandonedCheckouts`, `abandonedCheckoutsCount`, `abandonment`,
   `abandonmentByAbandonedCheckoutId`, and
