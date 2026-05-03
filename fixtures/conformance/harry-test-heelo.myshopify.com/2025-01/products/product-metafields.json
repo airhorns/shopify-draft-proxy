@@ -119,9 +119,7 @@
     {
       "operationName": "AdminPlatformMetafieldNodeReads",
       "variables": {
-        "ids": [
-          "gid://shopify/Metafield/42952770224434"
-        ]
+        "ids": ["gid://shopify/Metafield/42952770224434"]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
       "response": {

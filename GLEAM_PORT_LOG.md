@@ -17,13 +17,13 @@ Node reads now use Pattern 1 passthrough when no local admin-platform or staged
 node-owning state exists, while snapshot and read-after-write paths continue to
 use the local admin-platform serializers.
 
-| Module / fixture                                                             | Change                                                                                              |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`                   | Adds a LiveHybrid query entrypoint with gated Pattern 1 passthrough for cold utility/node reads.    |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                      | Routes admin-platform queries through the upstream-aware admin-platform entrypoint.                 |
-| `fixtures/conformance/**/{admin-platform,markets,products,shipping-fulfillments,store-properties}/*.json` | Hand-synthesizes admin-platform cassette entries from checked-in capture evidence.                  |
-| `config/gleam-port-ci-gates.json`                                            | Removes the nine Admin Platform expected-failure entries.                                           |
-| `docs/endpoints/admin-platform.md`                                           | Documents the endpoint-specific LiveHybrid Pattern 1 choice and migrated scenario set.              |
+| Module / fixture                                                                                          | Change                                                                                           |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`                                                | Adds a LiveHybrid query entrypoint with gated Pattern 1 passthrough for cold utility/node reads. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                                                   | Routes admin-platform queries through the upstream-aware admin-platform entrypoint.              |
+| `fixtures/conformance/**/{admin-platform,markets,products,shipping-fulfillments,store-properties}/*.json` | Hand-synthesizes admin-platform cassette entries from checked-in capture evidence.               |
+| `config/gleam-port-ci-gates.json`                                                                         | Removes the nine Admin Platform expected-failure entries.                                        |
+| `docs/endpoints/admin-platform.md`                                                                        | Documents the endpoint-specific LiveHybrid Pattern 1 choice and migrated scenario set.           |
 
 Validation:
 

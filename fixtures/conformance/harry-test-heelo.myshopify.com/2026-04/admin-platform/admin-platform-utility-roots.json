@@ -1313,22 +1313,14 @@
     "nodeNoData": {
       "query": "#graphql\n  query NodeNoDataRead($ids: [ID!]!) {\n    node(id: \"gid://shopify/Product/0\") {\n      __typename\n      id\n    }\n    nodes(ids: $ids) {\n      __typename\n      id\n    }\n  }\n",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/0",
-          "gid://shopify/Job/0",
-          "gid://shopify/Domain/0"
-        ]
+        "ids": ["gid://shopify/Product/0", "gid://shopify/Job/0", "gid://shopify/Domain/0"]
       },
       "result": {
         "status": 200,
         "payload": {
           "data": {
             "node": null,
-            "nodes": [
-              null,
-              null,
-              null
-            ]
+            "nodes": [null, null, null]
           },
           "extensions": {
             "cost": {
@@ -1455,10 +1447,7 @@
                     "level": 1,
                     "parentId": null,
                     "ancestorIds": [],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-1",
-                      "gid://shopify/TaxonomyCategory/ap-2"
-                    ],
+                    "childrenIds": ["gid://shopify/TaxonomyCategory/ap-1", "gid://shopify/TaxonomyCategory/ap-2"],
                     "isArchived": false
                   },
                   {
@@ -1786,10 +1775,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-6-1",
                       "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -1840,10 +1826,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [],
                     "isArchived": false
                   }
@@ -1939,10 +1922,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-6-1",
                       "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -1993,10 +1973,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2103,10 +2080,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2126,10 +2100,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-10-1",
                       "gid://shopify/TaxonomyCategory/ap-2-10-2",
@@ -2145,10 +2116,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-11-1",
                       "gid://shopify/TaxonomyCategory/ap-2-11-2",
@@ -2164,10 +2132,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2179,10 +2144,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [],
                     "isArchived": false
                   }
@@ -2241,9 +2203,7 @@
                     "isLeaf": true,
                     "level": 2,
                     "parentId": "gid://shopify/TaxonomyCategory/ap",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2255,9 +2215,7 @@
                     "isLeaf": false,
                     "level": 2,
                     "parentId": "gid://shopify/TaxonomyCategory/ap",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1",
                       "gid://shopify/TaxonomyCategory/ap-2-2",
@@ -2317,10 +2275,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2423,10 +2378,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2446,10 +2398,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-10-1",
                       "gid://shopify/TaxonomyCategory/ap-2-10-2",
@@ -2465,10 +2414,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-11-1",
                       "gid://shopify/TaxonomyCategory/ap-2-11-2",
@@ -2484,10 +2430,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2499,10 +2442,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [],
                     "isArchived": false
                   }
@@ -2594,10 +2534,7 @@
                 "isLeaf": false,
                 "level": 3,
                 "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                "ancestorIds": [
-                  "gid://shopify/TaxonomyCategory/ap-2",
-                  "gid://shopify/TaxonomyCategory/ap"
-                ],
+                "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                 "childrenIds": [
                   "gid://shopify/TaxonomyCategory/ap-2-6-1",
                   "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -2653,10 +2590,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2676,10 +2610,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-10-1",
                       "gid://shopify/TaxonomyCategory/ap-2-10-2",
@@ -2695,10 +2626,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-11-1",
                       "gid://shopify/TaxonomyCategory/ap-2-11-2",
@@ -2714,10 +2642,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2729,10 +2654,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -2744,10 +2666,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-14-1",
                       "gid://shopify/TaxonomyCategory/ap-2-14-2",
@@ -2959,9 +2878,7 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app."
               },
-              "path": [
-                "staffMember"
-              ]
+              "path": ["staffMember"]
             },
             {
               "message": "Access denied for staffMembers field.",
@@ -2975,9 +2892,7 @@
                 "code": "ACCESS_DENIED",
                 "documentation": "https://shopify.dev/api/usage/access-scopes"
               },
-              "path": [
-                "staffMembers"
-              ]
+              "path": ["staffMembers"]
             }
           ],
           "data": {
@@ -3007,9 +2922,7 @@
             "flowTriggerReceive": {
               "userErrors": [
                 {
-                  "field": [
-                    "body"
-                  ],
+                  "field": ["body"],
                   "message": "Errors validating schema:\n  Invalid handle 'har-374-missing'.\n"
                 }
               ]
@@ -3043,9 +2956,7 @@
             "flowTriggerReceive": {
               "userErrors": [
                 {
-                  "field": [
-                    "body"
-                  ],
+                  "field": ["body"],
                   "message": "Errors validating schema:\n  Properties size exceeds the limit of 50000 bytes.\n"
                 }
               ]
@@ -3082,9 +2993,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "flowGenerateSignature"
-              ]
+              "path": ["flowGenerateSignature"]
             }
           ],
           "data": {
@@ -3171,9 +3080,7 @@
               "backupRegion": null,
               "userErrors": [
                 {
-                  "field": [
-                    "region"
-                  ],
+                  "field": ["region"],
                   "message": "Region not found.",
                   "code": "REGION_NOT_FOUND"
                 }
@@ -3244,11 +3151,7 @@
     {
       "operationName": "AdminPlatformUtilityReads",
       "variables": {
-        "ids": [
-          "gid://shopify/Product/0",
-          "gid://shopify/Job/0",
-          "gid://shopify/Domain/0"
-        ],
+        "ids": ["gid://shopify/Product/0", "gid://shopify/Job/0", "gid://shopify/Domain/0"],
         "domainId": "gid://shopify/Domain/0",
         "jobId": "gid://shopify/Job/0",
         "taxonomyAfter": "eyJpZCI6ODUyfQ=="
@@ -3291,11 +3194,7 @@
               }
             ],
             "node": null,
-            "nodes": [
-              null,
-              null,
-              null
-            ],
+            "nodes": [null, null, null],
             "domain": null,
             "job": {
               "id": "gid://shopify/Job/0",
@@ -3332,10 +3231,7 @@
                     "level": 1,
                     "parentId": null,
                     "ancestorIds": [],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-1",
-                      "gid://shopify/TaxonomyCategory/ap-2"
-                    ],
+                    "childrenIds": ["gid://shopify/TaxonomyCategory/ap-1", "gid://shopify/TaxonomyCategory/ap-2"],
                     "isArchived": false
                   },
                   {
@@ -3614,10 +3510,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-6-1",
                       "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -3668,10 +3561,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
                     "childrenIds": [],
                     "isArchived": false
                   }

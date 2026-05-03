@@ -153,9 +153,7 @@
     {
       "operationName": "AdminPlatformMarketWebPresenceNodeRead",
       "variables": {
-        "ids": [
-          "gid://shopify/MarketWebPresence/33131921641"
-        ]
+        "ids": ["gid://shopify/MarketWebPresence/33131921641"]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
       "response": {

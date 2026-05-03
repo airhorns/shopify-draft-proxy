@@ -9670,9 +9670,7 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": [
-          "gid://shopify/DeliveryLocationGroup/126728306994"
-        ]
+        "ids": ["gid://shopify/DeliveryLocationGroup/126728306994"]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
       "response": {
@@ -9709,9 +9707,7 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": [
-          "gid://shopify/DeliveryZone/554597843250"
-        ]
+        "ids": ["gid://shopify/DeliveryZone/554597843250"]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
       "response": {
@@ -9809,9 +9805,7 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": [
-          "gid://shopify/DeliveryMethodDefinition/961637941554"
-        ]
+        "ids": ["gid://shopify/DeliveryMethodDefinition/961637941554"]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
       "response": {
@@ -9852,9 +9846,7 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": [
-          "gid://shopify/DeliveryRateDefinition/888567267634"
-        ]
+        "ids": ["gid://shopify/DeliveryRateDefinition/888567267634"]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
       "response": {
@@ -9877,9 +9869,7 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": [
-          "gid://shopify/DeliveryParticipant/81892835634"
-        ]
+        "ids": ["gid://shopify/DeliveryParticipant/81892835634"]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
       "response": {
@@ -9903,9 +9893,7 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": [
-          "gid://shopify/DeliveryCondition/215314235698?operator=greater_than_or_equal_to"
-        ]
+        "ids": ["gid://shopify/DeliveryCondition/215314235698?operator=greater_than_or_equal_to"]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
       "response": {
@@ -9931,9 +9919,7 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": [
-          "gid://shopify/DeliveryCountry/1185161871666"
-        ]
+        "ids": ["gid://shopify/DeliveryCountry/1185161871666"]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
       "response": {
@@ -10025,9 +10011,7 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": [
-          "gid://shopify/DeliveryProvince/14499193913650"
-        ]
+        "ids": ["gid://shopify/DeliveryProvince/14499193913650"]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
       "response": {
