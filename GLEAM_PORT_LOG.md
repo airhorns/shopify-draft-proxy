@@ -17,13 +17,13 @@ upstream when there is no local definition state to overlay, while pin/unpin
 mutations hydrate the upstream product-owner definition catalog before staging
 local pin position changes.
 
-| Module / fixture                                                    | Change                                                                                                      |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam`   | Adds Pattern 1 cold-read passthrough and Pattern 2 pin/unpin definition hydration.                          |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`             | Threads `UpstreamContext` into metafield-definition mutations and lets the domain own query passthrough.    |
-| `fixtures/conformance/**/metafields/*definition*{read,pinning}*.json` | Hand-synthesizes definition read/hydrate cassette entries from checked-in capture evidence.                 |
-| `config/gleam-port-ci-gates.json`                                   | Removes the three Metafields expected-failure entries.                                                      |
-| `docs/endpoints/metafields.md`                                      | Documents the LiveHybrid passthrough/hydration boundary and product-shell delete behavior.                  |
+| Module / fixture                                                      | Change                                                                                                   |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam`     | Adds Pattern 1 cold-read passthrough and Pattern 2 pin/unpin definition hydration.                       |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`               | Threads `UpstreamContext` into metafield-definition mutations and lets the domain own query passthrough. |
+| `fixtures/conformance/**/metafields/*definition*{read,pinning}*.json` | Hand-synthesizes definition read/hydrate cassette entries from checked-in capture evidence.              |
+| `config/gleam-port-ci-gates.json`                                     | Removes the three Metafields expected-failure entries.                                                   |
+| `docs/endpoints/metafields.md`                                        | Documents the LiveHybrid passthrough/hydration boundary and product-shell delete behavior.               |
 
 Validation:
 
