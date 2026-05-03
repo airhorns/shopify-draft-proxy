@@ -9,7 +9,99 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 178: HAR-535 metafields cassette parity
+## 2026-05-03 - Pass 179: HAR-512 JavaScript HTTP adapter
+
+Adds the JavaScript-target HTTP service adapter for the Gleam-backed TS shim.
+The adapter uses Node's built-in `http` server, not Koa or any BEAM/Elixir HTTP
+scope, and routes requests through the mutable JS `DraftProxy` wrapper over the
+Gleam core.
+
+| Module                                                           | Change                                                                                                                 |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `gleam/js/src/app.ts`                                            | Adds `DraftProxyHttpApp`, request body parsing, inbound header preservation, JSON/text response writing, and `listen`. |
+| `gleam/js/src/config.ts` / `gleam/js/src/server.ts`              | Adds legacy-compatible env config parsing plus dev/start launch entrypoint for the JS adapter.                         |
+| `gleam/js/src/index.ts` / `gleam/js/src/types.ts`                | Replaces `createApp`/`loadConfig` stubs with real exports and aligns JS read-mode typing with legacy `passthrough`.    |
+| `gleam/js/test/http-adapter.test.ts`                             | Covers meta routes, Admin GraphQL routing, commit auth forwarding, HTTP error envelopes, and dev/start launch scripts. |
+| `tests/integration/gleam-js-http-adapter-parity.test.ts`         | Compares the required Gleam JS route surface against the legacy Koa adapter before any deletion work.                  |
+| `docs/architecture.md` / `gleam/README.md` / `GLEAM_PORT_LOG.md` | Documents the new JS adapter boundary and remaining full-cutover HTTP gaps.                                            |
+
+Validation:
+
+- `corepack pnpm --dir gleam/js test` (14 passed)
+- `corepack pnpm --dir gleam/js build`
+- `corepack pnpm vitest run tests/integration/gleam-js-http-adapter-parity.test.ts`
+  (2 passed)
+- `cd gleam && gleam test --target javascript` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (OTP 28 fallback, 819 passed)
+- `corepack pnpm lint` (passed with the existing
+  `scripts/parity-record.mts:279` warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `git diff --check`
+
+### Findings
+
+- The Gleam core already had async JS dispatch for `/__meta/commit` and
+  live-hybrid passthrough; HAR-512's missing piece was the Node HTTP boundary
+  and JS package launch/config surface.
+- The legacy `createApp(config, proxy).listen(port, listener)` call shape is
+  worth preserving even though the adapter is not Koa, because package launch
+  scripts and simple consumers use that shape.
+- The Gleam internal `Live` read-mode variant must still serialize as the
+  legacy public `passthrough` string on the JS/HTTP config surface.
+
+### Risks / open items
+
+- The full TS HTTP endpoint set is not retired here. Bulk-operation result
+  JSONL and staged-upload HTTP routes remain full-cutover follow-ups; this pass
+  covers only the HAR-512 route list.
+
+---
+
+## 2026-05-03 - Pass 178: HAR-533 markets cassette parity
+
+Migrates the remaining Markets parity scenarios to cassette-backed LiveHybrid
+execution. Cold Markets reads now fetch the captured upstream payload, hydrate
+the local Markets/Product slices from it, and return the captured response
+verbatim for that first read. Supported Markets lifecycle mutations still stage
+locally, with a narrow preflight hydrate for existing upstream price-list,
+product, metafield, and web-presence state needed by the captured flows.
+
+| Module / fixture                                        | Change                                                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`     | Adds Pattern 2 read hydration and mutation preflight hydration for Markets parity cassette replay.              |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Routes Markets queries through the domain read entrypoint and threads `UpstreamContext` into Markets mutations. |
+| `fixtures/conformance/**/markets/*.json`                | Hand-synthesizes read/preflight cassette entries from checked-in capture evidence.                              |
+| `config/gleam-port-ci-gates.json`                       | Removes the fourteen Markets expected-failure entries.                                                          |
+| `docs/endpoints/markets.md`                             | Documents the LiveHybrid cold-read and mutation preflight hydration boundary.                                   |
+
+Validation:
+
+- `cd gleam && gleam format --check`
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+
+### Findings
+
+- Pattern 1 passthrough is not appropriate for Markets because the domain has
+  supported local lifecycle mutations whose staged effects must remain visible
+  after the initial cassette-backed read.
+- The checked-in captures already contained the authoritative read and setup
+  payloads, so the cassette entries could be hand-synthesized without live
+  Shopify writes.
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+### Risks / open items
+
+- The hydrate queries intentionally persist only the Markets, Product,
+  ProductVariant, and product-metafield fields selected by current parity
+  evidence. Broader Markets branches remain future fidelity work.
+
+---
+
+## 2026-05-03 - Pass 177: HAR-535 metafields cassette parity
 
 Migrates the remaining Metafields parity scenarios to cassette-backed
 LiveHybrid execution. Cold metafield-definition reads now pass through to
@@ -60,7 +152,7 @@ Validation:
 
 ---
 
-## 2026-05-03 - Pass 177: HAR-543 shipping fulfillments cassette parity
+## 2026-05-03 - Pass 176: HAR-543 shipping fulfillments cassette parity
 
 Migrates the remaining Shipping/Fulfillments parity scenarios to
 cassette-backed LiveHybrid execution. Cold shipping reads now fetch the
@@ -106,54 +198,6 @@ Validation:
   fulfillment-order, shipping package, location, carrier-service, order, and
   product/variant fields selected by current parity evidence. Broader shipping
   shapes remain future fidelity work.
-
----
-
-## 2026-05-03 - Pass 176: HAR-512 JavaScript HTTP adapter
-
-Adds the JavaScript-target HTTP service adapter for the Gleam-backed TS shim.
-The adapter uses Node's built-in `http` server, not Koa or any BEAM/Elixir HTTP
-scope, and routes requests through the mutable JS `DraftProxy` wrapper over the
-Gleam core.
-
-| Module                                                           | Change                                                                                                                 |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `gleam/js/src/app.ts`                                            | Adds `DraftProxyHttpApp`, request body parsing, inbound header preservation, JSON/text response writing, and `listen`. |
-| `gleam/js/src/config.ts` / `gleam/js/src/server.ts`              | Adds legacy-compatible env config parsing plus dev/start launch entrypoint for the JS adapter.                         |
-| `gleam/js/src/index.ts` / `gleam/js/src/types.ts`                | Replaces `createApp`/`loadConfig` stubs with real exports and aligns JS read-mode typing with legacy `passthrough`.    |
-| `gleam/js/test/http-adapter.test.ts`                             | Covers meta routes, Admin GraphQL routing, commit auth forwarding, HTTP error envelopes, and dev/start launch scripts. |
-| `tests/integration/gleam-js-http-adapter-parity.test.ts`         | Compares the required Gleam JS route surface against the legacy Koa adapter before any deletion work.                  |
-| `docs/architecture.md` / `gleam/README.md` / `GLEAM_PORT_LOG.md` | Documents the new JS adapter boundary and remaining full-cutover HTTP gaps.                                            |
-
-Validation:
-
-- `corepack pnpm --dir gleam/js test` (14 passed)
-- `corepack pnpm --dir gleam/js build`
-- `corepack pnpm vitest run tests/integration/gleam-js-http-adapter-parity.test.ts` (2 passed)
-- `corepack pnpm lint`
-- `corepack pnpm --dir gleam/js build && corepack pnpm typecheck`
-- `cd gleam && gleam test --target javascript` (803 passed)
-- host `cd gleam && gleam test --target erlang` failed under the known local
-  OTP 25 / `gleam_json` OTP 27+ mismatch; container fallback passed:
-  `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
-  (799 passed)
-
-### Findings
-
-- The Gleam core already had async JS dispatch for `/__meta/commit` and
-  live-hybrid passthrough; HAR-512's missing piece was the Node HTTP boundary
-  and JS package launch/config surface.
-- The legacy `createApp(config, proxy).listen(port, listener)` call shape is
-  worth preserving even though the adapter is not Koa, because package launch
-  scripts and simple consumers use that shape.
-- The Gleam internal `Live` read-mode variant must still serialize as the
-  legacy public `passthrough` string on the JS/HTTP config surface.
-
-### Risks / open items
-
-- The full TS HTTP endpoint set is not retired here. Bulk-operation result
-  JSONL and staged-upload HTTP routes remain full-cutover follow-ups; this pass
-  covers only the HAR-512 route list.
 
 ---
 
