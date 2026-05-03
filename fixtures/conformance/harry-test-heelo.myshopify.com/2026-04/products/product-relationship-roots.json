@@ -1300,5 +1300,148 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "AdminPlatformProductOptionNodeReads",
+      "variables": {
+        "ids": ["gid://shopify/ProductOption/12718177878322", "gid://shopify/ProductOption/12718177845554"]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductOption/12718177878322",
+                "name": "Size",
+                "position": 1,
+                "values": ["Small"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979025957170",
+                    "name": "Small",
+                    "hasVariants": true
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductOption/12718177845554",
+                "name": "Color",
+                "position": 2,
+                "values": ["Red"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979025891634",
+                    "name": "Red",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979025924402",
+                    "name": "Blue",
+                    "hasVariants": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformProductOptionNodeReads",
+      "variables": {
+        "ids": ["gid://shopify/ProductOptionValue/7979025957170"]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979025957170",
+                "name": "Small",
+                "hasVariants": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformProductOptionNodeReads",
+      "variables": {
+        "ids": ["gid://shopify/ProductOptionValue/7979025891634"]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979025891634",
+                "name": "Red",
+                "hasVariants": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformProductOptionNodeReads",
+      "variables": {
+        "ids": ["gid://shopify/ProductOptionValue/7979025924402"]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979025924402",
+                "name": "Blue",
+                "hasVariants": false
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformSellingPlanNodeReads",
+      "variables": {},
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "sellingPlanNode": {
+              "id": "gid://shopify/SellingPlan/7026999602",
+              "name": "Monthly delivery",
+              "description": "Ships every month",
+              "options": ["Monthly"],
+              "position": 1,
+              "category": "SUBSCRIPTION",
+              "createdAt": "2026-04-27T21:21:52Z"
+            },
+            "nodes": [
+              {
+                "id": "gid://shopify/SellingPlan/7026999602",
+                "name": "Monthly delivery",
+                "description": "Ships every month",
+                "options": ["Monthly"],
+                "position": 1,
+                "category": "SUBSCRIPTION",
+                "createdAt": "2026-04-27T21:21:52Z"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }
