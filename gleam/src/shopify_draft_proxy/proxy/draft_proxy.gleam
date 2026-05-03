@@ -50,10 +50,10 @@ import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/online_store
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/orders
+import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/payments
 import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/products
-import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   DraftProxy, Live, LiveHybrid, Request, Response, Snapshot,
 }

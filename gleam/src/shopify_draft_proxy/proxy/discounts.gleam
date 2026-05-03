@@ -248,7 +248,10 @@ pub fn handle_query_request(
                 json.array(
                   [
                     json.object([
-                      #("message", json.string("Failed to handle discounts query")),
+                      #(
+                        "message",
+                        json.string("Failed to handle discounts query"),
+                      ),
                     ]),
                   ],
                   fn(x) { x },

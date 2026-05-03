@@ -17,9 +17,9 @@
 //// one it returns the documented 501 sentinel telling the caller to
 //// use `process_request_async`.
 
-import gleam/json
 @target(javascript)
 import gleam/javascript/promise.{type Promise}
+import gleam/json
 import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/proxy_state.{type DraftProxy, Request, Response}
@@ -104,11 +104,11 @@ fn sync_transport_to_async(
   fn(req) { promise.resolve(send(req)) }
 }
 
+@target(erlang)
 /// Test seam: dispatch a passthrough request with an injected `send`
 /// closure so unit tests don't need a real HTTP server. Callers should
 /// generally use `passthrough_sync/2` and install a transport via
 /// `with_upstream_transport` instead.
-@target(erlang)
 pub fn passthrough_with_send(
   proxy: DraftProxy,
   request: proxy_state.Request,
@@ -130,7 +130,8 @@ pub fn passthrough_with_send(
 pub fn passthrough_with_send_async(
   proxy: DraftProxy,
   request: proxy_state.Request,
-  send: fn(_) -> Promise(Result(commit.HttpOutcome, commit.CommitTransportError)),
+  send: fn(_) ->
+    Promise(Result(commit.HttpOutcome, commit.CommitTransportError)),
 ) -> Promise(#(proxy_state.Response, DraftProxy)) {
   let Request(_, path, headers, body) = request
   upstream_dispatch.fetch_async(
