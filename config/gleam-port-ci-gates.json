@@ -725,42 +725,6 @@
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
     {
-      "specPath": "config/parity-specs/shipping-fulfillments/assigned-fulfillment-orders-filtering-local-runtime.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/shipping-fulfillments/delivery-profile-lifecycle.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/shipping-fulfillments/delivery-profile-read.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-detail-events-lifecycle.json",
-      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for events / lineItems cursors; rules need pruning."
-    },
-    {
-      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-order-lifecycle-local-staging.json",
-      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for events / lineItems cursors; rules need pruning."
-    },
-    {
-      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json",
-      "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
-    },
-    {
-      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-top-level-reads.json",
-      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for events / lineItems cursors; rules need pruning."
-    },
-    {
-      "specPath": "config/parity-specs/shipping-fulfillments/shipping-package-default-lifecycle-local-runtime.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
-      "specPath": "config/parity-specs/shipping-fulfillments/shipping-settings-package-pickup-constraints.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
       "specPath": "config/parity-specs/store-properties/business-entities-catalog-read.json",
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
