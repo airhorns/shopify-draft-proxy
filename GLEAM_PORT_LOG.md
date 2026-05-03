@@ -18,13 +18,13 @@ return Shopify's terminal userError or stage a local `CANCELING` overlay. Cold
 product exports keep `bulkOperationRunQuery` local-only while using an upstream
 product-count read so staged job counters match the captured store.
 
-| Module / fixture                                                                        | Change                                                                                                    |
-| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`                             | Adds upstream-aware mutation handling, Pattern 2 BulkOperation hydration, and product-count hydration.    |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                                 | Threads request upstream context into the bulk-operations mutation handler.                               |
-| `fixtures/conformance/**/bulk-operations/bulk-operation-status-catalog-cancel.json`      | Hand-synthesizes hydrate/count cassette entries from checked-in capture evidence.                         |
-| `docs/endpoints/bulk-operations.md`                                                     | Documents cassette-backed Pattern 2 behavior for LiveHybrid cancel and product-export counter hydration. |
-| `config/gleam-port-ci-gates.json`                                                       | Removes the Bulk Operations expected-failure entry.                                                       |
+| Module / fixture                                                                    | Change                                                                                                   |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`                         | Adds upstream-aware mutation handling, Pattern 2 BulkOperation hydration, and product-count hydration.   |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                             | Threads request upstream context into the bulk-operations mutation handler.                              |
+| `fixtures/conformance/**/bulk-operations/bulk-operation-status-catalog-cancel.json` | Hand-synthesizes hydrate/count cassette entries from checked-in capture evidence.                        |
+| `docs/endpoints/bulk-operations.md`                                                 | Documents cassette-backed Pattern 2 behavior for LiveHybrid cancel and product-export counter hydration. |
+| `config/gleam-port-ci-gates.json`                                                   | Removes the Bulk Operations expected-failure entry.                                                      |
 
 Validation:
 
