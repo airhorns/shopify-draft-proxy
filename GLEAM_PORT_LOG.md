@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 173: HAR-535 metafields cassette parity
+## 2026-05-03 - Pass 175: HAR-535 metafields cassette parity
 
 Migrates the remaining Metafields parity scenarios to cassette-backed
 LiveHybrid execution. Cold metafield-definition reads now pass through to
@@ -57,6 +57,96 @@ Validation:
 - The hydrate parser intentionally captures the product-owner definition fields
   exercised by the current pinning fixture. Broader owner families and
   app-managed definition branches remain future fidelity work.
+
+---
+
+## 2026-05-03 - Pass 174: HAR-531 gift-card cassette parity
+
+Migrates the remaining Gift Cards parity scenarios to cassette-backed
+LiveHybrid execution. Existing upstream gift cards referenced by supported
+mutation roots now hydrate through a narrow `GiftCardHydrate` cassette read,
+persisting the prior gift card and shop configuration into base state before
+local lifecycle mutations stage update/credit/debit/deactivate effects.
+
+| Module                                                        | Change                                                                                                      |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/gift_cards.gleam`        | Adds Pattern 2 mutation hydration for existing gift cards and configuration before local lifecycle staging. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Threads the per-request upstream context into gift-card mutation handling.                                  |
+| `fixtures/conformance/**/gift-cards/gift-card-lifecycle.json` | Hand-synthesizes the `GiftCardHydrate` cassette from checked-in detail/configuration capture payloads.      |
+| `config/gleam-port-ci-gates.json`                             | Removes the two Gift Cards expected-failure entries.                                                        |
+| `docs/endpoints/gift-cards.md`                                | Documents the LiveHybrid hydrate path and cassette-backed parity evidence.                                  |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `cd gleam && gleam format --check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed gift-card fixture/config checks: no added `seed*` keys and no new
+  `expectedDifferences`
+
+### Findings
+
+- Pattern 1 passthrough is not enough for these scenarios because the primary
+  request is a mutation lifecycle against an existing upstream gift card. The
+  local handler needs the prior record before it can stage supported mutations
+  without writing to Shopify.
+- The checked-in detail/configuration captures already contain the authoritative
+  hydrate payload, so the cassette entry could be hand-synthesized without live
+  Shopify credentials.
+
+### Risks / open items
+
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation for this pass used the established OTP 28 container
+  fallback.
+
+---
+
+## 2026-05-03 - Pass 173: HAR-540 privacy cassette parity
+
+Migrates the remaining Privacy parity scenario to cassette-backed LiveHybrid
+execution. `dataSaleOptOut` stays a supported local mutation, but existing-email
+flows now read the upstream customer by email first so the staged opt-out uses
+Shopify's authoritative customer ID while preserving local read-after-write
+behavior.
+
+| Module                                                          | Change                                                                                                               |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/privacy.gleam`             | Adds Pattern 2 customer lookup for `dataSaleOptOut` before local staging when no matching customer is already local. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`         | Threads `UpstreamContext` into the privacy mutation handler.                                                         |
+| `fixtures/conformance/**/privacy/data-sale-opt-out-parity.json` | Hand-synthesizes the customer lookup cassette from the checked-in precondition response.                             |
+| `config/gleam-port-ci-gates.json`                               | Removes the Privacy expected-failure entry after the scenario passed.                                                |
+| `docs/endpoints/privacy.md`                                     | Documents the endpoint-specific LiveHybrid lookup choice.                                                            |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `cd gleam && gleam test --target javascript` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'` (OTP 28, 819 passed)
+- `corepack pnpm lint`
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed privacy fixture/spec checks: no `seed*` keys, no new
+  `expectedDifferences`
+
+### Findings
+
+- The migrated fixture had no cassette entries, so the cold local mutation
+  minted `gid://shopify/Customer/1` instead of the captured Shopify customer ID.
+- Pattern 2 is required because this is a supported mutation: the proxy can read
+  the prior customer from upstream, but must still stage the mutation locally.
+
+### Risks / open items
+
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation for this pass should use the established OTP 28 container
+  fallback.
 
 ---
 
