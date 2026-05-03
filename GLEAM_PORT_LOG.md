@@ -9,6 +9,56 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-03 - Pass 181: HAR-512 JavaScript HTTP adapter
+
+Adds the JavaScript-target HTTP service adapter for the Gleam-backed TS shim.
+The adapter uses Node's built-in `http` server, not Koa or any BEAM/Elixir HTTP
+scope, and routes requests through the mutable JS `DraftProxy` wrapper over the
+Gleam core.
+
+| Module                                                           | Change                                                                                                                 |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `gleam/js/src/app.ts`                                            | Adds `DraftProxyHttpApp`, request body parsing, inbound header preservation, JSON/text response writing, and `listen`. |
+| `gleam/js/src/config.ts` / `gleam/js/src/server.ts`              | Adds legacy-compatible env config parsing plus dev/start launch entrypoint for the JS adapter.                         |
+| `gleam/js/src/index.ts` / `gleam/js/src/types.ts`                | Replaces `createApp`/`loadConfig` stubs with real exports and aligns JS read-mode typing with legacy `passthrough`.    |
+| `gleam/js/test/http-adapter.test.ts`                             | Covers meta routes, Admin GraphQL routing, commit auth forwarding, HTTP error envelopes, and dev/start launch scripts. |
+| `tests/integration/gleam-js-http-adapter-parity.test.ts`         | Compares the required Gleam JS route surface against the legacy Koa adapter before any deletion work.                  |
+| `docs/architecture.md` / `gleam/README.md` / `GLEAM_PORT_LOG.md` | Documents the new JS adapter boundary and remaining full-cutover HTTP gaps.                                            |
+
+Validation:
+
+- `corepack pnpm --dir gleam/js test` (14 passed)
+- `corepack pnpm --dir gleam/js build`
+- `corepack pnpm vitest run tests/integration/gleam-js-http-adapter-parity.test.ts`
+  (2 passed)
+- `cd gleam && gleam test --target javascript` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (OTP 28 fallback, 819 passed)
+- `corepack pnpm lint` (passed with the existing
+  `scripts/parity-record.mts:279` warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `git diff --check`
+
+### Findings
+
+- The Gleam core already had async JS dispatch for `/__meta/commit` and
+  live-hybrid passthrough; HAR-512's missing piece was the Node HTTP boundary
+  and JS package launch/config surface.
+- The legacy `createApp(config, proxy).listen(port, listener)` call shape is
+  worth preserving even though the adapter is not Koa, because package launch
+  scripts and simple consumers use that shape.
+- The Gleam internal `Live` read-mode variant must still serialize as the
+  legacy public `passthrough` string on the JS/HTTP config surface.
+
+### Risks / open items
+
+- The full TS HTTP endpoint set is not retired here. Bulk-operation result
+  JSONL and staged-upload HTTP routes remain full-cutover follow-ups; this pass
+  covers only the HAR-512 route list.
+
+---
+
 ## 2026-05-03 - Pass 180: HAR-526 apps cassette parity
 
 Migrates the remaining Apps parity scenario to cassette-backed LiveHybrid
