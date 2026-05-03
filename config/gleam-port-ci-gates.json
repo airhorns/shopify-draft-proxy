@@ -405,10 +405,6 @@
       "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
     },
     {
-      "specPath": "config/parity-specs/privacy/dataSaleOptOut-parity.json",
-      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
-    },
-    {
       "specPath": "config/parity-specs/products/collection-detail-read.json",
       "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
     },
