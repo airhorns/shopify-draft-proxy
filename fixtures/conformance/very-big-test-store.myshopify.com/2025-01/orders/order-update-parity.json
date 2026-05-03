@@ -182,5 +182,73 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/6830627356905"
+      },
+      "query": "hand-synthesized from checked-in downstreamRead order response for HAR-538 orders Pattern 2 order mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/6830627356905",
+              "name": "#1323",
+              "updatedAt": "2026-04-22T23:13:48Z",
+              "email": "hermes-order-update-1776899624464@example.com",
+              "phone": null,
+              "poNumber": "PO-UPDATE-1776899624464",
+              "note": "order update expanded live parity captured note",
+              "tags": ["expanded-live-parity", "order-update"],
+              "customer": {
+                "id": "gid://shopify/Customer/9096793751785",
+                "email": "hermes-order-probe-1776899624464@example.com",
+                "displayName": "Hermes Operator"
+              },
+              "customAttributes": [
+                {
+                  "key": "source",
+                  "value": "expanded-live-parity"
+                }
+              ],
+              "shippingAddress": {
+                "firstName": "Ada",
+                "lastName": "Lovelace",
+                "address1": "190 MacLaren",
+                "address2": "Suite 200",
+                "company": "Analytical Engines Ltd",
+                "city": "Sudbury",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "zip": "K2P0V6",
+                "phone": "+161****2222"
+              },
+              "gift": {
+                "id": "gid://shopify/Metafield/35289666519273",
+                "namespace": "custom",
+                "key": "gift",
+                "type": "single_line_text_field",
+                "value": "yes"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/35289666519273",
+                    "namespace": "custom",
+                    "key": "gift",
+                    "type": "single_line_text_field",
+                    "value": "yes"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
