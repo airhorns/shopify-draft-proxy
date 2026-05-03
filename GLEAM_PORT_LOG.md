@@ -9,6 +9,58 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-03 - Pass 180: HAR-542 segments cassette parity
+
+Migrates the remaining Segments parity scenario to cassette-backed LiveHybrid
+execution. Cold segment catalog/detail/count/filter reads now use gated Pattern
+1 passthrough until local segment lifecycle state exists; supported segment
+mutations continue to stage locally and keep downstream read-after-write paths on
+the local serializer.
+
+| Module / fixture                                           | Change                                                                                                     |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/segments.gleam`       | Adds gated LiveHybrid Pattern 1 passthrough for cold segment read roots and local-state guard helpers.     |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`    | Routes segment queries through the domain query entrypoint so the domain owns passthrough decisions.       |
+| `fixtures/conformance/**/segments/segments-baseline.json`  | Hand-synthesizes the baseline read cassette from the checked-in capture payload.                           |
+| `gleam/test/shopify_draft_proxy/proxy/segments_test.gleam` | Covers segment passthrough guard behavior for arbitrary variable names, deleted markers, and staged state. |
+| `config/gleam-port-ci-gates.json`                          | Removes the remaining Segments expected-failure entry.                                                     |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- segments_test` (827 passed)
+- `cd gleam && gleam test --target javascript -- parity_test` (827 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 822 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm conformance:status`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm lint`
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `git diff --check`
+- changed Segments fixture/gate checks: no Segments expected-failure entries
+  remain, no new `seed*` keys, and no new `expectedDifferences`
+
+### Findings
+
+- Pattern 1 is appropriate for the cold `segments-baseline-read` scenario
+  because the captured response is the exact upstream payload and the proxy has
+  no local overlay to add before any segment writes.
+- The passthrough guards must scan every string variable and treat deleted
+  segment IDs as local so read-after-write and read-after-delete scenarios do not
+  forward local IDs upstream.
+- The checked-in capture payload already contained the authoritative response,
+  so the cassette could be hand-synthesized without live Shopify credentials.
+
+### Risks / open items
+
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+---
+
 ## 2026-05-03 - Pass 179: HAR-544 store-properties cassette parity
 
 Migrates the remaining Store Properties parity scenarios to cassette-backed
