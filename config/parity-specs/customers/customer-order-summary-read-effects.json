@@ -45,12 +45,6 @@
             "ignore": true,
             "regrettable": true,
             "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
-          },
-          {
-            "path": "$.customer.numberOfOrders",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "Freshly staged customers currently store numberOfOrders as numeric zero while this live capture returns string zero."
           }
         ]
       },
@@ -61,7 +55,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-order-summary-read.graphql",
           "variables": {
-            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com"
           }
         },
@@ -76,12 +72,6 @@
             "ignore": true,
             "regrettable": true,
             "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
-          },
-          {
-            "path": "$.numberOfOrders",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "Freshly staged customers currently store numberOfOrders as numeric zero while this live capture returns string zero."
           }
         ]
       },
@@ -93,7 +83,9 @@
           "documentPath": "config/parity-requests/customers/customer-order-summary-set.graphql",
           "variables": {
             "orderId": "gid://shopify/Order/8710861881650",
-            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" }
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
           }
         },
         "expectedDifferences": [
@@ -111,7 +103,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-order-summary-read.graphql",
           "variables": {
-            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com"
           }
         },
@@ -126,12 +120,6 @@
             "ignore": true,
             "regrettable": true,
             "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
-          },
-          {
-            "path": "$.numberOfOrders",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "Freshly staged customers currently store numberOfOrders as numeric zero while this live capture returns string zero."
           },
           {
             "path": "$.orders.nodes[*].customer.id",
@@ -173,7 +161,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-order-summary-read.graphql",
           "variables": {
-            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com"
           }
         },
@@ -188,12 +178,6 @@
             "ignore": true,
             "regrettable": true,
             "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
-          },
-          {
-            "path": "$.numberOfOrders",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "Freshly staged customers currently store numberOfOrders as numeric zero while this live capture returns string zero."
           }
         ]
       }

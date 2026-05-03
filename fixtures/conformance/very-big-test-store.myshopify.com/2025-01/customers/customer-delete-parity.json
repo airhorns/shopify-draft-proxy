@@ -89,5 +89,58 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/9102966915305"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/9102966915305",
+              "firstName": null,
+              "lastName": null,
+              "displayName": null,
+              "email": null,
+              "legacyResourceId": "9102966915305",
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "tags": [],
+              "state": "DISABLED",
+              "numberOfOrders": "0",
+              "amountSpent": {
+                "amount": "0.0",
+                "currencyCode": "USD"
+              },
+              "createdAt": null,
+              "updatedAt": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerCountHydrate",
+      "variables": {},
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customersCount": {
+              "count": 177,
+              "precision": "EXACT"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

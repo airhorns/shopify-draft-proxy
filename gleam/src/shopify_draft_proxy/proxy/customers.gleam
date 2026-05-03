@@ -17,6 +17,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcBool,
@@ -30,9 +31,13 @@ import shopify_draft_proxy/proxy/payments
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
+}
+import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type CustomerAccountPageRecord, type CustomerAddressRecord,
@@ -44,12 +49,13 @@ import shopify_draft_proxy/state/types.{
   type CustomerOrderSummaryRecord, type CustomerPaymentMethodRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord, type Money,
   type StoreCreditAccountRecord, type StoreCreditAccountTransactionRecord,
-  CustomerAddressRecord, CustomerCatalogPageInfoRecord,
-  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
-  CustomerMergeRequestRecord, CustomerMetafieldRecord,
-  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  Money, StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
+  CustomerAccountPageRecord, CustomerAddressRecord,
+  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerEmailMarketingConsentRecord, CustomerMergeRequestRecord,
+  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
+  CustomerSmsMarketingConsentRecord, Money, StoreCreditAccountRecord,
+  StoreCreditAccountTransactionRecord,
 }
 
 pub type CustomersError {
@@ -75,6 +81,16 @@ type MutationFieldResult {
     payload: Json,
     staged_resource_ids: List(String),
     root_name: String,
+  )
+}
+
+type CustomerHydrateResult {
+  CustomerHydrateResult(
+    customer: CustomerRecord,
+    addresses: List(CustomerAddressRecord),
+    metafields: List(CustomerMetafieldRecord),
+    orders: List(CustomerOrderSummaryRecord),
+    store_credit_accounts: List(StoreCreditAccountRecord),
   )
 }
 
@@ -104,13 +120,28 @@ pub fn local_has_customer_id(
   proxy: DraftProxy,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Bool {
-  case dict.get(variables, "id") {
-    Ok(root_field.StringVal(id)) ->
-      case store.get_effective_customer_by_id(proxy.store, id) {
-        Some(_) -> True
-        None -> False
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id) || local_customer_id_known(proxy.store, id)
+      _ -> False
+    }
+  })
+}
+
+fn local_customer_id_known(store: Store, id: String) -> Bool {
+  case store.get_effective_customer_by_id(store, id) {
+    Some(_) -> True
+    None ->
+      case dict.get(store.staged_state.deleted_customer_ids, id) {
+        Ok(True) -> True
+        _ ->
+          case dict.get(store.staged_state.merged_customer_ids, id) {
+            Ok(_) -> True
+            Error(_) -> False
+          }
       }
-    _ -> False
   }
 }
 
@@ -144,6 +175,17 @@ fn should_passthrough_in_live_hybrid(
   }
 }
 
+fn request_upstream_context(
+  proxy: DraftProxy,
+  request: Request,
+) -> UpstreamContext {
+  upstream_query.UpstreamContext(
+    transport: proxy.upstream_transport,
+    origin: proxy.config.shopify_admin_origin,
+    headers: request.headers,
+  )
+}
+
 /// Domain entrypoint for the customer query path. The dispatcher
 /// always lands here for customer-domain reads regardless of
 /// `read_mode`; the handler itself decides whether to compute the
@@ -172,7 +214,14 @@ pub fn handle_query_request(
   case want_passthrough {
     True -> passthrough.passthrough_sync(proxy, request)
     False ->
-      case process(proxy, document, variables) {
+      case
+        process_with_upstream(
+          proxy,
+          document,
+          variables,
+          request_upstream_context(proxy, request),
+        )
+      {
         Ok(envelope) -> #(
           Response(status: 200, body: envelope, headers: []),
           proxy,
@@ -242,7 +291,13 @@ pub fn handle_customer_query(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(serialize_root_fields(proxy, fields, fragments, variables))
+      Ok(serialize_root_fields(
+        proxy,
+        fields,
+        fragments,
+        variables,
+        empty_upstream_context(),
+      ))
     }
   }
 }
@@ -256,11 +311,21 @@ pub fn process(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, CustomersError) {
+  process_with_upstream(proxy, document, variables, empty_upstream_context())
+}
+
+fn process_with_upstream(
+  proxy: DraftProxy,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Result(Json, CustomersError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      let data = serialize_root_fields(proxy, fields, fragments, variables)
+      let data =
+        serialize_root_fields(proxy, fields, fragments, variables, upstream)
       let search_extensions =
         customer_count_search_extensions(fields, variables)
       Ok(wrap_query_payload(data, search_extensions))
@@ -365,12 +430,13 @@ fn serialize_root_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Json {
   json.object(
     list.map(fields, fn(field) {
       #(
         get_field_response_key(field),
-        root_payload_for_field(proxy, field, fragments, variables),
+        root_payload_for_field(proxy, field, fragments, variables, upstream),
       )
     }),
   )
@@ -381,6 +447,7 @@ fn root_payload_for_field(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Json {
   let store = proxy.store
   case field {
@@ -392,11 +459,18 @@ fn root_payload_for_field(
           serialize_customer_by_identifier(store, field, fragments, variables)
         "customers" ->
           serialize_customers_connection(store, field, fragments, variables)
-        "customersCount" -> serialize_customers_count(proxy, field, variables)
+        "customersCount" ->
+          serialize_customers_count(proxy, field, variables, upstream)
         "customerAccountPage" ->
           serialize_customer_account_page(store, field, fragments, variables)
         "customerAccountPages" ->
-          serialize_customer_account_pages(store, field, fragments, variables)
+          serialize_customer_account_pages(
+            proxy,
+            field,
+            fragments,
+            variables,
+            upstream,
+          )
         "customerMergePreview" ->
           serialize_customer_merge_preview(store, field, fragments, variables)
         "customerMergeJobStatus" ->
@@ -1392,20 +1466,51 @@ fn filter_customers(
             False -> customers
           }
         False -> {
-          let needle =
-            trimmed
-            |> string.replace("email:", "")
-            |> string.replace("\"", "")
-            |> string.replace("'", "")
-            |> string.lowercase()
-          list.filter(customers, fn(customer) {
-            customer_text(customer)
-            |> string.lowercase()
-            |> string.contains(needle)
-          })
+          search_query_parser.apply_search_query_terms(
+            customers,
+            Some(trimmed),
+            search_query_parser.default_term_list_options(),
+            customer_matches_search_term,
+          )
         }
       }
     }
+  }
+}
+
+fn customer_matches_search_term(
+  customer: CustomerRecord,
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  case term.field {
+    Some("email") ->
+      search_query_parser.matches_search_query_string(
+        customer.email,
+        term.value,
+        search_query_parser.IncludesMatch,
+        search_query_parser.default_string_match_options(),
+      )
+    Some("tag") ->
+      list.any(customer.tags, fn(tag) {
+        search_query_parser.matches_search_query_string(
+          Some(tag),
+          term.value,
+          search_query_parser.ExactMatch,
+          search_query_parser.default_string_match_options(),
+        )
+      })
+    Some("state") ->
+      search_query_parser.matches_search_query_string(
+        customer.state,
+        term.value,
+        search_query_parser.ExactMatch,
+        search_query_parser.default_string_match_options(),
+      )
+    _ ->
+      search_query_parser.matches_search_query_text(
+        Some(customer_text(customer)),
+        term,
+      )
   }
 }
 
@@ -1464,21 +1569,84 @@ fn sort_customers(
 fn serialize_customers_count(
   proxy: DraftProxy,
   field: Selection,
-  _variables: Dict(String, root_field.ResolvedValue),
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Json {
-  let count = store.list_effective_customers(proxy.store) |> list.length()
   case field {
     Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
-      project_graphql_value(
-        src_object([
-          #("count", SrcInt(count)),
-          #("precision", SrcString("EXACT")),
-        ]),
-        selections,
-        dict.new(),
-      )
+      case proxy.config.read_mode {
+        LiveHybrid ->
+          case fetch_customers_count_source(field, variables, upstream) {
+            Some(source) ->
+              project_graphql_value(source, selections, dict.new())
+            None ->
+              project_graphql_value(
+                local_customers_count_source(proxy),
+                selections,
+                dict.new(),
+              )
+          }
+        _ ->
+          project_graphql_value(
+            local_customers_count_source(proxy),
+            selections,
+            dict.new(),
+          )
+      }
     _ -> json.object([])
   }
+}
+
+fn local_customers_count_source(proxy: DraftProxy) -> SourceValue {
+  let count = store.list_effective_customers(proxy.store) |> list.length()
+  src_object([#("count", SrcInt(count)), #("precision", SrcString("EXACT"))])
+}
+
+fn fetch_customers_count_source(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Option(SourceValue) {
+  let args = field_args(field, variables)
+  let query_arg = read_arg_string(args, "query")
+  let query =
+    "query CustomerCountHydrate($query: String) {\n"
+    <> "  customersCount(query: $query) { count precision }\n"
+    <> "}\n"
+  let upstream_variables = case query_arg {
+    Some(query) -> json.object([#("query", json.string(query))])
+    None -> json.object([])
+  }
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "CustomerCountHydrate",
+      query,
+      upstream_variables,
+    )
+  {
+    Ok(value) -> customers_count_source_from_hydrate(value)
+    Error(_) -> None
+  }
+}
+
+fn customers_count_source_from_hydrate(
+  value: commit.JsonValue,
+) -> Option(SourceValue) {
+  use data <- option.then(json_get(value, "data"))
+  use count_node <- option.then(non_null_json(json_get(data, "customersCount")))
+  use count <- option.then(json_get_int(count_node, "count"))
+  let precision =
+    json_get_string(count_node, "precision")
+    |> option.unwrap("EXACT")
+  Some(
+    src_object([
+      #("count", SrcInt(count)),
+      #("precision", SrcString(precision)),
+    ]),
+  )
 }
 
 fn serialize_customer_account_page(
@@ -1499,12 +1667,18 @@ fn serialize_customer_account_page(
 }
 
 fn serialize_customer_account_pages(
-  store: Store,
+  proxy: DraftProxy,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Json {
-  let pages = store.list_effective_customer_account_pages(store)
+  let local_pages = store.list_effective_customer_account_pages(proxy.store)
+  let pages = case local_pages, proxy.config.read_mode {
+    [], LiveHybrid ->
+      fetch_customer_account_pages(upstream) |> option.unwrap([])
+    _, _ -> local_pages
+  }
   let cursor_value = fn(page: CustomerAccountPageRecord, _index) {
     page.cursor |> option.unwrap(page.default_cursor)
   }
@@ -1540,6 +1714,31 @@ fn serialize_customer_account_pages(
       ),
     ),
   )
+}
+
+fn fetch_customer_account_pages(
+  upstream: UpstreamContext,
+) -> Option(List(CustomerAccountPageRecord)) {
+  let query =
+    "query CustomerAccountPagesHydrate {\n"
+    <> "  customerAccountPages(first: 250) {\n"
+    <> "    nodes { id title handle defaultCursor }\n"
+    <> "    pageInfo { startCursor endCursor }\n"
+    <> "  }\n"
+    <> "}\n"
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "CustomerAccountPagesHydrate",
+      query,
+      json.object([]),
+    )
+  {
+    Ok(value) -> customer_account_pages_from_hydrate(value)
+    Error(_) -> None
+  }
 }
 
 fn account_page_source(page: CustomerAccountPageRecord) {
@@ -1750,6 +1949,22 @@ pub fn process_mutation(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(MutationOutcome, CustomersError) {
+  process_mutation_with_upstream(
+    proxy,
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+pub fn process_mutation_with_upstream(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Result(MutationOutcome, CustomersError) {
   let store = proxy.store
   let identity = proxy.synthetic_identity
   case root_field.get_root_fields(document) {
@@ -1764,6 +1979,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
+        upstream,
       ))
     }
   }
@@ -1777,6 +1993,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   case first_customer_merge_missing_argument_error(fields, variables) {
     Some(error_json) ->
@@ -1806,6 +2023,7 @@ fn handle_mutation_fields(
             fields,
             fragments,
             variables,
+            upstream,
           )
       }
   }
@@ -1887,6 +2105,7 @@ fn handle_validated_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let initial = #([], store, identity, [], [])
   let #(entries, final_store, final_identity, staged_ids, roots) =
@@ -1903,6 +2122,7 @@ fn handle_validated_mutation_fields(
               name.value,
               fragments,
               variables,
+              upstream,
             )
           case handled {
             Some(#(result, next_store, next_identity)) -> #(
@@ -2138,12 +2358,36 @@ fn handle_mutation_field(
   root_name: String,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Option(#(MutationFieldResult, Store, SyntheticIdentityRegistry)) {
+  let #(store, identity) =
+    hydrate_before_customer_mutation(
+      store,
+      identity,
+      field,
+      root_name,
+      variables,
+      upstream,
+    )
   case root_name {
     "customerCreate" ->
-      Some(handle_customer_create(store, identity, field, fragments, variables))
+      Some(handle_customer_create(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+        upstream,
+      ))
     "customerUpdate" ->
-      Some(handle_customer_update(store, identity, field, fragments, variables))
+      Some(handle_customer_update(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+        upstream,
+      ))
     "customerSet" ->
       Some(handle_customer_set(store, identity, field, fragments, variables))
     "customerDelete" ->
@@ -2267,15 +2511,798 @@ fn handle_mutation_field(
   }
 }
 
+fn hydrate_before_customer_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  root_name: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> #(Store, SyntheticIdentityRegistry) {
+  let args = field_args(field, variables)
+  case root_name {
+    "customerUpdate" | "customerDelete" ->
+      hydrate_optional_customer_id(
+        store,
+        identity,
+        input_object(args, "input") |> read_obj_string("id"),
+        upstream,
+      )
+    "customerAddTaxExemptions"
+    | "customerRemoveTaxExemptions"
+    | "customerReplaceTaxExemptions"
+    | "customerRequestDataErasure"
+    | "customerCancelDataErasure" ->
+      hydrate_optional_customer_id(
+        store,
+        identity,
+        read_arg_string(args, "customerId"),
+        upstream,
+      )
+    "customerEmailMarketingConsentUpdate"
+    | "customerSmsMarketingConsentUpdate" ->
+      hydrate_optional_customer_id(
+        store,
+        identity,
+        input_object(args, "input") |> read_obj_string("customerId"),
+        upstream,
+      )
+    "customerMerge" -> {
+      let ids = [
+        read_arg_string(args, "customerOneId"),
+        read_arg_string(args, "customerTwoId"),
+      ]
+      list.fold(ids, #(store, identity), fn(acc, id) {
+        let #(current_store, current_identity) = acc
+        hydrate_optional_customer_id(
+          current_store,
+          current_identity,
+          id,
+          upstream,
+        )
+      })
+    }
+    "storeCreditAccountCredit" | "storeCreditAccountDebit" ->
+      hydrate_optional_store_credit_account_id(
+        store,
+        identity,
+        read_arg_string(args, "id"),
+        upstream,
+      )
+    "orderCustomerSet" | "orderCustomerRemove" -> #(
+      hydrate_optional_customer_order_id(
+        store,
+        read_arg_string(args, "orderId"),
+        upstream,
+      ),
+      identity,
+    )
+    _ -> #(store, identity)
+  }
+}
+
+fn hydrate_optional_customer_id(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  id: Option(String),
+  upstream: UpstreamContext,
+) -> #(Store, SyntheticIdentityRegistry) {
+  case id {
+    Some(customer_id) ->
+      maybe_hydrate_customer(store, identity, customer_id, upstream)
+    None -> #(store, identity)
+  }
+}
+
+fn maybe_hydrate_customer(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  customer_id: String,
+  upstream: UpstreamContext,
+) -> #(Store, SyntheticIdentityRegistry) {
+  case is_proxy_synthetic_gid(customer_id) {
+    True -> #(store, identity)
+    False ->
+      case store.get_effective_customer_by_id(store, customer_id) {
+        Some(_) -> #(store, identity)
+        None -> {
+          // Pattern 2: existing-customer mutations start cold in
+          // LiveHybrid parity, so they fetch the prior customer and
+          // persist it as base state before applying local-only staged
+          // changes. Snapshot/no-transport mode keeps the legacy
+          // unknown-customer behavior.
+          let query = customer_hydrate_query()
+          let variables = json.object([#("id", json.string(customer_id))])
+          case
+            upstream_query.fetch_sync(
+              upstream.origin,
+              upstream.transport,
+              upstream.headers,
+              "CustomerHydrate",
+              query,
+              variables,
+            )
+          {
+            Ok(value) ->
+              case customer_hydrate_result(value, customer_id) {
+                Some(result) -> {
+                  let with_customer =
+                    store.upsert_base_customers(store, [result.customer])
+                  let with_addresses =
+                    store.upsert_base_customer_addresses(
+                      with_customer,
+                      result.addresses,
+                    )
+                  let with_metafields = case result.metafields {
+                    [] -> with_addresses
+                    metafields ->
+                      store.stage_customer_metafields(
+                        with_addresses,
+                        result.customer.id,
+                        metafields,
+                      )
+                  }
+                  let with_accounts =
+                    list.fold(
+                      result.store_credit_accounts,
+                      with_metafields,
+                      fn(acc, account) {
+                        store.stage_store_credit_account(acc, account)
+                      },
+                    )
+                  let with_orders =
+                    store.upsert_base_customer_order_summaries(
+                      with_accounts,
+                      result.orders,
+                    )
+                  #(with_orders, identity)
+                }
+                None -> #(store, identity)
+              }
+            Error(_) -> #(store, identity)
+          }
+        }
+      }
+  }
+}
+
+fn hydrate_optional_store_credit_account_id(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  id: Option(String),
+  upstream: UpstreamContext,
+) -> #(Store, SyntheticIdentityRegistry) {
+  case id {
+    Some(account_id) ->
+      case store.get_effective_store_credit_account_by_id(store, account_id) {
+        Some(_) -> #(store, identity)
+        None -> {
+          // Pattern 2: store-credit adjustments need the existing
+          // account balance/owner before staging the local transaction.
+          // In Snapshot or without a cassette this stays a no-op and
+          // the handler returns Shopify-like NOT_FOUND.
+          let query = store_credit_account_hydrate_query()
+          let variables = json.object([#("id", json.string(account_id))])
+          case
+            upstream_query.fetch_sync(
+              upstream.origin,
+              upstream.transport,
+              upstream.headers,
+              "StoreCreditAccountHydrate",
+              query,
+              variables,
+            )
+          {
+            Ok(value) ->
+              case store_credit_account_hydrate_result(value, account_id) {
+                Some(#(customer, account)) -> {
+                  let with_customer =
+                    store.upsert_base_customers(store, [customer])
+                  let with_account =
+                    store.stage_store_credit_account(with_customer, account)
+                  #(with_account, identity)
+                }
+                None -> #(store, identity)
+              }
+            Error(_) -> #(store, identity)
+          }
+        }
+      }
+    None -> #(store, identity)
+  }
+}
+
+fn hydrate_optional_customer_order_id(
+  store: Store,
+  id: Option(String),
+  upstream: UpstreamContext,
+) -> Store {
+  case id {
+    Some(order_id) ->
+      case store.get_effective_customer_order_summary_by_id(store, order_id) {
+        Some(_) -> store
+        None -> {
+          // Pattern 2: orderCustomerSet/orderCustomerRemove need the
+          // existing order summary before staging a local customer
+          // association change. In snapshot/no-cassette mode this stays
+          // a no-op and the handler returns Shopify-like NOT_FOUND.
+          let query = customer_order_summary_hydrate_query()
+          let variables = json.object([#("id", json.string(order_id))])
+          case
+            upstream_query.fetch_sync(
+              upstream.origin,
+              upstream.transport,
+              upstream.headers,
+              "CustomerOrderSummaryHydrate",
+              query,
+              variables,
+            )
+          {
+            Ok(value) ->
+              case customer_order_summary_from_hydrate(value, order_id) {
+                Some(order) -> store.stage_customer_order_summary(store, order)
+                None -> store
+              }
+            Error(_) -> store
+          }
+        }
+      }
+    None -> store
+  }
+}
+
+fn customer_hydrate_query() -> String {
+  "query CustomerHydrate($id: ID!) {\n"
+  <> "  customer(id: $id) {\n"
+  <> "    id firstName lastName displayName email legacyResourceId locale note\n"
+  <> "    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n"
+  <> "    numberOfOrders createdAt updatedAt\n"
+  <> "    amountSpent { amount currencyCode }\n"
+  <> "    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n"
+  <> "    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n"
+  <> "    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n"
+  <> "    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n"
+  <> "    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n"
+  <> "    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n"
+  <> "    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n"
+  <> "    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n"
+  <> "    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n"
+  <> "  }\n"
+  <> "}\n"
+}
+
+fn customer_order_summary_hydrate_query() -> String {
+  "query CustomerOrderSummaryHydrate($id: ID!) {\n"
+  <> "  order(id: $id) {\n"
+  <> "    id name email createdAt\n"
+  <> "    currentTotalPriceSet { shopMoney { amount currencyCode } }\n"
+  <> "    customer { id }\n"
+  <> "  }\n"
+  <> "}\n"
+}
+
+fn store_credit_account_hydrate_query() -> String {
+  "query StoreCreditAccountHydrate($id: ID!) {\n"
+  <> "  storeCreditAccount(id: $id) {\n"
+  <> "    id\n"
+  <> "    balance { amount currencyCode }\n"
+  <> "    owner { ... on Customer { id firstName lastName displayName email legacyResourceId locale note canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags numberOfOrders createdAt updatedAt amountSpent { amount currencyCode } defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt } defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom } emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt } smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom } defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } } }\n"
+  <> "  }\n"
+  <> "}\n"
+}
+
+fn customer_hydrate_result(
+  value: commit.JsonValue,
+  fallback_id: String,
+) -> Option(CustomerHydrateResult) {
+  use data <- option.then(json_get(value, "data"))
+  use customer_node <- option.then(non_null_json(json_get(data, "customer")))
+  use customer <- option.then(customer_record_from_node(
+    customer_node,
+    fallback_id,
+  ))
+  let addresses = address_records_from_customer_node(customer_node, customer.id)
+  let metafields =
+    metafield_records_from_customer_node(customer_node, customer.id)
+  let orders = order_records_from_customer_node(customer_node, customer.id)
+  let accounts =
+    store_credit_accounts_from_customer_node(customer_node, customer.id)
+  Some(CustomerHydrateResult(
+    customer: customer,
+    addresses: addresses,
+    metafields: metafields,
+    orders: orders,
+    store_credit_accounts: accounts,
+  ))
+}
+
+fn store_credit_account_hydrate_result(
+  value: commit.JsonValue,
+  fallback_account_id: String,
+) -> Option(#(CustomerRecord, StoreCreditAccountRecord)) {
+  use data <- option.then(json_get(value, "data"))
+  use account_node <- option.then(
+    non_null_json(json_get(data, "storeCreditAccount")),
+  )
+  use owner_node <- option.then(non_null_json(json_get(account_node, "owner")))
+  let owner_id = json_get_string(owner_node, "id") |> option.unwrap("")
+  use customer <- option.then(customer_record_from_node(owner_node, owner_id))
+  let account =
+    store_credit_account_from_node(
+      account_node,
+      fallback_account_id,
+      customer.id,
+    )
+  Some(#(customer, account))
+}
+
+fn customer_order_summary_from_hydrate(
+  value: commit.JsonValue,
+  fallback_order_id: String,
+) -> Option(CustomerOrderSummaryRecord) {
+  use data <- option.then(json_get(value, "data"))
+  use order_node <- option.then(non_null_json(json_get(data, "order")))
+  let customer_id =
+    json_get(order_node, "customer")
+    |> option.then(fn(customer) { non_null_json(Some(customer)) })
+    |> option.then(fn(customer) { json_get_string(customer, "id") })
+  let total =
+    json_get(order_node, "currentTotalPriceSet")
+    |> option.then(fn(price_set) { non_null_json(Some(price_set)) })
+    |> option.then(fn(price_set) { json_get_money(price_set, "shopMoney") })
+  Some(CustomerOrderSummaryRecord(
+    id: json_get_string(order_node, "id") |> option.unwrap(fallback_order_id),
+    customer_id: customer_id,
+    cursor: None,
+    name: json_get_string(order_node, "name"),
+    email: json_get_string(order_node, "email"),
+    created_at: json_get_string(order_node, "createdAt"),
+    current_total_price: total,
+  ))
+}
+
+fn customer_account_pages_from_hydrate(
+  value: commit.JsonValue,
+) -> Option(List(CustomerAccountPageRecord)) {
+  use data <- option.then(json_get(value, "data"))
+  use connection <- option.then(
+    non_null_json(json_get(data, "customerAccountPages")),
+  )
+  let start_cursor =
+    json_get(connection, "pageInfo")
+    |> option.then(fn(page_info) { json_get_string(page_info, "startCursor") })
+  let end_cursor =
+    json_get(connection, "pageInfo")
+    |> option.then(fn(page_info) { json_get_string(page_info, "endCursor") })
+  let nodes = connection_nodes(data, "customerAccountPages")
+  let last_index = list.length(nodes) - 1
+  Some(
+    list.index_map(nodes, fn(node, index) {
+      let cursor = case index {
+        0 -> start_cursor
+        i if i == last_index -> end_cursor
+        _ -> None
+      }
+      CustomerAccountPageRecord(
+        id: json_get_string(node, "id") |> option.unwrap(""),
+        title: json_get_string(node, "title") |> option.unwrap(""),
+        handle: json_get_string(node, "handle") |> option.unwrap(""),
+        default_cursor: json_get_string(node, "defaultCursor")
+          |> option.unwrap(""),
+        cursor: cursor,
+      )
+    }),
+  )
+}
+
+fn customer_record_from_node(
+  node: commit.JsonValue,
+  fallback_id: String,
+) -> Option(CustomerRecord) {
+  let id = json_get_string(node, "id") |> option.or(Some(fallback_id))
+  use customer_id <- option.then(id)
+  let email = json_get_string(node, "email")
+  let first_name = json_get_string(node, "firstName")
+  let last_name = json_get_string(node, "lastName")
+  Some(CustomerRecord(
+    id: customer_id,
+    first_name: first_name,
+    last_name: last_name,
+    display_name: json_get_string(node, "displayName")
+      |> option.or(build_display_name(first_name, last_name, email)),
+    email: email,
+    legacy_resource_id: json_get_string(node, "legacyResourceId")
+      |> option.or(gid_tail(customer_id)),
+    locale: json_get_string(node, "locale"),
+    note: json_get_string(node, "note"),
+    can_delete: json_get_bool(node, "canDelete"),
+    verified_email: json_get_bool(node, "verifiedEmail"),
+    data_sale_opt_out: json_get_bool(node, "dataSaleOptOut")
+      |> option.unwrap(False),
+    tax_exempt: json_get_bool(node, "taxExempt"),
+    tax_exemptions: json_get_string_list(node, "taxExemptions"),
+    state: json_get_string(node, "state"),
+    tags: json_get_string_list(node, "tags"),
+    number_of_orders: json_get_scalar_string(node, "numberOfOrders"),
+    amount_spent: json_get_money(node, "amountSpent"),
+    default_email_address: default_email_from_node(
+      json_get(node, "defaultEmailAddress"),
+      email,
+    ),
+    default_phone_number: default_phone_from_node(json_get(
+      node,
+      "defaultPhoneNumber",
+    )),
+    email_marketing_consent: email_consent_from_node(json_get(
+      node,
+      "emailMarketingConsent",
+    )),
+    sms_marketing_consent: sms_consent_from_node(json_get(
+      node,
+      "smsMarketingConsent",
+    )),
+    default_address: json_get(node, "defaultAddress")
+      |> option.then(default_address_from_node),
+    created_at: json_get_string(node, "createdAt"),
+    updated_at: json_get_string(node, "updatedAt"),
+  ))
+}
+
+fn default_email_from_node(
+  value: Option(commit.JsonValue),
+  fallback_email: Option(String),
+) -> Option(CustomerDefaultEmailAddressRecord) {
+  case non_null_json(value) {
+    Some(node) ->
+      Some(CustomerDefaultEmailAddressRecord(
+        email_address: json_get_string(node, "emailAddress")
+          |> option.or(fallback_email),
+        marketing_state: json_get_string(node, "marketingState"),
+        marketing_opt_in_level: json_get_string(node, "marketingOptInLevel"),
+        marketing_updated_at: json_get_string(node, "marketingUpdatedAt"),
+      ))
+    None ->
+      case fallback_email {
+        Some(email) ->
+          Some(CustomerDefaultEmailAddressRecord(
+            email_address: Some(email),
+            marketing_state: None,
+            marketing_opt_in_level: None,
+            marketing_updated_at: None,
+          ))
+        None -> None
+      }
+  }
+}
+
+fn default_phone_from_node(
+  value: Option(commit.JsonValue),
+) -> Option(CustomerDefaultPhoneNumberRecord) {
+  use node <- option.then(non_null_json(value))
+  Some(CustomerDefaultPhoneNumberRecord(
+    phone_number: json_get_string(node, "phoneNumber"),
+    marketing_state: json_get_string(node, "marketingState"),
+    marketing_opt_in_level: json_get_string(node, "marketingOptInLevel"),
+    marketing_updated_at: json_get_string(node, "marketingUpdatedAt"),
+    marketing_collected_from: json_get_string(node, "marketingCollectedFrom"),
+  ))
+}
+
+fn email_consent_from_node(
+  value: Option(commit.JsonValue),
+) -> Option(CustomerEmailMarketingConsentRecord) {
+  use node <- option.then(non_null_json(value))
+  Some(CustomerEmailMarketingConsentRecord(
+    marketing_state: json_get_string(node, "marketingState"),
+    marketing_opt_in_level: json_get_string(node, "marketingOptInLevel"),
+    consent_updated_at: json_get_string(node, "consentUpdatedAt"),
+  ))
+}
+
+fn sms_consent_from_node(
+  value: Option(commit.JsonValue),
+) -> Option(CustomerSmsMarketingConsentRecord) {
+  use node <- option.then(non_null_json(value))
+  Some(CustomerSmsMarketingConsentRecord(
+    marketing_state: json_get_string(node, "marketingState"),
+    marketing_opt_in_level: json_get_string(node, "marketingOptInLevel"),
+    consent_updated_at: json_get_string(node, "consentUpdatedAt"),
+    consent_collected_from: json_get_string(node, "consentCollectedFrom"),
+  ))
+}
+
+fn default_address_from_node(
+  node: commit.JsonValue,
+) -> Option(CustomerDefaultAddressRecord) {
+  case node {
+    commit.JsonNull -> None
+    _ ->
+      Some(CustomerDefaultAddressRecord(
+        id: json_get_string(node, "id"),
+        first_name: json_get_string(node, "firstName"),
+        last_name: json_get_string(node, "lastName"),
+        address1: json_get_string(node, "address1"),
+        address2: json_get_string(node, "address2"),
+        city: json_get_string(node, "city"),
+        company: json_get_string(node, "company"),
+        province: json_get_string(node, "province"),
+        province_code: json_get_string(node, "provinceCode"),
+        country: json_get_string(node, "country"),
+        country_code_v2: json_get_string(node, "countryCodeV2"),
+        zip: json_get_string(node, "zip"),
+        phone: json_get_string(node, "phone"),
+        name: json_get_string(node, "name"),
+        formatted_area: json_get_string(node, "formattedArea"),
+      ))
+  }
+}
+
+fn address_records_from_customer_node(
+  customer_node: commit.JsonValue,
+  customer_id: String,
+) -> List(CustomerAddressRecord) {
+  let nodes =
+    connection_nodes(customer_node, "addressesV2")
+    |> list.append(connection_nodes(customer_node, "addresses"))
+  list.index_map(nodes, fn(node, index) {
+    let default_address =
+      default_address_from_node(node)
+      |> option.unwrap(CustomerDefaultAddressRecord(
+        id: None,
+        first_name: None,
+        last_name: None,
+        address1: None,
+        address2: None,
+        city: None,
+        company: None,
+        province: None,
+        province_code: None,
+        country: None,
+        country_code_v2: None,
+        zip: None,
+        phone: None,
+        name: None,
+        formatted_area: None,
+      ))
+    CustomerAddressRecord(
+      id: default_address.id
+        |> option.unwrap(
+          "gid://shopify/MailingAddress/" <> int.to_string(index + 1),
+        ),
+      customer_id: customer_id,
+      cursor: None,
+      position: index,
+      first_name: default_address.first_name,
+      last_name: default_address.last_name,
+      address1: default_address.address1,
+      address2: default_address.address2,
+      city: default_address.city,
+      company: default_address.company,
+      province: default_address.province,
+      province_code: default_address.province_code,
+      country: default_address.country,
+      country_code_v2: default_address.country_code_v2,
+      zip: default_address.zip,
+      phone: default_address.phone,
+      name: default_address.name,
+      formatted_area: default_address.formatted_area,
+    )
+  })
+}
+
+fn metafield_records_from_customer_node(
+  customer_node: commit.JsonValue,
+  customer_id: String,
+) -> List(CustomerMetafieldRecord) {
+  connection_nodes(customer_node, "metafields")
+  |> list.filter_map(fn(node) {
+    case
+      json_get_string(node, "id"),
+      json_get_string(node, "namespace"),
+      json_get_string(node, "key"),
+      json_get_string(node, "type"),
+      json_get_string(node, "value")
+    {
+      Some(id), Some(namespace), Some(key), Some(type_), Some(value) ->
+        Ok(CustomerMetafieldRecord(
+          id: id,
+          customer_id: customer_id,
+          namespace: namespace,
+          key: key,
+          type_: type_,
+          value: value,
+          compare_digest: json_get_string(node, "compareDigest"),
+          created_at: json_get_string(node, "createdAt"),
+          updated_at: json_get_string(node, "updatedAt"),
+        ))
+      _, _, _, _, _ -> Error(Nil)
+    }
+  })
+}
+
+fn store_credit_accounts_from_customer_node(
+  customer_node: commit.JsonValue,
+  customer_id: String,
+) -> List(StoreCreditAccountRecord) {
+  connection_nodes(customer_node, "storeCreditAccounts")
+  |> list.filter_map(fn(node) {
+    case json_get_string(node, "id") {
+      Some(id) -> Ok(store_credit_account_from_node(node, id, customer_id))
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn order_records_from_customer_node(
+  customer_node: commit.JsonValue,
+  customer_id: String,
+) -> List(CustomerOrderSummaryRecord) {
+  let start_cursor =
+    json_get(customer_node, "orders")
+    |> option.then(fn(connection) { json_get(connection, "pageInfo") })
+    |> option.then(fn(page_info) { json_get_string(page_info, "startCursor") })
+  let end_cursor =
+    json_get(customer_node, "orders")
+    |> option.then(fn(connection) { json_get(connection, "pageInfo") })
+    |> option.then(fn(page_info) { json_get_string(page_info, "endCursor") })
+  let nodes = connection_nodes(customer_node, "orders")
+  let last_index = list.length(nodes) - 1
+  list.index_map(nodes, fn(node, index) {
+    let cursor = case index {
+      0 -> start_cursor
+      i if i == last_index -> end_cursor
+      _ -> None
+    }
+    CustomerOrderSummaryRecord(
+      id: json_get_string(node, "id") |> option.unwrap(""),
+      customer_id: Some(customer_id),
+      cursor: cursor,
+      name: json_get_string(node, "name"),
+      email: json_get_string(node, "email"),
+      created_at: json_get_string(node, "createdAt"),
+      current_total_price: json_get(node, "currentTotalPriceSet")
+        |> option.then(fn(price_set) { json_get_money(price_set, "shopMoney") }),
+    )
+  })
+}
+
+fn store_credit_account_from_node(
+  node: commit.JsonValue,
+  fallback_id: String,
+  customer_id: String,
+) -> StoreCreditAccountRecord {
+  StoreCreditAccountRecord(
+    id: json_get_string(node, "id") |> option.unwrap(fallback_id),
+    customer_id: customer_id,
+    cursor: None,
+    balance: json_money_from_value(json_get(node, "balance"))
+      |> option.unwrap(Money(amount: "0.0", currency_code: "USD")),
+  )
+}
+
+fn connection_nodes(
+  object: commit.JsonValue,
+  key: String,
+) -> List(commit.JsonValue) {
+  case json_get(object, key) {
+    Some(commit.JsonArray(items)) -> items
+    Some(connection) ->
+      case json_get(connection, "nodes") {
+        Some(commit.JsonArray(nodes)) -> nodes
+        _ ->
+          case json_get(connection, "edges") {
+            Some(commit.JsonArray(edges)) ->
+              list.filter_map(edges, fn(edge) {
+                case json_get(edge, "node") {
+                  Some(node) -> Ok(node)
+                  None -> Error(Nil)
+                }
+              })
+            _ -> []
+          }
+      }
+    None -> []
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(name, child) if name == key -> Ok(child)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn non_null_json(value: Option(commit.JsonValue)) -> Option(commit.JsonValue) {
+  case value {
+    Some(commit.JsonNull) -> None
+    Some(v) -> Some(v)
+    None -> None
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  json_get_scalar_string(value, key)
+}
+
+fn json_get_scalar_string(
+  value: commit.JsonValue,
+  key: String,
+) -> Option(String) {
+  json_get(value, key) |> option.then(json_scalar_string)
+}
+
+fn json_scalar_string(value: commit.JsonValue) -> Option(String) {
+  case value {
+    commit.JsonString(s) -> Some(s)
+    commit.JsonInt(i) -> Some(int.to_string(i))
+    commit.JsonFloat(f) -> Some(float.to_string(f))
+    _ -> None
+  }
+}
+
+fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
+  case json_get(value, key) {
+    Some(commit.JsonBool(b)) -> Some(b)
+    _ -> None
+  }
+}
+
+fn json_get_int(value: commit.JsonValue, key: String) -> Option(Int) {
+  case json_get(value, key) {
+    Some(commit.JsonInt(i)) -> Some(i)
+    Some(commit.JsonString(s)) ->
+      case int.parse(s) {
+        Ok(i) -> Some(i)
+        Error(_) -> None
+      }
+    _ -> None
+  }
+}
+
+fn json_get_string_list(value: commit.JsonValue, key: String) -> List(String) {
+  case json_get(value, key) {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, fn(item) {
+        case json_scalar_string(item) {
+          Some(s) -> Ok(s)
+          None -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn json_get_money(value: commit.JsonValue, key: String) -> Option(Money) {
+  json_money_from_value(json_get(value, key))
+}
+
+fn json_money_from_value(value: Option(commit.JsonValue)) -> Option(Money) {
+  use money <- option.then(non_null_json(value))
+  use amount <- option.then(json_get_scalar_string(money, "amount"))
+  let currency =
+    json_get_string(money, "currencyCode")
+    |> option.or(json_get_string(money, "currency_code"))
+    |> option.unwrap("USD")
+  Some(Money(amount: amount, currency_code: currency))
+}
+
 fn handle_customer_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input = input_object(field_args(field, variables), "input")
-  let errors = validate_customer_create(store, input)
+  let errors = validate_customer_create(store, input, upstream)
   case errors {
     [] -> {
       let #(id, after_id) =
@@ -2461,6 +3488,7 @@ fn build_created_customer(
 fn validate_customer_create(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> List(UserError) {
   let email = read_obj_string(input, "email")
   let phone = read_obj_string(input, "phone")
@@ -2474,10 +3502,94 @@ fn validate_customer_create(
     ]
     _, _ -> []
   }
+  let local_errors = validate_customer_input_fields(store, input, None)
   list.append(
-    presence_errors,
-    validate_customer_input_fields(store, input, None),
+    list.append(presence_errors, local_errors),
+    validate_upstream_duplicate_customer(input, local_errors, None, upstream),
   )
+}
+
+fn validate_upstream_duplicate_customer(
+  input: Dict(String, root_field.ResolvedValue),
+  local_errors: List(UserError),
+  exclude_customer_id: Option(String),
+  upstream: UpstreamContext,
+) -> List(UserError) {
+  let has_email_error =
+    local_errors |> list.any(fn(error) { error.field == ["email"] })
+  let has_phone_error =
+    local_errors |> list.any(fn(error) { error.field == ["phone"] })
+  let email_error = case read_obj_string(input, "email"), has_email_error {
+    Some(email), False ->
+      case
+        string.contains(email, "@")
+        && upstream_customer_duplicate_exists(
+          "email:" <> email,
+          exclude_customer_id,
+          upstream,
+        )
+      {
+        True -> [UserError(["email"], "Email has already been taken", None)]
+        False -> []
+      }
+    _, _ -> []
+  }
+  let phone_error = case read_obj_string(input, "phone"), has_phone_error {
+    Some(phone), False ->
+      case
+        valid_phone(phone)
+        && upstream_customer_duplicate_exists(
+          "phone:" <> phone,
+          exclude_customer_id,
+          upstream,
+        )
+      {
+        True -> [UserError(["phone"], "Phone has already been taken", None)]
+        False -> []
+      }
+    _, _ -> []
+  }
+  list.append(email_error, phone_error)
+}
+
+fn upstream_customer_duplicate_exists(
+  query_value: String,
+  exclude_customer_id: Option(String),
+  upstream: UpstreamContext,
+) -> Bool {
+  let query =
+    "query CustomerDuplicateHydrate($query: String!) {\n"
+    <> "  customers(first: 1, query: $query) { nodes { id } }\n"
+    <> "}\n"
+  let variables = json.object([#("query", json.string(query_value))])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "CustomerDuplicateHydrate",
+      query,
+      variables,
+    )
+  {
+    Ok(value) ->
+      case upstream_customer_id_result(value) {
+        Some(id) -> id != option.unwrap(exclude_customer_id, "")
+        None -> False
+      }
+    Error(_) -> False
+  }
+}
+
+fn upstream_customer_id_result(value: commit.JsonValue) -> Option(String) {
+  case json_get(value, "data") {
+    Some(data) ->
+      case connection_nodes(data, "customers") {
+        [first, ..] -> json_get_string(first, "id")
+        [] -> None
+      }
+    None -> None
+  }
 }
 
 fn validate_customer_input_fields(
@@ -2641,6 +3753,7 @@ fn handle_customer_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input = input_object(field_args(field, variables), "input")
   let id = read_obj_string(input, "id")
@@ -2648,11 +3761,19 @@ fn handle_customer_update(
     Some(customer_id) ->
       case store.get_effective_customer_by_id(store, customer_id) {
         Some(existing) -> {
+          let input_errors =
+            validate_customer_input_fields(store, input, Some(customer_id))
           let validation_errors =
-            list.append(
+            list.flatten([
               inline_consent_update_errors(input),
-              validate_customer_input_fields(store, input, Some(customer_id)),
-            )
+              input_errors,
+              validate_upstream_duplicate_customer(
+                input,
+                input_errors,
+                Some(customer_id),
+                upstream,
+              ),
+            ])
           case validation_errors {
             [_, ..] as errors -> {
               let payload =
@@ -4581,8 +5702,12 @@ fn stage_customer_merge_attached_resources(
     |> list.filter(fn(metafield) {
       !list.contains(result_keys, customer_metafield_key(metafield))
     })
-    |> list.map(fn(metafield) {
-      CustomerMetafieldRecord(..metafield, customer_id: merged.id)
+    |> list.index_map(fn(metafield, index) {
+      CustomerMetafieldRecord(
+        ..metafield,
+        id: "gid://shopify/Metafield/900000000000" <> int.to_string(index),
+        customer_id: merged.id,
+      )
     })
   let with_source_orders =
     store.list_effective_customer_order_summaries(
