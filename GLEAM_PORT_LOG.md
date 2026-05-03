@@ -9,6 +9,55 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-03 - Pass 177: HAR-543 shipping fulfillments cassette parity
+
+Migrates the remaining Shipping/Fulfillments parity scenarios to
+cassette-backed LiveHybrid execution. Cold shipping reads now fetch the
+captured upstream payload, hydrate the local shipping/store slices needed by
+later lifecycle operations, and return Shopify's payload verbatim. Supported
+shipping mutations still stage locally; they use targeted Pattern 2 hydrate
+reads only when a prior upstream record or product/variant metadata is needed
+before local mutation handling.
+
+| Module / fixture                                                  | Change                                                                                                     |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam` | Adds Pattern 2 LiveHybrid read hydration and mutation prerequisite hydration for shipping lifecycle roots. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`           | Routes shipping queries/mutations through the upstream-aware shipping entrypoints.                         |
+| `fixtures/conformance/**/shipping-fulfillments/*.json`            | Hand-synthesizes shipping hydrate cassette entries from checked-in capture evidence.                       |
+| `config/parity-specs/shipping-fulfillments/*.json`                | Prunes stale cursor/line-item expected-difference rules where proxy output now matches the captures.       |
+| `config/gleam-port-ci-gates.json`                                 | Removes the nine Shipping/Fulfillments expected-failure entries.                                           |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed shipping fixture/gate checks: no shipping expected-failure entries
+  remain, no `seedX` keys, and no new `expectedDifferences`
+
+### Findings
+
+- Pattern 1 passthrough is not appropriate for the migrated scenarios because
+  several supported shipping mutations must keep staging locally while using
+  upstream records only as pre-hydration context.
+- The checked-in captures already contained the authoritative shipping payloads,
+  so the cassette entries could be hand-synthesized without live Shopify writes.
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation used the established OTP 28 container fallback.
+
+### Risks / open items
+
+- Hydration is intentionally limited to the delivery profile, fulfillment,
+  fulfillment-order, shipping package, location, carrier-service, order, and
+  product/variant fields selected by current parity evidence. Broader shipping
+  shapes remain future fidelity work.
+
+---
+
 ## 2026-05-03 - Pass 176: HAR-512 JavaScript HTTP adapter
 
 Adds the JavaScript-target HTTP service adapter for the Gleam-backed TS shim.

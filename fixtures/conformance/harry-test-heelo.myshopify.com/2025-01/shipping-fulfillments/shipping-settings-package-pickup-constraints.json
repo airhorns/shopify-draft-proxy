@@ -548,5 +548,81 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingSettingsAvailability",
+      "variables": {},
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "availableCarrierServices": [
+              {
+                "carrierService": {
+                  "id": "gid://shopify/DeliveryCarrierService/95194480946",
+                  "name": "canada_post",
+                  "formattedName": "Canada Post (Discounted rates from Shopify Shipping)",
+                  "active": true,
+                  "supportsServiceDiscovery": true
+                }
+              },
+              {
+                "carrierService": {
+                  "id": "gid://shopify/DeliveryCarrierService/97859273010",
+                  "name": "dhl_express",
+                  "formattedName": "DHL Express (Discounted rates from Shopify Shipping)",
+                  "active": true,
+                  "supportsServiceDiscovery": true
+                }
+              },
+              {
+                "carrierService": {
+                  "id": "gid://shopify/DeliveryCarrierService/95194513714",
+                  "name": "purolator",
+                  "formattedName": "Purolator (Discounted rates from Shopify Shipping)",
+                  "active": true,
+                  "supportsServiceDiscovery": true
+                }
+              }
+            ],
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/106318496050",
+                  "name": "Snow City Warehouse",
+                  "localPickupSettingsV2": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
