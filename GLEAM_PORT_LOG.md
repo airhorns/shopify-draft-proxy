@@ -37,6 +37,9 @@ Validation:
 - Product-owned metafield shell reads must be included in the local-state gate;
   otherwise unrelated metafields scenarios can regress by forwarding local owner
   shell reads to the cassette.
+- Product-owned `metafield` / `metafields` selections are not part of this cold
+  read slice yet and remain local until the product-metafields scenario gets its
+  own cassette-backed migration.
 
 ### Risks / open items
 

@@ -18,9 +18,10 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Definition, type Location, type ObjectField, type Selection,
-  type VariableDefinition, Argument, Directive, Field, InlineFragment, NullValue,
-  ObjectField, ObjectValue, OperationDefinition, SelectionSet, StringValue,
-  VariableDefinition, VariableValue,
+  type SelectionSet, type VariableDefinition, Argument, Directive, Document,
+  Field, FragmentDefinition, InlineFragment, NullValue, ObjectField, ObjectValue,
+  OperationDefinition, SelectionSet, StringValue, VariableDefinition,
+  VariableValue,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation
@@ -272,22 +273,65 @@ fn local_has_product_state(proxy: DraftProxy) -> Bool {
 /// forward the captured Shopify document verbatim. Once local product
 /// state exists, stay in the local serializer so staged lifecycle
 /// effects and staged deletes are observable without runtime writes.
+/// Product-owned metafield selections stay local until that products
+/// slice has its own cassette-backed migration.
 fn should_passthrough_in_live_hybrid(
   proxy: DraftProxy,
   type_: parse_operation.GraphQLOperationType,
   primary_root_field: String,
+  document: String,
   variables: Dict(String, ResolvedValue),
 ) -> Bool {
+  let selects_product_metafields =
+    document_selects_product_metafield_fields(document)
   case type_, primary_root_field {
     parse_operation.QueryOperation, "product" ->
-      !local_has_product_id(proxy, variables)
+      !selects_product_metafields && !local_has_product_id(proxy, variables)
     parse_operation.QueryOperation, "productByIdentifier" ->
-      !local_has_product_id(proxy, variables)
+      !selects_product_metafields && !local_has_product_id(proxy, variables)
     parse_operation.QueryOperation, "products" ->
-      !local_has_product_state(proxy)
+      !selects_product_metafields && !local_has_product_state(proxy)
     parse_operation.QueryOperation, "productsCount" ->
       !local_has_product_state(proxy)
     _, _ -> False
+  }
+}
+
+fn document_selects_product_metafield_fields(document: String) -> Bool {
+  case parser.parse(graphql_source.new(document)) {
+    Ok(Document(definitions: definitions, ..)) ->
+      list.any(definitions, definition_selects_product_metafield_fields)
+    Error(_) -> False
+  }
+}
+
+fn definition_selects_product_metafield_fields(definition: Definition) -> Bool {
+  case definition {
+    OperationDefinition(selection_set: selection_set, ..)
+    | FragmentDefinition(selection_set: selection_set, ..) ->
+      selection_set_selects_product_metafield_fields(selection_set)
+  }
+}
+
+fn selection_set_selects_product_metafield_fields(
+  selection_set: SelectionSet,
+) -> Bool {
+  let SelectionSet(selections: selections, ..) = selection_set
+  list.any(selections, selection_selects_product_metafield_fields)
+}
+
+fn selection_selects_product_metafield_fields(selection: Selection) -> Bool {
+  case selection {
+    Field(name: name, selection_set: selection_set, ..) ->
+      name.value == "metafield"
+      || name.value == "metafields"
+      || case selection_set {
+        Some(child) -> selection_set_selects_product_metafield_fields(child)
+        None -> False
+      }
+    InlineFragment(selection_set: selection_set, ..) ->
+      selection_set_selects_product_metafield_fields(selection_set)
+    _ -> False
   }
 }
 
@@ -305,6 +349,7 @@ pub fn handle_query_request(
         proxy,
         parsed.type_,
         primary_root_field,
+        document,
         variables,
       )
     _ -> False
