@@ -1312,10 +1312,13 @@ fn route_query(
         variables,
       )
     Ok(SegmentsDomain) ->
-      respond(
+      segments.handle_query_request(
         proxy,
-        segments.process(proxy.store, query, variables),
-        "Failed to handle segments query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(MetafieldDefinitionsDomain) ->
       metafield_definitions.handle_query_request(
