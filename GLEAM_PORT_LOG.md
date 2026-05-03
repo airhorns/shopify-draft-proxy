@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-03 - Pass 174: HAR-526 apps cassette parity
+## 2026-05-03 - Pass 175: HAR-526 apps cassette parity
 
 Migrates the remaining Apps parity scenario to cassette-backed LiveHybrid
 execution. `currentAppInstallation` now uses a gated Pattern 1 app query
@@ -47,6 +47,51 @@ Validation:
 
 - Broader cold app identity and app installation reads still rely on LiveHybrid
   passthrough until those roots have their own executable overlay evidence.
+
+---
+
+## 2026-05-03 - Pass 174: HAR-531 gift-card cassette parity
+
+Migrates the remaining Gift Cards parity scenarios to cassette-backed
+LiveHybrid execution. Existing upstream gift cards referenced by supported
+mutation roots now hydrate through a narrow `GiftCardHydrate` cassette read,
+persisting the prior gift card and shop configuration into base state before
+local lifecycle mutations stage update/credit/debit/deactivate effects.
+
+| Module                                                        | Change                                                                                                      |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/gift_cards.gleam`        | Adds Pattern 2 mutation hydration for existing gift cards and configuration before local lifecycle staging. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Threads the per-request upstream context into gift-card mutation handling.                                  |
+| `fixtures/conformance/**/gift-cards/gift-card-lifecycle.json` | Hand-synthesizes the `GiftCardHydrate` cassette from checked-in detail/configuration capture payloads.      |
+| `config/gleam-port-ci-gates.json`                             | Removes the two Gift Cards expected-failure entries.                                                        |
+| `docs/endpoints/gift-cards.md`                                | Documents the LiveHybrid hydrate path and cassette-backed parity evidence.                                  |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'` (OTP 28, 819 passed)
+- `cd gleam && gleam format --check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+- changed gift-card fixture/config checks: no added `seed*` keys and no new
+  `expectedDifferences`
+
+### Findings
+
+- Pattern 1 passthrough is not enough for these scenarios because the primary
+  request is a mutation lifecycle against an existing upstream gift card. The
+  local handler needs the prior record before it can stage supported mutations
+  without writing to Shopify.
+- The checked-in detail/configuration captures already contain the authoritative
+  hydrate payload, so the cassette entry could be hand-synthesized without live
+  Shopify credentials.
+
+### Risks / open items
+
+- Host Erlang is OTP 25 in this workspace, while `gleam_json` requires OTP 27+.
+  Erlang validation for this pass used the established OTP 28 container
+  fallback.
 
 ---
 
