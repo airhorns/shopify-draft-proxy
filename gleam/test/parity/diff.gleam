@@ -63,6 +63,303 @@ pub fn diff_with_expected(
   |> list.filter(fn(m) { !is_expected(m, rules, actual) })
 }
 
+/// Compare two JsonValue trees AND verify that every applicable
+/// `expectedDifferences` rule actually corresponded to a real diff.
+/// Mirrors `compareJsonPayloads` in the TS runner (`scripts/conformance-parity-lib.ts`).
+///
+/// Filters matchable mismatches the same way `diff_with_expected` does,
+/// then appends a synthetic "expected difference was not observed"
+/// mismatch for every rule whose path resolves in either tree but
+/// whose path does not appear in the raw (pre-filter) mismatch list.
+pub fn compare_payloads(
+  expected: JsonValue,
+  actual: JsonValue,
+  rules: List(ExpectedDifference),
+) -> List(Mismatch) {
+  let raw = diff(expected, actual)
+  let filtered = list.filter(raw, fn(m) { !is_expected(m, rules, actual) })
+  let unobserved = unobserved_rule_mismatches(expected, actual, raw, rules)
+  list.append(filtered, unobserved)
+}
+
+/// Compare only the selected JSONPath slices. Paths are relative to
+/// the target's capture/proxy slice, matching the `selectedPaths`
+/// contract in checked-in parity specs.
+pub fn diff_selected_paths(
+  expected: JsonValue,
+  actual: JsonValue,
+  selected_paths: List(String),
+  rules: List(ExpectedDifference),
+) -> List(Mismatch) {
+  selected_paths
+  |> list.fold([], fn(acc, path) {
+    let path_mismatches = diff_selected_path(expected, actual, path, rules)
+    list.append(path_mismatches, acc)
+  })
+  |> list.reverse
+}
+
+/// Like `diff_selected_paths`, but also synthesises "expected difference
+/// was not observed" entries for rules that resolve in any slice's
+/// expected/actual subtree but never produced a raw mismatch.
+/// Aggregates across slices so a single unobserved entry is emitted
+/// per rule, never duplicated per slice.
+pub fn compare_selected_paths(
+  expected: JsonValue,
+  actual: JsonValue,
+  selected_paths: List(String),
+  rules: List(ExpectedDifference),
+) -> List(Mismatch) {
+  let slice_results =
+    list.map(selected_paths, fn(path) {
+      slice_diff(expected, actual, path, rules)
+    })
+  let filtered =
+    slice_results
+    |> list.flat_map(fn(r) { r.filtered })
+  let raw_aggregate =
+    slice_results
+    |> list.flat_map(fn(r) { r.raw })
+  let expected_subtrees =
+    slice_results
+    |> list.filter_map(fn(r) {
+      case r.expected_subtree {
+        Some(v) -> Ok(v)
+        None -> Error(Nil)
+      }
+    })
+  let actual_subtrees =
+    slice_results
+    |> list.filter_map(fn(r) {
+      case r.actual_subtree {
+        Some(v) -> Ok(v)
+        None -> Error(Nil)
+      }
+    })
+  let unobserved =
+    unobserved_rule_mismatches_multi(
+      expected_subtrees,
+      actual_subtrees,
+      raw_aggregate,
+      rules,
+    )
+  list.append(filtered, unobserved)
+}
+
+type SliceResult {
+  SliceResult(
+    raw: List(Mismatch),
+    filtered: List(Mismatch),
+    expected_subtree: Option(JsonValue),
+    actual_subtree: Option(JsonValue),
+  )
+}
+
+fn slice_diff(
+  expected: JsonValue,
+  actual: JsonValue,
+  path: String,
+  rules: List(ExpectedDifference),
+) -> SliceResult {
+  case parity_lookup(expected, path), parity_lookup(actual, path) {
+    None, None ->
+      SliceResult(
+        raw: [],
+        filtered: [],
+        expected_subtree: None,
+        actual_subtree: None,
+      )
+    None, Some(actual_value) -> {
+      let m = [
+        Mismatch(
+          path: path,
+          expected: "<missing>",
+          actual: json_value.to_string(actual_value),
+        ),
+      ]
+      SliceResult(
+        raw: m,
+        filtered: m,
+        expected_subtree: None,
+        actual_subtree: Some(actual_value),
+      )
+    }
+    Some(expected_value), None -> {
+      let m = [
+        Mismatch(
+          path: path,
+          expected: json_value.to_string(expected_value),
+          actual: "<missing>",
+        ),
+      ]
+      SliceResult(
+        raw: m,
+        filtered: m,
+        expected_subtree: Some(expected_value),
+        actual_subtree: None,
+      )
+    }
+    Some(expected_value), Some(actual_value) -> {
+      let raw = diff(expected_value, actual_value)
+      let filtered =
+        raw
+        |> list.filter(fn(m) { !is_expected(m, rules, actual_value) })
+      let rebase = fn(m: Mismatch) {
+        Mismatch(
+          path: path <> selected_suffix(m.path),
+          expected: m.expected,
+          actual: m.actual,
+        )
+      }
+      // Keep raw RELATIVE to the slice — rules are interpreted relative
+      // to the slice subtree (consistent with `is_expected` above), so
+      // unobserved checks must compare against relative paths.
+      SliceResult(
+        raw: raw,
+        filtered: list.map(filtered, rebase),
+        expected_subtree: Some(expected_value),
+        actual_subtree: Some(actual_value),
+      )
+    }
+  }
+}
+
+fn diff_selected_path(
+  expected: JsonValue,
+  actual: JsonValue,
+  path: String,
+  rules: List(ExpectedDifference),
+) -> List(Mismatch) {
+  case parity_lookup(expected, path), parity_lookup(actual, path) {
+    None, None -> []
+    None, Some(actual_value) -> [
+      Mismatch(
+        path: path,
+        expected: "<missing>",
+        actual: json_value.to_string(actual_value),
+      ),
+    ]
+    Some(expected_value), None -> [
+      Mismatch(
+        path: path,
+        expected: json_value.to_string(expected_value),
+        actual: "<missing>",
+      ),
+    ]
+    Some(expected_value), Some(actual_value) ->
+      diff_with_expected(expected_value, actual_value, rules)
+      |> list.map(fn(m) {
+        Mismatch(
+          path: path <> selected_suffix(m.path),
+          expected: m.expected,
+          actual: m.actual,
+        )
+      })
+  }
+}
+
+fn selected_suffix(path: String) -> String {
+  case path {
+    "$" -> ""
+    "$" <> rest -> rest
+    _ -> path
+  }
+}
+
+/// Synthesise "expected difference was not observed" mismatches for
+/// every rule whose path resolves in `expected` or `actual` but never
+/// matched any of the supplied raw mismatches. Mirrors the
+/// `applicableRuleIndexes` / `observedRuleIndexes` logic in TS
+/// `compareJsonPayloads` (`scripts/conformance-parity-lib.ts:797`).
+fn unobserved_rule_mismatches(
+  expected: JsonValue,
+  actual: JsonValue,
+  raw_mismatches: List(Mismatch),
+  rules: List(ExpectedDifference),
+) -> List(Mismatch) {
+  unobserved_rule_mismatches_multi([expected], [actual], raw_mismatches, rules)
+}
+
+fn unobserved_rule_mismatches_multi(
+  expected_trees: List(JsonValue),
+  actual_trees: List(JsonValue),
+  raw_mismatches: List(Mismatch),
+  rules: List(ExpectedDifference),
+) -> List(Mismatch) {
+  let all_paths =
+    list.append(
+      list.flat_map(expected_trees, fn(v) { enumerate_paths(v, "$") }),
+      list.flat_map(actual_trees, fn(v) { enumerate_paths(v, "$") }),
+    )
+  list.filter_map(rules, fn(rule) {
+    let rule_path = expected_difference_path(rule)
+    case
+      rule_path_applicable(rule_path, all_paths),
+      rule_path_observed(rule_path, raw_mismatches)
+    {
+      True, False ->
+        Ok(Mismatch(
+          path: rule_path,
+          expected: "<expectedDifference rule was not satisfied>",
+          actual: "(no diff at this path)",
+        ))
+      _, _ -> Error(Nil)
+    }
+  })
+}
+
+fn expected_difference_path(rule: ExpectedDifference) -> String {
+  case rule {
+    IgnoreDifference(path: path) -> path
+    MatcherDifference(path: path, matcher: _) -> path
+  }
+}
+
+fn rule_path_applicable(rule_path: String, all_paths: List(String)) -> Bool {
+  let normalized_rule = normalize_path(rule_path)
+  list.any(all_paths, fn(p) {
+    let np = normalize_path(p)
+    case normalized_rule == np {
+      True -> True
+      False ->
+        case string.contains(normalized_rule, "[*]") {
+          True -> wildcard_path_matches(normalized_rule, np)
+          False -> False
+        }
+    }
+  })
+}
+
+fn rule_path_observed(
+  rule_path: String,
+  raw_mismatches: List(Mismatch),
+) -> Bool {
+  list.any(raw_mismatches, fn(m) { path_matches(rule_path, m.path) })
+}
+
+fn enumerate_paths(value: JsonValue, prefix: String) -> List(String) {
+  case value {
+    JObject(entries) -> {
+      let child_paths =
+        list.flat_map(entries, fn(pair) {
+          let #(key, child) = pair
+          enumerate_paths(child, prefix <> "." <> key)
+        })
+      [prefix, ..child_paths]
+    }
+    JArray(items) -> {
+      let child_paths =
+        items
+        |> list.index_map(fn(child, idx) {
+          enumerate_paths(child, prefix <> "[" <> int.to_string(idx) <> "]")
+        })
+        |> list.flatten
+      [prefix, ..child_paths]
+    }
+    _ -> [prefix]
+  }
+}
+
 fn is_expected(
   m: Mismatch,
   rules: List(ExpectedDifference),
@@ -70,7 +367,8 @@ fn is_expected(
 ) -> Bool {
   list.any(rules, fn(rule) {
     case rule {
-      IgnoreDifference(path: path) -> path_matches(path, m.path)
+      IgnoreDifference(path: path) ->
+        path_matches(path, m.path) || path_is_child_of(path, m.path)
       MatcherDifference(path: path, matcher: matcher) ->
         path_matches(path, m.path)
         && satisfies_matcher(actual_root, m.path, matcher)
@@ -78,36 +376,58 @@ fn is_expected(
   })
 }
 
+fn path_is_child_of(parent: String, child: String) -> Bool {
+  let parent = normalize_path(parent)
+  let child = normalize_path(child)
+  string.starts_with(child, parent <> ".")
+  || string.starts_with(child, parent <> "[")
+}
+
 fn path_matches(pattern: String, path: String) -> Bool {
+  let pattern = normalize_path(pattern)
+  let path = normalize_path(path)
   case pattern == path {
     True -> True
-    False -> wildcard_path_matches(pattern, path)
+    False ->
+      string.starts_with(path, pattern <> ".")
+      || string.starts_with(path, pattern <> "[")
+      || wildcard_path_matches(pattern, path)
   }
+}
+
+fn normalize_path(path: String) -> String {
+  path
+  |> string.replace("[\"nodes\"]", ".nodes")
+  |> string.replace("[\"edges\"]", ".edges")
 }
 
 fn wildcard_path_matches(pattern: String, path: String) -> Bool {
-  case string.split(pattern, on: "[*]") {
-    [prefix, suffix] ->
+  case string.split_once(pattern, "[*]") {
+    Ok(#(prefix, suffix_pattern)) ->
       string.starts_with(path, prefix)
-      && string.ends_with(path, suffix)
-      && wildcard_index_segment(path, prefix, suffix)
-    _ -> False
+      && {
+        let rest = string.drop_start(path, string.length(prefix))
+        case consume_wildcard_index(rest) {
+          Some(suffix_path) ->
+            wildcard_path_matches(suffix_pattern, suffix_path)
+          None -> False
+        }
+      }
+    Error(_) -> pattern == path
   }
 }
 
-fn wildcard_index_segment(
-  path: String,
-  prefix: String,
-  suffix: String,
-) -> Bool {
-  let middle_start = string.length(prefix)
-  let middle_end = string.length(path) - string.length(suffix)
-  case middle_end > middle_start {
-    True -> {
-      let middle = string.slice(path, middle_start, middle_end - middle_start)
-      string.starts_with(middle, "[") && string.ends_with(middle, "]")
+fn consume_wildcard_index(path: String) -> Option(String) {
+  case path {
+    "[" <> tail -> {
+      let #(digits, after_digits) = take_digits(tail, "")
+      case digits, after_digits {
+        "", _ -> None
+        _, "]" <> suffix -> Some(suffix)
+        _, _ -> None
+      }
     }
-    False -> False
+    _ -> None
   }
 }
 

@@ -1,29 +1,23 @@
 //// Mirrors the operation-time helpers from `src/proxy/graphql-helpers.ts`.
 ////
-//// The TS module is a 500-line grab bag covering value resolution,
-//// projection, pagination, and connection serialization. This Gleam
-//// port starts with the subset the events endpoint actually exercises
-//// (`get_field_response_key`, `get_selected_child_fields`,
-//// `serialize_empty_connection`, plus the page-info building blocks)
-//// plus the projection helpers (`project_graphql_object`,
-//// `project_graphql_value`, `get_document_fragments`) that almost every
-//// other endpoint group is built on. Other helpers will be added as
-//// further endpoint groups are ported.
+//// The TS module is a grab bag covering value resolution, scalar reads,
+//// projection, pagination, and connection serialization. Keep this
+//// module broad enough that endpoint groups can share Shopify-like
+//// GraphQL behavior instead of rebuilding local loops and projectors.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Definition, type Selection, Field, FragmentDefinition, FragmentSpread,
-  InlineFragment, NamedType, SelectionSet,
+  type Definition, type Selection, Argument, Field, FragmentDefinition,
+  FragmentSpread, InlineFragment, IntValue, NamedType, SelectionSet,
 }
 import shopify_draft_proxy/graphql/parser
-import shopify_draft_proxy/graphql/root_field.{
-  type ResolvedValue, IntVal, StringVal,
-}
+import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/graphql/source
 
 /// Whether `get_selected_child_fields` should also flatten field
@@ -150,6 +144,40 @@ pub fn serialize_empty_connection(
   json.object(entries)
 }
 
+/// Read a nullable integer argument from a field, resolving variables
+/// with the same semantics as `root_field.get_field_arguments`.
+pub fn read_nullable_int_argument(
+  field: Selection,
+  argument_name: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(Int) {
+  case root_field.get_field_arguments(field, variables) {
+    Ok(args) ->
+      case dict.get(args, argument_name) {
+        Ok(root_field.IntVal(value)) -> Some(value)
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
+/// Read a nullable string argument from a field, resolving variables
+/// with the same semantics as `root_field.get_field_arguments`.
+pub fn read_nullable_string_argument(
+  field: Selection,
+  argument_name: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case root_field.get_field_arguments(field, variables) {
+    Ok(args) ->
+      case dict.get(args, argument_name) {
+        Ok(root_field.StringVal(value)) -> Some(value)
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Projection helpers
 // ---------------------------------------------------------------------------
@@ -202,10 +230,22 @@ pub fn default_type_condition_applies(
     None -> True
     Some(cond) ->
       case dict.get(source, "__typename") {
-        Ok(SrcString(name)) -> name == cond
+        Ok(SrcString(name)) ->
+          name == cond || interface_type_applies(cond, name)
         // No __typename ⇒ apply (TS uses `!sourceTypename || sourceTypename === typeCondition`).
         _ -> True
       }
+  }
+}
+
+fn interface_type_applies(type_condition: String, typename: String) -> Bool {
+  case type_condition {
+    "Catalog" ->
+      list.contains(
+        ["AppCatalog", "CompanyLocationCatalog", "MarketCatalog"],
+        typename,
+      )
+    _ -> False
   }
 }
 
@@ -318,22 +358,92 @@ fn project_field(
   fragments: FragmentMap,
 ) -> #(String, Json) {
   let key = get_field_response_key(field)
+  #(key, project_graphql_object_field_value(source, field, fragments))
+}
+
+/// Project one selected field from a `SourceValue`, returning the field value
+/// rather than an enclosing object. Domain-specific projectors can use this
+/// when a few argument-aware fields need custom handling while all sibling
+/// fields should retain the shared projection semantics.
+pub fn project_graphql_field_value(
+  value: SourceValue,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case value {
+    SrcObject(source) ->
+      project_graphql_object_field_value(source, field, fragments)
+    _ -> source_to_json(value)
+  }
+}
+
+fn project_graphql_object_field_value(
+  source: Dict(String, SourceValue),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
   case field {
     Field(name: name, selection_set: ss, ..) ->
       case name.value {
-        "__typename" -> #(key, lookup_typename(source))
+        "__typename" -> lookup_typename(source)
         field_name -> {
           let raw = lookup_or_synthesise(source, field_name)
+          let raw = apply_literal_first_window(raw, field)
           case ss {
-            Some(SelectionSet(selections: selections, ..)) -> #(
-              key,
-              project_graphql_value(raw, selections, fragments),
-            )
-            None -> #(key, source_to_json(raw))
+            Some(SelectionSet(selections: selections, ..)) ->
+              project_graphql_value(raw, selections, fragments)
+            None -> source_to_json(raw)
           }
         }
       }
-    _ -> #(key, json.null())
+    _ -> json.null()
+  }
+}
+
+fn apply_literal_first_window(
+  value: SourceValue,
+  field: Selection,
+) -> SourceValue {
+  case value, literal_first_arg(field) {
+    SrcObject(source), Some(first) -> {
+      let source = limit_source_list(source, "nodes", first)
+      let source = limit_source_list(source, "edges", first)
+      SrcObject(source)
+    }
+    _, _ -> value
+  }
+}
+
+fn literal_first_arg(field: Selection) -> Option(Int) {
+  case field {
+    Field(arguments: arguments, ..) ->
+      arguments
+      |> list.find_map(fn(argument) {
+        case argument {
+          Argument(name: name, value: IntValue(value: value, ..), ..)
+            if name.value == "first"
+          ->
+            case int.parse(value) {
+              Ok(parsed) -> Ok(parsed)
+              Error(_) -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn limit_source_list(
+  source: Dict(String, SourceValue),
+  key: String,
+  first: Int,
+) -> Dict(String, SourceValue) {
+  case dict.get(source, key) {
+    Ok(SrcList(items)) ->
+      dict.insert(source, key, SrcList(list.take(items, int.max(0, first))))
+    _ -> source
   }
 }
 
@@ -411,6 +521,90 @@ pub fn src_object(entries: List(#(String, SourceValue))) -> SourceValue {
       dict.insert(acc, key, value)
     }),
   )
+}
+
+/// Null-on-mismatch string reader for source payload boundaries.
+pub fn read_string_value(value: SourceValue) -> Option(String) {
+  case value {
+    SrcString(value) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Null-on-mismatch number reader for source payload boundaries.
+pub fn read_number_value(value: SourceValue) -> Option(Float) {
+  case value {
+    SrcFloat(value) -> Some(value)
+    SrcInt(value) -> Some(int.to_float(value))
+    _ -> None
+  }
+}
+
+/// Null-on-mismatch boolean reader for source payload boundaries.
+pub fn read_boolean_value(value: SourceValue) -> Option(Bool) {
+  case value {
+    SrcBool(value) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Filter a source value down to object-shaped array entries.
+pub fn read_plain_object_array(
+  value: SourceValue,
+) -> List(Dict(String, SourceValue)) {
+  case value {
+    SrcList(items) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          SrcObject(fields) -> Ok(fields)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+/// Read `payload.data[response_key]`, returning `SrcNull` for malformed
+/// or absent data to preserve Shopify-like no-data behavior.
+pub fn read_graphql_data_response_payload(
+  payload: SourceValue,
+  response_key: String,
+) -> SourceValue {
+  case payload {
+    SrcObject(root) ->
+      case dict.get(root, "data") {
+        Ok(SrcObject(data)) ->
+          case dict.get(data, response_key) {
+            Ok(value) -> value
+            Error(_) -> SrcNull
+          }
+        _ -> SrcNull
+      }
+    _ -> SrcNull
+  }
+}
+
+/// Convert an argument-resolution value into the source projector shape.
+/// This keeps JSON-shaped values moving through shared helper APIs
+/// without resource-local conversion trees.
+pub fn resolved_value_to_source(
+  value: root_field.ResolvedValue,
+) -> SourceValue {
+  case value {
+    root_field.NullVal -> SrcNull
+    root_field.StringVal(value) -> SrcString(value)
+    root_field.BoolVal(value) -> SrcBool(value)
+    root_field.IntVal(value) -> SrcInt(value)
+    root_field.FloatVal(value) -> SrcFloat(value)
+    root_field.ListVal(items) ->
+      SrcList(list.map(items, resolved_value_to_source))
+    root_field.ObjectVal(fields) ->
+      SrcObject(
+        dict.map_values(fields, fn(_key, item) {
+          resolved_value_to_source(item)
+        }),
+      )
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -496,7 +690,7 @@ pub fn build_synthetic_cursor(id: String) -> String {
 pub fn paginate_connection_items(
   items: List(a),
   field: Selection,
-  variables: Dict(String, ResolvedValue),
+  variables: Dict(String, root_field.ResolvedValue),
   get_cursor_value: fn(a, Int) -> String,
   options: ConnectionWindowOptions,
 ) -> ConnectionWindow(a) {
@@ -607,6 +801,22 @@ pub fn serialize_connection(
   field: Selection,
   config: SerializeConnectionConfig(a),
 ) -> Json {
+  serialize_connection_with_field_serializers(
+    field,
+    config,
+    fn(_page_info_field) { None },
+    fn(_unknown_field) { json.null() },
+  )
+}
+
+/// Full connection serializer with hooks matching the TS helper's
+/// `serializePageInfo` and `serializeUnknownField` options.
+pub fn serialize_connection_with_field_serializers(
+  field: Selection,
+  config: SerializeConnectionConfig(a),
+  serialize_page_info: fn(Selection) -> Option(Json),
+  serialize_unknown_field: fn(Selection) -> Json,
+) -> Json {
   let entries =
     list.map(
       get_selected_child_fields(field, config.selected_field_options),
@@ -622,20 +832,21 @@ pub fn serialize_connection(
                 }),
               )
               "edges" -> #(key, serialize_edges(child, config))
-              "pageInfo" -> #(
-                key,
-                serialize_connection_page_info(
-                  child,
-                  config.items,
-                  config.has_next_page,
-                  config.has_previous_page,
-                  config.get_cursor_value,
-                  config.page_info_options,
-                ),
-              )
-              _ -> #(key, json.null())
+              "pageInfo" -> #(key, case serialize_page_info(child) {
+                Some(value) -> value
+                None ->
+                  serialize_connection_page_info(
+                    child,
+                    config.items,
+                    config.has_next_page,
+                    config.has_previous_page,
+                    config.get_cursor_value,
+                    config.page_info_options,
+                  )
+              })
+              _ -> #(key, serialize_unknown_field(child))
             }
-          _ -> #(key, json.null())
+          _ -> #(key, serialize_unknown_field(child))
         }
       },
     )
@@ -748,10 +959,10 @@ fn format_connection_cursor(
 }
 
 fn read_connection_size_argument(
-  result_value: Result(ResolvedValue, Nil),
+  result_value: Result(root_field.ResolvedValue, Nil),
 ) -> Option(Int) {
   case result_value {
-    Ok(IntVal(n)) ->
+    Ok(root_field.IntVal(n)) ->
       case n >= 0 {
         True -> Some(n)
         False -> None
@@ -761,11 +972,11 @@ fn read_connection_size_argument(
 }
 
 fn read_cursor_argument(
-  result_value: Result(ResolvedValue, Nil),
+  result_value: Result(root_field.ResolvedValue, Nil),
   parse_cursor: fn(String) -> Option(String),
 ) -> Option(String) {
   case result_value {
-    Ok(StringVal(s)) -> parse_cursor(s)
+    Ok(root_field.StringVal(s)) -> parse_cursor(s)
     _ -> None
   }
 }

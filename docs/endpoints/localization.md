@@ -32,6 +32,14 @@ Product translatable content currently includes `title`, `handle`, optional `bod
 
 Product metafield translatable content is limited to product-owned metafields and exposes the Shopify `value` key. Broader metafield owners and special SEO-like metafield behavior remain out of scope until separately captured.
 
+In LiveHybrid mode, cold localization reads use the cassette-backed upstream
+read as the authoritative locale and source-content slice, then hydrate
+available locales, shop locales, and product source-content markers into base
+state. Follow-up localization mutations still stage locally and never replay to
+Shopify at runtime; the hydrated source markers only let local
+`translationsRegister` / `translationsRemove` validate the captured product
+resource and digest.
+
 ### Mutation behavior
 
 `shopLocaleEnable`, `shopLocaleUpdate`, and `shopLocaleDisable` stage only local shop-locale state. They do not update Shopify at runtime. The supported slice covers enabling available locales, toggling `published`, replacing local `marketWebPresenceIds`, and disabling non-primary locales. Disabling a locale also removes locally staged/base translations for that locale, matching Shopify's documented destructive locale-delete behavior.

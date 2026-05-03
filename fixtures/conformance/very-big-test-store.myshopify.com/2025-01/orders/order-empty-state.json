@@ -39,5 +39,55 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrderEmptyStateRead",
+      "variables": {
+        "missingOrderId": "gid://shopify/Order/0",
+        "first": 1
+      },
+      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": null,
+            "orders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0yNCAyMzo1MTozMC4yNzIwNTIifQ==",
+                  "node": {
+                    "id": "gid://shopify/Order/6834528944361",
+                    "name": "#1330"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0yNCAyMzo1MTozMC4yNzIwNTIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0yNCAyMzo1MTozMC4yNzIwNTIifQ=="
+              }
+            },
+            "ordersCount": {
+              "count": 70,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

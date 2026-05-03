@@ -14,23 +14,6 @@
   "notes": "Executable parity coverage for singular native DiscountAutomaticBasic detail roots after creating a temporary automatic discount. The parity harness seeds the captured detail node as normalized discount state before issuing local discountNode/automaticDiscountNode reads.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.automaticDiscountNode.events.edges[0].cursor",
-        "matcher": "any-string",
-        "reason": "Shopify event connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount event records."
-      },
-      {
-        "path": "$.automaticDiscountNode.events.pageInfo.startCursor",
-        "matcher": "any-string",
-        "reason": "Shopify event connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount event records."
-      },
-      {
-        "path": "$.automaticDiscountNode.events.pageInfo.endCursor",
-        "matcher": "any-string",
-        "reason": "Shopify event connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount event records."
-      }
-    ],
     "targets": [
       {
         "name": "discount-automatic-basic-detail-data",
@@ -38,6 +21,7 @@
         "proxyPath": "$.data",
         "upstreamCapturePath": null
       }
-    ]
+    ],
+    "expectedDifferences": []
   }
 }

@@ -5,7 +5,9 @@ import gleam/json
 import gleam/list
 import gleam/option.{None}
 import gleam/string
+import shopify_draft_proxy/proxy/graphql_helpers.{SrcList, SrcObject, SrcString}
 import shopify_draft_proxy/proxy/marketing
+import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -14,6 +16,31 @@ import shopify_draft_proxy/state/types.{
 
 fn empty_vars() {
   dict.new()
+}
+
+/// Apply the dispatcher-level `record_log_drafts` to the outcome. Tests that
+/// exercise `marketing.process_mutation` directly need this so log-buffer
+/// assertions still see the drafts the module emitted; centralized recording
+/// is the dispatcher's responsibility post-refactor.
+fn record_drafts(
+  outcome: marketing.MutationOutcome,
+  request_path: String,
+  document: String,
+) -> marketing.MutationOutcome {
+  let #(logged_store, logged_identity) =
+    mutation_helpers.record_log_drafts(
+      outcome.store,
+      outcome.identity,
+      request_path,
+      document,
+      dict.new(),
+      outcome.log_drafts,
+    )
+  marketing.MutationOutcome(
+    ..outcome,
+    store: logged_store,
+    identity: logged_identity,
+  )
 }
 
 fn run(source: store.Store, query: String) -> String {
@@ -154,15 +181,89 @@ pub fn reads_stateful_activity_and_event_connections_test() {
   )
 }
 
+pub fn hydrates_upstream_activity_and_event_payloads_test() {
+  let activity_id = "gid://shopify/MarketingActivity/301"
+  let event_id = "gid://shopify/MarketingEvent/901"
+  let upstream =
+    SrcObject(
+      dict.from_list([
+        #(
+          "marketingActivities",
+          SrcObject(
+            dict.from_list([
+              #(
+                "edges",
+                SrcList([
+                  SrcObject(
+                    dict.from_list([
+                      #("cursor", SrcString("upstream-cursor-301")),
+                      #(
+                        "node",
+                        SrcObject(
+                          dict.from_list([
+                            #("__typename", SrcString("MarketingActivity")),
+                            #("id", SrcString(activity_id)),
+                            #("title", SrcString("Hydrated launch")),
+                            #(
+                              "marketingEvent",
+                              SrcObject(
+                                dict.from_list([
+                                  #("__typename", SrcString("MarketingEvent")),
+                                  #("id", SrcString(event_id)),
+                                  #("remoteId", SrcString("remote-301")),
+                                  #("description", SrcString("Hydrated event")),
+                                ]),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    )
+
+  let hydrated =
+    marketing.hydrate_marketing_from_upstream_payload(store.new(), upstream)
+  let result =
+    run(
+      hydrated,
+      "{ marketingActivities(first: 1) { edges { cursor node { id title marketingEvent { id remoteId } } } } marketingEvent(id: \""
+        <> event_id
+        <> "\") { id description } marketingEvents(first: 1) { edges { cursor node { id } } } }",
+    )
+
+  assert string.contains(result, "\"cursor\":\"upstream-cursor-301\"")
+  assert string.contains(
+    result,
+    "\"marketingEvents\":{\"edges\":[{\"cursor\":\"cursor:gid://shopify/MarketingEvent/901\"",
+  )
+  assert string.contains(result, "\"title\":\"Hydrated launch\"")
+  assert string.contains(result, "\"remoteId\":\"remote-301\"")
+  assert string.contains(
+    result,
+    "\"marketingEvent\":{\"id\":\"gid://shopify/MarketingEvent/901\",\"description\":\"Hydrated event\"}",
+  )
+}
+
 pub fn external_activity_create_update_delete_stages_locally_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let create_doc =
+    "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id title remoteId marketingEvent { id remoteId channelHandle } } userErrors { field message code } } }"
   let assert Ok(created) =
     marketing.process_mutation(
       store.new(),
       synthetic_identity.new(),
-      "/admin/api/2026-04/graphql.json",
-      "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id title remoteId marketingEvent { id remoteId channelHandle } } userErrors { field message code } } }",
+      request_path,
+      create_doc,
       empty_vars(),
     )
+  let created = record_drafts(created, request_path, create_doc)
   let response = json.to_string(created.data)
   assert string.contains(
     response,
@@ -216,37 +317,48 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
 }
 
 pub fn native_activity_validation_update_and_log_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let missing_doc =
+    "mutation { marketingActivityCreate(input: { marketingActivityTitle: \"Native\" }) { userErrors { field message code } } }"
   let assert Ok(missing_extension) =
     marketing.process_mutation(
       store.new(),
       synthetic_identity.new(),
-      "/admin/api/2026-04/graphql.json",
-      "mutation { marketingActivityCreate(input: { marketingActivityTitle: \"Native\" }) { userErrors { field message code } } }",
+      request_path,
+      missing_doc,
       empty_vars(),
     )
+  let missing_extension =
+    record_drafts(missing_extension, request_path, missing_doc)
   assert string.contains(
     json.to_string(missing_extension.data),
     "Could not find the marketing extension",
   )
   assert store.get_log(missing_extension.store) == []
 
+  let create_doc =
+    "mutation { marketingActivityCreate(input: { marketingActivityTitle: \"Native\", marketingActivityExtensionId: \"gid://shopify/MarketingActivityExtension/abc\" }) { userErrors { message } } }"
   let assert Ok(created) =
     marketing.process_mutation(
       missing_extension.store,
       missing_extension.identity,
-      "/admin/api/2026-04/graphql.json",
-      "mutation { marketingActivityCreate(input: { marketingActivityTitle: \"Native\", marketingActivityExtensionId: \"gid://shopify/MarketingActivityExtension/abc\" }) { userErrors { message } } }",
+      request_path,
+      create_doc,
       empty_vars(),
     )
+  let created = record_drafts(created, request_path, create_doc)
   assert created.staged_resource_ids == ["gid://shopify/MarketingActivity/1"]
+  let update_doc =
+    "mutation { marketingActivityUpdate(input: { id: \"gid://shopify/MarketingActivity/1\", marketingActivityTitle: \"Native updated\", status: PAUSED }) { marketingActivity { id title status statusLabel } redirectPath userErrors { message } } }"
   let assert Ok(updated) =
     marketing.process_mutation(
       created.store,
       created.identity,
-      "/admin/api/2026-04/graphql.json",
-      "mutation { marketingActivityUpdate(input: { id: \"gid://shopify/MarketingActivity/1\", marketingActivityTitle: \"Native updated\", status: PAUSED }) { marketingActivity { id title status statusLabel } redirectPath userErrors { message } } }",
+      request_path,
+      update_doc,
       empty_vars(),
     )
+  let updated = record_drafts(updated, request_path, update_doc)
   assert string.contains(
     json.to_string(updated.data),
     "\"marketingActivity\":{\"id\":\"gid://shopify/MarketingActivity/1\",\"title\":\"Native updated\",\"status\":\"PAUSED\",\"statusLabel\":\"Paused\"}",

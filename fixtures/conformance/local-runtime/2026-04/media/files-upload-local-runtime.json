@@ -141,5 +141,6 @@
   "unsupportedExternalSideEffects": [
     "The staged target URL is intentionally local/inert; the proxy does not allocate external storage.",
     "Completing external upload byte-transfer state remains unsupported until modeled locally."
-  ]
+  ],
+  "upstreamCalls": []
 }

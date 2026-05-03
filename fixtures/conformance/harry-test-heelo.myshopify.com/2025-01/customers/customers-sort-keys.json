@@ -1,0 +1,415 @@
+{
+  "proxyVariables": {
+    "first": 5
+  },
+  "data": {
+    "nameOrder": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MDcxMzQxMDg2NiwibGFzdF92YWx1ZSI6IiwgIn0=",
+          "node": {
+            "id": "gid://shopify/Customer/10540713410866",
+            "displayName": "har232-20260425210742@example.com",
+            "legacyResourceId": "10540713410866",
+            "defaultAddress": null
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxMTEwMDIxMCwibGFzdF92YWx1ZSI6IiwgIn0=",
+          "node": {
+            "id": "gid://shopify/Customer/10540911100210",
+            "displayName": "hermes-fulfillment-event-1777155734039@example.com",
+            "legacyResourceId": "10540911100210",
+            "defaultAddress": null
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MDkyNzYxNTI4MiwibGFzdF92YWx1ZSI6IiwgIn0=",
+          "node": {
+            "id": "gid://shopify/Customer/10540927615282",
+            "displayName": "hermes-fulfillment-event-1777156118907@example.com",
+            "legacyResourceId": "10540927615282",
+            "defaultAddress": null
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MTEyNjAyNTUyMiwibGFzdF92YWx1ZSI6IiwgIn0=",
+          "node": {
+            "id": "gid://shopify/Customer/10541126025522",
+            "displayName": "hermes-draft-validation-variant-custom@example.com",
+            "legacyResourceId": "10541126025522",
+            "defaultAddress": null
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MTEyNjA1ODI5MCwibGFzdF92YWx1ZSI6IiwgIn0=",
+          "node": {
+            "id": "gid://shopify/Customer/10541126058290",
+            "displayName": "hermes-draft-validation-unknown-variant@example.com",
+            "legacyResourceId": "10541126058290",
+            "defaultAddress": null
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjoxMDU0MDcxMzQxMDg2NiwibGFzdF92YWx1ZSI6IiwgIn0=",
+        "endCursor": "eyJsYXN0X2lkIjoxMDU0MTEyNjA1ODI5MCwibGFzdF92YWx1ZSI6IiwgIn0="
+      }
+    },
+    "idOrder": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTMzMjk4LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjkzMzI5OCJ9",
+          "node": {
+            "id": "gid://shopify/Customer/9522206933298",
+            "displayName": "Karine Ruby",
+            "legacyResourceId": "9522206933298"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTY2MDY2LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjk2NjA2NiJ9",
+          "node": {
+            "id": "gid://shopify/Customer/9522206966066",
+            "displayName": "Ayumu Hirano",
+            "legacyResourceId": "9522206966066"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjk5ODgzNCJ9",
+          "node": {
+            "id": "gid://shopify/Customer/9522206998834",
+            "displayName": "Russell Winfield",
+            "legacyResourceId": "9522206998834"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDA0NjAwMiwibGFzdF92YWx1ZSI6IjEwNTQwMjk0MDQ2MDAyIn0=",
+          "node": {
+            "id": "gid://shopify/Customer/10540294046002",
+            "displayName": "Hermes SetUpdated",
+            "legacyResourceId": "10540294046002"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDc5OTY2NiwibGFzdF92YWx1ZSI6IjEwNTQwMjk0Nzk5NjY2In0=",
+          "node": {
+            "id": "gid://shopify/Customer/10540294799666",
+            "displayName": "Hermes SetUpsertUpdated",
+            "legacyResourceId": "10540294799666"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTMzMjk4LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjkzMzI5OCJ9",
+        "endCursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDc5OTY2NiwibGFzdF92YWx1ZSI6IjEwNTQwMjk0Nzk5NjY2In0="
+      }
+    },
+    "locationOrder": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDA0NjAwMiwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwib3R0YXdhIl19",
+          "node": {
+            "id": "gid://shopify/Customer/10540294046002",
+            "displayName": "Hermes SetUpdated",
+            "legacyResourceId": "10540294046002",
+            "defaultAddress": {
+              "country": "Canada",
+              "province": "Ontario",
+              "city": "Ottawa",
+              "formattedArea": "Ottawa ON, Canada"
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxMzgxOTk1NCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/10540913819954",
+            "displayName": "HAR Probe",
+            "legacyResourceId": "10540913819954",
+            "defaultAddress": {
+              "country": "Canada",
+              "province": "Ontario",
+              "city": "Toronto",
+              "formattedArea": "Toronto ON, Canada"
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxNzQ4OTk3MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/10540917489970",
+            "displayName": "HAR Probe",
+            "legacyResourceId": "10540917489970",
+            "defaultAddress": {
+              "country": "Canada",
+              "province": "Ontario",
+              "city": "Toronto",
+              "formattedArea": "Toronto ON, Canada"
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxODYzNjg1MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/10540918636850",
+            "displayName": "HAR Probe",
+            "legacyResourceId": "10540918636850",
+            "defaultAddress": {
+              "country": "Canada",
+              "province": "Ontario",
+              "city": "Toronto",
+              "formattedArea": "Toronto ON, Canada"
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxODgwMDY5MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/10540918800690",
+            "displayName": "HAR Probe",
+            "legacyResourceId": "10540918800690",
+            "defaultAddress": {
+              "country": "Canada",
+              "province": "Ontario",
+              "city": "Toronto",
+              "formattedArea": "Toronto ON, Canada"
+            }
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDA0NjAwMiwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwib3R0YXdhIl19",
+        "endCursor": "eyJsYXN0X2lkIjoxMDU0MDkxODgwMDY5MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ=="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 15,
+      "actualQueryCost": 15,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1985,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomersSortKeysRead",
+      "variables": {
+        "first": 5
+      },
+      "query": "query CustomersSortKeysRead($first: Int!) {\n  nameOrder: customers(first: $first, sortKey: NAME) {\n    edges {\n      cursor\n      node {\n        id\n        displayName\n        legacyResourceId\n        defaultAddress {\n          country\n          province\n          city\n          formattedArea\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  idOrder: customers(first: $first, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        id\n        displayName\n        legacyResourceId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  locationOrder: customers(first: $first, sortKey: LOCATION) {\n    edges {\n      cursor\n      node {\n        id\n        displayName\n        legacyResourceId\n        defaultAddress {\n          country\n          province\n          city\n          formattedArea\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nameOrder": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDcxMzQxMDg2NiwibGFzdF92YWx1ZSI6IiwgIn0=",
+                  "node": {
+                    "id": "gid://shopify/Customer/10540713410866",
+                    "displayName": "har232-20260425210742@example.com",
+                    "legacyResourceId": "10540713410866",
+                    "defaultAddress": null
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxMTEwMDIxMCwibGFzdF92YWx1ZSI6IiwgIn0=",
+                  "node": {
+                    "id": "gid://shopify/Customer/10540911100210",
+                    "displayName": "hermes-fulfillment-event-1777155734039@example.com",
+                    "legacyResourceId": "10540911100210",
+                    "defaultAddress": null
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDkyNzYxNTI4MiwibGFzdF92YWx1ZSI6IiwgIn0=",
+                  "node": {
+                    "id": "gid://shopify/Customer/10540927615282",
+                    "displayName": "hermes-fulfillment-event-1777156118907@example.com",
+                    "legacyResourceId": "10540927615282",
+                    "defaultAddress": null
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MTEyNjAyNTUyMiwibGFzdF92YWx1ZSI6IiwgIn0=",
+                  "node": {
+                    "id": "gid://shopify/Customer/10541126025522",
+                    "displayName": "hermes-draft-validation-variant-custom@example.com",
+                    "legacyResourceId": "10541126025522",
+                    "defaultAddress": null
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MTEyNjA1ODI5MCwibGFzdF92YWx1ZSI6IiwgIn0=",
+                  "node": {
+                    "id": "gid://shopify/Customer/10541126058290",
+                    "displayName": "hermes-draft-validation-unknown-variant@example.com",
+                    "legacyResourceId": "10541126058290",
+                    "defaultAddress": null
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDU0MDcxMzQxMDg2NiwibGFzdF92YWx1ZSI6IiwgIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDU0MTEyNjA1ODI5MCwibGFzdF92YWx1ZSI6IiwgIn0="
+              }
+            },
+            "idOrder": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTMzMjk4LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjkzMzI5OCJ9",
+                  "node": {
+                    "id": "gid://shopify/Customer/9522206933298",
+                    "displayName": "Karine Ruby",
+                    "legacyResourceId": "9522206933298"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTY2MDY2LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjk2NjA2NiJ9",
+                  "node": {
+                    "id": "gid://shopify/Customer/9522206966066",
+                    "displayName": "Ayumu Hirano",
+                    "legacyResourceId": "9522206966066"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjk5ODgzNCJ9",
+                  "node": {
+                    "id": "gid://shopify/Customer/9522206998834",
+                    "displayName": "Russell Winfield",
+                    "legacyResourceId": "9522206998834"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDA0NjAwMiwibGFzdF92YWx1ZSI6IjEwNTQwMjk0MDQ2MDAyIn0=",
+                  "node": {
+                    "id": "gid://shopify/Customer/10540294046002",
+                    "displayName": "Hermes SetUpdated",
+                    "legacyResourceId": "10540294046002"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDc5OTY2NiwibGFzdF92YWx1ZSI6IjEwNTQwMjk0Nzk5NjY2In0=",
+                  "node": {
+                    "id": "gid://shopify/Customer/10540294799666",
+                    "displayName": "Hermes SetUpsertUpdated",
+                    "legacyResourceId": "10540294799666"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTMzMjk4LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjkzMzI5OCJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDc5OTY2NiwibGFzdF92YWx1ZSI6IjEwNTQwMjk0Nzk5NjY2In0="
+              }
+            },
+            "locationOrder": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDA0NjAwMiwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwib3R0YXdhIl19",
+                  "node": {
+                    "id": "gid://shopify/Customer/10540294046002",
+                    "displayName": "Hermes SetUpdated",
+                    "legacyResourceId": "10540294046002",
+                    "defaultAddress": {
+                      "country": "Canada",
+                      "province": "Ontario",
+                      "city": "Ottawa",
+                      "formattedArea": "Ottawa ON, Canada"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxMzgxOTk1NCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
+                  "node": {
+                    "id": "gid://shopify/Customer/10540913819954",
+                    "displayName": "HAR Probe",
+                    "legacyResourceId": "10540913819954",
+                    "defaultAddress": {
+                      "country": "Canada",
+                      "province": "Ontario",
+                      "city": "Toronto",
+                      "formattedArea": "Toronto ON, Canada"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxNzQ4OTk3MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
+                  "node": {
+                    "id": "gid://shopify/Customer/10540917489970",
+                    "displayName": "HAR Probe",
+                    "legacyResourceId": "10540917489970",
+                    "defaultAddress": {
+                      "country": "Canada",
+                      "province": "Ontario",
+                      "city": "Toronto",
+                      "formattedArea": "Toronto ON, Canada"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxODYzNjg1MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
+                  "node": {
+                    "id": "gid://shopify/Customer/10540918636850",
+                    "displayName": "HAR Probe",
+                    "legacyResourceId": "10540918636850",
+                    "defaultAddress": {
+                      "country": "Canada",
+                      "province": "Ontario",
+                      "city": "Toronto",
+                      "formattedArea": "Toronto ON, Canada"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxODgwMDY5MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
+                  "node": {
+                    "id": "gid://shopify/Customer/10540918800690",
+                    "displayName": "HAR Probe",
+                    "legacyResourceId": "10540918800690",
+                    "defaultAddress": {
+                      "country": "Canada",
+                      "province": "Ontario",
+                      "city": "Toronto",
+                      "formattedArea": "Toronto ON, Canada"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDA0NjAwMiwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwib3R0YXdhIl19",
+                "endCursor": "eyJsYXN0X2lkIjoxMDU0MDkxODgwMDY5MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

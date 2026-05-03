@@ -322,5 +322,338 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MetafieldDefinitionsProductRead",
+      "variables": {
+        "first": 10,
+        "namespace": "test_data",
+        "key": "snowboard_length",
+        "missingNamespace": "har_144_missing"
+      },
+      "query": "hand-synthesized-from-capture:metafield-definitions-product-read",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "byIdentifier": {
+              "id": "gid://shopify/MetafieldDefinition/98376188210",
+              "name": "Snowboard length",
+              "namespace": "test_data",
+              "key": "snowboard_length",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "dimension",
+                "category": "MEASUREMENT"
+              },
+              "description": "The length of the snowboard",
+              "validations": [],
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "adminFilterable": {
+                  "enabled": false,
+                  "eligible": true,
+                  "status": "NOT_FILTERABLE"
+                },
+                "smartCollectionCondition": {
+                  "enabled": false,
+                  "eligible": false
+                },
+                "uniqueValues": {
+                  "enabled": false,
+                  "eligible": false
+                }
+              },
+              "constraints": {
+                "key": null,
+                "values": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              },
+              "pinnedPosition": 1,
+              "validationStatus": "ALL_VALID",
+              "metafieldsCount": 2,
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/37814326362418",
+                    "namespace": "test_data",
+                    "key": "snowboard_length",
+                    "type": "dimension",
+                    "value": "{\"value\":159.0,\"unit\":\"CENTIMETERS\"}",
+                    "ownerType": "PRODUCT"
+                  },
+                  {
+                    "id": "gid://shopify/Metafield/37814326427954",
+                    "namespace": "test_data",
+                    "key": "snowboard_length",
+                    "type": "dimension",
+                    "value": "{\"value\":159.0,\"unit\":\"CENTIMETERS\"}",
+                    "ownerType": "PRODUCT"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjozNzgxNDMyNjM2MjQxOCwibGFzdF92YWx1ZSI6IjM3ODE0MzI2MzYyNDE4In0=",
+                  "endCursor": "eyJsYXN0X2lkIjozNzgxNDMyNjQyNzk1NCwibGFzdF92YWx1ZSI6IjM3ODE0MzI2NDI3OTU0In0="
+                }
+              }
+            },
+            "missing": null,
+            "metafieldDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/98376220978",
+                  "name": "Snowboard binding mount",
+                  "namespace": "test_data",
+                  "key": "binding_mount",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "pinnedPosition": 2,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 3
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/98376188210",
+                  "name": "Snowboard length",
+                  "namespace": "test_data",
+                  "key": "snowboard_length",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "dimension",
+                    "category": "MEASUREMENT"
+                  },
+                  "pinnedPosition": 1,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 2
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODM3NjIyMDk3OCwibGFzdF92YWx1ZSI6IjIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5ODM3NjE4ODIxMCwibGFzdF92YWx1ZSI6IjEifQ=="
+              }
+            },
+            "filteredByQuery": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/98376220978",
+                  "name": "Snowboard binding mount",
+                  "namespace": "test_data",
+                  "key": "binding_mount",
+                  "pinnedPosition": 2
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODM3NjIyMDk3OCwibGFzdF92YWx1ZSI6InNub3dib2FyZCBiaW5kaW5nIG1vdW50In0=",
+                "endCursor": "eyJsYXN0X2lkIjo5ODM3NjIyMDk3OCwibGFzdF92YWx1ZSI6InNub3dib2FyZCBiaW5kaW5nIG1vdW50In0="
+              }
+            },
+            "empty": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "seedCatalog": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/98376220978",
+                  "name": "Snowboard binding mount",
+                  "namespace": "test_data",
+                  "key": "binding_mount",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": "The type of binding mount used on the snowboard",
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 2,
+                  "validationStatus": "ALL_VALID",
+                  "metafields": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Metafield/37814326460722",
+                        "namespace": "test_data",
+                        "key": "binding_mount",
+                        "type": "single_line_text_field",
+                        "value": "Optimistic",
+                        "ownerType": "PRODUCT",
+                        "owner": {
+                          "id": "gid://shopify/Product/9801099018546",
+                          "title": "The Collection Snowboard: Hydrogen"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/Metafield/37814326493490",
+                        "namespace": "test_data",
+                        "key": "binding_mount",
+                        "type": "single_line_text_field",
+                        "value": "Optimistic",
+                        "ownerType": "PRODUCT",
+                        "owner": {
+                          "id": "gid://shopify/Product/9801099182386",
+                          "title": "The Collection Snowboard: Oxygen"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/Metafield/37814326526258",
+                        "namespace": "test_data",
+                        "key": "binding_mount",
+                        "type": "single_line_text_field",
+                        "value": "Optimistic",
+                        "ownerType": "PRODUCT",
+                        "owner": {
+                          "id": "gid://shopify/Product/9801099313458",
+                          "title": "The Collection Snowboard: Liquid30"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/98376188210",
+                  "name": "Snowboard length",
+                  "namespace": "test_data",
+                  "key": "snowboard_length",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "dimension",
+                    "category": "MEASUREMENT"
+                  },
+                  "description": "The length of the snowboard",
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": false
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": false
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 1,
+                  "validationStatus": "ALL_VALID",
+                  "metafields": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Metafield/37814326362418",
+                        "namespace": "test_data",
+                        "key": "snowboard_length",
+                        "type": "dimension",
+                        "value": "{\"value\":159.0,\"unit\":\"CENTIMETERS\"}",
+                        "ownerType": "PRODUCT",
+                        "owner": {
+                          "id": "gid://shopify/Product/9801099116850",
+                          "title": "The Complete Snowboard"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/Metafield/37814326427954",
+                        "namespace": "test_data",
+                        "key": "snowboard_length",
+                        "type": "dimension",
+                        "value": "{\"value\":159.0,\"unit\":\"CENTIMETERS\"}",
+                        "ownerType": "PRODUCT",
+                        "owner": {
+                          "id": "gid://shopify/Product/9801099280690",
+                          "title": "The Multi-managed Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 138,
+              "actualQueryCost": 49,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1951,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -363,5 +363,89 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "StoreCreditAccountReadbackParity",
+      "variables": {
+        "customerId": "gid://shopify/Customer/10547205636402",
+        "accountId": "gid://shopify/StoreCreditAccount/937001266"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10547205636402",
+              "email": "hermes-store-credit-1777309726055@example.com",
+              "displayName": "Hermes StoreCredit",
+              "storeCreditAccounts": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/StoreCreditAccount/937001266",
+                    "balance": {
+                      "amount": "6.12",
+                      "currencyCode": "USD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            "storeCreditAccount": {
+              "id": "gid://shopify/StoreCreditAccount/937001266",
+              "balance": {
+                "amount": "6.12",
+                "currencyCode": "USD"
+              },
+              "owner": {
+                "id": "gid://shopify/Customer/10547205636402",
+                "email": "hermes-store-credit-1777309726055@example.com"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 28,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StoreCreditAccountHydrate",
+      "variables": {
+        "id": "gid://shopify/StoreCreditAccount/937001266"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "storeCreditAccount": {
+              "id": "gid://shopify/StoreCreditAccount/937001266",
+              "balance": {
+                "amount": "7.23",
+                "currencyCode": "USD"
+              },
+              "owner": {
+                "id": "gid://shopify/Customer/10547205636402",
+                "email": "hermes-store-credit-1777309726055@example.com",
+                "displayName": "Hermes StoreCredit"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

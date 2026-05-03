@@ -231,5 +231,6 @@
     "movementId is preserved as shipment metadata only; transfer/movement routing, origin/destination topology, and shipment name allocation are not modeled until a dedicated inventory transfer state model exists.",
     "Support is intentionally scoped to product-backed inventory items and the first effective inventory level. Multi-location routing and non-product inventory owners need separate conformance evidence before broadening."
   ],
-  "commitReplayEvidence": "The runtime tests assert staged shipment mutations are appended to the meta mutation log in original request order with original raw GraphQL bodies."
+  "commitReplayEvidence": "The runtime tests assert staged shipment mutations are appended to the meta mutation log in original request order with original raw GraphQL bodies.",
+  "upstreamCalls": []
 }

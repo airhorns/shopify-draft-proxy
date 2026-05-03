@@ -350,5 +350,53 @@
     "Captured with SHOPIFY_CONFORMANCE_API_VERSION=2026-04 and home-folder conformance auth.",
     "The successful lifecycle used a disposable custom delivery profile, then removed it; Shopify removal returned an asynchronous Job with done=false and the profile read became null after a short poll.",
     "No access-scope or manage-delivery-settings blocker was encountered for the active conformance credential."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingDeliveryProfileVariantsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/ProductVariant/51098706739506"]
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098706739506",
+                "title": "Default Title",
+                "product": {
+                  "id": "gid://shopify/Product/10170561036594",
+                  "title": "Hermes Variant Search Conformance 1777150673975",
+                  "handle": ""
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingDeliveryProfileHydrate",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/125254992178"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "deliveryProfile": {
+              "id": "gid://shopify/DeliveryProfile/125254992178",
+              "name": "General profile",
+              "default": true,
+              "merchantOwned": true,
+              "version": 1
+            }
+          }
+        }
+      }
+    }
   ]
 }

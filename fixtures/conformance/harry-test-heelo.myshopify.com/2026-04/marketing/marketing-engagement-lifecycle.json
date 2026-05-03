@@ -499,5 +499,6 @@
     "Admin GraphQL 2026-04 exposes primaryConversions and allConversions on MarketingEngagementInput/MarketingEngagement; both fields are captured in the createByRemoteId success payload.",
     "Immediate downstream marketingActivity.adSpend remained null after activity-level engagement writes; the proxy therefore records engagement state without inventing aggregate attribution.",
     "No recognized channel handle was available in the conformance shop; unrecognized channelHandle branches return INVALID_CHANNEL_HANDLE."
-  ]
+  ],
+  "upstreamCalls": []
 }

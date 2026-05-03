@@ -895,5 +895,107 @@
     "crossAppFunctionReferences": "The unattended conformance setup has one installed app with released Function extensions. The fixture records unknown/unowned handle userErrors as the reachable authority boundary, but true cross-app Function references require a second installed app and are not available in this shop setup.",
     "duplicateValidationConstraint": "Shopify allowed multiple validationCreate calls for the same validation Function in this live shop. The fixture records that success behavior and cleans up both created validations; no duplicate-validation userError was observed to enforce.",
     "taxAppReadiness": "taxAppConfigure is authority-gated by write_taxes and tax calculations app status. The current grant still records Shopify ACCESS_DENIED because the caller must also be a tax calculations app."
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ReadLiveFunctionOwnerMetadata",
+      "variables": {
+        "validationFunctionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+        "cartFunctionId": "019dd44b-127f-724b-a49c-70fc98ff4d72"
+      },
+      "query": "hand-synthesized from functionOwnershipRead.response.payload",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "title": "conformance-payment-customization",
+                  "handle": "conformance-payment-customization",
+                  "apiType": "payment_customization",
+                  "description": "conformance-payment-customization",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                  "title": "conformance-cart-transform",
+                  "handle": "conformance-cart-transform",
+                  "apiType": "cart_transform",
+                  "description": "conformance-cart-transform",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoiMDE5ZGM2NWEtMzA2ZC03ODRjLWE2N2UtMjY5ZjI3YjY2MTNmIiwibGFzdF92YWx1ZSI6IjAxOWRjNjVhLTMwNmQtNzg0Yy1hNjdlLTI2OWYyN2I2NjEzZiJ9",
+                "endCursor": "eyJsYXN0X2lkIjoiMDE5ZGQ0NGItMTI3Zi03MjRiLWE0OWMtNzBmYzk4ZmY0ZDcyIiwibGFzdF92YWx1ZSI6IjAxOWRkNDRiLTEyN2YtNzI0Yi1hNDljLTcwZmM5OGZmNGQ3MiJ9"
+              }
+            },
+            "validationFunction": {
+              "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+              "title": "conformance-validation",
+              "handle": "conformance-validation",
+              "apiType": "cart_checkout_validation",
+              "description": "conformance-validation",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "__typename": "App",
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            },
+            "cartFunction": {
+              "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+              "title": "conformance-cart-transform",
+              "handle": "conformance-cart-transform",
+              "apiType": "cart_transform",
+              "description": "conformance-cart-transform",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "__typename": "App",
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

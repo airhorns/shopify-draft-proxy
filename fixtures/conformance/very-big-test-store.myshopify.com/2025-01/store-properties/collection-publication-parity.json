@@ -562,5 +562,65 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesPublishablePublishHydrate",
+      "variables": {
+        "id": "gid://shopify/Collection/468787757289"
+      },
+      "query": "sha:hand-synthesized-StorePropertiesPublishablePublishHydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publishable": {
+              "id": "gid://shopify/Collection/468787757289",
+              "title": "Hermes Collection Conformance 1777078204269",
+              "handle": "hermes-collection-conformance-1777078204269",
+              "publishedOnCurrentPublication": false,
+              "publishedOnPublication": true,
+              "availablePublicationsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesPublishableUnpublishHydrate",
+      "variables": {
+        "id": "gid://shopify/Collection/468787757289"
+      },
+      "query": "sha:hand-synthesized-StorePropertiesPublishableUnpublishHydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publishable": {
+              "id": "gid://shopify/Collection/468787757289",
+              "title": "Hermes Collection Conformance 1777078204269",
+              "handle": "hermes-collection-conformance-1777078204269",
+              "publishedOnCurrentPublication": false,
+              "publishedOnPublication": false,
+              "availablePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

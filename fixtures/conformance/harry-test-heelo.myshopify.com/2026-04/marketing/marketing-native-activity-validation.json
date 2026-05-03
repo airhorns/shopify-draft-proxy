@@ -75,5 +75,6 @@
       "inMainWorkflowVersion": true,
       "marketingEvent": null
     }
-  }
+  },
+  "upstreamCalls": []
 }

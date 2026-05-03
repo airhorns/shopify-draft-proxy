@@ -41,7 +41,12 @@
             "query": "title:Codex 1777309108817",
             "resourceType": "PRODUCT",
             "searchTerms": "1777309108817",
-            "filters": [{ "key": "title", "value": "Codex" }]
+            "filters": [
+              {
+                "key": "title",
+                "value": "Codex"
+              }
+            ]
           },
           "userErrors": []
         }
@@ -59,7 +64,12 @@
               "query": "1777309108817 title:Codex",
               "resourceType": "PRODUCT",
               "searchTerms": "1777309108817",
-              "filters": [{ "key": "title", "value": "Codex" }]
+              "filters": [
+                {
+                  "key": "title",
+                  "value": "Codex"
+                }
+              ]
             }
           ],
           "pageInfo": {
@@ -91,7 +101,12 @@
             "query": "status:ACTIVE 1777309108817",
             "resourceType": "PRODUCT",
             "searchTerms": "1777309108817",
-            "filters": [{ "key": "status", "value": "ACTIVE" }]
+            "filters": [
+              {
+                "key": "status",
+                "value": "ACTIVE"
+              }
+            ]
           },
           "userErrors": [
             {
@@ -152,5 +167,6 @@
         "message": "Access denied for urlRedirectImportCreate field. Required access: `write_online_store_navigation` access scope."
       }
     ]
-  }
+  },
+  "upstreamCalls": []
 }

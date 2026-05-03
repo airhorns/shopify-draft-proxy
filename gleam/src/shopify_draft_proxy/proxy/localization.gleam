@@ -6,27 +6,30 @@
 ////   hydrated.
 //// - `translatableResource(s)` / `translatableResourcesByIds` reads.
 ////   Without a Products domain in the Gleam port the only resources
-////   that can be discovered are translation entries already staged in
-////   the store — the resource is reconstructed from those translations
-////   so a register-then-read round-trip works end-to-end.
+////   that can be discovered are translation/source-content entries
+////   already staged in the store — the resource is reconstructed from
+////   those records so captured register-then-read lifecycles can run
+////   end-to-end.
 //// - `shopLocaleEnable/Update/Disable` mutations, including the
 ////   "disabling clears translations for that locale" cleanup.
 //// - `translationsRegister/Remove` mutations with the same validation
-////   structure as the TS handler. With no Products in the store,
-////   `validateResource` always returns `RESOURCE_NOT_FOUND` for unknown
-////   gids — matching the captured `unknown-resource-validation` parity
-////   target. The success path that registers translations against a
-////   real Product is deferred until the Products domain ports.
+////   structure as the TS handler. With no Products in the store, unknown
+////   gids still return `RESOURCE_NOT_FOUND`; captured resources can be
+////   seeded with source-content markers until the Products domain ports.
 
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/result
 import gleam/string
+import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
   SelectedFieldOptions, SerializeConnectionConfig,
@@ -34,14 +37,21 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   default_selected_field_options, get_document_fragments, get_field_response_key,
   paginate_connection_items, serialize_connection, serialize_empty_connection,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{read_optional_string_array}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, read_optional_string_array, single_root_log_draft,
+}
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
+}
+import shopify_draft_proxy/proxy/upstream_query
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type LocaleRecord, type ShopLocaleRecord, type TranslationRecord, LocaleRecord,
-  ShopLocaleRecord, TranslationRecord,
+  type LocaleRecord, type ProductMetafieldRecord, type ProductRecord,
+  type ShopLocaleRecord, type TranslationRecord, LocaleRecord, ShopLocaleRecord,
+  TranslationRecord,
 }
 
 // ---------------------------------------------------------------------------
@@ -58,6 +68,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -69,13 +80,7 @@ type AnyUserError {
 }
 
 /// One translatable content slot on a translatable resource. `digest`
-/// is `None` for resources reconstructed from the store (no source
-/// product available), which short-circuits the digest comparison
-/// during validation. The constructor is currently unbuilt because the
-/// Products domain hasn't ported — `find_resource` is always `None`,
-/// so the type stays dormant until then. Marked `@internal` to silence
-/// the unused-constructor warning while leaving the shape ready for
-/// the Products pass.
+/// is `None` when no captured source digest is available.
 @internal
 pub type TranslatableContent {
   TranslatableContent(
@@ -151,6 +156,377 @@ pub fn process(
     variables,
   ))
   Ok(wrap_data(data))
+}
+
+/// Pattern 2: cold LiveHybrid localization reads need the captured
+/// upstream product/source-content slice before local translation
+/// mutations can validate digests and stage read-after-write effects.
+/// Once any localization/product state exists, stay local so staged
+/// locale and translation changes are not bypassed by passthrough.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_upstream = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_fetch_upstream_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+      )
+    _ -> False
+  }
+  case want_upstream {
+    True ->
+      fetch_and_hydrate_live_hybrid_query(
+        proxy,
+        request,
+        parsed,
+        document,
+        variables,
+      )
+    False -> local_query_response(proxy, document, variables)
+  }
+}
+
+fn should_fetch_upstream_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "availableLocales" ->
+      !has_local_localization_query_state(proxy)
+    parse_operation.QueryOperation, "shopLocales" ->
+      !has_local_localization_query_state(proxy)
+    parse_operation.QueryOperation, "translatableResource" ->
+      !has_local_localization_query_state(proxy)
+    parse_operation.QueryOperation, "translatableResources" ->
+      !has_local_localization_query_state(proxy)
+    parse_operation.QueryOperation, "translatableResourcesByIds" ->
+      !has_local_localization_query_state(proxy)
+    _, _ -> False
+  }
+}
+
+fn has_local_localization_query_state(proxy: DraftProxy) -> Bool {
+  store.has_localization_state(proxy.store)
+  || !list.is_empty(store.list_effective_products(proxy.store))
+}
+
+fn fetch_and_hydrate_live_hybrid_query(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let operation_name =
+    parsed.name
+    |> option.unwrap("LocalizationLiveHybridRead")
+  case
+    upstream_query.fetch_sync(
+      proxy.config.shopify_admin_origin,
+      proxy.upstream_transport,
+      request.headers,
+      operation_name,
+      document,
+      variables_to_json(variables),
+    )
+  {
+    Ok(value) -> {
+      let next_store = hydrate_from_upstream_response(proxy.store, value)
+      #(
+        Response(
+          status: 200,
+          body: commit.json_value_to_json(value),
+          headers: [],
+        ),
+        DraftProxy(..proxy, store: next_store),
+      )
+    }
+    Error(err) -> #(
+      Response(
+        status: 502,
+        body: json.object([
+          #(
+            "errors",
+            json.array(
+              [
+                json.object([
+                  #("message", json.string(fetch_error_message(err))),
+                ]),
+              ],
+              fn(x) { x },
+            ),
+          ),
+        ]),
+        headers: [],
+      ),
+      proxy,
+    )
+  }
+}
+
+fn local_query_response(
+  proxy: DraftProxy,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  case process(proxy.store, document, variables) {
+    Ok(envelope) -> #(Response(status: 200, body: envelope, headers: []), proxy)
+    Error(_) -> #(
+      Response(
+        status: 400,
+        body: json.object([
+          #(
+            "errors",
+            json.array(
+              [
+                json.object([
+                  #(
+                    "message",
+                    json.string("Failed to handle localization query"),
+                  ),
+                ]),
+              ],
+              fn(x) { x },
+            ),
+          ),
+        ]),
+        headers: [],
+      ),
+      proxy,
+    )
+  }
+}
+
+fn variables_to_json(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  json.object(
+    dict.to_list(variables)
+    |> list.map(fn(pair) {
+      #(pair.0, root_field.resolved_value_to_json(pair.1))
+    }),
+  )
+}
+
+fn fetch_error_message(error: upstream_query.FetchError) -> String {
+  case error {
+    upstream_query.TransportFailed(message) -> message
+    upstream_query.HttpStatusError(status, body) ->
+      "upstream returned HTTP " <> int.to_string(status) <> ": " <> body
+    upstream_query.MalformedResponse(message) -> message
+    upstream_query.NoTransportInstalled -> "no upstream transport installed"
+  }
+}
+
+fn hydrate_from_upstream_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) ->
+      store_in
+      |> hydrate_available_locales(data)
+      |> hydrate_shop_locales(data)
+      |> hydrate_translatable_resources(data)
+    None -> store_in
+  }
+}
+
+fn hydrate_available_locales(store_in: Store, data: commit.JsonValue) -> Store {
+  let locales = case locale_records_from_field(data, "availableLocales") {
+    [] -> locale_records_from_field(data, "availableLocalesExcerpt")
+    records -> records
+  }
+  case locales {
+    [] -> store_in
+    _ -> store.replace_base_available_locales(store_in, locales)
+  }
+}
+
+fn hydrate_shop_locales(store_in: Store, data: commit.JsonValue) -> Store {
+  let locales = case shop_locale_records_from_field(data, "allShopLocales") {
+    [] -> shop_locale_records_from_field(data, "shopLocales")
+    records -> records
+  }
+  case locales {
+    [] -> store_in
+    _ -> store.upsert_base_shop_locales(store_in, locales)
+  }
+}
+
+fn hydrate_translatable_resources(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  let resources =
+    list.append(
+      resources_from_connection_field(data, "resources"),
+      resources_from_connection_field(data, "byIds"),
+    )
+  let resources = case json_get(data, "translatableResource") {
+    Some(commit.JsonNull) | None -> resources
+    Some(node) -> [node, ..resources]
+  }
+  list.fold(resources, store_in, hydrate_resource_source_markers)
+}
+
+fn hydrate_resource_source_markers(
+  store_in: Store,
+  resource: commit.JsonValue,
+) -> Store {
+  case json_get_string(resource, "resourceId") {
+    None -> store_in
+    Some(resource_id) -> {
+      let content = case json_get(resource, "translatableContent") {
+        Some(commit.JsonArray(items)) -> items
+        _ -> []
+      }
+      list.fold(content, store_in, fn(acc, item) {
+        case json_get_string(item, "key") {
+          None -> acc
+          Some(key) -> {
+            let record =
+              TranslationRecord(
+                resource_id: resource_id,
+                key: key,
+                locale: "__source",
+                value: option.unwrap(json_get_string(item, "value"), ""),
+                translatable_content_digest: option.unwrap(
+                  json_get_string(item, "digest"),
+                  "",
+                ),
+                market_id: None,
+                updated_at: "1970-01-01T00:00:00.000Z",
+                outdated: False,
+              )
+            store.upsert_base_translation(acc, record)
+          }
+        }
+      })
+    }
+  }
+}
+
+fn resources_from_connection_field(
+  data: commit.JsonValue,
+  key: String,
+) -> List(commit.JsonValue) {
+  case json_get(data, key) {
+    Some(connection) ->
+      case json_get(connection, "nodes") {
+        Some(commit.JsonArray(items)) -> non_null_json_values(items)
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+fn locale_records_from_field(
+  data: commit.JsonValue,
+  key: String,
+) -> List(LocaleRecord) {
+  case json_get(data, key) {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, locale_record_from_json)
+    _ -> []
+  }
+}
+
+fn locale_record_from_json(
+  value: commit.JsonValue,
+) -> Result(LocaleRecord, Nil) {
+  case json_get_string(value, "isoCode"), json_get_string(value, "name") {
+    Some(iso_code), Some(name) ->
+      Ok(LocaleRecord(iso_code: iso_code, name: name))
+    _, _ -> Error(Nil)
+  }
+}
+
+fn shop_locale_records_from_field(
+  data: commit.JsonValue,
+  key: String,
+) -> List(ShopLocaleRecord) {
+  case json_get(data, key) {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, shop_locale_record_from_json)
+    _ -> []
+  }
+}
+
+fn shop_locale_record_from_json(
+  value: commit.JsonValue,
+) -> Result(ShopLocaleRecord, Nil) {
+  case json_get_string(value, "locale") {
+    Some(locale) ->
+      Ok(ShopLocaleRecord(
+        locale: locale,
+        name: option.unwrap(json_get_string(value, "name"), locale),
+        primary: option.unwrap(json_get_bool(value, "primary"), False),
+        published: option.unwrap(json_get_bool(value, "published"), False),
+        market_web_presence_ids: market_web_presence_ids_from_json(value),
+      ))
+    None -> Error(Nil)
+  }
+}
+
+fn market_web_presence_ids_from_json(value: commit.JsonValue) -> List(String) {
+  case json_get(value, "marketWebPresences") {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, fn(item) {
+        case json_get_string(item, "id") {
+          Some(id) -> Ok(id)
+          None -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn non_null_json_values(
+  values: List(commit.JsonValue),
+) -> List(commit.JsonValue) {
+  list.filter(values, fn(value) {
+    case value {
+      commit.JsonNull -> False
+      _ -> True
+    }
+  })
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
+  case json_get(value, key) {
+    Some(commit.JsonBool(b)) -> Some(b)
+    _ -> None
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(k, v) if k == key -> Ok(v)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
 }
 
 pub fn process_mutation(
@@ -256,27 +632,267 @@ fn get_shop_locale(
 // Resource reconstruction
 // ---------------------------------------------------------------------------
 
-/// Find a translatable resource by id. Without a Products domain the
-/// proxy can't truly enumerate translatable resources, so this is
-/// always `None` — every resourceId surfaces as RESOURCE_NOT_FOUND
-/// during validation. Once the Products domain ports, this should
-/// derive a `TranslatableResource` from the matching `ProductRecord`
-/// (and `MetafieldRecord`) just like `findResource` in TS.
+/// Find a translatable resource by id from effective Product and
+/// product Metafield state, mirroring the TypeScript localization
+/// runtime.
 fn find_resource(
-  _store_in: Store,
-  _resource_id: String,
+  store_in: Store,
+  resource_id: String,
 ) -> Option(TranslatableResource) {
-  None
+  case store.get_effective_product_by_id(store_in, resource_id) {
+    Some(product) ->
+      Some(TranslatableResource(
+        resource_id: product.id,
+        resource_type: "PRODUCT",
+        content: product_content(product),
+      ))
+    None ->
+      case
+        list.find(list_product_metafields(store_in), fn(metafield) {
+          metafield.id == resource_id
+        })
+      {
+        Ok(metafield) ->
+          Some(TranslatableResource(
+            resource_id: metafield.id,
+            resource_type: "METAFIELD",
+            content: metafield_content(metafield),
+          ))
+        Error(_) -> None
+      }
+  }
 }
 
-/// Enumerate every translatable resource of a given type. Returns
-/// `[]` for the same reason as `find_resource` — no Products in the
-/// Gleam store yet.
+/// Enumerate every translatable resource of a given type from effective
+/// Product/Product Metafield state plus capture-backed source markers.
 fn list_resources(
-  _store_in: Store,
-  _resource_type: Option(String),
+  store_in: Store,
+  resource_type: Option(String),
 ) -> List(TranslatableResource) {
-  []
+  let product_resources = case resource_matches(resource_type, "PRODUCT") {
+    True ->
+      store.list_effective_products(store_in)
+      |> list.map(fn(product) {
+        TranslatableResource(
+          resource_id: product.id,
+          resource_type: "PRODUCT",
+          content: product_content(product),
+        )
+      })
+    False -> []
+  }
+  let metafield_resources = case resource_matches(resource_type, "METAFIELD") {
+    True ->
+      list_product_metafields(store_in)
+      |> list.map(fn(metafield) {
+        TranslatableResource(
+          resource_id: metafield.id,
+          resource_type: "METAFIELD",
+          content: metafield_content(metafield),
+        )
+      })
+    False -> []
+  }
+  let seeded_resources =
+    source_marker_resources(store_in)
+    |> list.filter(fn(resource) {
+      resource_matches(resource_type, resource.resource_type)
+    })
+  list.append(product_resources, metafield_resources)
+  |> list.append(seeded_resources)
+  |> dedupe_resources([])
+  |> list.sort(fn(left, right) {
+    string.compare(left.resource_id, right.resource_id)
+  })
+}
+
+fn resource_matches(filter: Option(String), resource_type: String) -> Bool {
+  case filter {
+    Some(target) -> target == resource_type
+    None -> False
+  }
+}
+
+fn list_product_metafields(store_in: Store) -> List(ProductMetafieldRecord) {
+  store.list_effective_products(store_in)
+  |> list.flat_map(fn(product) {
+    store.get_effective_metafields_by_owner_id(store_in, product.id)
+  })
+  |> dedupe_metafields([])
+  |> list.sort(fn(left, right) { string.compare(left.id, right.id) })
+}
+
+fn dedupe_metafields(
+  metafields: List(ProductMetafieldRecord),
+  seen: List(String),
+) -> List(ProductMetafieldRecord) {
+  case metafields {
+    [] -> []
+    [metafield, ..rest] ->
+      case list.contains(seen, metafield.id) {
+        True -> dedupe_metafields(rest, seen)
+        False -> [metafield, ..dedupe_metafields(rest, [metafield.id, ..seen])]
+      }
+  }
+}
+
+fn product_content(product: ProductRecord) -> List(TranslatableContent) {
+  let base = [
+    TranslatableContent(
+      key: "title",
+      value: Some(product.title),
+      digest: Some(crypto.sha256_hex(product.title)),
+      locale: "en",
+      type_: "SINGLE_LINE_TEXT_FIELD",
+    ),
+    TranslatableContent(
+      key: "handle",
+      value: Some(product.handle),
+      digest: Some(crypto.sha256_hex(product.handle)),
+      locale: "en",
+      type_: "URI",
+    ),
+  ]
+  let with_body = case product.description_html {
+    "" -> base
+    value ->
+      list.append(base, [
+        TranslatableContent(
+          key: "body_html",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "HTML",
+        ),
+      ])
+  }
+  let with_type = case product.product_type {
+    Some(value) ->
+      list.append(with_body, [
+        TranslatableContent(
+          key: "product_type",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "SINGLE_LINE_TEXT_FIELD",
+        ),
+      ])
+    None -> with_body
+  }
+  let with_seo_title = case product.seo.title {
+    Some(value) ->
+      list.append(with_type, [
+        TranslatableContent(
+          key: "meta_title",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "SINGLE_LINE_TEXT_FIELD",
+        ),
+      ])
+    None -> with_type
+  }
+  case product.seo.description {
+    Some(value) ->
+      list.append(with_seo_title, [
+        TranslatableContent(
+          key: "meta_description",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "MULTI_LINE_TEXT_FIELD",
+        ),
+      ])
+    None -> with_seo_title
+  }
+}
+
+fn metafield_content(
+  metafield: ProductMetafieldRecord,
+) -> List(TranslatableContent) {
+  [
+    TranslatableContent(
+      key: "value",
+      value: metafield.value,
+      digest: case metafield.compare_digest, metafield.value {
+        Some(digest), _ -> Some(digest)
+        None, Some(value) -> Some(crypto.sha256_hex(value))
+        None, None -> None
+      },
+      locale: "en",
+      type_: localizable_content_type_for_metafield(metafield.type_),
+    ),
+  ]
+}
+
+fn localizable_content_type_for_metafield(type_: Option(String)) -> String {
+  case type_ {
+    Some("multi_line_text_field") -> "MULTI_LINE_TEXT_FIELD"
+    Some("rich_text_field") -> "RICH_TEXT_FIELD"
+    Some("url") -> "URL"
+    Some("json") -> "JSON"
+    _ -> "SINGLE_LINE_TEXT_FIELD"
+  }
+}
+
+fn source_marker_resources(store_in: Store) -> List(TranslatableResource) {
+  let source_markers =
+    list.append(
+      dict.values(store_in.base_state.translations),
+      dict.values(store_in.staged_state.translations),
+    )
+    |> list.filter(fn(t) { t.locale == "__source" })
+  let resource_ids =
+    source_markers
+    |> list.map(fn(t) { t.resource_id })
+    |> dedupe_strings([])
+  list.filter_map(resource_ids, fn(resource_id) {
+    let content =
+      source_markers
+      |> list.filter(fn(t) { t.resource_id == resource_id })
+      |> list.map(fn(t) {
+        content_from_translation(t, t.translatable_content_digest)
+      })
+      |> dedupe_content_by_key([])
+      |> list.sort(compare_content)
+    case content {
+      [] -> Error(Nil)
+      _ ->
+        Ok(TranslatableResource(
+          resource_id: resource_id,
+          resource_type: synthetic_resource_type(resource_id),
+          content: content,
+        ))
+    }
+  })
+}
+
+fn dedupe_strings(values: List(String), seen: List(String)) -> List(String) {
+  case values {
+    [] -> []
+    [value, ..rest] ->
+      case list.contains(seen, value) {
+        True -> dedupe_strings(rest, seen)
+        False -> [value, ..dedupe_strings(rest, [value, ..seen])]
+      }
+  }
+}
+
+fn dedupe_resources(
+  resources: List(TranslatableResource),
+  seen: List(String),
+) -> List(TranslatableResource) {
+  case resources {
+    [] -> []
+    [resource, ..rest] ->
+      case list.contains(seen, resource.resource_id) {
+        True -> dedupe_resources(rest, seen)
+        False -> [
+          resource,
+          ..dedupe_resources(rest, [resource.resource_id, ..seen])
+        ]
+      }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -451,13 +1067,10 @@ fn serialize_translatable_resource_root(
   }
 }
 
-/// Synthesize a translatable resource from in-store translations even
-/// when the underlying Product/Metafield record isn't available. This
-/// lets register-then-read parity work without a Products domain — at
-/// the cost of returning the registered translations only (no
-/// translatable content slots, since the source content isn't in the
-/// store). Returns `None` only when the resourceId has zero matching
-/// translations and zero matching products/metafields.
+/// Synthesize a translatable resource from in-store translation/source
+/// markers even when the underlying Product/Metafield record isn't
+/// available. Parity seeding can provide a captured source digest as a
+/// non-target-locale marker; ordinary unknown ids still return `None`.
 fn find_resource_or_synthesize(
   store_in: Store,
   resource_id: String,
@@ -465,25 +1078,115 @@ fn find_resource_or_synthesize(
   case find_resource(store_in, resource_id) {
     Some(record) -> Some(record)
     None -> {
-      let any_translation =
-        list.any(dict.values(store_in.staged_state.translations), fn(t) {
-          t.resource_id == resource_id
-        })
-        || list.any(dict.values(store_in.base_state.translations), fn(t) {
-          t.resource_id == resource_id
-        })
-      case any_translation {
-        True ->
-          Some(
-            TranslatableResource(
-              resource_id: resource_id,
-              resource_type: synthetic_resource_type(resource_id),
-              content: [],
-            ),
-          )
-        False -> None
+      let content = synthesized_content_from_translations(store_in, resource_id)
+      case list.is_empty(content) {
+        False ->
+          Some(TranslatableResource(
+            resource_id: resource_id,
+            resource_type: synthetic_resource_type(resource_id),
+            content: content,
+          ))
+        True -> None
       }
     }
+  }
+}
+
+fn synthesized_content_from_translations(
+  store_in: Store,
+  resource_id: String,
+) -> List(TranslatableContent) {
+  let translations =
+    list.append(
+      dict.values(store_in.base_state.translations),
+      dict.values(store_in.staged_state.translations),
+    )
+    |> list.filter(fn(t) { t.resource_id == resource_id })
+  translations
+  |> list.map(fn(translation) {
+    content_from_translation(
+      translation,
+      translation.translatable_content_digest,
+    )
+  })
+  |> dedupe_content_by_key([])
+  |> list.sort(compare_content)
+}
+
+fn compare_content(
+  left: TranslatableContent,
+  right: TranslatableContent,
+) -> order.Order {
+  case int.compare(content_order(left.key), content_order(right.key)) {
+    order.Eq -> string.compare(left.key, right.key)
+    other -> other
+  }
+}
+
+fn content_order(key: String) -> Int {
+  case key {
+    "title" -> 0
+    "handle" -> 1
+    "body_html" -> 2
+    "product_type" -> 3
+    "meta_title" -> 4
+    "meta_description" -> 5
+    "value" -> 6
+    _ -> 100
+  }
+}
+
+fn dedupe_content_by_key(
+  content: List(TranslatableContent),
+  seen: List(String),
+) -> List(TranslatableContent) {
+  case content {
+    [] -> []
+    [entry, ..rest] ->
+      case list.contains(seen, entry.key) {
+        True -> dedupe_content_by_key(rest, seen)
+        False -> [entry, ..dedupe_content_by_key(rest, [entry.key, ..seen])]
+      }
+  }
+}
+
+fn content_from_translation(
+  translation: TranslationRecord,
+  digest: String,
+) -> TranslatableContent {
+  let source_value = case translation.locale, translation.value {
+    "__source", "" -> None
+    "__source", value -> Some(value)
+    _, _ -> None
+  }
+  TranslatableContent(
+    key: translation.key,
+    value: source_value,
+    digest: case digest {
+      "" -> None
+      value -> Some(value)
+    },
+    locale: "en",
+    type_: content_type_for_key(translation.key),
+  )
+}
+
+fn content_type_for_key(key: String) -> String {
+  case key {
+    "body_html" -> "HTML"
+    "handle" -> "URI"
+    "meta_description" -> "MULTI_LINE_TEXT_FIELD"
+    _ -> "SINGLE_LINE_TEXT_FIELD"
+  }
+}
+
+fn resource_exists_for_validation(
+  store_in: Store,
+  resource_id: String,
+) -> Option(TranslatableResource) {
+  case find_resource(store_in, resource_id) {
+    Some(resource) -> Some(resource)
+    None -> find_resource_or_synthesize(store_in, resource_id)
   }
 }
 
@@ -753,10 +1456,10 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let initial = #([], store_in, identity, [])
-  let #(data_entries, final_store, final_identity, all_staged) =
+  let initial = #([], store_in, identity, [], [])
+  let #(data_entries, final_store, final_identity, all_staged, all_drafts) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids) = acc
+      let #(entries, current_store, current_identity, staged_ids, drafts) = acc
       case field {
         Field(name: name, ..) -> {
           let dispatch = case name.value {
@@ -801,12 +1504,27 @@ fn handle_mutation_fields(
           }
           case dispatch {
             None -> acc
-            Some(#(result, next_store, next_identity)) -> #(
-              list.append(entries, [#(result.key, result.payload)]),
-              next_store,
-              next_identity,
-              list.append(staged_ids, result.staged_resource_ids),
-            )
+            Some(#(result, next_store, next_identity)) -> {
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  localization_status_for(
+                    name.value,
+                    result.staged_resource_ids,
+                  ),
+                  "localization",
+                  "stage-locally",
+                  Some(localization_notes_for(name.value)),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                next_store,
+                next_identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
           }
         }
         _ -> acc
@@ -817,7 +1535,28 @@ fn handle_mutation_fields(
     store: final_store,
     identity: final_identity,
     staged_resource_ids: all_staged,
+    log_drafts: all_drafts,
   )
+}
+
+/// Per-root-field log status for localization mutations. Default
+/// rule: an empty `staged_resource_ids` means the validation path
+/// rejected the request, so the entry logs `Failed`; otherwise
+/// `Staged`.
+fn localization_status_for(
+  _root_field_name: String,
+  staged_resource_ids: List(String),
+) -> store.EntryStatus {
+  case staged_resource_ids {
+    [] -> store.Failed
+    [_, ..] -> store.Staged
+  }
+}
+
+/// Notes string mirroring the `localization` dispatcher in
+/// `routes.ts`.
+fn localization_notes_for(_root_field_name: String) -> String {
+  "Staged locally in the in-memory localization draft store."
 }
 
 // shopLocaleEnable
@@ -1353,7 +2092,7 @@ fn validate_resource(
       ),
     ])
     Some(resource_id) ->
-      case find_resource(store_in, resource_id) {
+      case resource_exists_for_validation(store_in, resource_id) {
         None -> #(None, [
           TranslationError(
             field: ["resourceId"],

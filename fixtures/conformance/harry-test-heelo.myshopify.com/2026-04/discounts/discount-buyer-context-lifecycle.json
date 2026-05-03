@@ -688,5 +688,6 @@
   "notes": [
     "Live Shopify 2026-04 capture for code-basic and automatic-basic discount buyer context transitions from explicit customer selection to customer-segment selection.",
     "The disposable discount, customer, and segment records are deleted in cleanup after capture."
-  ]
+  ],
+  "upstreamCalls": []
 }

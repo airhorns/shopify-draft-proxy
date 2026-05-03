@@ -449,5 +449,307 @@
   },
   "liveBlockers": [
     "The checked-in conformance app currently has payment-customization and publication-target extensions, but no discount Function extension. Live app-discount create/update success capture is blocked until a disposable discount Function extension is added, deployed, and installed for the test shop."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShopifyFunctionByHandle",
+      "variables": {
+        "handle": "discount-local"
+      },
+      "query": "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, apiType: \"discount\", handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/discount-local",
+                  "title": "Local volume discount",
+                  "handle": "discount-local",
+                  "apiType": "DISCOUNT",
+                  "description": "Captured local Function metadata",
+                  "appKey": "app-key-366",
+                  "app": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/366001"
+      },
+      "query": "query DiscountHydrate($id: ID!) {\n  codeNode: codeDiscountNode(id: $id) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        codes(first: 250) { nodes { id code } }\n      }\n      ... on DiscountCodeApp {\n        title\n        status\n      }\n      ... on DiscountCodeBxgy {\n        title\n        status\n      }\n      ... on DiscountCodeFreeShipping {\n        title\n        status\n      }\n    }\n  }\n  automaticNode: automaticDiscountNode(id: $id) {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        title\n        status\n      }\n      ... on DiscountAutomaticApp {\n        title\n        status\n      }\n      ... on DiscountAutomaticBxgy {\n        title\n        status\n      }\n      ... on DiscountAutomaticFreeShipping {\n        title\n        status\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeNode": {
+              "id": "gid://shopify/DiscountCodeNode/366001",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "HAR-366 code fixture",
+                "status": "EXPIRED",
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/366001",
+                      "code": "HAR366BASE"
+                    }
+                  ]
+                }
+              }
+            },
+            "automaticNode": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/366002"
+      },
+      "query": "query DiscountHydrate($id: ID!) {\n  codeNode: codeDiscountNode(id: $id) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        codes(first: 250) { nodes { id code } }\n      }\n      ... on DiscountCodeApp {\n        title\n        status\n      }\n      ... on DiscountCodeBxgy {\n        title\n        status\n      }\n      ... on DiscountCodeFreeShipping {\n        title\n        status\n      }\n    }\n  }\n  automaticNode: automaticDiscountNode(id: $id) {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        title\n        status\n      }\n      ... on DiscountAutomaticApp {\n        title\n        status\n      }\n      ... on DiscountAutomaticBxgy {\n        title\n        status\n      }\n      ... on DiscountAutomaticFreeShipping {\n        title\n        status\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeNode": {
+              "id": "gid://shopify/DiscountCodeNode/366002",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "HAR-366 code fixture active",
+                "status": "ACTIVE",
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/366002",
+                      "code": "HAR366ACTIVE"
+                    }
+                  ]
+                }
+              }
+            },
+            "automaticNode": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/366003"
+      },
+      "query": "query DiscountHydrate($id: ID!) {\n  codeNode: codeDiscountNode(id: $id) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        codes(first: 250) { nodes { id code } }\n      }\n      ... on DiscountCodeApp {\n        title\n        status\n      }\n      ... on DiscountCodeBxgy {\n        title\n        status\n      }\n      ... on DiscountCodeFreeShipping {\n        title\n        status\n      }\n    }\n  }\n  automaticNode: automaticDiscountNode(id: $id) {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        title\n        status\n      }\n      ... on DiscountAutomaticApp {\n        title\n        status\n      }\n      ... on DiscountAutomaticBxgy {\n        title\n        status\n      }\n      ... on DiscountAutomaticFreeShipping {\n        title\n        status\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeNode": null,
+            "automaticNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/366003",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "title": "HAR-366 automatic fixture",
+                "status": "ACTIVE"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/366004"
+      },
+      "query": "query DiscountHydrate($id: ID!) {\n  codeNode: codeDiscountNode(id: $id) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        codes(first: 250) { nodes { id code } }\n      }\n      ... on DiscountCodeApp {\n        title\n        status\n      }\n      ... on DiscountCodeBxgy {\n        title\n        status\n      }\n      ... on DiscountCodeFreeShipping {\n        title\n        status\n      }\n    }\n  }\n  automaticNode: automaticDiscountNode(id: $id) {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        title\n        status\n      }\n      ... on DiscountAutomaticApp {\n        title\n        status\n      }\n      ... on DiscountAutomaticBxgy {\n        title\n        status\n      }\n      ... on DiscountAutomaticFreeShipping {\n        title\n        status\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeNode": {
+              "id": "gid://shopify/DiscountCodeNode/366004",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "HAR-366 redeem bulk fixture",
+                "status": "ACTIVE",
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/366004",
+                      "code": "HAR366REDEEM"
+                    }
+                  ]
+                }
+              }
+            },
+            "automaticNode": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountAppBulkRead",
+      "variables": {},
+      "query": "query DiscountAppBulkRead(\n  $codeId: ID!\n  $automaticId: ID!\n  $deletedCodeId: ID!\n  $deletedAutomaticId: ID!\n  $redeemDiscountId: ID!\n  $removedCode: String!\n) {\n  codeDiscountNode(id: $codeId) {\n    codeDiscount {\n      ... on DiscountCodeApp {\n        title\n        appDiscountType {\n          functionId\n        }\n        codes(first: 5) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  automaticDiscountNode(id: $automaticId) {\n    automaticDiscount {\n      ... on DiscountAutomaticApp {\n        title\n        recurringCycleLimit\n        appDiscountType {\n          functionId\n        }\n      }\n    }\n  }\n  active: discountNodesCount(query: \"status:active\") {\n    count\n    precision\n  }\n  expired: discountNodesCount(query: \"status:expired\") {\n    count\n    precision\n  }\n  deletedCode: codeDiscountNode(id: $deletedCodeId) {\n    id\n  }\n  deletedAutomatic: automaticDiscountNode(id: $deletedAutomaticId) {\n    id\n  }\n  redeemDiscount: codeDiscountNode(id: $redeemDiscountId) {\n    codeDiscount {\n      ... on DiscountCodeBasic {\n        codes(first: 5) {\n          nodes {\n            code\n          }\n        }\n        codesCount {\n          count\n          precision\n        }\n      }\n    }\n  }\n  removedRedeemCode: codeDiscountNodeByCode(code: $removedCode) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $codeId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $automaticId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $deletedCodeId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $deletedAutomaticId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $redeemDiscountId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 6,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $removedCode of type String! was provided invalid value",
+              "locations": [
+                {
+                  "line": 7,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "DiscountAutomaticAppLifecycleReadAfterDelete",
+      "variables": {},
+      "query": "query DiscountAutomaticAppLifecycleReadAfterDelete($id: ID!) {\n  automaticDiscountNode(id: $id) {\n    id\n  }\n  discountNodesCount(query: \"type:app\") {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 52
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
   ]
 }

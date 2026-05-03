@@ -1,0 +1,444 @@
+{
+  "expectedGleamParityFailures": [
+    {
+      "specPath": "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/metaobjects/metaobject-definitions-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/metaobjects/metaobject-entry-lifecycle-local-staging.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/metaobjects/metaobject-reference-lifecycle.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/metaobjects/metaobjects-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/payments/customer-payment-method-local-staging.json",
+      "reason": "Cassette migrated; proxy returned non-2xx status due to cassette miss or unhandled operation. Re-record or wire handler."
+    },
+    {
+      "specPath": "config/parity-specs/payments/payment-terms-lifecycle-local-staging.json",
+      "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/collection-detail-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/collection-identifier-read.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for products edges cursors; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionAddProducts-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionCreate-initial-products-parity.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionDelete-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionRemoveProducts-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionReorderProducts-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/collections-catalog-read.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for products edges cursors; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionUpdate-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-inactive-level-lifecycle-2026-04.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-level-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-quantity-contracts-2026-04.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-quantity-roots-parity.json",
+      "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-shipment-lifecycle-local-staging.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.inventoryShipmentCreateInTransit.inventoryShipment.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-shipment-partial-receive-update-delete-local-staging.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.inventoryShipmentCreateInTransit.inventoryShipment.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-transfer-lifecycle-local-staging.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.inventoryTransferCreate.inventoryTransfer.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-transfer-ready-item-adjustments-local-staging.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryActivate-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryAdjustQuantities-parity-plan.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for matchingCount.count; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryBulkToggleActivation-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryDeactivate-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryItemUpdate-parity-plan.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.inventoryItemUpdate.inventoryItem.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/locations-catalog-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldDelete-parity-plan.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for metafields pageInfo; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsDelete-parity-plan.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for metafields pageInfo; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-cas-success.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-duplicate-input.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-key.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for graphql-errors locations; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-namespace.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-owner.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for graphql-errors locations; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-type.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-value.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for graphql-errors locations; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-null-create.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-over-limit.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-owner-expansion.json",
+      "reason": "Stale expectedDifferences rules: Gleam proxy now matches capture for metafields[*].id and variant care.id; rules need pruning."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-stale-digest.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-contextual-pricing-price-list-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-detail-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-feedback-lifecycle-local-runtime.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-helper-roots-read.json",
+      "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-media-validation-branches.json",
+      "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-metafields-read.json",
+      "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-relationship-roots-live-parity.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-variants-bulk-validation-atomicity.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-variants-read.json",
+      "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productChangeStatus-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productCreateMedia-parity-plan.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productCreateMedia.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDelete-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDeleteMedia-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDuplicate-async-success.json",
+      "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDuplicate-parity-plan.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productDuplicate.newProduct.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsCreate-parity-plan.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productOptionsCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsCreate-variant-strategy-create-over-default-limit.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productOptionsCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsCreate-variant-strategy-create.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productOptionsCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsCreate-variant-strategy-leave-as-is.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productOptionsCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsCreate-variant-strategy-null.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productOptionsCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsDelete-parity-plan.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productOptionsDelete.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionUpdate-parity-plan.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productOptionUpdate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productPublish-aggregate-parity.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productPublish.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productPublish-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productReorderMedia-parity.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-advanced-search-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-catalog-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-or-precedence-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-relevance-search-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-search-grammar-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-search-pagination-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-search-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-sort-keys-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-variant-search-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productSet-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUnpublish-aggregate-parity.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productUnpublish.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUnpublish-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUpdate-blank-title-parity.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUpdate-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUpdate-too-long-handle-parity.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUpdateMedia-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantCreate-parity-plan.json",
+      "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantDelete-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-inventory-read-parity.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productVariantsBulkCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-parity-plan.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productVariantsBulkCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-strategy-default-custom-standalone.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productVariantsBulkCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-strategy-default-default-standalone.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productVariantsBulkCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-strategy-remove-custom-standalone.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productVariantsBulkCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-strategy-remove-default-standalone.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productVariantsBulkCreate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkDelete-parity-plan.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productVariantsBulkDelete.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkReorder-parity.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productVariantsBulkReorder.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkUpdate-parity-plan.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.productVariantsBulkUpdate.product.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantUpdate-parity-plan.json",
+      "reason": "Cassette migrated; proxy response missing expected jsonpath. Per-operation upstream fetch wiring or cassette additions pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/publication-roots-local-runtime.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/publications-catalog-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/selling-plan-group-lifecycle.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/selling-plan-product-variant-associations.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/tagsAdd-parity-plan.json",
+      "reason": "Cassette migrated; primary mutation returned null at $.data.tagsAdd.node.id because handler does not fetch the prior record from upstream. Per-operation upstream fetch port pending."
+    },
+    {
+      "specPath": "config/parity-specs/products/tagsRemove-parity-plan.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    },
+    {
+      "specPath": "config/parity-specs/segments/segments-baseline-read.json",
+      "reason": "Cassette migrated; spec needs per-operation upstream_query.fetch wiring or expectedDifferences pruning before going green. Cutover work pending."
+    }
+  ],
+  "requiredWorkflowCommands": [
+    "corepack pnpm lint",
+    "corepack pnpm typecheck",
+    "corepack pnpm gleam:registry:check",
+    "corepack pnpm conformance:check",
+    "corepack pnpm conformance:capture:check",
+    "corepack pnpm conformance:status",
+    "corepack pnpm gleam:port:coverage",
+    "corepack pnpm build",
+    "corepack pnpm gleam:format:check",
+    "corepack pnpm gleam:test:js",
+    "corepack pnpm gleam:test:erlang",
+    "corepack pnpm gleam:smoke:js",
+    "corepack pnpm elixir:smoke"
+  ],
+  "captureToolingChecks": [
+    "tests/unit/conformance-capture-index.test.ts",
+    "tests/unit/conformance-script-config.test.ts",
+    "tests/unit/no-mjs-files.test.ts"
+  ]
+}

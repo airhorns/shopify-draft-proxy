@@ -1,11 +1,14 @@
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
-import shopify_draft_proxy/proxy/draft_proxy.{
-  type Request, Config, LiveHybrid, Request, Response, Snapshot,
-}
+import shopify_draft_proxy/proxy/draft_proxy.{type Request}
 import shopify_draft_proxy/proxy/operation_registry
+import shopify_draft_proxy/proxy/proxy_state.{
+  Config, LiveHybrid, Request, Response, Snapshot,
+}
+import shopify_draft_proxy/state/serialization as state_serialization
 
 fn empty_headers() -> dict.Dict(String, String) {
   dict.new()
@@ -85,6 +88,17 @@ pub fn graphql_event_query_returns_null_test() {
   assert json.to_string(body) == "{\"data\":{\"event\":null}}"
 }
 
+pub fn graphql_events_read_count_query_shapes_match_capture_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"query EventEmptyRead($eventId: ID!, $first: Int!, $query: String!) { event(id: $eventId) { id action message } events(first: $first, query: $query, sortKey: ID, reverse: true) { nodes { id action message } edges { cursor node { id action message } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } eventsCount(query: $query) { count precision } }\",\"variables\":{\"eventId\":\"gid://shopify/BasicEvent/999999999999\",\"first\":2,\"query\":\"id:999999999999\"}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  assert json.to_string(response_body)
+    == "{\"data\":{\"event\":null,\"events\":{\"nodes\":[],\"edges\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}},\"eventsCount\":{\"count\":0,\"precision\":\"EXACT\"}}}"
+}
+
 pub fn graphql_with_get_returns_405_test() {
   let proxy = draft_proxy.new()
   let request =
@@ -113,7 +127,7 @@ pub fn graphql_with_invalid_body_returns_400_test() {
   assert status == 400
 }
 
-pub fn graphql_unimplemented_domain_returns_400_test() {
+pub fn graphql_products_empty_query_returns_envelope_test() {
   let proxy = draft_proxy.new()
   let request =
     Request(
@@ -124,7 +138,7 @@ pub fn graphql_unimplemented_domain_returns_400_test() {
     )
   let #(Response(status: status, ..), _) =
     draft_proxy.process_request(proxy, request)
-  assert status == 400
+  assert status == 200
 }
 
 pub fn graphql_mutation_returns_400_for_now_test() {
@@ -234,7 +248,12 @@ pub fn meta_state_returns_empty_snapshot_test() {
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, request)
   assert status == 200
-  assert json.to_string(body) == "{\"baseState\":{},\"stagedState\":{}}"
+  let serialized = json.to_string(body)
+  assert string.contains(serialized, "\"baseState\"")
+  assert string.contains(serialized, "\"stagedState\"")
+  assert string.contains(serialized, "\"savedSearches\":{}")
+  assert string.contains(serialized, "\"webhookSubscriptions\":{}")
+  assert string.contains(serialized, "\"marketingActivities\":{}")
 }
 
 pub fn meta_reset_returns_ok_test() {
@@ -490,8 +509,14 @@ pub fn meta_state_reflects_staged_saved_search_test() {
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, meta_get("/__meta/state"))
   assert status == 200
-  assert json.to_string(body)
-    == "{\"baseState\":{},\"stagedState\":{\"savedSearches\":{\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"legacyResourceId\":\"1\",\"name\":\"Promo orders\",\"query\":\"tag:promo\",\"resourceType\":\"ORDER\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"tag\",\"value\":\"promo\"}],\"cursor\":null}}}}"
+  let serialized = json.to_string(body)
+  assert string.contains(serialized, "\"savedSearches\":{")
+  assert string.contains(
+    serialized,
+    "\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\"",
+  )
+  assert string.contains(serialized, "\"savedSearchOrder\":[")
+  assert string.contains(serialized, "\"name\":\"Promo orders\"")
 }
 
 pub fn meta_log_reflects_staged_mutation_test() {
@@ -563,7 +588,10 @@ pub fn meta_reset_clears_staged_state_test() {
     draft_proxy.process_request(proxy, meta_get("/__meta/state"))
   let #(Response(body: log_body, ..), _) =
     draft_proxy.process_request(proxy, meta_get("/__meta/log"))
-  assert json.to_string(state_body) == "{\"baseState\":{},\"stagedState\":{}}"
+  let serialized_state = json.to_string(state_body)
+  assert string.contains(serialized_state, "\"savedSearches\":{}")
+  assert string.contains(serialized_state, "\"webhookSubscriptions\":{}")
+  assert string.contains(serialized_state, "\"marketingActivities\":{}")
   assert json.to_string(log_body) == "{\"entries\":[]}"
 }
 
@@ -732,16 +760,22 @@ pub fn graphql_webhook_subscription_create_returns_payload_test() {
   let proxy = draft_proxy.new()
   let body =
     "{\"query\":\"mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \\\"https://hooks.example.com/orders\\\", format: JSON }) { webhookSubscription { id topic uri format } userErrors { field message } } }\"}"
-  let #(Response(status: status, body: response_body, ..), _) =
+  let #(Response(status: status, body: response_body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(body))
   assert status == 200
   // Body confirms the dispatcher routed to webhooks.process_mutation,
   // synthetic identity minted a new gid, and the payload was projected.
-  // (The /__meta/state endpoint does not serialize webhookSubscriptions
-  // yet — a deferred follow-on; the in-store assertion lives in
-  // webhooks_test.)
   assert json.to_string(response_body)
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"ORDERS_CREATE\",\"uri\":\"https://hooks.example.com/orders\",\"format\":\"JSON\"},\"userErrors\":[]}}}"
+  let #(Response(body: state_body, ..), _) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/state"))
+  let serialized_state = json.to_string(state_body)
+  assert string.contains(serialized_state, "\"webhookSubscriptions\":{")
+  assert string.contains(
+    serialized_state,
+    "\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\"",
+  )
+  assert string.contains(serialized_state, "\"topic\":\"ORDERS_CREATE\"")
 }
 
 pub fn graphql_webhook_subscription_create_missing_topic_top_level_error_test() {
@@ -847,8 +881,10 @@ pub fn reset_method_clears_state_test() {
   let proxy = draft_proxy.reset(proxy)
   assert json.to_string(draft_proxy.get_log_snapshot(proxy))
     == "{\"entries\":[]}"
-  assert json.to_string(draft_proxy.get_state_snapshot(proxy))
-    == "{\"baseState\":{},\"stagedState\":{}}"
+  let serialized_state = json.to_string(draft_proxy.get_state_snapshot(proxy))
+  assert string.contains(serialized_state, "\"savedSearches\":{}")
+  assert string.contains(serialized_state, "\"webhookSubscriptions\":{}")
+  assert string.contains(serialized_state, "\"marketingActivities\":{}")
 }
 
 pub fn reset_method_resets_synthetic_identity_counter_test() {
@@ -986,10 +1022,80 @@ pub fn meta_commit_get_returns_405_test() {
 
 const fixed_created_at: String = "2026-04-29T12:00:00.000Z"
 
+fn default_dump_string() -> String {
+  draft_proxy.new()
+  |> draft_proxy.dump_state(fixed_created_at)
+  |> json.to_string
+}
+
+fn expect_malformed_dump(dump_string: String) {
+  let assert Error(err) =
+    draft_proxy.restore_state(draft_proxy.new(), dump_string)
+  case err {
+    draft_proxy.MalformedDumpJson(_) -> Nil
+    _ -> panic as "expected MalformedDumpJson error"
+  }
+}
+
+fn remove_base_state_dump_bucket(dump_string: String, field_name: String) {
+  replace_before_marker(
+    dump_string,
+    "\"stagedState\":{\"kind\":\"plain\",\"value\":{",
+    field_name,
+  )
+}
+
+fn remove_staged_state_dump_bucket(dump_string: String, field_name: String) {
+  replace_after_marker(
+    dump_string,
+    "\"stagedState\":{\"kind\":\"plain\",\"value\":{",
+    field_name,
+  )
+}
+
+fn replace_before_marker(
+  dump_string: String,
+  marker: String,
+  field_name: String,
+) -> String {
+  let target = "\"" <> field_name <> "\":"
+  let replacement = "\"missing" <> field_name <> "\":"
+  case string.split_once(dump_string, marker) {
+    Ok(#(before, after)) ->
+      string.replace(before, target, replacement) <> marker <> after
+    Error(_) -> string.replace(dump_string, target, replacement)
+  }
+}
+
+fn replace_after_marker(
+  dump_string: String,
+  marker: String,
+  field_name: String,
+) -> String {
+  let target = "\"" <> field_name <> "\":"
+  let replacement = "\"missing" <> field_name <> "\":"
+  case string.split_once(dump_string, marker) {
+    Ok(#(before, after)) ->
+      before <> marker <> string.replace(after, target, replacement)
+    Error(_) -> string.replace(dump_string, target, replacement)
+  }
+}
+
 pub fn dump_state_default_proxy_test() {
   let proxy = draft_proxy.new()
-  assert json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
-    == "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+  let dumped = json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
+  assert string.contains(
+    dumped,
+    "\"schema\":\"shopify-draft-proxy/state-dump\"",
+  )
+  assert string.contains(dumped, "\"createdAt\":\"2026-04-29T12:00:00.000Z\"")
+  assert string.contains(dumped, "\"baseState\":{\"kind\":\"plain\"")
+  assert string.contains(dumped, "\"stagedState\":{\"kind\":\"plain\"")
+  assert string.contains(
+    dumped,
+    "\"mutationLog\":{\"kind\":\"plain\",\"value\":[]}",
+  )
+  assert string.contains(dumped, "\"nextSyntheticId\":1")
 }
 
 pub fn dump_state_after_mutation_includes_log_and_advances_identity_test() {
@@ -1062,10 +1168,69 @@ pub fn restore_state_round_trips_mutation_log_test() {
   assert json.to_string(draft_proxy.get_log_snapshot(restored)) == original_log
 }
 
+pub fn restore_state_round_trips_complete_runtime_dump_test() {
+  let original = draft_proxy.new()
+  let #(_, original) =
+    draft_proxy.process_request(
+      original,
+      graphql_request(saved_search_create_body),
+    )
+  let webhook_body =
+    "{\"query\":\"mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \\\"https://hooks.example.com/orders\\\", format: JSON }) { webhookSubscription { id topic uri format } userErrors { field message } } }\"}"
+  let #(_, original) =
+    draft_proxy.process_request(original, graphql_request(webhook_body))
+  let original_state = json.to_string(draft_proxy.get_state_snapshot(original))
+  let original_log = json.to_string(draft_proxy.get_log_snapshot(original))
+  let dumped =
+    json.to_string(draft_proxy.dump_state(original, fixed_created_at))
+  let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
+  assert json.to_string(draft_proxy.get_state_snapshot(restored))
+    == original_state
+  assert json.to_string(draft_proxy.get_log_snapshot(restored)) == original_log
+  assert json.to_string(draft_proxy.dump_state(restored, fixed_created_at))
+    == dumped
+}
+
+pub fn restore_state_round_trips_ported_state_buckets_test() {
+  let proxy = draft_proxy.new()
+  let #(_, proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
+  let webhook_body =
+    "{\"query\":\"mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \\\"https://hooks.example.com/orders\\\", format: JSON }) { webhookSubscription { id topic uri format } userErrors { field message } } }\"}"
+  let #(_, proxy) =
+    draft_proxy.process_request(proxy, graphql_request(webhook_body))
+  let dumped = json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
+  let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
+  let serialized = json.to_string(draft_proxy.get_state_snapshot(restored))
+  assert string.contains(serialized, "\"savedSearches\":{")
+  assert string.contains(serialized, "\"webhookSubscriptions\":{")
+  assert string.contains(serialized, "\"name\":\"Promo orders\"")
+  assert string.contains(serialized, "\"topic\":\"ORDERS_CREATE\"")
+}
+
+pub fn restore_snapshot_installs_base_state_and_ignores_unknown_buckets_test() {
+  let snapshot =
+    "{\"kind\":\"normalized-state-snapshot\",\"baseState\":{\"products\":{},\"savedSearches\":{\"gid://shopify/SavedSearch/900\":{\"id\":\"gid://shopify/SavedSearch/900\",\"legacyResourceId\":\"900\",\"name\":\"Snapshot search\",\"query\":\"tag:snapshot\",\"resourceType\":\"ORDER\",\"searchTerms\":\"\",\"filters\":[],\"cursor\":null}},\"savedSearchOrder\":[\"gid://shopify/SavedSearch/900\"]}}"
+  let assert Ok(proxy) =
+    draft_proxy.restore_snapshot(draft_proxy.new(), snapshot)
+  let serialized = json.to_string(draft_proxy.get_state_snapshot(proxy))
+  assert string.contains(serialized, "\"baseState\"")
+  assert string.contains(serialized, "\"Snapshot search\"")
+  assert string.contains(serialized, "\"stagedState\"")
+  assert string.contains(serialized, "\"savedSearches\":{}")
+}
+
 pub fn restore_state_rejects_unsupported_schema_test() {
   let proxy = draft_proxy.new()
   let dump_with_bad_schema =
-    "{\"schema\":\"some/other/schema\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+    default_dump_string()
+    |> string.replace(
+      "\"schema\":\"shopify-draft-proxy/state-dump\"",
+      "\"schema\":\"some/other/schema\"",
+    )
   let assert Error(err) = draft_proxy.restore_state(proxy, dump_with_bad_schema)
   case err {
     draft_proxy.UnsupportedSchema(found: "some/other/schema") -> Nil
@@ -1076,7 +1241,11 @@ pub fn restore_state_rejects_unsupported_schema_test() {
 pub fn restore_state_rejects_unsupported_version_test() {
   let proxy = draft_proxy.new()
   let dump_with_bad_version =
-    "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":99,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+    default_dump_string()
+    |> string.replace(
+      "\"version\":1,\"createdAt\"",
+      "\"version\":99,\"createdAt\"",
+    )
   let assert Error(err) =
     draft_proxy.restore_state(proxy, dump_with_bad_version)
   case err {
@@ -1088,7 +1257,8 @@ pub fn restore_state_rejects_unsupported_version_test() {
 pub fn restore_state_rejects_unsupported_store_version_test() {
   let proxy = draft_proxy.new()
   let dump_with_bad_store_version =
-    "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":7,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+    default_dump_string()
+    |> string.replace("\"store\":{\"version\":1", "\"store\":{\"version\":7")
   let assert Error(err) =
     draft_proxy.restore_state(proxy, dump_with_bad_store_version)
   case err {
@@ -1100,7 +1270,8 @@ pub fn restore_state_rejects_unsupported_store_version_test() {
 pub fn restore_state_rejects_invalid_synthetic_id_test() {
   let proxy = draft_proxy.new()
   let dump_with_zero_id =
-    "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":0,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+    default_dump_string()
+    |> string.replace("\"nextSyntheticId\":1", "\"nextSyntheticId\":0")
   let assert Error(err) = draft_proxy.restore_state(proxy, dump_with_zero_id)
   case err {
     draft_proxy.InvalidSyntheticIdentity(_) -> Nil
@@ -1127,6 +1298,43 @@ pub fn restore_state_rejects_missing_fields_test() {
     draft_proxy.MalformedDumpJson(_) -> Nil
     _ -> panic as "expected MalformedDumpJson error"
   }
+}
+
+pub fn restore_state_rejects_missing_store_fields_test() {
+  let default_dump = default_dump_string()
+  expect_malformed_dump(
+    default_dump |> string.replace("\"baseState\":", "\"missingBaseState\":"),
+  )
+  expect_malformed_dump(
+    default_dump
+    |> string.replace("\"stagedState\":", "\"missingStagedState\":"),
+  )
+  expect_malformed_dump(
+    default_dump
+    |> string.replace("\"mutationLog\":", "\"missingMutationLog\":"),
+  )
+}
+
+pub fn restore_state_rejects_missing_every_serialized_base_state_bucket_test() {
+  let default_dump = default_dump_string()
+  state_serialization.base_state_dump_field_names()
+  |> list.each(fn(field_name) {
+    expect_malformed_dump(remove_base_state_dump_bucket(
+      default_dump,
+      field_name,
+    ))
+  })
+}
+
+pub fn restore_state_rejects_missing_every_serialized_staged_state_bucket_test() {
+  let default_dump = default_dump_string()
+  state_serialization.staged_state_dump_field_names()
+  |> list.each(fn(field_name) {
+    expect_malformed_dump(remove_staged_state_dump_bucket(
+      default_dump,
+      field_name,
+    ))
+  })
 }
 
 pub fn dump_state_constants_are_stable_test() {

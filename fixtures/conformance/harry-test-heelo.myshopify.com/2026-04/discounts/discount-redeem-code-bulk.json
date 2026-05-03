@@ -65,64 +65,6 @@
       }
     }
   },
-  "seedDiscounts": [
-    {
-      "id": "gid://shopify/DiscountCodeNode/1639018103090",
-      "codeDiscount": {
-        "__typename": "DiscountCodeBasic",
-        "title": "HAR-438 redeem code bulk 1777416023154",
-        "status": "ACTIVE",
-        "summary": "10% off one-time purchase products",
-        "startsAt": "2026-04-28T22:39:23Z",
-        "endsAt": null,
-        "createdAt": "2026-04-28T22:40:23Z",
-        "updatedAt": "2026-04-28T22:40:23Z",
-        "asyncUsageCount": 0,
-        "discountClasses": ["ORDER"],
-        "combinesWith": {
-          "productDiscounts": false,
-          "orderDiscounts": true,
-          "shippingDiscounts": false
-        },
-        "codes": {
-          "nodes": [
-            {
-              "id": "gid://shopify/DiscountRedeemCode/21582085751090",
-              "code": "HAR438BASE1777416023154",
-              "asyncUsageCount": 0
-            }
-          ],
-          "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjoyMTU4MjA4NTc1MTA5MCwibGFzdF92YWx1ZSI6IjIxNTgyMDg1NzUxMDkwIn0=",
-            "endCursor": "eyJsYXN0X2lkIjoyMTU4MjA4NTc1MTA5MCwibGFzdF92YWx1ZSI6IjIxNTgyMDg1NzUxMDkwIn0="
-          }
-        },
-        "codesCount": {
-          "count": 1,
-          "precision": "EXACT"
-        },
-        "context": {
-          "__typename": "DiscountBuyerSelectionAll",
-          "all": "ALL"
-        },
-        "customerGets": {
-          "value": {
-            "__typename": "DiscountPercentage",
-            "percentage": 0.1
-          },
-          "items": {
-            "__typename": "AllDiscountItems",
-            "allItems": true
-          },
-          "appliesOnOneTimePurchase": true,
-          "appliesOnSubscription": false
-        },
-        "minimumRequirement": null
-      }
-    }
-  ],
   "scopeProbe": {
     "availableScopes": [
       "read_assigned_fulfillment_orders",
@@ -572,5 +514,35 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1639018103090"
+      },
+      "query": "sha:DiscountHydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1639018103090",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/21582085751090",
+                      "code": "HAR438BASE1777416023154"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -429,11 +429,11 @@ pub fn default_registry() -> List(RegistryEntry) {
       type_: Query,
       domain: Apps,
       execution: OverlayRead,
-      implemented: False,
+      implemented: True,
       match_names: ["currentAppInstallation", "CurrentAppInstallation"],
-      runtime_tests: [],
+      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
       support_notes: Some(
-        "HAR-301 declared current app installation read gap. Captured 2025-01 evidence records access scopes, app identity, empty activeSubscriptions, empty allSubscriptions, and empty oneTimePurchases for the active conformance install.",
+        "HAR-526 routes current app installation reads through a gated LiveHybrid app handler: cold reads can pass through to Shopify, while staged/hydrated app billing and access state resolves locally for downstream read-after-write and read-after-uninstall parity.",
       ),
     ),
     RegistryEntry(
@@ -1619,9 +1619,12 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["event", "Event"],
-      runtime_tests: ["tests/integration/event-query-shapes.test.ts"],
+      runtime_tests: [
+        "gleam/test/shopify_draft_proxy/proxy/events_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported.",
+        "HAR-323 captured top-level Event no-data behavior. Gleam snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported.",
       ),
     ),
     RegistryEntry(
@@ -1631,9 +1634,12 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["events", "Events"],
-      runtime_tests: ["tests/integration/event-query-shapes.test.ts"],
+      runtime_tests: [
+        "gleam/test/shopify_draft_proxy/proxy/events_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported.",
+        "HAR-323 captured top-level Event no-data behavior. Gleam snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported.",
       ),
     ),
     RegistryEntry(
@@ -1643,9 +1649,12 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["eventsCount", "EventsCount"],
-      runtime_tests: ["tests/integration/event-query-shapes.test.ts"],
+      runtime_tests: [
+        "gleam/test/shopify_draft_proxy/proxy/events_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported.",
+        "HAR-323 captured top-level Event no-data behavior. Gleam snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported.",
       ),
     ),
     RegistryEntry(
@@ -5887,7 +5896,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["giftCard", "GiftCard"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+      ],
       support_notes: Some(
         "Snapshot reads resolve from normalized gift-card state and return null for missing IDs. Staged lifecycle mutations are visible to downstream giftCard(id:) reads without sending supported writes upstream.",
       ),
@@ -5899,7 +5911,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["giftCards", "GiftCards"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+      ],
       support_notes: Some(
         "Connection reads use shared pagination helpers over normalized gift-card state and preserve empty/no-data structures in snapshot mode.",
       ),
@@ -5911,7 +5926,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["giftCardsCount", "GiftCardsCount"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+      ],
       support_notes: Some(
         "Local count support covers exact no-data and staged gift-card counts with id, status, balance_status, and visible code-fragment query filtering.",
       ),
@@ -5923,7 +5941,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["giftCardConfiguration", "GiftCardConfiguration"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+      ],
       support_notes: Some(
         "Snapshot support exposes issueLimit and purchaseLimit money objects from normalized gift-card configuration, with safe zero-value placeholders when no readable configuration fixture is present.",
       ),
@@ -5935,7 +5956,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["giftCardCreate", "GiftCardCreate"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Locally stages gift-card creation with initial balance, masked code metadata, optional note/expiry/template/customer metadata, stable timestamps, and raw mutation retention for commit replay.",
       ),
@@ -5947,7 +5971,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["giftCardUpdate", "GiftCardUpdate"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Locally stages mutable metadata updates and keeps downstream giftCard/giftCards reads consistent without runtime Shopify writes.",
       ),
@@ -5959,7 +5986,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["giftCardCredit", "GiftCardCredit"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Locally stages balance credits and transaction nodes for supported local gift cards.",
       ),
@@ -5971,7 +6001,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["giftCardDebit", "GiftCardDebit"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Locally stages balance debits and transaction nodes for supported local gift cards, including a local insufficient-balance guardrail.",
       ),
@@ -5983,7 +6016,10 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["giftCardDeactivate", "GiftCardDeactivate"],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Locally stages deactivation by flipping enabled state and recording deactivatedAt while preserving read-after-write visibility.",
       ),
@@ -5998,7 +6034,10 @@ pub fn default_registry() -> List(RegistryEntry) {
         "giftCardSendNotificationToCustomer",
         "GiftCardSendNotificationToCustomer",
       ],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Short-circuits customer notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling.",
       ),
@@ -6013,7 +6052,10 @@ pub fn default_registry() -> List(RegistryEntry) {
         "giftCardSendNotificationToRecipient",
         "GiftCardSendNotificationToRecipient",
       ],
-      runtime_tests: ["tests/integration/gift-card-flow.test.ts"],
+      runtime_tests: [
+        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
+      ],
       support_notes: Some(
         "Short-circuits recipient notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling.",
       ),
@@ -7629,9 +7671,11 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscription", "WebhookSubscription"],
       runtime_tests: [
         "tests/integration/webhook-subscription-query-shapes.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
       ],
       support_notes: Some(
-        "Local snapshot/live-hybrid reads are modeled for API-created webhook subscription records in normalized state. Unknown IDs return null. Create/update/delete staging remains unsupported until a local mutation lifecycle model exists.",
+        "The TypeScript runtime remains in place while the Gleam runtime also models local reads for API-created webhook subscription records in normalized state. Unknown IDs return null, and staged create/update/delete effects are visible through downstream detail reads.",
       ),
     ),
     RegistryEntry(
@@ -7643,9 +7687,11 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscriptions", "WebhookSubscriptions"],
       runtime_tests: [
         "tests/integration/webhook-subscription-query-shapes.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
       ],
       support_notes: Some(
-        "Local snapshot/live-hybrid catalog reads are modeled for API-created webhook subscriptions with normalized nodes, edges, pageInfo, stable synthetic cursors, ID sorting, reverse ordering, pagination, and simple captured query filtering. App TOML webhooks remain out of scope.",
+        "The TypeScript runtime remains in place while the Gleam runtime also models catalog reads for API-created webhook subscriptions with normalized nodes, edges, pageInfo, stable synthetic cursors, ID sorting, reverse ordering, pagination, and simple captured query filtering. App TOML webhooks remain out of scope.",
       ),
     ),
     RegistryEntry(
@@ -7657,9 +7703,11 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscriptionsCount", "WebhookSubscriptionsCount"],
       runtime_tests: [
         "tests/integration/webhook-subscription-query-shapes.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
       ],
       support_notes: Some(
-        "Local snapshot/live-hybrid count reads are synthesized from normalized API-created webhook subscription state with Shopify-like count/precision fields and limit-aware AT_LEAST precision.",
+        "The TypeScript runtime remains in place while the Gleam runtime also synthesizes count reads from normalized API-created webhook subscription state with Shopify-like count/precision fields and limit-aware AT_LEAST precision.",
       ),
     ),
     RegistryEntry(
@@ -7671,9 +7719,12 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscriptionCreate", "WebhookSubscriptionCreate"],
       runtime_tests: [
         "tests/integration/webhook-subscription-mutation-flow.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
       ],
       support_notes: Some(
-        "Local staging is supported for the HAR-267 captured Admin API-created HTTP URI registration subset, including topic, format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, missing URI userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility. App TOML webhook config and webhook delivery remain out of scope.",
+        "The TypeScript runtime remains in place while the Gleam runtime also stages the HAR-267 captured Admin API-created HTTP URI registration subset locally, including topic, format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, missing URI userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility. App TOML webhook config and webhook delivery remain out of scope.",
       ),
     ),
     RegistryEntry(
@@ -7685,9 +7736,12 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscriptionUpdate", "WebhookSubscriptionUpdate"],
       runtime_tests: [
         "tests/integration/webhook-subscription-mutation-flow.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
       ],
       support_notes: Some(
-        "Local staging updates staged or hydrated webhook subscriptions for the HAR-267 captured Admin API-created HTTP URI subset, including format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, unknown-id userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility without runtime Shopify writes.",
+        "The TypeScript runtime remains in place while the Gleam runtime also locally updates staged or hydrated webhook subscriptions for the HAR-267 captured Admin API-created HTTP URI subset, including format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, unknown-id userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(
@@ -7699,9 +7753,12 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["webhookSubscriptionDelete", "WebhookSubscriptionDelete"],
       runtime_tests: [
         "tests/integration/webhook-subscription-mutation-flow.test.ts",
+        "gleam/test/parity_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
       ],
       support_notes: Some(
-        "Local staging deregisters staged or hydrated API-created webhook subscriptions for the HAR-267 captured subset, returning deletedWebhookSubscriptionId/userErrors payloads, preserving raw mutation-log replay order, and making downstream detail/catalog/count reads observe deletion without runtime Shopify writes. Unknown or already deleted IDs return the captured Webhook subscription does not exist userError; missing/null ID branches return Shopify-like GraphQL validation errors locally.",
+        "The TypeScript runtime remains in place while the Gleam runtime also locally deregisters staged or hydrated API-created webhook subscriptions for the HAR-267 captured subset, returning deletedWebhookSubscriptionId/userErrors payloads, preserving raw mutation-log replay order, and making downstream detail/catalog/count reads observe deletion without runtime Shopify writes. Unknown or already deleted IDs return the captured Webhook subscription does not exist userError; missing/null ID branches return Shopify-like GraphQL validation errors locally.",
       ),
     ),
     RegistryEntry(

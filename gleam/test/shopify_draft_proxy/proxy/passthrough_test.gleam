@@ -10,9 +10,11 @@ import gleam/javascript/promise
 import gleam/json
 import gleam/option.{None}
 import shopify_draft_proxy/proxy/commit
-import shopify_draft_proxy/proxy/draft_proxy.{
-  type Request, Config, LiveHybrid, Request, Response,
+import shopify_draft_proxy/proxy/draft_proxy.{type Request}
+import shopify_draft_proxy/proxy/proxy_state.{
+  Config, LiveHybrid, Request, Response,
 }
+import shopify_draft_proxy/shopify/upstream_client
 
 fn live_hybrid_proxy() -> draft_proxy.DraftProxy {
   draft_proxy.with_config(Config(
@@ -38,6 +40,20 @@ fn passthrough_request() -> Request {
     path: "/admin/api/2025-01/graphql.json",
     headers: dict.new(),
     body: "{\"query\":\"{ __totallyUnknownRoot { id } }\"}",
+  )
+}
+
+@target(javascript)
+fn unported_registry_request() -> Request {
+  // `priceListFixedPricesAdd` is an implemented TypeScript registry root,
+  // but price-list fixed-price mutation execution is not yet ported to Gleam.
+  // Live-hybrid dispatch must therefore use the unsupported passthrough
+  // branch instead of claiming a local dispatcher exists.
+  Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: dict.new(),
+    body: "{\"query\":\"mutation { priceListFixedPricesAdd(priceListId: \\\"gid://shopify/PriceList/1\\\", prices: []) { userErrors { field message } } }\"}",
   )
 }
 
@@ -144,4 +160,56 @@ pub fn passthrough_sync_dispatch_returns_501_on_js_test() {
     draft_proxy.process_request(proxy, request)
 
   assert status == 501
+}
+
+@target(javascript)
+pub fn unported_implemented_root_uses_passthrough_on_js_test() {
+  let proxy = live_hybrid_proxy()
+  let request = unported_registry_request()
+
+  let #(Response(status: status, body: body, ..), _next) =
+    draft_proxy.process_request(proxy, request)
+
+  assert status == 501
+  assert json.to_string(body)
+    == "{\"ok\":false,\"message\":\"Live-hybrid passthrough requires async dispatch on the JavaScript target. Call process_request_async(proxy, request) and await the returned Promise.\"}"
+}
+
+// ---------------------------------------------------------------------------
+// `with_upstream_transport` injection
+// ---------------------------------------------------------------------------
+
+pub fn with_upstream_transport_routes_passthrough_via_sync_send_test() {
+  let upstream_body = "{\"data\":{\"__totallyUnknownRoot\":{\"id\":\"99\"}}}"
+  let transport =
+    upstream_client.SyncTransport(send: fn(_req) {
+      Ok(commit.HttpOutcome(status: 200, body: upstream_body))
+    })
+  let proxy =
+    live_hybrid_proxy()
+    |> draft_proxy.with_upstream_transport(transport)
+
+  // `process_request` is the production entry point — when a transport
+  // is installed, both Erlang and JS must route passthrough through it
+  // synchronously without needing the test seam helpers.
+  let #(Response(status: status, body: body, ..), _next) =
+    draft_proxy.process_request(proxy, passthrough_request())
+
+  assert status == 200
+  assert json.to_string(body) == upstream_body
+}
+
+pub fn with_upstream_transport_surfaces_transport_failure_test() {
+  let transport =
+    upstream_client.SyncTransport(send: fn(_req) {
+      Error(commit.CommitTransportError(message: "fake failure"))
+    })
+  let proxy =
+    live_hybrid_proxy()
+    |> draft_proxy.with_upstream_transport(transport)
+
+  let #(Response(status: status, ..), _next) =
+    draft_proxy.process_request(proxy, passthrough_request())
+
+  assert status == 502
 }

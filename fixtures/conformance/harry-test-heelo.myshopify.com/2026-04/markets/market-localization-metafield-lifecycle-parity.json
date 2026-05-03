@@ -349,5 +349,140 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MarketLocalizationMetafieldRead",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "marketId": "gid://shopify/Market/92276719922"
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/42994289180978",
+              "marketLocalizableContent": [],
+              "marketLocalizations": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "marketLocalizations": [
+          {
+            "key": "value",
+            "value": "Erable o49bpv0s",
+            "marketId": "gid://shopify/Market/92276719922",
+            "marketLocalizableContentDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af"
+          }
+        ]
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10173649322290",
+              "handle": "har-market-localization-o49bpv0s",
+              "title": "HAR market localization o49bpv0s",
+              "status": "DRAFT",
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/42994289180978",
+                    "namespace": "custom",
+                    "key": "market_material",
+                    "type": "single_line_text_field",
+                    "value": "Maple o49bpv0s",
+                    "compareDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af",
+                    "createdAt": "2026-04-29T11:47:44Z",
+                    "updatedAt": "2026-04-29T11:47:44Z",
+                    "ownerType": "PRODUCT"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276719922"]
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10173649322290",
+              "handle": "har-market-localization-o49bpv0s",
+              "title": "HAR market localization o49bpv0s",
+              "status": "DRAFT",
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/42994289180978",
+                    "namespace": "custom",
+                    "key": "market_material",
+                    "type": "single_line_text_field",
+                    "value": "Maple o49bpv0s",
+                    "compareDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af",
+                    "createdAt": "2026-04-29T11:47:44Z",
+                    "updatedAt": "2026-04-29T11:47:44Z",
+                    "ownerType": "PRODUCT"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

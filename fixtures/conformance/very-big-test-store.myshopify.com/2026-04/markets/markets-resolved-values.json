@@ -83,5 +83,107 @@
         "restoreRate": 100
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MarketsResolvedValuesRead",
+      "variables": {
+        "first": 3,
+        "buyerSignal": {
+          "countryCode": "US"
+        }
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketsResolvedValues": {
+              "currencyCode": "CAD",
+              "priceInclusivity": {
+                "dutiesIncluded": false,
+                "taxesIncluded": false
+              },
+              "catalogs": {
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "webPresences": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9",
+                    "node": {
+                      "id": "gid://shopify/MarketWebPresence/33131921641",
+                      "subfolderSuffix": null,
+                      "domain": {
+                        "id": "gid://shopify/Domain/93049946345",
+                        "host": "very-big-test-store.myshopify.com",
+                        "url": "https://very-big-test-store.myshopify.com",
+                        "sslEnabled": true
+                      },
+                      "rootUrls": [
+                        {
+                          "locale": "en",
+                          "url": "https://very-big-test-store.myshopify.com/"
+                        }
+                      ],
+                      "defaultLocale": {
+                        "locale": "en",
+                        "name": "English",
+                        "primary": true,
+                        "published": true
+                      },
+                      "alternateLocales": [],
+                      "markets": {
+                        "edges": [
+                          {
+                            "cursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9",
+                            "node": {
+                              "id": "gid://shopify/Market/35532308713",
+                              "name": "Conformance US",
+                              "handle": "conformance-us",
+                              "status": "ACTIVE",
+                              "type": "REGION"
+                            }
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": false,
+                          "hasPreviousPage": false,
+                          "startCursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9",
+                          "endCursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9",
+                  "endCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 42,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1950,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

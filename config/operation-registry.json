@@ -340,10 +340,10 @@
     "type": "query",
     "domain": "apps",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["currentAppInstallation", "CurrentAppInstallation"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 declared current app installation read gap. Captured 2025-01 evidence records access scopes, app identity, empty activeSubscriptions, empty allSubscriptions, and empty oneTimePurchases for the active conformance install."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-526 routes current app installation reads through a gated LiveHybrid app handler: cold reads can pass through to Shopify, while staged/hydrated app billing and access state resolves locally for downstream read-after-write and read-after-uninstall parity."
   },
   {
     "name": "appPurchaseOneTimeCreate",
@@ -1300,8 +1300,11 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["event", "Event"],
-    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
-    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported."
+    "runtimeTests": [
+      "gleam/test/shopify_draft_proxy/proxy/events_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"
+    ],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Gleam snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported."
   },
   {
     "name": "events",
@@ -1310,8 +1313,11 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["events", "Events"],
-    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
-    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported."
+    "runtimeTests": [
+      "gleam/test/shopify_draft_proxy/proxy/events_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"
+    ],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Gleam snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported."
   },
   {
     "name": "eventsCount",
@@ -1320,8 +1326,11 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["eventsCount", "EventsCount"],
-    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
-    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported."
+    "runtimeTests": [
+      "gleam/test/shopify_draft_proxy/proxy/events_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"
+    ],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Gleam snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported."
   },
   {
     "name": "customers",
@@ -4623,7 +4632,10 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["giftCard", "GiftCard"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam"
+    ],
     "supportNotes": "Snapshot reads resolve from normalized gift-card state and return null for missing IDs. Staged lifecycle mutations are visible to downstream giftCard(id:) reads without sending supported writes upstream."
   },
   {
@@ -4633,7 +4645,10 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["giftCards", "GiftCards"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam"
+    ],
     "supportNotes": "Connection reads use shared pagination helpers over normalized gift-card state and preserve empty/no-data structures in snapshot mode."
   },
   {
@@ -4643,7 +4658,10 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["giftCardsCount", "GiftCardsCount"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam"
+    ],
     "supportNotes": "Local count support covers exact no-data and staged gift-card counts with id, status, balance_status, and visible code-fragment query filtering."
   },
   {
@@ -4653,7 +4671,10 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["giftCardConfiguration", "GiftCardConfiguration"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam"
+    ],
     "supportNotes": "Snapshot support exposes issueLimit and purchaseLimit money objects from normalized gift-card configuration, with safe zero-value placeholders when no readable configuration fixture is present."
   },
   {
@@ -4663,7 +4684,10 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardCreate", "GiftCardCreate"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
+    ],
     "supportNotes": "Locally stages gift-card creation with initial balance, masked code metadata, optional note/expiry/template/customer metadata, stable timestamps, and raw mutation retention for commit replay."
   },
   {
@@ -4673,7 +4697,10 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardUpdate", "GiftCardUpdate"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
+    ],
     "supportNotes": "Locally stages mutable metadata updates and keeps downstream giftCard/giftCards reads consistent without runtime Shopify writes."
   },
   {
@@ -4683,7 +4710,10 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardCredit", "GiftCardCredit"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
+    ],
     "supportNotes": "Locally stages balance credits and transaction nodes for supported local gift cards."
   },
   {
@@ -4693,7 +4723,10 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardDebit", "GiftCardDebit"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
+    ],
     "supportNotes": "Locally stages balance debits and transaction nodes for supported local gift cards, including a local insufficient-balance guardrail."
   },
   {
@@ -4703,7 +4736,10 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardDeactivate", "GiftCardDeactivate"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
+    ],
     "supportNotes": "Locally stages deactivation by flipping enabled state and recording deactivatedAt while preserving read-after-write visibility."
   },
   {
@@ -4713,7 +4749,10 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardSendNotificationToCustomer", "GiftCardSendNotificationToCustomer"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
+    ],
     "supportNotes": "Short-circuits customer notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling."
   },
   {
@@ -4723,7 +4762,10 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["giftCardSendNotificationToRecipient", "GiftCardSendNotificationToRecipient"],
-    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "runtimeTests": [
+      "tests/integration/gift-card-flow.test.ts",
+      "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
+    ],
     "supportNotes": "Short-circuits recipient notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling."
   },
   {
@@ -5940,8 +5982,12 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["webhookSubscription", "WebhookSubscription"],
-    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
-    "supportNotes": "Local snapshot/live-hybrid reads are modeled for API-created webhook subscription records in normalized state. Unknown IDs return null. Create/update/delete staging remains unsupported until a local mutation lifecycle model exists."
+    "runtimeTests": [
+      "tests/integration/webhook-subscription-query-shapes.test.ts",
+      "gleam/test/parity_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam"
+    ],
+    "supportNotes": "The TypeScript runtime remains in place while the Gleam runtime also models local reads for API-created webhook subscription records in normalized state. Unknown IDs return null, and staged create/update/delete effects are visible through downstream detail reads."
   },
   {
     "name": "webhookSubscriptions",
@@ -5950,8 +5996,12 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["webhookSubscriptions", "WebhookSubscriptions"],
-    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
-    "supportNotes": "Local snapshot/live-hybrid catalog reads are modeled for API-created webhook subscriptions with normalized nodes, edges, pageInfo, stable synthetic cursors, ID sorting, reverse ordering, pagination, and simple captured query filtering. App TOML webhooks remain out of scope."
+    "runtimeTests": [
+      "tests/integration/webhook-subscription-query-shapes.test.ts",
+      "gleam/test/parity_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam"
+    ],
+    "supportNotes": "The TypeScript runtime remains in place while the Gleam runtime also models catalog reads for API-created webhook subscriptions with normalized nodes, edges, pageInfo, stable synthetic cursors, ID sorting, reverse ordering, pagination, and simple captured query filtering. App TOML webhooks remain out of scope."
   },
   {
     "name": "webhookSubscriptionsCount",
@@ -5960,8 +6010,12 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["webhookSubscriptionsCount", "WebhookSubscriptionsCount"],
-    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
-    "supportNotes": "Local snapshot/live-hybrid count reads are synthesized from normalized API-created webhook subscription state with Shopify-like count/precision fields and limit-aware AT_LEAST precision."
+    "runtimeTests": [
+      "tests/integration/webhook-subscription-query-shapes.test.ts",
+      "gleam/test/parity_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam"
+    ],
+    "supportNotes": "The TypeScript runtime remains in place while the Gleam runtime also synthesizes count reads from normalized API-created webhook subscription state with Shopify-like count/precision fields and limit-aware AT_LEAST precision."
   },
   {
     "name": "webhookSubscriptionCreate",
@@ -5970,8 +6024,13 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["webhookSubscriptionCreate", "WebhookSubscriptionCreate"],
-    "runtimeTests": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
-    "supportNotes": "Local staging is supported for the HAR-267 captured Admin API-created HTTP URI registration subset, including topic, format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, missing URI userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility. App TOML webhook config and webhook delivery remain out of scope."
+    "runtimeTests": [
+      "tests/integration/webhook-subscription-mutation-flow.test.ts",
+      "gleam/test/parity_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam"
+    ],
+    "supportNotes": "The TypeScript runtime remains in place while the Gleam runtime also stages the HAR-267 captured Admin API-created HTTP URI registration subset locally, including topic, format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, missing URI userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility. App TOML webhook config and webhook delivery remain out of scope."
   },
   {
     "name": "webhookSubscriptionUpdate",
@@ -5980,8 +6039,13 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["webhookSubscriptionUpdate", "WebhookSubscriptionUpdate"],
-    "runtimeTests": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
-    "supportNotes": "Local staging updates staged or hydrated webhook subscriptions for the HAR-267 captured Admin API-created HTTP URI subset, including format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, unknown-id userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility without runtime Shopify writes."
+    "runtimeTests": [
+      "tests/integration/webhook-subscription-mutation-flow.test.ts",
+      "gleam/test/parity_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam"
+    ],
+    "supportNotes": "The TypeScript runtime remains in place while the Gleam runtime also locally updates staged or hydrated webhook subscriptions for the HAR-267 captured Admin API-created HTTP URI subset, including format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, unknown-id userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility without runtime Shopify writes."
   },
   {
     "name": "webhookSubscriptionDelete",
@@ -5990,8 +6054,13 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["webhookSubscriptionDelete", "WebhookSubscriptionDelete"],
-    "runtimeTests": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
-    "supportNotes": "Local staging deregisters staged or hydrated API-created webhook subscriptions for the HAR-267 captured subset, returning deletedWebhookSubscriptionId/userErrors payloads, preserving raw mutation-log replay order, and making downstream detail/catalog/count reads observe deletion without runtime Shopify writes. Unknown or already deleted IDs return the captured Webhook subscription does not exist userError; missing/null ID branches return Shopify-like GraphQL validation errors locally."
+    "runtimeTests": [
+      "tests/integration/webhook-subscription-mutation-flow.test.ts",
+      "gleam/test/parity_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+      "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam"
+    ],
+    "supportNotes": "The TypeScript runtime remains in place while the Gleam runtime also locally deregisters staged or hydrated API-created webhook subscriptions for the HAR-267 captured subset, returning deletedWebhookSubscriptionId/userErrors payloads, preserving raw mutation-log replay order, and making downstream detail/catalog/count reads observe deletion without runtime Shopify writes. Unknown or already deleted IDs return the captured Webhook subscription does not exist userError; missing/null ID branches return Shopify-like GraphQL validation errors locally."
   },
   {
     "name": "segment",

@@ -8,6 +8,7 @@
 ////     "liveCaptureFiles": ["fixtures/.../capture.json"],
 ////     "proxyRequest": {                                <-- primary
 ////       "documentPath": "config/parity-requests/.../op.graphql",
+////       "apiVersion": "2026-04",
 ////       "variablesCapturePath": "$.cases[1].variables"  // OR
 ////       "variablesPath": "config/.../variables.json"    // OR
 ////       "variables": { … inline, may contain
@@ -20,6 +21,8 @@
 ////           "name": "...",
 ////           "capturePath": "$....",
 ////           "proxyPath": "$....",
+////           "selectedPaths": ["$.field"],
+////           "upstreamCapturePath": "$.response.payload",
 ////           "expectedDifferences": [...],
 ////           "proxyRequest": { … per-target override, same shape as
 ////                             primary, may use fromPrimaryProxyPath
@@ -52,7 +55,11 @@ pub type ParityVariables {
 }
 
 pub type ProxyRequest {
-  ProxyRequest(document_path: String, variables: ParityVariables)
+  ProxyRequest(
+    document_path: String,
+    variables: ParityVariables,
+    api_version: Option(String),
+  )
 }
 
 pub type TargetRequest {
@@ -65,14 +72,38 @@ pub type TargetRequest {
   OverrideRequest(request: ProxyRequest)
 }
 
+pub type ProxySource {
+  ProxyResponse
+  ProxyState
+  ProxyLog
+}
+
 pub type Target {
   Target(
     name: String,
     capture_path: String,
     proxy_path: String,
+    proxy_source: ProxySource,
+    upstream_capture_path: Option(String),
+    selected_paths: List(String),
     expected_differences: List(ExpectedDifference),
+    excluded_paths: List(String),
     request: TargetRequest,
   )
+}
+
+pub type ParityMode {
+  /// Parity tests run against the proxy in `LiveHybrid` read mode with
+  /// the cassette transport installed. Operation handlers may call
+  /// `upstream_query.fetch_*` to satisfy reads they don't have local
+  /// state for; the cassette services those calls deterministically
+  /// from the recorded `upstreamCalls` field on the capture file.
+  LiveHybridMode
+  /// Parity tests run against the proxy in default `Snapshot` read
+  /// mode with no transport installed. Asserts the proxy's cold-state
+  /// behavior: no upstream calls, reads serve from local state or
+  /// return null/empty as appropriate.
+  SnapshotEmptyMode
 }
 
 pub type Spec {
@@ -82,6 +113,8 @@ pub type Spec {
     proxy_request: ProxyRequest,
     targets: List(Target),
     expected_differences: List(ExpectedDifference),
+    operation_names: List(String),
+    mode: ParityMode,
   )
 }
 
@@ -101,6 +134,12 @@ fn spec_decoder() -> Decoder(Spec) {
   use captures <- decode.field("liveCaptureFiles", decode.list(decode.string))
   use proxy_request <- decode.field("proxyRequest", proxy_request_decoder())
   use comparison <- decode.field("comparison", comparison_decoder())
+  use operation_names <- decode.optional_field(
+    "operationNames",
+    [],
+    decode.list(decode.string),
+  )
+  use mode <- decode.optional_field("mode", LiveHybridMode, mode_decoder())
   case captures {
     [first, ..] ->
       decode.success(Spec(
@@ -109,8 +148,20 @@ fn spec_decoder() -> Decoder(Spec) {
         proxy_request: proxy_request,
         targets: comparison.0,
         expected_differences: comparison.1,
+        operation_names: operation_names,
+        mode: mode,
       ))
     [] -> decode.failure(empty_spec(), "liveCaptureFiles cannot be empty")
+  }
+}
+
+fn mode_decoder() -> Decoder(ParityMode) {
+  use raw <- decode.then(decode.string)
+  case raw {
+    "live-hybrid" -> decode.success(LiveHybridMode)
+    "snapshot-empty" -> decode.success(SnapshotEmptyMode)
+    other ->
+      decode.failure(LiveHybridMode, "unknown parity mode \"" <> other <> "\"")
   }
 }
 
@@ -118,14 +169,25 @@ fn empty_spec() -> Spec {
   Spec(
     scenario_id: "",
     capture_file: "",
-    proxy_request: ProxyRequest(document_path: "", variables: NoVariables),
+    proxy_request: ProxyRequest(
+      document_path: "",
+      variables: NoVariables,
+      api_version: None,
+    ),
     targets: [],
     expected_differences: [],
+    operation_names: [],
+    mode: LiveHybridMode,
   )
 }
 
 fn proxy_request_decoder() -> Decoder(ProxyRequest) {
   use document_path <- decode.field("documentPath", decode.string)
+  use api_version <- decode.optional_field(
+    "apiVersion",
+    None,
+    decode.optional(decode.string),
+  )
   use variables_capture_path <- decode.optional_field(
     "variablesCapturePath",
     None,
@@ -150,6 +212,7 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
   decode.success(ProxyRequest(
     document_path: document_path,
     variables: variables,
+    api_version: api_version,
   ))
 }
 
@@ -183,24 +246,104 @@ fn comparison_decoder() -> Decoder(#(List(Target), List(ExpectedDifference))) {
 fn target_decoder() -> Decoder(Target) {
   use name <- decode.field("name", decode.string)
   use capture_path <- decode.field("capturePath", decode.string)
-  use proxy_path <- decode.field("proxyPath", decode.string)
+  use proxy_path <- decode.optional_field(
+    "proxyPath",
+    None,
+    decode.optional(decode.string),
+  )
+  use proxy_state_path <- decode.optional_field(
+    "proxyStatePath",
+    None,
+    decode.optional(decode.string),
+  )
+  use proxy_log_path <- decode.optional_field(
+    "proxyLogPath",
+    None,
+    decode.optional(decode.string),
+  )
+  use upstream_capture_path <- decode.optional_field(
+    "upstreamCapturePath",
+    None,
+    decode.optional(decode.string),
+  )
   use expected_differences <- decode.optional_field(
     "expectedDifferences",
     [],
     decode.list(expected_difference_decoder()),
+  )
+  use selected_paths <- decode.optional_field(
+    "selectedPaths",
+    [],
+    decode.list(decode.string),
+  )
+  use excluded_paths <- decode.optional_field(
+    "excludedPaths",
+    [],
+    decode.list(decode.string),
   )
   use request <- decode.optional_field(
     "proxyRequest",
     ReusePrimary,
     decode.map(proxy_request_decoder(), OverrideRequest),
   )
-  decode.success(Target(
-    name: name,
-    capture_path: capture_path,
-    proxy_path: proxy_path,
-    expected_differences: expected_differences,
-    request: request,
-  ))
+  let expected_differences =
+    list.append(
+      expected_differences,
+      list.map(excluded_paths, diff.expected_ignore),
+    )
+  case proxy_path, proxy_state_path, proxy_log_path {
+    Some(path), _, _ ->
+      decode.success(Target(
+        name: name,
+        capture_path: capture_path,
+        proxy_path: path,
+        proxy_source: ProxyResponse,
+        upstream_capture_path: upstream_capture_path,
+        selected_paths: selected_paths,
+        expected_differences: expected_differences,
+        excluded_paths: excluded_paths,
+        request: request,
+      ))
+    None, Some(path), _ ->
+      decode.success(Target(
+        name: name,
+        capture_path: capture_path,
+        proxy_path: path,
+        proxy_source: ProxyState,
+        upstream_capture_path: upstream_capture_path,
+        selected_paths: selected_paths,
+        expected_differences: expected_differences,
+        excluded_paths: excluded_paths,
+        request: request,
+      ))
+    None, None, Some(path) ->
+      decode.success(Target(
+        name: name,
+        capture_path: capture_path,
+        proxy_path: path,
+        proxy_source: ProxyLog,
+        upstream_capture_path: upstream_capture_path,
+        selected_paths: selected_paths,
+        expected_differences: expected_differences,
+        excluded_paths: excluded_paths,
+        request: request,
+      ))
+    None, None, None ->
+      decode.failure(
+        Target(
+          name: name,
+          capture_path: capture_path,
+          proxy_path: "$",
+          proxy_source: ProxyResponse,
+          upstream_capture_path: upstream_capture_path,
+          selected_paths: selected_paths,
+          expected_differences: expected_differences,
+          excluded_paths: excluded_paths,
+          request: request,
+        ),
+        "target must define proxyPath, proxyStatePath, or proxyLogPath",
+      )
+  }
 }
 
 fn expected_difference_decoder() -> Decoder(ExpectedDifference) {
@@ -215,5 +358,7 @@ fn expected_difference_decoder() -> Decoder(ExpectedDifference) {
 
 /// Combine spec-level and target-level expected differences.
 pub fn rules_for(spec: Spec, target: Target) -> List(ExpectedDifference) {
+  let excluded = list.map(target.excluded_paths, diff.expected_ignore)
   list.append(spec.expected_differences, target.expected_differences)
+  |> list.append(excluded)
 }

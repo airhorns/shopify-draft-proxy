@@ -378,5 +378,95 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerDataErasureCustomerRead",
+      "variables": {
+        "id": "gid://shopify/Customer/10547408830770"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10547408830770",
+              "email": "hermes-data-erasure-1777314932891@example.com",
+              "firstName": "Hermes",
+              "lastName": "DataErasure",
+              "tags": ["data-erasure-1777314932891", "parity"],
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerAccountPagesHydrate",
+      "variables": {},
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAccountPages": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CustomerAccountPage/221353705778",
+                  "title": "Orders",
+                  "handle": "orders",
+                  "defaultCursor": "eyJsaW1pdCI6MSwib3JkZXIiOiJpZCBhc2MiLCJsYXN0X2lkIjoyMjEzNTM3MDU3NzgsImxhc3RfdmFsdWUiOjIyMTM1MzcwNTc3OCwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                },
+                {
+                  "id": "gid://shopify/CustomerAccountPage/221353738546",
+                  "title": "Profile",
+                  "handle": "profile",
+                  "defaultCursor": "eyJsaW1pdCI6MSwib3JkZXIiOiJpZCBhc2MiLCJsYXN0X2lkIjoyMjEzNTM3Mzg1NDYsImxhc3RfdmFsdWUiOjIyMTM1MzczODU0NiwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                },
+                {
+                  "id": "gid://shopify/CustomerAccountPage/221353771314",
+                  "title": "Settings",
+                  "handle": "settings",
+                  "defaultCursor": "eyJsaW1pdCI6MSwib3JkZXIiOiJpZCBhc2MiLCJsYXN0X2lkIjoyMjEzNTM3NzEzMTQsImxhc3RfdmFsdWUiOjIyMTM1Mzc3MTMxNCwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMjEzNTM3MDU3NzgsImxhc3RfdmFsdWUiOiIyMjEzNTM3MDU3NzgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyMjEzNTM3NzEzMTQsImxhc3RfdmFsdWUiOiIyMjEzNTM3NzEzMTQifQ=="
+              }
+            },
+            "missing": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10547408830770"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10547408830770",
+              "email": "hermes-data-erasure-1777314932891@example.com",
+              "firstName": "Hermes",
+              "lastName": "DataErasure",
+              "tags": ["data-erasure-1777314932891", "parity"],
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

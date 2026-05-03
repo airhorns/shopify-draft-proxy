@@ -27,6 +27,7 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcInt,
@@ -34,6 +35,12 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   default_connection_window_options, get_document_fragments,
   get_field_response_key, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
+}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, single_root_log_draft,
+}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
 }
 import shopify_draft_proxy/search_query_parser.{type SearchQueryTerm}
 import shopify_draft_proxy/shopify/resource_ids
@@ -44,8 +51,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
   type GiftCardRecord, type GiftCardTransactionRecord, type Money,
-  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  Money,
+  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
+  GiftCardTransactionRecord, Money,
 }
 
 // ---------------------------------------------------------------------------
@@ -1169,6 +1176,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -1208,15 +1216,45 @@ fn empty_payload(user_errors: List(UserError)) -> GiftCardPayload {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, GiftCardsError) {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+/// Pattern 2: update/credit/debit/deactivate and notification roots need the
+/// prior upstream gift-card record before they can stage or short-circuit local
+/// effects for an existing Shopify gift card. Snapshot mode/no transport falls
+/// back to the local-only not-found behavior; LiveHybrid parity installs a
+/// cassette for this narrow read.
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Result(MutationOutcome, GiftCardsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
+      Ok(handle_mutation_fields(
+        store,
+        identity,
+        fields,
+        fragments,
+        variables,
+        upstream,
+      ))
     }
   }
 }
@@ -1227,13 +1265,22 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [])
-  let #(data_entries, final_store, final_identity, all_staged) =
+  let initial = #([], store, identity, [], [])
+  let #(data_entries, final_store, final_identity, all_staged, all_drafts) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids) = acc
+      let #(entries, current_store, current_identity, staged_ids, drafts) = acc
       case field {
         Field(name: name, ..) -> {
+          let current_store =
+            maybe_hydrate_gift_card_for_mutation(
+              current_store,
+              name.value,
+              field,
+              variables,
+              upstream,
+            )
           let dispatch = case name.value {
             "giftCardCreate" ->
               Some(handle_gift_card_create(
@@ -1305,12 +1352,24 @@ fn handle_mutation_fields(
           }
           case dispatch {
             None -> acc
-            Some(#(result, next_store, next_identity)) -> #(
-              list.append(entries, [#(result.key, result.payload)]),
-              next_store,
-              next_identity,
-              list.append(staged_ids, result.staged_resource_ids),
-            )
+            Some(#(result, next_store, next_identity)) -> {
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  gift_cards_status_for(name.value, result.staged_resource_ids),
+                  "gift-cards",
+                  "stage-locally",
+                  Some(gift_cards_notes_for(name.value)),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                next_store,
+                next_identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
           }
         }
         _ -> acc
@@ -1321,7 +1380,39 @@ fn handle_mutation_fields(
     store: final_store,
     identity: final_identity,
     staged_resource_ids: all_staged,
+    log_drafts: all_drafts,
   )
+}
+
+/// Mirror the TS dispatcher: notification root fields are
+/// short-circuited (no record staged) but still log a `Staged` entry
+/// because the merchant intent was a stage-locally action. Every
+/// other gift-cards root field that produced no staged record is a
+/// validation `Failed` outcome.
+fn gift_cards_status_for(
+  root_field_name: String,
+  staged_resource_ids: List(String),
+) -> store.EntryStatus {
+  case root_field_name, staged_resource_ids {
+    "giftCardSendNotificationToCustomer", _
+    | "giftCardSendNotificationToRecipient", _
+    -> store.Staged
+    _, [] -> store.Failed
+    _, [_, ..] -> store.Staged
+  }
+}
+
+/// Notes string mirroring the TS `gift-cards` dispatcher in
+/// `routes.ts`: notification root fields explicitly call out that
+/// they're short-circuited and never invoke a customer-visible
+/// notification at runtime.
+fn gift_cards_notes_for(root_field_name: String) -> String {
+  case root_field_name {
+    "giftCardSendNotificationToCustomer"
+    | "giftCardSendNotificationToRecipient" ->
+      "Short-circuited locally in the in-memory gift-card draft store; no customer-visible notification is sent at runtime."
+    _ -> "Staged locally in the in-memory gift-card draft store."
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1343,6 +1434,311 @@ fn read_gift_card_id(
             None -> read_arg_string(input, "giftCardId")
           }
       }
+  }
+}
+
+fn maybe_hydrate_gift_card_for_mutation(
+  store: Store,
+  root_field_name: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  case root_field_name {
+    "giftCardUpdate"
+    | "giftCardCredit"
+    | "giftCardDebit"
+    | "giftCardDeactivate"
+    | "giftCardSendNotificationToCustomer"
+    | "giftCardSendNotificationToRecipient" -> {
+      let args = field_args(field, variables)
+      case read_gift_card_id(args) {
+        Some(id) -> maybe_hydrate_gift_card(store, id, upstream)
+        None -> store
+      }
+    }
+    _ -> store
+  }
+}
+
+fn maybe_hydrate_gift_card(
+  store: Store,
+  id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case store.get_effective_gift_card_by_id(store, id) {
+    Some(_) -> store
+    None -> {
+      let query =
+        "query GiftCardHydrate($id: ID!) {\n"
+        <> "  giftCard(id: $id) {\n"
+        <> "    id\n"
+        <> "    lastCharacters\n"
+        <> "    maskedCode\n"
+        <> "    enabled\n"
+        <> "    deactivatedAt\n"
+        <> "    expiresOn\n"
+        <> "    note\n"
+        <> "    templateSuffix\n"
+        <> "    createdAt\n"
+        <> "    updatedAt\n"
+        <> "    initialValue { amount currencyCode }\n"
+        <> "    balance { amount currencyCode }\n"
+        <> "    customer { id }\n"
+        <> "    recipientAttributes {\n"
+        <> "      message\n"
+        <> "      preferredName\n"
+        <> "      sendNotificationAt\n"
+        <> "      recipient { id }\n"
+        <> "    }\n"
+        <> "    transactions(first: 250) {\n"
+        <> "      nodes {\n"
+        <> "        __typename\n"
+        <> "        id\n"
+        <> "        note\n"
+        <> "        processedAt\n"
+        <> "        amount { amount currencyCode }\n"
+        <> "      }\n"
+        <> "    }\n"
+        <> "  }\n"
+        <> "  giftCardConfiguration {\n"
+        <> "    issueLimit { amount currencyCode }\n"
+        <> "    purchaseLimit { amount currencyCode }\n"
+        <> "  }\n"
+        <> "}\n"
+      let variables = json.object([#("id", json.string(id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "GiftCardHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_gift_card_from_upstream_response(store, value)
+        Error(_) -> store
+      }
+    }
+  }
+}
+
+fn hydrate_gift_card_from_upstream_response(
+  store: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) -> {
+      let store = case
+        json_get(data, "giftCard")
+        |> non_null_json_node
+        |> option.then(gift_card_record_from_json)
+      {
+        Some(record) -> store.upsert_base_gift_cards(store, [record])
+        None -> store
+      }
+      case
+        json_get(data, "giftCardConfiguration")
+        |> non_null_json_node
+        |> option.then(gift_card_configuration_from_json)
+      {
+        Some(configuration) ->
+          store.upsert_base_gift_card_configuration(store, configuration)
+        None -> store
+      }
+    }
+    None -> store
+  }
+}
+
+fn gift_card_record_from_json(
+  node: commit.JsonValue,
+) -> Option(GiftCardRecord) {
+  case json_get_string(node, "id") {
+    Some(id) -> {
+      let last_characters =
+        option.unwrap(json_get_string(node, "lastCharacters"), "")
+      let masked_code =
+        option.unwrap(
+          json_get_string(node, "maskedCode"),
+          masked_code_string(last_characters),
+        )
+      let initial_value =
+        money_from_json(json_get(node, "initialValue"), Money("0.0", "CAD"))
+      let balance = money_from_json(json_get(node, "balance"), initial_value)
+      let recipient_attributes =
+        recipient_attributes_from_json(json_get(node, "recipientAttributes"))
+      let recipient_id = case recipient_attributes {
+        Some(attributes) -> attributes.id
+        None -> None
+      }
+      Some(GiftCardRecord(
+        id: id,
+        legacy_resource_id: gift_card_tail(id),
+        last_characters: last_characters,
+        masked_code: masked_code,
+        enabled: option.unwrap(json_get_bool(node, "enabled"), True),
+        deactivated_at: json_get_string(node, "deactivatedAt"),
+        expires_on: json_get_string(node, "expiresOn"),
+        note: json_get_string(node, "note"),
+        template_suffix: json_get_string(node, "templateSuffix"),
+        created_at: option.unwrap(json_get_string(node, "createdAt"), ""),
+        updated_at: option.unwrap(json_get_string(node, "updatedAt"), ""),
+        initial_value: initial_value,
+        balance: balance,
+        customer_id: json_get(node, "customer")
+          |> option.then(fn(customer) { json_get_string(customer, "id") }),
+        recipient_id: recipient_id,
+        source: json_get_string(node, "source") |> option.or(Some("api_client")),
+        recipient_attributes: recipient_attributes,
+        transactions: gift_card_transactions_from_json(node),
+      ))
+    }
+    None -> None
+  }
+}
+
+fn gift_card_configuration_from_json(
+  node: commit.JsonValue,
+) -> Option(GiftCardConfigurationRecord) {
+  Some(GiftCardConfigurationRecord(
+    issue_limit: money_from_json(
+      json_get(node, "issueLimit"),
+      Money("0.0", "CAD"),
+    ),
+    purchase_limit: money_from_json(
+      json_get(node, "purchaseLimit"),
+      Money("0.0", "CAD"),
+    ),
+  ))
+}
+
+fn recipient_attributes_from_json(
+  value: Option(commit.JsonValue),
+) -> Option(GiftCardRecipientAttributesRecord) {
+  case non_null_json_node(value) {
+    Some(node) ->
+      Some(GiftCardRecipientAttributesRecord(
+        id: json_get(node, "recipient")
+          |> option.then(fn(recipient) { json_get_string(recipient, "id") }),
+        message: json_get_string(node, "message"),
+        preferred_name: json_get_string(node, "preferredName"),
+        send_notification_at: json_get_string(node, "sendNotificationAt"),
+      ))
+    None -> None
+  }
+}
+
+fn gift_card_transactions_from_json(
+  node: commit.JsonValue,
+) -> List(GiftCardTransactionRecord) {
+  case json_get(node, "transactions") {
+    Some(connection) ->
+      case json_get(connection, "nodes") {
+        Some(commit.JsonArray(items)) ->
+          list.filter_map(items, gift_card_transaction_from_json)
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+fn gift_card_transaction_from_json(
+  node: commit.JsonValue,
+) -> Result(GiftCardTransactionRecord, Nil) {
+  case json_get_string(node, "id") {
+    Some(id) -> {
+      let amount =
+        money_from_json(json_get(node, "amount"), Money("0.0", "CAD"))
+      Ok(GiftCardTransactionRecord(
+        id: id,
+        kind: gift_card_transaction_kind(node, amount),
+        amount: amount,
+        processed_at: option.unwrap(json_get_string(node, "processedAt"), ""),
+        note: json_get_string(node, "note"),
+      ))
+    }
+    None -> Error(Nil)
+  }
+}
+
+fn gift_card_transaction_kind(node: commit.JsonValue, amount: Money) -> String {
+  case json_get_string(node, "__typename") {
+    Some("GiftCardDebitTransaction") -> "DEBIT"
+    Some("GiftCardCreditTransaction") -> "CREDIT"
+    _ ->
+      case string.starts_with(amount.amount, "-") {
+        True -> "DEBIT"
+        False -> "CREDIT"
+      }
+  }
+}
+
+fn money_from_json(value: Option(commit.JsonValue), fallback: Money) -> Money {
+  case non_null_json_node(value) {
+    Some(node) ->
+      Money(
+        amount: option.unwrap(
+          json_get_scalar_string(node, "amount"),
+          fallback.amount,
+        ),
+        currency_code: option.unwrap(
+          json_get_string(node, "currencyCode"),
+          fallback.currency_code,
+        ),
+      )
+    None -> fallback
+  }
+}
+
+fn json_get_scalar_string(
+  value: commit.JsonValue,
+  key: String,
+) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    Some(commit.JsonInt(i)) -> Some(int.to_string(i))
+    Some(commit.JsonFloat(f)) -> Some(float.to_string(f))
+    _ -> None
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
+  case json_get(value, key) {
+    Some(commit.JsonBool(b)) -> Some(b)
+    _ -> None
+  }
+}
+
+fn non_null_json_node(
+  value: Option(commit.JsonValue),
+) -> Option(commit.JsonValue) {
+  case value {
+    Some(commit.JsonNull) -> None
+    Some(node) -> Some(node)
+    None -> None
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(field, item) if field == key -> Ok(item)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
   }
 }
 

@@ -13,20 +13,6 @@ This is not a generic mock server. The goal is to model Shopify domain behavior
 closely enough that app tests can exercise realistic write/read flows without
 normal test runs mutating a dev store.
 
-## Implementation Status
-
-The current implementation track is the Gleam port in `gleam/`. Gleam is the
-runtime direction for the package because the same domain model can compile to
-JavaScript for Node/TypeScript consumers and to Erlang for Elixir/BEAM
-consumers.
-
-The legacy TypeScript/Koa runtime in `src/` remains in the repository as a
-temporary compatibility baseline while the port reaches parity. It still carries
-some route coverage that the Gleam implementation is actively absorbing, but it
-is not the future-facing system. Once port parity is complete, the TypeScript
-runtime will be deleted and the Gleam package layout will be promoted to the
-repository root.
-
 ## What It Does
 
 - Preserves Shopify-like versioned Admin GraphQL routes:
@@ -35,24 +21,41 @@ repository root.
   required.
 - Stages supported mutations locally and records the original raw GraphQL body
   for later commit replay.
-- Overlays staged local effects onto downstream reads for ported domains.
-- Uses explicit unsupported boundaries for missing domains or missing runtime
-  adapters instead of pretending partial support is complete.
+- Overlays staged local effects onto downstream reads for supported domains.
+- Proxies unsupported mutations to Shopify as an escape hatch and records that
+  fact in logs/observability.
 - Exposes meta APIs for health, configuration, staged-state inspection, reset,
   log inspection, and commit.
 - Uses conformance captures and parity tests to keep behavior grounded in real
   Shopify responses.
 
+The runtime is implemented in Gleam and compiled to JavaScript and Erlang from
+the same domain model. JavaScript and TypeScript consumers use the
+`shopify-draft-proxy` package surface; Elixir and other BEAM consumers use the
+`shopify_draft_proxy` package surface.
+
 ## Install From Source
 
-The release packaging cutover is still in progress. For repository work, install
-the root toolchain and the Gleam package dependencies:
+Release packaging is still private to this repository. For repository work,
+install the root toolchain and package dependencies:
 
 ```sh
 corepack pnpm install
 cd gleam
 gleam deps download
 ```
+
+Prerequisites:
+
+- Node 22 or newer
+- Corepack
+- Erlang/OTP 28 and Gleam 1.16.0 for host Gleam test runs
+- A Shopify dev store plus an app Admin API access token for live-hybrid
+  runtime or live conformance work
+
+The repository includes a `.mise.toml` that pins the Gleam host toolchain. If
+you use Mise, run `mise install` from the repository root and the checked-in
+`.envrc` will activate those tools automatically when `direnv` is enabled.
 
 Useful root scripts:
 
@@ -61,23 +64,19 @@ corepack pnpm gleam:test
 corepack pnpm gleam:smoke:js
 corepack pnpm elixir:smoke
 corepack pnpm conformance:check
-corepack pnpm conformance:parity
+corepack pnpm parity:run
 ```
 
-The eventual package names are:
+The package names are:
 
 - npm: `shopify-draft-proxy`
 - Hex/Gleam: `shopify_draft_proxy`
 
-Until the packaging cutover lands, JS callers can use the checked-in Gleam JS
-shim under `gleam/js/`, and Elixir callers can use the local Erlang shipment
-smoke project under `gleam/elixir_smoke/`.
-
 ## Embedding From JavaScript
 
-The JS-facing package will keep the existing `createDraftProxy(config)` shape.
-The implementation behind that shape is the Gleam-emitted ESM plus a thin
-TypeScript shim.
+JavaScript callers use `createDraftProxy(config)` and HTTP-shaped request
+objects. The package keeps this surface stable while the implementation behind
+it is the Gleam-emitted ESM plus a thin TypeScript shim.
 
 ```ts
 import { createDraftProxy } from 'shopify-draft-proxy';
@@ -104,12 +103,15 @@ console.log(response.status, response.body);
 
 Each `DraftProxy` owns its in-memory store, mutation log, snapshot baseline, and
 synthetic identity registry. The JS shim presents an imperative object API, but
-the Gleam core remains explicit about state internally.
+the core runtime still advances state explicitly after each request.
+
+The JavaScript package also exports `createApp(config, proxy?)`, which builds a
+Node `http` adapter over a `DraftProxy` instance for route-level tests.
 
 ## Embedding From Elixir
 
-The same Gleam core compiles to BEAM. Before Hex publication, the local smoke
-path is:
+The same Gleam core compiles to BEAM. Before Hex publication, the repository
+smoke path is:
 
 ```sh
 cd gleam
@@ -118,8 +120,8 @@ cd elixir_smoke
 mix test
 ```
 
-Once the package is published, an Elixir application will depend on the Hex
-package normally:
+After publication, an Elixir application will depend on the Hex package
+normally:
 
 ```elixir
 defp deps do
@@ -129,59 +131,57 @@ defp deps do
 end
 ```
 
-Gleam modules are callable from Elixir as Erlang modules. The current direct
-interop shape is intentionally low-level:
+The checked-in Elixir wrapper keeps the Gleam proxy value opaque and returns
+the next proxy state with each response:
 
 ```elixir
-alias :shopify_draft_proxy@proxy@draft_proxy, as: DraftProxy
+proxy = ShopifyDraftProxy.new()
 
-proxy = DraftProxy.new()
-request = {:request, "GET", "/__meta/health", %{}, ""}
+%ShopifyDraftProxy.Response{status: 200, body: body, proxy: next_proxy} =
+  ShopifyDraftProxy.graphql(proxy, "{ shop { name } }")
 
-{response, next_proxy} = DraftProxy.process_request(proxy, request)
-{:response, status, body, _headers} = response
+{:ok, decoded} = Jason.decode(body)
 ```
 
-Thread `next_proxy` into the next call to preserve staged state. A friendlier
-Elixir wrapper is part of the port completion work; until then, adapter code can
-call the Erlang-shaped Gleam API directly.
+Thread `next_proxy` into the next call to preserve staged state. Adapter-level
+code can also call the compiled Gleam modules directly through their Erlang
+module names, but application tests should use the wrapper.
 
 ## State Threading
 
-Gleam returns the next proxy value from request processing:
+The core request API returns the response and the next proxy value:
 
 ```gleam
 let #(response, next_proxy) = draft_proxy.process_request(proxy, request)
 ```
 
 That is deliberate. Runtime state is owned by a `DraftProxy` value rather than
-by process-wide mutable state, and callers must thread the returned proxy
-forward. JS wraps this in a mutable class for compatibility with existing
-TypeScript consumers; Elixir/BEAM callers should keep the returned value in
-their test process or wrapper state.
+by process-wide mutable state, and callers must keep the returned value for the
+next request. This is how staged resources, mutation logs, snapshots, and
+synthetic IDs stay isolated per embedded proxy instance.
 
 ## Runtime Modes
 
-`snapshot` answers supported reads from local snapshot/staged state. Absent
+`snapshot` answers supported reads from local snapshot and staged state. Absent
 data should match Shopify's null/empty behavior rather than inventing records.
 
-`live-hybrid` sends unknown or unimplemented reads upstream and handles ported
-domains locally. On JavaScript this upstream path is async, so callers must use
-the async JS shim or `process_request_async` when live upstream fetches may be
-needed.
+`live-hybrid` sends unknown or unimplemented reads upstream and overlays staged
+local effects for supported domains. JavaScript upstream work is async, so
+callers should use the async JS API when live upstream fetches or commit replay
+may be needed.
 
-The legacy TypeScript runtime names its third debugging mode `passthrough`. The
-Gleam API currently exposes a `Live` variant for the same future need, but the
-fully documented live-only server behavior is still part of the remaining port
-work.
+`passthrough` is the live-only debugging posture exposed to JavaScript callers.
+It is not support for known mutation roots; supported mutations still stage
+locally, and unknown/unsupported passthrough must remain visible in
+observability.
 
-Supported mutations are still staged locally in every mode. `POST
-/__meta/commit` is the explicit exception: it replays pending staged mutations
-upstream in their original order.
+`POST /__meta/commit` is the explicit exception to local-only supported
+mutation handling: it replays pending staged mutations upstream in original
+order.
 
 ## Supported Routes
 
-The Gleam core currently routes:
+The package routes:
 
 - `POST /admin/api/:version/graphql.json`
 - `GET /__meta/health`
@@ -191,34 +191,36 @@ The Gleam core currently routes:
 - `POST /__meta/reset`
 - `POST /__meta/commit`
 
-`POST /__meta/commit` is synchronous on the Erlang target. On JavaScript,
-commit replay uses `fetch`, so synchronous `process_request` returns a clear
-501 message and async callers should use `process_request_async` or the JS
-shim's async `processRequest`.
+`POST /__meta/commit` replays staged mutations in log order. On JavaScript it
+uses async upstream fetches; on Erlang it can run synchronously when a transport
+is supplied.
 
-The legacy TypeScript/Koa server still serves the operator UI at `GET /__meta`
-and the in-memory bulk operation artifact route
-`GET /__bulk_operations/:id/result.jsonl`. The Gleam JS HTTP server adapter,
-staged-upload byte handoff, and bulk artifact serving are tracked as remaining
-cutover work.
+The remaining intentionally unsupported HTTP boundaries are:
+
+- `GET /__meta` operator UI
+- staged-upload byte serving
+- bulk operation result-file serving at `GET /__bulk_operations/:id/result.jsonl`
+
+Those routes are artifact-serving surfaces, not permission to weaken domain
+fidelity for GraphQL roots.
 
 ## Current Domain Coverage
 
-The Gleam dispatcher has partial, growing coverage for endpoint groups that have
-already been implemented in the legacy runtime. Recent passes include events,
-delivery settings, saved searches, webhooks, apps, functions, gift cards,
-segments, metafield definitions, localization, metaobject definitions,
-marketing, bulk operations, media, Admin Platform utilities, and Store
-Properties shop/policy behavior.
+Coverage is domain-specific. A root is not considered supported until the local
+lifecycle and downstream read-after-write behavior are modeled for that domain.
+Validation-only or branch-only handling is documented as a guardrail, not full
+support.
 
-Coverage is intentionally domain-specific. A root is not considered supported
-until the local lifecycle and downstream read-after-write behavior are modeled
-for that domain. Validation-only or branch-only handling is documented as a
-guardrail, not full support.
+Current Gleam domain work covers the generated port plan across products,
+customers, orders, B2B, bulk operations, webhooks, saved searches, events,
+gift cards, segments, localization, metaobjects, metafields, markets, media,
+discounts, apps/functions, payments, privacy, online store, store properties,
+shipping/fulfillment surfaces, and Admin Platform utilities. Endpoint-specific
+coverage notes live under `docs/endpoints/`.
 
 ## Conformance Workflow
 
-Conformance remains the fidelity standard for the port:
+Conformance remains the fidelity standard:
 
 1. Capture real Shopify request/response fixtures against disposable test
    shops.
@@ -231,34 +233,35 @@ Local checks:
 
 ```sh
 corepack pnpm conformance:check
-corepack pnpm conformance:parity
+corepack pnpm parity:run
 ```
 
 Live capture credentials are intentionally separate from normal runtime config
 and are loaded through the repository conformance auth helpers, not from copied
 workspace `.env` token values.
 
-## Intentionally Unsupported Boundaries
+## TypeScript Retirement Boundary
 
-- The legacy TypeScript runtime is still present only as a temporary parity
-  baseline and compatibility bridge.
-- The Gleam JS HTTP server adapter is not the primary shipped server yet.
-- The friendly Elixir wrapper is not complete; direct Erlang-shaped calls are
-  the current BEAM interop boundary.
-- The package publishing cutover to npm and Hex is not complete.
-- Some endpoint groups and Relay `node`/`nodes` resolvers remain partial until
-  their generated port issues land.
-- Staged-upload byte serving and bulk operation result-file serving still need
-  the Gleam HTTP artifact route work.
+The runtime is Gleam. The remaining TypeScript runtime code is a retirement
+boundary: it stays in the repository only until full parity, packaging, CI, and
+conformance coverage are proven. Once parity is complete, the TypeScript runtime
+implementation and TypeScript runtime tests should be deleted instead of
+maintained beside the Gleam implementation.
+
+TypeScript build, capture, and registry scripts may remain where they are still
+the right repository tooling; deleting the runtime does not require rewriting
+live conformance capture tooling.
 
 ## Important Docs
 
 - `GLEAM_PORT_INTENT.md`: why the port exists and the non-negotiable parity bar
 - `GLEAM_PORT_LOG.md`: newest-first narrative of landed Gleam port passes
-- `gleam/README.md`: detailed Gleam, JS, and Elixir embedder notes
+- `shopify_draft_proxy` package README: detailed Gleam, JS, and Elixir
+  embedder notes
 - `docs/original-intent.md`: project intent, non-goals, and fidelity standard
 - `docs/architecture.md`: request flow, state model, runtime modes, and meta API
 - `docs/conformance-capture.md`: indexed capture-command lookup by domain
+- `docs/parity-runner.md`: cassette-backed parity runner contract
 - `docs/helpers.md`: shared helper APIs to use before adding new utilities
 - `docs/hard-and-weird-notes.md`: captured Shopify quirks and fidelity traps
 - `docs/endpoints/`: endpoint-specific behavior and coverage notes

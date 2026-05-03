@@ -278,5 +278,31 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DataSaleOptOutCustomerLookup",
+      "variables": {
+        "identifier": {
+          "emailAddress": "hermes-data-sale-1777162548907@example.com"
+        }
+      },
+      "query": "sha:hand-synthesized-from-precondition",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerByIdentifier": {
+              "id": "gid://shopify/Customer/10541188055346",
+              "email": "hermes-data-sale-1777162548907@example.com",
+              "dataSaleOptOut": false,
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-data-sale-1777162548907@example.com"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

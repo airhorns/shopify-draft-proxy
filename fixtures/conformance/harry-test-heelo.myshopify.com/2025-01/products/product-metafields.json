@@ -114,5 +114,36 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "AdminPlatformMetafieldNodeReads",
+      "variables": {
+        "ids": ["gid://shopify/Metafield/42952770224434"]
+      },
+      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Metafield/42952770224434",
+                "namespace": "custom",
+                "key": "material",
+                "type": "single_line_text_field",
+                "value": "Canvas",
+                "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64",
+                "jsonValue": "Canvas",
+                "createdAt": "2026-04-25T17:17:29Z",
+                "updatedAt": "2026-04-25T17:17:29Z",
+                "ownerType": "PRODUCT",
+                "definition": null
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

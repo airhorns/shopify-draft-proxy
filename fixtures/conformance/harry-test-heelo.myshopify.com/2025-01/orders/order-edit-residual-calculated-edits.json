@@ -266,5 +266,47 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8714456891698"
+      },
+      "query": "hand-synthesized from checked-in seedOrder for HAR-538 orderEditBegin Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8714456891698",
+              "name": "#1043",
+              "note": "HAR-369 residual full capture 1777343785533",
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19275276550450",
+                    "title": "HAR-369 base custom line",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "har-369-base-1777343785533",
+                    "variant": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "shippingLines": {
+                "nodes": []
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

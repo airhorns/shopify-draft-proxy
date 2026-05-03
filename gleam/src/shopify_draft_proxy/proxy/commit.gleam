@@ -22,6 +22,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/state/store.{
   type EntryStatus, type MutationLogEntry, type Store, Committed, Failed,
 }
@@ -287,7 +288,7 @@ pub fn build_replay_body(entry: MutationLogEntry) -> String {
         json.object(
           list.map(dict.to_list(entry.variables), fn(pair) {
             let #(k, v) = pair
-            #(k, json.string(v))
+            #(k, root_field.resolved_value_to_json(v))
           }),
         ),
       ),

@@ -9,7 +9,7 @@ The product-owner definition slice supports the Admin GraphQL read roots:
 - `metafieldDefinition(identifier:)`
 - `metafieldDefinitions(ownerType:, first:, after:, reverse:, sortKey:, query:, namespace:, key:, pinnedStatus:, constraintStatus:, constraintSubtype:)`
 
-The implementation is snapshot/local only for definition reads. In snapshot mode, missing singular definitions return `null`, and catalog misses return a non-null empty connection with empty `nodes` / `edges` and falsey `pageInfo`.
+In LiveHybrid, cold definition detail/catalog reads use passthrough when the local definition model has no staged or deleted definition state to overlay. Once a scenario stages, hydrates, or deletes metafield definitions, downstream reads stay local so read-after-write and read-after-delete behavior does not leak back to Shopify. In snapshot mode, missing singular definitions return `null`, and catalog misses return a non-null empty connection with empty `nodes` / `edges` and falsey `pageInfo`.
 
 Normalized state stores definition records separately from product metafields. The supported owner type is `PRODUCT`; definition-scoped `metafields` and `metafieldsCount` are derived from the effective product-owned metafield set by matching `namespace` and `key`. Staged definition lifecycle mutations update this same normalized catalog, so downstream definition reads and definition-backed `metafieldsSet` validation use the effective staged definition state.
 
@@ -45,7 +45,7 @@ Delete resolves by Shopify's preferred `identifier` input or by global `id`, hid
 
 Definition-backed `metafieldsSet` support now consults effective staged definitions for product, product variant, and collection owners. When the input omits `type`, the matching definition supplies it. When the input supplies a mismatched type, local validation rejects the write. Fixture-backed basic validations currently cover `max` string length and `regex`.
 
-Live evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-lifecycle-mutations.json`, captured with `corepack pnpm conformance:capture-metafield-definition-lifecycle`, covers product-owner create, downstream definition/metafield reads, update, delete with `deleteAllAssociatedMetafields: true`, and immediate downstream no-data reads after delete.
+Live evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-lifecycle-mutations.json`, captured with `corepack pnpm conformance:capture-metafield-definition-lifecycle`, covers product-owner create, downstream definition/metafield reads, update, delete with `deleteAllAssociatedMetafields: true`, and immediate downstream no-data reads after delete. The Gleam port preserves a minimal product shell when deleting associated product metafields through a definition delete, so a downstream `product(id:) { metafield(...) }` read returns the product object with `metafield: null` rather than collapsing the product root to `null`.
 
 HAR-351 promotes that fixture from runtime-test-backed fixture evidence into `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json` as a strict generic proxy-vs-recording parity scenario. The parity runner seeds the recorded setup product, replays create, definition-backed `metafieldsSet`, downstream definition/product reads, update, delete, and post-delete no-data reads against the local proxy harness. Accepted differences are limited to local synthetic GIDs and the pinned-position offset caused by unrelated pinned definitions already present in the live capture shop.
 
@@ -92,7 +92,7 @@ The product-owner pinning slice supports local staging for existing normalized d
 
 Captured 2025-01 live behavior shows pinning an unpinned product definition assigns the next owner-type pinned position after the highest existing product definition position. Pinned definition catalogs sorted with `sortKey: PINNED_POSITION` return higher pinned positions first. Unpinning clears the target definition's `pinnedPosition` and compacts any higher pinned positions down by one, so downstream `metafieldDefinition` detail reads plus `metafieldDefinitions(... pinnedStatus: PINNED|UNPINNED)` catalogs reflect the staged change.
 
-The local implementation intentionally covers pin/unpin for definitions already present in normalized snapshot, hydrated state, or staged lifecycle state. It does not create missing definitions through pin/unpin and does not model app-configuration-managed / unsupported-owner error branches yet.
+The local implementation intentionally covers pin/unpin for definitions already present in normalized snapshot, hydrated state, or staged lifecycle state. In LiveHybrid, a cold pin/unpin first hydrates the product-owner definition catalog through `upstream_query.fetch_sync`, then stages only the pin or unpin effect locally; parity cassettes provide that read deterministically. It does not create missing definitions through pin/unpin when no upstream definition can be hydrated, and it does not model app-configuration-managed / unsupported-owner error branches yet.
 
 ## Historical and developer notes
 

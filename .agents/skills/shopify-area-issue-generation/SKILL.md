@@ -124,7 +124,7 @@ Relevant sources:
 ## Validation
 
 - [ ] `corepack pnpm conformance:check`
-- [ ] `corepack pnpm conformance:parity`
+- [ ] `corepack pnpm gleam:test`
 - [ ] `corepack pnpm typecheck`
 - [ ] <Targeted integration/unit/conformance command for this slice.>
 ```
@@ -238,8 +238,9 @@ from the perspective of realistic app behavior:
   because it can produce external side effects when committed. The proxy should
   stage supported mutations locally at runtime and allow real side effects only
   during explicit commit or deliberate conformance setup/cleanup.
-- Treat `expectedDifferences` as a last resort after modeling or fixture seeding
-  has been exhausted.
+- Treat `expectedDifferences` as a last resort after modeling and recording a
+  cassette have been exhausted. Captures must not introduce top-level `seedX`
+  keys; upstream context is recorded as `upstreamCalls` via `pnpm parity:record`.
 - Do not create `.mjs` scripts; repo scripts must be TypeScript run with `tsx`
   or an equivalent TypeScript runner.
 - Do not create a checked-in project-management worklist. Linear is the

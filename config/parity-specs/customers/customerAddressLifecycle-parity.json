@@ -101,41 +101,6 @@
         "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
       },
       {
-        "path": "$.customers.nodes[*].id",
-        "matcher": "shopify-gid:Customer",
-        "reason": "The proxy uses the locally staged customer ID from the setup mutation."
-      },
-      {
-        "path": "$.customers.nodes[*].defaultAddress.id",
-        "matcher": "any-string",
-        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
-      },
-      {
-        "path": "$.customers.nodes[*].addressesV2.nodes[*].id",
-        "matcher": "any-string",
-        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
-      },
-      {
-        "path": "$.customers.nodes[*].addressesV2.edges[*].cursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
-      },
-      {
-        "path": "$.customers.nodes[*].addressesV2.edges[*].node.id",
-        "matcher": "any-string",
-        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
-      },
-      {
-        "path": "$.customers.nodes[*].addressesV2.pageInfo.startCursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
-      },
-      {
-        "path": "$.customers.nodes[*].addressesV2.pageInfo.endCursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
-      },
-      {
         "path": "$.deletedAddressId",
         "matcher": "any-string",
         "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
@@ -155,7 +120,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
           "variables": {
-            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "address": {
               "firstName": "Hermes",
               "lastName": "Default",
@@ -177,7 +144,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
           "variables": {
-            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "address": {
               "address1": "2 Side St",
               "city": "Toronto",
@@ -196,7 +165,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
           "variables": {
-            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "addressId": {
               "fromProxyResponse": "create-second-address",
               "path": "$.data.customerAddressCreate.address.id"
@@ -217,7 +188,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-default-address.graphql",
           "variables": {
-            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "addressId": {
               "fromProxyResponse": "create-second-address",
               "path": "$.data.customerAddressCreate.address.id"
@@ -232,7 +205,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-delete-address.graphql",
           "variables": {
-            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "addressId": {
               "fromProxyResponse": "create-first-address",
               "path": "$.data.customerAddressCreate.address.id"
@@ -247,8 +222,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-downstream-read.graphql",
           "variables": {
-            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
-            "identifier": { "emailAddress": "hermes-address-1777157408181@example.com" },
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "emailAddress": "hermes-address-1777157408181@example.com"
+            },
             "query": "email:hermes-address-1777157408181@example.com"
           }
         }
@@ -260,7 +239,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
           "variables": {
-            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "address": {
               "address1": "3 Null Default St",
               "city": "Vancouver",
@@ -278,7 +259,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
           "variables": {
-            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "address": {
               "address1": "3 Null Default St",
               "city": "Vancouver",
@@ -297,8 +280,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-downstream-read.graphql",
           "variables": {
-            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
-            "identifier": { "emailAddress": "hermes-address-1777157408181@example.com" },
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "emailAddress": "hermes-address-1777157408181@example.com"
+            },
             "query": "email:hermes-address-1777157408181@example.com"
           }
         }
@@ -310,7 +297,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-delete-address.graphql",
           "variables": {
-            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
             "addressId": {
               "fromProxyResponse": "create-second-address",
               "path": "$.data.customerAddressCreate.address.id"
@@ -325,8 +314,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-downstream-read.graphql",
           "variables": {
-            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
-            "identifier": { "emailAddress": "hermes-address-1777157408181@example.com" },
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "emailAddress": "hermes-address-1777157408181@example.com"
+            },
             "query": "email:hermes-address-1777157408181@example.com"
           }
         }

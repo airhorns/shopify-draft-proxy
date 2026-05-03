@@ -20,5 +20,36 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DraftOrdersCountReadParityPlan",
+      "variables": {
+        "query": null
+      },
+      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrdersCount": {
+              "count": 53,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

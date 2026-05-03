@@ -1,0 +1,219 @@
+{
+  "proxyVariables": {
+    "idIdentifier": {
+      "id": "gid://shopify/Customer/9522206933298"
+    },
+    "emailIdentifier": {
+      "emailAddress": "karine.ruby@example.com"
+    },
+    "phoneIdentifier": {
+      "phoneNumber": "+16135550142"
+    },
+    "missingIdentifier": {
+      "emailAddress": "missing-har-150@example.com"
+    }
+  },
+  "positiveAndMissing": {
+    "data": {
+      "byId": {
+        "id": "gid://shopify/Customer/9522206933298",
+        "firstName": "Karine",
+        "lastName": "Ruby",
+        "displayName": "Karine Ruby",
+        "email": "karine.ruby@example.com",
+        "legacyResourceId": "9522206933298",
+        "locale": "en",
+        "note": null,
+        "canDelete": false,
+        "verifiedEmail": true,
+        "taxExempt": false,
+        "state": "DISABLED",
+        "tags": [],
+        "numberOfOrders": "5",
+        "amountSpent": {
+          "amount": "4941.0",
+          "currencyCode": "CAD"
+        },
+        "defaultEmailAddress": {
+          "emailAddress": "karine.ruby@example.com"
+        },
+        "defaultPhoneNumber": {
+          "phoneNumber": "+16135550142"
+        },
+        "defaultAddress": {
+          "address1": "Box 42 - 151 O'Connor St",
+          "city": "Ottawa",
+          "province": null,
+          "country": "Canada",
+          "zip": "K2P2L8",
+          "formattedArea": "Ottawa, Canada"
+        },
+        "createdAt": "2025-03-26T19:51:37Z",
+        "updatedAt": "2026-04-25T23:58:18Z"
+      },
+      "byEmail": {
+        "id": "gid://shopify/Customer/9522206933298",
+        "email": "karine.ruby@example.com",
+        "defaultEmailAddress": {
+          "emailAddress": "karine.ruby@example.com"
+        }
+      },
+      "byPhone": {
+        "id": "gid://shopify/Customer/9522206933298",
+        "defaultPhoneNumber": {
+          "phoneNumber": "+16135550142"
+        }
+      },
+      "missingEmail": null
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 8,
+        "actualQueryCost": 8,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1992,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "customIdMissing": {
+    "ok": false,
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Metafield definition of type 'id' is required when using custom ids.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "NOT_FOUND"
+          },
+          "path": ["customId"]
+        }
+      ],
+      "data": {
+        "customId": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "emptyIdentifier": {
+    "ok": false,
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Variable $idIdentifier of type CustomerIdentifierInput! was provided invalid value",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {},
+            "problems": [
+              {
+                "path": [],
+                "explanation": "'CustomerIdentifierInput' requires exactly one argument, but 0 were provided."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerByIdentifierConformance",
+      "variables": {
+        "idIdentifier": {
+          "id": "gid://shopify/Customer/9522206933298"
+        },
+        "emailIdentifier": {
+          "emailAddress": "karine.ruby@example.com"
+        },
+        "phoneIdentifier": {
+          "phoneNumber": "+16135550142"
+        },
+        "missingIdentifier": {
+          "emailAddress": "missing-har-150@example.com"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "byId": {
+              "id": "gid://shopify/Customer/9522206933298",
+              "firstName": "Karine",
+              "lastName": "Ruby",
+              "displayName": "Karine Ruby",
+              "email": "karine.ruby@example.com",
+              "legacyResourceId": "9522206933298",
+              "locale": "en",
+              "note": null,
+              "canDelete": false,
+              "verifiedEmail": true,
+              "taxExempt": false,
+              "state": "DISABLED",
+              "tags": [],
+              "numberOfOrders": "5",
+              "amountSpent": {
+                "amount": "4941.0",
+                "currencyCode": "CAD"
+              },
+              "defaultEmailAddress": {
+                "emailAddress": "karine.ruby@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+16135550142"
+              },
+              "defaultAddress": {
+                "address1": "Box 42 - 151 O'Connor St",
+                "city": "Ottawa",
+                "province": null,
+                "country": "Canada",
+                "zip": "K2P2L8",
+                "formattedArea": "Ottawa, Canada"
+              },
+              "createdAt": "2025-03-26T19:51:37Z",
+              "updatedAt": "2026-04-25T23:58:18Z"
+            },
+            "byEmail": {
+              "id": "gid://shopify/Customer/9522206933298",
+              "email": "karine.ruby@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "karine.ruby@example.com"
+              }
+            },
+            "byPhone": {
+              "id": "gid://shopify/Customer/9522206933298",
+              "defaultPhoneNumber": {
+                "phoneNumber": "+16135550142"
+              }
+            },
+            "missingEmail": null
+          }
+        }
+      }
+    }
+  ]
+}
