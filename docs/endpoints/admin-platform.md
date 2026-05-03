@@ -29,6 +29,12 @@ The local snapshot handler is intentionally conservative and only models shapes 
 - `staffMembers` is treated as the same restricted staff surface. The local handler returns `null` plus the captured access error until authorized staff catalog evidence and a staff state model exist.
 - Generic `node` / `nodes` dispatch is intentionally limited to resource families whose serializers already project local state through the requested selection set. The admin-platform handler does not create new domain support by itself; unsupported GID families return Shopify-like `null` entries rather than partially fabricated objects. The unsupported list is executable test evidence, not a permanent support claim.
 
+### LiveHybrid Cassette Behavior
+
+HAR-525 migrates the remaining admin-platform parity scenarios to cassette-backed LiveHybrid execution with Pattern 1 passthrough for cold platform reads. When the proxy has no local admin-platform taxonomy/generic-node state and no staged resource records owned by the supported Node serializers, `publicApiVersions`, `taxonomy`, and selected `node` / `nodes` reads forward to the cassette/upstream response verbatim. Once local state exists, the handler stays on the local serializer path so snapshot behavior and read-after-write effects remain local.
+
+The migrated cassette-backed specs are `admin-platform-delivery-profile-node-reads.json`, `admin-platform-market-web-presence-node-read.json`, `admin-platform-metafield-node-reads.json`, `admin-platform-product-option-node-reads.json`, `admin-platform-selling-plan-node-reads.json`, `admin-platform-store-property-node-reads.json`, `admin-platform-supported-node-reads.json`, `admin-platform-taxonomy-hierarchy-node-reads.json`, and `admin-platform-utility-reads.json`.
+
 ### Mutation Behavior
 
 `backupRegionUpdate` stages the selected fallback region in the in-memory admin platform state and updates downstream snapshot `backupRegion` reads without mutating Shopify at runtime. HAR-374 conformance covers the current conformance shop's idempotent `CA` success branch and `REGION_NOT_FOUND` validation for an unknown country code. Mutation support intentionally remains `CA`-only until more `backupRegionUpdate` success captures exist; the broader read mapping above is derived from read-only market-region evidence and does not broaden mutation support.
