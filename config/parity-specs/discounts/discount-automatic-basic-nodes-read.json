@@ -21,6 +21,7 @@
         "proxyPath": "$.data",
         "upstreamCapturePath": null
       }
-    ]
+    ],
+    "expectedDifferences": []
   }
 }
