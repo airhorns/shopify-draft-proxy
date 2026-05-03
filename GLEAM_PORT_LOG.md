@@ -9,6 +9,49 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-03 - Documentation rework: Gleam runtime README handoff
+
+Reworks the public README and package README after rebasing HAR-484 onto the
+latest cassette-backed Gleam mainline. The docs now describe the Gleam runtime
+as the package implementation, remove the old TypeScript/Koa-first quickstart
+and stale TODO callouts, and keep unsupported boundaries focused on the
+remaining artifact-serving/package-publication surfaces rather than historical
+transition narrative.
+
+| Module            | Change                                                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `README.md`       | Documents Gleam-first install, JS and Elixir embedding, runtime modes, routes, state threading, conformance, and TypeScript retirement.                                  |
+| `gleam/README.md` | Documents the package API, JS shim, Elixir wrapper, route surface, runtime modes, state threading, conformance checks, and unsupported boundaries without TODO callouts. |
+
+Validation:
+
+- `corepack pnpm lint`
+- `corepack pnpm gleam:test:js` (824 passed)
+- `docker run --rm -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'rm -rf build/dev/erlang && gleam test --target erlang'` (819 passed after clearing stale root-owned build output, then restoring build ownership)
+- `corepack pnpm conformance:check` (1403 passed)
+
+### Findings
+
+- `origin/main` already contained the newer Gleam runtime architecture doc, so
+  the merge resolution kept that architecture baseline instead of reintroducing
+  the earlier transition-oriented HAR-484 architecture edits.
+- The root README still needed to stop presenting the TypeScript/Koa API as the
+  primary public surface after the mainline port work added JS HTTP adapter and
+  Elixir wrapper coverage.
+- The package README still had TODO-shaped install, commit, JS cutover, and
+  Elixir wrapper notes even though those areas now have clearer supported or
+  intentionally unsupported boundaries.
+
+### Risks / open items
+
+- npm and Hex publication are still pending.
+- `GET /__meta` operator UI, staged-upload byte serving, and bulk-operation
+  result-file serving remain unsupported by the Gleam HTTP adapter.
+- TypeScript runtime deletion still depends on full port parity, packaging, CI,
+  and conformance completion.
+
+---
+
 ## 2026-05-03 - Pass 191: HAR-539 payments cassette parity
 
 Migrates the remaining Payments parity scenarios to cassette-backed LiveHybrid
