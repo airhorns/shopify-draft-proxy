@@ -429,11 +429,11 @@ pub fn default_registry() -> List(RegistryEntry) {
       type_: Query,
       domain: Apps,
       execution: OverlayRead,
-      implemented: False,
+      implemented: True,
       match_names: ["currentAppInstallation", "CurrentAppInstallation"],
-      runtime_tests: [],
+      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
       support_notes: Some(
-        "HAR-301 declared current app installation read gap. Captured 2025-01 evidence records access scopes, app identity, empty activeSubscriptions, empty allSubscriptions, and empty oneTimePurchases for the active conformance install.",
+        "HAR-526 routes current app installation reads through a gated LiveHybrid app handler: cold reads can pass through to Shopify, while staged/hydrated app billing and access state resolves locally for downstream read-after-write and read-after-uninstall parity.",
       ),
     ),
     RegistryEntry(
