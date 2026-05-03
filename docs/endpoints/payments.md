@@ -165,6 +165,8 @@ Supported calls append the original raw GraphQL request to the meta log for even
 
 The current conformance credential probe on 2026-04-28 against `harry-test-heelo.myshopify.com` succeeded for general Admin access and confirmed these roots exist on API `2025-01`, but `currentAppInstallation.accessScopes` lacks both `read_customer_payment_methods` and `write_customer_payment_methods`. It has `write_orders`, but live `paymentReminderSend` success remains unsafe without a no-recipient or disposable-customer email plan. The executable parity evidence is therefore a local-runtime fixture, `customer-payment-method-local-staging`, which compares stable mutation payloads plus downstream payment-method reads without live payment credentials, vaulted data, real update URLs, or delivered reminders.
 
+In cassette-backed LiveHybrid parity, customer payment-method mutations use a narrow Pattern 2 hydrate query before local staging. The hydrate path imports only the customer shell and selected payment-method shell required by the captured local-runtime scenario, so `customerPaymentMethod(id:)` and `Customer.paymentMethods` can observe staged changes without calling Shopify for supported mutations at runtime.
+
 ### Payment terms templates
 
 `paymentTermsTemplates(paymentTermsType:)` is modeled as a read-only local catalog in snapshot and live-hybrid modes. The normalized default catalog is based on the 2025-01 `harry-test-heelo.myshopify.com` capture from 2026-04-27 and preserves Shopify's order and scalar values for:
@@ -182,7 +184,9 @@ The optional `paymentTermsType` argument filters by exact enum value. Selected t
 
 Create supports eligible local `Order` and `DraftOrder` IDs as `referenceId`, builds a stable local `PaymentTerms` GID, and creates schedule GIDs for supplied schedules. Update locates existing local terms by `paymentTermsId`, preserves the terms ID and same-index schedule IDs, and reprojects template name/type/due-day fields from the local `paymentTermsTemplates` catalog. Delete locates terms by `paymentTermsId`, clears the owning order/draft-order field, and returns `deletedId`.
 
-Validation is local and does not append staged-write log entries for rejected branches. Captured evidence currently covers the draft-order create-time missing-template branch (`Payment terms template id can not be empty.`) and merchant permission blocker (`The user must have access to set payment terms.`). The standalone lifecycle mutations use Shopify-documented 2026-04 argument/input shapes plus local guardrails for unknown order/draft targets, missing or unknown template IDs, invalid NET/FIXED schedule requirements, missing update IDs, and duplicate deletes. Full live happy-path parity remains future work because these mutations alter real payment schedules.
+Validation is local and does not append staged-write log entries for rejected branches. Captured evidence covers the draft-order create-time missing-template branch (`Payment terms template id can not be empty.`), merchant permission blocker (`The user must have access to set payment terms.`), and a cassette-backed LiveHybrid draft-order lifecycle. The standalone lifecycle mutations use Shopify-documented 2026-04 argument/input shapes plus local guardrails for unknown order/draft targets, missing or unknown template IDs, invalid NET/FIXED schedule requirements, missing update IDs, and duplicate deletes.
+
+For `paymentTermsCreate` against an existing captured draft order, the Gleam handler uses Pattern 2 hydration to read the draft-order owner from the cassette before staging local payment terms. Follow-up update/delete and downstream `draftOrder.paymentTerms` reads then run from local state, preserving the supported-mutation rule while matching the captured owner context.
 
 ## Historical and developer notes
 

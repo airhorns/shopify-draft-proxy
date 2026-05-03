@@ -72,7 +72,7 @@
       "data": {
         "cardCreate": {
           "customerPaymentMethod": {
-            "id": "gid://shopify/CustomerPaymentMethod/2",
+            "id": "gid://shopify/CustomerPaymentMethod/1",
             "instrument": {
               "__typename": "CustomerCreditCard",
               "lastDigits": null,
@@ -99,14 +99,14 @@
         },
         "remoteCreate": {
           "customerPaymentMethod": {
-            "id": "gid://shopify/CustomerPaymentMethod/3",
+            "id": "gid://shopify/CustomerPaymentMethod/2",
             "instrument": null
           },
           "userErrors": []
         },
         "paypalCreate": {
           "customerPaymentMethod": {
-            "id": "gid://shopify/CustomerPaymentMethod/4",
+            "id": "gid://shopify/CustomerPaymentMethod/3",
             "instrument": {
               "__typename": "CustomerPaypalBillingAgreement",
               "paypalAccountEmail": null,
@@ -148,7 +148,7 @@
       "data": {
         "customerPaymentMethodCreateFromDuplicationData": {
           "customerPaymentMethod": {
-            "id": "gid://shopify/CustomerPaymentMethod/8",
+            "id": "gid://shopify/CustomerPaymentMethod/7",
             "customer": {
               "id": "gid://shopify/Customer/8802"
             },
@@ -174,15 +174,15 @@
           "paymentMethods": {
             "nodes": [
               {
+                "id": "gid://shopify/CustomerPaymentMethod/1",
+                "revokedAt": null
+              },
+              {
                 "id": "gid://shopify/CustomerPaymentMethod/2",
                 "revokedAt": null
               },
               {
                 "id": "gid://shopify/CustomerPaymentMethod/3",
-                "revokedAt": null
-              },
-              {
-                "id": "gid://shopify/CustomerPaymentMethod/4",
                 "revokedAt": null
               },
               {
@@ -200,7 +200,7 @@
           "paymentMethods": {
             "nodes": [
               {
-                "id": "gid://shopify/CustomerPaymentMethod/8",
+                "id": "gid://shopify/CustomerPaymentMethod/7",
                 "instrument": {
                   "__typename": "CustomerCreditCard",
                   "lastDigits": null,
@@ -213,5 +213,66 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerPaymentMethodHydrate",
+      "variables": {
+        "customerIds": ["gid://shopify/Customer/8801", "gid://shopify/Customer/8802"],
+        "customerPaymentMethodIds": [
+          "gid://shopify/CustomerPaymentMethod/base-card",
+          "gid://shopify/CustomerPaymentMethod/base-paypal"
+        ]
+      },
+      "query": "local-runtime customer payment method hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": [
+              {
+                "id": "gid://shopify/Customer/8801",
+                "email": "payment-one@example.com",
+                "displayName": "Payment One",
+                "state": "ENABLED"
+              },
+              {
+                "id": "gid://shopify/Customer/8802",
+                "email": "payment-two@example.com",
+                "displayName": "Payment Two",
+                "state": "ENABLED"
+              }
+            ],
+            "customerPaymentMethods": [
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/base-card",
+                "customerId": "gid://shopify/Customer/8801",
+                "revokedAt": null,
+                "revokedReason": null,
+                "instrument": {
+                  "typeName": "CustomerCreditCard",
+                  "data": {
+                    "lastDigits": "4242",
+                    "maskedNumber": "**** **** **** 4242"
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/base-paypal",
+                "customerId": "gid://shopify/Customer/8801",
+                "revokedAt": null,
+                "revokedReason": null,
+                "instrument": {
+                  "typeName": "CustomerPaypalBillingAgreement",
+                  "data": {
+                    "paypalAccountEmail": "billing@example.com",
+                    "inactive": false
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }
