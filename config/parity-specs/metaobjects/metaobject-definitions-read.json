@@ -1,10 +1,22 @@
 {
   "scenarioId": "metaobject-definitions-read",
-  "operationNames": ["metaobjectDefinition", "metaobjectDefinitionByType", "metaobjectDefinitions"],
+  "operationNames": [
+    "metaobjectDefinition",
+    "metaobjectDefinitionByType",
+    "metaobjectDefinitions"
+  ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "selected-fields", "empty-state-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjects-read.json"],
-  "runtimeTestFiles": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "empty-state-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjects-read.json"
+  ],
+  "runtimeTestFiles": [
+    "tests/integration/metaobject-definition-query-shapes.test.ts"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/metaobject-definitions-read-catalog.graphql"
   },
@@ -18,23 +30,7 @@
         "capturePath": "$.seededReads[0].response.data.metaobjectDefinitions",
         "proxyPath": "$.data.metaobjectDefinitions",
         "upstreamCapturePath": null,
-        "expectedDifferences": [
-          {
-            "path": "$.edges[0].cursor",
-            "matcher": "non-empty-string",
-            "reason": "Shopify returns opaque cursors while the local definition catalog uses stable synthetic cursors."
-          },
-          {
-            "path": "$.pageInfo.startCursor",
-            "matcher": "non-empty-string",
-            "reason": "Shopify returns opaque cursors while the local definition catalog uses stable synthetic cursors."
-          },
-          {
-            "path": "$.pageInfo.endCursor",
-            "matcher": "non-empty-string",
-            "reason": "Shopify returns opaque cursors while the local definition catalog uses stable synthetic cursors."
-          }
-        ]
+        "expectedDifferences": []
       },
       {
         "name": "definition-detail-by-id",

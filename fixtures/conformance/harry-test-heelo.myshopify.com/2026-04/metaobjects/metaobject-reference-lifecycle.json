@@ -440,7 +440,10 @@
                   "key": "list_ref",
                   "type": "list.metaobject_reference",
                   "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]",
-                  "jsonValue": ["gid://shopify/Metaobject/185875824946", "gid://shopify/Metaobject/185875857714"],
+                  "jsonValue": [
+                    "gid://shopify/Metaobject/185875824946",
+                    "gid://shopify/Metaobject/185875857714"
+                  ],
                   "definition": {
                     "key": "list_ref",
                     "name": "List Ref",
@@ -701,7 +704,10 @@
                 "key": "list_ref",
                 "type": "list.metaobject_reference",
                 "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]",
-                "jsonValue": ["gid://shopify/Metaobject/185875824946", "gid://shopify/Metaobject/185875857714"],
+                "jsonValue": [
+                  "gid://shopify/Metaobject/185875824946",
+                  "gid://shopify/Metaobject/185875857714"
+                ],
                 "definition": {
                   "key": "list_ref",
                   "name": "List Ref",
@@ -892,7 +898,10 @@
                 "key": "list_ref",
                 "type": "list.metaobject_reference",
                 "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]",
-                "jsonValue": ["gid://shopify/Metaobject/185875824946", "gid://shopify/Metaobject/185875857714"],
+                "jsonValue": [
+                  "gid://shopify/Metaobject/185875824946",
+                  "gid://shopify/Metaobject/185875857714"
+                ],
                 "reference": null,
                 "references": {
                   "nodes": [
@@ -960,7 +969,10 @@
               "key": "list_ref",
               "type": "list.metaobject_reference",
               "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]",
-              "jsonValue": ["gid://shopify/Metaobject/185875824946", "gid://shopify/Metaobject/185875857714"],
+              "jsonValue": [
+                "gid://shopify/Metaobject/185875824946",
+                "gid://shopify/Metaobject/185875857714"
+              ],
               "reference": null,
               "references": {
                 "nodes": [
@@ -1172,5 +1184,306 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MetaobjectReferenceReadParity",
+      "variables": {
+        "targetAId": "gid://shopify/Metaobject/185875824946",
+        "targetBId": "gid://shopify/Metaobject/185875857714",
+        "parentId": "gid://shopify/Metaobject/185875890482"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "targetA": {
+              "id": "gid://shopify/Metaobject/185875824946",
+              "handle": "target-a",
+              "type": "codex_har_384_ref_target_1777341209922",
+              "displayName": "Target A 1777341209922",
+              "referencedBy": {
+                "nodes": [
+                  {
+                    "key": "single_ref",
+                    "name": "Single Ref",
+                    "namespace": "codex_har_384_ref_parent_1777341209922",
+                    "referencer": {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875890482",
+                      "handle": "reference-parent",
+                      "type": "codex_har_384_ref_parent_1777341209922",
+                      "displayName": "Reference parent 1777341209922"
+                    }
+                  },
+                  {
+                    "key": "list_ref",
+                    "name": "List Ref",
+                    "namespace": "codex_har_384_ref_parent_1777341209922",
+                    "referencer": {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875890482",
+                      "handle": "reference-parent",
+                      "type": "codex_har_384_ref_parent_1777341209922",
+                      "displayName": "Reference parent 1777341209922"
+                    }
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjIyOTI5OCwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjI5Mjk4In0=",
+                    "node": {
+                      "key": "single_ref",
+                      "name": "Single Ref",
+                      "namespace": "codex_har_384_ref_parent_1777341209922",
+                      "referencer": {
+                        "__typename": "Metaobject",
+                        "id": "gid://shopify/Metaobject/185875890482",
+                        "handle": "reference-parent",
+                        "type": "codex_har_384_ref_parent_1777341209922",
+                        "displayName": "Reference parent 1777341209922"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjI2MjA2NiwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjYyMDY2In0=",
+                    "node": {
+                      "key": "list_ref",
+                      "name": "List Ref",
+                      "namespace": "codex_har_384_ref_parent_1777341209922",
+                      "referencer": {
+                        "__typename": "Metaobject",
+                        "id": "gid://shopify/Metaobject/185875890482",
+                        "handle": "reference-parent",
+                        "type": "codex_har_384_ref_parent_1777341209922",
+                        "displayName": "Reference parent 1777341209922"
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjIyOTI5OCwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjI5Mjk4In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjI2MjA2NiwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjYyMDY2In0="
+                }
+              }
+            },
+            "targetB": {
+              "id": "gid://shopify/Metaobject/185875857714",
+              "handle": "target-b",
+              "type": "codex_har_384_ref_target_1777341209922",
+              "displayName": "Target B 1777341209922",
+              "referencedBy": {
+                "nodes": [
+                  {
+                    "key": "list_ref",
+                    "name": "List Ref",
+                    "namespace": "codex_har_384_ref_parent_1777341209922",
+                    "referencer": {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875890482",
+                      "handle": "reference-parent",
+                      "type": "codex_har_384_ref_parent_1777341209922",
+                      "displayName": "Reference parent 1777341209922"
+                    }
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjI2MjA2NiwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjYyMDY2In0=",
+                    "node": {
+                      "key": "list_ref",
+                      "name": "List Ref",
+                      "namespace": "codex_har_384_ref_parent_1777341209922",
+                      "referencer": {
+                        "__typename": "Metaobject",
+                        "id": "gid://shopify/Metaobject/185875890482",
+                        "handle": "reference-parent",
+                        "type": "codex_har_384_ref_parent_1777341209922",
+                        "displayName": "Reference parent 1777341209922"
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjI2MjA2NiwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjYyMDY2In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjI2MjA2NiwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjYyMDY2In0="
+                }
+              }
+            },
+            "parent": {
+              "id": "gid://shopify/Metaobject/185875890482",
+              "handle": "reference-parent",
+              "type": "codex_har_384_ref_parent_1777341209922",
+              "displayName": "Reference parent 1777341209922",
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Reference parent 1777341209922",
+                  "jsonValue": "Reference parent 1777341209922",
+                  "reference": null,
+                  "references": null
+                },
+                {
+                  "key": "single_ref",
+                  "type": "metaobject_reference",
+                  "value": "gid://shopify/Metaobject/185875824946",
+                  "jsonValue": "gid://shopify/Metaobject/185875824946",
+                  "reference": {
+                    "__typename": "Metaobject",
+                    "id": "gid://shopify/Metaobject/185875824946",
+                    "handle": "target-a",
+                    "type": "codex_har_384_ref_target_1777341209922",
+                    "displayName": "Target A 1777341209922"
+                  },
+                  "references": null
+                },
+                {
+                  "key": "list_ref",
+                  "type": "list.metaobject_reference",
+                  "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]",
+                  "jsonValue": [
+                    "gid://shopify/Metaobject/185875824946",
+                    "gid://shopify/Metaobject/185875857714"
+                  ],
+                  "reference": null,
+                  "references": {
+                    "nodes": [
+                      {
+                        "__typename": "Metaobject",
+                        "id": "gid://shopify/Metaobject/185875824946",
+                        "handle": "target-a",
+                        "type": "codex_har_384_ref_target_1777341209922",
+                        "displayName": "Target A 1777341209922"
+                      },
+                      {
+                        "__typename": "Metaobject",
+                        "id": "gid://shopify/Metaobject/185875857714",
+                        "handle": "target-b",
+                        "type": "codex_har_384_ref_target_1777341209922",
+                        "displayName": "Target B 1777341209922"
+                      }
+                    ],
+                    "edges": [
+                      {
+                        "cursor": "eyJsYXN0X2lkIjowLCJsYXN0X3ZhbHVlIjowfQ==",
+                        "node": {
+                          "__typename": "Metaobject",
+                          "id": "gid://shopify/Metaobject/185875824946",
+                          "handle": "target-a",
+                          "type": "codex_har_384_ref_target_1777341209922",
+                          "displayName": "Target A 1777341209922"
+                        }
+                      },
+                      {
+                        "cursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoxfQ==",
+                        "node": {
+                          "__typename": "Metaobject",
+                          "id": "gid://shopify/Metaobject/185875857714",
+                          "handle": "target-b",
+                          "type": "codex_har_384_ref_target_1777341209922",
+                          "displayName": "Target B 1777341209922"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjowLCJsYXN0X3ZhbHVlIjowfQ==",
+                      "endCursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoxfQ=="
+                    }
+                  }
+                }
+              ],
+              "singleRef": {
+                "key": "single_ref",
+                "type": "metaobject_reference",
+                "value": "gid://shopify/Metaobject/185875824946",
+                "jsonValue": "gid://shopify/Metaobject/185875824946",
+                "reference": {
+                  "__typename": "Metaobject",
+                  "id": "gid://shopify/Metaobject/185875824946",
+                  "handle": "target-a",
+                  "type": "codex_har_384_ref_target_1777341209922",
+                  "displayName": "Target A 1777341209922"
+                },
+                "references": null
+              },
+              "listRef": {
+                "key": "list_ref",
+                "type": "list.metaobject_reference",
+                "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]",
+                "jsonValue": [
+                  "gid://shopify/Metaobject/185875824946",
+                  "gid://shopify/Metaobject/185875857714"
+                ],
+                "reference": null,
+                "references": {
+                  "nodes": [
+                    {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875824946",
+                      "handle": "target-a",
+                      "type": "codex_har_384_ref_target_1777341209922",
+                      "displayName": "Target A 1777341209922"
+                    },
+                    {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875857714",
+                      "handle": "target-b",
+                      "type": "codex_har_384_ref_target_1777341209922",
+                      "displayName": "Target B 1777341209922"
+                    }
+                  ],
+                  "edges": [
+                    {
+                      "cursor": "eyJsYXN0X2lkIjowLCJsYXN0X3ZhbHVlIjowfQ==",
+                      "node": {
+                        "__typename": "Metaobject",
+                        "id": "gid://shopify/Metaobject/185875824946",
+                        "handle": "target-a",
+                        "type": "codex_har_384_ref_target_1777341209922",
+                        "displayName": "Target A 1777341209922"
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoxfQ==",
+                      "node": {
+                        "__typename": "Metaobject",
+                        "id": "gid://shopify/Metaobject/185875857714",
+                        "handle": "target-b",
+                        "type": "codex_har_384_ref_target_1777341209922",
+                        "displayName": "Target B 1777341209922"
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjowLCJsYXN0X3ZhbHVlIjowfQ==",
+                    "endCursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoxfQ=="
+                  }
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 69,
+              "actualQueryCost": 44,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1924,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

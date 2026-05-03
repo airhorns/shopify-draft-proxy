@@ -1,10 +1,23 @@
 {
   "scenarioId": "metaobjects-read",
-  "operationNames": ["metaobject", "metaobjectByHandle", "metaobjects"],
+  "operationNames": [
+    "metaobject",
+    "metaobjectByHandle",
+    "metaobjects"
+  ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "selected-fields", "empty-state-parity", "pagination-shape"],
-  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjects-read.json"],
-  "runtimeTestFiles": ["tests/integration/metaobject-query-shapes.test.ts"],
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "empty-state-parity",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjects-read.json"
+  ],
+  "runtimeTestFiles": [
+    "tests/integration/metaobject-query-shapes.test.ts"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/metaobjects-read.graphql",
     "variables": {
@@ -26,23 +39,7 @@
         "capturePath": "$.seededReads[3].response.data.metaobjects",
         "proxyPath": "$.data.catalog",
         "upstreamCapturePath": null,
-        "expectedDifferences": [
-          {
-            "path": "$.edges[0].cursor",
-            "matcher": "any-string",
-            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
-          },
-          {
-            "path": "$.pageInfo.startCursor",
-            "matcher": "any-string",
-            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
-          },
-          {
-            "path": "$.pageInfo.endCursor",
-            "matcher": "any-string",
-            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
-          }
-        ]
+        "expectedDifferences": []
       },
       {
         "name": "seeded-entry-by-id",

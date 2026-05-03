@@ -671,7 +671,9 @@
             "deletedId": null,
             "userErrors": [
               {
-                "field": ["id"],
+                "field": [
+                  "id"
+                ],
                 "message": "Record not found",
                 "code": "RECORD_NOT_FOUND",
                 "elementKey": null,
@@ -708,7 +710,9 @@
             "deletedId": null,
             "userErrors": [
               {
-                "field": ["id"],
+                "field": [
+                  "id"
+                ],
                 "message": "Record not found",
                 "code": "RECORD_NOT_FOUND",
                 "elementKey": null,
@@ -760,5 +764,310 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MetaobjectBulkDeleteHydrateByType",
+      "variables": {
+        "type": "codex_har_450_bulk_delete_1777427735399"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "first": {
+              "id": "gid://shopify/Metaobject/185994379570",
+              "handle": "codex-har-450-bulk-first-1777427735399",
+              "type": "codex_har_450_bulk_delete_1777427735399",
+              "displayName": "Bulk delete first",
+              "updatedAt": "2026-04-29T01:55:35Z",
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Bulk delete first",
+                  "jsonValue": "Bulk delete first",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "First entry selected by type bulk delete.",
+                  "jsonValue": "First entry selected by type bulk delete.",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ]
+            },
+            "second": {
+              "id": "gid://shopify/Metaobject/185994412338",
+              "handle": "codex-har-450-bulk-second-1777427735399",
+              "type": "codex_har_450_bulk_delete_1777427735399",
+              "displayName": "Bulk delete second",
+              "updatedAt": "2026-04-29T01:55:36Z",
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Bulk delete second",
+                  "jsonValue": "Bulk delete second",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "Second entry selected by type bulk delete.",
+                  "jsonValue": "Second entry selected by type bulk delete.",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ]
+            },
+            "catalog": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxODU5OTQzNzk1NzAsImxhc3RfdmFsdWUiOiIxODU5OTQzNzk1NzAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Metaobject/185994379570",
+                    "handle": "codex-har-450-bulk-first-1777427735399",
+                    "type": "codex_har_450_bulk_delete_1777427735399",
+                    "displayName": "Bulk delete first",
+                    "updatedAt": "2026-04-29T01:55:35Z",
+                    "fields": [
+                      {
+                        "key": "title",
+                        "type": "single_line_text_field",
+                        "value": "Bulk delete first",
+                        "jsonValue": "Bulk delete first",
+                        "definition": {
+                          "key": "title",
+                          "name": "Title",
+                          "required": true,
+                          "type": {
+                            "name": "single_line_text_field",
+                            "category": "TEXT"
+                          }
+                        }
+                      },
+                      {
+                        "key": "body",
+                        "type": "multi_line_text_field",
+                        "value": "First entry selected by type bulk delete.",
+                        "jsonValue": "First entry selected by type bulk delete.",
+                        "definition": {
+                          "key": "body",
+                          "name": "Body",
+                          "required": false,
+                          "type": {
+                            "name": "multi_line_text_field",
+                            "category": "TEXT"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxODU5OTQ0MTIzMzgsImxhc3RfdmFsdWUiOiIxODU5OTQ0MTIzMzgifQ==",
+                  "node": {
+                    "id": "gid://shopify/Metaobject/185994412338",
+                    "handle": "codex-har-450-bulk-second-1777427735399",
+                    "type": "codex_har_450_bulk_delete_1777427735399",
+                    "displayName": "Bulk delete second",
+                    "updatedAt": "2026-04-29T01:55:36Z",
+                    "fields": [
+                      {
+                        "key": "title",
+                        "type": "single_line_text_field",
+                        "value": "Bulk delete second",
+                        "jsonValue": "Bulk delete second",
+                        "definition": {
+                          "key": "title",
+                          "name": "Title",
+                          "required": true,
+                          "type": {
+                            "name": "single_line_text_field",
+                            "category": "TEXT"
+                          }
+                        }
+                      },
+                      {
+                        "key": "body",
+                        "type": "multi_line_text_field",
+                        "value": "Second entry selected by type bulk delete.",
+                        "jsonValue": "Second entry selected by type bulk delete.",
+                        "definition": {
+                          "key": "body",
+                          "name": "Body",
+                          "required": false,
+                          "type": {
+                            "name": "multi_line_text_field",
+                            "category": "TEXT"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metaobject/185994379570",
+                  "handle": "codex-har-450-bulk-first-1777427735399",
+                  "type": "codex_har_450_bulk_delete_1777427735399",
+                  "displayName": "Bulk delete first",
+                  "updatedAt": "2026-04-29T01:55:35Z",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "type": "single_line_text_field",
+                      "value": "Bulk delete first",
+                      "jsonValue": "Bulk delete first",
+                      "definition": {
+                        "key": "title",
+                        "name": "Title",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "body",
+                      "type": "multi_line_text_field",
+                      "value": "First entry selected by type bulk delete.",
+                      "jsonValue": "First entry selected by type bulk delete.",
+                      "definition": {
+                        "key": "body",
+                        "name": "Body",
+                        "required": false,
+                        "type": {
+                          "name": "multi_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/Metaobject/185994412338",
+                  "handle": "codex-har-450-bulk-second-1777427735399",
+                  "type": "codex_har_450_bulk_delete_1777427735399",
+                  "displayName": "Bulk delete second",
+                  "updatedAt": "2026-04-29T01:55:36Z",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "type": "single_line_text_field",
+                      "value": "Bulk delete second",
+                      "jsonValue": "Bulk delete second",
+                      "definition": {
+                        "key": "title",
+                        "name": "Title",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "body",
+                      "type": "multi_line_text_field",
+                      "value": "Second entry selected by type bulk delete.",
+                      "jsonValue": "Second entry selected by type bulk delete.",
+                      "definition": {
+                        "key": "body",
+                        "name": "Body",
+                        "required": false,
+                        "type": {
+                          "name": "multi_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxODU5OTQzNzk1NzAsImxhc3RfdmFsdWUiOiIxODU5OTQzNzk1NzAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxODU5OTQ0MTIzMzgsImxhc3RfdmFsdWUiOiIxODU5OTQ0MTIzMzgifQ=="
+              }
+            },
+            "definition": {
+              "id": "gid://shopify/MetaobjectDefinition/17627054386",
+              "type": "codex_har_450_bulk_delete_1777427735399",
+              "name": "Codex HAR-450 Bulk 1777427735399",
+              "displayNameKey": "title",
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "body",
+                  "name": "Body",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              ],
+              "metaobjectsCount": 2
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 45,
+              "actualQueryCost": 24,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
