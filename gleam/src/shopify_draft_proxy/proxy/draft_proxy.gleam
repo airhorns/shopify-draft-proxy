@@ -1361,10 +1361,13 @@ fn route_query(
         variables,
       )
     Ok(OnlineStoreDomain) ->
-      respond(
+      online_store.handle_query_request(
         proxy,
-        online_store.process(proxy.store, query, variables),
-        "Failed to handle online-store query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(CustomersDomain) ->
       customers.handle_query_request(
