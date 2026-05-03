@@ -17,6 +17,7 @@ import shopify_draft_proxy/graphql/ast.{
   type Selection, Argument, Field, VariableValue,
 }
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   ConnectionPageInfoOptions, SerializeConnectionConfig,
   default_connection_page_info_options, default_connection_window_options,
@@ -27,9 +28,16 @@ import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, find_argument, read_optional_string, single_root_log_draft,
 }
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type MetafieldDefinitionCapabilitiesRecord,
@@ -37,10 +45,12 @@ import shopify_draft_proxy/state/types.{
   type MetafieldDefinitionConstraintValueRecord,
   type MetafieldDefinitionConstraintsRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionTypeRecord, type MetafieldDefinitionValidationRecord,
-  type ProductMetafieldRecord, MetafieldDefinitionCapabilitiesRecord,
-  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintsRecord,
+  type ProductMetafieldRecord, type ProductRecord,
+  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
+  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
   MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, ProductMetafieldRecord,
+  MetafieldDefinitionValidationRecord, ProductMetafieldRecord, ProductRecord,
+  ProductSeoRecord,
 }
 
 pub type MetafieldDefinitionsError {
@@ -127,6 +137,52 @@ pub fn is_metafield_definitions_mutation_root(name: String) -> Bool {
   }
 }
 
+/// True when the local metafield-definition model must answer reads instead
+/// of LiveHybrid passthrough: a lifecycle flow has staged or deleted
+/// definitions, or a variable carries a proxy-synthetic definition id.
+pub fn local_has_metafield_definition_state(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  let has_synthetic =
+    dict.values(variables)
+    |> list.any(fn(value) {
+      case value {
+        root_field.StringVal(s) -> is_proxy_synthetic_gid(s)
+        _ -> False
+      }
+    })
+  has_synthetic
+  || !list.is_empty(store.list_effective_metafield_definitions(proxy.store))
+  || !dict_is_empty(proxy.store.staged_state.deleted_metafield_definition_ids)
+  || !dict_is_empty(proxy.store.base_state.deleted_metafield_definition_ids)
+}
+
+/// Pattern 1: cold LiveHybrid definition catalog/detail reads are just
+/// upstream reads. Once a local lifecycle has staged or deleted definitions,
+/// keep reads local so read-after-write and read-after-delete behavior does
+/// not leak back to Shopify.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  _primary_root_field: String,
+  query: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  case
+    proxy.config.read_mode,
+    local_has_metafield_definition_state(proxy, variables)
+  {
+    LiveHybrid, False -> passthrough.passthrough_sync(proxy, request)
+    _, _ ->
+      respond_local(
+        proxy,
+        process(proxy.store, query, variables),
+        "Failed to handle metafield definitions query",
+      )
+  }
+}
+
 pub fn handle_metafield_definitions_query(
   store: Store,
   document: String,
@@ -200,14 +256,32 @@ pub fn process(
 pub fn process_mutation(
   store_in: Store,
   identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, MetafieldDefinitionsError) {
+  process_mutation_with_upstream(
+    store_in,
+    identity,
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+pub fn process_mutation_with_upstream(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Result(MutationOutcome, MetafieldDefinitionsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) ->
-      Ok(handle_mutation_fields(store_in, identity, fields, variables))
+      Ok(handle_mutation_fields(store_in, identity, fields, variables, upstream))
   }
 }
 
@@ -216,6 +290,7 @@ fn handle_mutation_fields(
   identity: SyntheticIdentityRegistry,
   fields: List(Selection),
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let initial = #(store_in, identity, [], [], [], [])
   let #(store_out, identity_out, entries, drafts, staged_all, top_errors) =
@@ -237,6 +312,7 @@ fn handle_mutation_fields(
               current_identity,
               field,
               variables,
+              upstream,
             )
           let next_entries = case field_errors {
             [] ->
@@ -306,6 +382,7 @@ fn dispatch_mutation_field(
   identity: SyntheticIdentityRegistry,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String), List(Json)) {
   case root_name {
     "metafieldDefinitionCreate" ->
@@ -344,6 +421,7 @@ fn dispatch_mutation_field(
         identity,
         field,
         variables,
+        upstream,
       ))
     "metafieldDefinitionUnpin" ->
       no_top_level_errors(serialize_definition_unpin_root(
@@ -351,6 +429,7 @@ fn dispatch_mutation_field(
         identity,
         field,
         variables,
+        upstream,
       ))
     "metafieldsSet" ->
       serialize_metafields_set_root_with_top_level_validation(
@@ -374,6 +453,24 @@ fn dispatch_mutation_field(
         variables,
       ))
     _ -> #(json.null(), store_in, identity, [], [])
+  }
+}
+
+fn respond_local(
+  proxy: DraftProxy,
+  result: Result(Json, MetafieldDefinitionsError),
+  error_message: String,
+) -> #(Response, DraftProxy) {
+  case result {
+    Ok(body) -> #(Response(status: 200, body: body, headers: []), proxy)
+    Error(_) -> #(
+      Response(
+        status: 400,
+        body: json.object([#("error", json.string(error_message))]),
+        headers: [],
+      ),
+      proxy,
+    )
   }
 }
 
@@ -964,6 +1061,15 @@ fn get_product_metafields_for_definition(
       |> list.sort(fn(left, right) { string.compare(left.id, right.id) })
     _ -> []
   }
+}
+
+fn product_metafield_owner_ids_for_definition(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> List(String) {
+  get_product_metafields_for_definition(store_in, definition)
+  |> list.map(fn(metafield) { metafield.owner_id })
+  |> dedupe_strings
 }
 
 fn all_effective_metafields(store_in: Store) -> List(ProductMetafieldRecord) {
@@ -1759,6 +1865,8 @@ fn serialize_definition_delete_root(
       [],
     )
     Some(record) -> {
+      let associated_product_owner_ids =
+        product_metafield_owner_ids_for_definition(store_in, record)
       let store_after_metafields = case
         read_optional_bool(args, "deleteAllAssociatedMetafields")
       {
@@ -1766,7 +1874,9 @@ fn serialize_definition_delete_root(
           store.delete_product_metafields_for_definition(store_in, record)
         _ -> store_in
       }
-      let next_store = stage_delete_definition(store_after_metafields, record)
+      let next_store =
+        stage_delete_definition(store_after_metafields, record)
+        |> ensure_product_shells(associated_product_owner_ids)
       #(
         serialize_definition_delete_payload(Some(record), [], field),
         next_store,
@@ -1830,8 +1940,14 @@ fn serialize_definition_pin_root(
   identity: SyntheticIdentityRegistry,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = read_args(field, variables)
+  // Pattern 2: pinning is a supported local mutation, but a cold LiveHybrid
+  // request may target an upstream definition. Hydrate the definition catalog
+  // first, then stage only the pin effect locally. Snapshot/no-transport mode
+  // keeps the current local not-found behavior.
+  let store_in = maybe_hydrate_definition_for_args(store_in, args, upstream)
   case find_definition_from_args(store_in, args) {
     None -> #(
       serialize_pinning_payload(
@@ -1878,8 +1994,12 @@ fn serialize_definition_unpin_root(
   identity: SyntheticIdentityRegistry,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = read_args(field, variables)
+  // Pattern 2: unpinning mirrors pinning — hydrate any upstream definition
+  // before applying the local stage so downstream reads observe local state.
+  let store_in = maybe_hydrate_definition_for_args(store_in, args, upstream)
   case find_definition_from_args(store_in, args) {
     None -> #(
       serialize_pinning_payload(
@@ -2328,6 +2448,198 @@ fn stage_delete_definition(
     }
   }
   store.stage_delete_metafield_definition(compacted_store, definition.id)
+}
+
+fn ensure_product_shells(store_in: Store, product_ids: List(String)) -> Store {
+  list.fold(product_ids, store_in, fn(current, product_id) {
+    case store.get_effective_product_by_id(current, product_id) {
+      Some(_) -> current
+      None -> {
+        let #(_, next_store) =
+          store.upsert_staged_product(
+            current,
+            minimal_product_shell(product_id),
+          )
+        next_store
+      }
+    }
+  })
+}
+
+fn minimal_product_shell(product_id: String) -> ProductRecord {
+  ProductRecord(
+    id: product_id,
+    legacy_resource_id: None,
+    title: "",
+    handle: "",
+    status: "ACTIVE",
+    vendor: None,
+    product_type: None,
+    tags: [],
+    total_inventory: None,
+    tracks_inventory: None,
+    created_at: None,
+    updated_at: None,
+    published_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    category: None,
+    publication_ids: [],
+    contextual_pricing: None,
+    cursor: None,
+  )
+}
+
+fn maybe_hydrate_definition_for_args(
+  store_in: Store,
+  args: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  case find_definition_from_args(store_in, args) {
+    Some(_) -> store_in
+    None ->
+      case read_definition_identifier(args) {
+        Some(#(owner_type, namespace, _key)) ->
+          hydrate_definitions_by_namespace(
+            store_in,
+            owner_type,
+            namespace,
+            upstream,
+          )
+        None ->
+          case read_definition_id_arg(args) {
+            Some(id) -> hydrate_definition_by_id(store_in, id, upstream)
+            None -> store_in
+          }
+      }
+  }
+}
+
+fn read_definition_id_arg(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  read_optional_string(args, "definitionId")
+  |> option.or(read_optional_string(args, "id"))
+}
+
+fn hydrate_definitions_by_namespace(
+  store_in: Store,
+  owner_type: String,
+  namespace: String,
+  upstream: UpstreamContext,
+) -> Store {
+  let query =
+    "query MetafieldDefinitionsHydrateByNamespace($ownerType: MetafieldOwnerType!, $namespace: String!) {\n"
+    <> "  metafieldDefinitions(ownerType: $ownerType, first: 50, namespace: $namespace, sortKey: PINNED_POSITION) {\n"
+    <> metafield_definition_hydrate_selection("    ")
+    <> "  }\n"
+    <> "}\n"
+  let variables =
+    json.object([
+      #("ownerType", json.string(owner_type)),
+      #("namespace", json.string(namespace)),
+    ])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "MetafieldDefinitionsHydrateByNamespace",
+      query,
+      variables,
+    )
+  {
+    Ok(value) ->
+      metafield_definitions_from_hydrate_response(value)
+      |> upsert_hydrated_definitions(store_in)
+    Error(_) -> store_in
+  }
+}
+
+fn hydrate_definition_by_id(
+  store_in: Store,
+  id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  let query =
+    "query MetafieldDefinitionHydrateById($id: ID!) {\n"
+    <> "  metafieldDefinition(id: $id) {\n"
+    <> metafield_definition_node_hydrate_selection("    ")
+    <> "  }\n"
+    <> "}\n"
+  let variables = json.object([#("id", json.string(id))])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "MetafieldDefinitionHydrateById",
+      query,
+      variables,
+    )
+  {
+    Ok(value) ->
+      metafield_definitions_from_hydrate_response(value)
+      |> upsert_hydrated_definitions(store_in)
+    Error(_) -> store_in
+  }
+}
+
+fn upsert_hydrated_definitions(
+  definitions: List(MetafieldDefinitionRecord),
+  store_in: Store,
+) -> Store {
+  case definitions {
+    [] -> store_in
+    [_, ..] -> store.upsert_base_metafield_definitions(store_in, definitions)
+  }
+}
+
+fn metafield_definition_hydrate_selection(indent: String) -> String {
+  indent
+  <> "nodes {\n"
+  <> metafield_definition_node_hydrate_selection(indent <> "  ")
+  <> indent
+  <> "}\n"
+}
+
+fn metafield_definition_node_hydrate_selection(indent: String) -> String {
+  indent
+  <> "id\n"
+  <> indent
+  <> "name\n"
+  <> indent
+  <> "namespace\n"
+  <> indent
+  <> "key\n"
+  <> indent
+  <> "ownerType\n"
+  <> indent
+  <> "type { name category }\n"
+  <> indent
+  <> "description\n"
+  <> indent
+  <> "validations { name value }\n"
+  <> indent
+  <> "access { admin storefront customerAccount }\n"
+  <> indent
+  <> "capabilities {\n"
+  <> indent
+  <> "  adminFilterable { enabled eligible status }\n"
+  <> indent
+  <> "  smartCollectionCondition { enabled eligible }\n"
+  <> indent
+  <> "  uniqueValues { enabled eligible }\n"
+  <> indent
+  <> "}\n"
+  <> indent
+  <> "constraints { key values(first: 10) { nodes { value } } }\n"
+  <> indent
+  <> "pinnedPosition\n"
+  <> indent
+  <> "validationStatus\n"
 }
 
 fn serialize_metafields_delete_root(
@@ -3445,6 +3757,232 @@ fn optional_string_list(value: Option(List(String))) -> Json {
     Some(items) -> json.array(items, json.string)
     None -> json.null()
   }
+}
+
+fn metafield_definitions_from_hydrate_response(
+  value: commit.JsonValue,
+) -> List(MetafieldDefinitionRecord) {
+  case json_get(value, "data") {
+    Some(data) -> {
+      let from_connection = case json_get(data, "metafieldDefinitions") {
+        Some(connection) ->
+          case json_get(connection, "nodes") {
+            Some(commit.JsonArray(nodes)) ->
+              list.filter_map(nodes, metafield_definition_from_json)
+            _ -> []
+          }
+        None -> []
+      }
+      let from_singular = case json_get(data, "metafieldDefinition") {
+        Some(commit.JsonNull) | None -> []
+        Some(node) ->
+          case metafield_definition_from_json(node) {
+            Ok(definition) -> [definition]
+            Error(_) -> []
+          }
+      }
+      list.append(from_connection, from_singular)
+    }
+    None -> []
+  }
+}
+
+fn metafield_definition_from_json(
+  value: commit.JsonValue,
+) -> Result(MetafieldDefinitionRecord, Nil) {
+  use id <- result.try(json_get_required_string(value, "id"))
+  use name <- result.try(json_get_required_string(value, "name"))
+  use namespace <- result.try(json_get_required_string(value, "namespace"))
+  use key <- result.try(json_get_required_string(value, "key"))
+  use owner_type <- result.try(json_get_required_string(value, "ownerType"))
+  let type_node = json_get(value, "type")
+  Ok(MetafieldDefinitionRecord(
+    id: id,
+    name: name,
+    namespace: namespace,
+    key: key,
+    owner_type: owner_type,
+    type_: MetafieldDefinitionTypeRecord(
+      name: type_node
+        |> option.then(fn(node) { json_get_string(node, "name") })
+        |> option.unwrap("single_line_text_field"),
+      category: type_node
+        |> option.then(fn(node) { json_get_string(node, "category") }),
+    ),
+    description: json_get_string(value, "description"),
+    validations: json_get_array(value, "validations")
+      |> list.filter_map(metafield_definition_validation_from_json),
+    access: definition_access_from_json(json_get(value, "access")),
+    capabilities: definition_capabilities_from_json(json_get(
+      value,
+      "capabilities",
+    )),
+    constraints: Some(
+      definition_constraints_from_json(json_get(value, "constraints")),
+    ),
+    pinned_position: json_get_int(value, "pinnedPosition"),
+    validation_status: json_get_string(value, "validationStatus")
+      |> option.unwrap("ALL_VALID"),
+  ))
+}
+
+fn metafield_definition_validation_from_json(
+  value: commit.JsonValue,
+) -> Result(MetafieldDefinitionValidationRecord, Nil) {
+  use name <- result.try(json_get_required_string(value, "name"))
+  Ok(MetafieldDefinitionValidationRecord(
+    name: name,
+    value: json_get_string(value, "value"),
+  ))
+}
+
+fn definition_access_from_json(
+  value: Option(commit.JsonValue),
+) -> Dict(String, Json) {
+  case value {
+    Some(node) ->
+      [
+        #("admin", "PUBLIC_READ_WRITE"),
+        #("storefront", "NONE"),
+        #("customerAccount", "NONE"),
+      ]
+      |> list.map(fn(pair) {
+        let #(key, fallback) = pair
+        #(
+          key,
+          json.string(json_get_string(node, key) |> option.unwrap(fallback)),
+        )
+      })
+      |> dict.from_list
+    None ->
+      dict.from_list([
+        #("admin", json.string("PUBLIC_READ_WRITE")),
+        #("storefront", json.string("NONE")),
+        #("customerAccount", json.string("NONE")),
+      ])
+  }
+}
+
+fn definition_capabilities_from_json(
+  value: Option(commit.JsonValue),
+) -> MetafieldDefinitionCapabilitiesRecord {
+  let node = option.unwrap(value, commit.JsonObject([]))
+  MetafieldDefinitionCapabilitiesRecord(
+    admin_filterable: definition_capability_from_json(
+      json_get(node, "adminFilterable"),
+      Some("NOT_FILTERABLE"),
+    ),
+    smart_collection_condition: definition_capability_from_json(
+      json_get(node, "smartCollectionCondition"),
+      None,
+    ),
+    unique_values: definition_capability_from_json(
+      json_get(node, "uniqueValues"),
+      None,
+    ),
+  )
+}
+
+fn definition_capability_from_json(
+  value: Option(commit.JsonValue),
+  default_status: Option(String),
+) -> MetafieldDefinitionCapabilityRecord {
+  case value {
+    Some(node) ->
+      MetafieldDefinitionCapabilityRecord(
+        enabled: json_get_bool(node, "enabled") |> option.unwrap(False),
+        eligible: json_get_bool(node, "eligible") |> option.unwrap(False),
+        status: json_get_string(node, "status") |> option.or(default_status),
+      )
+    None ->
+      MetafieldDefinitionCapabilityRecord(
+        enabled: False,
+        eligible: False,
+        status: default_status,
+      )
+  }
+}
+
+fn definition_constraints_from_json(
+  value: Option(commit.JsonValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  let node = option.unwrap(value, commit.JsonObject([]))
+  let values = case json_get(node, "values") {
+    Some(connection) ->
+      json_get_array(connection, "nodes")
+      |> list.filter_map(fn(value_node) {
+        case json_get_string(value_node, "value") {
+          Some(value) -> Ok(MetafieldDefinitionConstraintValueRecord(value))
+          None -> Error(Nil)
+        }
+      })
+    None -> []
+  }
+  MetafieldDefinitionConstraintsRecord(
+    key: json_get_string(node, "key"),
+    values: values,
+  )
+}
+
+fn json_get_required_string(
+  value: commit.JsonValue,
+  key: String,
+) -> Result(String, Nil) {
+  case json_get_string(value, key) {
+    Some(s) -> Ok(s)
+    None -> Error(Nil)
+  }
+}
+
+fn json_get_array(
+  value: commit.JsonValue,
+  key: String,
+) -> List(commit.JsonValue) {
+  case json_get(value, key) {
+    Some(commit.JsonArray(items)) -> items
+    _ -> []
+  }
+}
+
+fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
+  case json_get(value, key) {
+    Some(commit.JsonBool(b)) -> Some(b)
+    _ -> None
+  }
+}
+
+fn json_get_int(value: commit.JsonValue, key: String) -> Option(Int) {
+  case json_get(value, key) {
+    Some(commit.JsonInt(i)) -> Some(i)
+    _ -> None
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(k, v) if k == key -> Ok(v)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn dict_is_empty(values: Dict(String, a)) -> Bool {
+  values
+  |> dict.to_list
+  |> list.is_empty
 }
 
 fn dedupe_strings(items: List(String)) -> List(String) {
