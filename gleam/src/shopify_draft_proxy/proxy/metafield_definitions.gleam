@@ -29,6 +29,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, find_argument, read_optional_string, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
@@ -280,8 +281,21 @@ pub fn process_mutation_with_upstream(
 ) -> Result(MutationOutcome, MetafieldDefinitionsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
-    Ok(fields) ->
-      Ok(handle_mutation_fields(store_in, identity, fields, variables, upstream))
+    Ok(fields) -> {
+      let hydrated_store =
+        products.hydrate_products_for_live_hybrid_mutation(
+          store_in,
+          variables,
+          upstream,
+        )
+      Ok(handle_mutation_fields(
+        hydrated_store,
+        identity,
+        fields,
+        variables,
+        upstream,
+      ))
+    }
   }
 }
 
@@ -2681,14 +2695,10 @@ fn serialize_metafield_delete_root(
     Some(metafield_id) -> {
       case store.find_effective_metafield_by_id(store_in, metafield_id) {
         None -> #(
-          serialize_metafield_delete_payload(
-            None,
-            [SimpleUserError(["input", "id"], "Metafield not found")],
-            field,
-          ),
+          serialize_metafield_delete_payload(Some(metafield_id), [], field),
           store_in,
           identity,
-          [],
+          [metafield_id],
         )
         Some(record) -> {
           let result =
@@ -3586,15 +3596,24 @@ fn upsert_owner_metafields(
         updated_at: Some(updated_at),
         owner_type: Some(owner_type),
       )
-    let record =
-      ProductMetafieldRecord(
-        ..core,
-        compare_digest: Some(
-          metafields.make_metafield_compare_digest(product_metafield_to_core(
-            core,
-          )),
-        ),
-      )
+    let record = case found {
+      Some(existing_record)
+        if value == existing_record.value && type_ == existing_record.type_
+      ->
+        ProductMetafieldRecord(
+          ..core,
+          compare_digest: existing_record.compare_digest,
+        )
+      _ ->
+        ProductMetafieldRecord(
+          ..core,
+          compare_digest: Some(
+            metafields.make_metafield_compare_digest(product_metafield_to_core(
+              core,
+            )),
+          ),
+        )
+    }
     let replaced =
       replace_metafield_by_identity(current, namespace, key, record)
     #(replaced, list.append(created, [record]), identity_after_updated)

@@ -14,13 +14,7 @@
   "notes": "Live capture now covers `inventoryAdjustQuantities`. Shopify mirrored each `available` delta into an additional `on_hand` change, returned a real `InventoryAdjustmentGroup.id`, exposed `inventoryAdjustmentGroup.app` and `changes.location.name` on the successful payload, left `quantityAfterChange` null in the mutation payload, echoed per-change `ledgerDocumentUri` values separately from the group-level `referenceDocumentUri`, updated `productVariant` / `inventoryItem.variant` quantities before product-level `totalInventory` and `inventory_total:` catalog search caught up, accepted non-available names like `incoming` only when each change carried a ledger document URI, exposed the incoming quantity in immediate downstream `InventoryItem.inventoryLevels` reads without changing available/on_hand totals, rejected invalid names like `on_hand` with an explicit valid-values error plus the same ledger document URI requirement, and surfaced `inventoryAdjustmentGroup.staffMember` as a top-level `ACCESS_DENIED` companion error requiring `read_users` while the rest of the mutation payload still succeeded. Missing required nested change fields (`inventoryItemId`, `locationId`, `delta`) still surfaced as top-level `INVALID_VARIABLE` GraphQL errors before the mutation resolver ran.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.matchingCount.count",
-        "matcher": "any-number",
-        "reason": "Only the numeric `productsCount(query: \"inventory_total:>=14\").count` is wildcarded. The live fixture ran against the full Shopify catalog, so this count can include products outside the captured first page that local replay intentionally does not hydrate. The paired `products(first: 10, query: \"inventory_total:>=14\")` page, each returned product's inventory fields, and the count `precision` value are still compared strictly."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "mutation-user-errors",
@@ -96,23 +90,7 @@
           "$.firstVariant.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
           "$.firstInventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt"
         ],
-        "expectedDifferences": [
-          {
-            "path": "$.firstProduct.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].id",
-            "matcher": "shopify-gid:InventoryLevel",
-            "reason": "The fixture stores Shopify's persisted inventory-level gid while the parity harness reconstructs a deterministic local inventory-level gid from the seeded item/location graph."
-          },
-          {
-            "path": "$.firstVariant.inventoryItem.inventoryLevels.nodes[*].id",
-            "matcher": "shopify-gid:InventoryLevel",
-            "reason": "The fixture stores Shopify's persisted inventory-level gid while the parity harness reconstructs a deterministic local inventory-level gid from the seeded item/location graph."
-          },
-          {
-            "path": "$.firstInventoryItem.inventoryLevels.nodes[*].id",
-            "matcher": "shopify-gid:InventoryLevel",
-            "reason": "The fixture stores Shopify's persisted inventory-level gid while the parity harness reconstructs a deterministic local inventory-level gid from the seeded item/location graph."
-          }
-        ]
+        "expectedDifferences": []
       }
     ]
   }

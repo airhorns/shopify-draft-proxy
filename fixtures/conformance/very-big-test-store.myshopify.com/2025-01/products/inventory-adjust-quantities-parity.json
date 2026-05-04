@@ -1201,5 +1201,178 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/53044947747049", "gid://shopify/InventoryItem/53044947779817"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/53044947747049",
+                "tracked": true,
+                "requiresShipping": true,
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/50897202381033",
+                  "inventoryQuantity": 3,
+                  "product": {
+                    "id": "gid://shopify/Product/9257220145385",
+                    "title": "gid://shopify/Product/9257220145385",
+                    "handle": "gid://shopify/Product/9257220145385",
+                    "status": "ACTIVE",
+                    "totalInventory": 0,
+                    "tracksInventory": true
+                  },
+                  "title": "Default Title",
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ]
+                },
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947747049",
+                      "isActive": true,
+                      "location": {
+                        "id": "gid://shopify/Location/68509171945",
+                        "name": "103 ossington"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 3,
+                          "updatedAt": "2026-04-18T22:21:57Z"
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "quality_control",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "safety_stock",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "committed",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 3,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/InventoryItem/53044947779817",
+                "tracked": true,
+                "requiresShipping": true,
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/50897202413801",
+                  "inventoryQuantity": 7,
+                  "product": {
+                    "id": "gid://shopify/Product/9257220178153",
+                    "title": "gid://shopify/Product/9257220178153",
+                    "handle": "gid://shopify/Product/9257220178153",
+                    "status": "ACTIVE",
+                    "totalInventory": 0,
+                    "tracksInventory": true
+                  },
+                  "title": "Default Title",
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ]
+                },
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947779817",
+                      "isActive": true,
+                      "location": {
+                        "id": "gid://shopify/Location/68509171945",
+                        "name": "103 ossington"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 7,
+                          "updatedAt": "2026-04-18T22:21:57Z"
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "quality_control",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "safety_stock",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "committed",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 7,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

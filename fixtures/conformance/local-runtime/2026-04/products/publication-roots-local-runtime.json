@@ -271,5 +271,51 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/1"]
+      },
+      "query": "hand-synthesized from local-runtime seedProducts for HAR-545 publication publish hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/1",
+                "title": "Published Product",
+                "handle": "published-product",
+                "status": "ACTIVE",
+                "publicationIds": ["gid://shopify/Publication/1"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Collection/1"]
+      },
+      "query": "hand-synthesized from local-runtime seedCollections for HAR-545 publication publish hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/1",
+                "title": "Published Collection",
+                "handle": "published-collection",
+                "publicationIds": ["gid://shopify/Publication/1"]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

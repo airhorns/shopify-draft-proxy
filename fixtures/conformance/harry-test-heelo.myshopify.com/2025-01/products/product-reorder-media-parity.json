@@ -132,5 +132,55 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10170568147250"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10170568147250",
+                "title": "Hermes Media Reorder Conformance 1777154081659",
+                "media": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/MediaImage/43607668621618",
+                      "alt": "Back",
+                      "mediaContentType": "IMAGE",
+                      "status": "PROCESSING"
+                    },
+                    {
+                      "id": "gid://shopify/MediaImage/43607668588850",
+                      "alt": "Front",
+                      "mediaContentType": "IMAGE",
+                      "status": "PROCESSING"
+                    }
+                  ]
+                },
+                "moves": [
+                  {
+                    "id": "gid://shopify/MediaImage/43607668621618",
+                    "newPosition": "0"
+                  },
+                  {
+                    "id": "gid://shopify/MediaImage/43607668588850",
+                    "newPosition": "99"
+                  }
+                ],
+                "images": {
+                  "nodes": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

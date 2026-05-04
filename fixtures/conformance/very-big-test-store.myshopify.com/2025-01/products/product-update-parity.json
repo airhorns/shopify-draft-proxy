@@ -409,5 +409,38 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/9257218801897"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/9257218801897",
+                "title": "Hermes Product Conformance 1776550632328 Updated",
+                "vendor": "HERMES-LABS",
+                "productType": "TEST-GOODS",
+                "tags": ["1776550632328-updated", "conformance", "product-mutation"],
+                "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776550632328</p>",
+                "templateSuffix": "product-mutation-updated",
+                "seo": {
+                  "title": "Hermes Product 1776550632328 Updated",
+                  "description": "Updated Hermes product mutation conformance 1776550632328"
+                },
+                "handle": "hermes-product-conformance-1776550632328",
+                "status": "DRAFT",
+                "onlineStorePreviewUrl": "https://v58oon56ip2ba84y-63755419881.shopifypreview.com/products_preview?preview_key=64a6a0047b7af368792e0d0782ff70e2&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMThUMjM6MTc6MTguNTk4WiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--564071b359e5c8c45633d8d94d0231244e70f336"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

@@ -97,5 +97,247 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/ProductVariant/50905436913897"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/50905436913897",
+                "title": "Red",
+                "sku": "HERMES-BULK-810153-RED",
+                "barcode": "1111111111111",
+                "price": "24.00",
+                "compareAtPrice": "30.00",
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53053417160937",
+                  "tracked": true,
+                  "requiresShipping": true
+                },
+                "product": {
+                  "id": "gid://shopify/Product/9259552407785",
+                  "title": "Hermes Bulk Variant Seed 810153",
+                  "handle": "hermes-bulk-variant-seed-810153",
+                  "status": "DRAFT",
+                  "totalInventory": 0,
+                  "tracksInventory": true,
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/50905436913897",
+                        "title": "Red",
+                        "sku": "HERMES-BULK-810153-RED",
+                        "barcode": "1111111111111",
+                        "price": "24.00",
+                        "compareAtPrice": "30.00",
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Red"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53053417160937",
+                          "tracked": true,
+                          "requiresShipping": true
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/50905437012201",
+                        "title": "Blue",
+                        "sku": "HERMES-BULK-810153-BLUE",
+                        "barcode": "2222222222222",
+                        "price": "26.00",
+                        "compareAtPrice": "30.00",
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Blue"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53053417259241",
+                          "tracked": true,
+                          "requiresShipping": false
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/9259552407785", "gid://shopify/ProductVariant/50905436913897"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/50905436913897",
+                "title": "Red",
+                "sku": "HERMES-BULK-810153-RED",
+                "barcode": "1111111111111",
+                "price": "24.00",
+                "compareAtPrice": "30.00",
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53053417160937",
+                  "tracked": true,
+                  "requiresShipping": true
+                },
+                "product": {
+                  "id": "gid://shopify/Product/9259552407785",
+                  "title": "Hermes Bulk Variant Seed 810153",
+                  "handle": "hermes-bulk-variant-seed-810153",
+                  "status": "DRAFT",
+                  "totalInventory": 0,
+                  "tracksInventory": true,
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/50905436913897",
+                        "title": "Red",
+                        "sku": "HERMES-BULK-810153-RED",
+                        "barcode": "1111111111111",
+                        "price": "24.00",
+                        "compareAtPrice": "30.00",
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Red"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53053417160937",
+                          "tracked": true,
+                          "requiresShipping": true
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/50905437012201",
+                        "title": "Blue",
+                        "sku": "HERMES-BULK-810153-BLUE",
+                        "barcode": "2222222222222",
+                        "price": "26.00",
+                        "compareAtPrice": "30.00",
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Blue"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53053417259241",
+                          "tracked": true,
+                          "requiresShipping": false
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/Product/9259552407785",
+                "totalInventory": 0,
+                "tracksInventory": true,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/50905436913897",
+                      "title": "Red",
+                      "sku": "HERMES-BULK-810153-RED",
+                      "barcode": "1111111111111",
+                      "price": "24.00",
+                      "compareAtPrice": "30.00",
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Red"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53053417160937",
+                        "tracked": true,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/50905437012201",
+                      "title": "Blue",
+                      "sku": "HERMES-BULK-810153-BLUE",
+                      "barcode": "2222222222222",
+                      "price": "26.00",
+                      "compareAtPrice": "30.00",
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Blue"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53053417259241",
+                        "tracked": true,
+                        "requiresShipping": false
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

@@ -288,5 +288,76 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10172064891186"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10172064891186",
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12718243021106",
+                    "name": "Color",
+                    "position": 1,
+                    "values": ["Red"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979346952498",
+                        "name": "Red",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979346985266",
+                        "name": "Green",
+                        "hasVariants": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/ProductOption/12718243053874",
+                    "name": "Size",
+                    "position": 2,
+                    "values": ["Small"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979347018034",
+                        "name": "Small",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51105202667826",
+                      "title": "Red / Small",
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Red"
+                        },
+                        {
+                          "name": "Size",
+                          "value": "Small"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

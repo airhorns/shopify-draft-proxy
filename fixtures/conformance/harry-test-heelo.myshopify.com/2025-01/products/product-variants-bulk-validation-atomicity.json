@@ -3189,5 +3189,105 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/999999999999999999"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10170577649970"]
+      },
+      "query": "hand-synthesized from checked-in setupOptionsResponse for HAR-545 bulk validation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10170577649970",
+                "title": "HAR-290 Bulk Variant Validation 1777158604520",
+                "handle": "har-290-bulk-variant-validation-1777158604520",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12716248138034",
+                    "name": "Color",
+                    "values": ["Red"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7972252254514",
+                        "name": "Red",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7972252287282",
+                        "name": "Blue",
+                        "hasVariants": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/ProductOption/12716248170802",
+                    "name": "Size",
+                    "values": ["Small"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7972252320050",
+                        "name": "Small",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7972252352818",
+                        "name": "Large",
+                        "hasVariants": false
+                      }
+                    ]
+                  }
+                ],
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51098789871922",
+                      "title": "Red / Small",
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Red"
+                        },
+                        {
+                          "name": "Size",
+                          "value": "Small"
+                        }
+                      ],
+                      "inventoryQuantity": 0,
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/validation-default",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

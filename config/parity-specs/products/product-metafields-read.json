@@ -13,23 +13,7 @@
   "notes": "Executable strict snapshot parity for product-owned metafield reads backed by a live captured owner-scoped response. The selected read slice covers singular lookup, nodes, edges, pageInfo, first/after cursor windows, compareDigest, jsonValue, timestamps, ownerType, and null definition linkage for the captured metafields.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.edges[*].cursor",
-        "matcher": "non-empty-string",
-        "reason": "Shopify connection cursors are opaque while the local snapshot serializer uses stable synthetic metafield cursors."
-      },
-      {
-        "path": "$.pageInfo.startCursor",
-        "matcher": "non-empty-string",
-        "reason": "Shopify connection cursors are opaque while the local snapshot serializer uses stable synthetic metafield cursors."
-      },
-      {
-        "path": "$.pageInfo.endCursor",
-        "matcher": "non-empty-string",
-        "reason": "Shopify connection cursors are opaque while the local snapshot serializer uses stable synthetic metafield cursors."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "product-metafields-singular-data",

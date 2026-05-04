@@ -232,5 +232,48 @@
     "Support is intentionally scoped to product-backed inventory items and the first effective inventory level. Multi-location routing and non-product inventory owners need separate conformance evidence before broadening."
   ],
   "commitReplayEvidence": "The runtime tests assert staged shipment mutations are appended to the meta mutation log in original request order with original raw GraphQL bodies.",
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/94051"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/94051",
+                "tracked": true,
+                "requiresShipping": true,
+                "sku": "SHIP-ROOT",
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/94051",
+                  "title": "Default Title",
+                  "sku": "SHIP-ROOT",
+                  "inventoryQuantity": 1,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/9405",
+                    "title": "Shipment Hoodie",
+                    "handle": "shipment-hoodie",
+                    "status": "ACTIVE",
+                    "totalInventory": 1,
+                    "tracksInventory": true
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

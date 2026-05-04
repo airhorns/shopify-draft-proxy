@@ -6066,5 +6066,292 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10172135407922"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10172135407922",
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12718316618034",
+                    "name": "Seed",
+                    "position": 1,
+                    "values": [
+                      "Seed-001",
+                      "Seed-002",
+                      "Seed-003",
+                      "Seed-004",
+                      "Seed-005",
+                      "Seed-006",
+                      "Seed-007",
+                      "Seed-008",
+                      "Seed-009",
+                      "Seed-010"
+                    ],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979702518066",
+                        "name": "Seed-001",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979702550834",
+                        "name": "Seed-002",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979702583602",
+                        "name": "Seed-003",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979702616370",
+                        "name": "Seed-004",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979702649138",
+                        "name": "Seed-005",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979702681906",
+                        "name": "Seed-006",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979702714674",
+                        "name": "Seed-007",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979702747442",
+                        "name": "Seed-008",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979702780210",
+                        "name": "Seed-009",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979702812978",
+                        "name": "Seed-010",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51105362968882",
+                      "title": "Seed-001",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Seed",
+                          "value": "Seed-001"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208203329842",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51105363001650",
+                      "title": "Seed-002",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Seed",
+                          "value": "Seed-002"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208203362610",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51105363034418",
+                      "title": "Seed-003",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Seed",
+                          "value": "Seed-003"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208203395378",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51105363067186",
+                      "title": "Seed-004",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Seed",
+                          "value": "Seed-004"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208203428146",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51105363099954",
+                      "title": "Seed-005",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Seed",
+                          "value": "Seed-005"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208203460914",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51105363132722",
+                      "title": "Seed-006",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Seed",
+                          "value": "Seed-006"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208203493682",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51105363165490",
+                      "title": "Seed-007",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Seed",
+                          "value": "Seed-007"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208203526450",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51105363198258",
+                      "title": "Seed-008",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Seed",
+                          "value": "Seed-008"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208203559218",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51105363231026",
+                      "title": "Seed-009",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Seed",
+                          "value": "Seed-009"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208203591986",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51105363263794",
+                      "title": "Seed-010",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Seed",
+                          "value": "Seed-010"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208203624754",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

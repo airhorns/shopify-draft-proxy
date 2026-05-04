@@ -210,5 +210,58 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/53058790621417"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/53058790621417",
+                "tracked": true,
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "CA",
+                "provinceCodeOfOrigin": "ON",
+                "harmonizedSystemCode": "620343",
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 2.5
+                  }
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/50910761779433",
+                  "inventoryQuantity": 0,
+                  "product": {
+                    "id": "gid://shopify/Product/9261237272809",
+                    "title": "hermes-inventory-item-update-1776897511261",
+                    "tracksInventory": true
+                  }
+                },
+                "input": {
+                  "tracked": true,
+                  "requiresShipping": false,
+                  "countryCodeOfOrigin": "CA",
+                  "provinceCodeOfOrigin": "ON",
+                  "harmonizedSystemCode": "620343",
+                  "measurement": {
+                    "weight": {
+                      "unit": "KILOGRAMS",
+                      "value": 2.5
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

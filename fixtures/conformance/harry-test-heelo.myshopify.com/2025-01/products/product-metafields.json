@@ -144,6 +144,196 @@
           }
         }
       }
+    },
+    {
+      "operationName": "ProductMetafieldsRead",
+      "variables": {
+        "id": "gid://shopify/Product/10170511687986",
+        "namespace": "custom",
+        "key": "material",
+        "after": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0="
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10170511687986",
+              "title": "Hermes Product Metafield Conformance 1777137448583",
+              "primarySpec": {
+                "id": "gid://shopify/Metafield/42952770224434",
+                "namespace": "custom",
+                "key": "material",
+                "type": "single_line_text_field",
+                "value": "Canvas",
+                "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64",
+                "jsonValue": "Canvas",
+                "createdAt": "2026-04-25T17:17:29Z",
+                "updatedAt": "2026-04-25T17:17:29Z",
+                "ownerType": "PRODUCT",
+                "definition": null
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/42952770224434",
+                    "namespace": "custom",
+                    "key": "material",
+                    "type": "single_line_text_field",
+                    "value": "Canvas",
+                    "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64",
+                    "jsonValue": "Canvas",
+                    "createdAt": "2026-04-25T17:17:29Z",
+                    "updatedAt": "2026-04-25T17:17:29Z",
+                    "ownerType": "PRODUCT"
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
+                    "node": {
+                      "id": "gid://shopify/Metafield/42952770224434",
+                      "namespace": "custom",
+                      "key": "material",
+                      "type": "single_line_text_field",
+                      "value": "Canvas",
+                      "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64",
+                      "jsonValue": "Canvas",
+                      "createdAt": "2026-04-25T17:17:29Z",
+                      "updatedAt": "2026-04-25T17:17:29Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0="
+                }
+              },
+              "nextMetafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/42952770257202",
+                    "namespace": "details",
+                    "key": "origin",
+                    "type": "single_line_text_field",
+                    "value": "VN",
+                    "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
+                    "jsonValue": "VN",
+                    "createdAt": "2026-04-25T17:17:29Z",
+                    "updatedAt": "2026-04-25T17:17:29Z",
+                    "ownerType": "PRODUCT"
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0=",
+                    "node": {
+                      "id": "gid://shopify/Metafield/42952770257202",
+                      "namespace": "details",
+                      "key": "origin",
+                      "type": "single_line_text_field",
+                      "value": "VN",
+                      "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
+                      "jsonValue": "VN",
+                      "createdAt": "2026-04-25T17:17:29Z",
+                      "updatedAt": "2026-04-25T17:17:29Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": true,
+                  "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductMetafieldsReadNext",
+      "variables": {
+        "after": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
+        "id": "gid://shopify/Product/10170511687986"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product metafields pagination passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/42952770257202",
+                    "namespace": "details",
+                    "key": "origin",
+                    "type": "single_line_text_field",
+                    "value": "VN",
+                    "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
+                    "jsonValue": "VN",
+                    "createdAt": "2026-04-25T17:17:29Z",
+                    "updatedAt": "2026-04-25T17:17:29Z",
+                    "ownerType": "PRODUCT"
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0=",
+                    "node": {
+                      "id": "gid://shopify/Metafield/42952770257202",
+                      "namespace": "details",
+                      "key": "origin",
+                      "type": "single_line_text_field",
+                      "value": "VN",
+                      "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
+                      "jsonValue": "VN",
+                      "createdAt": "2026-04-25T17:17:29Z",
+                      "updatedAt": "2026-04-25T17:17:29Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": true,
+                  "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }
