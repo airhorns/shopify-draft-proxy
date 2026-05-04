@@ -418,20 +418,34 @@ fn gift_card_field_entry(
         "enabled" -> #(key, json.bool(record.enabled))
         "disabledAt" | "deactivatedAt" -> #(
           key,
-          option_string_json(record.deactivated_at),
+          graphql_helpers.option_string_json(record.deactivated_at),
         )
-        "expiresOn" -> #(key, option_string_json(record.expires_on))
-        "note" -> #(key, option_string_json(record.note))
-        "templateSuffix" -> #(key, option_string_json(record.template_suffix))
+        "expiresOn" -> #(
+          key,
+          graphql_helpers.option_string_json(record.expires_on),
+        )
+        "note" -> #(key, graphql_helpers.option_string_json(record.note))
+        "templateSuffix" -> #(
+          key,
+          graphql_helpers.option_string_json(record.template_suffix),
+        )
         "createdAt" -> #(key, json.string(record.created_at))
         "updatedAt" -> #(key, json.string(record.updated_at))
         "initialValue" -> #(
           key,
-          serialize_money(record.initial_value, child_selections(ss), fragments),
+          serialize_money(
+            record.initial_value,
+            graphql_helpers.selection_set_selections(ss),
+            fragments,
+          ),
         )
         "balance" -> #(
           key,
-          serialize_money(record.balance, child_selections(ss), fragments),
+          serialize_money(
+            record.balance,
+            graphql_helpers.selection_set_selections(ss),
+            fragments,
+          ),
         )
         "transactions" -> #(
           key,
@@ -449,7 +463,7 @@ fn gift_card_field_entry(
             Some(attrs) ->
               serialize_gift_card_recipient_attributes(
                 attrs,
-                child_selections(ss),
+                graphql_helpers.selection_set_selections(ss),
                 fragments,
               )
             None -> json.null()
@@ -460,20 +474,6 @@ fn gift_card_field_entry(
         _ -> #(key, json.null())
       }
     _ -> #(key, json.null())
-  }
-}
-
-fn child_selections(ss: Option(ast.SelectionSet)) -> List(Selection) {
-  case ss {
-    Some(SelectionSet(selections: selections, ..)) -> selections
-    None -> []
-  }
-}
-
-fn option_string_json(value: Option(String)) -> Json {
-  case value {
-    Some(s) -> json.string(s)
-    None -> json.null()
   }
 }
 
@@ -488,7 +488,7 @@ fn customer_object_json(
       // *not* a projected object. Selections are ignored beyond the
       // top-level field check.
       let _ = ss
-      json.object([#("id", option_string_json(customer_id))])
+      json.object([#("id", graphql_helpers.option_string_json(customer_id))])
     }
   }
 }
@@ -698,11 +698,15 @@ fn transaction_field_entry(
         "__typename" -> #(key, json.string("GiftCardTransaction"))
         "id" -> #(key, json.string(transaction.id))
         "kind" -> #(key, json.string(transaction.kind))
-        "note" -> #(key, option_string_json(transaction.note))
+        "note" -> #(key, graphql_helpers.option_string_json(transaction.note))
         "processedAt" -> #(key, json.string(transaction.processed_at))
         "amount" -> #(
           key,
-          serialize_money(transaction.amount, child_selections(ss), fragments),
+          serialize_money(
+            transaction.amount,
+            graphql_helpers.selection_set_selections(ss),
+            fragments,
+          ),
         )
         "giftCard" -> #(key, case giftcard {
           Some(gc) -> project_gift_card(gc, field, fragments, variables)
@@ -750,7 +754,7 @@ fn serialize_gift_card_transactions_connection(
   ) -> Json {
     serialize_gift_card_transaction(
       transaction,
-      child_selections(case node_field {
+      graphql_helpers.selection_set_selections(case node_field {
         Field(selection_set: ss, ..) -> ss
         _ -> None
       }),
@@ -2583,7 +2587,10 @@ fn payload_field_entry(
           Some(gc) -> project_gift_card(gc, field, fragments, variables)
           None -> json.null()
         })
-        "giftCardCode" -> #(key, option_string_json(payload.gift_card_code))
+        "giftCardCode" -> #(
+          key,
+          graphql_helpers.option_string_json(payload.gift_card_code),
+        )
         "giftCardTransaction"
         | "transaction"
         | "giftCardCreditTransaction"
@@ -2593,7 +2600,7 @@ fn payload_field_entry(
             Some(tx) ->
               serialize_gift_card_transaction(
                 tx,
-                child_selections(ss),
+                graphql_helpers.selection_set_selections(ss),
                 payload.gift_card,
                 fragments,
                 variables,
@@ -2605,7 +2612,7 @@ fn payload_field_entry(
           key,
           serialize_user_errors(
             payload.user_errors,
-            child_selections(ss),
+            graphql_helpers.selection_set_selections(ss),
             fragments,
           ),
         )

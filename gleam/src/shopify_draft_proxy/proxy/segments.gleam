@@ -24,10 +24,8 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
-import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
-import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcBool,
@@ -454,7 +452,7 @@ fn segment_not_found_error(
 ) -> Json {
   json.object([
     #("message", json.string("Segment does not exist")),
-    #("locations", locations_json(field, document)),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
     #("extensions", json.object([#("code", json.string("NOT_FOUND"))])),
     #("path", json.array([key], json.string)),
   ])
@@ -467,7 +465,7 @@ fn customer_segment_members_query_not_found_error(
 ) -> Json {
   json.object([
     #("message", json.string("Something went wrong")),
-    #("locations", locations_json(field, document)),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
     #(
       "extensions",
       json.object([#("code", json.string("INTERNAL_SERVER_ERROR"))]),
@@ -484,28 +482,9 @@ fn customer_segment_members_error_json(
 ) -> Json {
   json.object([
     #("message", json.string(message)),
-    #("locations", locations_json(field, document)),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
     #("path", json.array([key], json.string)),
   ])
-}
-
-fn locations_json(field: Selection, document: String) -> Json {
-  case field {
-    Field(loc: Some(ast.Location(start: start, ..)), ..) -> {
-      let source = graphql_source.new(document)
-      let location = graphql_location.get_location(source, position: start)
-      json.array(
-        [
-          json.object([
-            #("line", json.int(location.line)),
-            #("column", json.int(location.column)),
-          ]),
-        ],
-        fn(value) { value },
-      )
-    }
-    _ -> json.array([], fn(value) { value })
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1885,14 +1864,17 @@ fn member_query_payload_field_entry(
         )
         "customerSegmentMembersQuery" -> #(key, case payload.query_record {
           Some(record) ->
-            project_member_query_record(record, child_selections(ss))
+            project_member_query_record(
+              record,
+              graphql_helpers.selection_set_selections(ss),
+            )
           None -> json.null()
         })
         "userErrors" -> #(
           key,
           serialize_user_errors(
             payload.user_errors,
-            child_selections(ss),
+            graphql_helpers.selection_set_selections(ss),
             fragments,
           ),
         )
@@ -2328,20 +2310,13 @@ fn payload_field_entry(
           key,
           serialize_user_errors(
             payload.user_errors,
-            child_selections(ss),
+            graphql_helpers.selection_set_selections(ss),
             fragments,
           ),
         )
         _ -> #(key, json.null())
       }
     _ -> #(key, json.null())
-  }
-}
-
-fn child_selections(ss: Option(ast.SelectionSet)) -> List(Selection) {
-  case ss {
-    Some(SelectionSet(selections: selections, ..)) -> selections
-    None -> []
   }
 }
 

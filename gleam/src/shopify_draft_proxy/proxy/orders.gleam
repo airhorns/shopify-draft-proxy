@@ -5418,7 +5418,7 @@ fn serialize_mandate_payment_payload(
             })
             "paymentReferenceId" -> #(
               key,
-              option_string_json(payment_reference_id),
+              graphql_helpers.option_string_json(payment_reference_id),
             )
             "order" -> #(key, case order {
               Some(order) -> serialize_order_node(child, order, fragments)
@@ -5472,13 +5472,6 @@ fn serialize_job_selection(field: Selection, job_id: Option(String)) -> Json {
           }
         }),
       )
-  }
-}
-
-fn option_string_json(value: Option(String)) -> Json {
-  case value {
-    Some(value) -> json.string(value)
-    None -> json.null()
   }
 }
 

@@ -4133,7 +4133,7 @@ fn project_source_field_with_metaobject(
           key,
           project_graphql_value(
             SrcObject(meta_fields),
-            child_selections(selection),
+            graphql_helpers.field_raw_selections(selection),
             fragments,
           ),
         )
@@ -4142,7 +4142,7 @@ fn project_source_field_with_metaobject(
       key,
       project_graphql_value(
         SrcObject(meta_fields),
-        child_selections(selection),
+        graphql_helpers.field_raw_selections(selection),
         fragments,
       ),
     )
@@ -4164,7 +4164,7 @@ fn project_source_field(
         })
         field_name -> {
           let value = dict.get(source, field_name) |> result.unwrap(SrcNull)
-          let selections = child_selections(selection)
+          let selections = graphql_helpers.field_raw_selections(selection)
           case selections {
             [] -> #(key, source_to_json(value))
             _ -> #(key, project_graphql_value(value, selections, fragments))
@@ -4172,14 +4172,6 @@ fn project_source_field(
         }
       }
     _ -> #(key, json.null())
-  }
-}
-
-fn child_selections(field: Selection) -> List(Selection) {
-  case field {
-    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
-      selections
-    _ -> []
   }
 }
 

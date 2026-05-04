@@ -22,7 +22,6 @@ import shopify_draft_proxy/graphql/ast.{
   ObjectField, ObjectValue, OperationDefinition, SelectionSet, StringValue,
   VariableDefinition, VariableValue,
 }
-import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/parser
 import shopify_draft_proxy/graphql/root_field.{
@@ -3682,7 +3681,7 @@ fn serialize_product_operation_root(
         Some(operation) ->
           project_graphql_value(
             product_operation_source(store, operation),
-            raw_child_selections(field),
+            graphql_helpers.field_raw_selections(field),
             fragments,
           )
         None -> json.null()
@@ -3844,14 +3843,6 @@ fn product_set_payload(
       }
     })
   json.object(entries)
-}
-
-fn raw_child_selections(field: Selection) -> List(Selection) {
-  case field {
-    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
-      selections
-    _ -> []
-  }
 }
 
 fn read_identifier_argument(
@@ -11966,7 +11957,9 @@ fn invalid_product_media_product_id_variable_error(
     find_variable_definition_location(document, "productId")
   {
     Some(loc) ->
-      list.append(base, [#("locations", locations_json(loc, document))])
+      list.append(base, [
+        #("locations", graphql_helpers.locations_json(loc, document)),
+      ])
     None -> base
   }
   json.object(
@@ -12018,7 +12011,9 @@ fn invalid_product_media_content_type_variable_error(
     find_variable_definition_location(document, "media")
   {
     Some(loc) ->
-      list.append(base, [#("locations", locations_json(loc, document))])
+      list.append(base, [
+        #("locations", graphql_helpers.locations_json(loc, document)),
+      ])
     None -> base
   }
   json.object(
@@ -12047,17 +12042,6 @@ fn invalid_product_media_content_type_variable_error(
       ),
     ]),
   )
-}
-
-fn locations_json(loc: Location, document: String) -> Json {
-  let source = graphql_source.new(document)
-  let computed = graphql_location.get_location(source, position: loc.start)
-  json.preprocessed_array([
-    json.object([
-      #("line", json.int(computed.line)),
-      #("column", json.int(computed.column)),
-    ]),
-  ])
 }
 
 fn handle_bulk_product_resource_feedback_create(
@@ -17982,21 +17966,7 @@ fn find_variable_definition(
 }
 
 fn locations_payload(loc: Option(Location), document: String) -> Option(Json) {
-  case loc {
-    None -> None
-    Some(loc) -> {
-      let source = graphql_source.new(document)
-      let computed = graphql_location.get_location(source, position: loc.start)
-      Some(
-        json.preprocessed_array([
-          json.object([
-            #("line", json.int(computed.line)),
-            #("column", json.int(computed.column)),
-          ]),
-        ]),
-      )
-    }
-  }
+  option.map(loc, graphql_helpers.locations_json(_, document))
 }
 
 fn resolved_input_to_json(input: Option(Dict(String, ResolvedValue))) -> Json {
