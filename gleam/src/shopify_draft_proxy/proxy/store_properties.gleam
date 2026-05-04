@@ -966,21 +966,30 @@ fn shop_address_source(address: ShopAddressRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("ShopAddress")),
     #("id", SrcString(address.id)),
-    #("address1", optional_string_source(address.address1)),
-    #("address2", optional_string_source(address.address2)),
-    #("city", optional_string_source(address.city)),
-    #("company", optional_string_source(address.company)),
+    #("address1", graphql_helpers.option_string_source(address.address1)),
+    #("address2", graphql_helpers.option_string_source(address.address2)),
+    #("city", graphql_helpers.option_string_source(address.city)),
+    #("company", graphql_helpers.option_string_source(address.company)),
     #("coordinatesValidated", SrcBool(address.coordinates_validated)),
-    #("country", optional_string_source(address.country)),
-    #("countryCodeV2", optional_string_source(address.country_code_v2)),
+    #("country", graphql_helpers.option_string_source(address.country)),
+    #(
+      "countryCodeV2",
+      graphql_helpers.option_string_source(address.country_code_v2),
+    ),
     #("formatted", SrcList(list.map(address.formatted, SrcString))),
-    #("formattedArea", optional_string_source(address.formatted_area)),
+    #(
+      "formattedArea",
+      graphql_helpers.option_string_source(address.formatted_area),
+    ),
     #("latitude", optional_float_source(address.latitude)),
     #("longitude", optional_float_source(address.longitude)),
-    #("phone", optional_string_source(address.phone)),
-    #("province", optional_string_source(address.province)),
-    #("provinceCode", optional_string_source(address.province_code)),
-    #("zip", optional_string_source(address.zip)),
+    #("phone", graphql_helpers.option_string_source(address.phone)),
+    #("province", graphql_helpers.option_string_source(address.province)),
+    #(
+      "provinceCode",
+      graphql_helpers.option_string_source(address.province_code),
+    ),
+    #("zip", graphql_helpers.option_string_source(address.zip)),
   ])
 }
 
@@ -1049,7 +1058,7 @@ fn shop_bundles_feature_source(
     #("eligibleForBundles", SrcBool(feature.eligible_for_bundles)),
     #(
       "ineligibilityReason",
-      optional_string_source(feature.ineligibility_reason),
+      graphql_helpers.option_string_source(feature.ineligibility_reason),
     ),
     #("sellsBundles", SrcBool(feature.sells_bundles)),
   ])
@@ -1126,7 +1135,7 @@ fn shop_policy_user_error_source(error: ShopPolicyUserError) -> SourceValue {
       None -> SrcNull
     }),
     #("message", SrcString(error.message)),
-    #("code", optional_string_source(error.code)),
+    #("code", graphql_helpers.option_string_source(error.code)),
   ])
 }
 
@@ -2443,13 +2452,6 @@ fn read_numeric_gid_tail(id: String) -> Option(String) {
       }
     }
     Error(_) -> None
-  }
-}
-
-fn optional_string_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(s) -> SrcString(s)
-    None -> SrcNull
   }
 }
 

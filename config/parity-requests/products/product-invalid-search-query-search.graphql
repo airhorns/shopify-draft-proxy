@@ -1,0 +1,13 @@
+query ProductInvalidSearchQuerySearch($query: String!) {
+  products(first: 5, query: $query, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      title
+      tags
+    }
+  }
+  productsCount(query: $query) {
+    count
+    precision
+  }
+}

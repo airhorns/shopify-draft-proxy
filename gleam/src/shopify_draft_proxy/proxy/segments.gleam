@@ -227,11 +227,6 @@ pub fn handle_query_request(
   }
 }
 
-/// Wrap a successful segments response in the standard GraphQL envelope.
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
   store: Store,
@@ -524,18 +519,17 @@ fn segment_to_source(record: SegmentRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("Segment")),
     #("id", SrcString(record.id)),
-    #("name", optional_string_source(record.name)),
-    #("query", optional_string_source(record.query)),
-    #("creationDate", optional_string_source(record.creation_date)),
-    #("lastEditDate", optional_string_source(record.last_edit_date)),
+    #("name", graphql_helpers.option_string_source(record.name)),
+    #("query", graphql_helpers.option_string_source(record.query)),
+    #(
+      "creationDate",
+      graphql_helpers.option_string_source(record.creation_date),
+    ),
+    #(
+      "lastEditDate",
+      graphql_helpers.option_string_source(record.last_edit_date),
+    ),
   ])
-}
-
-fn optional_string_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(s) -> SrcString(s)
-    None -> SrcNull
-  }
 }
 
 fn serialize_segments_connection(
@@ -955,8 +949,8 @@ fn customer_segment_member_to_source(customer: CustomerRecord) -> SourceValue {
     #("__typename", SrcString("CustomerSegmentMember")),
     #("id", SrcString(member_id_for_customer(customer))),
     #("displayName", SrcString(option.unwrap(customer.display_name, ""))),
-    #("firstName", optional_string_source(customer.first_name)),
-    #("lastName", optional_string_source(customer.last_name)),
+    #("firstName", graphql_helpers.option_string_source(customer.first_name)),
+    #("lastName", graphql_helpers.option_string_source(customer.last_name)),
     #(
       "defaultEmailAddress",
       default_email_address_source(customer.default_email_address),
@@ -986,7 +980,10 @@ fn default_email_address_source(
   case value {
     Some(record) ->
       src_object([
-        #("emailAddress", optional_string_source(record.email_address)),
+        #(
+          "emailAddress",
+          graphql_helpers.option_string_source(record.email_address),
+        ),
       ])
     None -> SrcNull
   }

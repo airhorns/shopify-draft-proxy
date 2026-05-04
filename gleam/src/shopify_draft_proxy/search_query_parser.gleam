@@ -150,25 +150,19 @@ pub fn parse_search_query_term(raw_value: String) -> SearchQueryTerm {
 fn consume_comparator(s: String) -> #(Option(SearchQueryComparator), String) {
   // Order matters: longest prefixes first so "<=" / ">=" don't get
   // shadowed by "<" / ">".
-  case string.starts_with(s, "<=") {
-    True -> #(Some(LessThanOrEqual), string.drop_start(s, 2))
-    False ->
-      case string.starts_with(s, ">=") {
-        True -> #(Some(GreaterThanOrEqual), string.drop_start(s, 2))
-        False ->
-          case string.starts_with(s, "<") {
-            True -> #(Some(LessThan), string.drop_start(s, 1))
-            False ->
-              case string.starts_with(s, ">") {
-                True -> #(Some(GreaterThan), string.drop_start(s, 1))
-                False ->
-                  case string.starts_with(s, "=") {
-                    True -> #(Some(Equal), string.drop_start(s, 1))
-                    False -> #(None, s)
-                  }
-              }
-          }
-      }
+  let prefixes = [
+    #("<=", LessThanOrEqual),
+    #(">=", GreaterThanOrEqual),
+    #("<", LessThan),
+    #(">", GreaterThan),
+    #("=", Equal),
+  ]
+  case list.find(prefixes, fn(p) { string.starts_with(s, p.0) }) {
+    Ok(#(prefix, cmp)) -> #(
+      Some(cmp),
+      string.drop_start(s, string.length(prefix)),
+    )
+    Error(_) -> #(None, s)
   }
 }
 
@@ -655,8 +649,13 @@ fn tokenize_unquoted_step(
     False ->
       case g {
         "(" -> {
-          let tokens = flush_token(tokens, current, options)
-          tokenize_loop(rest, [LParenToken, ..tokens], "", None, options)
+          case can_start_parenthesized_group(current) {
+            True -> {
+              let tokens = flush_token(tokens, current, options)
+              tokenize_loop(rest, [LParenToken, ..tokens], "", None, options)
+            }
+            False -> tokenize_loop(rest, tokens, current <> g, None, options)
+          }
         }
         ")" -> {
           let tokens = flush_token(tokens, current, options)
@@ -676,6 +675,13 @@ fn tokenize_unquoted_step(
           }
         _ -> tokenize_loop(rest, tokens, current <> g, None, options)
       }
+  }
+}
+
+fn can_start_parenthesized_group(current: String) -> Bool {
+  case current {
+    "" -> True
+    _ -> False
   }
 }
 

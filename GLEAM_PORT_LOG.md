@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 196: HAR-486 final Gleam runtime cutover
+## 2026-05-04 - Pass 198: HAR-486 final Gleam runtime cutover
 
 Promotes the Gleam implementation to the repository runtime authority and
 removes the legacy TypeScript proxy runtime. The root package now exports the
@@ -29,21 +29,21 @@ and the JavaScript shim.
 
 Validation:
 
-- `corepack pnpm test` (8 files passed; 1441 passed)
+- `corepack pnpm test` (8 files passed; 1450 passed)
 - `corepack pnpm lint` (passes with the pre-existing
   `scripts/parity-record.mts` unused catch-parameter warning)
 - `corepack pnpm typecheck`
-- `corepack pnpm conformance:check` (1423 passed)
+- `corepack pnpm conformance:check` (1432 passed)
 - `corepack pnpm conformance:capture:check` (9 passed)
 - `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
-  (389/389 strict parity scenarios, 0 capture-only)
-- `corepack pnpm gleam:port:coverage`
+  (392/392 strict parity scenarios, 0 capture-only)
+- `corepack pnpm gleam:port:coverage` (392 strict executable parity specs)
 - `corepack pnpm build`
-- `corepack pnpm gleam:test:js` (849 passed)
+- `corepack pnpm gleam:test:js` (851 passed)
 - `corepack pnpm gleam:test:erlang` failed on host OTP 25 with the known
   `gleam_json` OTP 27+ requirement
-- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
-  (OTP 28, 840 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
+  (OTP 28, 842 passed)
 - `corepack pnpm gleam:smoke:js` (5 passed)
 - `corepack pnpm elixir:smoke` (17 passed, 1 live test excluded)
 - `git diff --check`
@@ -64,6 +64,116 @@ Validation:
 
 - Host Erlang is still OTP 25 in this workspace, so local Erlang validation
   requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 197: HAR-550 product option autogeneration fidelity
+
+Tightens product option/variant autogeneration parity for `productCreate` and
+`productSet` from live Shopify evidence. `productCreate(productOptions:)` is
+now explicitly covered for the multi-value case where Shopify creates only the
+first-value variant and keeps extra option values non-variant-backed, while
+`productSet(input.productOptions)` now locally rejects missing/empty
+`input.variants` with Shopify's captured user error instead of staging a stale
+`Title / Default Title` variant.
+
+| Module / fixture                                                               | Change                                                                                                                               |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                           | Adds the `productSet` option-change guardrail requiring variant input before local staging.                                          |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam`            | Covers the guardrail and verifies the mutation log entry is marked `Failed` with no staged resource ids.                             |
+| `scripts/capture-product-create-with-options-conformance.mts`                  | Extends the live capture harness to record multi-value `productCreate` evidence and the `productSet` options-only validation branch. |
+| `config/parity-specs/products/*options*` / `fixtures/conformance/**/products/` | Adds executable parity specs and captured fixtures for the new evidence, and refreshes the original options capture.                 |
+| `docs/endpoints/products.md`                                                   | Documents the asymmetric `productCreate` / `productSet` option behavior.                                                             |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `corepack pnpm conformance:capture -- --run product-create-with-options`
+- `cd gleam && gleam test --target javascript -- products_mutation_test parity_test`
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (850 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 841 passed)
+- `corepack pnpm gleam:build:js`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2291 passed)
+- `git diff --check`
+
+### Findings
+
+- Shopify does not generate the full Cartesian variant matrix for
+  `productCreate(productOptions:)`; it creates one first-value variant and
+  leaves extra option values in `optionValues` with `hasVariants: false`.
+- Shopify rejects `productSet(input.productOptions)` without variants using
+  `field: ["input", "variants"]`, so the local proxy should fail that branch
+  before staging any product/options/variants or replaying it at commit time.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 196: HAR-549 invalid product search syntax parity
+
+Adds live conformance coverage for malformed-looking Shopify Admin product
+search strings and aligns the shared Gleam search parser with the captured
+local-staging behavior.
+
+| Module / fixture                                                                                                                                   | Change                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/capture-product-invalid-search-query-conformance.ts` / `scripts/conformance-capture-index.ts`                                             | Adds an aggregate-indexed capture that creates a disposable product, waits for tag search indexing, captures valid and malformed product search reads, then deletes the product.             |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-invalid-search-query-syntax.json`                                    | Records Shopify's normal data envelopes for malformed search strings: `tag:(value` and `tag:("value"` return zero matches, while bare leading `(` and dangling `OR` still match the product. |
+| `config/parity-specs/products/product-invalid-search-query-syntax.json` / `config/parity-requests/products/product-invalid-search-query-*.graphql` | Adds strict executable parity that stages `productCreate` locally and then exercises the product search overlay path with the captured malformed queries.                                    |
+| `gleam/src/shopify_draft_proxy/search_query_parser.gleam` / `gleam/test/shopify_draft_proxy/search_query_parser_test.gleam`                        | Keeps `(` as a literal term character when it appears immediately after a field/comparator buffer instead of treating `tag:(...` as a grouped expression.                                    |
+| `docs/endpoints/products.md`                                                                                                                       | Documents the captured forgiving product search syntax boundary and the new parity fixture.                                                                                                  |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `corepack pnpm conformance:capture -- --run product-invalid-search-query-syntax`
+- `corepack pnpm parity:record product-invalid-search-query-syntax` (verified
+  the staged scenario records zero upstream calls)
+- `cd gleam && gleam test --target javascript -- search_query_parser_test parity_test`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm conformance:check`
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (850 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 841 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2291 passed)
+- `git diff --check`
+
+### Findings
+
+- Shopify did not emit top-level GraphQL errors for the probed malformed
+  product search syntax. The relevant fidelity rule is search-term
+  interpretation: field-prefixed open-paren values are literal non-matches, but
+  bare leading groups and dangling `OR` remain forgiving.
+- The existing local parser already matched Shopify's forgiving bare-leading
+  `(` and dangling `OR` behavior. The mismatch was specifically `tag:(value`,
+  where the old tokenizer split `tag:` from the grouped value and accidentally
+  matched the staged product.
+
+### Risks / open items
+
+- Product search indexing still requires a short wait after live
+  `productCreate`; the capture script asserts the valid tag search first so it
+  fails before writing a stale malformed-query fixture.
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation used the
+  established OTP 28 container fallback.
 
 ---
 

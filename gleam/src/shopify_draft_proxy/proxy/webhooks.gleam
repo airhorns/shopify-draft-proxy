@@ -337,11 +337,6 @@ pub fn handle_webhook_subscription_query(
   }
 }
 
-/// Wrap a successful webhooks response in the standard GraphQL envelope.
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
   store: Store,
@@ -353,7 +348,7 @@ pub fn process(
     document,
     variables,
   ))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 fn serialize_root_fields(
@@ -596,12 +591,14 @@ fn webhook_subscription_to_source(
     Some(s) -> SrcString(s)
     None -> SrcNull
   }
-  let topic_source = optional_string_to_source(record.topic)
-  let name_source = optional_string_to_source(record.name)
-  let format_source = optional_string_to_source(record.format)
-  let filter_source = optional_string_to_source(record.filter)
-  let created_at_source = optional_string_to_source(record.created_at)
-  let updated_at_source = optional_string_to_source(record.updated_at)
+  let topic_source = graphql_helpers.option_string_source(record.topic)
+  let name_source = graphql_helpers.option_string_source(record.name)
+  let format_source = graphql_helpers.option_string_source(record.format)
+  let filter_source = graphql_helpers.option_string_source(record.filter)
+  let created_at_source =
+    graphql_helpers.option_string_source(record.created_at)
+  let updated_at_source =
+    graphql_helpers.option_string_source(record.updated_at)
   let endpoint_source = endpoint_to_source(record.endpoint)
   let include_fields_source =
     SrcList(list.map(record.include_fields, fn(s) { SrcString(s) }))
@@ -634,28 +631,19 @@ fn endpoint_to_source(
     Some(WebhookHttpEndpoint(callback_url: c)) ->
       src_object([
         #("__typename", SrcString("WebhookHttpEndpoint")),
-        #("callbackUrl", optional_string_to_source(c)),
+        #("callbackUrl", graphql_helpers.option_string_source(c)),
       ])
     Some(WebhookEventBridgeEndpoint(arn: a)) ->
       src_object([
         #("__typename", SrcString("WebhookEventBridgeEndpoint")),
-        #("arn", optional_string_to_source(a)),
+        #("arn", graphql_helpers.option_string_source(a)),
       ])
     Some(WebhookPubSubEndpoint(pub_sub_project: p, pub_sub_topic: t)) ->
       src_object([
         #("__typename", SrcString("WebhookPubSubEndpoint")),
-        #("pubSubProject", optional_string_to_source(p)),
-        #("pubSubTopic", optional_string_to_source(t)),
+        #("pubSubProject", graphql_helpers.option_string_source(p)),
+        #("pubSubTopic", graphql_helpers.option_string_source(t)),
       ])
-  }
-}
-
-fn optional_string_to_source(
-  value: Option(String),
-) -> graphql_helpers.SourceValue {
-  case value {
-    Some(s) -> SrcString(s)
-    None -> SrcNull
   }
 }
 

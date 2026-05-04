@@ -77,7 +77,8 @@ fn summarise(doc: Document) -> Result(ParsedOperation, ParseOperationError) {
   }
 }
 
-fn find_operation(definitions: List(Definition)) -> Option(Definition) {
+/// First `OperationDefinition` in a list of definitions, if any.
+pub fn find_operation(definitions: List(Definition)) -> Option(Definition) {
   case definitions {
     [] -> None
     [d, ..rest] ->

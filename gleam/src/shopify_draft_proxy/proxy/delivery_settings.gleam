@@ -95,14 +95,8 @@ fn project_settings(
   }
 }
 
-/// Wrap a successful delivery-settings response in the standard
-/// GraphQL envelope.
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(document: String) -> Result(Json, DeliverySettingsError) {
   use data <- result.try(handle_delivery_settings_query(document))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
