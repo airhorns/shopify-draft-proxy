@@ -68,6 +68,45 @@ pub type CapabilityExecution {
   Passthrough
 }
 
+pub fn domain_to_string(domain: CapabilityDomain) -> String {
+  case domain {
+    Products -> "products"
+    AdminPlatform -> "admin-platform"
+    B2b -> "b2b"
+    Apps -> "apps"
+    Media -> "media"
+    BulkOperations -> "bulk-operations"
+    Customers -> "customers"
+    Orders -> "orders"
+    StoreProperties -> "store-properties"
+    Discounts -> "discounts"
+    Events -> "events"
+    Functions -> "functions"
+    Payments -> "payments"
+    Marketing -> "marketing"
+    OnlineStore -> "online-store"
+    SavedSearches -> "saved-searches"
+    Privacy -> "privacy"
+    Segments -> "segments"
+    ShippingFulfillments -> "shipping-fulfillments"
+    GiftCards -> "gift-cards"
+    Webhooks -> "webhooks"
+    Localization -> "localization"
+    Markets -> "markets"
+    Metafields -> "metafields"
+    Metaobjects -> "metaobjects"
+    Unknown -> "unknown"
+  }
+}
+
+pub fn execution_to_string(execution: CapabilityExecution) -> String {
+  case execution {
+    OverlayRead -> "overlay-read"
+    StageLocally -> "stage-locally"
+    Passthrough -> "passthrough"
+  }
+}
+
 /// Mirrors `OperationRegistryEntry`. `support_notes` is optional —
 /// defaults to `None` when the JSON omits it.
 pub type RegistryEntry {

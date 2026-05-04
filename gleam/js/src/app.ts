@@ -5,6 +5,9 @@ import type { AppConfig, DraftProxyHeaderValue, DraftProxyHttpResponse } from '.
 
 type RequestHandler = (req: IncomingMessage, res: ServerResponse) => void;
 
+const META_BULK_OPERATION_RESULT_ROUTE_PATTERN = /^\/__meta\/bulk-operations\/(.+)\/result\.jsonl$/u;
+const STAGED_UPLOAD_ROUTE_PATTERN = /^\/staged-uploads\/([^/]+)\/(.+)$/u;
+
 function requestPath(req: IncomingMessage): string {
   return new URL(req.url ?? '/', 'http://localhost').pathname;
 }
@@ -41,6 +44,10 @@ function parseRequestBody(req: IncomingMessage, rawBody: string): unknown {
   return JSON.parse(rawBody);
 }
 
+function methodIs(req: IncomingMessage, method: string): boolean {
+  return (req.method ?? 'GET').toUpperCase() === method;
+}
+
 function hasContentType(response: ServerResponse): boolean {
   return response.hasHeader('content-type') || response.hasHeader('Content-Type');
 }
@@ -69,6 +76,26 @@ function sendJsonError(res: ServerResponse, status: number, message: string): vo
   sendResponse(res, {
     status,
     body: { errors: [{ message }] },
+  });
+}
+
+function sendMethodNotAllowed(res: ServerResponse): void {
+  sendJsonError(res, 405, 'Method not allowed');
+}
+
+function sendBulkOperationResult(res: ServerResponse, jsonl: string | null): void {
+  if (jsonl === null) {
+    sendResponse(res, {
+      status: 404,
+      body: 'Bulk operation result not found',
+    });
+    return;
+  }
+
+  sendResponse(res, {
+    status: 200,
+    headers: { 'content-type': 'application/jsonl; charset=utf-8' },
+    body: jsonl,
   });
 }
 
@@ -101,9 +128,43 @@ export class DraftProxyHttpApp {
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const path = requestPath(req);
+    const rawBody = await readRequestText(req);
+
+    const stagedUploadMatch = STAGED_UPLOAD_ROUTE_PATTERN.exec(path);
+    if (stagedUploadMatch) {
+      if (!methodIs(req, 'POST') && !methodIs(req, 'PUT')) {
+        sendMethodNotAllowed(res);
+        return;
+      }
+
+      sendResponse(res, {
+        status: 201,
+        body: this.proxy.stageStagedUpload(stagedUploadMatch[1] ?? '', stagedUploadMatch[2] ?? '', rawBody),
+      });
+      return;
+    }
+
+    const metaBulkResultMatch = META_BULK_OPERATION_RESULT_ROUTE_PATTERN.exec(path);
+    if (metaBulkResultMatch) {
+      if (!methodIs(req, 'GET')) {
+        sendMethodNotAllowed(res);
+        return;
+      }
+
+      const encodedOperationId = metaBulkResultMatch[1];
+      sendBulkOperationResult(
+        res,
+        encodedOperationId === undefined
+          ? null
+          : this.proxy.getBulkOperationResultJsonl(decodeURIComponent(encodedOperationId)),
+      );
+      return;
+    }
+
     let body: unknown;
     try {
-      body = parseRequestBody(req, await readRequestText(req));
+      body = parseRequestBody(req, rawBody);
     } catch {
       sendJsonError(res, 400, 'Invalid JSON request body');
       return;
@@ -111,7 +172,7 @@ export class DraftProxyHttpApp {
 
     const response = await this.proxy.processRequest({
       method: req.method ?? 'GET',
-      path: requestPath(req),
+      path,
       headers: requestHeaders(req),
       body,
     });

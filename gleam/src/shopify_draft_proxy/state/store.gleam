@@ -8352,8 +8352,9 @@ pub fn has_staged_bulk_operations(store: Store) -> Bool {
   !list.is_empty(dict.keys(store.staged_state.bulk_operations))
 }
 
-/// Record staged-upload content for local bulk mutation imports. The HTTP
-/// staged-upload route is still TS-only, so Gleam tests seed this directly.
+/// Record staged-upload content for local bulk mutation imports. The JS HTTP
+/// adapter calls this through the DraftProxy shim; Gleam tests can seed it
+/// directly when they do not need to exercise HTTP routing.
 pub fn stage_staged_upload_content(
   store: Store,
   staged_upload_path: String,

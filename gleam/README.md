@@ -102,21 +102,22 @@ end
 
 The runtime recognizes:
 
-| Route                                   | Status                                                                                                                                         |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /admin/api/:version/graphql.json` | Routes query and mutation roots for supported domains.                                                                                         |
-| `GET /__meta/health`                    | Returns liveness JSON.                                                                                                                         |
-| `GET /__meta/config`                    | Returns sanitized runtime config.                                                                                                              |
-| `GET /__meta/log`                       | Returns staged/proxied/committed mutation-log entries in replay order.                                                                         |
-| `GET /__meta/state`                     | Returns the current base/staged state buckets.                                                                                                 |
-| `POST /__meta/reset`                    | Clears staged state, logs, and synthetic identity counters.                                                                                    |
-| `POST /__meta/commit`                   | Replays staged mutations upstream in log order. Erlang can run this synchronously; JavaScript callers use `process_request_async` or `commit`. |
+| Route                                                  | Status                                                                                                                                         |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /admin/api/:version/graphql.json`                | Routes query and mutation roots for supported domains.                                                                                         |
+| `GET /__meta/health`                                   | Returns liveness JSON.                                                                                                                         |
+| `GET /__meta/config`                                   | Returns sanitized runtime config.                                                                                                              |
+| `GET /__meta/log`                                      | Returns staged/proxied/committed mutation-log entries in replay order.                                                                         |
+| `GET /__meta/state`                                    | Returns the current base/staged state buckets.                                                                                                 |
+| `POST /__meta/reset`                                   | Clears staged state, logs, and synthetic identity counters.                                                                                    |
+| `POST /__meta/commit`                                  | Replays staged mutations upstream in log order. Erlang can run this synchronously; JavaScript callers use `process_request_async` or `commit`. |
+| `POST` / `PUT /staged-uploads/:target/:filename`       | Stores staged upload bodies in the instance-owned proxy value for local bulk mutation imports.                                                 |
+| `GET /__meta/bulk-operations/:encoded_id/result.jsonl` | Serves generated local bulk operation result JSONL from instance-owned state.                                                                  |
 
 The remaining unsupported HTTP artifact surfaces are:
 
 - `GET /__meta` operator UI
-- `GET /__bulk_operations/:id/result.jsonl`
-- staged-upload byte serving
+- staged-upload byte download/serving
 
 ## Runtime Modes
 
@@ -355,8 +356,8 @@ inside the disposable container before running the smoke project.
 
 - The package is not yet published to npm or Hex.
 - `GET /__meta` operator UI is not served by the Gleam HTTP adapter.
-- Staged-upload byte serving and bulk operation result-file serving are not yet
-  served by the Gleam HTTP adapter.
+- Staged-upload byte download/serving is not yet served by the Gleam HTTP
+  adapter.
 - Direct Elixir calls below the wrapper use Erlang-shaped tuples.
 - Some endpoint domains and Relay `node`/`nodes` serializers remain partial,
   as tracked by the generated port issues.

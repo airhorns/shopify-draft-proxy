@@ -19,7 +19,7 @@ import shopify_draft_proxy/shopify/upstream_client.{
 
 fn ok_transport(status: Int, body: String) -> SyncTransport {
   SyncTransport(send: fn(_req) {
-    Ok(commit.HttpOutcome(status: status, body: body))
+    Ok(commit.HttpOutcome(status: status, body: body, headers: []))
   })
 }
 
@@ -90,7 +90,7 @@ pub fn fetch_sync_forwards_request_envelope_test() {
     SyncTransport(send: fn(req) {
       let echoed_body =
         json.to_string(json.object([#("captured", json.string(req.body))]))
-      Ok(commit.HttpOutcome(status: 200, body: echoed_body))
+      Ok(commit.HttpOutcome(status: 200, body: echoed_body, headers: []))
     })
   let assert Ok(value) =
     upstream_query.fetch_sync(

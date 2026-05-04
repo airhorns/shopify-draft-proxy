@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 192: HAR-545 final parity drain
+## 2026-05-04 - Pass 194: HAR-545 final parity drain
 
 Drains the final `expectedGleamParityFailures` manifest to zero and makes the
 entire cassette-backed parity corpus green on both Gleam targets. The remaining
@@ -66,6 +66,102 @@ Validation:
   issue owns removing the manifest and expected-failure runner plumbing.
 - Host Erlang is still OTP 25 in this workspace, so Erlang validation used the
   established OTP 28 container fallback.
+
+---
+
+## 2026-05-03 - Pass 193: HAR-513 JS live-hybrid passthrough
+
+Completes the JavaScript async upstream forwarding path for live-hybrid
+passthrough requests that are decided inside domain handlers, not only at the
+dispatcher fallback layer. Unsupported mutations that actually passthrough now
+record a visible `proxied` mutation-log entry, and passthrough responses carry
+upstream response headers back to JS callers.
+
+| Module / test                                                 | Change                                                                                                                          |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`       | Retries JS sync-passthrough sentinels through async dispatch, and records proxied mutation log entries for passthrough roots.   |
+| `gleam/src/shopify_draft_proxy/proxy/passthrough.gleam`       | Exposes the JS async-required sentinel check and preserves upstream response headers in passthrough responses.                  |
+| `gleam/src/shopify_draft_proxy/proxy/commit.gleam`            | Extends the shared HTTP outcome with response headers while keeping commit replay status/body behavior unchanged.               |
+| `gleam/src/shopify_draft_proxy/shopify/upstream_client.gleam` | Carries Erlang and JS client response headers into the shared HTTP outcome.                                                     |
+| `gleam/js/test/live-hybrid-passthrough.test.ts`               | Adds fake-upstream coverage for domain-owned async reads, unsupported mutation observability, network errors, and local writes. |
+| `gleam/test/**`                                               | Updates fake transports and cassette assertions for the header-carrying HTTP outcome.                                           |
+
+Validation:
+
+- `corepack pnpm --dir gleam/js test -- live-hybrid-passthrough.test.ts`
+  (18 passed across the JS shim suite)
+- `cd gleam && gleam test --target javascript -- passthrough_test draft_proxy_async_test`
+  (824 passed)
+- `cd gleam && gleam test --target erlang` failed on the local OTP 25 runtime
+  with the known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'gleam clean && gleam test --target erlang'`
+  (OTP 28, 819 passed)
+- `corepack pnpm lint` (passed with the existing
+  `scripts/parity-record.mts:279` warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `git diff --check`
+
+### Findings
+
+- `process_request_async` already handled dispatcher-level passthrough, but
+  Pattern 1 domain handlers such as Apps could still choose
+  `passthrough_sync` after async dispatch had fallen back to the normal sync
+  route, causing JS callers to receive the 501 sentinel instead of an upstream
+  response.
+- Preserving upstream response headers required moving headers into the shared
+  `HttpOutcome`; commit replay ignores them, while passthrough serializes them
+  back to JS HTTP-shaped responses.
+
+---
+
+## 2026-05-03 - Pass 192: HAR-514 JS artifact routes
+
+Serves staged-upload and generated bulk-operation artifact routes through the
+Gleam-backed JavaScript HTTP adapter. Staged upload posts are stored in the
+instance-owned `DraftProxy` store under the same lookup keys used by local
+`bulkOperationRunMutation`, and bulk result JSONL is read back from the
+per-instance BulkOperation records. No module-global artifact cache is added.
+
+| Module / fixture                                                         | Change                                                                                                           |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `gleam/js/src/app.ts`                                                    | Adds JS HTTP routing for `/staged-uploads/...` and `/__meta/bulk-operations/.../result.jsonl`.                   |
+| `gleam/js/src/runtime.ts`                                                | Exposes shim methods for staged-upload writes and bulk JSONL reads against the wrapped Gleam `DraftProxy` value. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                  | Adds small public helpers for instance-scoped staged upload content and bulk result lookup.                      |
+| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`              | Uses encoded-GID meta result URLs for generated query exports and mutation imports.                              |
+| `gleam/js/test/http-adapter.test.ts`                                     | Adds end-to-end JS HTTP coverage for upload handoff, canonical bulk result serving, and instance isolation.      |
+| `docs/architecture.md` / `docs/endpoints/media.md` / `GLEAM_PORT_LOG.md` | Documents the JS adapter artifact boundary and the limited staged-upload byte handoff scope.                     |
+
+Validation:
+
+- `corepack pnpm --dir gleam/js test -- --runInBand` (15 passed)
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (824 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'` (OTP 28, 819 passed)
+- `corepack pnpm lint` (passed with existing `scripts/parity-record.mts:279` warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm conformance:check`
+- `git diff --check`
+
+### Findings
+
+- The JS adapter was the missing boundary: the Gleam core already generated
+  staged upload targets and stored bulk result JSONL, but HTTP requests to the
+  generated URLs fell through to 404.
+- The adapter must pass staged upload bodies as raw text, regardless of
+  `content-type`, so JSONL variables files are stored exactly as uploaded.
+- Query exports and mutation imports both use the current
+  `/__meta/bulk-operations/<encoded-gid>/result.jsonl` artifact route.
+
+### Risks / open items
+
+- `partialDataUrl` remains `null` for local jobs until live fixture evidence
+  proves a local partial-data artifact shape. The JS adapter currently serves
+  the generated result artifacts covered by existing local bulk-operation
+  behavior.
 
 ---
 

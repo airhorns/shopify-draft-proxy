@@ -190,6 +190,8 @@ The package routes:
 - `GET /__meta/state`
 - `POST /__meta/reset`
 - `POST /__meta/commit`
+- `POST` / `PUT /staged-uploads/:target/:filename`
+- `GET /__meta/bulk-operations/:encoded_id/result.jsonl`
 
 `POST /__meta/commit` replays staged mutations in log order. On JavaScript it
 uses async upstream fetches; on Erlang it can run synchronously when a transport
@@ -198,8 +200,7 @@ is supplied.
 The remaining intentionally unsupported HTTP boundaries are:
 
 - `GET /__meta` operator UI
-- staged-upload byte serving
-- bulk operation result-file serving at `GET /__bulk_operations/:id/result.jsonl`
+- staged-upload byte download/serving
 
 Those routes are artifact-serving surfaces, not permission to weaken domain
 fidelity for GraphQL roots.

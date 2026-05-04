@@ -89,7 +89,7 @@ pub fn fetch_sync(
     Ok(req) -> {
       let send = resolve_send(transport)
       case send(req) {
-        Ok(commit.HttpOutcome(status: status, body: body_string)) ->
+        Ok(commit.HttpOutcome(status: status, body: body_string, ..)) ->
           case status >= 200 && status < 300 {
             True -> Ok(commit.parse_json_value(body_string))
             False -> Error(HttpStatusError(status: status, body: body_string))
