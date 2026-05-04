@@ -521,5 +521,53 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersDraftOrderCustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/6157654556905"
+      },
+      "query": "hand-synthesized from checked-in draftOrderCreate mutation customer for HAR-538 draft order customer hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/6157654556905",
+              "email": "egnition_sample_29@egnition.com",
+              "displayName": "Henry Short"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderVariantHydrate",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/48540157378793"
+      },
+      "query": "hand-synthesized from checked-in draftOrderCreate mutation line item for HAR-538 variant catalog hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Default Title",
+              "sku": "",
+              "taxable": true,
+              "price": "0.0",
+              "inventoryItem": {
+                "requiresShipping": true
+              },
+              "product": {
+                "title": "Test Product - 6635"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

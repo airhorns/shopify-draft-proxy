@@ -83,7 +83,12 @@
           "data": {
             "productCreateMedia": {
               "media": null,
-              "mediaUserErrors": [{ "field": ["productId"], "message": "Product does not exist" }],
+              "mediaUserErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist"
+                }
+              ],
               "product": null
             }
           }
@@ -106,7 +111,9 @@
               "mediaUserErrors": [],
               "product": {
                 "id": "gid://shopify/Product/10170577518898",
-                "media": { "nodes": [] }
+                "media": {
+                  "nodes": []
+                }
               }
             }
           }
@@ -118,7 +125,13 @@
       "operationName": "productCreateMedia",
       "variables": {
         "productId": "gid://shopify/Product/10170577518898",
-        "media": [{ "mediaContentType": "IMAGE", "originalSource": "not-a-url", "alt": "Invalid source" }]
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "not-a-url",
+            "alt": "Invalid source"
+          }
+        ]
       },
       "response": {
         "status": 200,
@@ -126,10 +139,17 @@
           "data": {
             "productCreateMedia": {
               "media": [],
-              "mediaUserErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }],
+              "mediaUserErrors": [
+                {
+                  "field": ["media", "0", "originalSource"],
+                  "message": "Image URL is invalid"
+                }
+              ],
               "product": {
                 "id": "gid://shopify/Product/10170577518898",
-                "media": { "nodes": [] }
+                "media": {
+                  "nodes": []
+                }
               }
             }
           }
@@ -207,7 +227,12 @@
                   "status": "UPLOADED"
                 }
               ],
-              "mediaUserErrors": [{ "field": ["media", "1", "originalSource"], "message": "Image URL is invalid" }],
+              "mediaUserErrors": [
+                {
+                  "field": ["media", "1", "originalSource"],
+                  "message": "Image URL is invalid"
+                }
+              ],
               "product": {
                 "id": "gid://shopify/Product/10170577518898",
                 "media": {
@@ -248,7 +273,12 @@
       "operationName": "productUpdateMedia",
       "variables": {
         "productId": "gid://shopify/Product/999999999999",
-        "media": [{ "id": "gid://shopify/MediaImage/43607852122418", "alt": "Should not update" }]
+        "media": [
+          {
+            "id": "gid://shopify/MediaImage/43607852122418",
+            "alt": "Should not update"
+          }
+        ]
       },
       "response": {
         "status": 200,
@@ -256,7 +286,12 @@
           "data": {
             "productUpdateMedia": {
               "media": null,
-              "mediaUserErrors": [{ "field": ["productId"], "message": "Product does not exist" }]
+              "mediaUserErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist"
+                }
+              ]
             }
           }
         }
@@ -272,7 +307,12 @@
       "response": {
         "status": 200,
         "payload": {
-          "data": { "productUpdateMedia": { "media": [], "mediaUserErrors": [] } }
+          "data": {
+            "productUpdateMedia": {
+              "media": [],
+              "mediaUserErrors": []
+            }
+          }
         }
       }
     },
@@ -281,7 +321,12 @@
       "operationName": "productUpdateMedia",
       "variables": {
         "productId": "gid://shopify/Product/10170577518898",
-        "media": [{ "id": "gid://shopify/MediaImage/999999999999", "alt": "Unknown media" }]
+        "media": [
+          {
+            "id": "gid://shopify/MediaImage/999999999999",
+            "alt": "Unknown media"
+          }
+        ]
       },
       "response": {
         "status": 200,
@@ -306,8 +351,14 @@
       "variables": {
         "productId": "gid://shopify/Product/10170577518898",
         "media": [
-          { "id": "gid://shopify/MediaImage/43607852122418", "alt": "Rejected update" },
-          { "id": "gid://shopify/MediaImage/999999999999", "alt": "Unknown media" }
+          {
+            "id": "gid://shopify/MediaImage/43607852122418",
+            "alt": "Rejected update"
+          },
+          {
+            "id": "gid://shopify/MediaImage/999999999999",
+            "alt": "Unknown media"
+          }
         ]
       },
       "response": {
@@ -364,7 +415,12 @@
             "productDeleteMedia": {
               "deletedMediaIds": null,
               "deletedProductImageIds": null,
-              "mediaUserErrors": [{ "field": ["productId"], "message": "Product does not exist" }],
+              "mediaUserErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist"
+                }
+              ],
               "product": null
             }
           }
@@ -460,6 +516,46 @@
                 }
               ]
             }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10170577518898"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10170577518898",
+                "title": "HAR-289 media validation product",
+                "handle": "har-289-media-validation-product",
+                "status": "DRAFT",
+                "media": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/MediaImage/43607852089650",
+                      "alt": "Valid in mixed create",
+                      "mediaContentType": "IMAGE",
+                      "status": "READY"
+                    },
+                    {
+                      "id": "gid://shopify/MediaImage/43607852122418",
+                      "alt": "Seed media",
+                      "mediaContentType": "IMAGE",
+                      "status": "READY"
+                    }
+                  ]
+                }
+              }
+            ]
           }
         }
       }

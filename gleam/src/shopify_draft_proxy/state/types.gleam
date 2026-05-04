@@ -10,7 +10,700 @@
 //// module.
 
 import gleam/dict.{type Dict}
+import gleam/json.{type Json}
 import gleam/option.{type Option}
+
+// Products domain
+// ---------------------------------------------------------------------------
+
+pub type ProductSeoRecord {
+  ProductSeoRecord(title: Option(String), description: Option(String))
+}
+
+pub type ProductCategoryRecord {
+  ProductCategoryRecord(id: String, full_name: String)
+}
+
+pub type CollectionImageRecord {
+  CollectionImageRecord(
+    id: Option(String),
+    alt_text: Option(String),
+    url: Option(String),
+    width: Option(Int),
+    height: Option(Int),
+  )
+}
+
+pub type CollectionRuleRecord {
+  CollectionRuleRecord(column: String, relation: String, condition: String)
+}
+
+pub type CollectionRuleSetRecord {
+  CollectionRuleSetRecord(
+    applied_disjunctively: Bool,
+    rules: List(CollectionRuleRecord),
+  )
+}
+
+pub type CollectionRecord {
+  CollectionRecord(
+    id: String,
+    legacy_resource_id: Option(String),
+    title: String,
+    handle: String,
+    publication_ids: List(String),
+    updated_at: Option(String),
+    description: Option(String),
+    description_html: Option(String),
+    image: Option(CollectionImageRecord),
+    sort_order: Option(String),
+    template_suffix: Option(String),
+    seo: ProductSeoRecord,
+    rule_set: Option(CollectionRuleSetRecord),
+    products_count: Option(Int),
+    is_smart: Bool,
+    cursor: Option(String),
+    title_cursor: Option(String),
+    updated_at_cursor: Option(String),
+  )
+}
+
+pub type ProductCollectionRecord {
+  ProductCollectionRecord(
+    collection_id: String,
+    product_id: String,
+    position: Int,
+    cursor: Option(String),
+  )
+}
+
+pub type ProductMediaRecord {
+  ProductMediaRecord(
+    key: String,
+    product_id: String,
+    position: Int,
+    id: Option(String),
+    media_content_type: Option(String),
+    alt: Option(String),
+    status: Option(String),
+    product_image_id: Option(String),
+    image_url: Option(String),
+    image_width: Option(Int),
+    image_height: Option(Int),
+    preview_image_url: Option(String),
+    source_url: Option(String),
+  )
+}
+
+pub type FileRecord {
+  FileRecord(
+    id: String,
+    alt: Option(String),
+    content_type: Option(String),
+    created_at: String,
+    file_status: String,
+    filename: Option(String),
+    original_source: String,
+    image_url: Option(String),
+    image_width: Option(Int),
+    image_height: Option(Int),
+    update_failure_acknowledged_at: Option(String),
+  )
+}
+
+pub type ProductVariantSelectedOptionRecord {
+  ProductVariantSelectedOptionRecord(name: String, value: String)
+}
+
+pub type CapturedJsonValue {
+  CapturedNull
+  CapturedBool(Bool)
+  CapturedInt(Int)
+  CapturedFloat(Float)
+  CapturedString(String)
+  CapturedArray(List(CapturedJsonValue))
+  CapturedObject(List(#(String, CapturedJsonValue)))
+}
+
+pub type OnlineStoreContentRecord {
+  OnlineStoreContentRecord(
+    id: String,
+    kind: String,
+    cursor: Option(String),
+    parent_id: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+pub type OnlineStoreIntegrationRecord {
+  OnlineStoreIntegrationRecord(
+    id: String,
+    kind: String,
+    cursor: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+// Discounts domain
+// ---------------------------------------------------------------------------
+
+pub type DiscountRecord {
+  DiscountRecord(
+    id: String,
+    owner_kind: String,
+    discount_type: String,
+    title: Option(String),
+    status: String,
+    code: Option(String),
+    payload: CapturedJsonValue,
+    cursor: Option(String),
+  )
+}
+
+pub type DiscountBulkOperationRecord {
+  DiscountBulkOperationRecord(
+    id: String,
+    operation: String,
+    discount_id: String,
+    status: String,
+    payload: CapturedJsonValue,
+  )
+}
+
+// Orders domain
+// ---------------------------------------------------------------------------
+
+pub type AbandonedCheckoutRecord {
+  AbandonedCheckoutRecord(
+    id: String,
+    cursor: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+pub type AbandonmentDeliveryActivityRecord {
+  AbandonmentDeliveryActivityRecord(
+    marketing_activity_id: String,
+    delivery_status: String,
+    delivered_at: Option(String),
+    delivery_status_change_reason: Option(String),
+  )
+}
+
+pub type AbandonmentRecord {
+  AbandonmentRecord(
+    id: String,
+    abandoned_checkout_id: Option(String),
+    cursor: Option(String),
+    data: CapturedJsonValue,
+    delivery_activities: Dict(String, AbandonmentDeliveryActivityRecord),
+  )
+}
+
+pub type DraftOrderRecord {
+  DraftOrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+pub type OrderRecord {
+  OrderRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+pub type DraftOrderVariantCatalogRecord {
+  DraftOrderVariantCatalogRecord(
+    variant_id: String,
+    title: String,
+    name: String,
+    variant_title: Option(String),
+    sku: Option(String),
+    requires_shipping: Bool,
+    taxable: Bool,
+    unit_price: String,
+    currency_code: String,
+  )
+}
+
+pub type InventoryWeightValue {
+  InventoryWeightInt(Int)
+  InventoryWeightFloat(Float)
+}
+
+pub type InventoryWeightRecord {
+  InventoryWeightRecord(unit: String, value: InventoryWeightValue)
+}
+
+pub type InventoryMeasurementRecord {
+  InventoryMeasurementRecord(weight: Option(InventoryWeightRecord))
+}
+
+pub type InventoryLocationRecord {
+  InventoryLocationRecord(id: String, name: String)
+}
+
+pub type LocationRecord {
+  LocationRecord(id: String, name: String, cursor: Option(String))
+}
+
+pub type PublicationRecord {
+  PublicationRecord(
+    id: String,
+    name: Option(String),
+    auto_publish: Option(Bool),
+    supports_future_publishing: Option(Bool),
+    catalog_id: Option(String),
+    channel_id: Option(String),
+    cursor: Option(String),
+  )
+}
+
+pub type ChannelRecord {
+  ChannelRecord(
+    id: String,
+    name: Option(String),
+    handle: Option(String),
+    publication_id: Option(String),
+    cursor: Option(String),
+  )
+}
+
+pub type ProductFeedRecord {
+  ProductFeedRecord(
+    id: String,
+    country: Option(String),
+    language: Option(String),
+    status: String,
+  )
+}
+
+pub type ProductResourceFeedbackRecord {
+  ProductResourceFeedbackRecord(
+    product_id: String,
+    state: String,
+    feedback_generated_at: String,
+    product_updated_at: String,
+    messages: List(String),
+  )
+}
+
+pub type ShopResourceFeedbackRecord {
+  ShopResourceFeedbackRecord(
+    id: String,
+    state: String,
+    feedback_generated_at: String,
+    messages: List(String),
+  )
+}
+
+pub type InventoryQuantityRecord {
+  InventoryQuantityRecord(
+    name: String,
+    quantity: Int,
+    updated_at: Option(String),
+  )
+}
+
+pub type InventoryLevelRecord {
+  InventoryLevelRecord(
+    id: String,
+    location: InventoryLocationRecord,
+    quantities: List(InventoryQuantityRecord),
+    is_active: Option(Bool),
+    cursor: Option(String),
+  )
+}
+
+pub type InventoryItemRecord {
+  InventoryItemRecord(
+    id: String,
+    tracked: Option(Bool),
+    requires_shipping: Option(Bool),
+    measurement: Option(InventoryMeasurementRecord),
+    country_code_of_origin: Option(String),
+    province_code_of_origin: Option(String),
+    harmonized_system_code: Option(String),
+    inventory_levels: List(InventoryLevelRecord),
+  )
+}
+
+pub type InventoryTransferLocationSnapshotRecord {
+  InventoryTransferLocationSnapshotRecord(
+    id: Option(String),
+    name: String,
+    snapshotted_at: String,
+  )
+}
+
+pub type InventoryTransferLineItemRecord {
+  InventoryTransferLineItemRecord(
+    id: String,
+    inventory_item_id: String,
+    title: Option(String),
+    total_quantity: Int,
+    shipped_quantity: Int,
+    picked_for_shipment_quantity: Int,
+  )
+}
+
+pub type InventoryTransferRecord {
+  InventoryTransferRecord(
+    id: String,
+    name: String,
+    reference_name: Option(String),
+    status: String,
+    note: Option(String),
+    tags: List(String),
+    date_created: String,
+    origin: Option(InventoryTransferLocationSnapshotRecord),
+    destination: Option(InventoryTransferLocationSnapshotRecord),
+    line_items: List(InventoryTransferLineItemRecord),
+  )
+}
+
+pub type InventoryShipmentTrackingRecord {
+  InventoryShipmentTrackingRecord(
+    tracking_number: Option(String),
+    company: Option(String),
+    tracking_url: Option(String),
+    arrives_at: Option(String),
+  )
+}
+
+pub type InventoryShipmentLineItemRecord {
+  InventoryShipmentLineItemRecord(
+    id: String,
+    inventory_item_id: String,
+    quantity: Int,
+    accepted_quantity: Int,
+    rejected_quantity: Int,
+  )
+}
+
+pub type InventoryShipmentRecord {
+  InventoryShipmentRecord(
+    id: String,
+    movement_id: String,
+    name: String,
+    status: String,
+    created_at: String,
+    updated_at: String,
+    tracking: Option(InventoryShipmentTrackingRecord),
+    line_items: List(InventoryShipmentLineItemRecord),
+  )
+}
+
+pub type ShippingPackageWeightRecord {
+  ShippingPackageWeightRecord(value: Option(Float), unit: Option(String))
+}
+
+pub type ShippingPackageDimensionsRecord {
+  ShippingPackageDimensionsRecord(
+    length: Option(Float),
+    width: Option(Float),
+    height: Option(Float),
+    unit: Option(String),
+  )
+}
+
+pub type ShippingPackageRecord {
+  ShippingPackageRecord(
+    id: String,
+    name: Option(String),
+    type_: Option(String),
+    default: Bool,
+    weight: Option(ShippingPackageWeightRecord),
+    dimensions: Option(ShippingPackageDimensionsRecord),
+    created_at: String,
+    updated_at: String,
+  )
+}
+
+pub type CarrierServiceRecord {
+  CarrierServiceRecord(
+    id: String,
+    name: Option(String),
+    formatted_name: Option(String),
+    callback_url: Option(String),
+    active: Bool,
+    supports_service_discovery: Bool,
+    created_at: String,
+    updated_at: String,
+  )
+}
+
+pub type FulfillmentServiceRecord {
+  FulfillmentServiceRecord(
+    id: String,
+    handle: String,
+    service_name: String,
+    callback_url: Option(String),
+    inventory_management: Bool,
+    location_id: Option(String),
+    requires_shipping_method: Bool,
+    tracking_support: Bool,
+    type_: String,
+  )
+}
+
+pub type FulfillmentRecord {
+  FulfillmentRecord(
+    id: String,
+    order_id: Option(String),
+    data: CapturedJsonValue,
+  )
+}
+
+pub type FulfillmentOrderRecord {
+  FulfillmentOrderRecord(
+    id: String,
+    order_id: Option(String),
+    status: String,
+    request_status: String,
+    assigned_location_id: Option(String),
+    assignment_status: Option(String),
+    manually_held: Bool,
+    data: CapturedJsonValue,
+  )
+}
+
+pub type ShippingOrderRecord {
+  ShippingOrderRecord(id: String, data: CapturedJsonValue)
+}
+
+pub type ReverseFulfillmentOrderRecord {
+  ReverseFulfillmentOrderRecord(id: String, data: CapturedJsonValue)
+}
+
+pub type ReverseDeliveryRecord {
+  ReverseDeliveryRecord(
+    id: String,
+    reverse_fulfillment_order_id: String,
+    data: CapturedJsonValue,
+  )
+}
+
+pub type CalculatedOrderRecord {
+  CalculatedOrderRecord(id: String, data: CapturedJsonValue)
+}
+
+pub type DeliveryProfileRecord {
+  DeliveryProfileRecord(
+    id: String,
+    cursor: Option(String),
+    merchant_owned: Bool,
+    data: CapturedJsonValue,
+  )
+}
+
+pub type ProductVariantRecord {
+  ProductVariantRecord(
+    id: String,
+    product_id: String,
+    title: String,
+    sku: Option(String),
+    barcode: Option(String),
+    price: Option(String),
+    compare_at_price: Option(String),
+    taxable: Option(Bool),
+    inventory_policy: Option(String),
+    inventory_quantity: Option(Int),
+    selected_options: List(ProductVariantSelectedOptionRecord),
+    media_ids: List(String),
+    inventory_item: Option(InventoryItemRecord),
+    contextual_pricing: Option(CapturedJsonValue),
+    cursor: Option(String),
+  )
+}
+
+pub type ProductOptionValueRecord {
+  ProductOptionValueRecord(id: String, name: String, has_variants: Bool)
+}
+
+pub type ProductOptionRecord {
+  ProductOptionRecord(
+    id: String,
+    product_id: String,
+    name: String,
+    position: Int,
+    option_values: List(ProductOptionValueRecord),
+  )
+}
+
+pub type ProductOperationUserErrorRecord {
+  ProductOperationUserErrorRecord(field: Option(List(String)), message: String)
+}
+
+pub type ProductOperationRecord {
+  ProductOperationRecord(
+    id: String,
+    type_name: String,
+    product_id: Option(String),
+    new_product_id: Option(String),
+    status: String,
+    user_errors: List(ProductOperationUserErrorRecord),
+  )
+}
+
+pub type ProductRecord {
+  ProductRecord(
+    id: String,
+    legacy_resource_id: Option(String),
+    title: String,
+    handle: String,
+    status: String,
+    vendor: Option(String),
+    product_type: Option(String),
+    tags: List(String),
+    total_inventory: Option(Int),
+    tracks_inventory: Option(Bool),
+    created_at: Option(String),
+    updated_at: Option(String),
+    published_at: Option(String),
+    description_html: String,
+    online_store_preview_url: Option(String),
+    template_suffix: Option(String),
+    seo: ProductSeoRecord,
+    category: Option(ProductCategoryRecord),
+    publication_ids: List(String),
+    contextual_pricing: Option(CapturedJsonValue),
+    cursor: Option(String),
+  )
+}
+
+pub type SellingPlanRecord {
+  SellingPlanRecord(id: String, data: CapturedJsonValue)
+}
+
+pub type SellingPlanGroupRecord {
+  SellingPlanGroupRecord(
+    id: String,
+    app_id: Option(String),
+    name: String,
+    merchant_code: String,
+    description: Option(String),
+    options: List(String),
+    position: Option(Int),
+    summary: Option(String),
+    created_at: Option(String),
+    product_ids: List(String),
+    product_variant_ids: List(String),
+    selling_plans: List(SellingPlanRecord),
+    cursor: Option(String),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Markets domain
+// ---------------------------------------------------------------------------
+
+/// Mirrors `MarketRecord` in `src/state/types.ts`. The captured Shopify
+/// payload remains JSON-shaped because Markets expose several nested union and
+/// connection subtrees that are projected by the domain serializer.
+pub type MarketRecord {
+  MarketRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+/// Mirrors `CatalogRecord` in `src/state/types.ts`.
+pub type CatalogRecord {
+  CatalogRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+/// Mirrors `PriceListRecord` in `src/state/types.ts`.
+pub type PriceListRecord {
+  PriceListRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+/// Mirrors `WebPresenceRecord` in `src/state/types.ts`.
+pub type WebPresenceRecord {
+  WebPresenceRecord(id: String, cursor: Option(String), data: CapturedJsonValue)
+}
+
+/// Mirrors `MarketLocalizationRecord` in `src/state/types.ts`.
+pub type MarketLocalizationRecord {
+  MarketLocalizationRecord(
+    resource_id: String,
+    market_id: String,
+    key: String,
+    value: String,
+    updated_at: String,
+    outdated: Bool,
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Metafields domain
+// ---------------------------------------------------------------------------
+
+pub type ProductMetafieldRecord {
+  ProductMetafieldRecord(
+    id: String,
+    owner_id: String,
+    namespace: String,
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    compare_digest: Option(String),
+    json_value: Option(Json),
+    created_at: Option(String),
+    updated_at: Option(String),
+    owner_type: Option(String),
+  )
+}
+
+pub type MetafieldDefinitionCapabilityRecord {
+  MetafieldDefinitionCapabilityRecord(
+    enabled: Bool,
+    eligible: Bool,
+    status: Option(String),
+  )
+}
+
+pub type MetafieldDefinitionCapabilitiesRecord {
+  MetafieldDefinitionCapabilitiesRecord(
+    admin_filterable: MetafieldDefinitionCapabilityRecord,
+    smart_collection_condition: MetafieldDefinitionCapabilityRecord,
+    unique_values: MetafieldDefinitionCapabilityRecord,
+  )
+}
+
+pub type MetafieldDefinitionConstraintValueRecord {
+  MetafieldDefinitionConstraintValueRecord(value: String)
+}
+
+pub type MetafieldDefinitionConstraintsRecord {
+  MetafieldDefinitionConstraintsRecord(
+    key: Option(String),
+    values: List(MetafieldDefinitionConstraintValueRecord),
+  )
+}
+
+pub type MetafieldDefinitionTypeRecord {
+  MetafieldDefinitionTypeRecord(name: String, category: Option(String))
+}
+
+pub type MetafieldDefinitionValidationRecord {
+  MetafieldDefinitionValidationRecord(name: String, value: Option(String))
+}
+
+pub type MetafieldDefinitionRecord {
+  MetafieldDefinitionRecord(
+    id: String,
+    name: String,
+    namespace: String,
+    key: String,
+    owner_type: String,
+    type_: MetafieldDefinitionTypeRecord,
+    description: Option(String),
+    validations: List(MetafieldDefinitionValidationRecord),
+    access: Dict(String, Json),
+    capabilities: MetafieldDefinitionCapabilitiesRecord,
+    constraints: Option(MetafieldDefinitionConstraintsRecord),
+    pinned_position: Option(Int),
+    validation_status: String,
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Admin Platform utility domain
@@ -20,6 +713,22 @@ import gleam/option.{type Option}
 /// `backupRegion` and `backupRegionUpdate`.
 pub type BackupRegionRecord {
   BackupRegionRecord(id: String, name: String, code: String)
+}
+
+pub type AdminPlatformGenericNodeRecord {
+  AdminPlatformGenericNodeRecord(
+    id: String,
+    typename: String,
+    data: CapturedJsonValue,
+  )
+}
+
+pub type AdminPlatformTaxonomyCategoryRecord {
+  AdminPlatformTaxonomyCategoryRecord(
+    id: String,
+    cursor: Option(String),
+    data: CapturedJsonValue,
+  )
 }
 
 /// Audit record for locally handled `flowGenerateSignature`.
@@ -179,6 +888,82 @@ pub type ShopRecord {
     features: ShopFeaturesRecord,
     payment_settings: PaymentSettingsRecord,
     shop_policies: List(ShopPolicyRecord),
+  )
+}
+
+/// JSON-shaped Store Properties resource value. This is used for captured
+/// Location, BusinessEntity, Product, and Collection projection slices whose
+/// full owning domains have not all been ported yet.
+pub type StorePropertyValue {
+  StorePropertyNull
+  StorePropertyString(String)
+  StorePropertyBool(Bool)
+  StorePropertyInt(Int)
+  StorePropertyFloat(Float)
+  StorePropertyList(List(StorePropertyValue))
+  StorePropertyObject(Dict(String, StorePropertyValue))
+}
+
+/// Captured Store Properties resource row, keyed by Shopify GID where the
+/// captured payload has one. `cursor` preserves connection order evidence.
+pub type StorePropertyRecord {
+  StorePropertyRecord(
+    id: String,
+    cursor: Option(String),
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// B2B company domain
+// ---------------------------------------------------------------------------
+
+/// JSON-shaped B2B company row. Relationships are normalized as Shopify GIDs
+/// so contacts, locations, and roles can be updated independently.
+pub type B2BCompanyRecord {
+  B2BCompanyRecord(
+    id: String,
+    cursor: Option(String),
+    data: Dict(String, StorePropertyValue),
+    contact_ids: List(String),
+    location_ids: List(String),
+    contact_role_ids: List(String),
+  )
+}
+
+pub type B2BCompanyContactRecord {
+  B2BCompanyContactRecord(
+    id: String,
+    cursor: Option(String),
+    company_id: String,
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+pub type B2BCompanyContactRoleRecord {
+  B2BCompanyContactRoleRecord(
+    id: String,
+    cursor: Option(String),
+    company_id: String,
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+pub type B2BCompanyLocationRecord {
+  B2BCompanyLocationRecord(
+    id: String,
+    cursor: Option(String),
+    company_id: String,
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+/// Locally staged publishable mutation payload for the minimal Product /
+/// Collection publication projection used by Store Properties parity.
+pub type StorePropertyMutationPayloadRecord {
+  StorePropertyMutationPayloadRecord(
+    key: String,
+    data: Dict(String, StorePropertyValue),
   )
 }
 
@@ -692,6 +1477,366 @@ pub type GiftCardRecord {
 /// store like `TaxAppConfigurationRecord` — one configuration per shop.
 pub type GiftCardConfigurationRecord {
   GiftCardConfigurationRecord(issue_limit: Money, purchase_limit: Money)
+}
+
+// ---------------------------------------------------------------------------
+// Customers domain
+// ---------------------------------------------------------------------------
+
+/// Mirrors `CustomerDefaultEmailAddressRecord`.
+pub type CustomerDefaultEmailAddressRecord {
+  CustomerDefaultEmailAddressRecord(
+    email_address: Option(String),
+    marketing_state: Option(String),
+    marketing_opt_in_level: Option(String),
+    marketing_updated_at: Option(String),
+  )
+}
+
+/// Mirrors `CustomerDefaultPhoneNumberRecord`.
+pub type CustomerDefaultPhoneNumberRecord {
+  CustomerDefaultPhoneNumberRecord(
+    phone_number: Option(String),
+    marketing_state: Option(String),
+    marketing_opt_in_level: Option(String),
+    marketing_updated_at: Option(String),
+    marketing_collected_from: Option(String),
+  )
+}
+
+/// Mirrors `CustomerEmailMarketingConsentRecord`.
+pub type CustomerEmailMarketingConsentRecord {
+  CustomerEmailMarketingConsentRecord(
+    marketing_state: Option(String),
+    marketing_opt_in_level: Option(String),
+    consent_updated_at: Option(String),
+  )
+}
+
+/// Mirrors `CustomerSmsMarketingConsentRecord`.
+pub type CustomerSmsMarketingConsentRecord {
+  CustomerSmsMarketingConsentRecord(
+    marketing_state: Option(String),
+    marketing_opt_in_level: Option(String),
+    consent_updated_at: Option(String),
+    consent_collected_from: Option(String),
+  )
+}
+
+/// Mirrors `CustomerDefaultAddressRecord`.
+pub type CustomerDefaultAddressRecord {
+  CustomerDefaultAddressRecord(
+    id: Option(String),
+    first_name: Option(String),
+    last_name: Option(String),
+    address1: Option(String),
+    address2: Option(String),
+    city: Option(String),
+    company: Option(String),
+    province: Option(String),
+    province_code: Option(String),
+    country: Option(String),
+    country_code_v2: Option(String),
+    zip: Option(String),
+    phone: Option(String),
+    name: Option(String),
+    formatted_area: Option(String),
+  )
+}
+
+/// Mirrors `CustomerAddressRecord`.
+pub type CustomerAddressRecord {
+  CustomerAddressRecord(
+    id: String,
+    customer_id: String,
+    cursor: Option(String),
+    position: Int,
+    first_name: Option(String),
+    last_name: Option(String),
+    address1: Option(String),
+    address2: Option(String),
+    city: Option(String),
+    company: Option(String),
+    province: Option(String),
+    province_code: Option(String),
+    country: Option(String),
+    country_code_v2: Option(String),
+    zip: Option(String),
+    phone: Option(String),
+    name: Option(String),
+    formatted_area: Option(String),
+  )
+}
+
+/// Mirrors `CustomerRecord`.
+pub type CustomerRecord {
+  CustomerRecord(
+    id: String,
+    first_name: Option(String),
+    last_name: Option(String),
+    display_name: Option(String),
+    email: Option(String),
+    legacy_resource_id: Option(String),
+    locale: Option(String),
+    note: Option(String),
+    can_delete: Option(Bool),
+    verified_email: Option(Bool),
+    data_sale_opt_out: Bool,
+    tax_exempt: Option(Bool),
+    tax_exemptions: List(String),
+    state: Option(String),
+    tags: List(String),
+    number_of_orders: Option(String),
+    amount_spent: Option(Money),
+    default_email_address: Option(CustomerDefaultEmailAddressRecord),
+    default_phone_number: Option(CustomerDefaultPhoneNumberRecord),
+    email_marketing_consent: Option(CustomerEmailMarketingConsentRecord),
+    sms_marketing_consent: Option(CustomerSmsMarketingConsentRecord),
+    default_address: Option(CustomerDefaultAddressRecord),
+    created_at: Option(String),
+    updated_at: Option(String),
+  )
+}
+
+pub type CustomerCatalogPageInfoRecord {
+  CustomerCatalogPageInfoRecord(
+    has_next_page: Bool,
+    has_previous_page: Bool,
+    start_cursor: Option(String),
+    end_cursor: Option(String),
+  )
+}
+
+pub type CustomerCatalogConnectionRecord {
+  CustomerCatalogConnectionRecord(
+    ordered_customer_ids: List(String),
+    cursor_by_customer_id: Dict(String, String),
+    page_info: CustomerCatalogPageInfoRecord,
+  )
+}
+
+/// Minimal customer-owned order summary used by Customer.orders/lastOrder.
+pub type CustomerOrderSummaryRecord {
+  CustomerOrderSummaryRecord(
+    id: String,
+    customer_id: Option(String),
+    cursor: Option(String),
+    name: Option(String),
+    email: Option(String),
+    created_at: Option(String),
+    current_total_price: Option(Money),
+  )
+}
+
+/// Minimal customer-owned event summary used by Customer.events.
+pub type CustomerEventSummaryRecord {
+  CustomerEventSummaryRecord(
+    id: String,
+    customer_id: String,
+    cursor: Option(String),
+  )
+}
+
+/// Customer-owned metafield record.
+pub type CustomerMetafieldRecord {
+  CustomerMetafieldRecord(
+    id: String,
+    customer_id: String,
+    namespace: String,
+    key: String,
+    type_: String,
+    value: String,
+    compare_digest: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+  )
+}
+
+/// Mirrors `CustomerPaymentMethodInstrumentRecord` as a JSON-ish string map.
+pub type CustomerPaymentMethodInstrumentRecord {
+  CustomerPaymentMethodInstrumentRecord(
+    type_name: String,
+    data: Dict(String, String),
+  )
+}
+
+/// Mirrors `CustomerPaymentMethodSubscriptionContractRecord`.
+pub type CustomerPaymentMethodSubscriptionContractRecord {
+  CustomerPaymentMethodSubscriptionContractRecord(
+    id: String,
+    cursor: Option(String),
+    data: Dict(String, String),
+  )
+}
+
+/// Mirrors `CustomerPaymentMethodRecord`.
+pub type CustomerPaymentMethodRecord {
+  CustomerPaymentMethodRecord(
+    id: String,
+    customer_id: String,
+    cursor: Option(String),
+    instrument: Option(CustomerPaymentMethodInstrumentRecord),
+    revoked_at: Option(String),
+    revoked_reason: Option(String),
+    subscription_contracts: List(
+      CustomerPaymentMethodSubscriptionContractRecord,
+    ),
+  )
+}
+
+/// Mirrors `CustomerPaymentMethodUpdateUrlRecord`.
+pub type CustomerPaymentMethodUpdateUrlRecord {
+  CustomerPaymentMethodUpdateUrlRecord(
+    id: String,
+    customer_payment_method_id: String,
+    update_payment_method_url: String,
+    created_at: String,
+  )
+}
+
+/// Mirrors `PaymentReminderSendRecord`.
+pub type PaymentReminderSendRecord {
+  PaymentReminderSendRecord(
+    id: String,
+    payment_schedule_id: String,
+    sent_at: String,
+  )
+}
+
+/// Payment-customization owned metafield row.
+pub type PaymentCustomizationMetafieldRecord {
+  PaymentCustomizationMetafieldRecord(
+    id: String,
+    payment_customization_id: String,
+    namespace: String,
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    compare_digest: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    owner_type: Option(String),
+  )
+}
+
+/// Mirrors `PaymentCustomizationRecord`.
+pub type PaymentCustomizationRecord {
+  PaymentCustomizationRecord(
+    id: String,
+    title: Option(String),
+    enabled: Option(Bool),
+    function_id: Option(String),
+    function_handle: Option(String),
+    metafields: List(PaymentCustomizationMetafieldRecord),
+  )
+}
+
+/// Mirrors `PaymentTermsTemplateRecord`.
+pub type PaymentTermsTemplateRecord {
+  PaymentTermsTemplateRecord(
+    id: String,
+    name: String,
+    description: String,
+    due_in_days: Option(Int),
+    payment_terms_type: String,
+    translated_name: String,
+  )
+}
+
+/// Mirrors the payment-schedule projection used by payment terms.
+pub type PaymentScheduleRecord {
+  PaymentScheduleRecord(
+    id: String,
+    due_at: Option(String),
+    issued_at: Option(String),
+    completed_at: Option(String),
+    due: Option(Bool),
+    amount: Option(Money),
+    balance_due: Option(Money),
+    total_balance: Option(Money),
+  )
+}
+
+/// Normalized payment terms staged against an order or draft order owner.
+pub type PaymentTermsRecord {
+  PaymentTermsRecord(
+    id: String,
+    owner_id: String,
+    due: Bool,
+    overdue: Bool,
+    due_in_days: Option(Int),
+    payment_terms_name: String,
+    payment_terms_type: String,
+    translated_name: String,
+    payment_schedules: List(PaymentScheduleRecord),
+  )
+}
+
+/// Idempotency record for `orderCreateMandatePayment`.
+pub type OrderMandatePaymentRecord {
+  OrderMandatePaymentRecord(
+    order_id: String,
+    idempotency_key: String,
+    job_id: String,
+    payment_reference_id: String,
+    transaction_id: String,
+  )
+}
+
+/// Mirrors `StoreCreditAccountTransactionRecord`.
+pub type StoreCreditAccountTransactionRecord {
+  StoreCreditAccountTransactionRecord(
+    id: String,
+    account_id: String,
+    amount: Money,
+    balance_after_transaction: Money,
+    created_at: String,
+    event: String,
+  )
+}
+
+/// Mirrors `StoreCreditAccountRecord`.
+pub type StoreCreditAccountRecord {
+  StoreCreditAccountRecord(
+    id: String,
+    customer_id: String,
+    cursor: Option(String),
+    balance: Money,
+  )
+}
+
+/// Mirrors `CustomerAccountPageRecord`.
+pub type CustomerAccountPageRecord {
+  CustomerAccountPageRecord(
+    id: String,
+    title: String,
+    handle: String,
+    default_cursor: String,
+    cursor: Option(String),
+  )
+}
+
+/// Mirrors `CustomerDataErasureRequestRecord`.
+pub type CustomerDataErasureRequestRecord {
+  CustomerDataErasureRequestRecord(
+    customer_id: String,
+    requested_at: String,
+    canceled_at: Option(String),
+  )
+}
+
+/// Mirrors `CustomerMergeRequestRecord`.
+pub type CustomerMergeErrorRecord {
+  CustomerMergeErrorRecord(error_fields: List(String), message: String)
+}
+
+pub type CustomerMergeRequestRecord {
+  CustomerMergeRequestRecord(
+    job_id: String,
+    resulting_customer_id: String,
+    status: String,
+    customer_merge_errors: List(CustomerMergeErrorRecord),
+  )
 }
 
 /// Mirrors `SegmentRecord`. Customer segments are upstream resources the

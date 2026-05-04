@@ -13,20 +13,7 @@
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.products.pageInfo.startCursor",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "Shopify connection cursors are opaque; the proxy guarantees stable cursor-window behavior but not Shopify's internal cursor encoding."
-      },
-      {
-        "path": "$.products.pageInfo.endCursor",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "Shopify connection cursors are opaque; the proxy guarantees stable cursor-window behavior but not Shopify's internal cursor encoding."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "products-variant-search-data",

@@ -198,5 +198,29 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10170567196978"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10170567196978",
+                "title": "HAR-22 update seed 1777153541365",
+                "handle": "har-22-update-seed-1777153541365",
+                "status": "DRAFT"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

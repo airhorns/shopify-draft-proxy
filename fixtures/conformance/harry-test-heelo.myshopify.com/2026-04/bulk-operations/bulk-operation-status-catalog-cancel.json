@@ -12616,5 +12616,78 @@
       "observedStatusTransition": true,
       "label": "query export with immediate cancel attempt"
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/7689772204338"
+      },
+      "query": "hand-synthesized from lifecycle.queryExportToTerminal.terminalOperation",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7689772204338",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-04-27T20:34:58Z",
+              "completedAt": "2026-04-27T20:34:58Z",
+              "objectCount": "1424",
+              "rootObjectCount": "1424",
+              "fileSize": "112704",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/dfwen19dqhxkr127kitwoz3ou0m5-final?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1777926898&Signature=OWHhjOQf7dZKxvtuSbRGNVgXct69zLGpqgTyBCZKe6DSSGLW05Wa%2BCE6zLoNPzwxiSIzEp6JctUQUCwOE%2FUL7Wo9EzTCj2Hfr4D2YHmUwQEOfj603pP3B353oTUcaDLtSivkapvtmj2lhA4399t8u02Sc1K08kH5Q2EM55RW4h5uzjw0%2BtXZYSi36GjdMqsSov2rpBgq82%2FZjUhQz47pA6%2F7r8zDWVr%2FWS4x%2BeCSZuQwlM4F4DNsl4kn7fGvPkOSwTMDssAFJjBT7lagJ9iEai8bEsoe9lrmGY6%2BxwvTH9x270UIcxJhdYgp7e0qI%2FcA6qRtvdeMGLQpE9jROo4%2B0w%3D%3D&response-content-disposition=attachment%3B+filename%3D%22bulk-7689772204338.jsonl%22%3B+filename%2A%3DUTF-8%27%27bulk-7689772204338.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/7689772990770"
+      },
+      "query": "hand-synthesized from lifecycle.queryExportImmediateCancel.run.response",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7689772990770",
+              "status": "CREATED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-04-27T20:35:00Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationRunQueryProductCount",
+      "variables": {},
+      "query": "hand-synthesized from lifecycle.queryExportToTerminal.terminalOperation",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productsCount": {
+              "count": 1424
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -196,5 +196,96 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Collection/512142606642", "gid://shopify/ProductVariant/51098325156146"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098325156146",
+                "title": "Default Title",
+                "care": {
+                  "id": "gid://shopify/Metafield/42952770355506",
+                  "namespace": "custom",
+                  "key": "variant_care",
+                  "type": "single_line_text_field",
+                  "value": "Spot clean",
+                  "compareDigest": "430fb14bc99318a95a9768789614704f101e9839f28db554feb9ec86b7d2366f",
+                  "ownerType": "PRODUCTVARIANT"
+                },
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/42952770355506",
+                      "namespace": "custom",
+                      "key": "variant_care",
+                      "type": "single_line_text_field",
+                      "value": "Spot clean",
+                      "compareDigest": "430fb14bc99318a95a9768789614704f101e9839f28db554feb9ec86b7d2366f",
+                      "ownerType": "PRODUCTVARIANT"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDM1NTUwNiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMzU1NTA2In0=",
+                    "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDM1NTUwNiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMzU1NTA2In0="
+                  }
+                },
+                "product": {
+                  "id": "gid://shopify/Product/10170511687986",
+                  "title": "Hermes Product Metafield Conformance 1777137448583",
+                  "handle": "gid://shopify/Product/10170511687986",
+                  "status": "ACTIVE",
+                  "totalInventory": 0,
+                  "tracksInventory": true
+                }
+              },
+              {
+                "id": "gid://shopify/Collection/512142606642",
+                "title": "Hermes Metafield Owner Collection 1777137448583",
+                "handle": "hermes-metafield-owner-collection-1777137448583",
+                "season": {
+                  "id": "gid://shopify/Metafield/42952770388274",
+                  "namespace": "custom",
+                  "key": "collection_season",
+                  "type": "single_line_text_field",
+                  "value": "Winter",
+                  "compareDigest": "49afdbb15b9a73b1d63f2e66d489b9f973808d626661ba0e0de31806adb41e00",
+                  "ownerType": "COLLECTION"
+                },
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/42952770388274",
+                      "namespace": "custom",
+                      "key": "collection_season",
+                      "type": "single_line_text_field",
+                      "value": "Winter",
+                      "compareDigest": "49afdbb15b9a73b1d63f2e66d489b9f973808d626661ba0e0de31806adb41e00",
+                      "ownerType": "COLLECTION"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDM4ODI3NCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMzg4Mjc0In0=",
+                    "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDM4ODI3NCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMzg4Mjc0In0="
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

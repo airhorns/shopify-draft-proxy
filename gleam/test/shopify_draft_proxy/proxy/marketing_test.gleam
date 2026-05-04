@@ -5,6 +5,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{None}
 import gleam/string
+import shopify_draft_proxy/proxy/graphql_helpers.{SrcList, SrcObject, SrcString}
 import shopify_draft_proxy/proxy/marketing
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
@@ -32,6 +33,7 @@ fn record_drafts(
       outcome.identity,
       request_path,
       document,
+      dict.new(),
       outcome.log_drafts,
     )
   marketing.MutationOutcome(
@@ -176,6 +178,76 @@ pub fn reads_stateful_activity_and_event_connections_test() {
   assert string.contains(
     result,
     "\"events\":{\"nodes\":[{\"id\":\"gid://shopify/MarketingEvent/101\",\"description\":\"Spring launch\"}]}",
+  )
+}
+
+pub fn hydrates_upstream_activity_and_event_payloads_test() {
+  let activity_id = "gid://shopify/MarketingActivity/301"
+  let event_id = "gid://shopify/MarketingEvent/901"
+  let upstream =
+    SrcObject(
+      dict.from_list([
+        #(
+          "marketingActivities",
+          SrcObject(
+            dict.from_list([
+              #(
+                "edges",
+                SrcList([
+                  SrcObject(
+                    dict.from_list([
+                      #("cursor", SrcString("upstream-cursor-301")),
+                      #(
+                        "node",
+                        SrcObject(
+                          dict.from_list([
+                            #("__typename", SrcString("MarketingActivity")),
+                            #("id", SrcString(activity_id)),
+                            #("title", SrcString("Hydrated launch")),
+                            #(
+                              "marketingEvent",
+                              SrcObject(
+                                dict.from_list([
+                                  #("__typename", SrcString("MarketingEvent")),
+                                  #("id", SrcString(event_id)),
+                                  #("remoteId", SrcString("remote-301")),
+                                  #("description", SrcString("Hydrated event")),
+                                ]),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    )
+
+  let hydrated =
+    marketing.hydrate_marketing_from_upstream_payload(store.new(), upstream)
+  let result =
+    run(
+      hydrated,
+      "{ marketingActivities(first: 1) { edges { cursor node { id title marketingEvent { id remoteId } } } } marketingEvent(id: \""
+        <> event_id
+        <> "\") { id description } marketingEvents(first: 1) { edges { cursor node { id } } } }",
+    )
+
+  assert string.contains(result, "\"cursor\":\"upstream-cursor-301\"")
+  assert string.contains(
+    result,
+    "\"marketingEvents\":{\"edges\":[{\"cursor\":\"cursor:gid://shopify/MarketingEvent/901\"",
+  )
+  assert string.contains(result, "\"title\":\"Hydrated launch\"")
+  assert string.contains(result, "\"remoteId\":\"remote-301\"")
+  assert string.contains(
+    result,
+    "\"marketingEvent\":{\"id\":\"gid://shopify/MarketingEvent/901\",\"description\":\"Hydrated event\"}",
   )
 }
 

@@ -155,5 +155,23 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerCountHydrate",
+      "variables": {},
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customersCount": {
+              "count": 177,
+              "precision": "EXACT"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

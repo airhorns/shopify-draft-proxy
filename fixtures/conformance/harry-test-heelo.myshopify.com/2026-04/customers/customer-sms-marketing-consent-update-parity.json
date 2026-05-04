@@ -993,5 +993,41 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10541025460530"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541025460530",
+              "firstName": "Hermes",
+              "lastName": "Consent",
+              "displayName": "Hermes Consent",
+              "email": "hermes-consent-1777158462797@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-consent-1777158462797@example.com",
+                "marketingState": "SUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "marketingUpdatedAt": "2026-04-25T01:00:00Z"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14155552797",
+                "marketingState": "NOT_SUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "marketingUpdatedAt": null,
+                "marketingCollectedFrom": null
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -232,5 +232,77 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10172064891186"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10172064891186",
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12718243053874",
+                    "name": "Size",
+                    "position": 1,
+                    "values": ["Small"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979347018034",
+                        "name": "Small",
+                        "hasVariants": true
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/ProductOption/12718243021106",
+                    "name": "Shade",
+                    "position": 2,
+                    "values": ["Crimson"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979346952498",
+                        "name": "Crimson",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979347050802",
+                        "name": "Blue",
+                        "hasVariants": false
+                      }
+                    ]
+                  }
+                ],
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51105202667826",
+                      "title": "Small / Crimson",
+                      "selectedOptions": [
+                        {
+                          "name": "Size",
+                          "value": "Small"
+                        },
+                        {
+                          "name": "Shade",
+                          "value": "Crimson"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

@@ -22,6 +22,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/state/store.{
   type EntryStatus, type MutationLogEntry, type Store, Committed, Failed,
 }
@@ -66,7 +67,7 @@ pub type CommitTransportError {
 /// Normalised successful HTTP outcome. Both targets convert their library's
 /// response into this so the driver code can remain target-agnostic.
 pub type HttpOutcome {
-  HttpOutcome(status: Int, body: String)
+  HttpOutcome(status: Int, body: String, headers: List(#(String, String)))
 }
 
 // ---------------------------------------------------------------------------
@@ -287,7 +288,7 @@ pub fn build_replay_body(entry: MutationLogEntry) -> String {
         json.object(
           list.map(dict.to_list(entry.variables), fn(pair) {
             let #(k, v) = pair
-            #(k, json.string(v))
+            #(k, root_field.resolved_value_to_json(v))
           }),
         ),
       ),
@@ -393,7 +394,7 @@ pub fn step(
   send_outcome: Result(HttpOutcome, CommitTransportError),
 ) -> #(Store, Dict(String, String), CommitAttempt, Bool) {
   case send_outcome {
-    Ok(HttpOutcome(status: status, body: body_string)) -> {
+    Ok(HttpOutcome(status: status, body: body_string, ..)) -> {
       let body = parse_json_value(body_string)
       let failed = status >= 400 || response_body_has_graphql_errors(body)
       case failed {

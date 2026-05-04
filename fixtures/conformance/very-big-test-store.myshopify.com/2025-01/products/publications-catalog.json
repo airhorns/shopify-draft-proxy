@@ -45,5 +45,63 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PublicationsCatalogRead",
+      "variables": {
+        "first": 10
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publications": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4MjA5MDQ1OTM2OSwibGFzdF92YWx1ZSI6ODIwOTA0NTkzNjl9",
+                  "node": {
+                    "id": "gid://shopify/Publication/82090459369",
+                    "name": "Online Store"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxODEzMzM0OTE5NDUsImxhc3RfdmFsdWUiOjE4MTMzMzQ5MTk0NX0=",
+                  "node": {
+                    "id": "gid://shopify/Publication/181333491945",
+                    "name": "Point of Sale"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxODIyOTU5MjA4NzMsImxhc3RfdmFsdWUiOjE4MjI5NTkyMDg3M30=",
+                  "node": {
+                    "id": "gid://shopify/Publication/182295920873",
+                    "name": "example.com"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4MjA5MDQ1OTM2OSwibGFzdF92YWx1ZSI6ODIwOTA0NTkzNjl9",
+                "endCursor": "eyJsYXN0X2lkIjoxODIyOTU5MjA4NzMsImxhc3RfdmFsdWUiOjE4MjI5NTkyMDg3M30="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

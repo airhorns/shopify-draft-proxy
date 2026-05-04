@@ -76,5 +76,68 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerOrderSummaryHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/6830646296809"
+      },
+      "query": "hand-synthesized from checked-in orderCustomer mutation order for HAR-538 customer order summary hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/6830646296809",
+              "name": "#1327",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
+              "paymentGatewayNames": [],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/9096816066793",
+                "email": "har-120-rework-1776900542206@example.com",
+                "displayName": "HAR Customer"
+              },
+              "transactions": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/9096816066793"
+      },
+      "query": "hand-synthesized from checked-in orderCustomerSet mutation customer for HAR-538 customer hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/9096816066793",
+              "email": "har-120-rework-1776900542206@example.com",
+              "displayName": "HAR Customer"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

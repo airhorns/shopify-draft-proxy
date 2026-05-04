@@ -111,5 +111,36 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10173064872242"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10173064872242",
+                "title": "Hermes Product State Conformance 1777416213315",
+                "handle": "hermes-product-state-conformance-1777416213315",
+                "status": "DRAFT",
+                "tags": [
+                  "existing",
+                  "hermes-sale-1777416213315",
+                  "hermes-state-1777416213315",
+                  "hermes-summer-1777416213315"
+                ],
+                "query": "tag:hermes-sale-1777416213315"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

@@ -102,5 +102,123 @@
         "restoreRate": 100
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MarketCatalogsRead",
+      "variables": {
+        "first": 3
+      },
+      "query": "hand-synthesized from checked-in capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "catalogs": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2MTgyOTI1MTMwNSwibGFzdF92YWx1ZSI6IjYxODI5MjUxMzA1In0=",
+                  "node": {
+                    "__typename": "MarketCatalog",
+                    "id": "gid://shopify/MarketCatalog/61829251305",
+                    "title": "Catalog A",
+                    "status": "ACTIVE",
+                    "priceList": {
+                      "id": "gid://shopify/PriceList/20526563561",
+                      "name": "Catalog A - 869533f9-cf53-4696-a021-2e4191f79ca1",
+                      "currency": "CAD"
+                    },
+                    "publication": {
+                      "id": "gid://shopify/Publication/159055151337",
+                      "autoPublish": true
+                    },
+                    "markets": {
+                      "edges": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2MTgyOTI4NDA3MywibGFzdF92YWx1ZSI6IjYxODI5Mjg0MDczIn0=",
+                  "node": {
+                    "__typename": "MarketCatalog",
+                    "id": "gid://shopify/MarketCatalog/61829284073",
+                    "title": "Catalog B",
+                    "status": "ACTIVE",
+                    "priceList": {
+                      "id": "gid://shopify/PriceList/20526596329",
+                      "name": "Catalog B - 322db436-ecec-4e31-b890-6fdd682acb37",
+                      "currency": "CAD"
+                    },
+                    "publication": {
+                      "id": "gid://shopify/Publication/159055184105",
+                      "autoPublish": true
+                    },
+                    "markets": {
+                      "edges": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2MTgyOTMxNjg0MSwibGFzdF92YWx1ZSI6IjYxODI5MzE2ODQxIn0=",
+                  "node": {
+                    "__typename": "MarketCatalog",
+                    "id": "gid://shopify/MarketCatalog/61829316841",
+                    "title": "Catalog C",
+                    "status": "ACTIVE",
+                    "priceList": {
+                      "id": "gid://shopify/PriceList/20526629097",
+                      "name": "Catalog C - 468271f5-05a0-4467-a53c-d0f714d21af9",
+                      "currency": "CAD"
+                    },
+                    "publication": {
+                      "id": "gid://shopify/Publication/159055216873",
+                      "autoPublish": true
+                    },
+                    "markets": {
+                      "edges": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2MTgyOTI1MTMwNSwibGFzdF92YWx1ZSI6IjYxODI5MjUxMzA1In0=",
+                "endCursor": "eyJsYXN0X2lkIjo2MTgyOTMxNjg0MSwibGFzdF92YWx1ZSI6IjYxODI5MzE2ODQxIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1949,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

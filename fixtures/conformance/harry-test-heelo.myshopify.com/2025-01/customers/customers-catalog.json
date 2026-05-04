@@ -1,0 +1,267 @@
+{
+  "proxyVariables": {
+    "first": 3
+  },
+  "data": {
+    "customers": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTMzMjk4LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjkzMzI5OCJ9",
+          "node": {
+            "id": "gid://shopify/Customer/9522206933298",
+            "displayName": "Karine Ruby",
+            "email": "karine.ruby@example.com",
+            "legacyResourceId": "9522206933298",
+            "locale": "en",
+            "note": null,
+            "canDelete": false,
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "state": "DISABLED",
+            "numberOfOrders": "5",
+            "amountSpent": {
+              "amount": "4941.0",
+              "currencyCode": "CAD"
+            },
+            "defaultEmailAddress": {
+              "emailAddress": "karine.ruby@example.com"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+16135550142"
+            },
+            "defaultAddress": {
+              "address1": "Box 42 - 151 O'Connor St",
+              "city": "Ottawa",
+              "province": null,
+              "country": "Canada",
+              "zip": "K2P2L8",
+              "formattedArea": "Ottawa, Canada"
+            },
+            "createdAt": "2025-03-26T19:51:37Z",
+            "updatedAt": "2026-04-25T23:58:18Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTY2MDY2LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjk2NjA2NiJ9",
+          "node": {
+            "id": "gid://shopify/Customer/9522206966066",
+            "displayName": "Ayumu Hirano",
+            "email": "ayumu.hirano@example.com",
+            "legacyResourceId": "9522206966066",
+            "locale": "en",
+            "note": null,
+            "canDelete": true,
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "state": "DISABLED",
+            "numberOfOrders": "0",
+            "amountSpent": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            },
+            "defaultEmailAddress": {
+              "emailAddress": "ayumu.hirano@example.com"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+16135550127"
+            },
+            "defaultAddress": null,
+            "createdAt": "2025-03-26T19:51:37Z",
+            "updatedAt": "2025-03-26T19:51:37Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjk5ODgzNCJ9",
+          "node": {
+            "id": "gid://shopify/Customer/9522206998834",
+            "displayName": "Russell Winfield",
+            "email": "Russel.winfield@example.com",
+            "legacyResourceId": "9522206998834",
+            "locale": "UK",
+            "note": "This customer is created with most available fields",
+            "canDelete": true,
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "state": "DISABLED",
+            "numberOfOrders": "0",
+            "amountSpent": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            },
+            "defaultEmailAddress": {
+              "emailAddress": "Russel.winfield@example.com"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+16135550135"
+            },
+            "defaultAddress": {
+              "address1": "105 Victoria St",
+              "city": "Toronto",
+              "province": null,
+              "country": "Canada",
+              "zip": "M5C1N7",
+              "formattedArea": "Toronto, Canada"
+            },
+            "createdAt": "2025-03-26T19:51:37Z",
+            "updatedAt": "2025-03-26T19:51:38Z"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTMzMjk4LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjkzMzI5OCJ9",
+        "endCursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjk5ODgzNCJ9"
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 8,
+      "actualQueryCost": 8,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1992,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomersCatalogParityPlan",
+      "variables": {
+        "first": 3
+      },
+      "query": "query CustomersCatalogParityPlan($first: Int!) {\n  customers(first: $first) {\n    edges {\n      cursor\n      node {\n        id\n        displayName\n        email\n        legacyResourceId\n        locale\n        note\n        canDelete\n        verifiedEmail\n        taxExempt\n        state\n        numberOfOrders\n        amountSpent {\n          amount\n          currencyCode\n        }\n        defaultEmailAddress {\n          emailAddress\n        }\n        defaultPhoneNumber {\n          phoneNumber\n        }\n        defaultAddress {\n          address1\n          city\n          province\n          country\n          zip\n          formattedArea\n        }\n        createdAt\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTMzMjk4LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjkzMzI5OCJ9",
+                  "node": {
+                    "id": "gid://shopify/Customer/9522206933298",
+                    "displayName": "Karine Ruby",
+                    "email": "karine.ruby@example.com",
+                    "legacyResourceId": "9522206933298",
+                    "locale": "en",
+                    "note": null,
+                    "canDelete": false,
+                    "verifiedEmail": true,
+                    "taxExempt": false,
+                    "state": "DISABLED",
+                    "numberOfOrders": "5",
+                    "amountSpent": {
+                      "amount": "4941.0",
+                      "currencyCode": "CAD"
+                    },
+                    "defaultEmailAddress": {
+                      "emailAddress": "karine.ruby@example.com"
+                    },
+                    "defaultPhoneNumber": {
+                      "phoneNumber": "+16135550142"
+                    },
+                    "defaultAddress": {
+                      "address1": "Box 42 - 151 O'Connor St",
+                      "city": "Ottawa",
+                      "province": null,
+                      "country": "Canada",
+                      "zip": "K2P2L8",
+                      "formattedArea": "Ottawa, Canada"
+                    },
+                    "createdAt": "2025-03-26T19:51:37Z",
+                    "updatedAt": "2026-04-25T23:58:18Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTY2MDY2LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjk2NjA2NiJ9",
+                  "node": {
+                    "id": "gid://shopify/Customer/9522206966066",
+                    "displayName": "Ayumu Hirano",
+                    "email": "ayumu.hirano@example.com",
+                    "legacyResourceId": "9522206966066",
+                    "locale": "en",
+                    "note": null,
+                    "canDelete": true,
+                    "verifiedEmail": true,
+                    "taxExempt": false,
+                    "state": "DISABLED",
+                    "numberOfOrders": "0",
+                    "amountSpent": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    },
+                    "defaultEmailAddress": {
+                      "emailAddress": "ayumu.hirano@example.com"
+                    },
+                    "defaultPhoneNumber": {
+                      "phoneNumber": "+16135550127"
+                    },
+                    "defaultAddress": null,
+                    "createdAt": "2025-03-26T19:51:37Z",
+                    "updatedAt": "2025-03-26T19:51:37Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjk5ODgzNCJ9",
+                  "node": {
+                    "id": "gid://shopify/Customer/9522206998834",
+                    "displayName": "Russell Winfield",
+                    "email": "Russel.winfield@example.com",
+                    "legacyResourceId": "9522206998834",
+                    "locale": "UK",
+                    "note": "This customer is created with most available fields",
+                    "canDelete": true,
+                    "verifiedEmail": true,
+                    "taxExempt": false,
+                    "state": "DISABLED",
+                    "numberOfOrders": "0",
+                    "amountSpent": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    },
+                    "defaultEmailAddress": {
+                      "emailAddress": "Russel.winfield@example.com"
+                    },
+                    "defaultPhoneNumber": {
+                      "phoneNumber": "+16135550135"
+                    },
+                    "defaultAddress": {
+                      "address1": "105 Victoria St",
+                      "city": "Toronto",
+                      "province": null,
+                      "country": "Canada",
+                      "zip": "M5C1N7",
+                      "formattedArea": "Toronto, Canada"
+                    },
+                    "createdAt": "2025-03-26T19:51:37Z",
+                    "updatedAt": "2025-03-26T19:51:38Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTMzMjk4LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjkzMzI5OCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoiOTUyMjIwNjk5ODgzNCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

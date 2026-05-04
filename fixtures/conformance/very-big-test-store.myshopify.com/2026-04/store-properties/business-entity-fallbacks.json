@@ -76,5 +76,98 @@
         "restoreRate": 100
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesBusinessEntityFallbacks",
+      "variables": {
+        "knownId": "gid://shopify/BusinessEntity/MTYzNzU1NDE5ODgx",
+        "unknownId": "gid://shopify/BusinessEntity/999999999999999999"
+      },
+      "query": "sha:hand-synthesized-StorePropertiesBusinessEntityFallbacks",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
+              "locations": [
+                {
+                  "line": 17,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
+              },
+              "path": ["primary", "shopifyPaymentsAccount"]
+            },
+            {
+              "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
+              "locations": [
+                {
+                  "line": 17,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
+              },
+              "path": ["known", "shopifyPaymentsAccount"]
+            }
+          ],
+          "data": {
+            "primary": {
+              "id": "gid://shopify/BusinessEntity/MTYzNzU1NDE5ODgx",
+              "displayName": "very-big-test-store Admin",
+              "companyName": null,
+              "primary": true,
+              "archived": false,
+              "address": {
+                "address1": "103 ossington",
+                "address2": null,
+                "city": "Ottawa",
+                "countryCode": "CA",
+                "province": "Ontario",
+                "zip": "k1s3b7"
+              },
+              "shopifyPaymentsAccount": null
+            },
+            "known": {
+              "id": "gid://shopify/BusinessEntity/MTYzNzU1NDE5ODgx",
+              "displayName": "very-big-test-store Admin",
+              "companyName": null,
+              "primary": true,
+              "archived": false,
+              "address": {
+                "address1": "103 ossington",
+                "address2": null,
+                "city": "Ottawa",
+                "countryCode": "CA",
+                "province": "Ontario",
+                "zip": "k1s3b7"
+              },
+              "shopifyPaymentsAccount": null
+            },
+            "unknown": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

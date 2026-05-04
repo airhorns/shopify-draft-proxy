@@ -1,11 +1,18 @@
+import gleam/dict
+import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import shopify_draft_proxy/graphql/parse_operation.{
+  type ParsedOperation, MutationOperation, ParsedOperation, QueryOperation,
+}
+import shopify_draft_proxy/proxy/capabilities
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/operation_registry.{
-  type RegistryEntry, AdminPlatform, Mutation, OverlayRead, Products, Query,
-  RegistryEntry, StageLocally,
+  type OperationType, type RegistryEntry, AdminPlatform, Mutation, OverlayRead,
+  Passthrough, Products, Query, RegistryEntry, StageLocally, Unknown,
 }
 import shopify_draft_proxy/proxy/operation_registry_data
+import shopify_draft_proxy/proxy/proxy_state
 
 const sample_json = "[
   {\"name\":\"product\",\"type\":\"query\",\"domain\":\"products\",\"execution\":\"overlay-read\",\"implemented\":true,\"matchNames\":[\"product\",\"Product\"],\"runtimeTests\":[\"a.test.ts\"]},
@@ -166,4 +173,188 @@ pub fn new_proxy_has_empty_registry_test() {
   // tests rely on the empty-registry fallback path.
   let proxy = draft_proxy.new()
   assert proxy.registry == []
+}
+
+pub fn default_registry_classifies_every_implemented_match_name_test() {
+  let entries = operation_registry_data.default_registry()
+  assert_implemented_entries_classify(entries)
+}
+
+pub fn default_registry_unimplemented_match_names_stay_unsupported_test() {
+  let entries = operation_registry_data.default_registry()
+  assert_unimplemented_entries_do_not_classify(entries, entries)
+}
+
+pub fn default_registry_marks_only_ported_roots_as_locally_dispatched_test() {
+  let entries = operation_registry_data.default_registry()
+
+  let assert Some(saved_search_create) =
+    operation_registry.find_entry(entries, Mutation, [Some("savedSearchCreate")])
+  assert draft_proxy.registry_entry_has_local_dispatch(saved_search_create)
+
+  let assert Some(shop) =
+    operation_registry.find_entry(entries, Query, [Some("shop")])
+  assert draft_proxy.registry_entry_has_local_dispatch(shop)
+
+  let assert Some(inventory_transfer_edit) =
+    operation_registry.find_entry(entries, Mutation, [
+      Some("inventoryTransferEdit"),
+    ])
+  assert draft_proxy.registry_entry_has_local_dispatch(inventory_transfer_edit)
+
+  let assert Some(price_list_fixed_prices_add) =
+    operation_registry.find_entry(entries, Mutation, [
+      Some("priceListFixedPricesAdd"),
+    ])
+  assert !draft_proxy.registry_entry_has_local_dispatch(
+    price_list_fixed_prices_add,
+  )
+
+  let assert Some(product_create) =
+    operation_registry.find_entry(entries, Mutation, [Some("productCreate")])
+  assert draft_proxy.registry_entry_has_local_dispatch(product_create)
+
+  assert_no_unimplemented_entries_are_local(entries)
+}
+
+pub fn default_registry_unimplemented_root_blocks_legacy_fallback_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  let request =
+    proxy_state.Request(
+      method: "POST",
+      path: "/admin/api/2025-01/graphql.json",
+      headers: dict.new(),
+      body: "{\"query\":\"{ app(id: \\\"gid://shopify/App/1\\\") { id } }\"}",
+    )
+
+  let #(proxy_state.Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+
+  assert status == 400
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"No domain dispatcher implemented for root field: app\"}]}"
+}
+
+fn assert_implemented_entries_classify(entries: List(RegistryEntry)) -> Nil {
+  case entries {
+    [] -> Nil
+    [entry, ..rest] -> {
+      case entry.implemented {
+        True -> assert_match_names_classify(entry.match_names, entry)
+        False -> Nil
+      }
+      assert_implemented_entries_classify(rest)
+    }
+  }
+}
+
+fn assert_match_names_classify(
+  names: List(String),
+  entry: RegistryEntry,
+) -> Nil {
+  case names {
+    [] -> Nil
+    [name, ..rest] -> {
+      let cap =
+        capabilities.get_operation_capability(
+          parsed_operation_for(entry.type_, name),
+          operation_registry_data.default_registry(),
+        )
+      assert cap.domain == entry.domain
+      assert cap.execution == entry.execution
+      assert cap.operation_name == Some(name)
+      assert_match_names_classify(rest, entry)
+    }
+  }
+}
+
+fn assert_unimplemented_entries_do_not_classify(
+  entries: List(RegistryEntry),
+  all_entries: List(RegistryEntry),
+) -> Nil {
+  case entries {
+    [] -> Nil
+    [entry, ..rest] -> {
+      case entry.implemented {
+        True -> Nil
+        False ->
+          assert_unimplemented_match_names(
+            entry.match_names,
+            entry.type_,
+            all_entries,
+          )
+      }
+      assert_unimplemented_entries_do_not_classify(rest, all_entries)
+    }
+  }
+}
+
+fn assert_unimplemented_match_names(
+  names: List(String),
+  type_: OperationType,
+  all_entries: List(RegistryEntry),
+) -> Nil {
+  case names {
+    [] -> Nil
+    [name, ..rest] -> {
+      case implemented_match_exists(all_entries, type_, name) {
+        True -> Nil
+        False -> {
+          let cap =
+            capabilities.get_operation_capability(
+              parsed_operation_for(type_, name),
+              all_entries,
+            )
+          assert cap.domain == Unknown
+          assert cap.execution == Passthrough
+          assert cap.operation_name == Some(name)
+        }
+      }
+      assert_unimplemented_match_names(rest, type_, all_entries)
+    }
+  }
+}
+
+fn implemented_match_exists(
+  entries: List(RegistryEntry),
+  type_: OperationType,
+  name: String,
+) -> Bool {
+  case entries {
+    [] -> False
+    [entry, ..rest] ->
+      case
+        entry.implemented
+        && entry.type_ == type_
+        && list.contains(entry.match_names, name)
+      {
+        True -> True
+        False -> implemented_match_exists(rest, type_, name)
+      }
+  }
+}
+
+fn assert_no_unimplemented_entries_are_local(
+  entries: List(RegistryEntry),
+) -> Nil {
+  case entries {
+    [] -> Nil
+    [entry, ..rest] -> {
+      case entry.implemented {
+        True -> Nil
+        False -> {
+          assert !draft_proxy.registry_entry_has_local_dispatch(entry)
+        }
+      }
+      assert_no_unimplemented_entries_are_local(rest)
+    }
+  }
+}
+
+fn parsed_operation_for(type_: OperationType, root: String) -> ParsedOperation {
+  let parsed_type = case type_ {
+    Query -> QueryOperation
+    Mutation -> MutationOperation
+  }
+  ParsedOperation(type_: parsed_type, name: None, root_fields: [root])
 }

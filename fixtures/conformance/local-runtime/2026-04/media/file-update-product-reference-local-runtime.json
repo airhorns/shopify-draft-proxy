@@ -126,5 +126,27 @@
   "unsupportedExternalSideEffects": [
     "The proxy does not upload bytes to Shopify storage in this local-runtime fixture.",
     "The fixture exercises the local product-reference lifecycle after a file source URL is already known."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "MediaProductHydrate",
+      "variables": {
+        "id": "gid://shopify/Product/429001"
+      },
+      "query": "sha:media-product-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/429001",
+              "title": "File reference target",
+              "handle": "file-reference-target",
+              "status": "ACTIVE"
+            }
+          }
+        }
+      }
+    }
   ]
 }

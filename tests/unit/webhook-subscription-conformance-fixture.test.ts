@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { Kind, parse } from 'graphql';
 import { describe, expect, it } from 'vitest';
 
-import { classifyParityScenarioState, type ParitySpec } from '../../scripts/conformance-parity-lib.js';
+import { classifyParityScenarioState, type ParitySpec } from '../../scripts/conformance-parity-spec.js';
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 import { parseOperation } from '../../src/graphql/parse-operation.js';
 import { getOperationCapability } from '../../src/proxy/capabilities.js';

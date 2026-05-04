@@ -14,28 +14,6 @@
   "notes": "Executable parity coverage for automaticDiscountNodes against a captured native automatic discount catalog slice. Runtime tests cover read-after-write visibility for locally staged DiscountAutomaticBasic lifecycle mutations.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.automaticDiscountNodes.edges[0].cursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded automatic discount records."
-      },
-      {
-        "path": "$.automaticDiscountNodes.edges[1].cursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded automatic discount records."
-      },
-      {
-        "path": "$.automaticDiscountNodes.pageInfo.startCursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded automatic discount records."
-      },
-      {
-        "path": "$.automaticDiscountNodes.pageInfo.endCursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded automatic discount records."
-      }
-    ],
     "targets": [
       {
         "name": "automatic-discount-nodes-data",
@@ -43,6 +21,7 @@
         "proxyPath": "$.data",
         "upstreamCapturePath": null
       }
-    ]
+    ],
+    "expectedDifferences": []
   }
 }

@@ -69,5 +69,6 @@
       "The existing live online-store content lifecycle capture proves explicit `isPublished: true`; this fixture records the local runtime path for omitted `isPublished` and `publishDate` so the generic parity runner verifies the branch fix directly.",
       "The downstream read proves the staged page remains visible through `page(id:)` and `pages(query: \"published_status:published ...\")` without runtime Shopify writes."
     ]
-  }
+  },
+  "upstreamCalls": []
 }

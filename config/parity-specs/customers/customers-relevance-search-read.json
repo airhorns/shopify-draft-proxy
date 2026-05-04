@@ -4,11 +4,11 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics", "sort-order-semantics"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers/customers-relevance-search.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customers-relevance-search.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customers-relevance-search-read.graphql",
-    "variablesPath": "config/parity-requests/customers/customers-relevance-search-read.variables.json"
+    "variablesCapturePath": "$.proxyVariables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Strict comparison target covers the captured `customers(query:, sortKey: RELEVANCE)` data slice with a concrete broad-text query so the proxy can replay Shopify's opaque relevance ordering, cursors, and pageInfo without inventing deterministic score semantics. Shopify cost extensions remain outside this contract.",

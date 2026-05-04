@@ -62,7 +62,13 @@
               "belongsTo": ["on_hand"],
               "comprises": []
             },
-            { "name": "incoming", "displayName": "Incoming", "isInUse": false, "belongsTo": [], "comprises": [] },
+            {
+              "name": "incoming",
+              "displayName": "Incoming",
+              "isInUse": false,
+              "belongsTo": [],
+              "comprises": []
+            },
             {
               "name": "on_hand",
               "displayName": "On hand",
@@ -139,28 +145,40 @@
                   "delta": 7,
                   "quantityAfterChange": null,
                   "ledgerDocumentUri": null,
-                  "location": { "id": "gid://shopify/Location/106318430514", "name": "Shop location" }
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
                 },
                 {
                   "name": "available",
                   "delta": 2,
                   "quantityAfterChange": null,
                   "ledgerDocumentUri": null,
-                  "location": { "id": "gid://shopify/Location/106318463282", "name": "My Custom Location" }
+                  "location": {
+                    "id": "gid://shopify/Location/106318463282",
+                    "name": "My Custom Location"
+                  }
                 },
                 {
                   "name": "on_hand",
                   "delta": 7,
                   "quantityAfterChange": null,
                   "ledgerDocumentUri": null,
-                  "location": { "id": "gid://shopify/Location/106318430514", "name": "Shop location" }
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
                 },
                 {
                   "name": "on_hand",
                   "delta": 2,
                   "quantityAfterChange": null,
                   "ledgerDocumentUri": null,
-                  "location": { "id": "gid://shopify/Location/106318463282", "name": "My Custom Location" }
+                  "location": {
+                    "id": "gid://shopify/Location/106318463282",
+                    "name": "My Custom Location"
+                  }
                 }
               ]
             },
@@ -172,8 +190,18 @@
         "inventoryQuantity": 9,
         "productTotalInventory": 0,
         "levels": [
-          { "locationId": "gid://shopify/Location/106318430514", "available": 7, "on_hand": 7, "damaged": 0 },
-          { "locationId": "gid://shopify/Location/106318463282", "available": 2, "on_hand": 2, "damaged": 0 }
+          {
+            "locationId": "gid://shopify/Location/106318430514",
+            "available": 7,
+            "on_hand": 7,
+            "damaged": 0
+          },
+          {
+            "locationId": "gid://shopify/Location/106318463282",
+            "available": 2,
+            "on_hand": 2,
+            "damaged": 0
+          }
         ]
       }
     },
@@ -186,7 +214,10 @@
             {
               "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
               "quantity": 3,
-              "from": { "locationId": "gid://shopify/Location/106318430514", "name": "available" },
+              "from": {
+                "locationId": "gid://shopify/Location/106318430514",
+                "name": "available"
+              },
               "to": {
                 "locationId": "gid://shopify/Location/106318430514",
                 "name": "damaged",
@@ -208,14 +239,20 @@
                   "delta": -3,
                   "quantityAfterChange": null,
                   "ledgerDocumentUri": null,
-                  "location": { "id": "gid://shopify/Location/106318430514", "name": "Shop location" }
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
                 },
                 {
                   "name": "damaged",
                   "delta": 3,
                   "quantityAfterChange": null,
                   "ledgerDocumentUri": "ledger://har-305/move/to/1777251367654",
-                  "location": { "id": "gid://shopify/Location/106318430514", "name": "Shop location" }
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
                 }
               ]
             },
@@ -227,8 +264,18 @@
         "inventoryQuantity": 6,
         "productTotalInventory": 0,
         "levels": [
-          { "locationId": "gid://shopify/Location/106318430514", "available": 4, "on_hand": 7, "damaged": 3 },
-          { "locationId": "gid://shopify/Location/106318463282", "available": 2, "on_hand": 2, "damaged": 0 }
+          {
+            "locationId": "gid://shopify/Location/106318430514",
+            "available": 4,
+            "on_hand": 7,
+            "damaged": 3
+          },
+          {
+            "locationId": "gid://shopify/Location/106318463282",
+            "available": 2,
+            "on_hand": 2,
+            "damaged": 0
+          }
         ]
       }
     },
@@ -250,5 +297,272 @@
         ]
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/53204673823026"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/53204673823026",
+                "tracked": true,
+                "requiresShipping": true,
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/106318430514?inventory_item_id=53204673823026",
+                      "isActive": true,
+                      "location": {
+                        "id": "gid://shopify/Location/106318430514",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/106318463282?inventory_item_id=53204673823026",
+                      "isActive": true,
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/51101855646002",
+                  "title": "Default Title",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/10171266400562",
+                    "title": "gid://shopify/Product/10171266400562",
+                    "handle": "gid://shopify/Product/10171266400562",
+                    "status": "ACTIVE",
+                    "totalInventory": 0,
+                    "tracksInventory": true
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "InventoryItemsEmptyRead",
+      "variables": {},
+      "query": "hand-synthesized from checked-in safeReadEvidence.inventoryItemsEmptyByImpossibleId for HAR-545 Pattern 1 inventoryItems read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "inventoryItems": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "InventoryPropertiesRead",
+      "variables": {},
+      "query": "hand-synthesized from checked-in safeReadEvidence.inventoryProperties for HAR-545 Pattern 1 inventoryProperties read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "inventoryProperties": {
+              "quantityNames": [
+                {
+                  "name": "available",
+                  "displayName": "Available",
+                  "isInUse": true,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                },
+                {
+                  "name": "committed",
+                  "displayName": "Committed",
+                  "isInUse": true,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                },
+                {
+                  "name": "damaged",
+                  "displayName": "Damaged",
+                  "isInUse": false,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                },
+                {
+                  "name": "incoming",
+                  "displayName": "Incoming",
+                  "isInUse": false,
+                  "belongsTo": [],
+                  "comprises": []
+                },
+                {
+                  "name": "on_hand",
+                  "displayName": "On hand",
+                  "isInUse": true,
+                  "belongsTo": [],
+                  "comprises": ["available", "committed", "damaged", "quality_control", "reserved", "safety_stock"]
+                },
+                {
+                  "name": "quality_control",
+                  "displayName": "Quality control",
+                  "isInUse": false,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                },
+                {
+                  "name": "reserved",
+                  "displayName": "Reserved",
+                  "isInUse": true,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                },
+                {
+                  "name": "safety_stock",
+                  "displayName": "Safety stock",
+                  "isInUse": false,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "InventoryQuantityDownstreamRead",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+        "productId": "gid://shopify/Product/10171266400562"
+      },
+      "query": "hand-synthesized from checked-in inventorySetQuantities downstreamRead for HAR-545 Pattern 2 inventory hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10171266400562",
+              "totalInventory": 0,
+              "tracksInventory": true
+            },
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53204673823026",
+              "tracked": true,
+              "variant": {
+                "id": "gid://shopify/ProductVariant/51101855646002",
+                "inventoryQuantity": 9,
+                "product": {
+                  "id": "gid://shopify/Product/10171266400562",
+                  "totalInventory": 0
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/106318430514?inventory_item_id=53204673823026",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": ""
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 7
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 7
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/106318463282?inventory_item_id=53204673823026",
+                    "location": {
+                      "id": "gid://shopify/Location/106318463282",
+                      "name": ""
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 2
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 2
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

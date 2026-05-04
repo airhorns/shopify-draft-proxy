@@ -1,0 +1,7 @@
+query ProductInlineSyntheticIdRead {
+  product(id: "gid://shopify/Product/999999999?shopify-draft-proxy=synthetic") {
+    id
+    title
+    handle
+  }
+}

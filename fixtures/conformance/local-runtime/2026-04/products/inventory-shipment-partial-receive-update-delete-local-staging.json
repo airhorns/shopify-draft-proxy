@@ -248,5 +248,49 @@
     "Partially received shipments still carry incoming inventory for unreceived quantities.",
     "Updating a partially received shipment line adjusts incoming by the unreceived delta.",
     "Deleting a partially received shipment reverses remaining incoming inventory while preserving already accepted available/on_hand quantity."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/94051"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/94051",
+                "tracked": true,
+                "requiresShipping": true,
+                "sku": "SHIP-ROOT",
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/94051",
+                  "title": "Default Title",
+                  "sku": "SHIP-ROOT",
+                  "inventoryQuantity": 1,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/9405",
+                    "title": "Shipment Hoodie",
+                    "handle": "shipment-hoodie",
+                    "status": "ACTIVE",
+                    "totalInventory": 1,
+                    "tracksInventory": true
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
   ]
 }

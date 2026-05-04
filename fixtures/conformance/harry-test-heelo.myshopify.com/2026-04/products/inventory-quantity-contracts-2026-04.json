@@ -644,5 +644,137 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/53208220533042"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/53208220533042",
+                "tracked": true,
+                "requiresShipping": true,
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53208220533042",
+                      "isActive": true,
+                      "location": {
+                        "id": "gid://shopify/Location/106318430514",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/51105380008242",
+                  "inventoryQuantity": 0,
+                  "product": {
+                    "id": "gid://shopify/Product/10172136718642",
+                    "title": "gid://shopify/Product/10172136718642",
+                    "handle": "gid://shopify/Product/10172136718642",
+                    "status": "ACTIVE",
+                    "totalInventory": 0,
+                    "tracksInventory": true
+                  },
+                  "title": "Default Title",
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "InventoryQuantityContractDownstreamRead",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53208220533042",
+        "productId": "gid://shopify/Product/10172136718642"
+      },
+      "query": "hand-synthesized from checked-in downstreamRead capture for HAR-545 Pattern 1 inventory quantity contract read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10172136718642",
+              "totalInventory": 0,
+              "tracksInventory": true
+            },
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53208220533042",
+              "tracked": true,
+              "variant": {
+                "id": "gid://shopify/ProductVariant/51105380008242",
+                "inventoryQuantity": 7,
+                "product": {
+                  "id": "gid://shopify/Product/10172136718642",
+                  "totalInventory": 0
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53208220533042",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 7,
+                        "updatedAt": "2026-04-28T03:34:17Z"
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 7,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

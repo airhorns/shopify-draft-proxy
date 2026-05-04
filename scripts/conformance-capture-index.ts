@@ -39,6 +39,7 @@ const statusCheckSchema = z.enum([
   'conformance:status',
   'conformance:check',
   'conformance:parity',
+  'gleam:test',
   'targeted-runtime-test',
   'manual-capture-review',
 ]);
@@ -61,7 +62,7 @@ const captureIndexSchema = z.array(captureIndexEntrySchema);
 export type ConformanceCaptureIndexEntry = z.infer<typeof captureIndexEntrySchema>;
 type StatusCheck = z.infer<typeof statusCheckSchema>;
 
-const DEFAULT_STATUS_CHECKS: StatusCheck[] = ['conformance:status', 'conformance:check', 'conformance:parity'];
+const DEFAULT_STATUS_CHECKS: StatusCheck[] = ['conformance:status', 'conformance:check', 'gleam:test'];
 const CAPTURE_ROOT = 'fixtures/conformance/<store>/<api-version>/<domain-folder>/';
 const LOCAL_RUNTIME_ROOT = 'fixtures/conformance/local-runtime/<api-version>/<domain-folder>/';
 

@@ -214,5 +214,104 @@
     "appOwnerMetadataProjected": true,
     "supportedMutationsStageLocally": true,
     "externalShopifyFunctionsExecuted": false
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionHydrateById",
+      "variables": {
+        "id": "gid://shopify/ShopifyFunction/validation-owned"
+      },
+      "query": "hand-synthesized from seedShopifyFunctions[validation-owned]",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "gid://shopify/ShopifyFunction/validation-owned",
+              "title": "Owned validation function",
+              "handle": "validation-owned",
+              "apiType": "VALIDATION",
+              "description": "Function metadata captured from the installed app",
+              "appKey": "validation-app-key",
+              "app": {
+                "__typename": "App",
+                "id": "gid://shopify/App/validation-app",
+                "title": "Validation App",
+                "handle": "validation-app",
+                "apiKey": "validation-app-key"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "cart-owned",
+        "apiType": "CART_TRANSFORM"
+      },
+      "query": "hand-synthesized from seedShopifyFunctions[cart-owned]",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/cart-owned",
+                  "title": "Owned cart function",
+                  "handle": "cart-owned",
+                  "apiType": "CART_TRANSFORM",
+                  "description": "Cart transform Function metadata captured from the installed app",
+                  "appKey": "cart-app-key",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/cart-app",
+                    "title": "Cart App",
+                    "handle": "cart-app",
+                    "apiKey": "cart-app-key"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "validation-owned-v2",
+        "apiType": "VALIDATION"
+      },
+      "query": "hand-synthesized from seedShopifyFunctions[validation-owned-v2]",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/validation-owned-v2",
+                  "title": "Second validation function",
+                  "handle": "validation-owned-v2",
+                  "apiType": "VALIDATION",
+                  "description": "Replacement Function metadata from the installed app",
+                  "appKey": "validation-app-key-v2",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/validation-app-v2",
+                    "title": "Validation App V2",
+                    "handle": "validation-app-v2",
+                    "apiKey": "validation-app-key-v2"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
 }

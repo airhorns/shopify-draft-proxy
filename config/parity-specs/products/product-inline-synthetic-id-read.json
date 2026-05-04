@@ -1,0 +1,25 @@
+{
+  "scenarioId": "product-inline-synthetic-id-read",
+  "operationNames": ["product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-inline-synthetic-id-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-inline-synthetic-id-read.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Regression coverage for the live-hybrid passthrough gate on `product(id:)` queries that embed a proxy-synthetic gid as an inline GraphQL literal (not via $variable). Before the fix, `local_has_product_id` only scanned the variables dict, so the inline literal slipped past the synthetic-marker check and the request was forwarded to Shopify (where it 404s and leaks the synthetic id upstream). The empty `upstreamCalls` cassette acts as the gate: a regression would surface as a cassette miss (proxy 502 → ProxyStatus error from the runner) instead of passing.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "inline-synthetic-product-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

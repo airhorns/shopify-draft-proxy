@@ -5,11 +5,14 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/bulk_operations
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
-import shopify_draft_proxy/state/types.{BulkOperationRecord}
+import shopify_draft_proxy/state/types.{
+  type ProductRecord, BulkOperationRecord, ProductRecord, ProductSeoRecord,
+}
 
 fn empty_vars() {
   dict.new()
@@ -30,6 +33,7 @@ fn record_drafts(
       outcome.identity,
       request_path,
       document,
+      empty_vars(),
       outcome.log_drafts,
     )
   bulk_operations.MutationOutcome(
@@ -77,7 +81,7 @@ pub fn root_predicates_test() {
   assert bulk_operations.is_bulk_operations_mutation_root(
     "bulkOperationRunQuery",
   )
-  assert !bulk_operations.is_bulk_operations_mutation_root(
+  assert bulk_operations.is_bulk_operations_mutation_root(
     "bulkOperationRunMutation",
   )
   assert !bulk_operations.is_bulk_operations_query_root("shop")
@@ -183,6 +187,186 @@ pub fn run_query_stages_completed_operation_and_log_test() {
   assert list.length(store.get_log(outcome.store)) == 1
 }
 
+pub fn run_query_exports_product_jsonl_and_metadata_test() {
+  let source =
+    store.new()
+    |> store.upsert_base_products([
+      product_record("gid://shopify/Product/1", "First Board"),
+      product_record("gid://shopify/Product/2", "Second Board"),
+    ])
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let document =
+    "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id title } } } }\") { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message } } }"
+  let assert Ok(outcome) =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      document,
+      empty_vars(),
+    )
+  let response = json.to_string(outcome.data)
+  assert string.contains(response, "\"status\":\"COMPLETED\"")
+  assert string.contains(response, "\"objectCount\":\"2\"")
+  assert string.contains(response, "\"rootObjectCount\":\"2\"")
+  let assert [operation_id, ..] = outcome.staged_resource_ids
+  let assert Some(jsonl) =
+    store.get_effective_bulk_operation_result_jsonl(outcome.store, operation_id)
+  assert jsonl
+    == "{\"id\":\"gid://shopify/Product/1\",\"title\":\"First Board\"}\n{\"id\":\"gid://shopify/Product/2\",\"title\":\"Second Board\"}\n"
+}
+
+pub fn run_query_without_connection_returns_shopify_error_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let document =
+    "mutation { bulkOperationRunQuery(query: \"{ shop { id } }\") { bulkOperation { id } userErrors { field message code } } }"
+  let assert Ok(outcome) =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      document,
+      empty_vars(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries must contain at least one connection.\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn run_mutation_missing_upload_stages_failed_job_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let inner =
+    "mutation($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+  let document =
+    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message } } }"
+  let variables =
+    dict.from_list([
+      #("mutation", root_field.StringVal(inner)),
+      #("path", root_field.StringVal("/missing.jsonl")),
+    ])
+  let assert Ok(outcome) =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      document,
+      variables,
+    )
+  let response = json.to_string(outcome.data)
+  assert string.contains(response, "\"status\":\"FAILED\"")
+  assert string.contains(
+    response,
+    "\"message\":\"Staged upload content was not found for the provided stagedUploadPath.\"",
+  )
+  let assert [operation_id] = outcome.staged_resource_ids
+  let assert Some(jsonl) =
+    store.get_effective_bulk_operation_result_jsonl(outcome.store, operation_id)
+  assert jsonl == ""
+}
+
+pub fn run_mutation_unsupported_inner_root_fails_locally_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let inner =
+    "mutation($input: CustomerInput!) { customerCreate(input: $input) { customer { id } userErrors { field message } } }"
+  let upload_path = "/bulk/unsupported.jsonl"
+  let source =
+    store.stage_staged_upload_content(
+      store.new(),
+      upload_path,
+      "{\"input\":{}}\n",
+    )
+  let document =
+    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message } } }"
+  let variables =
+    dict.from_list([
+      #("mutation", root_field.StringVal(inner)),
+      #("path", root_field.StringVal(upload_path)),
+    ])
+  let assert Ok(outcome) =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      document,
+      variables,
+    )
+  let response = json.to_string(outcome.data)
+  assert string.contains(response, "\"status\":\"FAILED\"")
+  assert string.contains(
+    response,
+    "\"message\":\"Unsupported bulk mutation import root. The proxy did not send this bulk import upstream at runtime.\"",
+  )
+  let assert [operation_id] = outcome.staged_resource_ids
+  let assert Some(jsonl) =
+    store.get_effective_bulk_operation_result_jsonl(outcome.store, operation_id)
+  assert string.contains(
+    jsonl,
+    "bulkOperationRunMutation locally supports only single-root Admin mutations with local staging support in the proxy.",
+  )
+}
+
+pub fn run_mutation_product_create_import_stages_product_and_result_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let inner =
+    "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle status } userErrors { field message } } }"
+  let upload_path = "/bulk/products.jsonl"
+  let source =
+    store.stage_staged_upload_content(
+      store.new(),
+      upload_path,
+      "{\"product\":{\"title\":\"Bulk Created Board\",\"status\":\"DRAFT\"}}\n{\"product\":{\"title\":\"\",\"status\":\"DRAFT\"}}\n",
+    )
+  let document =
+    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message } } }"
+  let variables =
+    dict.from_list([
+      #("mutation", root_field.StringVal(inner)),
+      #("path", root_field.StringVal(upload_path)),
+    ])
+  let assert Ok(outcome) =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      document,
+      variables,
+    )
+  let response = json.to_string(outcome.data)
+  assert string.contains(response, "\"status\":\"COMPLETED\"")
+  assert string.contains(response, "\"objectCount\":\"1\"")
+  assert string.contains(response, "\"userErrors\":[]")
+  let assert [operation_id, ..] = outcome.staged_resource_ids
+  let assert Ok(product) =
+    store.list_effective_products(outcome.store)
+    |> list.find(fn(record) { record.title == "Bulk Created Board" })
+  assert product.title == "Bulk Created Board"
+  let assert Some(jsonl) =
+    store.get_effective_bulk_operation_result_jsonl(outcome.store, operation_id)
+  assert string.contains(jsonl, "\"line\":1")
+  assert string.contains(jsonl, "\"line\":2")
+  assert string.contains(jsonl, "\"productCreate\"")
+  assert string.contains(jsonl, "\"Bulk Created Board\"")
+  assert string.contains(jsonl, "Title can't be blank")
+  let assert [
+    mutation_helpers.LogDraft(
+      operation_name: Some("ProductCreate"),
+      root_fields: ["productCreate"],
+      primary_root_field: Some("productCreate"),
+      query: Some(log_query),
+      variables: Some(log_variables),
+      staged_resource_ids: [product_id, ..],
+      status: store.Staged,
+      ..,
+    ),
+  ] = outcome.log_drafts
+  assert log_query == inner
+  assert product_id == product.id
+  let assert Ok(root_field.ObjectVal(log_product)) =
+    dict.get(log_variables, "product")
+  let assert Ok(root_field.StringVal("Bulk Created Board")) =
+    dict.get(log_product, "title")
+}
+
 pub fn cancel_staged_terminal_and_missing_operations_test() {
   let running =
     bulk_operation(
@@ -231,4 +415,30 @@ pub fn cancel_staged_terminal_and_missing_operations_test() {
     )
   assert read_after
     == "{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/401\",\"status\":\"CANCELING\"}}"
+}
+
+fn product_record(id: String, title: String) -> ProductRecord {
+  ProductRecord(
+    id: id,
+    legacy_resource_id: None,
+    title: title,
+    handle: string.lowercase(string.replace(title, " ", "-")),
+    status: "ACTIVE",
+    vendor: None,
+    product_type: None,
+    tags: [],
+    total_inventory: Some(0),
+    tracks_inventory: Some(False),
+    created_at: None,
+    updated_at: None,
+    published_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    category: None,
+    publication_ids: [],
+    contextual_pricing: None,
+    cursor: None,
+  )
 }

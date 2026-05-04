@@ -2899,5 +2899,71 @@
       }
     }
   ],
-  "lifecycleBlocked": null
+  "lifecycleBlocked": null,
+  "upstreamCalls": [
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654773256498"
+      },
+      "query": "hand-synthesized from captured gift-card detail/configuration payload",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654773256498",
+              "lastCharacters": "2053",
+              "maskedCode": "•••• •••• •••• 2053",
+              "enabled": true,
+              "deactivatedAt": null,
+              "expiresOn": "2027-04-26",
+              "note": "HAR-310 conformance gift card",
+              "templateSuffix": null,
+              "createdAt": "2026-04-29T09:31:02Z",
+              "updatedAt": "2026-04-29T09:31:02Z",
+              "initialValue": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10552623464754"
+              },
+              "recipientAttributes": {
+                "message": "HAR-464 recipient message",
+                "preferredName": "HAR-464 recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/10552623464754"
+                }
+              },
+              "transactions": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

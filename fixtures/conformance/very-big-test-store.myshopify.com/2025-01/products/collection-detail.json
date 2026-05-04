@@ -142,5 +142,429 @@
         "restoreRate": 100
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CollectionDetailRead",
+      "variables": {
+        "customCollectionId": "gid://shopify/Collection/402476531945",
+        "smartCollectionId": "gid://shopify/Collection/429826146537",
+        "productId": "gid://shopify/Product/8397254426857"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customCollection": {
+              "id": "gid://shopify/Collection/402476531945",
+              "legacyResourceId": "402476531945",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-04-24T21:10:53Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/8397254426857",
+                      "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                      "handle": "vans-authentic-lo-pro-burgandy-white",
+                      "vendor": "VANS",
+                      "productType": "SHOES",
+                      "tags": ["egnition-sample-data", "men", "sale", "summer", "vans"],
+                      "totalInventory": 25,
+                      "tracksInventory": true
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                }
+              }
+            },
+            "smartCollection": {
+              "id": "gid://shopify/Collection/429826146537",
+              "legacyResourceId": "429826146537",
+              "title": "VANS",
+              "handle": "vans",
+              "updatedAt": "2026-04-24T21:10:53Z",
+              "description": "Vans collection",
+              "descriptionHtml": "Vans collection",
+              "image": {
+                "id": "gid://shopify/CollectionImage/1684544094441",
+                "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/a340ce89e0298e52c438ae79591e3284.jpg?v=1710381279",
+                "altText": null,
+                "width": 1610,
+                "height": 805
+              },
+              "productsCount": {
+                "count": 10,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": {
+                "appliedDisjunctively": false,
+                "rules": [
+                  {
+                    "column": "TITLE",
+                    "relation": "CONTAINS",
+                    "condition": "VANS"
+                  }
+                ]
+              },
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NjcyMDQxLCJsYXN0X3ZhbHVlIjoiNCJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/8397255672041",
+                      "title": "VANS | OLD SKOOL (BUTTERFLY) TRUE WHITE | BLACK",
+                      "handle": "vans-old-skool-butterfly-true-white-black",
+                      "vendor": "VANS",
+                      "productType": "SHOES",
+                      "tags": ["egnition-sample-data", "men", "summer", "vans"],
+                      "totalInventory": 62,
+                      "tracksInventory": true
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDkyMzkzLCJsYXN0X3ZhbHVlIjoiMyJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/8397254492393",
+                      "title": "VANS | AUTHENTIC | (MULTI EYELETS) | GRADIENT/CRIMSON",
+                      "handle": "vans-authentic-multi-eyelets-gradient-crimson",
+                      "vendor": "VANS",
+                      "productType": "SHOES",
+                      "tags": ["egnition-sample-data", "men", "summer", "vans"],
+                      "totalInventory": 48,
+                      "tracksInventory": true
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NzcwMzQ1LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/8397255770345",
+                      "title": "VANS | CLASSIC SLIP-ON (PERFORATED SUEDE)",
+                      "handle": "vans-classic-slip-on-perforated-suede",
+                      "vendor": "VANS",
+                      "productType": "SHOES",
+                      "tags": ["egnition-sample-data", "men", "summer", "vans"],
+                      "totalInventory": 69,
+                      "tracksInventory": true
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NjcyMDQxLCJsYXN0X3ZhbHVlIjoiNCJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NzcwMzQ1LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1965,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionIdentifierRead",
+      "variables": {
+        "customCollectionId": "gid://shopify/Collection/402476531945",
+        "customCollectionHandle": "frontpage",
+        "productId": "gid://shopify/Product/8397254426857"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 collection identifier passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customCollection": {
+              "id": "gid://shopify/Collection/402476531945",
+              "legacyResourceId": "402476531945",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-04-24T21:10:53Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/8397254426857",
+                      "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                      "handle": "vans-authentic-lo-pro-burgandy-white",
+                      "vendor": "VANS",
+                      "productType": "SHOES",
+                      "tags": ["egnition-sample-data", "men", "sale", "summer", "vans"],
+                      "totalInventory": 25,
+                      "tracksInventory": true
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                }
+              }
+            },
+            "customCollectionByHandle": {
+              "id": "gid://shopify/Collection/402476531945",
+              "legacyResourceId": "402476531945",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-04-24T21:10:53Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/8397254426857",
+                      "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                      "handle": "vans-authentic-lo-pro-burgandy-white",
+                      "vendor": "VANS",
+                      "productType": "SHOES",
+                      "tags": ["egnition-sample-data", "men", "sale", "summer", "vans"],
+                      "totalInventory": 25,
+                      "tracksInventory": true
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                }
+              }
+            },
+            "missingCollection": null,
+            "customIdCollection": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1965,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionHandleRead",
+      "variables": {
+        "customCollectionHandle": "frontpage",
+        "productId": "gid://shopify/Product/8397254426857"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 collection identifier passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customCollection": {
+              "id": "gid://shopify/Collection/402476531945",
+              "legacyResourceId": "402476531945",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-04-24T21:10:53Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/8397254426857",
+                      "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                      "handle": "vans-authentic-lo-pro-burgandy-white",
+                      "vendor": "VANS",
+                      "productType": "SHOES",
+                      "tags": ["egnition-sample-data", "men", "sale", "summer", "vans"],
+                      "totalInventory": 25,
+                      "tracksInventory": true
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                }
+              }
+            },
+            "missingCollection": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1965,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionHandleRead",
+      "variables": {
+        "customCollectionId": "gid://shopify/Collection/402476531945",
+        "customCollectionHandle": "frontpage",
+        "productId": "gid://shopify/Product/8397254426857"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 collection identifier passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customCollection": {
+              "id": "gid://shopify/Collection/402476531945",
+              "legacyResourceId": "402476531945",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-04-24T21:10:53Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/8397254426857",
+                      "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                      "handle": "vans-authentic-lo-pro-burgandy-white",
+                      "vendor": "VANS",
+                      "productType": "SHOES",
+                      "tags": ["egnition-sample-data", "men", "sale", "summer", "vans"],
+                      "totalInventory": 25,
+                      "tracksInventory": true
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                }
+              }
+            },
+            "missingCollection": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1965,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

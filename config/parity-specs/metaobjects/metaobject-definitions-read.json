@@ -18,23 +18,7 @@
         "capturePath": "$.seededReads[0].response.data.metaobjectDefinitions",
         "proxyPath": "$.data.metaobjectDefinitions",
         "upstreamCapturePath": null,
-        "expectedDifferences": [
-          {
-            "path": "$.edges[0].cursor",
-            "matcher": "non-empty-string",
-            "reason": "Shopify returns opaque cursors while the local definition catalog uses stable synthetic cursors."
-          },
-          {
-            "path": "$.pageInfo.startCursor",
-            "matcher": "non-empty-string",
-            "reason": "Shopify returns opaque cursors while the local definition catalog uses stable synthetic cursors."
-          },
-          {
-            "path": "$.pageInfo.endCursor",
-            "matcher": "non-empty-string",
-            "reason": "Shopify returns opaque cursors while the local definition catalog uses stable synthetic cursors."
-          }
-        ]
+        "expectedDifferences": []
       },
       {
         "name": "definition-detail-by-id",

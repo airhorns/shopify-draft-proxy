@@ -419,5 +419,52 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerCountHydrate",
+      "variables": {
+        "query": "email:har-288-customer-order-summary-1777250739747@example.com"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customersCount": {
+              "count": 40,
+              "precision": "EXACT"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerOrderSummaryHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8710861881650"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8710861881650",
+              "name": "#1030",
+              "email": null,
+              "createdAt": null,
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "customer": null
+            }
+          }
+        }
+      }
+    }
+  ]
 }

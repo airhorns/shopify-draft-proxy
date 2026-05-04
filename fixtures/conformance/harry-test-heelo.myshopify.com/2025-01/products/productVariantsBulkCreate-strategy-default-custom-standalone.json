@@ -344,5 +344,66 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10172135506226"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10172135506226",
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12718316781874",
+                    "name": "Color",
+                    "position": 1,
+                    "values": ["Red"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979703697714",
+                        "name": "Red",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51105366704434",
+                      "title": "Red",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Red"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53208207065394",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

@@ -1978,5 +1978,33 @@
     "inventoryQuantitiesLocationIds": ["gid://shopify/Location/106318463282", "gid://shopify/Location/106318430514"],
     "inventoryQuantitiesName": "available",
     "multiLocationInventoryQuantities": true
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Location/106318430514", "gid://shopify/Location/106318463282"]
+      },
+      "query": "hand-synthesized from checked-in productSet locationsCatalog capture for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/106318463282",
+                "name": "My Custom Location",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location",
+                "isActive": true
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

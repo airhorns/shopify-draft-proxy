@@ -39,10 +39,9 @@
           }
         },
         "upstreamCapturePath": null,
-        "proxyPath": "$.data.product",
-        "excludedPaths": ["$.media.nodes[1].status"]
+        "proxyPath": "$.data.product"
       }
     ]
   },
-  "notes": "Executable parity for `productReorderMedia`: the generic parity runner now seeds product media from the captured setup `productCreateMedia` response, replays the captured reorder against the local proxy, and compares the mutation payload plus downstream product media/image reads. Live Admin GraphQL 2025-01 returned an async `Job` with `done: false`; the proxy also stages an async-style job with a synthetic ID. The downstream media target excludes the second node status because Shopify's async image processing changed the setup `UPLOADED` media to `PROCESSING` independently of reorder semantics; IDs, alt text, media type, zero-based `MoveInput.newPosition` ordering, and empty `images` nodes remain strict comparison evidence."
+  "notes": "Executable parity for `productReorderMedia`: the generic parity runner now seeds product media from the captured setup `productCreateMedia` response, replays the captured reorder against the local proxy, and compares the mutation payload plus downstream product media/image reads. Live Admin GraphQL 2025-01 returned an async `Job` with `done: false`; the proxy also stages an async-style job with a synthetic ID. Downstream media IDs, statuses, alt text, media type, zero-based `MoveInput.newPosition` ordering, and empty `images` nodes remain strict comparison evidence."
 }

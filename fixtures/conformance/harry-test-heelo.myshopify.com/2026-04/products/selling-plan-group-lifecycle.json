@@ -1614,5 +1614,69 @@
         }
       }
     }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10171897807154", "gid://shopify/ProductVariant/51104286736690"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10171897807154",
+                "title": "HAR-308 selling plan mohaplvo",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51104286736690",
+                      "title": "Default Title"
+                    }
+                  ]
+                },
+                "requiresSellingPlan": false,
+                "sellingPlanGroupsCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                },
+                "sellingPlanGroups": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlanGroup/2876604722",
+                      "name": "HAR-308 subscription mohaplvo",
+                      "merchantCode": "har-308-mohaplvo"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51104286736690",
+                "title": "Default Title",
+                "sellingPlanGroupsCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                },
+                "sellingPlanGroups": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlanGroup/2876604722",
+                      "name": "HAR-308 subscription mohaplvo",
+                      "merchantCode": "har-308-mohaplvo"
+                    }
+                  ]
+                },
+                "product": {
+                  "id": "gid://shopify/Product/10171897807154"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
   ]
 }

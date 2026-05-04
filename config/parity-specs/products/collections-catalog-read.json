@@ -22,13 +22,7 @@
   "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed. The catalog capture selects the rich collection metadata fields modeled by HAR-151 while preserving nested product pagination shape, and replays captured collection catalog search/sort/empty branches locally from the seeded snapshot graph. Publication-status filtering stays coordinated with the collection publication model; saved-search filters remain outside this comparison until saved search state exists.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$[*].cursor",
-        "matcher": "non-empty-string",
-        "reason": "Shopify collection cursors are opaque; local snapshot replay uses deterministic synthetic cursors."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "captured read payload",

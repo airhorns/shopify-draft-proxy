@@ -59,7 +59,11 @@ mistakes. Check these before opening or returning a PR:
 
 - A fidelity claim needs executable parity evidence, not just local integration
   tests. If the change says "Shopify does X" or changes local emulation to match
-  Shopify, add or update a captured parity spec and run `conformance:parity`.
+  Shopify, add or update a captured parity spec, re-record its cassette via
+  `pnpm parity:record <scenario-id>`, and run `pnpm gleam:test` (see
+  `docs/parity-runner.md`). Captures must not carry top-level `seedX` keys —
+  upstream context is recorded as `upstreamCalls`, not pre-seeded into base
+  state.
 - Documentation is not a replacement for implementation. If review identifies a
   concrete behavior gap, model it locally or add a justified, linked follow-up;
   do not only document the deficiency.
@@ -273,7 +277,7 @@ Explicit scenario override config is only for unusual cases that cannot fit this
 
 ### Do not add explicit per-scenario parity tests
 
-`tests/unit/conformance-parity-scenarios.test.ts` is the single convention-driven vitest suite that discovers every parity spec, filters to `ready-for-comparison`, and runs `executeParityScenario` against each. Adding or promoting a parity spec is enough to get CI coverage — do not write a new `it(...)` block that runs the same scenario explicitly. If you need richer per-scenario assertions (e.g. specific comparison target names), encode them in the parity spec itself; the runner validates them from the spec.
+`gleam/test/parity_test.gleam` is the convention-driven Gleam runner that discovers every parity spec under `config/parity-specs/**` and exercises the captured request through the Gleam draft proxy with the recorded `upstreamCalls` cassette installed as the proxy's upstream transport. Adding or promoting a parity spec is enough to get CI coverage on both Gleam targets — do not write a new test that runs the same scenario explicitly. If you need richer per-scenario assertions (e.g. specific comparison target names), encode them in the parity spec itself; the runner validates them from the spec.
 
 Scenarios become `ready-for-comparison` only after they declare both a proxy request and a strict JSON comparison contract. Valid high-assurance scenarios must compare explicit targets and list every allowed difference as a path-scoped rule with a reason. Use matchers for legitimate nondeterminism such as Shopify IDs, timestamps, and throttle metadata. An `ignore: true` rule means the proxy has not reached parity for that path; it must also set `regrettable: true` and should only be used for hard temporary gaps that will be fixed later. Do not use `expectedDifferences`, `ignore`, or a narrow target list merely to make an incomplete implementation pass.
 
@@ -287,7 +291,7 @@ Use the strongest feasible evidence:
 2. Captured live fixtures settle Shopify payload shape, nullability, ordering, timestamps, and user errors.
 3. Proxy request files make local replay deterministic.
 4. `conformance:check` runs the repo's Vitest structural checks for discovered scenarios.
-5. `conformance:parity` runs the convention-driven vitest suite at `tests/unit/conformance-parity-scenarios.test.ts`, which iterates every discovered parity spec and executes strict comparisons for `ready-for-comparison` scenarios.
+5. `pnpm gleam:test` runs the Gleam parity runner across both targets (`gleam/test/parity_test.gleam`), which iterates every discovered parity spec, installs each capture's `upstreamCalls` cassette as the proxy's upstream transport, and executes strict comparisons for `ready-for-comparison` scenarios. Specs without a recorded cassette are reported as `Skipped` until `pnpm parity:record <scenario-id>` is run against real Shopify.
 
 ## Validation
 
@@ -295,7 +299,7 @@ Always run:
 
 ```bash
 corepack pnpm conformance:check
-corepack pnpm conformance:parity
+corepack pnpm gleam:test
 corepack pnpm typecheck
 ```
 

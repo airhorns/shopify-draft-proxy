@@ -174,5 +174,200 @@
         "restoreRate": 100
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "SegmentsBaselineRead",
+      "variables": {
+        "first": 3,
+        "knownSegmentId": "gid://shopify/Segment/462311981289",
+        "missingSegmentId": "gid://shopify/Segment/999999999999",
+        "filterSearch": "email",
+        "valueSearch": "",
+        "valueFilterQueryName": "customer_tags"
+      },
+      "query": "sha:hand-synthesized-from-captured-segments-baseline",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Segment does not exist",
+              "locations": [
+                {
+                  "line": 34,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "NOT_FOUND"
+              },
+              "path": ["missingSegment"]
+            }
+          ],
+          "data": {
+            "segments": {
+              "edges": [
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo0NjIzMTE5ODEyODksImxhc3RfdmFsdWUiOlsiMjAyMi0wNC0wNiAxNDoxMjowMC41NTI3MTIiXSwiZGlyZWN0aW9uIjoibmV4dCJ9",
+                  "node": {
+                    "id": "gid://shopify/Segment/462311981289",
+                    "name": "Customers who haven't purchased",
+                    "query": "number_of_orders = 0",
+                    "creationDate": "2022-04-06T14:12:00Z",
+                    "lastEditDate": "2024-11-05T00:36:06Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo0NjIzMTIwMTQwNTcsImxhc3RfdmFsdWUiOlsiMjAyMi0wNC0wNiAxNDoxMjowMC41NTkxNTMiXSwiZGlyZWN0aW9uIjoibmV4dCJ9",
+                  "node": {
+                    "id": "gid://shopify/Segment/462312014057",
+                    "name": "Customers who have purchased more than once",
+                    "query": "number_of_orders > 1",
+                    "creationDate": "2022-04-06T14:12:00Z",
+                    "lastEditDate": "2024-11-05T00:36:06Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo0NjIzMTIwNDY4MjUsImxhc3RfdmFsdWUiOlsiMjAyMi0wNC0wNiAxNDoxMjowMC41NjQ5MDAiXSwiZGlyZWN0aW9uIjoibmV4dCJ9",
+                  "node": {
+                    "id": "gid://shopify/Segment/462312046825",
+                    "name": "Abandoned checkouts in the last 30 days",
+                    "query": "abandoned_checkout_date >= -30d",
+                    "creationDate": "2022-04-06T14:12:00Z",
+                    "lastEditDate": "2024-11-05T00:36:06Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo0NjIzMTE5ODEyODksImxhc3RfdmFsdWUiOlsiMjAyMi0wNC0wNiAxNDoxMjowMC41NTI3MTIiXSwiZGlyZWN0aW9uIjoibmV4dCJ9",
+                "endCursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJjcmVhdGVkX2F0Iiwic29ydF9kaXIiOiJhc2MiLCJsYXN0X2lkIjo0NjIzMTIwNDY4MjUsImxhc3RfdmFsdWUiOlsiMjAyMi0wNC0wNiAxNDoxMjowMC41NjQ5MDAiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
+              }
+            },
+            "knownSegment": {
+              "id": "gid://shopify/Segment/462311981289",
+              "name": "Customers who haven't purchased",
+              "query": "number_of_orders = 0",
+              "creationDate": "2022-04-06T14:12:00Z",
+              "lastEditDate": "2024-11-05T00:36:06Z"
+            },
+            "missingSegment": null,
+            "segmentsCount": {
+              "count": 7,
+              "precision": "EXACT"
+            },
+            "segmentFilters": {
+              "edges": [
+                {
+                  "cursor": "DGN1c3RvbWVyX3RhZwthc3NvY2lhdGlvbgAAAAA",
+                  "node": {
+                    "__typename": "SegmentAssociationFilter",
+                    "queryName": "customer_tags",
+                    "localizedName": "Customer tags",
+                    "multiValue": true
+                  }
+                },
+                {
+                  "cursor": "DW9yZGVyc19wbGFjZWQFZXZlbnQAAAAB",
+                  "node": {
+                    "__typename": "SegmentEventFilter",
+                    "queryName": "orders_placed",
+                    "localizedName": "Orders placed",
+                    "multiValue": false
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "DGN1c3RvbWVyX3RhZwthc3NvY2lhdGlvbgAAAAA",
+                "endCursor": "DW9yZGVyc19wbGFjZWQFZXZlbnQAAAAB"
+              }
+            },
+            "segmentFilterSuggestions": {
+              "edges": [
+                {
+                  "cursor": "FHNob3BpZnlfZW1haWwub3BlbmVkBWV2ZW50AAAAAA",
+                  "node": {
+                    "__typename": "SegmentEventFilter",
+                    "queryName": "shopify_email.opened",
+                    "localizedName": "Email opened",
+                    "multiValue": false
+                  }
+                },
+                {
+                  "cursor": "FXNob3BpZnlfZW1haWwuY2xpY2tlZAVldmVudAAAAAE",
+                  "node": {
+                    "__typename": "SegmentEventFilter",
+                    "queryName": "shopify_email.clicked",
+                    "localizedName": "Email clicked",
+                    "multiValue": false
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "FHNob3BpZnlfZW1haWwub3BlbmVkBWV2ZW50AAAAAA",
+                "endCursor": "FXNob3BpZnlfZW1haWwuY2xpY2tlZAVldmVudAAAAAE"
+              }
+            },
+            "segmentValueSuggestions": {
+              "edges": [
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6NjM5MDY0NjcwNDQxLCJsYXN0X3ZhbHVlIjoiNjM5MDY0NjcwNDQxIiwiZGlyZWN0aW9uIjoibmV4dCJ9",
+                  "node": {
+                    "queryName": "egnition-sample-data",
+                    "localizedValue": "egnition-sample-data"
+                  }
+                },
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6NjM5MDY0NzAzMjA5LCJsYXN0X3ZhbHVlIjoiNjM5MDY0NzAzMjA5IiwiZGlyZWN0aW9uIjoibmV4dCJ9",
+                  "node": {
+                    "queryName": "referral",
+                    "localizedValue": "referral"
+                  }
+                },
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6NjM5MDY0NzM1OTc3LCJsYXN0X3ZhbHVlIjoiNjM5MDY0NzM1OTc3IiwiZGlyZWN0aW9uIjoibmV4dCJ9",
+                  "node": {
+                    "queryName": "VIP",
+                    "localizedValue": "VIP"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6NjM5MDY0NjcwNDQxLCJsYXN0X3ZhbHVlIjoiNjM5MDY0NjcwNDQxIiwiZGlyZWN0aW9uIjoibmV4dCJ9",
+                "endCursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6NjM5MDY0NzM1OTc3LCJsYXN0X3ZhbHVlIjoiNjM5MDY0NzM1OTc3IiwiZGlyZWN0aW9uIjoibmV4dCJ9"
+              }
+            },
+            "segmentMigrations": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 29,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

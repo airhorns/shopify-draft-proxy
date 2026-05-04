@@ -22,6 +22,7 @@ import shopify_draft_proxy/graphql/ast.{
 }
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionWindow, SelectedFieldOptions,
   SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
@@ -34,6 +35,13 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, RequiredArgument, read_optional_string, single_root_log_draft,
   validate_required_field_arguments, validate_required_id_argument,
 }
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{
   type Store, delete_staged_metaobject, delete_staged_metaobject_definition,
@@ -41,11 +49,12 @@ import shopify_draft_proxy/state/store.{
   find_effective_metaobject_definition_by_type, get_effective_metaobject_by_id,
   get_effective_metaobject_definition_by_id,
   list_effective_metaobject_definitions, list_effective_metaobjects,
-  list_effective_metaobjects_by_type, upsert_staged_metaobject,
+  list_effective_metaobjects_by_type, upsert_base_metaobject_definitions,
+  upsert_base_metaobjects, upsert_staged_metaobject,
   upsert_staged_metaobject_definition,
 }
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type MetaobjectCapabilitiesRecord, type MetaobjectDefinitionCapabilitiesRecord,
@@ -53,7 +62,8 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectDefinitionTypeRecord, type MetaobjectFieldDefinitionRecord,
   type MetaobjectFieldDefinitionReferenceRecord,
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
-  type MetaobjectJsonValue, type MetaobjectRecord,
+  type MetaobjectJsonValue, type MetaobjectOnlineStoreCapabilityRecord,
+  type MetaobjectPublishableCapabilityRecord, type MetaobjectRecord,
   type MetaobjectStandardTemplateRecord, MetaobjectBool,
   MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
   MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
@@ -268,12 +278,178 @@ pub fn process(
   }
 }
 
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  request: Request,
+  parsed: parse_operation.ParsedOperation,
+  primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  let want_passthrough = case proxy.config.read_mode {
+    LiveHybrid ->
+      should_passthrough_in_live_hybrid(
+        proxy,
+        parsed.type_,
+        primary_root_field,
+        variables,
+      )
+    _ -> False
+  }
+  case want_passthrough {
+    // Pattern 1: cold LiveHybrid metaobject reads are upstream-verbatim.
+    // Once local definitions/entries are staged or deleted, reads stay local
+    // so supported mutations preserve read-after-write behavior.
+    True -> passthrough.passthrough_sync(proxy, request)
+    False ->
+      case process(proxy.store, document, variables) {
+        Ok(envelope) -> #(
+          Response(status: 200, body: envelope, headers: []),
+          proxy,
+        )
+        Error(_) -> #(
+          Response(
+            status: 400,
+            body: json.object([
+              #(
+                "errors",
+                json.array(
+                  [
+                    json.object([
+                      #(
+                        "message",
+                        json.string(
+                          "Failed to handle metaobject definitions query",
+                        ),
+                      ),
+                    ]),
+                  ],
+                  fn(x) { x },
+                ),
+              ),
+            ]),
+            headers: [],
+          ),
+          proxy,
+        )
+      }
+  }
+}
+
+fn should_passthrough_in_live_hybrid(
+  proxy: DraftProxy,
+  type_: parse_operation.GraphQLOperationType,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case type_, primary_root_field {
+    parse_operation.QueryOperation, "metaobject" ->
+      !local_has_metaobject_id(proxy, variables)
+    parse_operation.QueryOperation, "metaobjectByHandle" ->
+      !local_has_metaobjects(proxy)
+    parse_operation.QueryOperation, "metaobjects" ->
+      !local_has_metaobjects(proxy)
+    parse_operation.QueryOperation, "metaobjectDefinition" ->
+      !local_has_metaobject_definition_id(proxy, variables)
+    parse_operation.QueryOperation, "metaobjectDefinitionByType" ->
+      !local_has_metaobject_definitions(proxy)
+    parse_operation.QueryOperation, "metaobjectDefinitions" ->
+      !local_has_metaobject_definitions(proxy)
+    _, _ -> False
+  }
+}
+
+fn local_has_metaobject_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.flat_map(resolved_value_strings)
+  |> list.any(fn(id) {
+    is_proxy_synthetic_gid(id) || local_metaobject_id_known(proxy.store, id)
+  })
+}
+
+fn local_metaobject_id_known(store: Store, id: String) -> Bool {
+  case get_effective_metaobject_by_id(store, id) {
+    Some(_) -> True
+    None ->
+      case dict.get(store.staged_state.deleted_metaobject_ids, id) {
+        Ok(True) -> True
+        _ -> False
+      }
+  }
+}
+
+fn local_has_metaobject_definition_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.flat_map(resolved_value_strings)
+  |> list.any(fn(id) {
+    is_proxy_synthetic_gid(id)
+    || local_metaobject_definition_id_known(proxy.store, id)
+  })
+}
+
+fn local_metaobject_definition_id_known(store: Store, id: String) -> Bool {
+  case get_effective_metaobject_definition_by_id(store, id) {
+    Some(_) -> True
+    None ->
+      case dict.get(store.staged_state.deleted_metaobject_definition_ids, id) {
+        Ok(True) -> True
+        _ -> False
+      }
+  }
+}
+
+fn local_has_metaobjects(proxy: DraftProxy) -> Bool {
+  !list.is_empty(list_effective_metaobjects(proxy.store))
+  || !list.is_empty(dict.keys(proxy.store.staged_state.deleted_metaobject_ids))
+}
+
+fn local_has_metaobject_definitions(proxy: DraftProxy) -> Bool {
+  !list.is_empty(list_effective_metaobject_definitions(proxy.store))
+  || !list.is_empty(dict.keys(
+    proxy.store.staged_state.deleted_metaobject_definition_ids,
+  ))
+}
+
+fn resolved_value_strings(value: root_field.ResolvedValue) -> List(String) {
+  case value {
+    root_field.StringVal(value) -> [value]
+    root_field.ListVal(values) -> list.flat_map(values, resolved_value_strings)
+    root_field.ObjectVal(fields) ->
+      dict.values(fields) |> list.flat_map(resolved_value_strings)
+    _ -> []
+  }
+}
+
 pub fn process_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, MetaobjectDefinitionsError) {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+pub fn process_mutation_with_upstream(
   store: Store,
   identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> Result(MutationOutcome, MetaobjectDefinitionsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
@@ -288,6 +464,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
+        upstream,
       ))
     }
   }
@@ -317,6 +494,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let initial = #([], [], store, identity, [], [])
   let #(entries, errors, final_store, final_identity, staged_ids, drafts) =
@@ -341,6 +519,7 @@ fn handle_mutation_fields(
               fragments,
               variables,
               name.value,
+              upstream,
             )
           let #(field_result, next_store, next_identity) = result
           let next_errors =
@@ -396,6 +575,7 @@ fn dispatch_mutation_field(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   name: String,
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   case name {
     "metaobjectDefinitionCreate" ->
@@ -446,6 +626,7 @@ fn dispatch_mutation_field(
         field,
         fragments,
         variables,
+        upstream,
       )
     "metaobjectUpdate" ->
       handle_metaobject_update(
@@ -456,6 +637,7 @@ fn dispatch_mutation_field(
         field,
         fragments,
         variables,
+        upstream,
       )
     "metaobjectUpsert" ->
       handle_metaobject_upsert(
@@ -466,6 +648,7 @@ fn dispatch_mutation_field(
         field,
         fragments,
         variables,
+        upstream,
       )
     "metaobjectDelete" ->
       handle_metaobject_delete(
@@ -475,6 +658,7 @@ fn dispatch_mutation_field(
         operation_path,
         field,
         variables,
+        upstream,
       )
     "metaobjectBulkDelete" ->
       handle_metaobject_bulk_delete(
@@ -485,6 +669,7 @@ fn dispatch_mutation_field(
         field,
         fragments,
         variables,
+        upstream,
       )
     _ -> #(
       MutationFieldResult(
@@ -805,6 +990,7 @@ fn handle_metaobject_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let errors =
@@ -823,6 +1009,9 @@ fn handle_metaobject_create(
     [] -> {
       let input = read_object_arg(field_args(field, variables), "metaobject")
       let type_ = read_string(input, "type")
+      // Pattern 2: cold LiveHybrid creates still stage locally, but first
+      // hydrate the upstream definition so valid types do not fail as unknown.
+      let store = maybe_hydrate_definition_by_type(store, type_, upstream)
       let definition = case type_ {
         Some(t) -> find_effective_metaobject_definition_by_type(store, t)
         None -> None
@@ -920,6 +1109,7 @@ fn handle_metaobject_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let errors =
@@ -953,7 +1143,10 @@ fn handle_metaobject_update(
           store,
           identity,
         )
-        Some(id) ->
+        Some(id) -> {
+          // Pattern 2: existing upstream entries are hydrated before local
+          // update staging so supported mutations still avoid upstream writes.
+          let store = maybe_hydrate_metaobject_by_id(store, Some(id), upstream)
           case get_effective_metaobject_by_id(store, id) {
             None -> #(
               MutationFieldResult(
@@ -1061,6 +1254,7 @@ fn handle_metaobject_update(
                 }
               }
           }
+        }
       }
     }
   }
@@ -1074,6 +1268,7 @@ fn handle_metaobject_upsert(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let errors =
@@ -1095,7 +1290,10 @@ fn handle_metaobject_upsert(
       let #(type_, handle) = read_handle_value(read_object_arg(args, "handle"))
       let input = read_object_arg(args, "metaobject")
       case type_, handle {
-        Some(t), Some(h) ->
+        Some(t), Some(h) -> {
+          // Pattern 2: hydrate the definition for cold LiveHybrid upserts; the
+          // upsert write itself remains local and Snapshot mode stays local.
+          let store = maybe_hydrate_definition_by_type(store, Some(t), upstream)
           case find_effective_metaobject_definition_by_type(store, t) {
             None -> {
               let err =
@@ -1263,6 +1461,7 @@ fn handle_metaobject_upsert(
                 }
               }
           }
+        }
         _, _ -> {
           let err =
             UserError(
@@ -1296,6 +1495,7 @@ fn handle_metaobject_delete(
   operation_path: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let #(id, errors) =
@@ -1317,7 +1517,11 @@ fn handle_metaobject_delete(
           store,
           identity,
         )
-        Some(metaobject_id) ->
+        Some(metaobject_id) -> {
+          // Pattern 2: delete can target an upstream row; hydrate it first,
+          // then stage a local delete and keep downstream reads local.
+          let store =
+            maybe_hydrate_metaobject_by_id(store, Some(metaobject_id), upstream)
           case get_effective_metaobject_by_id(store, metaobject_id) {
             None -> #(
               metaobject_delete_result(key, field, None, [
@@ -1342,6 +1546,7 @@ fn handle_metaobject_delete(
               )
             }
           }
+        }
       }
   }
 }
@@ -1354,6 +1559,7 @@ fn handle_metaobject_bulk_delete(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let errors =
@@ -1371,6 +1577,9 @@ fn handle_metaobject_bulk_delete(
     [_, ..] -> #(top_level_error_result(key, errors), store, identity)
     [] -> {
       let args = field_args(field, variables)
+      // Pattern 2: type-scoped bulk delete needs the upstream selection set
+      // before staging local deletes; downstream reads observe local markers.
+      let store = maybe_hydrate_bulk_delete_selection(store, args, upstream)
       let ids = read_bulk_delete_ids(store, args)
       case ids {
         [] -> {
@@ -1459,6 +1668,566 @@ fn delete_metaobject_ids(
       }
     }
   })
+}
+
+// ---------------------------------------------------------------------------
+// LiveHybrid hydration
+// ---------------------------------------------------------------------------
+
+fn maybe_hydrate_definition_by_type(
+  store: Store,
+  type_: Option(String),
+  upstream: UpstreamContext,
+) -> Store {
+  case type_ {
+    None -> store
+    Some(metaobject_type) ->
+      case
+        find_effective_metaobject_definition_by_type(store, metaobject_type)
+      {
+        Some(_) -> store
+        None ->
+          fetch_and_hydrate(
+            store,
+            upstream,
+            "MetaobjectDefinitionHydrateByType",
+            metaobject_definition_hydrate_query(),
+            json.object([#("type", json.string(metaobject_type))]),
+          )
+      }
+  }
+}
+
+fn maybe_hydrate_metaobject_by_id(
+  store: Store,
+  id: Option(String),
+  upstream: UpstreamContext,
+) -> Store {
+  case id {
+    None -> store
+    Some(metaobject_id) ->
+      case get_effective_metaobject_by_id(store, metaobject_id) {
+        Some(_) -> store
+        None ->
+          fetch_and_hydrate(
+            store,
+            upstream,
+            "MetaobjectHydrateById",
+            metaobject_hydrate_query(),
+            json.object([#("id", json.string(metaobject_id))]),
+          )
+      }
+  }
+}
+
+fn maybe_hydrate_bulk_delete_selection(
+  store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  let explicit_ids = case read_object(args, "where") {
+    Some(where) -> read_string_list(where, "ids")
+    None -> []
+  }
+  case explicit_ids {
+    [_, ..] ->
+      list.fold(explicit_ids, store, fn(current, id) {
+        maybe_hydrate_metaobject_by_id(current, Some(id), upstream)
+      })
+    [] ->
+      case read_object(args, "where") {
+        Some(where) ->
+          case read_string(where, "type") {
+            Some(type_) ->
+              fetch_and_hydrate(
+                store,
+                upstream,
+                "MetaobjectBulkDeleteHydrateByType",
+                metaobject_bulk_delete_hydrate_query(),
+                json.object([#("type", json.string(type_))]),
+              )
+            None -> store
+          }
+        None -> store
+      }
+  }
+}
+
+fn fetch_and_hydrate(
+  store: Store,
+  upstream: UpstreamContext,
+  operation_name: String,
+  query: String,
+  variables: Json,
+) -> Store {
+  case upstream.transport, upstream.origin {
+    None, "" -> store
+    _, _ ->
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          operation_name,
+          query,
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_from_upstream_response(store, value)
+        Error(_) -> store
+      }
+  }
+}
+
+fn hydrate_from_upstream_response(
+  store: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) -> hydrate_data_roots(store, data)
+    None -> store
+  }
+}
+
+fn hydrate_data_roots(store: Store, data: commit.JsonValue) -> Store {
+  let store = hydrate_definitions_from_value(store, data)
+  hydrate_metaobjects_from_value(store, data)
+}
+
+fn hydrate_definitions_from_value(
+  store: Store,
+  value: commit.JsonValue,
+) -> Store {
+  let definitions =
+    collect_definition_nodes(value)
+    |> list.filter_map(definition_from_json)
+  case definitions {
+    [] -> store
+    _ -> upsert_base_metaobject_definitions(store, definitions)
+  }
+}
+
+fn hydrate_metaobjects_from_value(
+  store: Store,
+  value: commit.JsonValue,
+) -> Store {
+  let metaobjects =
+    collect_metaobject_nodes(value)
+    |> list.filter_map(metaobject_from_json)
+  case metaobjects {
+    [] -> store
+    _ -> upsert_base_metaobjects(store, metaobjects)
+  }
+}
+
+fn collect_definition_nodes(value: commit.JsonValue) -> List(commit.JsonValue) {
+  let current = case json_get_string(value, "id") {
+    Some(id) ->
+      case string.starts_with(id, "gid://shopify/MetaobjectDefinition/") {
+        True -> [value]
+        False -> []
+      }
+    None -> []
+  }
+  case value {
+    commit.JsonObject(fields) ->
+      list.fold(fields, current, fn(acc, pair) {
+        let #(_, child) = pair
+        list.append(acc, collect_definition_nodes(child))
+      })
+    commit.JsonArray(items) ->
+      list.fold(items, current, fn(acc, child) {
+        list.append(acc, collect_definition_nodes(child))
+      })
+    _ -> current
+  }
+}
+
+fn collect_metaobject_nodes(value: commit.JsonValue) -> List(commit.JsonValue) {
+  let current = case json_get_string(value, "id") {
+    Some(id) ->
+      case string.starts_with(id, "gid://shopify/Metaobject/") {
+        True -> [value]
+        False -> []
+      }
+    None -> []
+  }
+  case value {
+    commit.JsonObject(fields) ->
+      list.fold(fields, current, fn(acc, pair) {
+        let #(_, child) = pair
+        list.append(acc, collect_metaobject_nodes(child))
+      })
+    commit.JsonArray(items) ->
+      list.fold(items, current, fn(acc, child) {
+        list.append(acc, collect_metaobject_nodes(child))
+      })
+    _ -> current
+  }
+}
+
+fn definition_from_json(
+  value: commit.JsonValue,
+) -> Result(MetaobjectDefinitionRecord, Nil) {
+  use id <- result.try(option_to_result(json_get_string(value, "id")))
+  use type_ <- result.try(option_to_result(json_get_string(value, "type")))
+  Ok(MetaobjectDefinitionRecord(
+    id: id,
+    type_: type_,
+    name: json_get_string(value, "name"),
+    description: json_get_nullable_string(value, "description"),
+    access: definition_access_from_json(json_get(value, "access")),
+    capabilities: definition_capabilities_from_json(json_get(
+      value,
+      "capabilities",
+    )),
+    field_definitions: json_array(json_get(value, "fieldDefinitions"))
+      |> list.filter_map(field_definition_from_json),
+    display_name_key: json_get_nullable_string(value, "displayNameKey"),
+    has_thumbnail_field: json_get_bool(value, "hasThumbnailField"),
+    metaobjects_count: json_get_int(value, "metaobjectsCount"),
+    standard_template: standard_template_from_json(json_get(
+      value,
+      "standardTemplate",
+    )),
+    created_at: json_get_string(value, "createdAt"),
+    updated_at: json_get_string(value, "updatedAt"),
+  ))
+}
+
+fn field_definition_from_json(
+  value: commit.JsonValue,
+) -> Result(MetaobjectFieldDefinitionRecord, Nil) {
+  use key <- result.try(option_to_result(json_get_string(value, "key")))
+  let type_record = case json_get(value, "type") {
+    Some(type_value) -> type_record_from_json(type_value)
+    None ->
+      MetaobjectDefinitionTypeRecord(
+        name: "single_line_text_field",
+        category: None,
+      )
+  }
+  Ok(MetaobjectFieldDefinitionRecord(
+    key: key,
+    name: json_get_string(value, "name"),
+    description: json_get_nullable_string(value, "description"),
+    required: json_get_bool(value, "required"),
+    type_: type_record,
+    validations: json_array(json_get(value, "validations"))
+      |> list.filter_map(validation_from_json),
+  ))
+}
+
+fn validation_from_json(
+  value: commit.JsonValue,
+) -> Result(MetaobjectFieldDefinitionValidationRecord, Nil) {
+  use name <- result.try(option_to_result(json_get_string(value, "name")))
+  Ok(MetaobjectFieldDefinitionValidationRecord(
+    name: name,
+    value: json_get_nullable_string(value, "value"),
+  ))
+}
+
+fn type_record_from_json(
+  value: commit.JsonValue,
+) -> MetaobjectDefinitionTypeRecord {
+  MetaobjectDefinitionTypeRecord(
+    name: option.unwrap(
+      json_get_string(value, "name"),
+      "single_line_text_field",
+    ),
+    category: json_get_nullable_string(value, "category"),
+  )
+}
+
+fn definition_access_from_json(
+  value: Option(commit.JsonValue),
+) -> Dict(String, Option(String)) {
+  case value {
+    Some(commit.JsonObject(fields)) ->
+      list.fold(fields, dict.new(), fn(acc, pair) {
+        let #(key, child) = pair
+        dict.insert(acc, key, json_scalar_nullable_string(child))
+      })
+    _ -> default_definition_access()
+  }
+}
+
+fn definition_capabilities_from_json(
+  value: Option(commit.JsonValue),
+) -> MetaobjectDefinitionCapabilitiesRecord {
+  MetaobjectDefinitionCapabilitiesRecord(
+    publishable: definition_capability_from_json(value, "publishable"),
+    translatable: definition_capability_from_json(value, "translatable"),
+    renderable: definition_capability_from_json(value, "renderable"),
+    online_store: definition_capability_from_json(value, "onlineStore"),
+  )
+}
+
+fn definition_capability_from_json(
+  value: Option(commit.JsonValue),
+  key: String,
+) -> Option(MetaobjectDefinitionCapabilityRecord) {
+  case value {
+    Some(object) ->
+      case json_get(object, key) {
+        Some(capability) ->
+          case json_get_bool(capability, "enabled") {
+            Some(enabled) ->
+              Some(MetaobjectDefinitionCapabilityRecord(enabled: enabled))
+            None -> None
+          }
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn standard_template_from_json(
+  value: Option(commit.JsonValue),
+) -> Option(MetaobjectStandardTemplateRecord) {
+  case value {
+    Some(commit.JsonObject(_)) ->
+      Some(MetaobjectStandardTemplateRecord(
+        type_: json_get_string(option.unwrap(value, commit.JsonNull), "type"),
+        name: json_get_string(option.unwrap(value, commit.JsonNull), "name"),
+      ))
+    _ -> None
+  }
+}
+
+fn metaobject_from_json(
+  value: commit.JsonValue,
+) -> Result(MetaobjectRecord, Nil) {
+  use id <- result.try(option_to_result(json_get_string(value, "id")))
+  use type_ <- result.try(option_to_result(json_get_string(value, "type")))
+  use handle <- result.try(option_to_result(json_get_string(value, "handle")))
+  Ok(MetaobjectRecord(
+    id: id,
+    handle: handle,
+    type_: type_,
+    display_name: json_get_nullable_string(value, "displayName"),
+    fields: json_array(json_get(value, "fields"))
+      |> list.filter_map(metaobject_field_from_json),
+    capabilities: metaobject_capabilities_from_json(json_get(
+      value,
+      "capabilities",
+    )),
+    created_at: json_get_string(value, "createdAt"),
+    updated_at: json_get_string(value, "updatedAt"),
+  ))
+}
+
+fn metaobject_field_from_json(
+  value: commit.JsonValue,
+) -> Result(MetaobjectFieldRecord, Nil) {
+  use key <- result.try(option_to_result(json_get_string(value, "key")))
+  let type_ = json_get_string(value, "type")
+  let raw_value = json_get_nullable_string(value, "value")
+  let json_value = case json_get(value, "jsonValue") {
+    Some(value) -> metaobject_json_value_from_json(value)
+    None ->
+      case type_ {
+        Some(type_name) -> read_metaobject_json_value(type_name, raw_value)
+        None -> MetaobjectNull
+      }
+  }
+  Ok(
+    MetaobjectFieldRecord(
+      key: key,
+      type_: type_,
+      value: raw_value,
+      json_value: json_value,
+      definition: case json_get(value, "definition") {
+        Some(definition) -> field_definition_reference_from_json(definition)
+        None -> None
+      },
+    ),
+  )
+}
+
+fn field_definition_reference_from_json(
+  value: commit.JsonValue,
+) -> Option(MetaobjectFieldDefinitionReferenceRecord) {
+  case json_get_string(value, "key") {
+    Some(key) ->
+      Some(
+        MetaobjectFieldDefinitionReferenceRecord(
+          key: key,
+          name: json_get_string(value, "name"),
+          required: json_get_bool(value, "required"),
+          type_: case json_get(value, "type") {
+            Some(type_value) -> type_record_from_json(type_value)
+            None ->
+              MetaobjectDefinitionTypeRecord("single_line_text_field", None)
+          },
+        ),
+      )
+    None -> None
+  }
+}
+
+fn metaobject_capabilities_from_json(
+  value: Option(commit.JsonValue),
+) -> MetaobjectCapabilitiesRecord {
+  MetaobjectCapabilitiesRecord(
+    publishable: metaobject_publishable_from_json(value),
+    online_store: metaobject_online_store_from_json(value),
+  )
+}
+
+fn metaobject_publishable_from_json(
+  value: Option(commit.JsonValue),
+) -> Option(MetaobjectPublishableCapabilityRecord) {
+  case value {
+    Some(object) ->
+      case json_get(object, "publishable") {
+        Some(publishable) ->
+          Some(
+            MetaobjectPublishableCapabilityRecord(status: json_get_string(
+              publishable,
+              "status",
+            )),
+          )
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn metaobject_online_store_from_json(
+  value: Option(commit.JsonValue),
+) -> Option(MetaobjectOnlineStoreCapabilityRecord) {
+  case value {
+    Some(object) ->
+      case json_get(object, "onlineStore") {
+        Some(commit.JsonNull) -> None
+        Some(online_store) ->
+          Some(
+            MetaobjectOnlineStoreCapabilityRecord(
+              template_suffix: json_get_nullable_string(
+                online_store,
+                "templateSuffix",
+              ),
+            ),
+          )
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn metaobject_json_value_from_json(
+  value: commit.JsonValue,
+) -> MetaobjectJsonValue {
+  case value {
+    commit.JsonNull -> MetaobjectNull
+    commit.JsonBool(value) -> MetaobjectBool(value)
+    commit.JsonInt(value) -> MetaobjectInt(value)
+    commit.JsonFloat(value) -> whole_float_to_metaobject_number(value)
+    commit.JsonString(value) -> MetaobjectString(value)
+    commit.JsonArray(items) ->
+      MetaobjectList(list.map(items, metaobject_json_value_from_json))
+    commit.JsonObject(fields) ->
+      MetaobjectObject(
+        list.fold(fields, dict.new(), fn(acc, pair) {
+          let #(key, child) = pair
+          dict.insert(acc, key, metaobject_json_value_from_json(child))
+        }),
+      )
+  }
+}
+
+fn metaobject_definition_hydrate_query() -> String {
+  "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }"
+}
+
+fn metaobject_hydrate_query() -> String {
+  "query MetaobjectHydrateById($id: ID!) { metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }"
+}
+
+fn metaobject_bulk_delete_hydrate_query() -> String {
+  "query MetaobjectBulkDeleteHydrateByType($type: String!) { catalog: metaobjects(type: $type, first: 250) { nodes { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } } } definition: metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }"
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      fields
+      |> list.find(fn(pair) {
+        let #(field_key, _) = pair
+        field_key == key
+      })
+      |> result.map(fn(pair) {
+        let #(_, child) = pair
+        child
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn json_array(value: Option(commit.JsonValue)) -> List(commit.JsonValue) {
+  case value {
+    Some(commit.JsonArray(items)) -> items
+    _ -> []
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(child) -> json_scalar_string(child)
+    None -> None
+  }
+}
+
+fn json_get_nullable_string(
+  value: commit.JsonValue,
+  key: String,
+) -> Option(String) {
+  case json_get(value, key) {
+    Some(child) -> json_scalar_nullable_string(child)
+    None -> None
+  }
+}
+
+fn json_scalar_nullable_string(value: commit.JsonValue) -> Option(String) {
+  case value {
+    commit.JsonNull -> None
+    _ -> json_scalar_string(value)
+  }
+}
+
+fn json_scalar_string(value: commit.JsonValue) -> Option(String) {
+  case value {
+    commit.JsonString(value) -> Some(value)
+    commit.JsonInt(value) -> Some(int.to_string(value))
+    commit.JsonFloat(value) -> Some(float.to_string(value))
+    commit.JsonBool(True) -> Some("true")
+    commit.JsonBool(False) -> Some("false")
+    _ -> None
+  }
+}
+
+fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
+  case json_get(value, key) {
+    Some(commit.JsonBool(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn json_get_int(value: commit.JsonValue, key: String) -> Option(Int) {
+  case json_get(value, key) {
+    Some(commit.JsonInt(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn option_to_result(value: Option(a)) -> Result(a, Nil) {
+  case value {
+    Some(value) -> Ok(value)
+    None -> Error(Nil)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -3159,14 +3928,26 @@ fn measurement_number_source(raw: String) -> Option(SourceValue) {
   case string.contains(raw, ".") {
     True ->
       case float.parse(raw) {
-        Ok(value) -> Some(SrcFloat(value))
+        Ok(value) -> Some(whole_float_to_number_source(value))
         Error(_) -> None
       }
     False ->
       case int.parse(raw) {
         Ok(value) -> Some(SrcInt(value))
-        Error(_) -> None
+        Error(_) ->
+          case float.parse(raw) {
+            Ok(value) -> Some(whole_float_to_number_source(value))
+            Error(_) -> None
+          }
       }
+  }
+}
+
+fn whole_float_to_number_source(value: Float) -> SourceValue {
+  let truncated = float.truncate(value)
+  case int.to_float(truncated) == value {
+    True -> SrcInt(truncated)
+    False -> SrcFloat(value)
   }
 }
 
@@ -4545,7 +5326,7 @@ fn dynamic_number_to_metaobject_json(
     Ok(value) -> Ok(MetaobjectInt(value))
     Error(_) ->
       case decode.run(dynamic, decode.float) {
-        Ok(value) -> Ok(MetaobjectFloat(value))
+        Ok(value) -> Ok(whole_float_to_metaobject_number(value))
         Error(_) ->
           case decode.run(dynamic, decode.string) {
             Ok(value) ->
@@ -4553,13 +5334,21 @@ fn dynamic_number_to_metaobject_json(
                 Ok(parsed) -> Ok(MetaobjectInt(parsed))
                 Error(_) ->
                   case float.parse(value) {
-                    Ok(parsed) -> Ok(MetaobjectFloat(parsed))
+                    Ok(parsed) -> Ok(whole_float_to_metaobject_number(parsed))
                     Error(_) -> Error(Nil)
                   }
               }
             Error(_) -> Error(Nil)
           }
       }
+  }
+}
+
+fn whole_float_to_metaobject_number(value: Float) -> MetaobjectJsonValue {
+  let truncated = float.truncate(value)
+  case int.to_float(truncated) == value {
+    True -> MetaobjectInt(truncated)
+    False -> MetaobjectFloat(value)
   }
 }
 
@@ -4606,7 +5395,7 @@ fn dynamic_to_metaobject_json_present(
     Ok(n) -> Ok(MetaobjectInt(n))
     Error(_) ->
       case decode.run(value, decode.float) {
-        Ok(n) -> Ok(MetaobjectFloat(n))
+        Ok(n) -> Ok(whole_float_to_metaobject_number(n))
         Error(_) ->
           case decode.run(value, decode.string) {
             Ok(s) -> Ok(MetaobjectString(s))

@@ -23,5 +23,39 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductRelatedByIdNotFound",
+      "variables": {
+        "missingCollectionId": "gid://shopify/Collection/999999999999999",
+        "missingProductVariantId": "gid://shopify/ProductVariant/999999999999999",
+        "missingInventoryItemId": "gid://shopify/InventoryItem/999999999999999",
+        "missingInventoryLevelId": "gid://shopify/InventoryLevel/999999999999999?inventory_item_id=999999999999999"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "missingCollection": null,
+            "missingProductVariant": null,
+            "missingInventoryItem": null,
+            "missingInventoryLevel": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 9,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

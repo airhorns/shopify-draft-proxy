@@ -74,5 +74,95 @@
         "restoreRate": 100
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsCatalogRead",
+      "variables": {
+        "first": 3
+      },
+      "query": "hand-synthesized from checked-in capture response",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productsCount": {
+              "count": 13552,
+              "precision": "EXACT"
+            },
+            "products": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4OTcxODQyODQ2OTUzLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xOCAwMDo1ODoyMS4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8971842846953",
+                    "legacyResourceId": "8971842846953",
+                    "title": "Test Product - 6635",
+                    "handle": "test-product-ge91cbbd6",
+                    "status": "ACTIVE",
+                    "vendor": "very-big-test-store",
+                    "productType": "",
+                    "tags": [],
+                    "totalInventory": 0,
+                    "tracksInventory": false,
+                    "createdAt": "2025-07-01T23:57:25Z",
+                    "updatedAt": "2026-04-18T00:58:21Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5MjU2ODAyMjU1MDgxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xNyAyMzozNjowOC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9256802255081",
+                    "legacyResourceId": "9256802255081",
+                    "title": "Handle probe admin 1776468960120",
+                    "handle": "admin",
+                    "status": "ACTIVE",
+                    "vendor": "very-big-test-store",
+                    "productType": "",
+                    "tags": [],
+                    "totalInventory": 0,
+                    "tracksInventory": false,
+                    "createdAt": "2026-04-17T23:36:00Z",
+                    "updatedAt": "2026-04-17T23:36:08Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5MjU2ODAyNDE4OTIxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xNyAyMzozNjowNy4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9256802418921",
+                    "legacyResourceId": "9256802418921",
+                    "title": "Handle probe apps 1776468962313",
+                    "handle": "apps",
+                    "status": "ACTIVE",
+                    "vendor": "very-big-test-store",
+                    "productType": "",
+                    "tags": [],
+                    "totalInventory": 0,
+                    "tracksInventory": false,
+                    "createdAt": "2026-04-17T23:36:02Z",
+                    "updatedAt": "2026-04-17T23:36:07Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "endCursor": "eyJsYXN0X2lkIjo5MjU2ODAyNDE4OTIxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xNyAyMzozNjowNy4wMDAwMDAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

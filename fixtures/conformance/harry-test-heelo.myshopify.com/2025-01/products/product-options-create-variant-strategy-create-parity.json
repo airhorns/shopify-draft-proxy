@@ -192,5 +192,55 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10172064923954"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10172064923954",
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12718243119410",
+                    "name": "Title",
+                    "position": 1,
+                    "values": ["Default Title"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/7979347181874",
+                        "name": "Default Title",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51105202700594",
+                      "title": "Default Title",
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

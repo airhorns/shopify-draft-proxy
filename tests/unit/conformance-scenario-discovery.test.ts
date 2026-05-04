@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { validateComparisonContract, type ParitySpec } from '../../scripts/conformance-parity-lib.js';
+import { validateComparisonContract, type ParitySpec } from '../../scripts/conformance-parity-spec.js';
 import {
   buildConformanceStatusDocument,
   listConformanceParitySpecPaths,

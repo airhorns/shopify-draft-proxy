@@ -1108,5 +1108,141 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/53044947648745"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/53044947648745",
+                "tracked": false,
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947648745",
+                      "location": {
+                        "id": "gid://shopify/Location/68509171945",
+                        "name": "103 ossington"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-04-18T22:21:50Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ],
+                      "isActive": true
+                    }
+                  ]
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/50897202282729",
+                  "inventoryQuantity": 0,
+                  "product": {
+                    "id": "gid://shopify/Product/9257220047081",
+                    "totalInventory": 0,
+                    "tracksInventory": false,
+                    "title": "hermes-inventory-linkage-single-1776550910512",
+                    "handle": "gid://shopify/Product/9257220047081",
+                    "status": "ACTIVE"
+                  },
+                  "title": "Default Title",
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ]
+                },
+                "requiresShipping": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947648745"]
+      },
+      "query": "hand-synthesized from checked-in inventoryActivateNoOp capture for HAR-545 Pattern 2 inventory level hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947648745",
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 0,
+                    "updatedAt": "2026-04-18T22:21:50Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0,
+                    "updatedAt": null
+                  }
+                ],
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53044947648745",
+                  "tracked": false,
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/50897202282729",
+                    "inventoryQuantity": 0,
+                    "product": {
+                      "id": "gid://shopify/Product/9257220047081",
+                      "totalInventory": 0,
+                      "tracksInventory": false,
+                      "title": "hermes-inventory-linkage-single-1776550910512",
+                      "handle": "gid://shopify/Product/9257220047081",
+                      "status": "ACTIVE"
+                    },
+                    "title": "Default Title",
+                    "selectedOptions": [
+                      {
+                        "name": "Title",
+                        "value": "Default Title"
+                      }
+                    ]
+                  },
+                  "requiresShipping": true
+                },
+                "isActive": true
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

@@ -5,7 +5,7 @@ import path, { resolve } from 'node:path';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { classifyParityScenarioState, type ParitySpec } from '../../scripts/conformance-parity-lib.js';
+import { classifyParityScenarioState, type ParitySpec } from '../../scripts/conformance-parity-spec.js';
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 import { createApp } from '../support/runtime.js';
 import type { AppConfig } from '../../src/config.js';

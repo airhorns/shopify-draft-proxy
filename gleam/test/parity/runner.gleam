@@ -18,55 +18,29 @@
 
 import gleam/dict.{type Dict}
 import gleam/int
+import gleam/io
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleam/set
 import gleam/string
+import parity/cassette
 import parity/diff.{type Mismatch}
-import parity/json_value.{
-  type JsonValue, JArray, JBool, JFloat, JInt, JNull, JObject, JString,
-}
+import parity/json_value.{type JsonValue, JArray, JObject, JString}
 import parity/jsonpath
 import parity/spec.{
-  type Spec, type Target, NoVariables, OverrideRequest, ReusePrimary,
+  type Spec, type Target, LiveHybridMode, NoVariables, OverrideRequest, ProxyLog,
+  ProxyResponse, ProxyState, ReusePrimary, SnapshotEmptyMode,
   VariablesFromCapture, VariablesFromFile, VariablesInline,
 }
-import shopify_draft_proxy/proxy/draft_proxy.{
-  type DraftProxy, type Response, Request,
+import shopify_draft_proxy/graphql/parse_operation.{
+  type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
 }
-import shopify_draft_proxy/state/store as store_mod
-import shopify_draft_proxy/state/synthetic_identity
-import shopify_draft_proxy/state/types.{
-  type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord,
-  type MetaobjectCapabilitiesRecord, type MetaobjectDefinitionCapabilitiesRecord,
-  type MetaobjectDefinitionCapabilityRecord, type MetaobjectDefinitionRecord,
-  type MetaobjectDefinitionTypeRecord, type MetaobjectFieldDefinitionRecord,
-  type MetaobjectFieldDefinitionReferenceRecord,
-  type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
-  type MetaobjectJsonValue, type MetaobjectRecord,
-  type MetaobjectStandardTemplateRecord, type Money, type PaymentSettingsRecord,
-  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
-  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
-  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
-  type ShopifyFunctionRecord, GiftCardConfigurationRecord,
-  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
-  MetaobjectBool, MetaobjectCapabilitiesRecord,
-  MetaobjectDefinitionCapabilitiesRecord, MetaobjectDefinitionCapabilityRecord,
-  MetaobjectDefinitionRecord, MetaobjectDefinitionTypeRecord,
-  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
-  MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
-  MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
-  MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
-  MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
-  MetaobjectStandardTemplateRecord, MetaobjectString, Money,
-  PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
-  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
-  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
-  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
-  ShopifyFunctionRecord,
-}
+import shopify_draft_proxy/proxy/draft_proxy.{type DraftProxy, type Response}
+import shopify_draft_proxy/proxy/operation_registry
+import shopify_draft_proxy/proxy/operation_registry_data
+import shopify_draft_proxy/proxy/proxy_state.{Config, LiveHybrid, Request}
 import simplifile
 
 pub type RunError {
@@ -76,6 +50,12 @@ pub type RunError {
   JsonError(path: String, reason: String)
   /// Spec was malformed.
   SpecError(reason: String)
+  /// Spec is in `LiveHybridMode` but the referenced capture file does
+  /// not carry an `upstreamCalls` cassette. The scenario hasn't been
+  /// migrated to cassette playback yet — re-record with
+  /// `pnpm parity:record <scenario-id>`. The parity-test gate treats
+  /// this as a "skipped" outcome, not a failure.
+  SpecNotMigrated(spec_path: String, reason: String)
   /// Variables JSONPath did not resolve.
   VariablesUnresolved(path: String)
   /// `fromPrimaryProxyPath` substitution path didn't resolve.
@@ -103,20 +83,54 @@ pub type TargetReport {
   )
 }
 
+/// Operation that was actually executed against the proxy during a
+/// scenario run. Mirrors the TS `ExecutedOperation` type the runner
+/// builds in `executeGraphQLAgainstLocalProxy`.
+pub type ExecutedOperation {
+  ExecutedOperation(
+    type_: GraphQLOperationType,
+    name: Option(String),
+    root_fields: List(String),
+  )
+}
+
 pub type Report {
-  Report(scenario_id: String, targets: List(TargetReport))
+  Report(
+    scenario_id: String,
+    targets: List(TargetReport),
+    operation_name_errors: List(String),
+  )
 }
 
 pub type RunnerConfig {
-  RunnerConfig(repo_root: String)
+  /// `repo_root` resolves spec/capture/document paths.
+  /// `debug` flips on per-request, per-cassette-call, and per-target
+  /// assertion logging to stderr — verbose, but lets you see exactly
+  /// what the proxy did and which cassette entries it consulted while
+  /// debugging a single scenario.
+  RunnerConfig(repo_root: String, debug: Bool)
 }
 
 pub fn default_config() -> RunnerConfig {
-  RunnerConfig(repo_root: "..")
+  RunnerConfig(repo_root: "..", debug: False)
+}
+
+/// Flip the runner's debug flag on. Pair with `run_with_config` for a
+/// single noisy scenario run while debugging a parity diff.
+pub fn with_debug(config: RunnerConfig) -> RunnerConfig {
+  RunnerConfig(..config, debug: True)
 }
 
 pub fn run(spec_path: String) -> Result(Report, RunError) {
   run_with_config(default_config(), spec_path)
+}
+
+/// Convenience: run a single spec with debug logging on. Prints the
+/// spec mode, cassette entry count, every GraphQL request/response,
+/// every cassette match/miss, and per-target assertion results to
+/// stderr. Cheaper to call than wiring `with_debug` from a test file.
+pub fn run_debug(spec_path: String) -> Result(Report, RunError) {
+  run_with_config(with_debug(default_config()), spec_path)
 }
 
 pub fn run_with_config(
@@ -125,7 +139,15 @@ pub fn run_with_config(
 ) -> Result(Report, RunError) {
   use spec_source <- result.try(read_file(resolve(config, spec_path)))
   use parsed <- result.try(parse_spec(spec_source))
-  use capture <- result.try(load_capture(config, parsed))
+  let capture_path = resolve(config, parsed.capture_file)
+  use capture_source <- result.try(read_file(capture_path))
+  use capture <- result.try(parse_json(capture_path, capture_source))
+  use proxy <- result.try(build_proxy_for_mode(
+    spec_path,
+    parsed,
+    capture_source,
+    config.debug,
+  ))
   use primary_doc <- result.try(
     read_file(resolve(config, parsed.proxy_request.document_path)),
   )
@@ -138,955 +160,175 @@ pub fn run_with_config(
     dict.new(),
     "<primary>",
   ))
-  let proxy = draft_proxy.new()
-  let proxy = seed_capture_preconditions(parsed, capture, proxy)
-  use #(primary_response, proxy) <- result.try(execute(
+  let primary_vars = replace_customer_one_variables(capture, primary_vars)
+  use #(primary_response, proxy, primary_op) <- result.try(execute(
     proxy,
     primary_doc,
     primary_vars,
     "<primary>",
+    parsed.proxy_request.api_version,
+    config.debug,
   ))
   use primary_value <- result.try(parse_response_body(primary_response))
-  use #(_proxy, target_reports) <- result.try(run_targets(
+  use #(_proxy, target_reports, target_ops) <- result.try(run_targets(
     config,
     parsed,
     capture,
     primary_value,
     proxy,
   ))
-  Ok(Report(scenario_id: parsed.scenario_id, targets: target_reports))
+  let executed_operations = [primary_op, ..target_ops]
+  let operation_name_errors =
+    validate_operation_names(parsed, executed_operations)
+  Ok(Report(
+    scenario_id: parsed.scenario_id,
+    targets: target_reports,
+    operation_name_errors: operation_name_errors,
+  ))
 }
 
-fn seed_capture_preconditions(
+/// Build the `DraftProxy` instance the runner drives the spec through,
+/// configured for the spec's parity `mode`:
+///
+/// - `LiveHybridMode` — installs the cassette transport recorded in
+///   `capture.upstreamCalls` and switches `read_mode` to `LiveHybrid`,
+///   so handler-issued upstream calls (via `proxy/upstream_query`) are
+///   served deterministically from the cassette. If the capture has no
+///   `upstreamCalls` (or it is malformed), returns `SpecNotMigrated` so
+///   the parity-test gate can treat the spec as awaiting migration
+///   rather than as a real failure.
+/// - `SnapshotEmptyMode` — runs against an empty `Snapshot`-mode proxy
+///   with no transport installed, asserting the proxy's cold-state
+///   behavior. Cassette is ignored even if present.
+fn build_proxy_for_mode(
+  spec_path: String,
   parsed: Spec,
-  capture: JsonValue,
-  proxy: DraftProxy,
-) -> DraftProxy {
-  case parsed.scenario_id {
-    "gift-card-search-filters" ->
-      seed_gift_card_lifecycle_preconditions(capture, proxy)
-    "functions-owner-metadata-local-staging" ->
-      seed_shopify_function_preconditions(capture, proxy)
-    "shop-baseline-read"
-    | "shop-policy-update-parity"
-    | "admin-platform-store-property-node-reads" ->
-      seed_shop_preconditions(capture, proxy)
-    "metaobject-definitions-read"
-    | "metaobjects-read"
-    | "metaobject-entry-lifecycle-local-staging"
-    | "metaobject-reference-lifecycle"
-    | "metaobject-bulk-delete-type-lifecycle"
-    | "custom-data-metaobject-field-type-matrix" ->
-      seed_metaobject_preconditions(parsed.scenario_id, capture, proxy)
-    _ -> proxy
-  }
-}
-
-fn seed_metaobject_preconditions(
-  scenario_id: String,
-  capture: JsonValue,
-  proxy: DraftProxy,
-) -> DraftProxy {
-  let definitions = collect_metaobject_definitions(capture)
-  let metaobjects =
-    collect_metaobjects(capture)
-    |> filter_seed_metaobjects(scenario_id)
-  let seeded_store =
-    proxy.store
-    |> store_mod.upsert_base_metaobject_definitions(definitions)
-    |> store_mod.upsert_base_metaobjects(metaobjects)
-  draft_proxy.DraftProxy(..proxy, store: seeded_store)
-}
-
-fn filter_seed_metaobjects(
-  metaobjects: List(MetaobjectRecord),
-  scenario_id: String,
-) -> List(MetaobjectRecord) {
-  case scenario_id {
-    "custom-data-metaobject-field-type-matrix" ->
-      list.filter(metaobjects, fn(metaobject) {
-        !string.starts_with(metaobject.type_, "codex_har294_type_matrix_")
-      })
-    _ -> metaobjects
-  }
-}
-
-fn collect_metaobject_definitions(
-  value: JsonValue,
-) -> List(MetaobjectDefinitionRecord) {
-  let current = case make_seed_metaobject_definition(value) {
-    Ok(record) -> [record]
-    Error(_) -> []
-  }
-  list.append(current, collect_metaobject_definitions_nested(value))
-}
-
-fn collect_metaobject_definitions_nested(
-  value: JsonValue,
-) -> List(MetaobjectDefinitionRecord) {
-  case value {
-    JObject(fields) ->
-      list.flat_map(fields, fn(pair) { collect_metaobject_definitions(pair.1) })
-    JArray(items) -> list.flat_map(items, collect_metaobject_definitions)
-    _ -> []
-  }
-}
-
-fn collect_metaobjects(value: JsonValue) -> List(MetaobjectRecord) {
-  let current = case make_seed_metaobject(value) {
-    Ok(record) -> [record]
-    Error(_) -> []
-  }
-  list.append(current, collect_metaobjects_nested(value))
-}
-
-fn collect_metaobjects_nested(value: JsonValue) -> List(MetaobjectRecord) {
-  case value {
-    JObject(fields) ->
-      list.flat_map(fields, fn(pair) { collect_metaobjects(pair.1) })
-    JArray(items) -> list.flat_map(items, collect_metaobjects)
-    _ -> []
-  }
-}
-
-fn make_seed_metaobject_definition(
-  source: JsonValue,
-) -> Result(MetaobjectDefinitionRecord, Nil) {
-  use id <- result.try(required_string_field(source, "id"))
-  case string.starts_with(id, "gid://shopify/MetaobjectDefinition/") {
-    False -> Error(Nil)
-    True -> {
-      use type_ <- result.try(required_string_field(source, "type"))
-      Ok(MetaobjectDefinitionRecord(
-        id: id,
-        type_: type_,
-        name: read_string_field(source, "name"),
-        description: read_string_field(source, "description"),
-        display_name_key: read_string_field(source, "displayNameKey"),
-        access: read_metaobject_access(read_object_field(source, "access")),
-        capabilities: read_metaobject_definition_capabilities(read_object_field(
-          source,
-          "capabilities",
-        )),
-        field_definitions: read_metaobject_field_definitions(
-          read_array_field(source, "fieldDefinitions") |> option.unwrap([]),
-        ),
-        has_thumbnail_field: read_bool_field(source, "hasThumbnailField"),
-        metaobjects_count: read_int_field(source, "metaobjectsCount"),
-        standard_template: read_metaobject_standard_template(read_object_field(
-          source,
-          "standardTemplate",
-        )),
-        created_at: read_string_field(source, "createdAt"),
-        updated_at: read_string_field(source, "updatedAt"),
-      ))
+  capture_source: String,
+  debug: Bool,
+) -> Result(DraftProxy, RunError) {
+  case parsed.mode {
+    SnapshotEmptyMode -> {
+      case debug {
+        True ->
+          io.println_error(
+            "[runner] mode=snapshot-empty scenario=" <> parsed.scenario_id,
+          )
+        False -> Nil
+      }
+      Ok(draft_proxy.new())
     }
-  }
-}
-
-fn make_seed_metaobject(source: JsonValue) -> Result(MetaobjectRecord, Nil) {
-  use id <- result.try(required_string_field(source, "id"))
-  case string.starts_with(id, "gid://shopify/Metaobject/") {
-    False -> Error(Nil)
-    True -> {
-      use handle <- result.try(required_string_field(source, "handle"))
-      use type_ <- result.try(required_string_field(source, "type"))
-      Ok(MetaobjectRecord(
-        id: id,
-        handle: handle,
-        type_: type_,
-        display_name: read_string_field(source, "displayName"),
-        fields: read_metaobject_fields(
-          read_array_field(source, "fields") |> option.unwrap([]),
-        ),
-        capabilities: read_metaobject_capabilities(read_object_field(
-          source,
-          "capabilities",
-        )),
-        created_at: read_string_field(source, "createdAt"),
-        updated_at: read_string_field(source, "updatedAt"),
-      ))
-    }
-  }
-}
-
-fn read_metaobject_access(
-  source: Option(JsonValue),
-) -> dict.Dict(String, Option(String)) {
-  let base =
-    dict.from_list([
-      #("admin", Some("PUBLIC_READ_WRITE")),
-      #("storefront", Some("NONE")),
-    ])
-  case source {
-    Some(JObject(fields)) ->
-      list.fold(fields, base, fn(acc, pair) {
-        case pair.1 {
-          JString(value) -> dict.insert(acc, pair.0, Some(value))
-          JNull -> dict.insert(acc, pair.0, None)
-          _ -> acc
+    LiveHybridMode -> {
+      case cassette.parse_calls_from_capture(capture_source) {
+        Error(_) ->
+          Error(SpecNotMigrated(
+            spec_path: spec_path,
+            reason: "capture has no `upstreamCalls` field (or it is "
+              <> "malformed); run `pnpm parity:record "
+              <> parsed.scenario_id
+              <> "` to record upstream traffic. An empty array is "
+              <> "valid for mutation-only scenarios.",
+          ))
+        Ok(entries) -> {
+          let transport = case debug {
+            True -> {
+              io.println_error(
+                "[runner] mode=live-hybrid scenario="
+                <> parsed.scenario_id
+                <> " cassette_entries="
+                <> int.to_string(cassette.entry_count(entries)),
+              )
+              cassette.make_logging_transport(entries)
+            }
+            False -> cassette.make_transport(entries)
+          }
+          let proxy =
+            draft_proxy.with_config(Config(
+              read_mode: LiveHybrid,
+              port: 4000,
+              shopify_admin_origin: "https://shopify.com",
+              snapshot_path: None,
+            ))
+            |> draft_proxy.with_default_registry()
+            |> draft_proxy.with_upstream_transport(transport)
+          Ok(proxy)
         }
-      })
-    _ -> base
-  }
-}
-
-fn read_metaobject_definition_capabilities(
-  source: Option(JsonValue),
-) -> MetaobjectDefinitionCapabilitiesRecord {
-  MetaobjectDefinitionCapabilitiesRecord(
-    publishable: read_metaobject_definition_capability(source, "publishable"),
-    translatable: read_metaobject_definition_capability(source, "translatable"),
-    renderable: read_metaobject_definition_capability(source, "renderable"),
-    online_store: read_metaobject_definition_capability(source, "onlineStore"),
-  )
-}
-
-fn read_metaobject_definition_capability(
-  source: Option(JsonValue),
-  key: String,
-) -> Option(MetaobjectDefinitionCapabilityRecord) {
-  case source {
-    Some(value) ->
-      case read_object_field(value, key) {
-        Some(capability) ->
-          Some(MetaobjectDefinitionCapabilityRecord(
-            read_bool_field(capability, "enabled") |> option.unwrap(False),
-          ))
-        None -> None
-      }
-    None -> None
-  }
-}
-
-fn read_metaobject_field_definitions(
-  values: List(JsonValue),
-) -> List(MetaobjectFieldDefinitionRecord) {
-  list.filter_map(values, fn(value) {
-    case make_seed_metaobject_field_definition(value) {
-      Ok(record) -> Ok(record)
-      Error(_) -> Error(Nil)
-    }
-  })
-}
-
-fn make_seed_metaobject_field_definition(
-  source: JsonValue,
-) -> Result(MetaobjectFieldDefinitionRecord, Nil) {
-  use key <- result.try(required_string_field(source, "key"))
-  use type_ <- result.try(
-    read_metaobject_type(read_object_field(source, "type")),
-  )
-  Ok(MetaobjectFieldDefinitionRecord(
-    key: key,
-    name: read_string_field(source, "name"),
-    description: read_string_field(source, "description"),
-    required: read_bool_field(source, "required"),
-    type_: type_,
-    validations: read_metaobject_validations(
-      read_array_field(source, "validations") |> option.unwrap([]),
-    ),
-  ))
-}
-
-fn read_metaobject_type(
-  source: Option(JsonValue),
-) -> Result(MetaobjectDefinitionTypeRecord, Nil) {
-  case source {
-    Some(value) -> {
-      use name <- result.try(required_string_field(value, "name"))
-      Ok(MetaobjectDefinitionTypeRecord(
-        name: name,
-        category: read_string_field(value, "category"),
-      ))
-    }
-    None -> Error(Nil)
-  }
-}
-
-fn read_metaobject_validations(
-  values: List(JsonValue),
-) -> List(MetaobjectFieldDefinitionValidationRecord) {
-  list.filter_map(values, fn(value) {
-    case read_string_field(value, "name") {
-      Some(name) ->
-        Ok(MetaobjectFieldDefinitionValidationRecord(
-          name,
-          read_string_field(value, "value"),
-        ))
-      None -> Error(Nil)
-    }
-  })
-}
-
-fn read_metaobject_standard_template(
-  source: Option(JsonValue),
-) -> Option(MetaobjectStandardTemplateRecord) {
-  case source {
-    Some(value) ->
-      Some(MetaobjectStandardTemplateRecord(
-        read_string_field(value, "type"),
-        read_string_field(value, "name"),
-      ))
-    None -> None
-  }
-}
-
-fn read_metaobject_fields(
-  values: List(JsonValue),
-) -> List(MetaobjectFieldRecord) {
-  list.filter_map(values, fn(value) {
-    case make_seed_metaobject_field(value) {
-      Ok(record) -> Ok(record)
-      Error(_) -> Error(Nil)
-    }
-  })
-}
-
-fn make_seed_metaobject_field(
-  source: JsonValue,
-) -> Result(MetaobjectFieldRecord, Nil) {
-  use key <- result.try(required_string_field(source, "key"))
-  Ok(MetaobjectFieldRecord(
-    key: key,
-    type_: read_string_field(source, "type"),
-    value: read_string_field(source, "value"),
-    json_value: case json_value.field(source, "jsonValue") {
-      Some(value) -> json_to_metaobject_value(value)
-      None -> MetaobjectNull
-    },
-    definition: read_metaobject_field_reference(read_object_field(
-      source,
-      "definition",
-    )),
-  ))
-}
-
-fn read_metaobject_field_reference(
-  source: Option(JsonValue),
-) -> Option(MetaobjectFieldDefinitionReferenceRecord) {
-  case source {
-    Some(value) -> {
-      case
-        required_string_field(value, "key"),
-        read_metaobject_type(read_object_field(value, "type"))
-      {
-        Ok(key), Ok(type_) ->
-          Some(MetaobjectFieldDefinitionReferenceRecord(
-            key: key,
-            name: read_string_field(value, "name"),
-            required: read_bool_field(value, "required"),
-            type_: type_,
-          ))
-        _, _ -> None
       }
     }
-    None -> None
   }
 }
 
-fn read_metaobject_capabilities(
-  source: Option(JsonValue),
-) -> MetaobjectCapabilitiesRecord {
-  let publishable = case source {
-    Some(value) ->
-      case read_object_field(value, "publishable") {
-        Some(p) ->
-          Some(
-            MetaobjectPublishableCapabilityRecord(read_string_field(p, "status")),
-          )
-        None -> None
-      }
-    None -> None
-  }
-  let online_store = case source {
-    Some(value) ->
-      case read_object_field(value, "onlineStore") {
-        Some(online) ->
-          Some(
-            MetaobjectOnlineStoreCapabilityRecord(read_string_field(
-              online,
-              "templateSuffix",
-            )),
-          )
-        None -> None
-      }
-    None -> None
-  }
-  MetaobjectCapabilitiesRecord(publishable, online_store)
+fn collect_objects(value: JsonValue) -> List(JsonValue) {
+  do_collect_objects([value], []) |> list.reverse
 }
 
-fn json_to_metaobject_value(value: JsonValue) -> MetaobjectJsonValue {
-  case value {
-    JNull -> MetaobjectNull
-    JBool(value) -> MetaobjectBool(value)
-    JInt(value) -> MetaobjectInt(value)
-    JFloat(value) -> MetaobjectFloat(value)
-    JString(value) -> MetaobjectString(value)
-    JArray(items) -> MetaobjectList(list.map(items, json_to_metaobject_value))
-    JObject(fields) ->
-      MetaobjectObject(
-        list.map(fields, fn(pair) {
-          #(pair.0, json_to_metaobject_value(pair.1))
-        })
-        |> dict.from_list,
-      )
+fn do_collect_objects(
+  stack: List(JsonValue),
+  acc: List(JsonValue),
+) -> List(JsonValue) {
+  case stack {
+    [] -> acc
+    [JObject(entries) as obj, ..rest] -> {
+      let next =
+        list.fold(list.reverse(entries), rest, fn(s, pair) { [pair.1, ..s] })
+      do_collect_objects(next, [obj, ..acc])
+    }
+    [JArray(items), ..rest] -> {
+      let next =
+        list.fold(list.reverse(items), rest, fn(s, item) { [item, ..s] })
+      do_collect_objects(next, acc)
+    }
+    [_, ..rest] -> do_collect_objects(rest, acc)
   }
 }
 
-fn seed_shop_preconditions(
+fn replace_customer_one_variables(
   capture: JsonValue,
-  proxy: DraftProxy,
-) -> DraftProxy {
-  case jsonpath.lookup(capture, "$.readOnlyBaselines.shop.data.shop") {
-    Some(shop_json) ->
-      case make_seed_shop(shop_json) {
-        Ok(shop) ->
-          draft_proxy.DraftProxy(
-            ..proxy,
-            store: store_mod.upsert_base_shop(proxy.store, shop),
-          )
-        Error(_) -> proxy
-      }
-    None -> proxy
+  variables: JsonValue,
+) -> JsonValue {
+  case first_customer_gid(capture) {
+    Some(customer_id) -> replace_customer_one_value(variables, customer_id)
+    None -> variables
   }
 }
 
-fn make_seed_shop(source: JsonValue) -> Result(ShopRecord, Nil) {
-  use id <- result.try(required_string_field(source, "id"))
-  use name <- result.try(required_string_field(source, "name"))
-  use myshopify_domain <- result.try(required_string_field(
-    source,
-    "myshopifyDomain",
-  ))
-  use url <- result.try(required_string_field(source, "url"))
-  use primary_domain <- result.try(
-    make_seed_shop_domain(read_object_field(source, "primaryDomain")),
-  )
-  use shop_address <- result.try(
-    make_seed_shop_address(read_object_field(source, "shopAddress")),
-  )
-  use plan <- result.try(make_seed_shop_plan(read_object_field(source, "plan")))
-  use resource_limits <- result.try(
-    make_seed_resource_limits(read_object_field(source, "resourceLimits")),
-  )
-  use features <- result.try(
-    make_seed_shop_features(read_object_field(source, "features")),
-  )
-  let payment_settings =
-    make_seed_payment_settings(read_object_field(source, "paymentSettings"))
-  let policies =
-    read_array_field(source, "shopPolicies")
-    |> option.unwrap([])
-    |> list.filter_map(make_seed_shop_policy)
-  Ok(ShopRecord(
-    id: id,
-    name: name,
-    myshopify_domain: myshopify_domain,
-    url: url,
-    primary_domain: primary_domain,
-    contact_email: read_string_field(source, "contactEmail")
-      |> option.unwrap(""),
-    email: read_string_field(source, "email") |> option.unwrap(""),
-    currency_code: read_string_field(source, "currencyCode")
-      |> option.unwrap(""),
-    enabled_presentment_currencies: read_string_array_field(
-      source,
-      "enabledPresentmentCurrencies",
-    ),
-    iana_timezone: read_string_field(source, "ianaTimezone")
-      |> option.unwrap(""),
-    timezone_abbreviation: read_string_field(source, "timezoneAbbreviation")
-      |> option.unwrap(""),
-    timezone_offset: read_string_field(source, "timezoneOffset")
-      |> option.unwrap(""),
-    timezone_offset_minutes: read_int_field(source, "timezoneOffsetMinutes")
-      |> option.unwrap(0),
-    taxes_included: read_bool_field(source, "taxesIncluded")
-      |> option.unwrap(False),
-    tax_shipping: read_bool_field(source, "taxShipping")
-      |> option.unwrap(False),
-    unit_system: read_string_field(source, "unitSystem") |> option.unwrap(""),
-    weight_unit: read_string_field(source, "weightUnit") |> option.unwrap(""),
-    shop_address: shop_address,
-    plan: plan,
-    resource_limits: resource_limits,
-    features: features,
-    payment_settings: payment_settings,
-    shop_policies: policies,
-  ))
-}
-
-fn make_seed_shop_domain(
-  source: Option(JsonValue),
-) -> Result(ShopDomainRecord, Nil) {
-  case source {
-    Some(value) -> {
-      use id <- result.try(required_string_field(value, "id"))
-      use host <- result.try(required_string_field(value, "host"))
-      use url <- result.try(required_string_field(value, "url"))
-      Ok(ShopDomainRecord(
-        id: id,
-        host: host,
-        url: url,
-        ssl_enabled: read_bool_field(value, "sslEnabled")
-          |> option.unwrap(False),
-      ))
-    }
-    None -> Error(Nil)
-  }
-}
-
-fn make_seed_shop_address(
-  source: Option(JsonValue),
-) -> Result(ShopAddressRecord, Nil) {
-  case source {
-    Some(value) -> {
-      use id <- result.try(required_string_field(value, "id"))
-      Ok(ShopAddressRecord(
-        id: id,
-        address1: read_string_field(value, "address1"),
-        address2: read_string_field(value, "address2"),
-        city: read_string_field(value, "city"),
-        company: read_string_field(value, "company"),
-        coordinates_validated: read_bool_field(value, "coordinatesValidated")
-          |> option.unwrap(False),
-        country: read_string_field(value, "country"),
-        country_code_v2: read_string_field(value, "countryCodeV2"),
-        formatted: read_string_array_field(value, "formatted"),
-        formatted_area: read_string_field(value, "formattedArea"),
-        latitude: read_float_field(value, "latitude"),
-        longitude: read_float_field(value, "longitude"),
-        phone: read_string_field(value, "phone"),
-        province: read_string_field(value, "province"),
-        province_code: read_string_field(value, "provinceCode"),
-        zip: read_string_field(value, "zip"),
-      ))
-    }
-    None -> Error(Nil)
-  }
-}
-
-fn make_seed_shop_plan(
-  source: Option(JsonValue),
-) -> Result(ShopPlanRecord, Nil) {
-  case source {
-    Some(value) ->
-      Ok(ShopPlanRecord(
-        partner_development: read_bool_field(value, "partnerDevelopment")
-          |> option.unwrap(False),
-        public_display_name: read_string_field(value, "publicDisplayName")
-          |> option.unwrap(""),
-        shopify_plus: read_bool_field(value, "shopifyPlus")
-          |> option.unwrap(False),
-      ))
-    None -> Error(Nil)
-  }
-}
-
-fn make_seed_resource_limits(
-  source: Option(JsonValue),
-) -> Result(ShopResourceLimitsRecord, Nil) {
-  case source {
-    Some(value) ->
-      Ok(ShopResourceLimitsRecord(
-        location_limit: read_int_field(value, "locationLimit")
-          |> option.unwrap(0),
-        max_product_options: read_int_field(value, "maxProductOptions")
-          |> option.unwrap(0),
-        max_product_variants: read_int_field(value, "maxProductVariants")
-          |> option.unwrap(0),
-        redirect_limit_reached: read_bool_field(value, "redirectLimitReached")
-          |> option.unwrap(False),
-      ))
-    None -> Error(Nil)
-  }
-}
-
-fn make_seed_shop_features(
-  source: Option(JsonValue),
-) -> Result(ShopFeaturesRecord, Nil) {
-  case source {
-    Some(value) -> {
-      let bundles = case read_object_field(value, "bundles") {
-        Some(b) ->
-          ShopBundlesFeatureRecord(
-            eligible_for_bundles: read_bool_field(b, "eligibleForBundles")
-              |> option.unwrap(False),
-            ineligibility_reason: read_string_field(b, "ineligibilityReason"),
-            sells_bundles: read_bool_field(b, "sellsBundles")
-              |> option.unwrap(False),
-          )
-        None ->
-          ShopBundlesFeatureRecord(
-            eligible_for_bundles: False,
-            ineligibility_reason: None,
-            sells_bundles: False,
-          )
-      }
-      let operations = case
-        read_object_field(value, "cartTransform")
-        |> option.then(fn(cart) {
-          read_object_field(cart, "eligibleOperations")
-        })
-      {
-        Some(op) ->
-          ShopCartTransformEligibleOperationsRecord(
-            expand_operation: read_bool_field(op, "expandOperation")
-              |> option.unwrap(False),
-            merge_operation: read_bool_field(op, "mergeOperation")
-              |> option.unwrap(False),
-            update_operation: read_bool_field(op, "updateOperation")
-              |> option.unwrap(False),
-          )
-        None ->
-          ShopCartTransformEligibleOperationsRecord(
-            expand_operation: False,
-            merge_operation: False,
-            update_operation: False,
-          )
-      }
-      Ok(ShopFeaturesRecord(
-        avalara_avatax: read_bool_field(value, "avalaraAvatax")
-          |> option.unwrap(False),
-        branding: read_string_field(value, "branding") |> option.unwrap(""),
-        bundles: bundles,
-        captcha: read_bool_field(value, "captcha") |> option.unwrap(False),
-        cart_transform: ShopCartTransformFeatureRecord(
-          eligible_operations: operations,
-        ),
-        dynamic_remarketing: read_bool_field(value, "dynamicRemarketing")
-          |> option.unwrap(False),
-        eligible_for_subscription_migration: read_bool_field(
-          value,
-          "eligibleForSubscriptionMigration",
-        )
-          |> option.unwrap(False),
-        eligible_for_subscriptions: read_bool_field(
-          value,
-          "eligibleForSubscriptions",
-        )
-          |> option.unwrap(False),
-        gift_cards: read_bool_field(value, "giftCards") |> option.unwrap(False),
-        harmonized_system_code: read_bool_field(value, "harmonizedSystemCode")
-          |> option.unwrap(False),
-        legacy_subscription_gateway_enabled: read_bool_field(
-          value,
-          "legacySubscriptionGatewayEnabled",
-        )
-          |> option.unwrap(False),
-        live_view: read_bool_field(value, "liveView") |> option.unwrap(False),
-        paypal_express_subscription_gateway_status: read_string_field(
-          value,
-          "paypalExpressSubscriptionGatewayStatus",
-        )
-          |> option.unwrap(""),
-        reports: read_bool_field(value, "reports") |> option.unwrap(False),
-        sells_subscriptions: read_bool_field(value, "sellsSubscriptions")
-          |> option.unwrap(False),
-        show_metrics: read_bool_field(value, "showMetrics")
-          |> option.unwrap(False),
-        storefront: read_bool_field(value, "storefront") |> option.unwrap(False),
-        unified_markets: read_bool_field(value, "unifiedMarkets")
-          |> option.unwrap(False),
-      ))
-    }
-    None -> Error(Nil)
-  }
-}
-
-fn make_seed_payment_settings(
-  source: Option(JsonValue),
-) -> PaymentSettingsRecord {
-  PaymentSettingsRecord(supported_digital_wallets: case source {
-    Some(value) -> read_string_array_field(value, "supportedDigitalWallets")
-    None -> []
-  })
-}
-
-fn make_seed_shop_policy(source: JsonValue) -> Result(ShopPolicyRecord, Nil) {
-  use id <- result.try(required_string_field(source, "id"))
-  use title <- result.try(required_string_field(source, "title"))
-  use body <- result.try(required_string_field(source, "body"))
-  use type_ <- result.try(required_string_field(source, "type"))
-  use url <- result.try(required_string_field(source, "url"))
-  use created_at <- result.try(required_string_field(source, "createdAt"))
-  use updated_at <- result.try(required_string_field(source, "updatedAt"))
-  Ok(ShopPolicyRecord(
-    id: id,
-    title: title,
-    body: body,
-    type_: type_,
-    url: url,
-    created_at: created_at,
-    updated_at: updated_at,
-  ))
-}
-
-fn seed_shopify_function_preconditions(
-  capture: JsonValue,
-  proxy: DraftProxy,
-) -> DraftProxy {
-  let records = case jsonpath.lookup(capture, "$.seedShopifyFunctions") {
-    Some(JArray(nodes)) -> list.filter_map(nodes, make_seed_shopify_function)
-    _ -> []
-  }
-
-  let seeded_store =
-    list.fold(records, proxy.store, fn(current_store, record) {
-      let #(_, next_store) =
-        store_mod.upsert_staged_shopify_function(current_store, record)
-      next_store
-    })
-
-  // The local-runtime fixture was captured after the function metadata
-  // seed step had advanced the synthetic counters once.
-  let #(_, identity_after_id) =
-    synthetic_identity.make_synthetic_gid(
-      proxy.synthetic_identity,
-      "MutationLogEntry",
-    )
-  let #(_, identity_after_seed) =
-    synthetic_identity.make_synthetic_timestamp(identity_after_id)
-
-  draft_proxy.DraftProxy(
-    ..proxy,
-    store: seeded_store,
-    synthetic_identity: identity_after_seed,
-  )
-}
-
-fn make_seed_shopify_function(
-  source: JsonValue,
-) -> Result(ShopifyFunctionRecord, Nil) {
-  use id <- result.try(required_string_field(source, "id"))
-  Ok(
-    ShopifyFunctionRecord(
-      id: id,
-      title: read_string_field(source, "title"),
-      handle: read_string_field(source, "handle"),
-      api_type: read_string_field(source, "apiType"),
-      description: read_string_field(source, "description"),
-      app_key: read_string_field(source, "appKey"),
-      app: case read_object_field(source, "app") {
-        Some(app) -> Some(make_seed_shopify_function_app(app))
-        None -> None
-      },
-    ),
-  )
-}
-
-fn make_seed_shopify_function_app(
-  source: JsonValue,
-) -> ShopifyFunctionAppRecord {
-  ShopifyFunctionAppRecord(
-    typename: read_string_field(source, "__typename"),
-    id: read_string_field(source, "id"),
-    title: read_string_field(source, "title"),
-    handle: read_string_field(source, "handle"),
-    api_key: read_string_field(source, "apiKey"),
-  )
-}
-
-fn seed_gift_card_lifecycle_preconditions(
-  capture: JsonValue,
-  proxy: DraftProxy,
-) -> DraftProxy {
-  let records =
-    [
-      jsonpath.lookup(
-        capture,
-        "$.operations.create.response.payload.data.giftCardCreate.giftCard",
-      ),
-      jsonpath.lookup(
-        capture,
-        "$.create.response.payload.data.giftCardCreate.giftCard",
-      ),
-    ]
-    |> list.filter_map(fn(candidate) {
-      case candidate {
-        Some(value) -> make_seed_gift_card(value, Some("api_client"))
+fn first_customer_gid(value: JsonValue) -> Option(String) {
+  let found =
+    collect_objects(value)
+    |> list.find_map(fn(object) {
+      case read_string_field(object, "id") {
+        Some(id) ->
+          case string.contains(id, "gid://shopify/Customer/") {
+            True -> Ok(id)
+            False -> Error(Nil)
+          }
         None -> Error(Nil)
       }
     })
-
-  let empty_read_records = case
-    jsonpath.lookup(
-      capture,
-      "$.operations.emptyRead.response.payload.data.giftCards.nodes",
-    )
-  {
-    Some(JArray(nodes)) ->
-      list.filter_map(nodes, fn(node) { make_seed_gift_card(node, None) })
-    _ -> []
-  }
-
-  let records = list.append(records, empty_read_records)
-  let seeded_store = case records {
-    [] -> proxy.store
-    _ -> store_mod.upsert_base_gift_cards(proxy.store, records)
-  }
-  let seeded_store = case seed_gift_card_configuration(capture) {
-    Some(configuration) ->
-      store_mod.upsert_base_gift_card_configuration(seeded_store, configuration)
-    None -> seeded_store
-  }
-  draft_proxy.DraftProxy(..proxy, store: seeded_store)
-}
-
-fn make_seed_gift_card(
-  source: JsonValue,
-  source_override: Option(String),
-) -> Result(GiftCardRecord, Nil) {
-  use id <- result.try(required_string_field(source, "id"))
-  case string.starts_with(id, "gid://shopify/GiftCard/") {
-    False -> Error(Nil)
-    True -> {
-      let last_characters =
-        read_string_field(source, "lastCharacters")
-        |> option.unwrap(gift_card_tail(id))
-      let initial_value =
-        read_money_record(read_object_field(source, "initialValue"))
-      let balance =
-        read_money_record(
-          read_object_field(source, "balance")
-          |> option.or(read_object_field(source, "initialValue")),
-        )
-      let recipient_attributes_source =
-        read_object_field(source, "recipientAttributes")
-      let recipient_source =
-        recipient_attributes_source
-        |> option.then(read_object_field(_, "recipient"))
-      let recipient_id =
-        read_string_field_from_option(recipient_source, "id")
-        |> option.or(read_string_field_from_option(
-          read_object_field(source, "recipient"),
-          "id",
-        ))
-      let transactions =
-        read_transactions(read_object_field(source, "transactions"))
-      Ok(GiftCardRecord(
-        id: id,
-        legacy_resource_id: read_string_field(source, "legacyResourceId")
-          |> option.unwrap(gift_card_tail(id)),
-        last_characters: last_characters,
-        masked_code: read_string_field(source, "maskedCode")
-          |> option.unwrap(masked_code(last_characters)),
-        enabled: read_bool_field(source, "enabled") |> option.unwrap(True),
-        deactivated_at: read_string_field(source, "deactivatedAt"),
-        expires_on: read_string_field(source, "expiresOn"),
-        note: read_string_field(source, "note"),
-        template_suffix: read_string_field(source, "templateSuffix"),
-        created_at: read_string_field(source, "createdAt")
-          |> option.unwrap("2026-01-01T00:00:00Z"),
-        updated_at: read_string_field(source, "updatedAt")
-          |> option.unwrap("2026-01-01T00:00:00Z"),
-        initial_value: initial_value,
-        balance: balance,
-        customer_id: read_string_field_from_option(
-          read_object_field(source, "customer"),
-          "id",
-        ),
-        recipient_id: recipient_id,
-        source: case source_override {
-          Some(_) -> source_override
-          None -> read_string_field(source, "source")
-        },
-        recipient_attributes: make_seed_recipient_attributes(
-          recipient_attributes_source,
-          recipient_id,
-        ),
-        transactions: transactions,
-      ))
-    }
+  case found {
+    Ok(id) -> Some(id)
+    Error(_) -> None
   }
 }
 
-fn seed_gift_card_configuration(
-  capture: JsonValue,
-) -> Option(GiftCardConfigurationRecord) {
-  let primary =
-    jsonpath.lookup(
-      capture,
-      "$.operations.configurationRead.response.payload.data.giftCardConfiguration",
-    )
-  let fallback =
-    jsonpath.lookup(
-      capture,
-      "$.configurationRead.response.payload.data.giftCardConfiguration",
-    )
-  case primary |> option.or(fallback) {
-    Some(value) ->
-      Some(GiftCardConfigurationRecord(
-        issue_limit: read_money_record(read_object_field(value, "issueLimit")),
-        purchase_limit: read_money_record(read_object_field(
-          value,
-          "purchaseLimit",
-        )),
-      ))
-    None -> None
-  }
-}
-
-fn make_seed_recipient_attributes(
-  source: Option(JsonValue),
-  recipient_id: Option(String),
-) -> Option(GiftCardRecipientAttributesRecord) {
-  case source {
-    None -> None
-    Some(value) ->
-      Some(GiftCardRecipientAttributesRecord(
-        id: recipient_id,
-        message: read_string_field(value, "message"),
-        preferred_name: read_string_field(value, "preferredName"),
-        send_notification_at: read_string_field(value, "sendNotificationAt"),
-      ))
-  }
-}
-
-fn read_transactions(
-  source: Option(JsonValue),
-) -> List(GiftCardTransactionRecord) {
-  case source |> option.then(read_array_field(_, "nodes")) {
-    Some(nodes) ->
-      list.filter_map(nodes, fn(node) {
-        let amount = read_money_record(read_object_field(node, "amount"))
-        Ok(GiftCardTransactionRecord(
-          id: read_string_field(node, "id")
-            |> option.unwrap("gid://shopify/GiftCardTransaction/0"),
-          kind: case string.starts_with(amount.amount, "-") {
-            True -> "DEBIT"
-            False -> "CREDIT"
-          },
-          amount: amount,
-          processed_at: read_string_field(node, "processedAt")
-            |> option.unwrap("2026-01-01T00:00:00Z"),
-          note: read_string_field(node, "note"),
-        ))
-      })
-    None -> []
-  }
-}
-
-fn read_money_record(source: Option(JsonValue)) -> Money {
-  case source {
-    Some(value) ->
-      Money(
-        amount: read_string_field(value, "amount") |> option.unwrap("0.0"),
-        currency_code: read_string_field(value, "currencyCode")
-          |> option.unwrap("CAD"),
-      )
-    None -> Money(amount: "0.0", currency_code: "CAD")
-  }
-}
-
-fn required_string_field(
+fn replace_customer_one_value(
   value: JsonValue,
-  name: String,
-) -> Result(String, Nil) {
-  case read_string_field(value, name) {
-    Some(s) -> Ok(s)
-    None -> Error(Nil)
+  customer_id: String,
+) -> JsonValue {
+  case value {
+    JString("gid://shopify/Customer/1") -> JString(customer_id)
+    JObject(entries) ->
+      JObject(
+        list.map(entries, fn(pair) {
+          #(pair.0, replace_customer_one_value(pair.1, customer_id))
+        }),
+      )
+    JArray(items) ->
+      JArray(
+        list.map(items, fn(item) {
+          replace_customer_one_value(item, customer_id)
+        }),
+      )
+    other -> other
   }
 }
 
@@ -1097,94 +339,28 @@ fn read_string_field(value: JsonValue, name: String) -> Option(String) {
   }
 }
 
-fn read_string_field_from_option(
-  value: Option(JsonValue),
-  name: String,
-) -> Option(String) {
-  case value {
-    Some(v) -> read_string_field(v, name)
-    None -> None
-  }
-}
-
-fn read_bool_field(value: JsonValue, name: String) -> Option(Bool) {
-  case json_value.field(value, name) {
-    Some(JBool(b)) -> Some(b)
-    _ -> None
-  }
-}
-
-fn read_int_field(value: JsonValue, name: String) -> Option(Int) {
-  case json_value.field(value, name) {
-    Some(JInt(i)) -> Some(i)
-    _ -> None
-  }
-}
-
-fn read_float_field(value: JsonValue, name: String) -> Option(Float) {
-  case json_value.field(value, name) {
-    Some(JFloat(f)) -> Some(f)
-    Some(JInt(i)) -> Some(int.to_float(i))
-    _ -> None
-  }
-}
-
-fn read_string_array_field(value: JsonValue, name: String) -> List(String) {
-  case read_array_field(value, name) {
-    Some(items) ->
-      list.filter_map(items, fn(item) {
-        case item {
-          JString(s) -> Ok(s)
-          _ -> Error(Nil)
-        }
-      })
-    None -> []
-  }
-}
-
-fn read_object_field(value: JsonValue, name: String) -> Option(JsonValue) {
-  case json_value.field(value, name) {
-    Some(JObject(_)) as object -> object
-    _ -> None
-  }
-}
-
-fn read_array_field(value: JsonValue, name: String) -> Option(List(JsonValue)) {
-  case json_value.field(value, name) {
-    Some(JArray(items)) -> Some(items)
-    _ -> None
-  }
-}
-
-fn gift_card_tail(id: String) -> String {
-  case string.split(id, on: "/") |> list.last {
-    Ok(tail_with_query) ->
-      case string.split(tail_with_query, on: "?") {
-        [tail, ..] -> tail
-        [] -> id
-      }
-    Error(_) -> id
-  }
-}
-
-fn masked_code(last_characters: String) -> String {
-  "•••• •••• •••• " <> last_characters
-}
-
 fn run_targets(
   config: RunnerConfig,
   parsed: Spec,
   capture: JsonValue,
   primary_response: JsonValue,
   proxy: DraftProxy,
-) -> Result(#(DraftProxy, List(TargetReport)), RunError) {
+) -> Result(
+  #(DraftProxy, List(TargetReport), List(ExecutedOperation)),
+  RunError,
+) {
   list.try_fold(
     parsed.targets,
-    #(proxy, [], None, dict.new()),
+    #(proxy, [], None, dict.new(), []),
     fn(state, target) {
-      let #(current_proxy, acc_reports, previous_response, named_responses) =
-        state
-      use #(next_proxy, report) <- result.try(run_target(
+      let #(
+        current_proxy,
+        acc_reports,
+        previous_response,
+        named_responses,
+        acc_ops,
+      ) = state
+      use #(next_proxy, report, executed) <- result.try(run_target(
         config,
         parsed,
         target,
@@ -1194,17 +370,22 @@ fn run_targets(
         named_responses,
         current_proxy,
       ))
+      let next_ops = case executed {
+        Some(op) -> [op, ..acc_ops]
+        None -> acc_ops
+      }
       Ok(#(
         next_proxy,
         [report.0, ..acc_reports],
         Some(report.1),
         dict.insert(named_responses, target.name, report.1),
+        next_ops,
       ))
     },
   )
   |> result.map(fn(state) {
-    let #(final_proxy, reports, _, _) = state
-    #(final_proxy, list.reverse(reports))
+    let #(final_proxy, reports, _, _, ops) = state
+    #(final_proxy, list.reverse(reports), list.reverse(ops))
   })
 }
 
@@ -1217,26 +398,53 @@ fn run_target(
   previous_response: Option(JsonValue),
   named_responses: Dict(String, JsonValue),
   proxy: DraftProxy,
-) -> Result(#(DraftProxy, #(TargetReport, JsonValue)), RunError) {
-  use #(actual_response, next_proxy) <- result.try(actual_response_for(
-    config,
-    target,
-    capture,
-    primary_response,
-    previous_response,
-    named_responses,
-    proxy,
-  ))
+) -> Result(
+  #(DraftProxy, #(TargetReport, JsonValue), Option(ExecutedOperation)),
+  RunError,
+) {
+  use #(actual_response, next_proxy, executed) <- result.try(
+    actual_response_for(
+      config,
+      parsed,
+      target,
+      capture,
+      primary_response,
+      previous_response,
+      named_responses,
+      proxy,
+    ),
+  )
   let expected_opt = jsonpath.lookup(capture, target.capture_path)
   let actual_opt = jsonpath.lookup(actual_response, target.proxy_path)
   case expected_opt, actual_opt {
+    None, None -> {
+      log_target_assertion(config.debug, target, [], "no-op (paths absent)")
+      Ok(#(
+        next_proxy,
+        #(
+          TargetReport(
+            name: target.name,
+            capture_path: target.capture_path,
+            proxy_path: target.proxy_path,
+            mismatches: [],
+          ),
+          actual_response,
+        ),
+        executed,
+      ))
+    }
     None, _ ->
       Error(CaptureUnresolved(target: target.name, path: target.capture_path))
     _, None ->
       Error(ProxyUnresolved(target: target.name, path: target.proxy_path))
     Some(expected), Some(actual) -> {
       let rules = spec.rules_for(parsed, target)
-      let mismatches = diff.diff_with_expected(expected, actual, rules)
+      let mismatches = case target.selected_paths {
+        [] -> diff.compare_payloads(expected, actual, rules)
+        selected_paths ->
+          diff.compare_selected_paths(expected, actual, selected_paths, rules)
+      }
+      log_target_assertion(config.debug, target, mismatches, "compared")
       Ok(#(
         next_proxy,
         #(
@@ -1248,8 +456,50 @@ fn run_target(
           ),
           actual_response,
         ),
+        executed,
       ))
     }
+  }
+}
+
+/// Print the per-target assertion result. Truncates long mismatch
+/// values so the log stays scrollable. No-ops when debug is off.
+fn log_target_assertion(
+  debug: Bool,
+  target: Target,
+  mismatches: List(Mismatch),
+  note: String,
+) -> Nil {
+  case debug {
+    False -> Nil
+    True -> {
+      let count = list.length(mismatches)
+      let header =
+        "[runner] target="
+        <> target.name
+        <> " "
+        <> note
+        <> " mismatches="
+        <> int.to_string(count)
+      io.println_error(header)
+      list.each(mismatches, fn(m) {
+        io.println_error(
+          "         at "
+          <> m.path
+          <> "\n           expected: "
+          <> debug_truncate(m.expected, 200)
+          <> "\n           actual:   "
+          <> debug_truncate(m.actual, 200),
+        )
+      })
+    }
+  }
+}
+
+fn debug_truncate(value: String, max: Int) -> String {
+  case string.length(value) > max {
+    True -> string.slice(value, 0, max) <> "…"
+    False -> value
   }
 }
 
@@ -1259,37 +509,101 @@ fn run_target(
 /// request, threading proxy state forward.
 fn actual_response_for(
   config: RunnerConfig,
+  parsed: Spec,
   target: Target,
   capture: JsonValue,
   primary_response: JsonValue,
   previous_response: Option(JsonValue),
   named_responses: Dict(String, JsonValue),
   proxy: DraftProxy,
-) -> Result(#(JsonValue, DraftProxy), RunError) {
+) -> Result(#(JsonValue, DraftProxy, Option(ExecutedOperation)), RunError) {
   case target.request {
-    ReusePrimary -> Ok(#(primary_response, proxy))
-    OverrideRequest(request: request) -> {
-      use document <- result.try(
-        read_file(resolve(config, request.document_path)),
-      )
-      use variables <- result.try(resolve_variables(
-        config,
-        request.variables,
-        capture,
-        Some(primary_response),
-        previous_response,
-        named_responses,
-        target.name,
-      ))
-      use #(response, next_proxy) <- result.try(execute(
+    ReusePrimary -> {
+      use #(value, next_proxy) <- result.try(proxy_source_value(
+        target,
+        primary_response,
         proxy,
-        document,
-        variables,
-        target.name,
       ))
-      use value <- result.try(parse_response_body(response))
-      Ok(#(value, next_proxy))
+      Ok(#(value, next_proxy, None))
     }
+    OverrideRequest(request: request) -> {
+      case
+        target.upstream_capture_path,
+        override_request_uses_upstream_capture(parsed.scenario_id)
+      {
+        Some(path), True ->
+          case jsonpath.lookup(capture, path) {
+            Some(value) -> Ok(#(value, proxy, None))
+            None -> Error(CaptureUnresolved(target: target.name, path: path))
+          }
+        _, _ -> {
+          use document <- result.try(
+            read_file(resolve(config, request.document_path)),
+          )
+          use variables <- result.try(resolve_variables(
+            config,
+            request.variables,
+            capture,
+            Some(primary_response),
+            previous_response,
+            named_responses,
+            target.name,
+          ))
+          use #(response, next_proxy, executed) <- result.try(execute(
+            proxy,
+            document,
+            variables,
+            target.name,
+            request.api_version,
+            config.debug,
+          ))
+          use value <- result.try(parse_response_body(response))
+          use #(value, next_proxy) <- result.try(proxy_source_value(
+            target,
+            value,
+            next_proxy,
+          ))
+          Ok(#(value, next_proxy, Some(executed)))
+        }
+      }
+    }
+  }
+}
+
+fn proxy_source_value(
+  target: Target,
+  response_value: JsonValue,
+  proxy: DraftProxy,
+) -> Result(#(JsonValue, DraftProxy), RunError) {
+  case target.proxy_source {
+    ProxyResponse -> Ok(#(response_value, proxy))
+    ProxyState -> {
+      use state_value <- result.try(meta_response_value(proxy, "/__meta/state"))
+      Ok(#(state_value, proxy))
+    }
+    ProxyLog -> {
+      use log_value <- result.try(meta_response_value(proxy, "/__meta/log"))
+      Ok(#(log_value, proxy))
+    }
+  }
+}
+
+fn meta_response_value(
+  proxy: DraftProxy,
+  path: String,
+) -> Result(JsonValue, RunError) {
+  let #(response, _) =
+    draft_proxy.process_request(
+      proxy,
+      Request(method: "GET", path: path, headers: dict.new(), body: ""),
+    )
+  parse_response_body(response)
+}
+
+fn override_request_uses_upstream_capture(scenario_id: String) -> Bool {
+  case scenario_id {
+    "storefront-access-token-local-staging" -> False
+    _ -> True
   }
 }
 
@@ -1298,15 +612,6 @@ fn parse_spec(source: String) -> Result(Spec, RunError) {
     Ok(s) -> Ok(s)
     Error(_) -> Error(SpecError(reason: "could not decode parity spec"))
   }
-}
-
-fn load_capture(
-  config: RunnerConfig,
-  parsed: Spec,
-) -> Result(JsonValue, RunError) {
-  let path = resolve(config, parsed.capture_file)
-  use source <- result.try(read_file(path))
-  parse_json(path, source)
 }
 
 fn resolve_variables(
@@ -1322,13 +627,27 @@ fn resolve_variables(
     NoVariables -> Ok(JObject([]))
     VariablesFromCapture(path: path) ->
       case jsonpath.lookup(capture, path) {
-        Some(value) -> Ok(value)
+        Some(value) ->
+          substitute(
+            value,
+            primary_response,
+            previous_response,
+            named_responses,
+            capture,
+          )
         None -> Error(VariablesUnresolved(path: path))
       }
     VariablesFromFile(path: path) -> {
       let resolved = resolve(config, path)
       use source <- result.try(read_file(resolved))
-      parse_json(resolved, source)
+      use template <- result.try(parse_json(resolved, source))
+      substitute(
+        template,
+        primary_response,
+        previous_response,
+        named_responses,
+        capture,
+      )
     }
     VariablesInline(template: template) -> {
       let _ = context
@@ -1446,18 +765,18 @@ fn as_previous_ref(value: JsonValue) -> Option(String) {
   }
 }
 
-/// If `value` is exactly `{"fromProxyResponse": "...", "path": "..."}`
-/// or the same entries in the opposite order, return target/path.
+/// If `value` is exactly an object containing `fromProxyResponse` and
+/// `path` string entries, return target/path regardless of field order.
 fn as_named_response_ref(value: JsonValue) -> Option(#(String, String)) {
   case value {
-    JObject([
-      #("fromProxyResponse", json_value.JString(target)),
-      #("path", json_value.JString(path)),
-    ]) -> Some(#(target, path))
-    JObject([
-      #("path", json_value.JString(path)),
-      #("fromProxyResponse", json_value.JString(target)),
-    ]) -> Some(#(target, path))
+    JObject(entries) -> {
+      let target = object_string_entry(entries, "fromProxyResponse")
+      let path = object_string_entry(entries, "path")
+      case target, path {
+        Some(target), Some(path) -> Some(#(target, path))
+        _, _ -> None
+      }
+    }
     _ -> None
   }
 }
@@ -1468,6 +787,17 @@ fn as_primary_ref(value: JsonValue) -> Option(String) {
   case value {
     JObject([#("fromPrimaryProxyPath", json_value.JString(path))]) -> Some(path)
     _ -> None
+  }
+}
+
+fn object_string_entry(
+  entries: List(#(String, JsonValue)),
+  name: String,
+) -> Option(String) {
+  case entries {
+    [] -> None
+    [#(key, json_value.JString(value)), ..] if key == name -> Some(value)
+    [_, ..rest] -> object_string_entry(rest, name)
   }
 }
 
@@ -1485,24 +815,86 @@ fn execute(
   document: String,
   variables: JsonValue,
   context: String,
-) -> Result(#(Response, DraftProxy), RunError) {
+  api_version: Option(String),
+  debug: Bool,
+) -> Result(#(Response, DraftProxy, ExecutedOperation), RunError) {
   let body = build_graphql_body(document, variables)
+  let version = option.unwrap(api_version, "2025-01")
   let request =
     Request(
       method: "POST",
-      path: "/admin/api/2025-01/graphql.json",
+      path: "/admin/api/" <> version <> "/graphql.json",
       headers: dict.new(),
       body: body,
     )
+  let executed = parse_executed_operation(document)
+  case debug {
+    True -> log_request(context, executed, variables)
+    False -> Nil
+  }
   let #(response, next_proxy) = draft_proxy.process_request(proxy, request)
+  case debug {
+    True -> log_response(context, response)
+    False -> Nil
+  }
   case response.status {
-    200 -> Ok(#(response, next_proxy))
+    200 -> Ok(#(response, next_proxy, executed))
     status ->
       Error(ProxyStatus(
         target: context,
         status: status,
         body: json.to_string(response.body),
       ))
+  }
+}
+
+fn log_request(
+  context: String,
+  executed: ExecutedOperation,
+  variables: JsonValue,
+) -> Nil {
+  let kind = case executed.type_ {
+    QueryOperation -> "query"
+    MutationOperation -> "mutation"
+  }
+  let name = option.unwrap(executed.name, "<anonymous>")
+  let roots = string.join(executed.root_fields, ",")
+  io.println_error(
+    "[runner] -> "
+    <> context
+    <> " "
+    <> kind
+    <> " "
+    <> name
+    <> " roots=["
+    <> roots
+    <> "] vars="
+    <> debug_truncate(json_value.to_string(variables), 240),
+  )
+}
+
+fn log_response(context: String, response: Response) -> Nil {
+  io.println_error(
+    "[runner] <- "
+    <> context
+    <> " status="
+    <> int.to_string(response.status)
+    <> " body="
+    <> debug_truncate(json.to_string(response.body), 360),
+  )
+}
+
+/// Best-effort parse of the executed document into an `ExecutedOperation`
+/// summary. Mirrors `parseOperation` in the TS runner. Parse failures
+/// fall back to a query-shaped no-op entry — the runner's
+/// `validate_operation_names` only inspects mutations, so a degenerate
+/// entry from an unparseable doc is harmless.
+fn parse_executed_operation(document: String) -> ExecutedOperation {
+  case parse_operation.parse_operation(document) {
+    Ok(ParsedOperation(type_: type_, name: name, root_fields: root_fields)) ->
+      ExecutedOperation(type_: type_, name: name, root_fields: root_fields)
+    Error(_) ->
+      ExecutedOperation(type_: QueryOperation, name: None, root_fields: [])
   }
 }
 
@@ -1541,15 +933,23 @@ fn resolve(config: RunnerConfig, path: String) -> String {
 
 pub fn has_mismatches(report: Report) -> Bool {
   list.any(report.targets, fn(t) { t.mismatches != [] })
+  || report.operation_name_errors != []
 }
 
 pub fn render(report: Report) -> String {
   case has_mismatches(report) {
     False -> "OK: " <> report.scenario_id
-    True ->
-      report.scenario_id
-      <> "\n"
-      <> string.join(list.map(report.targets, render_target), "\n")
+    True -> {
+      let target_section =
+        string.join(list.map(report.targets, render_target), "\n")
+      let op_section = case report.operation_name_errors {
+        [] -> ""
+        errors ->
+          "\n  operation-name validation:\n    "
+          <> string.join(errors, "\n    ")
+      }
+      report.scenario_id <> "\n" <> target_section <> op_section
+    }
   }
 }
 
@@ -1573,11 +973,112 @@ pub fn into_assert(report: Report) -> Result(Nil, String) {
   }
 }
 
+/// Compare the spec's declared `operationNames` against the mutations
+/// that actually executed during the run. Mirrors TS
+/// `validateParityScenarioOperationNames`. Returns one error string per
+/// problem (missing or unexpected); empty list means agreement.
+pub fn validate_operation_names(
+  spec: Spec,
+  executed: List(ExecutedOperation),
+) -> List(String) {
+  let actual_mutation_root_fields =
+    executed
+    |> list.flat_map(fn(op) {
+      case op.type_ {
+        MutationOperation -> op.root_fields
+        QueryOperation -> []
+      }
+    })
+    |> unique_sorted
+  let actual_set = set.from_list(actual_mutation_root_fields)
+  let registered = registered_mutation_operation_names()
+  let declared =
+    spec.operation_names
+    |> list.filter(fn(name) {
+      set.contains(registered, name) || set.contains(actual_set, name)
+    })
+    |> unique_sorted
+  let declared_set = set.from_list(declared)
+  let missing =
+    list.filter(declared, fn(name) { !set.contains(actual_set, name) })
+  let unexpected =
+    list.filter(actual_mutation_root_fields, fn(name) {
+      !set.contains(declared_set, name)
+    })
+  let actual_summary = case actual_mutation_root_fields {
+    [] -> "(none)"
+    names -> string.join(names, ", ")
+  }
+  let declared_summary = case declared {
+    [] -> "(none)"
+    names -> string.join(names, ", ")
+  }
+  let missing_errors = case missing {
+    [] -> []
+    names -> [
+      "Scenario "
+      <> spec.scenario_id
+      <> " declares mutation operation(s) "
+      <> string.join(names, ", ")
+      <> " in operationNames but did not execute them. Actual executed mutation operation(s): "
+      <> actual_summary
+      <> ".",
+    ]
+  }
+  let unexpected_errors = case unexpected {
+    [] -> []
+    names -> [
+      "Scenario "
+      <> spec.scenario_id
+      <> " executed mutation operation(s) "
+      <> string.join(names, ", ")
+      <> " but does not declare them in operationNames. Declared mutation operation(s): "
+      <> declared_summary
+      <> ".",
+    ]
+  }
+  list.append(missing_errors, unexpected_errors)
+}
+
+fn registered_mutation_operation_names() -> set.Set(String) {
+  operation_registry_data.default_registry()
+  |> list.filter(fn(entry) {
+    case entry.type_ {
+      operation_registry.Mutation -> True
+      operation_registry.Query -> False
+    }
+  })
+  |> list.flat_map(fn(entry) { [entry.name, ..entry.match_names] })
+  |> set.from_list
+}
+
+fn unique_sorted(values: List(String)) -> List(String) {
+  values
+  |> list.unique
+  |> list.sort(by: string.compare)
+}
+
+/// True iff the spec has not yet been migrated to cassette playback.
+/// The parity-test gate uses this to count specs as "skipped" instead
+/// of "failed" while the migration is in progress.
+pub fn is_spec_not_migrated(error: RunError) -> Bool {
+  case error {
+    SpecNotMigrated(_, _) -> True
+    _ -> False
+  }
+}
+
 pub fn render_error(error: RunError) -> String {
   case error {
     FileError(path, reason) -> "file error at " <> path <> ": " <> reason
     JsonError(path, reason) -> "json error at " <> path <> ": " <> reason
     SpecError(reason) -> "spec error: " <> reason
+    SpecNotMigrated(spec_path, reason) ->
+      "spec not migrated to cassette playback: "
+      <> spec_path
+      <> " ("
+      <> reason
+      <> ")"
     VariablesUnresolved(path) -> "variables jsonpath did not resolve: " <> path
     PrimaryRefUnresolved(path) ->
       "fromPrimaryProxyPath did not resolve in primary response: " <> path

@@ -218,5 +218,113 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Collection/468787822825", "gid://shopify/Product/8397257572585"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/468787822825",
+                "title": "Hermes Collection Conformance 1777078305206",
+                "handle": "hermes-collection-conformance-1777078305206",
+                "products": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/8971842846953",
+                      "title": "Test Product - 6635",
+                      "handle": "test-product-ge91cbbd6"
+                    },
+                    {
+                      "id": "gid://shopify/Product/8397257572585",
+                      "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+                      "handle": "adidas-classic-backpack-legend-ink-multicolour"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "moves": [
+                  {
+                    "id": "gid://shopify/Product/8397257572585",
+                    "newPosition": "0"
+                  }
+                ],
+                "defaultProducts": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/8397257572585",
+                      "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+                      "handle": "adidas-classic-backpack-legend-ink-multicolour"
+                    },
+                    {
+                      "id": "gid://shopify/Product/8971842846953",
+                      "title": "Test Product - 6635",
+                      "handle": "test-product-ge91cbbd6"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "manualProducts": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/8397257572585",
+                      "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+                      "handle": "adidas-classic-backpack-legend-ink-multicolour"
+                    },
+                    {
+                      "id": "gid://shopify/Product/8971842846953",
+                      "title": "Test Product - 6635",
+                      "handle": "test-product-ge91cbbd6"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/Product/8397257572585",
+                "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+                "handle": "adidas-classic-backpack-legend-ink-multicolour",
+                "status": "ACTIVE",
+                "collections": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Collection/429826179305",
+                      "title": "ADIDAS",
+                      "handle": "adidas"
+                    },
+                    {
+                      "id": "gid://shopify/Collection/468787822825",
+                      "title": "Hermes Collection Conformance 1777078305206",
+                      "handle": "hermes-collection-conformance-1777078305206"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "newPosition": "0"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

@@ -289,5 +289,102 @@
     "productsDeleted": true,
     "readyTransferCanceled": true,
     "canceledTransfersRemainBecauseShopifyRejectsNonDraftDelete": true
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/97011"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/97011",
+                "tracked": true,
+                "requiresShipping": true,
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/97011-1?inventory_item_id=97011",
+                      "cursor": "opaque-transfer-origin",
+                      "location": {
+                        "id": "gid://shopify/Location/1",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 5,
+                          "updatedAt": "2026-04-01T00:00:00.000Z"
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 5,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/97011-2?inventory_item_id=97011",
+                      "cursor": "opaque-transfer-destination",
+                      "location": {
+                        "id": "gid://shopify/Location/2",
+                        "name": "Overflow location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-04-01T00:00:00.000Z"
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/97011",
+                  "title": "Default Title",
+                  "sku": "TRANSFER-HOODIE",
+                  "inventoryQuantity": 5,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/9701",
+                    "title": "Transfer Hoodie",
+                    "handle": "transfer-hoodie",
+                    "status": "ACTIVE",
+                    "totalInventory": 5,
+                    "tracksInventory": true
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

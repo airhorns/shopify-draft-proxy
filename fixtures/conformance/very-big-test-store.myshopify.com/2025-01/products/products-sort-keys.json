@@ -306,5 +306,323 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsSortKeysRead",
+      "variables": {
+        "first": 5,
+        "query": "egnition-sample-data status:active"
+      },
+      "query": "hand-synthesized from checked-in capture response",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "titleOrder": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjoiYWRpZGFzIHwgY2xhc3NpYyBiYWNrcGFjayJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257474281",
+                    "title": "ADIDAS | CLASSIC BACKPACK",
+                    "handle": "adidas-classic-backpack",
+                    "status": "ACTIVE",
+                    "vendor": "ADIDAS",
+                    "productType": "ACCESSORIES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoiYWRpZGFzIHwgY2xhc3NpYyBiYWNrcGFjayB8IGxlZ2VuZCBpbmsgbXVsdGljb2xvdXIifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257572585",
+                    "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+                    "handle": "adidas-classic-backpack-legend-ink-multicolour",
+                    "status": "ACTIVE",
+                    "vendor": "ADIDAS",
+                    "productType": "ACCESSORIES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2OTQ5OTkzLCJsYXN0X3ZhbHVlIjoiYWRpZGFzIHwga2lkJ3Mgc3RhbiBzbWl0aCJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/8397256949993",
+                    "title": "ADIDAS | KID'S STAN SMITH",
+                    "handle": "adidas-kids-stan-smith",
+                    "status": "ACTIVE",
+                    "vendor": "ADIDAS",
+                    "productType": "SHOES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NDQyNjY1LCJsYXN0X3ZhbHVlIjoiYWRpZGFzIHwgc3VwZXJzdGFyIDgwcyJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/8397255442665",
+                    "title": "ADIDAS | SUPERSTAR 80S",
+                    "handle": "adidas-superstar-80s",
+                    "status": "ACTIVE",
+                    "vendor": "ADIDAS",
+                    "productType": "SHOES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MTE0OTg1LCJsYXN0X3ZhbHVlIjoiYXNpY3MgdGlnZXIgfCBnZWwtbHl0ZSB2ICczMCB5ZWFycyBvZiBnZWwnIHBhY2sifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397255114985",
+                    "title": "ASICS TIGER | GEL-LYTE V '30 YEARS OF GEL' PACK",
+                    "handle": "asics-tiger-gel-lyte-v-30-years-of-gel-pack",
+                    "status": "ACTIVE",
+                    "vendor": "ASICS TIGER",
+                    "productType": "SHOES"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjoiYWRpZGFzIHwgY2xhc3NpYyBiYWNrcGFjayJ9",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MTE0OTg1LCJsYXN0X3ZhbHVlIjoiYXNpY3MgdGlnZXIgfCBnZWwtbHl0ZSB2ICczMCB5ZWFycyBvZiBnZWwnIHBhY2sifQ=="
+              }
+            },
+            "vendorOrder": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NDQyNjY1LCJsYXN0X3ZhbHVlIjoiYWRpZGFzIn0=",
+                  "node": {
+                    "id": "gid://shopify/Product/8397255442665",
+                    "title": "ADIDAS | SUPERSTAR 80S",
+                    "handle": "adidas-superstar-80s",
+                    "status": "ACTIVE",
+                    "vendor": "ADIDAS",
+                    "productType": "SHOES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2OTQ5OTkzLCJsYXN0X3ZhbHVlIjoiYWRpZGFzIn0=",
+                  "node": {
+                    "id": "gid://shopify/Product/8397256949993",
+                    "title": "ADIDAS | KID'S STAN SMITH",
+                    "handle": "adidas-kids-stan-smith",
+                    "status": "ACTIVE",
+                    "vendor": "ADIDAS",
+                    "productType": "SHOES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjoiYWRpZGFzIn0=",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257474281",
+                    "title": "ADIDAS | CLASSIC BACKPACK",
+                    "handle": "adidas-classic-backpack",
+                    "status": "ACTIVE",
+                    "vendor": "ADIDAS",
+                    "productType": "ACCESSORIES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoiYWRpZGFzIn0=",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257572585",
+                    "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+                    "handle": "adidas-classic-backpack-legend-ink-multicolour",
+                    "status": "ACTIVE",
+                    "vendor": "ADIDAS",
+                    "productType": "ACCESSORIES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MTE0OTg1LCJsYXN0X3ZhbHVlIjoiYXNpY3MgdGlnZXIifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397255114985",
+                    "title": "ASICS TIGER | GEL-LYTE V '30 YEARS OF GEL' PACK",
+                    "handle": "asics-tiger-gel-lyte-v-30-years-of-gel-pack",
+                    "status": "ACTIVE",
+                    "vendor": "ASICS TIGER",
+                    "productType": "SHOES"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NDQyNjY1LCJsYXN0X3ZhbHVlIjoiYWRpZGFzIn0=",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MTE0OTg1LCJsYXN0X3ZhbHVlIjoiYXNpY3MgdGlnZXIifQ=="
+              }
+            },
+            "productTypeOrder": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1OTk5NzIxLCJsYXN0X3ZhbHVlIjoidC1zaGlydHMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397255999721",
+                    "title": "NIKE | CRACKLE PRINT TB TEE",
+                    "handle": "nike-crackle-print-tb-tee",
+                    "status": "ACTIVE",
+                    "vendor": "NIKE",
+                    "productType": "T-SHIRTS"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2OTQ5OTkzLCJsYXN0X3ZhbHVlIjoic2hvZXMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397256949993",
+                    "title": "ADIDAS | KID'S STAN SMITH",
+                    "handle": "adidas-kids-stan-smith",
+                    "status": "ACTIVE",
+                    "vendor": "ADIDAS",
+                    "productType": "SHOES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2Nzg2MTUzLCJsYXN0X3ZhbHVlIjoic2hvZXMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397256786153",
+                    "title": "NIKE | TODDLER ROSHE ONE",
+                    "handle": "nike-toddler-roshe-one",
+                    "status": "ACTIVE",
+                    "vendor": "NIKE",
+                    "productType": "SHOES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NzIwNjE3LCJsYXN0X3ZhbHVlIjoic2hvZXMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397256720617",
+                    "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
+                    "handle": "converse-toddler-chuck-taylor-all-star-axel-mid",
+                    "status": "ACTIVE",
+                    "vendor": "CONVERSE",
+                    "productType": "SHOES"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NTg5NTQ1LCJsYXN0X3ZhbHVlIjoic2hvZXMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397256589545",
+                    "title": "CONVERSE | CHUCK TAYLOR ALL STAR II HI",
+                    "handle": "converse-chuck-taylor-all-star-ii-hi",
+                    "status": "ACTIVE",
+                    "vendor": "CONVERSE",
+                    "productType": "SHOES"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1OTk5NzIxLCJsYXN0X3ZhbHVlIjoidC1zaGlydHMifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NTg5NTQ1LCJsYXN0X3ZhbHVlIjoic2hvZXMifQ=="
+              }
+            },
+            "publishedAtOrder": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzEwMzgxMjIxMDAwfQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257572585",
+                    "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+                    "publishedAt": "2024-03-14T01:53:41Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjoxNzEwMzgxMjE3MDAwfQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257474281",
+                    "title": "ADIDAS | CLASSIC BACKPACK",
+                    "publishedAt": "2024-03-14T01:53:37Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mzc1OTc3LCJsYXN0X3ZhbHVlIjoxNzEwMzgxMjEzMDAwfQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257375977",
+                    "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
+                    "publishedAt": "2024-03-14T01:53:33Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mjc3NjczLCJsYXN0X3ZhbHVlIjoxNzEwMzgxMjA4MDAwfQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257277673",
+                    "title": "FLEX FIT | MINI OTTOMAN BLACK",
+                    "publishedAt": "2024-03-14T01:53:28Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MjEyMTM3LCJsYXN0X3ZhbHVlIjoxNzEwMzgxMjAzMDAwfQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257212137",
+                    "title": "HERSCHEL | IONA",
+                    "publishedAt": "2024-03-14T01:53:23Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzEwMzgxMjIxMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MjEyMTM3LCJsYXN0X3ZhbHVlIjoxNzEwMzgxMjAzMDAwfQ=="
+              }
+            },
+            "idOrder": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjo4Mzk3MjU3NTcyNTg1fQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257572585",
+                    "legacyResourceId": "8397257572585"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjo4Mzk3MjU3NDc0MjgxfQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257474281",
+                    "legacyResourceId": "8397257474281"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mzc1OTc3LCJsYXN0X3ZhbHVlIjo4Mzk3MjU3Mzc1OTc3fQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257375977",
+                    "legacyResourceId": "8397257375977"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mjc3NjczLCJsYXN0X3ZhbHVlIjo4Mzk3MjU3Mjc3NjczfQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257277673",
+                    "legacyResourceId": "8397257277673"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MjEyMTM3LCJsYXN0X3ZhbHVlIjo4Mzk3MjU3MjEyMTM3fQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/8397257212137",
+                    "legacyResourceId": "8397257212137"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjo4Mzk3MjU3NTcyNTg1fQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MjEyMTM3LCJsYXN0X3ZhbHVlIjo4Mzk3MjU3MjEyMTM3fQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 25,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

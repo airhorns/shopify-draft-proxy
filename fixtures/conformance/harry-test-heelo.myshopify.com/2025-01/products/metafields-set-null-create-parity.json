@@ -180,5 +180,69 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10170511687986"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10170511687986",
+                "primarySpec": {
+                  "id": "gid://shopify/Metafield/42952770224434",
+                  "namespace": "custom",
+                  "key": "material",
+                  "type": "single_line_text_field",
+                  "value": "Wool",
+                  "compareDigest": "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22"
+                },
+                "origin": {
+                  "id": "gid://shopify/Metafield/42952770257202",
+                  "namespace": "details",
+                  "key": "origin",
+                  "type": "single_line_text_field",
+                  "value": "VN",
+                  "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+                },
+                "season": null,
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/42952770224434",
+                      "namespace": "custom",
+                      "key": "material",
+                      "type": "single_line_text_field",
+                      "value": "Wool",
+                      "compareDigest": "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22"
+                    },
+                    {
+                      "id": "gid://shopify/Metafield/42952770257202",
+                      "namespace": "details",
+                      "key": "origin",
+                      "type": "single_line_text_field",
+                      "value": "VN",
+                      "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
+                    "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0="
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

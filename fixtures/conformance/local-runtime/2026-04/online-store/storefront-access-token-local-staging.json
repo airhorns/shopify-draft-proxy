@@ -216,5 +216,6 @@
       "The current live credential returns ACCESS_DENIED for storefrontAccessTokenCreate, so successful create/delete cannot be captured without an additional write storefront access token scope.",
       "The executable proxy parity request proves the local staged lifecycle exposed by HAR-452: create returns a redacted token, downstream shop.storefrontAccessTokens exposes the staged token with the same redacted value, delete returns the deleted ID, and the downstream connection returns empty nodes with null cursors."
     ]
-  }
+  },
+  "upstreamCalls": []
 }

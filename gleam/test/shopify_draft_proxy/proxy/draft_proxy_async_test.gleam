@@ -38,7 +38,9 @@ import gleam/string
 @target(javascript)
 import shopify_draft_proxy/proxy/commit
 @target(javascript)
-import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
+import shopify_draft_proxy/proxy/draft_proxy
+@target(javascript)
+import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 @target(javascript)
 import shopify_draft_proxy/state/store
 
@@ -92,7 +94,7 @@ fn proxy_with_log(
     list.fold(entries, base.store, fn(acc, e) {
       store.record_mutation_log_entry(acc, e)
     })
-  draft_proxy.DraftProxy(..base, store: s)
+  proxy_state.DraftProxy(..base, store: s)
 }
 
 @target(javascript)
@@ -101,7 +103,9 @@ fn ok_async_send(
   body: String,
 ) -> fn(_) -> Promise(Result(commit.HttpOutcome, commit.CommitTransportError)) {
   fn(_req) {
-    promise.resolve(Ok(commit.HttpOutcome(status: status, body: body)))
+    promise.resolve(
+      Ok(commit.HttpOutcome(status: status, body: body, headers: [])),
+    )
   }
 }
 

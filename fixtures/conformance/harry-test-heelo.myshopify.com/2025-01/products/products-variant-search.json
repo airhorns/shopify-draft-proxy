@@ -73,5 +73,53 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsVariantSearchRead",
+      "variables": {
+        "query": "sku:HERMES-VARIANT-SEARCH-50673975"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "matches": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "products": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/Product/10170561036594",
+                    "title": "Hermes Variant Search Conformance 1777150673975",
+                    "handle": "hermes-variant-search-conformance-1777150673975"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDE3MDU2MTAzNjU5NCwibGFzdF92YWx1ZSI6MTAxNzA1NjEwMzY1OTR9",
+                "endCursor": "eyJsYXN0X2lkIjoxMDE3MDU2MTAzNjU5NCwibGFzdF92YWx1ZSI6MTAxNzA1NjEwMzY1OTR9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1966,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

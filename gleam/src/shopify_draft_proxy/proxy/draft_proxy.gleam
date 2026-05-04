@@ -22,37 +22,48 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import shopify_draft_proxy/graphql/ast.{Field}
 import shopify_draft_proxy/graphql/parse_operation.{
-  type ParsedOperation, MutationOperation, QueryOperation,
+  type GraphQLOperationType, type ParsedOperation, MutationOperation,
+  QueryOperation,
 }
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/admin_platform
 import shopify_draft_proxy/proxy/apps
+import shopify_draft_proxy/proxy/b2b
 import shopify_draft_proxy/proxy/bulk_operations
 import shopify_draft_proxy/proxy/capabilities
 import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/proxy/customers
 import shopify_draft_proxy/proxy/delivery_settings
+import shopify_draft_proxy/proxy/discounts
 import shopify_draft_proxy/proxy/events
 import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/gift_cards
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/proxy/marketing
+import shopify_draft_proxy/proxy/markets
 import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
-import shopify_draft_proxy/proxy/operation_registry.{
-  type RegistryEntry, AdminPlatform, Apps, BulkOperations, Events, Functions,
-  GiftCards, Localization, Marketing, Media, Metafields, Metaobjects,
-  SavedSearches, Segments, ShippingFulfillments, StoreProperties, Webhooks,
+import shopify_draft_proxy/proxy/online_store
+import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
+import shopify_draft_proxy/proxy/orders
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/payments
+import shopify_draft_proxy/proxy/privacy
+import shopify_draft_proxy/proxy/products
+import shopify_draft_proxy/proxy/proxy_state.{
+  DraftProxy, Live, LiveHybrid, Request, Response, Snapshot,
 }
-import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
+import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
-import shopify_draft_proxy/proxy/upstream_dispatch
+import shopify_draft_proxy/proxy/upstream_query
 import shopify_draft_proxy/proxy/webhooks
-import shopify_draft_proxy/shopify/upstream_client
+import shopify_draft_proxy/shopify/upstream_client.{type SyncTransport}
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/serialization as state_serialization
 import shopify_draft_proxy/state/store.{type Store}
@@ -77,106 +88,72 @@ const store_dump_version: Int = 1
 /// the caller doesn't supply one. Mirrors the TS default.
 const default_admin_api_version: String = "2025-01"
 
-/// The HTTP-shaped request the proxy accepts. Mirrors
-/// `DraftProxyRequest`.
-pub type Request {
-  Request(
-    method: String,
-    path: String,
-    headers: Dict(String, String),
-    body: String,
-  )
-}
+/// Re-exports of the runtime types defined in `proxy_state`. The real
+/// definitions live there so domain modules (`customers`, `products`,
+/// …) can take `DraftProxy` / `Request` / `Response` as parameters
+/// without importing `draft_proxy` and creating a cycle. External
+/// callers keep using `draft_proxy.DraftProxy`, `draft_proxy.Request`,
+/// `draft_proxy.Response`, `draft_proxy.Config`, and
+/// `draft_proxy.ReadMode` as type names; for the value-level
+/// constructors (`Request(..)`, `Response(..)`, `Config(..)`,
+/// `Snapshot`, `LiveHybrid`, `Live`, `DraftProxy(..)`) tests should
+/// import from `shopify_draft_proxy/proxy/proxy_state` directly.
+pub type DraftProxy =
+  proxy_state.DraftProxy
 
-/// HTTP-shaped response. Mirrors `DraftProxyHttpResponse`. The body is
-/// pre-serialized as a JSON tree so callers can `json.to_string` it
-/// without re-encoding.
-pub type Response {
-  Response(status: Int, body: Json, headers: List(#(String, String)))
-}
+pub type Config =
+  proxy_state.Config
 
-/// How the proxy answers reads. Mirrors the TS `AppConfig['readMode']`.
-/// Only the variants actually exercised by the spike are modelled; any
-/// extension to TS will need a corresponding variant here.
-pub type ReadMode {
-  Snapshot
-  LiveHybrid
-  Live
-}
+pub type ReadMode =
+  proxy_state.ReadMode
 
-/// Sanitised configuration the proxy was constructed with. Mirrors the
-/// fields of `AppConfig` that surface through `GET /__meta/config`.
-pub type Config {
-  Config(
-    read_mode: ReadMode,
-    port: Int,
-    shopify_admin_origin: String,
-    snapshot_path: Option(String),
-  )
-}
+pub type Request =
+  proxy_state.Request
 
-/// Long-lived runtime state owned by the proxy. The TS class wraps
-/// this in a stateful `DraftProxy`; here it's just a record threaded
-/// through each request.
-pub type DraftProxy {
-  DraftProxy(
-    config: Config,
-    synthetic_identity: SyntheticIdentityRegistry,
-    store: Store,
-    /// Registry-driven dispatch table. Empty by default — when empty,
-    /// the dispatcher falls back to the hardcoded `domain_for`
-    /// predicates (matches Pass 1–7 behavior so existing tests keep
-    /// working). Load via `with_registry` once a real config is
-    /// available.
-    registry: List(RegistryEntry),
-  )
-}
+pub type Response =
+  proxy_state.Response
 
 /// Default config, mirroring the values the TS test suite uses when no
 /// explicit config is supplied.
 pub fn default_config() -> Config {
-  Config(
-    read_mode: Snapshot,
-    port: 4000,
-    shopify_admin_origin: "https://shopify.com",
-    snapshot_path: None,
-  )
+  proxy_state.default_config()
 }
 
 /// Fresh proxy with default config. Equivalent to `new DraftProxy(...)`.
 pub fn new() -> DraftProxy {
-  with_config(default_config())
+  proxy_state.new()
 }
 
 /// Fresh proxy with the supplied config.
 pub fn with_config(config: Config) -> DraftProxy {
-  DraftProxy(
-    config: config,
-    synthetic_identity: synthetic_identity.new(),
-    store: store.new(),
-    registry: [],
-  )
+  proxy_state.with_config(config)
+}
+
+/// Install an injected upstream transport. Used by the parity runner
+/// to wire a recorded cassette into the proxy; production callers
+/// leave this unset.
+pub fn with_upstream_transport(
+  proxy: DraftProxy,
+  transport: SyncTransport,
+) -> DraftProxy {
+  proxy_state.with_upstream_transport(proxy, transport)
 }
 
 /// Attach a parsed operation registry to the proxy. Once attached,
 /// query/mutation dispatch routes by capability instead of the
-/// hardcoded predicates. Mirrors the dispatcher transition the TS
-/// proxy made when `operation-registry.json` started driving
-/// `routes.ts`.
+/// hardcoded predicates.
 pub fn with_registry(
   proxy: DraftProxy,
   registry: List(RegistryEntry),
 ) -> DraftProxy {
-  DraftProxy(..proxy, registry: registry)
+  proxy_state.with_registry(proxy, registry)
 }
 
 /// Attach the vendored default registry built from
 /// `config/operation-registry.json` (mirrored as Gleam source in
-/// `operation_registry_data.gleam`). Convenience wrapper around
-/// `with_registry/2` for callers that want the registry the TS proxy
-/// loads at startup.
+/// `operation_registry_data.gleam`).
 pub fn with_default_registry(proxy: DraftProxy) -> DraftProxy {
-  with_registry(proxy, operation_registry_data.default_registry())
+  proxy_state.with_default_registry(proxy)
 }
 
 /// Process a request and return the response paired with the updated
@@ -301,7 +278,7 @@ fn read_mode_to_string(mode: ReadMode) -> String {
   case mode {
     Snapshot -> "snapshot"
     LiveHybrid -> "live-hybrid"
-    Live -> "live"
+    Live -> "passthrough"
   }
 }
 
@@ -332,6 +309,32 @@ pub fn get_state_snapshot(proxy: DraftProxy) -> Json {
   ])
 }
 
+/// Store staged-upload bytes under a caller-supplied lookup key.
+///
+/// The JavaScript HTTP adapter owns URL decoding/route matching so this core
+/// helper can stay explicit and instance-scoped.
+pub fn stage_staged_upload_content(
+  proxy: DraftProxy,
+  staged_upload_path: String,
+  content: String,
+) -> DraftProxy {
+  DraftProxy(
+    ..proxy,
+    store: store.stage_staged_upload_content(
+      proxy.store,
+      staged_upload_path,
+      content,
+    ),
+  )
+}
+
+pub fn get_bulk_operation_result_jsonl(proxy: DraftProxy, id: String) -> Json {
+  case store.get_effective_bulk_operation_result_jsonl(proxy.store, id) {
+    Some(jsonl) -> json.string(jsonl)
+    None -> json.null()
+  }
+}
+
 fn serialize_mutation_log_entry(entry: store.MutationLogEntry) -> Json {
   json.object([
     #("id", json.string(entry.id)),
@@ -345,7 +348,7 @@ fn serialize_mutation_log_entry(entry: store.MutationLogEntry) -> Json {
         dict.to_list(entry.variables)
         |> list.map(fn(pair) {
           let #(k, v) = pair
-          #(k, json.string(v))
+          #(k, root_field.resolved_value_to_json(v))
         }),
       ),
     ),
@@ -452,17 +455,25 @@ fn dispatch_graphql(
       case parse_operation.parse_operation(body.query) {
         Error(_) -> #(bad_request("Could not parse GraphQL operation"), proxy)
         Ok(parsed) ->
-          case live_hybrid_passthrough_target(proxy, parsed) {
-            True -> dispatch_passthrough(proxy, request)
+          case live_hybrid_passthrough_target(proxy, parsed, body.variables) {
+            True -> dispatch_passthrough_sync(proxy, request)
             False ->
               case parsed.type_, list.first(parsed.root_fields) {
                 QueryOperation, Ok(field) ->
-                  route_query(proxy, parsed, body.query, field, body.variables)
+                  route_query(
+                    proxy,
+                    request,
+                    parsed,
+                    body.query,
+                    field,
+                    body.variables,
+                  )
                 MutationOperation, Ok(field) ->
                   route_mutation(
                     proxy,
                     parsed,
                     request.path,
+                    request.headers,
                     body.query,
                     field,
                     body.variables,
@@ -474,35 +485,148 @@ fn dispatch_graphql(
   }
 }
 
-/// Substrate-level passthrough check. Returns `True` only when the
-/// proxy is in `LiveHybrid` mode AND the operation maps to the
-/// `Passthrough` execution branch (i.e. unknown / unimplemented). For
-/// every other read-mode the proxy answers locally; for every other
-/// capability execution the per-domain dispatcher already covers
-/// reads. Returning `False` here lets the existing local pipeline
-/// handle the request unchanged.
+/// Substrate-level passthrough check. Returns `True` only for the
+/// dispatcher-irreducible cases: the proxy is in `LiveHybrid` mode AND
+/// either the operation maps to the `Passthrough` execution branch
+/// (registry says: unimplemented), or no local dispatcher claims the
+/// root field at all.
+///
+/// Per-operation "forward upstream because the local handler doesn't
+/// have enough state to answer correctly" decisions live in the domain
+/// modules now (`customers.handle_query_request`,
+/// `discounts.handle_query_request`, …) — they call
+/// `passthrough.passthrough_sync` themselves. The dispatcher only
+/// passthroughs when there is no handler to ask.
 fn live_hybrid_passthrough_target(
   proxy: DraftProxy,
   parsed: ParsedOperation,
+  _variables: Dict(String, root_field.ResolvedValue),
 ) -> Bool {
   case proxy.config.read_mode {
     LiveHybrid -> {
       let cap = capabilities.get_operation_capability(parsed, proxy.registry)
       case cap.execution {
         operation_registry.Passthrough -> True
-        _ -> False
+        _ ->
+          case list.first(parsed.root_fields) {
+            Ok(primary_root_field) ->
+              !local_dispatch_supported(cap.type_, primary_root_field)
+            Error(_) -> False
+          }
       }
     }
     _ -> False
   }
 }
 
-@target(erlang)
-fn dispatch_passthrough(
+fn dispatch_passthrough_sync(
   proxy: DraftProxy,
   request: Request,
 ) -> #(Response, DraftProxy) {
-  passthrough_via(proxy, request, upstream_client.send_sync)
+  let #(response, next_proxy) = passthrough.passthrough_sync(proxy, request)
+  case passthrough_reached_upstream(response) {
+    True -> #(response, record_proxied_mutation_if_needed(next_proxy, request))
+    False -> #(response, next_proxy)
+  }
+}
+
+@target(erlang)
+fn passthrough_reached_upstream(_response: Response) -> Bool {
+  True
+}
+
+@target(javascript)
+fn passthrough_reached_upstream(response: Response) -> Bool {
+  !passthrough.response_is_async_unsupported(response)
+}
+
+fn record_proxied_mutation_if_needed(
+  proxy: DraftProxy,
+  request: Request,
+) -> DraftProxy {
+  case parse_request_body(request.body) {
+    Error(_) -> proxy
+    Ok(body) ->
+      case parse_operation.parse_operation(body.query) {
+        Ok(parsed) ->
+          case parsed.type_ {
+            MutationOperation ->
+              record_proxied_mutation(proxy, request.path, parsed, body)
+            QueryOperation -> proxy
+          }
+        Error(_) -> proxy
+      }
+  }
+}
+
+fn record_proxied_mutation(
+  proxy: DraftProxy,
+  request_path: String,
+  parsed: ParsedOperation,
+  body: ParsedBody,
+) -> DraftProxy {
+  let cap = capabilities.get_operation_capability(parsed, proxy.registry)
+  let #(domain, execution) = passthrough_capability_strings(proxy, parsed, cap)
+  let draft =
+    mutation_helpers.LogDraft(
+      operation_name: cap.operation_name,
+      root_fields: parsed.root_fields,
+      primary_root_field: list.first(parsed.root_fields) |> result_to_option,
+      domain: domain,
+      execution: execution,
+      query: Some(body.query),
+      variables: Some(body.variables),
+      staged_resource_ids: [],
+      status: store.Proxied,
+      notes: Some(
+        "Mutation passthrough placeholder until supported local staging is implemented.",
+      ),
+    )
+  let #(logged_store, logged_identity) =
+    mutation_helpers.record_log_drafts(
+      proxy.store,
+      proxy.synthetic_identity,
+      request_path,
+      body.query,
+      body.variables,
+      [draft],
+    )
+  DraftProxy(..proxy, store: logged_store, synthetic_identity: logged_identity)
+}
+
+fn passthrough_capability_strings(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+  cap: capabilities.OperationCapability,
+) -> #(String, String) {
+  let candidates =
+    list.append(list.map(parsed.root_fields, Some), case parsed.name {
+      Some(name) -> [Some(name)]
+      None -> []
+    })
+  case
+    operation_registry.find_entry(
+      proxy.registry,
+      operation_registry.Mutation,
+      candidates,
+    )
+  {
+    Some(entry) -> #(
+      operation_registry.domain_to_string(entry.domain),
+      operation_registry.execution_to_string(entry.execution),
+    )
+    None -> #(
+      operation_registry.domain_to_string(cap.domain),
+      operation_registry.execution_to_string(cap.execution),
+    )
+  }
+}
+
+fn result_to_option(r: Result(a, b)) -> Option(a) {
+  case r {
+    Ok(value) -> Some(value)
+    Error(_) -> None
+  }
 }
 
 @target(erlang)
@@ -517,7 +641,7 @@ pub fn process_passthrough_sync(
   send: fn(gleam_http_request.Request(String)) ->
     Result(commit.HttpOutcome, commit.CommitTransportError),
 ) -> #(Response, DraftProxy) {
-  passthrough_via(proxy, request, send)
+  passthrough.passthrough_with_send(proxy, request, send)
 }
 
 @target(javascript)
@@ -529,90 +653,7 @@ pub fn process_passthrough_async(
   send: fn(gleam_http_request.Request(String)) ->
     Promise(Result(commit.HttpOutcome, commit.CommitTransportError)),
 ) -> Promise(#(Response, DraftProxy)) {
-  upstream_dispatch.fetch_async(
-    proxy.config.shopify_admin_origin,
-    request.path,
-    request.body,
-    request.headers,
-    send,
-  )
-  |> promise.map(fn(outcome) {
-    #(passthrough_outcome_to_response(outcome), proxy)
-  })
-}
-
-@target(javascript)
-fn dispatch_passthrough(
-  proxy: DraftProxy,
-  _request: Request,
-) -> #(Response, DraftProxy) {
-  // Passthrough requires an async fetch on JS — sync dispatch can't
-  // resolve the Promise. Callers that want live-hybrid on JS must use
-  // `process_request_async/2`, which awaits the upstream call.
-  #(passthrough_async_unsupported_response(), proxy)
-}
-
-@target(erlang)
-fn passthrough_via(
-  proxy: DraftProxy,
-  request: Request,
-  send: fn(gleam_http_request.Request(String)) ->
-    Result(commit.HttpOutcome, commit.CommitTransportError),
-) -> #(Response, DraftProxy) {
-  let outcome =
-    upstream_dispatch.fetch_sync(
-      proxy.config.shopify_admin_origin,
-      request.path,
-      request.body,
-      request.headers,
-      send,
-    )
-  #(passthrough_outcome_to_response(outcome), proxy)
-}
-
-fn passthrough_outcome_to_response(
-  outcome: Result(commit.HttpOutcome, commit.CommitTransportError),
-) -> Response {
-  case outcome {
-    Ok(commit.HttpOutcome(status: status, body: body_string)) -> {
-      let parsed_body = commit.parse_json_value(body_string)
-      Response(
-        status: status,
-        body: commit.json_value_to_json(parsed_body),
-        headers: [],
-      )
-    }
-    Error(commit.CommitTransportError(message: msg)) ->
-      Response(
-        status: 502,
-        body: json.object([
-          #(
-            "errors",
-            json.array([json.object([#("message", json.string(msg))])], fn(x) {
-              x
-            }),
-          ),
-        ]),
-        headers: [],
-      )
-  }
-}
-
-@target(javascript)
-fn passthrough_async_unsupported_response() -> Response {
-  Response(
-    status: 501,
-    body: json.object([
-      #("ok", json.bool(False)),
-      #(
-        "message",
-        json.string(
-          "Live-hybrid passthrough requires async dispatch on the JavaScript target. Call process_request_async(proxy, request) and await the returned Promise.",
-        ),
-      ),
-    ]),
-    headers: [],
-  )
+  passthrough.passthrough_with_send_async(proxy, request, send)
 }
 
 /// Single point of mutation log entry recording. Each domain
@@ -625,6 +666,7 @@ fn finalize_mutation_outcome(
   proxy: DraftProxy,
   request_path: String,
   query: String,
+  variables: Dict(String, root_field.ResolvedValue),
   data: Json,
   next_store: Store,
   next_identity: SyntheticIdentityRegistry,
@@ -636,6 +678,7 @@ fn finalize_mutation_outcome(
       next_identity,
       request_path,
       query,
+      variables,
       log_drafts,
     )
   #(
@@ -652,11 +695,12 @@ fn route_mutation(
   proxy: DraftProxy,
   parsed: ParsedOperation,
   request_path: String,
+  request_headers: Dict(String, String),
   query: String,
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case mutation_domain_for(proxy, parsed, primary_root_field) {
+  case mutation_domain_for(proxy, parsed, query, primary_root_field) {
     Ok(SavedSearchesDomain) ->
       case
         saved_searches.process_mutation(
@@ -672,6 +716,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -697,6 +742,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -720,6 +766,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -729,12 +776,17 @@ fn route_mutation(
       }
     Ok(FunctionsDomain) ->
       case
-        functions.process_mutation(
+        functions.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -742,6 +794,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -751,7 +804,66 @@ fn route_mutation(
       }
     Ok(GiftCardsDomain) ->
       case
-        gift_cards.process_mutation(
+        gift_cards.process_mutation_with_upstream(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(
+          bad_request("Failed to handle gift cards mutation"),
+          proxy,
+        )
+      }
+    Ok(DiscountsDomain) ->
+      case
+        discounts.process_mutation_with_upstream(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle discounts mutation"), proxy)
+      }
+    Ok(B2BDomain) ->
+      case
+        b2b.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -764,15 +876,13 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
             outcome.log_drafts,
           )
-        Error(_) -> #(
-          bad_request("Failed to handle gift cards mutation"),
-          proxy,
-        )
+        Error(_) -> #(bad_request("Failed to handle B2B mutation"), proxy)
       }
     Ok(SegmentsDomain) ->
       case
@@ -789,6 +899,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -798,12 +909,17 @@ fn route_mutation(
       }
     Ok(MetafieldDefinitionsDomain) ->
       case
-        metafield_definitions.process_mutation(
+        metafield_definitions.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -811,6 +927,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -836,6 +953,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -848,12 +966,17 @@ fn route_mutation(
       }
     Ok(MetaobjectDefinitionsDomain) ->
       case
-        metaobject_definitions.process_mutation(
+        metaobject_definitions.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -861,6 +984,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -886,6 +1010,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -895,12 +1020,17 @@ fn route_mutation(
       }
     Ok(BulkOperationsDomain) ->
       case
-        bulk_operations.process_mutation(
+        bulk_operations.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
         )
       {
         Ok(outcome) ->
@@ -908,6 +1038,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -917,6 +1048,60 @@ fn route_mutation(
           bad_request("Failed to handle bulk operations mutation"),
           proxy,
         )
+      }
+    Ok(MarketsDomain) ->
+      case
+        markets.process_mutation_with_upstream(
+          proxy.store,
+          proxy.synthetic_identity,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle markets mutation"), proxy)
+      }
+    Ok(MediaDomain) ->
+      case
+        media.process_mutation_with_upstream(
+          proxy.store,
+          proxy.synthetic_identity,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle media mutation"), proxy)
       }
     Ok(AdminPlatformDomain) ->
       case
@@ -933,6 +1118,7 @@ fn route_mutation(
             proxy,
             request_path,
             query,
+            variables,
             outcome.data,
             outcome.store,
             outcome.identity,
@@ -943,14 +1129,45 @@ fn route_mutation(
           proxy,
         )
       }
-    Ok(StorePropertiesDomain) ->
+    Ok(OnlineStoreDomain) ->
       case
-        store_properties.process_mutation(
+        online_store.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(
+          bad_request("Failed to handle online-store mutation"),
+          proxy,
+        )
+      }
+    Ok(StorePropertiesDomain) ->
+      case
+        store_properties.process_mutation_with_upstream(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            proxy.upstream_transport,
+            proxy.config.shopify_admin_origin,
+            request_headers,
+          ),
         )
       {
         Ok(outcome) -> #(
@@ -966,6 +1183,173 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(ProductsDomain) ->
+      case
+        products.process_mutation_with_upstream(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            proxy.upstream_transport,
+            proxy.config.shopify_admin_origin,
+            request_headers,
+          ),
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle products mutation"), proxy)
+      }
+    Ok(PrivacyDomain) ->
+      case
+        privacy.process_mutation_with_upstream(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle privacy mutation"), proxy)
+      }
+    Ok(CustomersDomain) ->
+      case
+        customers.process_mutation_with_upstream(
+          proxy,
+          request_path,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(bad_request("Failed to handle customers mutation"), proxy)
+      }
+    Ok(PaymentsDomain) ->
+      case
+        payments.process_mutation_with_upstream(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle payments mutation"), proxy)
+      }
+    Ok(ShippingFulfillmentsDomain) ->
+      case
+        shipping_fulfillments.process_mutation_with_upstream(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(
+          bad_request("Failed to handle shipping fulfillments mutation"),
+          proxy,
+        )
+      }
+    Ok(OrdersDomain) ->
+      case
+        orders.process_mutation_with_upstream(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+          upstream_query.UpstreamContext(
+            transport: proxy.upstream_transport,
+            origin: proxy.config.shopify_admin_origin,
+            headers: request_headers,
+          ),
+        )
+      {
+        Ok(outcome) ->
+          finalize_mutation_outcome(
+            proxy,
+            request_path,
+            query,
+            variables,
+            outcome.data,
+            outcome.store,
+            outcome.identity,
+            outcome.log_drafts,
+          )
+        Error(_) -> #(bad_request("Failed to handle orders mutation"), proxy)
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -978,12 +1362,13 @@ fn route_mutation(
 
 fn route_query(
   proxy: DraftProxy,
+  request: Request,
   parsed: ParsedOperation,
   query: String,
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case query_domain_for(proxy, parsed, primary_root_field) {
+  case query_domain_for(proxy, parsed, query, primary_root_field) {
     Ok(EventsDomain) ->
       respond(proxy, events.process(query), "Failed to handle events query")
     Ok(DeliverySettingsDomain) ->
@@ -1005,16 +1390,22 @@ fn route_query(
         "Failed to handle webhooks query",
       )
     Ok(AppsDomain) ->
-      respond(
+      apps.handle_query_request(
         proxy,
-        apps.process(proxy.store, query, variables),
-        "Failed to handle apps query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(FunctionsDomain) ->
-      respond(
+      functions.handle_query_request(
         proxy,
-        functions.process(proxy.store, query, variables),
-        "Failed to handle functions query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(GiftCardsDomain) ->
       respond(
@@ -1022,29 +1413,58 @@ fn route_query(
         gift_cards.process(proxy.store, query, variables),
         "Failed to handle gift cards query",
       )
-    Ok(SegmentsDomain) ->
-      respond(
+    Ok(DiscountsDomain) ->
+      discounts.handle_query_request(
         proxy,
-        segments.process(proxy.store, query, variables),
-        "Failed to handle segments query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
+      )
+    Ok(B2BDomain) ->
+      b2b.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
+      )
+    Ok(SegmentsDomain) ->
+      segments.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(MetafieldDefinitionsDomain) ->
-      respond(
+      metafield_definitions.handle_query_request(
         proxy,
-        metafield_definitions.process(query),
-        "Failed to handle metafield definitions query",
+        request,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(LocalizationDomain) ->
-      respond(
+      localization.handle_query_request(
         proxy,
-        localization.process(proxy.store, query, variables),
-        "Failed to handle localization query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(MetaobjectDefinitionsDomain) ->
-      respond(
+      metaobject_definitions.handle_query_request(
         proxy,
-        metaobject_definitions.process(proxy.store, query, variables),
-        "Failed to handle metaobject definitions query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(MarketingDomain) ->
       respond(
@@ -1058,20 +1478,97 @@ fn route_query(
         bulk_operations.process(proxy.store, query, variables),
         "Failed to handle bulk operations query",
       )
+    Ok(MarketsDomain) ->
+      markets.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
+      )
     Ok(MediaDomain) ->
-      respond(proxy, media.process(query), "Failed to handle media query")
-    Ok(AdminPlatformDomain) ->
       respond(
         proxy,
-        admin_platform.process(proxy.store, query, variables),
-        "Failed to handle admin platform query",
+        media.process(proxy.store, query, variables),
+        "Failed to handle media query",
+      )
+    Ok(ProductsDomain) ->
+      products.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
+      )
+    Ok(AdminPlatformDomain) ->
+      admin_platform.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(StorePropertiesDomain) ->
+      store_properties.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
+      )
+    Ok(OnlineStoreDomain) ->
+      online_store.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
+      )
+    Ok(CustomersDomain) ->
+      customers.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
+      )
+    Ok(PaymentsDomain) ->
       respond(
         proxy,
-        store_properties.process(proxy.store, query, variables),
-        "Failed to handle store properties query",
+        payments.process(proxy.store, query, variables),
+        "Failed to handle payments query",
       )
+    Ok(ShippingFulfillmentsDomain) ->
+      shipping_fulfillments.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
+      )
+    Ok(OrdersDomain) ->
+      orders.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
+      )
+    Ok(PrivacyDomain) -> #(
+      bad_request(
+        "No domain dispatcher implemented for root field: "
+        <> primary_root_field,
+      ),
+      proxy,
+    )
     Error(_) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -1090,277 +1587,435 @@ type Domain {
   AppsDomain
   FunctionsDomain
   GiftCardsDomain
+  DiscountsDomain
+  B2BDomain
   SegmentsDomain
   MetafieldDefinitionsDomain
   LocalizationDomain
   MetaobjectDefinitionsDomain
   MarketingDomain
   BulkOperationsDomain
+  MarketsDomain
   MediaDomain
+  ProductsDomain
   AdminPlatformDomain
   StorePropertiesDomain
+  OnlineStoreDomain
+  PrivacyDomain
+  CustomersDomain
+  PaymentsDomain
+  ShippingFulfillmentsDomain
+  OrdersDomain
 }
 
-/// Resolve a query operation's domain. With a registry loaded, the
-/// capability lookup decides; without one (or if it returns Unknown),
-/// fall back to the legacy hardcoded predicates so unmigrated tests
-/// keep working.
+/// Resolve a query operation's domain. The registry decides whether a
+/// known root is implemented at all; the local dispatch table decides
+/// whether this Gleam port can actually handle that root today.
 fn query_domain_for(
   proxy: DraftProxy,
   parsed: ParsedOperation,
+  query: String,
   primary_root_field: String,
 ) -> Result(Domain, Nil) {
-  case capability_to_query_domain(proxy, parsed) {
-    Ok(d) -> Ok(d)
-    Error(_) -> legacy_query_domain_for(primary_root_field)
+  case parsed.type_ {
+    QueryOperation -> {
+      case
+        operation_registry.find_entry(proxy.registry, operation_registry.Query, [
+          Some(primary_root_field),
+        ])
+      {
+        Some(entry) ->
+          case entry.implemented {
+            True -> local_query_dispatch_domain(primary_root_field, query)
+            False -> Error(Nil)
+          }
+        None -> local_query_dispatch_domain(primary_root_field, query)
+      }
+    }
+    _ -> Error(Nil)
   }
 }
 
 fn mutation_domain_for(
   proxy: DraftProxy,
   parsed: ParsedOperation,
+  query: String,
   primary_root_field: String,
 ) -> Result(Domain, Nil) {
-  case capability_to_mutation_domain(proxy, parsed) {
-    Ok(d) -> Ok(d)
-    Error(_) -> legacy_mutation_domain_for(primary_root_field)
-  }
-}
-
-fn capability_to_query_domain(
-  proxy: DraftProxy,
-  parsed: ParsedOperation,
-) -> Result(Domain, Nil) {
-  case proxy.registry {
-    [] -> Error(Nil)
-    _ -> {
-      let cap = capabilities.get_operation_capability(parsed, proxy.registry)
-      case cap.domain {
-        Events -> Ok(EventsDomain)
-        SavedSearches -> Ok(SavedSearchesDomain)
-        ShippingFulfillments -> Ok(DeliverySettingsDomain)
-        Webhooks -> Ok(WebhooksDomain)
-        Apps -> Ok(AppsDomain)
-        Functions -> Ok(FunctionsDomain)
-        GiftCards -> Ok(GiftCardsDomain)
-        Segments -> Ok(SegmentsDomain)
-        Metafields -> Ok(MetafieldDefinitionsDomain)
-        Localization -> Ok(LocalizationDomain)
-        Metaobjects -> Ok(MetaobjectDefinitionsDomain)
-        Marketing -> Ok(MarketingDomain)
-        BulkOperations -> Ok(BulkOperationsDomain)
-        Media -> Ok(MediaDomain)
-        AdminPlatform -> Ok(AdminPlatformDomain)
-        StoreProperties -> Ok(StorePropertiesDomain)
-        _ -> Error(Nil)
+  case parsed.type_ {
+    MutationOperation -> {
+      case
+        operation_registry.find_entry(
+          proxy.registry,
+          operation_registry.Mutation,
+          [
+            Some(primary_root_field),
+          ],
+        )
+      {
+        Some(entry) ->
+          case entry.implemented {
+            True -> local_mutation_dispatch_domain(primary_root_field, query)
+            False -> Error(Nil)
+          }
+        None -> local_mutation_dispatch_domain(primary_root_field, query)
       }
     }
+    _ -> Error(Nil)
   }
 }
 
-fn capability_to_mutation_domain(
-  proxy: DraftProxy,
-  parsed: ParsedOperation,
-) -> Result(Domain, Nil) {
-  case proxy.registry {
-    [] -> Error(Nil)
-    _ -> {
-      let cap = capabilities.get_operation_capability(parsed, proxy.registry)
-      case cap.domain {
-        SavedSearches -> Ok(SavedSearchesDomain)
-        Webhooks -> Ok(WebhooksDomain)
-        Apps -> Ok(AppsDomain)
-        Functions -> Ok(FunctionsDomain)
-        GiftCards -> Ok(GiftCardsDomain)
-        Segments -> Ok(SegmentsDomain)
-        Metafields -> Ok(MetafieldDefinitionsDomain)
-        Localization -> Ok(LocalizationDomain)
-        Marketing -> Ok(MarketingDomain)
-        Metaobjects -> Ok(MetaobjectDefinitionsDomain)
-        BulkOperations -> Ok(BulkOperationsDomain)
-        AdminPlatform -> Ok(AdminPlatformDomain)
-        StoreProperties -> Ok(StorePropertiesDomain)
-        _ -> Error(Nil)
+/// True when a registry entry names a root that this Gleam port can
+/// dispatch locally today. This intentionally gates on the explicit
+/// local dispatch table so registry metadata cannot claim unported
+/// roots as local support.
+pub fn registry_entry_has_local_dispatch(entry: RegistryEntry) -> Bool {
+  case entry.implemented {
+    False -> False
+    True ->
+      list.any(entry.match_names, fn(name) {
+        local_registry_dispatch_supported(entry.type_, name)
+      })
+  }
+}
+
+fn local_dispatch_supported(type_: GraphQLOperationType, name: String) -> Bool {
+  case type_ {
+    QueryOperation ->
+      case local_query_dispatch_domain(name, "") {
+        Ok(_) -> True
+        Error(_) -> False
       }
-    }
+    MutationOperation ->
+      case local_mutation_dispatch_domain(name, "") {
+        Ok(_) -> True
+        Error(_) -> False
+      }
   }
 }
 
-fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
-  case events.is_events_query_root(name) {
-    True -> Ok(EventsDomain)
-    False ->
+fn local_registry_dispatch_supported(
+  type_: operation_registry.OperationType,
+  name: String,
+) -> Bool {
+  case type_ {
+    operation_registry.Query ->
+      case local_query_dispatch_domain(name, "") {
+        Ok(_) -> True
+        Error(_) -> False
+      }
+    operation_registry.Mutation ->
+      case local_mutation_dispatch_domain(name, "") {
+        Ok(_) -> True
+        Error(_) -> False
+      }
+  }
+}
+
+fn local_query_dispatch_domain(
+  name: String,
+  query: String,
+) -> Result(Domain, Nil) {
+  case name {
+    "event" | "events" | "eventsCount" -> Ok(EventsDomain)
+    "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
+    "shop" ->
+      case online_store.is_online_store_query_root(name, query) {
+        True -> Ok(OnlineStoreDomain)
+        False -> Ok(StorePropertiesDomain)
+      }
+    "order" ->
+      case shipping_fulfillment_order_lifecycle_query(query) {
+        True -> Ok(ShippingFulfillmentsDomain)
+        False -> Ok(OrdersDomain)
+      }
+    "draftOrder" ->
+      case draft_order_payment_terms_only_query(query) {
+        True -> Ok(PaymentsDomain)
+        False -> Ok(OrdersDomain)
+      }
+    "customer" ->
+      case customer_payment_methods_only_query(query) {
+        True -> Ok(PaymentsDomain)
+        False -> Ok(CustomersDomain)
+      }
+    "market"
+    | "markets"
+    | "catalog"
+    | "catalogs"
+    | "catalogsCount"
+    | "priceList"
+    | "priceLists"
+    | "webPresences"
+    | "marketsResolvedValues"
+    | "marketLocalizableResource"
+    | "marketLocalizableResources"
+    | "marketLocalizableResourcesByIds" -> Ok(MarketsDomain)
+    "product" | "collection" ->
+      case store_publishable_owner_query(name, query) {
+        True -> Ok(StorePropertiesDomain)
+        False -> Ok(ProductsDomain)
+      }
+    _ ->
+      first_matching_domain([
+        #(payments.is_payments_query_root(name), PaymentsDomain),
+        #(saved_searches.is_saved_search_query_root(name), SavedSearchesDomain),
+        #(webhooks.is_webhook_subscription_query_root(name), WebhooksDomain),
+        #(apps.is_app_query_root(name), AppsDomain),
+        #(functions.is_function_query_root(name), FunctionsDomain),
+        #(gift_cards.is_gift_card_query_root(name), GiftCardsDomain),
+        #(discounts.is_discount_query_root(name), DiscountsDomain),
+        #(b2b.is_b2b_query_root(name), B2BDomain),
+        #(segments.is_segment_query_root(name), SegmentsDomain),
+        #(products.is_products_query_root(name), ProductsDomain),
+        #(customers.is_customer_query_root(name), CustomersDomain),
+        #(
+          shipping_fulfillment_priority_query_root(name),
+          ShippingFulfillmentsDomain,
+        ),
+        #(orders.is_orders_query_root(name), OrdersDomain),
+        #(
+          metafield_definitions.is_metafield_definitions_query_root(name),
+          MetafieldDefinitionsDomain,
+        ),
+        #(localization.is_localization_query_root(name), LocalizationDomain),
+        #(
+          metaobject_definitions.is_metaobject_definitions_query_root(name),
+          MetaobjectDefinitionsDomain,
+        ),
+        #(marketing.is_marketing_query_root(name), MarketingDomain),
+        #(
+          bulk_operations.is_bulk_operations_query_root(name),
+          BulkOperationsDomain,
+        ),
+        #(media.is_media_query_root(name), MediaDomain),
+        #(
+          admin_platform.is_admin_platform_query_root(name),
+          AdminPlatformDomain,
+        ),
+        #(
+          store_properties.is_store_properties_query_root(name),
+          StorePropertiesDomain,
+        ),
+        #(
+          online_store.is_online_store_query_root(name, query),
+          OnlineStoreDomain,
+        ),
+        #(
+          shipping_fulfillments.is_shipping_fulfillment_query_root(name),
+          ShippingFulfillmentsDomain,
+        ),
+      ])
+  }
+}
+
+fn draft_order_payment_terms_only_query(query: String) -> Bool {
+  case root_field.get_root_fields(query) {
+    Error(_) -> False
+    Ok(fields) ->
+      fields
+      |> list.any(fn(field) {
+        case field {
+          Field(name: field_name, ..) if field_name.value == "draftOrder" -> {
+            let selection_names = root_field.get_selection_names(field)
+            !list.is_empty(selection_names)
+            && list.all(selection_names, fn(name) {
+              name == "id" || name == "paymentTerms" || name == "__typename"
+            })
+          }
+          _ -> False
+        }
+      })
+  }
+}
+
+fn customer_payment_methods_only_query(query: String) -> Bool {
+  case root_field.get_root_fields(query) {
+    Error(_) -> False
+    Ok(fields) ->
+      fields
+      |> list.any(fn(field) {
+        case field {
+          Field(name: field_name, ..) if field_name.value == "customer" -> {
+            let selection_names = root_field.get_selection_names(field)
+            !list.is_empty(selection_names)
+            && list.all(selection_names, fn(name) {
+              name == "id" || name == "paymentMethods" || name == "__typename"
+            })
+          }
+          _ -> False
+        }
+      })
+  }
+}
+
+fn first_matching_domain(
+  candidates: List(#(Bool, Domain)),
+) -> Result(Domain, Nil) {
+  case candidates {
+    [] -> Error(Nil)
+    [#(True, domain), ..] -> Ok(domain)
+    [_, ..rest] -> first_matching_domain(rest)
+  }
+}
+
+fn store_publishable_owner_query(name: String, query: String) -> Bool {
+  case root_field.get_root_fields(query) {
+    Error(_) -> False
+    Ok(fields) ->
+      fields
+      |> list.any(fn(field) {
+        case field {
+          Field(name: field_name, ..) if field_name.value == name ->
+            selection_names_request_store_publishable_fields(
+              name,
+              root_field.get_selection_names(field),
+            )
+          _ -> False
+        }
+      })
+  }
+}
+
+fn selection_names_request_store_publishable_fields(
+  root_name: String,
+  names: List(String),
+) -> Bool {
+  let has_store_properties_publication_field =
+    list.any(names, fn(name) {
       case name {
-        "deliverySettings" | "deliveryPromiseSettings" ->
-          Ok(DeliverySettingsDomain)
-        "shop" -> Ok(StorePropertiesDomain)
-        _ ->
-          case saved_searches.is_saved_search_query_root(name) {
-            True -> Ok(SavedSearchesDomain)
-            False ->
-              case webhooks.is_webhook_subscription_query_root(name) {
-                True -> Ok(WebhooksDomain)
-                False ->
-                  case apps.is_app_query_root(name) {
-                    True -> Ok(AppsDomain)
-                    False ->
-                      case functions.is_function_query_root(name) {
-                        True -> Ok(FunctionsDomain)
-                        False ->
-                          case gift_cards.is_gift_card_query_root(name) {
-                            True -> Ok(GiftCardsDomain)
-                            False ->
-                              case segments.is_segment_query_root(name) {
-                                True -> Ok(SegmentsDomain)
-                                False ->
-                                  case
-                                    metafield_definitions.is_metafield_definitions_query_root(
-                                      name,
-                                    )
-                                  {
-                                    True -> Ok(MetafieldDefinitionsDomain)
-                                    False ->
-                                      case
-                                        localization.is_localization_query_root(
-                                          name,
-                                        )
-                                      {
-                                        True -> Ok(LocalizationDomain)
-                                        False ->
-                                          case
-                                            metaobject_definitions.is_metaobject_definitions_query_root(
-                                              name,
-                                            )
-                                          {
-                                            True ->
-                                              Ok(MetaobjectDefinitionsDomain)
-                                            False ->
-                                              case
-                                                marketing.is_marketing_query_root(
-                                                  name,
-                                                )
-                                              {
-                                                True -> Ok(MarketingDomain)
-                                                False ->
-                                                  case
-                                                    bulk_operations.is_bulk_operations_query_root(
-                                                      name,
-                                                    )
-                                                  {
-                                                    True ->
-                                                      Ok(BulkOperationsDomain)
-                                                    False ->
-                                                      case
-                                                        media.is_media_query_root(
-                                                          name,
-                                                        )
-                                                      {
-                                                        True -> Ok(MediaDomain)
-                                                        False ->
-                                                          case
-                                                            admin_platform.is_admin_platform_query_root(
-                                                              name,
-                                                            )
-                                                          {
-                                                            True ->
-                                                              Ok(
-                                                                AdminPlatformDomain,
-                                                              )
-                                                            False -> Error(Nil)
-                                                          }
-                                                      }
-                                                  }
-                                              }
-                                          }
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  }
-              }
-          }
+        "publishedOnCurrentPublication"
+        | "publishedOnPublication"
+        | "availablePublicationsCount"
+        | "resourcePublicationsCount" -> True
+        _ -> False
       }
+    })
+  case root_name {
+    "collection" ->
+      has_store_properties_publication_field
+      && list.any(names, fn(name) {
+        name == "availablePublicationsCount"
+        || name == "resourcePublicationsCount"
+      })
+    _ -> False
   }
 }
 
-fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
-  case store_properties.is_store_properties_mutation_root(name) {
+fn shipping_fulfillment_priority_query_root(name: String) -> Bool {
+  case name {
+    "deliveryProfile"
+    | "deliveryProfiles"
+    | "fulfillment"
+    | "fulfillmentOrder"
+    | "fulfillmentOrders"
+    | "assignedFulfillmentOrders"
+    | "manualHoldsFulfillmentOrders" -> True
+    _ -> False
+  }
+}
+
+fn shipping_fulfillment_order_lifecycle_query(query: String) -> Bool {
+  string.contains(query, "fulfillmentHolds")
+  || string.contains(query, "fulfillBy")
+  || string.contains(query, "supportedActions")
+}
+
+fn local_mutation_dispatch_domain(
+  name: String,
+  query: String,
+) -> Result(Domain, Nil) {
+  case publishable_mutation_requests_store_properties(name, query) {
     True -> Ok(StorePropertiesDomain)
-    False ->
-      case saved_searches.is_saved_search_mutation_root(name) {
-        True -> Ok(SavedSearchesDomain)
-        False ->
-          case webhooks.is_webhook_subscription_mutation_root(name) {
-            True -> Ok(WebhooksDomain)
-            False ->
-              case apps.is_app_mutation_root(name) {
-                True -> Ok(AppsDomain)
-                False ->
-                  case functions.is_function_mutation_root(name) {
-                    True -> Ok(FunctionsDomain)
-                    False ->
-                      case gift_cards.is_gift_card_mutation_root(name) {
-                        True -> Ok(GiftCardsDomain)
-                        False ->
-                          case segments.is_segment_mutation_root(name) {
-                            True -> Ok(SegmentsDomain)
-                            False ->
-                              case
-                                metafield_definitions.is_metafield_definitions_mutation_root(
-                                  name,
-                                )
-                              {
-                                True -> Ok(MetafieldDefinitionsDomain)
-                                False ->
-                                  case
-                                    localization.is_localization_mutation_root(
-                                      name,
-                                    )
-                                  {
-                                    True -> Ok(LocalizationDomain)
-                                    False ->
-                                      case
-                                        metaobject_definitions.is_metaobject_definitions_mutation_root(
-                                          name,
-                                        )
-                                      {
-                                        True -> Ok(MetaobjectDefinitionsDomain)
-                                        False ->
-                                          case
-                                            marketing.is_marketing_mutation_root(
-                                              name,
-                                            )
-                                          {
-                                            True -> Ok(MarketingDomain)
-                                            False ->
-                                              case
-                                                bulk_operations.is_bulk_operations_mutation_root(
-                                                  name,
-                                                )
-                                              {
-                                                True -> Ok(BulkOperationsDomain)
-                                                False ->
-                                                  case
-                                                    admin_platform.is_admin_platform_mutation_root(
-                                                      name,
-                                                    )
-                                                  {
-                                                    True ->
-                                                      Ok(AdminPlatformDomain)
-                                                    False -> Error(Nil)
-                                                  }
-                                              }
-                                          }
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  }
-              }
-          }
-      }
+    False -> local_non_store_publishable_mutation_dispatch_domain(name)
+  }
+}
+
+fn local_non_store_publishable_mutation_dispatch_domain(
+  name: String,
+) -> Result(Domain, Nil) {
+  first_matching_domain([
+    #(payments.is_payments_mutation_root(name), PaymentsDomain),
+    #(products.is_products_mutation_root(name), ProductsDomain),
+    #(
+      store_properties.is_store_properties_mutation_root(name),
+      StorePropertiesDomain,
+    ),
+    #(saved_searches.is_saved_search_mutation_root(name), SavedSearchesDomain),
+    #(webhooks.is_webhook_subscription_mutation_root(name), WebhooksDomain),
+    #(apps.is_app_mutation_root(name), AppsDomain),
+    #(functions.is_function_mutation_root(name), FunctionsDomain),
+    #(gift_cards.is_gift_card_mutation_root(name), GiftCardsDomain),
+    #(discounts.is_discount_mutation_root(name), DiscountsDomain),
+    #(b2b.is_b2b_mutation_root(name), B2BDomain),
+    #(segments.is_segment_mutation_root(name), SegmentsDomain),
+    #(
+      metafield_definitions.is_metafield_definitions_mutation_root(name),
+      MetafieldDefinitionsDomain,
+    ),
+    #(localization.is_localization_mutation_root(name), LocalizationDomain),
+    #(
+      metaobject_definitions.is_metaobject_definitions_mutation_root(name),
+      MetaobjectDefinitionsDomain,
+    ),
+    #(marketing.is_marketing_mutation_root(name), MarketingDomain),
+    #(
+      bulk_operations.is_bulk_operations_mutation_root(name),
+      BulkOperationsDomain,
+    ),
+    #(media.is_media_mutation_root(name), MediaDomain),
+    #(markets.is_markets_mutation_root(name), MarketsDomain),
+    #(admin_platform.is_admin_platform_mutation_root(name), AdminPlatformDomain),
+    #(online_store.is_online_store_mutation_root(name), OnlineStoreDomain),
+    #(privacy.is_privacy_mutation_root(name), PrivacyDomain),
+    #(
+      shipping_fulfillment_priority_mutation_root(name),
+      ShippingFulfillmentsDomain,
+    ),
+    #(orders.is_orders_mutation_root(name), OrdersDomain),
+    #(customers.is_customer_mutation_root(name), CustomersDomain),
+    #(
+      shipping_fulfillments.is_shipping_fulfillment_mutation_root(name),
+      ShippingFulfillmentsDomain,
+    ),
+  ])
+}
+
+fn publishable_mutation_requests_store_properties(
+  name: String,
+  query: String,
+) -> Bool {
+  case name {
+    "publishablePublish" | "publishableUnpublish" ->
+      string.contains(query, "publishedOnCurrentPublication")
+      || string.contains(query, "availablePublicationsCount")
+      || string.contains(query, " shop ")
+      || string.contains(query, "shop {")
+    _ -> False
+  }
+}
+
+fn shipping_fulfillment_priority_mutation_root(name: String) -> Bool {
+  case name {
+    "fulfillmentEventCreate"
+    | "fulfillmentOrderSubmitFulfillmentRequest"
+    | "fulfillmentOrderAcceptFulfillmentRequest"
+    | "fulfillmentOrderRejectFulfillmentRequest"
+    | "fulfillmentOrderSubmitCancellationRequest"
+    | "fulfillmentOrderAcceptCancellationRequest"
+    | "fulfillmentOrderRejectCancellationRequest"
+    | "fulfillmentOrderHold"
+    | "fulfillmentOrderReleaseHold"
+    | "fulfillmentOrderMove"
+    | "fulfillmentOrderReschedule"
+    | "fulfillmentOrderReportProgress"
+    | "fulfillmentOrderOpen"
+    | "fulfillmentOrderClose"
+    | "fulfillmentOrderCancel"
+    | "fulfillmentOrderSplit"
+    | "fulfillmentOrdersSetFulfillmentDeadline"
+    | "fulfillmentOrderMerge" -> True
+    _ -> False
   }
 }
 
@@ -1498,6 +2153,29 @@ pub fn process_graphql_request(
       ))
   }
   process_request(
+    proxy,
+    Request(method: "POST", path: path, headers: options.headers, body: body),
+  )
+}
+
+@target(javascript)
+/// Async JavaScript-target variant of `process_graphql_request`.
+/// Keeps the default GraphQL route construction in Gleam while still
+/// allowing live-hybrid passthrough requests to await upstream `fetch`.
+pub fn process_graphql_request_async(
+  proxy: DraftProxy,
+  body: String,
+  options: GraphQLRequestOptions,
+) -> Promise(#(Response, DraftProxy)) {
+  let path = case options.path {
+    Some(p) -> p
+    None ->
+      default_graphql_path(option.unwrap(
+        options.api_version,
+        default_admin_api_version,
+      ))
+  }
+  process_request_async(
     proxy,
     Request(method: "POST", path: path, headers: options.headers, body: body),
   )
@@ -1728,19 +2406,16 @@ type StoreFieldsDump {
 }
 
 fn store_fields_decoder() -> decode.Decoder(StoreFieldsDump) {
-  use base_state <- decode.optional_field(
+  use base_state <- decode.field(
     "baseState",
-    store.empty_base_state(),
-    store_field_decoder(state_serialization.base_state_decoder()),
+    store_field_decoder(state_serialization.strict_base_state_decoder()),
   )
-  use staged_state <- decode.optional_field(
+  use staged_state <- decode.field(
     "stagedState",
-    store.empty_staged_state(),
-    store_field_decoder(state_serialization.staged_state_decoder()),
+    store_field_decoder(state_serialization.strict_staged_state_decoder()),
   )
-  use mutation_log <- decode.optional_field(
+  use mutation_log <- decode.field(
     "mutationLog",
-    [],
     store_field_decoder(decode.list(of: mutation_log_entry_decoder())),
   )
   decode.success(StoreFieldsDump(
@@ -1787,7 +2462,7 @@ fn mutation_log_entry_decoder() -> decode.Decoder(store.MutationLogEntry) {
   use variables <- decode.optional_field(
     "variables",
     dict.new(),
-    decode.dict(decode.string, decode.string),
+    decode.dict(decode.string, root_field.resolved_value_decoder()),
   )
   use staged_resource_ids <- decode.optional_field(
     "stagedResourceIds",
@@ -1987,9 +2662,21 @@ pub fn process_request_async(
     GraphQL(version: _) ->
       case is_passthrough_request(proxy, request) {
         True -> dispatch_passthrough_async(proxy, request)
-        False -> promise.resolve(process_request(proxy, request))
+        False -> dispatch_graphql_async_or_sync(proxy, request)
       }
     _ -> promise.resolve(process_request(proxy, request))
+  }
+}
+
+@target(javascript)
+fn dispatch_graphql_async_or_sync(
+  proxy: DraftProxy,
+  request: Request,
+) -> Promise(#(Response, DraftProxy)) {
+  let #(response, next_proxy) = process_request(proxy, request)
+  case passthrough.response_is_async_unsupported(response) {
+    True -> dispatch_passthrough_async(proxy, request)
+    False -> promise.resolve(#(response, next_proxy))
   }
 }
 
@@ -2000,7 +2687,8 @@ fn is_passthrough_request(proxy: DraftProxy, request: Request) -> Bool {
     Ok(body) ->
       case parse_operation.parse_operation(body.query) {
         Error(_) -> False
-        Ok(parsed) -> live_hybrid_passthrough_target(proxy, parsed)
+        Ok(parsed) ->
+          live_hybrid_passthrough_target(proxy, parsed, body.variables)
       }
   }
 }
@@ -2010,15 +2698,10 @@ fn dispatch_passthrough_async(
   proxy: DraftProxy,
   request: Request,
 ) -> Promise(#(Response, DraftProxy)) {
-  upstream_dispatch.fetch_async(
-    proxy.config.shopify_admin_origin,
-    request.path,
-    request.body,
-    request.headers,
-    upstream_client.send_async,
-  )
-  |> promise.map(fn(outcome) {
-    #(passthrough_outcome_to_response(outcome), proxy)
+  passthrough.passthrough_async(proxy, request)
+  |> promise.map(fn(pair) {
+    let #(response, next_proxy) = pair
+    #(response, record_proxied_mutation_if_needed(next_proxy, request))
   })
 }
 

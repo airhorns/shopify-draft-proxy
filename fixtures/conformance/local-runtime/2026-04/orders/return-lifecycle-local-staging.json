@@ -527,5 +527,83 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/return-flow"
+      },
+      "query": "hand-synthesized from checked-in seedOrder for HAR-538 return lifecycle Pattern 2 order hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/return-flow",
+              "name": "#RETURN-FLOW",
+              "createdAt": "2026-04-25T00:00:00.000Z",
+              "updatedAt": "2026-04-25T00:00:00.000Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "FULFILLED",
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/return-flow",
+                    "title": "Return flow item",
+                    "quantity": 2
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/return-flow",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-04-25T01:00:00.000Z",
+                  "updatedAt": "2026-04-25T01:00:00.000Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/return-flow",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/return-flow",
+                          "title": "Return flow item"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
 }

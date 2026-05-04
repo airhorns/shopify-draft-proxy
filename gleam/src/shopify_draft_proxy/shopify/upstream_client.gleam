@@ -19,7 +19,43 @@ import gleam/httpc
 @target(javascript)
 import gleam/javascript/promise.{type Promise}
 import gleam/list
-import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/proxy/commit.{
+  type CommitTransportError, type HttpOutcome,
+}
+
+// ---------------------------------------------------------------------------
+// Transport seam.
+//
+// `SyncTransport` is the in-process, synchronous shape that both targets
+// can satisfy — it's what parity tests install when they wire a recorded
+// cassette into the proxy. Production HTTP on JS is async; that variant
+// stays target-specific (`AsyncTransport`) so we don't pretend a Promise
+// is a synchronous result.
+//
+// A handler that needs to ask upstream a question goes through
+// `proxy/upstream_query.fetch`; that helper picks `SyncTransport` when the
+// proxy has one installed (cassette in tests), otherwise falls back to
+// `send_sync` (Erlang) / `send_async` (JS).
+// ---------------------------------------------------------------------------
+
+/// Synchronous transport. Cassettes implement this directly; on Erlang
+/// production HTTP also fits this shape.
+pub type SyncTransport {
+  SyncTransport(
+    send: fn(gleam_http_request.Request(String)) ->
+      Result(HttpOutcome, CommitTransportError),
+  )
+}
+
+@target(javascript)
+/// JS-only async transport. Wraps `send_async` (or any other Promise-
+/// returning shim).
+pub type AsyncTransport {
+  AsyncTransport(
+    send: fn(gleam_http_request.Request(String)) ->
+      Promise(Result(HttpOutcome, CommitTransportError)),
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Request building
@@ -73,7 +109,12 @@ pub fn send_sync(
   req: gleam_http_request.Request(String),
 ) -> Result(commit.HttpOutcome, commit.CommitTransportError) {
   case httpc.send(req) {
-    Ok(resp) -> Ok(commit.HttpOutcome(status: resp.status, body: resp.body))
+    Ok(resp) ->
+      Ok(commit.HttpOutcome(
+        status: resp.status,
+        body: resp.body,
+        headers: resp.headers,
+      ))
     Error(err) ->
       Error(commit.CommitTransportError(message: httpc_error_message(err)))
   }
@@ -96,7 +137,12 @@ pub fn send_async(
   |> promise.try_await(fetch.read_text_body)
   |> promise.map(fn(result) {
     case result {
-      Ok(resp) -> Ok(commit.HttpOutcome(status: resp.status, body: resp.body))
+      Ok(resp) ->
+        Ok(commit.HttpOutcome(
+          status: resp.status,
+          body: resp.body,
+          headers: resp.headers,
+        ))
       Error(err) ->
         Error(commit.CommitTransportError(message: fetch_error_message(err)))
     }

@@ -277,5 +277,52 @@
         ]
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10540996428082"
+      },
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10540996428082",
+              "firstName": "Hermes",
+              "lastName": "Tax",
+              "displayName": "Hermes Tax",
+              "email": "hermes-tax-exemptions-1777157789249@example.com",
+              "taxExempt": false,
+              "taxExemptions": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"],
+              "tags": ["parity", "tax-exemptions-1777157789249"],
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-tax-exemptions-1777157789249@example.com"
+              },
+              "createdAt": "2026-04-25T22:56:29Z",
+              "updatedAt": "2026-04-25T22:56:29Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerCountHydrate",
+      "variables": {},
+      "query": "hand-synthesized from checked-in customer parity capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customersCount": {
+              "count": 23,
+              "precision": "EXACT"
+            }
+          }
+        }
+      }
+    }
+  ]
 }
