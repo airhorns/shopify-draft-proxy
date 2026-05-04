@@ -1,0 +1,34 @@
+{
+  "scenarioId": "price-list-create-dkk",
+  "operationNames": ["priceListCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-create-dkk.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-create-dkk.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 `priceListCreate` capture from `harry-test-heelo.myshopify.com` proving DKK succeeds when supplied with a valid parent percentage-decrease adjustment. The disposable price list was deleted after capture; the checked proxy replay remains local-only with an empty upstream cassette.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.priceList.id",
+        "matcher": "shopify-gid:PriceList",
+        "reason": "The proxy generates a stable local PriceList GID for the staged session; Shopify returned the disposable dev-store PriceList GID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "dkk-price-list-create-payload",
+        "capturePath": "$.cases[0].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate"
+      }
+    ]
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "scenarioId": "inventorySetQuantities-name-validation",
+  "operationNames": ["productSet", "inventorySetQuantities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventorySetQuantities-name-validation.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventorySetQuantities-name-validation-setup.graphql",
+    "variables": {
+      "input": {
+        "title": "HAR-568 inventorySetQuantities parity seed",
+        "status": "DRAFT",
+        "productOptions": [
+          {
+            "name": "Title",
+            "position": 1,
+            "values": [{ "name": "Default Title" }]
+          }
+        ],
+        "variants": [
+          {
+            "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+            "inventoryItem": {
+              "tracked": true,
+              "requiresShipping": true
+            },
+            "inventoryQuantities": [
+              {
+                "locationId": "gid://shopify/Location/1",
+                "name": "available",
+                "quantity": 0
+              },
+              {
+                "locationId": "gid://shopify/Location/1",
+                "name": "on_hand",
+                "quantity": 0
+              }
+            ]
+          }
+        ]
+      },
+      "synchronous": true
+    },
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "damaged-name-user-errors",
+        "capturePath": "$.cases.damaged.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventorySetQuantities-name-validation.graphql",
+          "variables": {
+            "input": {
+              "name": "damaged",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://har-568/2025-01/damaged/parity",
+              "ignoreCompareQuantity": true,
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 5
+                }
+              ]
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "committed-name-user-errors",
+        "capturePath": "$.cases.committed.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventorySetQuantities-name-validation.graphql",
+          "variables": {
+            "input": {
+              "name": "committed",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://har-568/2025-01/committed/parity",
+              "ignoreCompareQuantity": true,
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 5
+                }
+              ]
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "on-hand-name-user-errors",
+        "capturePath": "$.cases.onHand.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventorySetQuantities-name-validation.graphql",
+          "variables": {
+            "input": {
+              "name": "on_hand",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://har-568/2025-01/on-hand/parity",
+              "ignoreCompareQuantity": true,
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 4
+                }
+              ]
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "available-too-high-user-errors",
+        "capturePath": "$.cases.availableTooHigh.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventorySetQuantities-name-validation.graphql",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://har-568/2025-01/available-too-high/parity",
+              "ignoreCompareQuantity": true,
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1000000001
+                }
+              ]
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "duplicate-pair-user-errors",
+        "capturePath": "$.cases.duplicatePair.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventorySetQuantities-name-validation.graphql",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://har-568/2025-01/duplicate/parity",
+              "ignoreCompareQuantity": true,
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 2
+                },
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 3
+                }
+              ]
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-568 captures 2025-01 inventorySetQuantities validation for invalid quantity names, accepted on_hand, over-maximum quantity, and duplicate inventoryItemId/locationId input pairs. The parity runner creates a local productSet seed so the captured inventorySetQuantities request shape can execute against a local inventory item, then strictly compares the userErrors payload for each branch."
+}
