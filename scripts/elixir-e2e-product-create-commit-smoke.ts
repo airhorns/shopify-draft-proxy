@@ -66,16 +66,9 @@ console.log('building Erlang shipment for shopify_draft_proxy...');
 runOrExit('sh', ['-lc', 'cd gleam && gleam export erlang-shipment']);
 
 console.log('running mix test --only live...');
-runOrExit(
-  'sh',
-  [
-    '-lc',
-    'cd gleam/elixir_smoke && mix test --only live test/live_hybrid_e2e_test.exs',
-  ],
-  {
-    SHOPIFY_CONFORMANCE_STORE_DOMAIN: storeDomain,
-    SHOPIFY_CONFORMANCE_ADMIN_ORIGIN: adminOrigin,
-    SHOPIFY_CONFORMANCE_API_VERSION: apiVersion,
-    SHOPIFY_CONFORMANCE_ACCESS_TOKEN: accessToken,
-  },
-);
+runOrExit('sh', ['-lc', 'cd gleam/elixir_smoke && mix test --only live test/live_hybrid_e2e_test.exs'], {
+  SHOPIFY_CONFORMANCE_STORE_DOMAIN: storeDomain,
+  SHOPIFY_CONFORMANCE_ADMIN_ORIGIN: adminOrigin,
+  SHOPIFY_CONFORMANCE_API_VERSION: apiVersion,
+  SHOPIFY_CONFORMANCE_ACCESS_TOKEN: accessToken,
+});
