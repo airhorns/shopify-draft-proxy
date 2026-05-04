@@ -461,6 +461,156 @@ pub fn product_set_requires_variants_when_updating_options_test() {
   assert entry.staged_resource_ids == []
 }
 
+pub fn product_set_shape_validator_rejects_collection_limits_test() {
+  let too_many_variants =
+    string.repeat("{ title: \\\"Overflow\\\" },", times: 2049)
+  let variant_query =
+    "mutation { productSet(input: { title: \\\"Too Many Variants\\\", vendor: \\\"Hermes\\\", variants: ["
+    <> too_many_variants
+    <> "] }, synchronous: true) { product { id } userErrors { field message code } } }"
+  let #(Response(status: variant_status, body: variant_body, ..), variant_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(variant_query),
+    )
+  let variant_json = json.to_string(variant_body)
+  assert variant_status == 200
+  assert !string.contains(variant_json, "\"data\"")
+  assert string.contains(
+    variant_json,
+    "\"message\":\"The input array size of 2049 is greater than the maximum allowed of 2048.\"",
+  )
+  assert string.contains(
+    variant_json,
+    "\"path\":[\"productSet\",\"input\",\"variants\"]",
+  )
+  assert string.contains(variant_json, "\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"")
+  assert store.get_log(variant_proxy.store) == []
+
+  let too_many_option_values =
+    string.repeat("{ name: \\\"Overflow\\\" },", times: 101)
+  let too_many_files =
+    string.repeat(
+      "{ originalSource: \\\"https://example.com/file.jpg\\\" },",
+      times: 251,
+    )
+  let shape_query =
+    "mutation { productSet(input: { title: \\\"Shape Limits\\\", vendor: \\\"Hermes\\\", productOptions: [{ name: \\\"Color\\\", position: 1, values: ["
+    <> too_many_option_values
+    <> "] }, { name: \\\"Size\\\", position: 2, values: [{ name: \\\"Small\\\" }] }, { name: \\\"Material\\\", position: 3, values: [{ name: \\\"Cotton\\\" }] }, { name: \\\"Fit\\\", position: 4, values: [{ name: \\\"Regular\\\" }] }], files: ["
+    <> too_many_files
+    <> "] }, synchronous: true) { product { id } userErrors { field message code } } }"
+  let #(Response(status: shape_status, body: shape_body, ..), shape_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(shape_query))
+  let shape_json = json.to_string(shape_body)
+  assert shape_status == 200
+  assert string.contains(shape_json, "\"product\":null")
+  assert string.contains(shape_json, "\"field\":[\"input\",\"productOptions\"]")
+  assert string.contains(
+    shape_json,
+    "\"field\":[\"input\",\"productOptions\",\"0\",\"values\"]",
+  )
+  assert string.contains(shape_json, "\"field\":[\"input\",\"files\"]")
+  assert string.contains(shape_json, "\"code\":\"INVALID_INPUT\"")
+  let assert [shape_entry] = store.get_log(shape_proxy.store)
+  assert shape_entry.operation_name == Some("productSet")
+  assert shape_entry.status == store.Failed
+  assert shape_entry.staged_resource_ids == []
+
+  let too_many_quantities =
+    string.repeat(
+      "{ locationId: \\\"gid://shopify/Location/1\\\", name: \\\"available\\\", quantity: 1 },",
+      times: 251,
+    )
+  let inventory_query =
+    "mutation { productSet(input: { title: \\\"Too Many Quantities\\\", vendor: \\\"Hermes\\\", variants: [{ inventoryQuantities: ["
+    <> too_many_quantities
+    <> "] }] }, synchronous: true) { product { id } userErrors { field message code } } }"
+  let #(
+    Response(status: inventory_status, body: inventory_body, ..),
+    inventory_proxy,
+  ) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(inventory_query),
+    )
+  let inventory_json = json.to_string(inventory_body)
+  assert inventory_status == 200
+  assert !string.contains(inventory_json, "\"data\"")
+  assert string.contains(
+    inventory_json,
+    "\"message\":\"The input array size of 251 is greater than the maximum allowed of 250.\"",
+  )
+  assert string.contains(
+    inventory_json,
+    "\"path\":[\"productSet\",\"input\",\"variants\",\"inventoryQuantities\"]",
+  )
+  assert string.contains(inventory_json, "\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"")
+  assert store.get_log(inventory_proxy.store) == []
+}
+
+pub fn product_set_rejects_missing_and_suspended_product_references_test() {
+  let missing_query =
+    "mutation { productSet(input: { id: \\\"gid://shopify/Product/999999999999\\\", title: \\\"Missing\\\", vendor: \\\"Hermes\\\" }, synchronous: true) { product { id } userErrors { field message code } } }"
+  let #(Response(status: missing_status, body: missing_body, ..), missing_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(missing_query),
+    )
+  let missing_json = json.to_string(missing_body)
+  assert missing_status == 200
+  assert string.contains(missing_json, "\"product\":null")
+  assert string.contains(missing_json, "\"field\":[\"input\",\"id\"]")
+  assert string.contains(missing_json, "\"code\":\"PRODUCT_DOES_NOT_EXIST\"")
+  let assert [missing_entry] = store.get_log(missing_proxy.store)
+  assert missing_entry.operation_name == Some("productSet")
+  assert missing_entry.status == store.Failed
+  assert missing_entry.staged_resource_ids == []
+
+  let suspended_query =
+    "mutation { productSet(input: { id: \\\"gid://shopify/Product/suspended\\\", title: \\\"Suspended\\\", vendor: \\\"Hermes\\\" }, synchronous: true) { product { id } userErrors { field message code } } }"
+  let suspended_proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: suspended_product_store(),
+    )
+  let #(
+    Response(status: suspended_status, body: suspended_body, ..),
+    next_proxy,
+  ) =
+    draft_proxy.process_request(
+      suspended_proxy,
+      graphql_request(suspended_query),
+    )
+  let suspended_json = json.to_string(suspended_body)
+  assert suspended_status == 200
+  assert string.contains(suspended_json, "\"product\":null")
+  assert string.contains(suspended_json, "\"field\":[\"input\"]")
+  assert string.contains(suspended_json, "\"code\":\"INVALID_PRODUCT\"")
+  let assert [suspended_entry] = store.get_log(next_proxy.store)
+  assert suspended_entry.operation_name == Some("productSet")
+  assert suspended_entry.status == store.Failed
+  assert suspended_entry.staged_resource_ids == []
+}
+
+pub fn product_set_async_operation_completes_on_product_operation_read_test() {
+  let mutation =
+    "mutation { productSet(input: { title: \\\"Async ProductSet\\\", vendor: \\\"Hermes\\\", status: DRAFT }, synchronous: false) { product { id } productSetOperation { id status product { id } userErrors { field message code } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(mutation))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productSet\":{\"product\":null,\"productSetOperation\":{\"id\":\"gid://shopify/ProductSetOperation/6\",\"status\":\"CREATED\",\"product\":null,\"userErrors\":[]},\"userErrors\":[]}}}"
+
+  let operation_read =
+    "query { productOperation(id: \\\"gid://shopify/ProductSetOperation/6\\\") { __typename status product { id title } ... on ProductSetOperation { id userErrors { field message code } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(operation_read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductSetOperation\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Async ProductSet\"},\"id\":\"gid://shopify/ProductSetOperation/6\",\"userErrors\":[]}}}"
+}
+
 pub fn product_create_accepts_legacy_input_argument_shape_test() {
   // Real Shopify accepts both `productCreate(product: ProductCreateInput!)`
   // (current) and `productCreate(input: ProductInput!)` (older API versions).
@@ -694,6 +844,18 @@ fn metafield_store() -> store.Store {
       created_at: None,
       updated_at: None,
       owner_type: Some("PRODUCT"),
+    ),
+  ])
+}
+
+fn suspended_product_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_products([
+    ProductRecord(
+      ..default_product(),
+      id: "gid://shopify/Product/suspended",
+      handle: "suspended-product",
+      status: "SUSPENDED",
     ),
   ])
 }

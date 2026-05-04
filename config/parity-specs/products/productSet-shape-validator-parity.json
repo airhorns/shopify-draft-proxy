@@ -1,0 +1,61 @@
+{
+  "scenarioId": "productSet-shape-validator-parity",
+  "operationNames": ["productSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "shape-validator-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-shape-validator-parity.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productSet-shape-validator-parity.graphql",
+    "variablesCapturePath": "$.variantLimit.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-601 live 2025-01 capture for productSet shape guardrails. Shopify returns top-level MAX_INPUT_SIZE_EXCEEDED errors for variants and variant inventoryQuantities overflow, and a payload PRODUCT_DOES_NOT_EXIST userError for unknown input.id. Top-level error locations are ignored because the local parser does not preserve Shopify source locations.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "variant-limit-top-level-error",
+        "capturePath": "$.variantLimit.response.errors",
+        "proxyPath": "$.errors",
+        "expectedDifferences": [
+          {
+            "path": "$[*].locations",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "GraphQL source locations are parser-specific and not part of the productSet shape semantics."
+          }
+        ]
+      },
+      {
+        "name": "inventory-quantities-limit-top-level-error",
+        "capturePath": "$.inventoryQuantitiesLimit.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-shape-validator-parity.graphql",
+          "variablesCapturePath": "$.inventoryQuantitiesLimit.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$[*].locations",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "GraphQL source locations are parser-specific and not part of the productSet shape semantics."
+          }
+        ]
+      },
+      {
+        "name": "unknown-product-user-error",
+        "capturePath": "$.unknownProduct.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-shape-validator-parity.graphql",
+          "variablesCapturePath": "$.unknownProduct.variables"
+        }
+      }
+    ]
+  }
+}
