@@ -1,0 +1,9 @@
+{
+  "_notes": "Hand-synthesized capture — Shopify never sees a proxy-synthetic gid in production, since the proxy is supposed to recognize the `?shopify-draft-proxy=synthetic` marker and serve the query locally. The captured response below is the contract the proxy must satisfy: when a synthetic-marked gid is queried (as an inline GraphQL literal, not a variable) and no product with that id is staged, the proxy returns `data.product: null` from local state — without consulting Shopify. The empty `upstreamCalls` cassette enforces that contract: any passthrough in live-hybrid mode would surface as a cassette miss (502), failing the spec.",
+  "response": {
+    "data": {
+      "product": null
+    }
+  },
+  "upstreamCalls": []
+}

@@ -236,35 +236,61 @@ pub fn is_products_mutation_root(name: String) -> Bool {
   }
 }
 
-/// True iff any string variable in the request points at a product
-/// already present in local state, or at a proxy-synthetic gid. This
-/// gates LiveHybrid passthrough for cold upstream `product` /
-/// `productByIdentifier` reads while keeping staged read-after-write
-/// flows fully local.
+/// True iff any string in the request's resolved root-field arguments
+/// or in the variables dict points at a product already present in
+/// local state, or at a proxy-synthetic gid. This gates LiveHybrid
+/// passthrough for cold upstream `product` / `productByIdentifier`
+/// reads while keeping staged read-after-write flows fully local.
+///
+/// We must scan resolved arguments — not just variable values —
+/// because callers frequently embed proxy-synthetic gids as inline
+/// string literals (`product(id: "gid://shopify/Product/N?shopify-
+/// draft-proxy=synthetic")`). Inline literals never appear in the
+/// variables dict, so a variables-only check sends synthetic gids
+/// upstream where they 404.
 pub fn local_has_product_id(
   proxy: DraftProxy,
+  document: String,
   variables: Dict(String, ResolvedValue),
 ) -> Bool {
-  dict.values(variables)
-  |> list.any(fn(value) {
-    case value {
-      StringVal(id) ->
-        is_proxy_synthetic_gid(id)
-        || case store.get_effective_product_by_id(proxy.store, id) {
-          Some(_) -> True
-          None ->
-            case has_effective_product_metafield_owner(proxy.store, id) {
-              True -> True
-              False ->
-                case store.get_effective_product_by_handle(proxy.store, id) {
-                  Some(_) -> True
-                  None -> False
-                }
-            }
-        }
-      _ -> False
-    }
-  })
+  let inline_arg_values = case
+    root_field.get_root_field_arguments(document, variables)
+  {
+    Ok(args) -> dict.values(args)
+    Error(_) -> []
+  }
+  list.append(inline_arg_values, dict.values(variables))
+  |> list.any(fn(value) { resolved_value_matches_local_product(proxy, value) })
+}
+
+fn resolved_value_matches_local_product(
+  proxy: DraftProxy,
+  value: ResolvedValue,
+) -> Bool {
+  case value {
+    StringVal(id) ->
+      is_proxy_synthetic_gid(id)
+      || case store.get_effective_product_by_id(proxy.store, id) {
+        Some(_) -> True
+        None ->
+          case has_effective_product_metafield_owner(proxy.store, id) {
+            True -> True
+            False ->
+              case store.get_effective_product_by_handle(proxy.store, id) {
+                Some(_) -> True
+                None -> False
+              }
+          }
+      }
+    ObjectVal(fields) ->
+      dict.values(fields)
+      |> list.any(fn(field) { resolved_value_matches_local_product(proxy, field) })
+    ListVal(items) ->
+      list.any(items, fn(item) {
+        resolved_value_matches_local_product(proxy, item)
+      })
+    _ -> False
+  }
 }
 
 fn local_has_product_state(proxy: DraftProxy) -> Bool {
@@ -280,14 +306,14 @@ fn should_passthrough_in_live_hybrid(
   proxy: DraftProxy,
   type_: parse_operation.GraphQLOperationType,
   primary_root_field: String,
-  _document: String,
+  document: String,
   variables: Dict(String, ResolvedValue),
 ) -> Bool {
   case type_, primary_root_field {
     parse_operation.QueryOperation, "product" ->
-      !local_has_product_id(proxy, variables)
+      !local_has_product_id(proxy, document, variables)
     parse_operation.QueryOperation, "productByIdentifier" ->
-      !local_has_product_id(proxy, variables)
+      !local_has_product_id(proxy, document, variables)
     parse_operation.QueryOperation, "products" ->
       !local_has_product_domain_state(proxy)
     parse_operation.QueryOperation, "productsCount" ->

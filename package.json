@@ -47,7 +47,9 @@
     "conformance:capture": "tsx ./scripts/conformance-capture-index.ts",
     "conformance:capture:index": "tsx ./scripts/conformance-capture-index.ts",
     "conformance:capture-custom-data-field-types": "tsx ./scripts/capture-custom-data-field-type-conformance.ts",
-    "conformance:probe-product-variant-compatibility-roots": "tsx ./scripts/probe-product-variant-compatibility-roots.mts"
+    "conformance:probe-product-variant-compatibility-roots": "tsx ./scripts/probe-product-variant-compatibility-roots.mts",
+    "e2e:product-create-commit-smoke": "tsx --no-experimental-require-module ./scripts/e2e-product-create-commit-smoke.mts",
+    "e2e:elixir-product-create-commit-smoke": "tsx ./scripts/elixir-e2e-product-create-commit-smoke.ts"
   },
   "dependencies": {
     "@koa/router": "^15.4.0",
