@@ -1,18 +1,4 @@
 {
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/8971842846953",
-      "title": "Test Product - 6635",
-      "handle": "test-product-ge91cbbd6",
-      "status": "ACTIVE"
-    },
-    {
-      "id": "gid://shopify/Product/8397257572585",
-      "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
-      "handle": "adidas-classic-backpack-legend-ink-multicolour",
-      "status": "ACTIVE"
-    }
-  ],
   "seedPublication": {
     "id": "gid://shopify/Publication/82090459369",
     "name": "Online Store"

@@ -92,20 +92,6 @@ pub type Target {
   )
 }
 
-pub type ParityMode {
-  /// Parity tests run against the proxy in `LiveHybrid` read mode with
-  /// the cassette transport installed. Operation handlers may call
-  /// `upstream_query.fetch_*` to satisfy reads they don't have local
-  /// state for; the cassette services those calls deterministically
-  /// from the recorded `upstreamCalls` field on the capture file.
-  LiveHybridMode
-  /// Parity tests run against the proxy in default `Snapshot` read
-  /// mode with no transport installed. Asserts the proxy's cold-state
-  /// behavior: no upstream calls, reads serve from local state or
-  /// return null/empty as appropriate.
-  SnapshotEmptyMode
-}
-
 pub type Spec {
   Spec(
     scenario_id: String,
@@ -114,7 +100,6 @@ pub type Spec {
     targets: List(Target),
     expected_differences: List(ExpectedDifference),
     operation_names: List(String),
-    mode: ParityMode,
   )
 }
 
@@ -139,7 +124,6 @@ fn spec_decoder() -> Decoder(Spec) {
     [],
     decode.list(decode.string),
   )
-  use mode <- decode.optional_field("mode", LiveHybridMode, mode_decoder())
   case captures {
     [first, ..] ->
       decode.success(Spec(
@@ -149,19 +133,8 @@ fn spec_decoder() -> Decoder(Spec) {
         targets: comparison.0,
         expected_differences: comparison.1,
         operation_names: operation_names,
-        mode: mode,
       ))
     [] -> decode.failure(empty_spec(), "liveCaptureFiles cannot be empty")
-  }
-}
-
-fn mode_decoder() -> Decoder(ParityMode) {
-  use raw <- decode.then(decode.string)
-  case raw {
-    "live-hybrid" -> decode.success(LiveHybridMode)
-    "snapshot-empty" -> decode.success(SnapshotEmptyMode)
-    other ->
-      decode.failure(LiveHybridMode, "unknown parity mode \"" <> other <> "\"")
   }
 }
 
@@ -177,7 +150,6 @@ fn empty_spec() -> Spec {
     targets: [],
     expected_differences: [],
     operation_names: [],
-    mode: LiveHybridMode,
   )
 }
 

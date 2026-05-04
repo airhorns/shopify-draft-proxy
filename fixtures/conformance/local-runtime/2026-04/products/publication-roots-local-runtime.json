@@ -7,21 +7,6 @@
       "name": "Online Store"
     }
   ],
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/1",
-      "title": "Published Product",
-      "status": "ACTIVE",
-      "publicationIds": ["gid://shopify/Publication/1"]
-    }
-  ],
-  "seedCollections": [
-    {
-      "id": "gid://shopify/Collection/1",
-      "title": "Published Collection",
-      "publicationIds": ["gid://shopify/Publication/1"]
-    }
-  ],
   "create": {
     "variables": {
       "input": {

@@ -105,27 +105,6 @@
     "missingScopes": [],
     "hasRequiredScopes": true
   },
-  "seedCustomers": [
-    {
-      "id": "gid://shopify/Customer/10548596015410",
-      "firstName": "HAR390",
-      "lastName": "Buyer Context",
-      "displayName": "HAR390 Buyer Context",
-      "email": "har390-buyer-context-1777346878525@example.com",
-      "tags": ["har390-buyer-1777346878525"],
-      "createdAt": "2026-04-28T03:27:58Z",
-      "updatedAt": "2026-04-28T03:27:58Z"
-    }
-  ],
-  "seedSegments": [
-    {
-      "id": "gid://shopify/Segment/647746715954",
-      "name": "HAR-390 buyer context 1777346878525",
-      "query": "customer_tags CONTAINS 'har390-buyer-1777346878525'",
-      "creationDate": "2026-04-28T03:27:58Z",
-      "lastEditDate": "2026-04-28T03:27:58Z"
-    }
-  ],
   "setup": {
     "customerCreate": {
       "query": "#graphql\n  mutation DiscountBuyerContextCustomerCreate($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer {\n        id\n        firstName\n        lastName\n        displayName\n        email\n        tags\n        createdAt\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",

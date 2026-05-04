@@ -9,8 +9,7 @@ that the Gleam port emulates Shopify with high fidelity.
 This document describes the **cassette-playback** model. The previous
 seed-based model (where the parity runner pre-wrote into `base_state` to
 fake the proxy into knowing about resources it shouldn't yet have known
-about) is being retired; details on the migration are in
-`/Users/harry.brundage/.claude/plans/create-a-plan-to-fluttering-pretzel.md`.
+about) is unsupported.
 
 ## Model
 
@@ -24,20 +23,12 @@ A scenario consists of:
    `upstreamCalls` cassette of upstream traffic the proxy made while
    serving the captured request.
 
-The runner runs the spec in one of two **modes**, declared by the spec's
-optional top-level `mode` field:
-
-- `live-hybrid` (the default) — the proxy is configured with
-  `read_mode: LiveHybrid` and the cassette transport is installed via
-  `draft_proxy.with_upstream_transport`. Operation handlers may call
-  `proxy/upstream_query.fetch_*` to ask upstream for information they
-  don't have locally; those calls are matched against the cassette and
-  served deterministically. **Mutations stage their effects locally**;
-  upstream is never written to from a parity test.
-- `snapshot-empty` — the proxy starts in default `Snapshot` mode with
-  no transport installed. Asserts the proxy's cold-state behavior
-  (reads return null/empty, creates work end-to-end, validation errors
-  surface correctly).
+The runner configures the proxy with `read_mode: LiveHybrid` and installs
+the cassette transport via `draft_proxy.with_upstream_transport`.
+Operation handlers may call `proxy/upstream_query.fetch_*` to ask upstream
+for information they don't have locally; those calls are matched against
+the cassette and served deterministically. **Mutations stage their effects
+locally**; upstream is never written to from a parity test.
 
 There is **no per-domain "hydrate from upstream" pass** and no uniform
 "mirror upstream into local state." Each operation handler decides, on
@@ -50,7 +41,6 @@ result. See _Per-operation upstream access_ below.
 {
   "scenarioId": "customer-detail-parity-plan",
   "liveCaptureFiles": ["fixtures/conformance/customer-detail.json"],
-  "mode": "live-hybrid", // optional, default "live-hybrid"
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customer-detail.graphql",
     "apiVersion": "2025-01",
@@ -62,8 +52,8 @@ result. See _Per-operation upstream access_ below.
 }
 ```
 
-`mode` is the only new field this migration introduces; everything else
-matches the pre-existing spec format.
+`comparison.mode` is the comparison contract for the target payloads. It
+is distinct from proxy runtime read mode, which the runner owns.
 
 ## Cassette shape
 
@@ -262,25 +252,15 @@ be served by forwarding verbatim.
 # Run every spec on both Gleam targets:
 cd gleam && gleam test --target javascript && gleam test --target erlang
 
-# Run one spec:
-pnpm parity:run customer-detail-parity-plan          # default mode
-pnpm parity:run --mode snapshot-empty customer-detail-parity-plan-empty-snapshot
+# Run the parity test module on one target:
+cd gleam && gleam test --target javascript -- parity_test
 ```
 
 The central gate test
-(`gleam/test/parity_test.gleam:all_discovered_parity_specs_follow_expected_failures_test`)
-classifies each spec as one of:
-
-- `Passed` — spec ran and matched.
-- `Failed` — spec ran and mismatched (or surfaced an unexpected error).
-- `Skipped` — runner returned `SpecNotMigrated` (the spec is in
-  `live-hybrid` mode but its capture has no `upstreamCalls`); the gate
-  counts these but does not fail on them. Skipped specs are awaiting a
-  cassette re-record.
-
-The gate fails the build only on unexpected `Failed` outcomes (i.e.,
-specs that aren't in `config/gleam-port-ci-gates.json`'s
-`expectedGleamParityFailures`). Skipped specs do not flag.
+(`gleam/test/parity_test.gleam:all_discovered_parity_specs_pass_test`)
+discovers every spec and treats any runner error or comparison mismatch
+as a hard test failure. A spec without a valid `upstreamCalls` cassette
+does not run in a degraded mode; it fails until the capture is repaired.
 
 ## Debugging a single scenario
 
@@ -447,14 +427,7 @@ scenario-specific name (`DiscountHydrateForBulkAppFlow`) instead of
 overloading a shared one — the operation name is the cassette match
 key.
 
-## Migration playbook (per-domain agent brief)
-
-Each domain (customers, products, collections, …) is migrated
-independently on the long-lived `parity-cassette-migration` branch,
-opened as a sub-PR into the branch. Once the substrate (cassette
-infrastructure + transport injection + `upstream_query` helper +
-recording script) and the docs have landed, parallel agents can pick up
-domains.
+## Adding Or Repairing Coverage
 
 Per-scenario steps:
 
@@ -476,8 +449,9 @@ Per-scenario steps:
      section above for the discounts example).
    - Pattern 2: add a `upstream_query.fetch_sync(...)` call inside the
      domain handler and document the choice inline.
-   - Re-run `pnpm parity:record <id>` and confirm `wrote N>0
-upstreamCalls` (or hand-synthesize if recording fails).
+   - Re-run `pnpm parity:record <id>` and confirm it writes the expected
+     `upstreamCalls` entries. An empty array is valid for mutation-only
+     scenarios that make no upstream reads.
 3. `cd gleam && gleam test --target javascript -- parity_test` to run
    on JS, then `--target erlang` to run on Erlang. If you see:
    - `cassette miss: operation=<X>` — the operation made an upstream
@@ -488,31 +462,18 @@ upstreamCalls` (or hand-synthesize if recording fails).
      Adjust the handler.
 4. **Verify on both targets.** Drift between Erlang and JS is the
    most expensive bug class.
-5. Once both targets are green for this scenario, drop its entry from
-   `config/gleam-port-ci-gates.json`'s `expectedGleamParityFailures`.
-   Then re-run the full gate (`gleam test --target javascript` and
-   `--target erlang`) — the gate will fail if a now-passing scenario
-   is still in the manifest, so dropping is required not optional.
-6. If the scenario qualifies for an empty-snapshot variant (per the
-   duplication heuristic in the migration plan), create
-   `<id>-empty-snapshot.json` with `"mode": "snapshot-empty"`, no
-   cassette, and assertions adjusted for cold-state expectations. Run
-   that variant green too.
-7. **Watch for collateral regressions.** Adding an unconditional or
+5. **Watch for collateral regressions.** Adding an unconditional or
    incorrectly-gated passthrough branch can regress lifecycle
    scenarios in _other_ specs that touch the same root fields. After
    each handler change, run the full domain's tests (or the whole
    suite) — not just your scenario.
-8. Move to the next scenario. When the whole domain is green, open
-   the sub-PR.
 
-## What `seedX` keys mean (legacy)
+## Seed Keys Are Forbidden
 
-Legacy capture files carry `seedProducts`, `seedCustomers`, `seedDiscounts`,
-… arrays. These were inputs to the seed-based runner. They are being
-removed as part of the migration; **never add new ones**. The
-cheating-lint test (post-cutover) will fail the build if any `seedX` key
-appears under `fixtures/conformance/**`.
+Capture files must not carry top-level `seedProducts`, `seedCustomers`,
+`seedDiscounts`, or similar `seedX` keys. Those keys were inputs to the
+unsupported seed-based runner. The cheating-lint test fails the build if
+they reappear under `fixtures/conformance/**`.
 
 ## Why we changed
 

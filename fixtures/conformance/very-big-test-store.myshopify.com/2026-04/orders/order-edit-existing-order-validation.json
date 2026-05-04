@@ -26,22 +26,6 @@
       ]
     }
   },
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/8971842846953",
-      "title": "Test Product - 6635",
-      "variants": {
-        "nodes": [
-          {
-            "id": "gid://shopify/ProductVariant/48540157378793",
-            "title": "Default Title",
-            "sku": null,
-            "price": "0.00"
-          }
-        ]
-      }
-    }
-  ],
   "mutation": {
     "response": {
       "data": {

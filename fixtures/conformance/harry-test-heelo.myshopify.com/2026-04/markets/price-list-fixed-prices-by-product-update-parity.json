@@ -10,24 +10,6 @@
     "priceQuery": "product_id:9801098789170",
     "cleanup": "The success path deletes the product-level fixed price after the add/read capture."
   },
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/9801098789170",
-      "title": "The Inventory Not Tracked Snowboard",
-      "handle": "the-inventory-not-tracked-snowboard",
-      "variants": {
-        "nodes": [
-          {
-            "id": "gid://shopify/ProductVariant/49875425296690",
-            "title": "Default Title",
-            "sku": "sku-untracked-1",
-            "price": "949.95",
-            "compareAtPrice": null
-          }
-        ]
-      }
-    }
-  ],
   "data": {
     "priceList": {
       "__typename": "PriceList",

@@ -113,8 +113,7 @@ The substrate is "done" when, on both the Erlang and JavaScript targets:
       TypeScript `parse-operation.ts` output for those documents.
 - [ ] The parity runner (gleeunit-driven) loads every spec under
       `config/parity-specs/**`, recognises the comparison-mode contract, and
-      reports the same "skipped vs runnable vs failing" partition as the
-      TypeScript runner does for the corresponding domains.
+      treats every runner error or comparison mismatch as a hard failure.
 - [ ] All three interop boundaries are green: `gleam test --target erlang`,
       `gleam test --target javascript`, the Node ESM smoke
       (`tests/integration/gleam-interop.test.ts`), and the Elixir mix smoke

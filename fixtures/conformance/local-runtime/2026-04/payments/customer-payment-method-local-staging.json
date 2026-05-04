@@ -4,20 +4,6 @@
   "apiVersion": "2026-04",
   "livePaymentCredentialSideEffects": false,
   "notes": "Customer payment-method lifecycle and payment reminder behavior is represented by deterministic local-runtime evidence because the current conformance grant lacks read_customer_payment_methods/write_customer_payment_methods, and live success paths can expose vaulted payment material, expiring customer update URLs, or customer-visible reminder email.",
-  "seedCustomers": [
-    {
-      "id": "gid://shopify/Customer/8801",
-      "email": "payment-one@example.com",
-      "displayName": "Payment One",
-      "state": "ENABLED"
-    },
-    {
-      "id": "gid://shopify/Customer/8802",
-      "email": "payment-two@example.com",
-      "displayName": "Payment Two",
-      "state": "ENABLED"
-    }
-  ],
   "seedCustomerPaymentMethods": [
     {
       "id": "gid://shopify/CustomerPaymentMethod/base-card",

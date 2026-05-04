@@ -42,22 +42,6 @@
       ]
     }
   },
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/8397254426857",
-      "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
-      "variants": {
-        "nodes": [
-          {
-            "id": "gid://shopify/ProductVariant/46789254021353",
-            "title": "4 / burgandy",
-            "sku": "VN-01-burgandy-4",
-            "price": "29.00"
-          }
-        ]
-      }
-    }
-  ],
   "mutation": {
     "response": {
       "data": {

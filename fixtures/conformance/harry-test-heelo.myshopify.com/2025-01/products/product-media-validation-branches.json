@@ -9,14 +9,6 @@
     "Mixed create partially creates valid media and reports invalid entries.",
     "Mixed update/delete reject the batch and preserve the existing product media set."
   ],
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/10170577518898",
-      "title": "HAR-289 media validation product",
-      "handle": "har-289-media-validation-product",
-      "status": "DRAFT"
-    }
-  ],
   "seedProductMedia": [
     {
       "productId": "gid://shopify/Product/10170577518898",

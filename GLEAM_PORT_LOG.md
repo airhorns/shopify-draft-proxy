@@ -9,9 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-04 - Pass 195: HAR-546 parity scaffold removal
+
+Removes the completed parity-migration safety rails so every checked-in parity
+spec runs as required evidence on both Gleam targets. Missing cassettes and
+comparison mismatches now fail the parity test directly; there is no
+allowlist, skipped parity outcome, or top-level parity runtime mode left.
+
+| Module / fixture                                               | Change                                                                                                                                   |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `config/gleam-port-ci-gates.json`                              | Deletes the now-redundant CI gate config file after removing the former expected-failure manifest.                                       |
+| `gleam/test/parity_test.gleam`                                 | Simplifies the discovered corpus test to hard-fail every runner error or mismatch, with no expected-failure or skipped-outcome handling. |
+| `gleam/test/parity/spec.gleam` / `runner.gleam`                | Removes unused top-level parity runtime mode decoding, including the empty-snapshot variant; every spec runs LiveHybrid with a cassette. |
+| `scripts/gleam-port-coverage-gate.ts`                          | Drops manifest validation and owns the remaining workflow/capture-tooling gate lists directly.                                           |
+| `tests/unit/parity-no-seeding.test.ts`                         | Deletes the obsolete lockdown suite now that the migration scaffolding is gone and the corpus is fully strict.                           |
+| `fixtures/conformance/**/*.json`                               | Removes the banned top-level seed metadata from 31 capture files so the active no-seeding lint passes.                                   |
+| `docs/parity-runner.md` / `docs/architecture.md`               | Rewrites migration-era guidance as steady-state cassette-runner documentation.                                                           |
+| `GLEAM_PORT_INTENT.md` / `gleam/test/parity_corpus_test.gleam` | Removes stale skipped-partition/corpus comments.                                                                                         |
+
+Validation:
+
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `cd gleam && gleam test --target javascript -- parity_test` (827 passed)
+- `cd gleam && gleam test --target javascript -- parity_corpus_test` (831 passed)
+- `corepack pnpm conformance:check` (1403 passed)
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (831 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 822 passed)
+- `corepack pnpm gleam:build:js` before rerunning root tests after the Erlang
+  container cleaned the build directory
+- `corepack pnpm test` (123 files passed; 2267 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `git diff --check`
+
+### Findings
+
+- The supplied skipped-test audit pattern still matches `process.exit(` through
+  the `xit(` alternative; those hits are not skipped tests.
+- No checked-in parity spec used the removed top-level empty-snapshot mode. The
+  active `comparison.mode` field remains in specs as the strict JSON comparison
+  contract.
+- Enabling the no-seeding lint exposed stale top-level seed metadata in capture
+  roots. Removing those unused keys did not change cassette payloads or
+  comparison targets.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
+
+---
+
 ## 2026-05-04 - Pass 194: HAR-545 final parity drain
 
-Drains the final `expectedGleamParityFailures` manifest to zero and makes the
+Drains the final Gleam parity expected-failure manifest to zero and makes the
 entire cassette-backed parity corpus green on both Gleam targets. The remaining
 failures were product-domain scenarios that needed Pattern 2 hydration breadth,
 fixture cassette repair from checked-in capture evidence, and several local
@@ -20,7 +78,7 @@ Shopify writes.
 
 | Module / fixture                                                                    | Change                                                                                                                                                                                          |
 | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config/gleam-port-ci-gates.json`                                                   | Empties `expectedGleamParityFailures`.                                                                                                                                                          |
+| `config/gleam-port-ci-gates.json`                                                   | Empties the Gleam parity expected-failure manifest.                                                                                                                                             |
 | `gleam/src/shopify_draft_proxy/proxy/products.gleam`                                | Extends product-domain Pattern 2 hydration, fixes product/variant/inventory/publication/selling-plan read-after-write behavior, and makes hydrate ID ordering deterministic across targets.     |
 | `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam`                   | Aligns singular `metafieldDelete` compatibility for unknown local IDs.                                                                                                                          |
 | `gleam/src/shopify_draft_proxy/state/store.gleam`                                   | Aligns product collection listing order without changing collection membership order.                                                                                                           |
@@ -44,7 +102,7 @@ Validation:
 - `corepack pnpm build`
 - `corepack pnpm test` (123 files passed; 2263 passed, 2 existing skipped)
 - `git diff --check`
-- Repository scans: `expectedGleamParityFailures.length === 0`, no
+- Repository scans: the Gleam parity expected-failure manifest is empty, no
   missing/malformed parity `upstreamCalls`, no `skip: true`, and no `seedX`.
 
 ### Findings

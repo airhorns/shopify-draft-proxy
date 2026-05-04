@@ -65,7 +65,6 @@ type ParitySpec = {
   comparison?: {
     targets?: SpecTarget[];
   };
-  mode?: 'live-hybrid' | 'snapshot-empty';
 };
 
 type RecordOptions = {
@@ -410,11 +409,6 @@ function extractOperationName(query: string): string | undefined {
 async function recordSpec(opts: RecordOptions): Promise<void> {
   const specSource = readFileSync(opts.specPath, 'utf8');
   const spec = JSON.parse(specSource) as ParitySpec;
-
-  if (spec.mode === 'snapshot-empty') {
-    log(`[parity-record] skip ${spec.scenarioId} (mode: snapshot-empty has no cassette)`);
-    return;
-  }
 
   if (!spec.liveCaptureFiles || spec.liveCaptureFiles.length === 0) {
     throw new Error(`Spec ${spec.scenarioId} has no liveCaptureFiles; cannot determine where to write upstreamCalls.`);
