@@ -18,23 +18,22 @@ allowlist, skipped parity outcome, or top-level parity runtime mode left.
 
 | Module / fixture                                               | Change                                                                                                                                   |
 | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `config/gleam-port-ci-gates.json`                              | Removes the former Gleam parity expected-failure field while keeping workflow-command and capture-tooling gate config.                   |
+| `config/gleam-port-ci-gates.json`                              | Deletes the now-redundant CI gate config file after removing the former expected-failure manifest.                                       |
 | `gleam/test/parity_test.gleam`                                 | Simplifies the discovered corpus test to hard-fail every runner error or mismatch, with no expected-failure or skipped-outcome handling. |
 | `gleam/test/parity/spec.gleam` / `runner.gleam`                | Removes unused top-level parity runtime mode decoding, including the empty-snapshot variant; every spec runs LiveHybrid with a cassette. |
-| `scripts/gleam-port-coverage-gate.ts`                          | Drops manifest validation and keeps discovery, strict-comparison inventory, workflow, and capture-tooling checks.                        |
-| `tests/unit/parity-no-seeding.test.ts`                         | Enables the post-migration no-seeding checks.                                                                                            |
+| `scripts/gleam-port-coverage-gate.ts`                          | Drops manifest validation and owns the remaining workflow/capture-tooling gate lists directly.                                           |
+| `tests/unit/parity-no-seeding.test.ts`                         | Deletes the obsolete lockdown suite now that the migration scaffolding is gone and the corpus is fully strict.                           |
 | `fixtures/conformance/**/*.json`                               | Removes the banned top-level seed metadata from 31 capture files so the active no-seeding lint passes.                                   |
 | `docs/parity-runner.md` / `docs/architecture.md`               | Rewrites migration-era guidance as steady-state cassette-runner documentation.                                                           |
 | `GLEAM_PORT_INTENT.md` / `gleam/test/parity_corpus_test.gleam` | Removes stale skipped-partition/corpus comments.                                                                                         |
 
 Validation:
 
-- `corepack pnpm test tests/unit/parity-no-seeding.test.ts` (3 passed)
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm conformance:capture:check` (9 passed)
 - `cd gleam && gleam test --target javascript -- parity_test` (827 passed)
 - `cd gleam && gleam test --target javascript -- parity_corpus_test` (831 passed)
-- `corepack pnpm gleam:port:coverage`
 - `corepack pnpm conformance:check` (1403 passed)
-- `corepack pnpm conformance:capture:check` (9 passed)
 - `corepack pnpm gleam:format:check`
 - `cd gleam && gleam test --target javascript` (831 passed)
 - `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
@@ -43,11 +42,12 @@ Validation:
   (OTP 28, 822 passed)
 - `corepack pnpm gleam:build:js` before rerunning root tests after the Erlang
   container cleaned the build directory
-- `corepack pnpm test` (124 files passed; 2270 passed)
+- `corepack pnpm test` (123 files passed; 2267 passed)
 - `corepack pnpm lint` (passes with the pre-existing
   `scripts/parity-record.mts` unused catch-parameter warning)
 - `corepack pnpm typecheck`
 - `corepack pnpm build`
+- `git diff --check`
 
 ### Findings
 
