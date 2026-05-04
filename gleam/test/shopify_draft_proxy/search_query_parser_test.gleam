@@ -510,6 +510,17 @@ pub fn parse_query_quoted_value_after_field_test() {
   }
 }
 
+pub fn parse_query_keeps_open_paren_after_field_colon_test() {
+  let opts = search_query_parser.default_parse_options()
+  case search_query_parser.parse_search_query("tag:(har-549", opts) {
+    Some(TermNode(term: term)) -> {
+      assert term.field == Some("tag")
+      assert term.value == "(har-549"
+    }
+    _ -> panic as "expected field term with literal open paren"
+  }
+}
+
 // ----------- Generic apply helpers -----------
 
 type Item {
