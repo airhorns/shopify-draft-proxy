@@ -32,8 +32,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, RequiredArgument, read_optional_string, single_root_log_draft,
-  validate_required_field_arguments, validate_required_id_argument,
+  type LogDraft, read_optional_string, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -455,12 +454,9 @@ pub fn process_mutation_with_upstream(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      let operation_path = get_operation_path_label(document)
       Ok(handle_mutation_fields(
         store,
         identity,
-        document,
-        operation_path,
         fields,
         fragments,
         variables,
@@ -470,27 +466,9 @@ pub fn process_mutation_with_upstream(
   }
 }
 
-fn get_operation_path_label(document: String) -> String {
-  case parse_operation.parse_operation(document) {
-    Ok(parsed) -> {
-      let kind = case parsed.type_ {
-        parse_operation.QueryOperation -> "query"
-        parse_operation.MutationOperation -> "mutation"
-      }
-      case parsed.name {
-        Some(name) -> kind <> " " <> name
-        None -> kind
-      }
-    }
-    Error(_) -> "mutation"
-  }
-}
-
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -513,8 +491,6 @@ fn handle_mutation_fields(
             dispatch_mutation_field(
               current_store,
               current_identity,
-              document,
-              operation_path,
               field,
               fragments,
               variables,
@@ -569,8 +545,6 @@ fn handle_mutation_fields(
 fn dispatch_mutation_field(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -579,40 +553,15 @@ fn dispatch_mutation_field(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   case name {
     "metaobjectDefinitionCreate" ->
-      handle_definition_create(
-        store,
-        identity,
-        document,
-        operation_path,
-        field,
-        fragments,
-        variables,
-      )
+      handle_definition_create(store, identity, field, fragments, variables)
     "metaobjectDefinitionUpdate" ->
-      handle_definition_update(
-        store,
-        identity,
-        document,
-        operation_path,
-        field,
-        fragments,
-        variables,
-      )
+      handle_definition_update(store, identity, field, fragments, variables)
     "metaobjectDefinitionDelete" ->
-      handle_definition_delete(
-        store,
-        identity,
-        document,
-        operation_path,
-        field,
-        variables,
-      )
+      handle_definition_delete(store, identity, field, variables)
     "standardMetaobjectDefinitionEnable" ->
       handle_standard_definition_enable(
         store,
         identity,
-        document,
-        operation_path,
         field,
         fragments,
         variables,
@@ -621,8 +570,6 @@ fn dispatch_mutation_field(
       handle_metaobject_create(
         store,
         identity,
-        document,
-        operation_path,
         field,
         fragments,
         variables,
@@ -632,8 +579,6 @@ fn dispatch_mutation_field(
       handle_metaobject_update(
         store,
         identity,
-        document,
-        operation_path,
         field,
         fragments,
         variables,
@@ -643,29 +588,17 @@ fn dispatch_mutation_field(
       handle_metaobject_upsert(
         store,
         identity,
-        document,
-        operation_path,
         field,
         fragments,
         variables,
         upstream,
       )
     "metaobjectDelete" ->
-      handle_metaobject_delete(
-        store,
-        identity,
-        document,
-        operation_path,
-        field,
-        variables,
-        upstream,
-      )
+      handle_metaobject_delete(store, identity, field, variables, upstream)
     "metaobjectBulkDelete" ->
       handle_metaobject_bulk_delete(
         store,
         identity,
-        document,
-        operation_path,
         field,
         fragments,
         variables,
@@ -692,50 +625,32 @@ fn dispatch_mutation_field(
 fn handle_definition_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let errors =
-    validate_required_field_arguments(
-      field,
-      variables,
-      "metaobjectDefinitionCreate",
-      [
-        RequiredArgument("definition", "MetaobjectDefinitionCreateInput!"),
-      ],
-      operation_path,
-      document,
-    )
-  case errors {
-    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+  let args = field_args(field, variables)
+  let input = read_object_arg(args, "definition")
+  let user_errors = build_create_definition_user_errors(store, input)
+  case user_errors {
+    [_, ..] -> {
+      let payload = definition_payload(field, fragments, None, user_errors)
+      #(MutationFieldResult(key, payload, [], [], []), store, identity)
+    }
     [] -> {
-      let args = field_args(field, variables)
-      let input = read_object_arg(args, "definition")
-      let user_errors = build_create_definition_user_errors(store, input)
-      case user_errors {
-        [_, ..] -> {
-          let payload = definition_payload(field, fragments, None, user_errors)
-          #(MutationFieldResult(key, payload, [], [], []), store, identity)
-        }
-        [] -> {
-          let #(definition, next_identity) =
-            build_definition_from_create_input(identity, input)
-          let #(staged, next_store) =
-            upsert_staged_metaobject_definition(store, definition)
-          let payload = definition_payload(field, fragments, Some(staged), [])
-          #(
-            MutationFieldResult(key, payload, [staged.id], [], [
-              log_draft("metaobjectDefinitionCreate", [staged.id]),
-            ]),
-            next_store,
-            next_identity,
-          )
-        }
-      }
+      let #(definition, next_identity) =
+        build_definition_from_create_input(identity, input)
+      let #(staged, next_store) =
+        upsert_staged_metaobject_definition(store, definition)
+      let payload = definition_payload(field, fragments, Some(staged), [])
+      #(
+        MutationFieldResult(key, payload, [staged.id], [], [
+          log_draft("metaobjectDefinitionCreate", [staged.id]),
+        ]),
+        next_store,
+        next_identity,
+      )
     }
   }
 }
@@ -743,32 +658,24 @@ fn handle_definition_create(
 fn handle_definition_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let errors =
-    validate_required_field_arguments(
-      field,
-      variables,
-      "metaobjectDefinitionUpdate",
-      [
-        RequiredArgument("id", "ID!"),
-        RequiredArgument("definition", "MetaobjectDefinitionUpdateInput!"),
-      ],
-      operation_path,
-      document,
-    )
-  case errors {
-    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
-    [] -> {
-      let args = field_args(field, variables)
-      let id = read_string(args, "id")
-      let input = read_object_arg(args, "definition")
-      case id {
+  let args = field_args(field, variables)
+  let id = read_string(args, "id")
+  let input = read_object_arg(args, "definition")
+  case id {
+    None -> {
+      let payload =
+        definition_payload(field, fragments, None, [
+          record_not_found_user_error(["id"]),
+        ])
+      #(MutationFieldResult(key, payload, [], [], []), store, identity)
+    }
+    Some(definition_id) ->
+      case get_effective_metaobject_definition_by_id(store, definition_id) {
         None -> {
           let payload =
             definition_payload(field, fragments, None, [
@@ -776,78 +683,60 @@ fn handle_definition_update(
             ])
           #(MutationFieldResult(key, payload, [], [], []), store, identity)
         }
-        Some(definition_id) ->
-          case get_effective_metaobject_definition_by_id(store, definition_id) {
-            None -> {
+        Some(existing) -> {
+          let reset_field_order =
+            read_bool_arg(field, variables, "resetFieldOrder")
+            || option.unwrap(read_bool(input, "resetFieldOrder"), False)
+          let #(updated, next_identity, user_errors) =
+            apply_definition_update(
+              identity,
+              existing,
+              input,
+              reset_field_order,
+            )
+          case user_errors {
+            [_, ..] -> {
               let payload =
-                definition_payload(field, fragments, None, [
-                  record_not_found_user_error(["id"]),
-                ])
+                definition_payload(field, fragments, None, user_errors)
               #(MutationFieldResult(key, payload, [], [], []), store, identity)
             }
-            Some(existing) -> {
-              let reset_field_order =
-                read_bool_arg(field, variables, "resetFieldOrder")
-                || option.unwrap(read_bool(input, "resetFieldOrder"), False)
-              let #(updated, next_identity, user_errors) =
-                apply_definition_update(
-                  identity,
-                  existing,
-                  input,
-                  reset_field_order,
-                )
-              case user_errors {
-                [_, ..] -> {
-                  let payload =
-                    definition_payload(field, fragments, None, user_errors)
-                  #(
-                    MutationFieldResult(key, payload, [], [], []),
-                    store,
-                    identity,
-                  )
-                }
-                [] -> {
-                  let #(staged, next_store) =
-                    upsert_staged_metaobject_definition(store, updated)
-                  let payload =
-                    definition_payload(field, fragments, Some(staged), [])
-                  #(
-                    MutationFieldResult(key, payload, [staged.id], [], [
-                      log_draft("metaobjectDefinitionUpdate", [staged.id]),
-                    ]),
-                    next_store,
-                    next_identity,
-                  )
-                }
-              }
+            [] -> {
+              let #(staged, next_store) =
+                upsert_staged_metaobject_definition(store, updated)
+              let payload =
+                definition_payload(field, fragments, Some(staged), [])
+              #(
+                MutationFieldResult(key, payload, [staged.id], [], [
+                  log_draft("metaobjectDefinitionUpdate", [staged.id]),
+                ]),
+                next_store,
+                next_identity,
+              )
             }
           }
+        }
       }
-    }
   }
 }
 
 fn handle_definition_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let #(id, errors) =
-    validate_required_id_argument(
-      field,
-      variables,
-      "metaobjectDefinitionDelete",
-      operation_path,
-      document,
+  let id = read_string(field_args(field, variables), "id")
+  case id {
+    None -> #(
+      definition_delete_result(key, field, None, [
+        record_not_found_user_error(["id"]),
+      ]),
+      store,
+      identity,
     )
-  case errors {
-    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
-    [] ->
-      case id {
+    Some(definition_id) ->
+      case get_effective_metaobject_definition_by_id(store, definition_id) {
         None -> #(
           definition_delete_result(key, field, None, [
             record_not_found_user_error(["id"]),
@@ -855,50 +744,35 @@ fn handle_definition_delete(
           store,
           identity,
         )
-        Some(definition_id) ->
-          case get_effective_metaobject_definition_by_id(store, definition_id) {
-            None -> #(
-              definition_delete_result(key, field, None, [
-                record_not_found_user_error(["id"]),
-              ]),
-              store,
-              identity,
-            )
-            Some(definition) -> {
-              let count = option.unwrap(definition.metaobjects_count, 0)
-              case count > 0 {
-                True -> {
-                  let user_error =
-                    UserError(
-                      field: Some(["id"]),
-                      message: "Local proxy cannot delete a metaobject definition with associated metaobjects until entry cascade behavior is modeled.",
-                      code: "UNSUPPORTED",
-                      element_key: None,
-                      element_index: None,
-                    )
-                  #(
-                    definition_delete_result(key, field, None, [user_error]),
-                    store,
-                    identity,
-                  )
-                }
-                False -> {
-                  let next_store =
-                    delete_staged_metaobject_definition(store, definition_id)
-                  #(
-                    definition_delete_result(
-                      key,
-                      field,
-                      Some(definition_id),
-                      [],
-                    ),
-                    next_store,
-                    identity,
-                  )
-                }
-              }
+        Some(definition) -> {
+          let count = option.unwrap(definition.metaobjects_count, 0)
+          case count > 0 {
+            True -> {
+              let user_error =
+                UserError(
+                  field: Some(["id"]),
+                  message: "Local proxy cannot delete a metaobject definition with associated metaobjects until entry cascade behavior is modeled.",
+                  code: "UNSUPPORTED",
+                  element_key: None,
+                  element_index: None,
+                )
+              #(
+                definition_delete_result(key, field, None, [user_error]),
+                store,
+                identity,
+              )
+            }
+            False -> {
+              let next_store =
+                delete_staged_metaobject_definition(store, definition_id)
+              #(
+                definition_delete_result(key, field, Some(definition_id), []),
+                next_store,
+                identity,
+              )
             }
           }
+        }
       }
   }
 }
@@ -906,29 +780,28 @@ fn handle_definition_delete(
 fn handle_standard_definition_enable(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let errors =
-    validate_required_field_arguments(
-      field,
-      variables,
-      "standardMetaobjectDefinitionEnable",
-      [
-        RequiredArgument("type", "String!"),
-      ],
-      operation_path,
-      document,
-    )
-  case errors {
-    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
-    [] -> {
-      let args = field_args(field, variables)
-      case read_string(args, "type") {
+  let args = field_args(field, variables)
+  case read_string(args, "type") {
+    None -> {
+      let payload =
+        definition_payload(field, fragments, None, [
+          UserError(
+            Some(["type"]),
+            "A standard metaobject definition wasn't found for the specified type.",
+            "TEMPLATE_NOT_FOUND",
+            None,
+            None,
+          ),
+        ])
+      #(MutationFieldResult(key, payload, [], [], []), store, identity)
+    }
+    Some(type_) ->
+      case standard_template(type_) {
         None -> {
           let payload =
             definition_payload(field, fragments, None, [
@@ -942,86 +815,78 @@ fn handle_standard_definition_enable(
             ])
           #(MutationFieldResult(key, payload, [], [], []), store, identity)
         }
-        Some(type_) ->
-          case standard_template(type_) {
-            None -> {
-              let payload =
-                definition_payload(field, fragments, None, [
-                  UserError(
-                    Some(["type"]),
-                    "A standard metaobject definition wasn't found for the specified type.",
-                    "TEMPLATE_NOT_FOUND",
-                    None,
-                    None,
-                  ),
-                ])
-              #(MutationFieldResult(key, payload, [], [], []), store, identity)
-            }
-            Some(template) -> {
-              let #(definition, next_identity) = case
-                find_effective_metaobject_definition_by_type(store, type_)
-              {
-                Some(existing) -> #(existing, identity)
-                None -> build_standard_definition(identity, template)
-              }
-              let #(staged, next_store) =
-                upsert_staged_metaobject_definition(store, definition)
-              let payload =
-                definition_payload(field, fragments, Some(staged), [])
-              #(
-                MutationFieldResult(key, payload, [staged.id], [], [
-                  log_draft("standardMetaobjectDefinitionEnable", [staged.id]),
-                ]),
-                next_store,
-                next_identity,
-              )
-            }
+        Some(template) -> {
+          let #(definition, next_identity) = case
+            find_effective_metaobject_definition_by_type(store, type_)
+          {
+            Some(existing) -> #(existing, identity)
+            None -> build_standard_definition(identity, template)
           }
+          let #(staged, next_store) =
+            upsert_staged_metaobject_definition(store, definition)
+          let payload = definition_payload(field, fragments, Some(staged), [])
+          #(
+            MutationFieldResult(key, payload, [staged.id], [], [
+              log_draft("standardMetaobjectDefinitionEnable", [staged.id]),
+            ]),
+            next_store,
+            next_identity,
+          )
+        }
       }
-    }
   }
 }
 
 fn handle_metaobject_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let errors =
-    validate_required_field_arguments(
-      field,
-      variables,
-      "metaobjectCreate",
-      [
-        RequiredArgument("metaobject", "MetaobjectCreateInput!"),
-      ],
-      operation_path,
-      document,
+  let input = read_object_arg(field_args(field, variables), "metaobject")
+  let type_ = read_string(input, "type")
+  // Pattern 2: cold LiveHybrid creates still stage locally, but first
+  // hydrate the upstream definition so valid types do not fail as unknown.
+  let store = maybe_hydrate_definition_by_type(store, type_, upstream)
+  let definition = case type_ {
+    Some(t) -> find_effective_metaobject_definition_by_type(store, t)
+    None -> None
+  }
+  let user_errors = build_create_metaobject_user_errors(type_, definition)
+  case user_errors, definition {
+    [_, ..], _ -> #(
+      MutationFieldResult(
+        key,
+        metaobject_payload(store, field, fragments, None, user_errors),
+        [],
+        [],
+        [],
+      ),
+      store,
+      identity,
     )
-  case errors {
-    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
-    [] -> {
-      let input = read_object_arg(field_args(field, variables), "metaobject")
-      let type_ = read_string(input, "type")
-      // Pattern 2: cold LiveHybrid creates still stage locally, but first
-      // hydrate the upstream definition so valid types do not fail as unknown.
-      let store = maybe_hydrate_definition_by_type(store, type_, upstream)
-      let definition = case type_ {
-        Some(t) -> find_effective_metaobject_definition_by_type(store, t)
-        None -> None
-      }
-      let user_errors = build_create_metaobject_user_errors(type_, definition)
-      case user_errors, definition {
+    [], None -> #(
+      MutationFieldResult(
+        key,
+        metaobject_payload(store, field, fragments, None, []),
+        [],
+        [],
+        [],
+      ),
+      store,
+      identity,
+    )
+    [], Some(defn) -> {
+      let #(created, next_identity, field_errors) =
+        build_metaobject_from_create_input(store, identity, input, defn)
+      case field_errors, created {
         [_, ..], _ -> #(
           MutationFieldResult(
             key,
-            metaobject_payload(store, field, fragments, None, user_errors),
+            metaobject_payload(store, field, fragments, None, field_errors),
             [],
             [],
             [],
@@ -1040,61 +905,27 @@ fn handle_metaobject_create(
           store,
           identity,
         )
-        [], Some(defn) -> {
-          let #(created, next_identity, field_errors) =
-            build_metaobject_from_create_input(store, identity, input, defn)
-          case field_errors, created {
-            [_, ..], _ -> #(
-              MutationFieldResult(
-                key,
-                metaobject_payload(store, field, fragments, None, field_errors),
-                [],
-                [],
-                [],
-              ),
-              store,
-              identity,
+        [], Some(metaobject) -> {
+          let #(staged, staged_store) =
+            upsert_staged_metaobject(store, metaobject)
+          let #(next_store, final_identity) =
+            adjust_definition_count(
+              staged_store,
+              next_identity,
+              staged.type_,
+              1,
             )
-            [], None -> #(
-              MutationFieldResult(
-                key,
-                metaobject_payload(store, field, fragments, None, []),
-                [],
-                [],
-                [],
-              ),
-              store,
-              identity,
-            )
-            [], Some(metaobject) -> {
-              let #(staged, staged_store) =
-                upsert_staged_metaobject(store, metaobject)
-              let #(next_store, final_identity) =
-                adjust_definition_count(
-                  staged_store,
-                  next_identity,
-                  staged.type_,
-                  1,
-                )
-              #(
-                MutationFieldResult(
-                  key,
-                  metaobject_payload(
-                    next_store,
-                    field,
-                    fragments,
-                    Some(staged),
-                    [],
-                  ),
-                  [staged.id],
-                  [],
-                  [log_draft("metaobjectCreate", [staged.id])],
-                ),
-                next_store,
-                final_identity,
-              )
-            }
-          }
+          #(
+            MutationFieldResult(
+              key,
+              metaobject_payload(next_store, field, fragments, Some(staged), []),
+              [staged.id],
+              [],
+              [log_draft("metaobjectCreate", [staged.id])],
+            ),
+            next_store,
+            final_identity,
+          )
         }
       }
     }
@@ -1104,32 +935,33 @@ fn handle_metaobject_create(
 fn handle_metaobject_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let errors =
-    validate_required_field_arguments(
-      field,
-      variables,
-      "metaobjectUpdate",
-      [
-        RequiredArgument("id", "ID!"),
-        RequiredArgument("metaobject", "MetaobjectUpdateInput!"),
-      ],
-      operation_path,
-      document,
+  let args = field_args(field, variables)
+  let input = read_object_arg(args, "metaobject")
+  case read_string(args, "id") {
+    None -> #(
+      MutationFieldResult(
+        key,
+        metaobject_payload(store, field, fragments, None, [
+          record_not_found_user_error(["id"]),
+        ]),
+        [],
+        [],
+        [],
+      ),
+      store,
+      identity,
     )
-  case errors {
-    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
-    [] -> {
-      let args = field_args(field, variables)
-      let input = read_object_arg(args, "metaobject")
-      case read_string(args, "id") {
+    Some(id) -> {
+      // Pattern 2: existing upstream entries are hydrated before local
+      // update staging so supported mutations still avoid upstream writes.
+      let store = maybe_hydrate_metaobject_by_id(store, Some(id), upstream)
+      case get_effective_metaobject_by_id(store, id) {
         None -> #(
           MutationFieldResult(
             key,
@@ -1143,163 +975,17 @@ fn handle_metaobject_update(
           store,
           identity,
         )
-        Some(id) -> {
-          // Pattern 2: existing upstream entries are hydrated before local
-          // update staging so supported mutations still avoid upstream writes.
-          let store = maybe_hydrate_metaobject_by_id(store, Some(id), upstream)
-          case get_effective_metaobject_by_id(store, id) {
-            None -> #(
-              MutationFieldResult(
-                key,
-                metaobject_payload(store, field, fragments, None, [
-                  record_not_found_user_error(["id"]),
-                ]),
-                [],
-                [],
-                [],
-              ),
-              store,
-              identity,
-            )
-            Some(existing) ->
-              case
-                find_effective_metaobject_definition_by_type(
-                  store,
-                  existing.type_,
-                )
-              {
-                None -> {
-                  let err =
-                    UserError(
-                      Some(["metaobject", "type"]),
-                      "No metaobject definition exists for type \""
-                        <> existing.type_
-                        <> "\"",
-                      "UNDEFINED_OBJECT_TYPE",
-                      None,
-                      None,
-                    )
-                  #(
-                    MutationFieldResult(
-                      key,
-                      metaobject_payload(store, field, fragments, None, [err]),
-                      [],
-                      [],
-                      [],
-                    ),
-                    store,
-                    identity,
-                  )
-                }
-                Some(definition) -> {
-                  let #(updated, next_identity, user_errors) =
-                    apply_metaobject_update_input(
-                      store,
-                      identity,
-                      existing,
-                      input,
-                      definition,
-                    )
-                  case user_errors, updated {
-                    [_, ..], _ -> #(
-                      MutationFieldResult(
-                        key,
-                        metaobject_payload(
-                          store,
-                          field,
-                          fragments,
-                          None,
-                          user_errors,
-                        ),
-                        [],
-                        [],
-                        [],
-                      ),
-                      store,
-                      identity,
-                    )
-                    [], None -> #(
-                      MutationFieldResult(
-                        key,
-                        metaobject_payload(store, field, fragments, None, []),
-                        [],
-                        [],
-                        [],
-                      ),
-                      store,
-                      identity,
-                    )
-                    [], Some(metaobject) -> {
-                      let #(staged, next_store) =
-                        upsert_staged_metaobject(store, metaobject)
-                      #(
-                        MutationFieldResult(
-                          key,
-                          metaobject_payload(
-                            next_store,
-                            field,
-                            fragments,
-                            Some(staged),
-                            [],
-                          ),
-                          [staged.id],
-                          [],
-                          [log_draft("metaobjectUpdate", [staged.id])],
-                        ),
-                        next_store,
-                        next_identity,
-                      )
-                    }
-                  }
-                }
-              }
-          }
-        }
-      }
-    }
-  }
-}
-
-fn handle_metaobject_upsert(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
-  field: Selection,
-  fragments: FragmentMap,
-  variables: Dict(String, root_field.ResolvedValue),
-  upstream: UpstreamContext,
-) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let key = get_field_response_key(field)
-  let errors =
-    validate_required_field_arguments(
-      field,
-      variables,
-      "metaobjectUpsert",
-      [
-        RequiredArgument("handle", "MetaobjectHandleInput!"),
-        RequiredArgument("metaobject", "MetaobjectUpsertInput!"),
-      ],
-      operation_path,
-      document,
-    )
-  case errors {
-    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
-    [] -> {
-      let args = field_args(field, variables)
-      let #(type_, handle) = read_handle_value(read_object_arg(args, "handle"))
-      let input = read_object_arg(args, "metaobject")
-      case type_, handle {
-        Some(t), Some(h) -> {
-          // Pattern 2: hydrate the definition for cold LiveHybrid upserts; the
-          // upsert write itself remains local and Snapshot mode stays local.
-          let store = maybe_hydrate_definition_by_type(store, Some(t), upstream)
-          case find_effective_metaobject_definition_by_type(store, t) {
+        Some(existing) ->
+          case
+            find_effective_metaobject_definition_by_type(store, existing.type_)
+          {
             None -> {
               let err =
                 UserError(
-                  Some(["handle", "type"]),
-                  "No metaobject definition exists for type \"" <> t <> "\"",
+                  Some(["metaobject", "type"]),
+                  "No metaobject definition exists for type \""
+                    <> existing.type_
+                    <> "\"",
                   "UNDEFINED_OBJECT_TYPE",
                   None,
                   None,
@@ -1316,158 +1002,97 @@ fn handle_metaobject_upsert(
                 identity,
               )
             }
-            Some(definition) ->
-              case find_effective_metaobject_by_handle(store, t, h) {
-                Some(existing) -> {
-                  let input_with_handle = case dict.get(input, "handle") {
-                    Ok(_) -> input
-                    Error(_) ->
-                      dict.insert(
-                        input,
-                        "handle",
-                        root_field.StringVal(existing.handle),
-                      )
-                  }
-                  let #(updated, next_identity, user_errors) =
-                    apply_metaobject_update_input(
+            Some(definition) -> {
+              let #(updated, next_identity, user_errors) =
+                apply_metaobject_update_input(
+                  store,
+                  identity,
+                  existing,
+                  input,
+                  definition,
+                )
+              case user_errors, updated {
+                [_, ..], _ -> #(
+                  MutationFieldResult(
+                    key,
+                    metaobject_payload(
                       store,
-                      identity,
-                      existing,
-                      input_with_handle,
-                      definition,
-                    )
-                  case user_errors, updated {
-                    [_, ..], _ -> #(
-                      MutationFieldResult(
-                        key,
-                        metaobject_payload(
-                          store,
-                          field,
-                          fragments,
-                          None,
-                          user_errors,
-                        ),
-                        [],
-                        [],
-                        [],
-                      ),
-                      store,
-                      identity,
-                    )
-                    [], Some(metaobject) -> {
-                      let #(staged, next_store) =
-                        upsert_staged_metaobject(store, metaobject)
-                      #(
-                        MutationFieldResult(
-                          key,
-                          metaobject_payload(
-                            next_store,
-                            field,
-                            fragments,
-                            Some(staged),
-                            [],
-                          ),
-                          [staged.id],
-                          [],
-                          [log_draft("metaobjectUpsert", [staged.id])],
-                        ),
+                      field,
+                      fragments,
+                      None,
+                      user_errors,
+                    ),
+                    [],
+                    [],
+                    [],
+                  ),
+                  store,
+                  identity,
+                )
+                [], None -> #(
+                  MutationFieldResult(
+                    key,
+                    metaobject_payload(store, field, fragments, None, []),
+                    [],
+                    [],
+                    [],
+                  ),
+                  store,
+                  identity,
+                )
+                [], Some(metaobject) -> {
+                  let #(staged, next_store) =
+                    upsert_staged_metaobject(store, metaobject)
+                  #(
+                    MutationFieldResult(
+                      key,
+                      metaobject_payload(
                         next_store,
-                        next_identity,
-                      )
-                    }
-                    [], None -> #(
-                      MutationFieldResult(
-                        key,
-                        metaobject_payload(store, field, fragments, None, []),
-                        [],
-                        [],
+                        field,
+                        fragments,
+                        Some(staged),
                         [],
                       ),
-                      store,
-                      identity,
-                    )
-                  }
-                }
-                None -> {
-                  let create_input =
-                    dict.insert(input, "type", root_field.StringVal(t))
-                  let create_input =
-                    dict.insert(create_input, "handle", root_field.StringVal(h))
-                  let #(created, next_identity, field_errors) =
-                    build_metaobject_from_create_input(
-                      store,
-                      identity,
-                      create_input,
-                      definition,
-                    )
-                  case field_errors, created {
-                    [_, ..], _ -> #(
-                      MutationFieldResult(
-                        key,
-                        metaobject_payload(
-                          store,
-                          field,
-                          fragments,
-                          None,
-                          field_errors,
-                        ),
-                        [],
-                        [],
-                        [],
-                      ),
-                      store,
-                      identity,
-                    )
-                    [], Some(metaobject) -> {
-                      let #(staged, staged_store) =
-                        upsert_staged_metaobject(store, metaobject)
-                      let #(next_store, final_identity) =
-                        adjust_definition_count(
-                          staged_store,
-                          next_identity,
-                          staged.type_,
-                          1,
-                        )
-                      #(
-                        MutationFieldResult(
-                          key,
-                          metaobject_payload(
-                            next_store,
-                            field,
-                            fragments,
-                            Some(staged),
-                            [],
-                          ),
-                          [staged.id],
-                          [],
-                          [log_draft("metaobjectUpsert", [staged.id])],
-                        ),
-                        next_store,
-                        final_identity,
-                      )
-                    }
-                    [], None -> #(
-                      MutationFieldResult(
-                        key,
-                        metaobject_payload(store, field, fragments, None, []),
-                        [],
-                        [],
-                        [],
-                      ),
-                      store,
-                      identity,
-                    )
-                  }
+                      [staged.id],
+                      [],
+                      [log_draft("metaobjectUpdate", [staged.id])],
+                    ),
+                    next_store,
+                    next_identity,
+                  )
                 }
               }
+            }
           }
-        }
-        _, _ -> {
+      }
+    }
+  }
+}
+
+fn handle_metaobject_upsert(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let #(type_, handle) = read_handle_value(read_object_arg(args, "handle"))
+  let input = read_object_arg(args, "metaobject")
+  case type_, handle {
+    Some(t), Some(h) -> {
+      // Pattern 2: hydrate the definition for cold LiveHybrid upserts; the
+      // upsert write itself remains local and Snapshot mode stays local.
+      let store = maybe_hydrate_definition_by_type(store, Some(t), upstream)
+      case find_effective_metaobject_definition_by_type(store, t) {
+        None -> {
           let err =
             UserError(
-              Some(["handle"]),
-              "Handle can't be blank",
-              "BLANK",
+              Some(["handle", "type"]),
+              "No metaobject definition exists for type \"" <> t <> "\"",
+              "UNDEFINED_OBJECT_TYPE",
               None,
               None,
             )
@@ -1483,7 +1108,172 @@ fn handle_metaobject_upsert(
             identity,
           )
         }
+        Some(definition) ->
+          case find_effective_metaobject_by_handle(store, t, h) {
+            Some(existing) -> {
+              let input_with_handle = case dict.get(input, "handle") {
+                Ok(_) -> input
+                Error(_) ->
+                  dict.insert(
+                    input,
+                    "handle",
+                    root_field.StringVal(existing.handle),
+                  )
+              }
+              let #(updated, next_identity, user_errors) =
+                apply_metaobject_update_input(
+                  store,
+                  identity,
+                  existing,
+                  input_with_handle,
+                  definition,
+                )
+              case user_errors, updated {
+                [_, ..], _ -> #(
+                  MutationFieldResult(
+                    key,
+                    metaobject_payload(
+                      store,
+                      field,
+                      fragments,
+                      None,
+                      user_errors,
+                    ),
+                    [],
+                    [],
+                    [],
+                  ),
+                  store,
+                  identity,
+                )
+                [], Some(metaobject) -> {
+                  let #(staged, next_store) =
+                    upsert_staged_metaobject(store, metaobject)
+                  #(
+                    MutationFieldResult(
+                      key,
+                      metaobject_payload(
+                        next_store,
+                        field,
+                        fragments,
+                        Some(staged),
+                        [],
+                      ),
+                      [staged.id],
+                      [],
+                      [log_draft("metaobjectUpsert", [staged.id])],
+                    ),
+                    next_store,
+                    next_identity,
+                  )
+                }
+                [], None -> #(
+                  MutationFieldResult(
+                    key,
+                    metaobject_payload(store, field, fragments, None, []),
+                    [],
+                    [],
+                    [],
+                  ),
+                  store,
+                  identity,
+                )
+              }
+            }
+            None -> {
+              let create_input =
+                dict.insert(input, "type", root_field.StringVal(t))
+              let create_input =
+                dict.insert(create_input, "handle", root_field.StringVal(h))
+              let #(created, next_identity, field_errors) =
+                build_metaobject_from_create_input(
+                  store,
+                  identity,
+                  create_input,
+                  definition,
+                )
+              case field_errors, created {
+                [_, ..], _ -> #(
+                  MutationFieldResult(
+                    key,
+                    metaobject_payload(
+                      store,
+                      field,
+                      fragments,
+                      None,
+                      field_errors,
+                    ),
+                    [],
+                    [],
+                    [],
+                  ),
+                  store,
+                  identity,
+                )
+                [], Some(metaobject) -> {
+                  let #(staged, staged_store) =
+                    upsert_staged_metaobject(store, metaobject)
+                  let #(next_store, final_identity) =
+                    adjust_definition_count(
+                      staged_store,
+                      next_identity,
+                      staged.type_,
+                      1,
+                    )
+                  #(
+                    MutationFieldResult(
+                      key,
+                      metaobject_payload(
+                        next_store,
+                        field,
+                        fragments,
+                        Some(staged),
+                        [],
+                      ),
+                      [staged.id],
+                      [],
+                      [log_draft("metaobjectUpsert", [staged.id])],
+                    ),
+                    next_store,
+                    final_identity,
+                  )
+                }
+                [], None -> #(
+                  MutationFieldResult(
+                    key,
+                    metaobject_payload(store, field, fragments, None, []),
+                    [],
+                    [],
+                    [],
+                  ),
+                  store,
+                  identity,
+                )
+              }
+            }
+          }
       }
+    }
+    _, _ -> {
+      let err =
+        UserError(
+          Some(["handle"]),
+          "Handle can't be blank",
+          "BLANK",
+          None,
+          None,
+        )
+      #(
+        MutationFieldResult(
+          key,
+          metaobject_payload(store, field, fragments, None, [err]),
+          [],
+          [],
+          [],
+        ),
+        store,
+        identity,
+      )
     }
   }
 }
@@ -1491,25 +1281,26 @@ fn handle_metaobject_upsert(
 fn handle_metaobject_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let #(id, errors) =
-    validate_required_id_argument(
-      field,
-      variables,
-      "metaobjectDelete",
-      operation_path,
-      document,
+  let id = read_string(field_args(field, variables), "id")
+  case id {
+    None -> #(
+      metaobject_delete_result(key, field, None, [
+        record_not_found_user_error(["id"]),
+      ]),
+      store,
+      identity,
     )
-  case errors {
-    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
-    [] ->
-      case id {
+    Some(metaobject_id) -> {
+      // Pattern 2: delete can target an upstream row; hydrate it first,
+      // then stage a local delete and keep downstream reads local.
+      let store =
+        maybe_hydrate_metaobject_by_id(store, Some(metaobject_id), upstream)
+      case get_effective_metaobject_by_id(store, metaobject_id) {
         None -> #(
           metaobject_delete_result(key, field, None, [
             record_not_found_user_error(["id"]),
@@ -1517,116 +1308,84 @@ fn handle_metaobject_delete(
           store,
           identity,
         )
-        Some(metaobject_id) -> {
-          // Pattern 2: delete can target an upstream row; hydrate it first,
-          // then stage a local delete and keep downstream reads local.
-          let store =
-            maybe_hydrate_metaobject_by_id(store, Some(metaobject_id), upstream)
-          case get_effective_metaobject_by_id(store, metaobject_id) {
-            None -> #(
-              metaobject_delete_result(key, field, None, [
-                record_not_found_user_error(["id"]),
-              ]),
-              store,
+        Some(metaobject) -> {
+          let staged_store = delete_staged_metaobject(store, metaobject_id)
+          let #(next_store, next_identity) =
+            adjust_definition_count(
+              staged_store,
               identity,
+              metaobject.type_,
+              -1,
             )
-            Some(metaobject) -> {
-              let staged_store = delete_staged_metaobject(store, metaobject_id)
-              let #(next_store, next_identity) =
-                adjust_definition_count(
-                  staged_store,
-                  identity,
-                  metaobject.type_,
-                  -1,
-                )
-              #(
-                metaobject_delete_result(key, field, Some(metaobject_id), []),
-                next_store,
-                next_identity,
-              )
-            }
-          }
+          #(
+            metaobject_delete_result(key, field, Some(metaobject_id), []),
+            next_store,
+            next_identity,
+          )
         }
       }
+    }
   }
 }
 
 fn handle_metaobject_bulk_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  document: String,
-  operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let errors =
-    validate_required_field_arguments(
-      field,
-      variables,
-      "metaobjectBulkDelete",
-      [
-        RequiredArgument("where", "MetaobjectBulkDeleteWhereCondition!"),
-      ],
-      operation_path,
-      document,
-    )
-  case errors {
-    [_, ..] -> #(top_level_error_result(key, errors), store, identity)
+  let args = field_args(field, variables)
+  // Pattern 2: type-scoped bulk delete needs the upstream selection set
+  // before staging local deletes; downstream reads observe local markers.
+  let store = maybe_hydrate_bulk_delete_selection(store, args, upstream)
+  let ids = read_bulk_delete_ids(store, args)
+  case ids {
     [] -> {
-      let args = field_args(field, variables)
-      // Pattern 2: type-scoped bulk delete needs the upstream selection set
-      // before staging local deletes; downstream reads observe local markers.
-      let store = maybe_hydrate_bulk_delete_selection(store, args, upstream)
-      let ids = read_bulk_delete_ids(store, args)
-      case ids {
-        [] -> {
-          let err =
-            UserError(
-              Some(["where"]),
-              "No metaobjects were selected for deletion.",
-              "NO_OBJECTS_SELECTED",
-              None,
-              None,
-            )
-          #(
-            MutationFieldResult(
-              key,
-              bulk_delete_payload(field, fragments, None, [err]),
-              [],
-              [],
-              [],
-            ),
-            store,
-            identity,
-          )
-        }
-        _ -> {
-          let #(job_id, identity_after_job) =
-            synthetic_identity.make_synthetic_gid(identity, "Job")
-          let #(next_store, user_errors, deleted_ids, final_identity) =
-            delete_metaobject_ids(store, identity_after_job, ids)
-          let job = BulkDeleteJob(id: job_id, done: True)
-          #(
-            MutationFieldResult(
-              key,
-              bulk_delete_payload(field, fragments, Some(job), user_errors),
+      let err =
+        UserError(
+          Some(["where"]),
+          "No metaobjects were selected for deletion.",
+          "NO_OBJECTS_SELECTED",
+          None,
+          None,
+        )
+      #(
+        MutationFieldResult(
+          key,
+          bulk_delete_payload(field, fragments, None, [err]),
+          [],
+          [],
+          [],
+        ),
+        store,
+        identity,
+      )
+    }
+    _ -> {
+      let #(job_id, identity_after_job) =
+        synthetic_identity.make_synthetic_gid(identity, "Job")
+      let #(next_store, user_errors, deleted_ids, final_identity) =
+        delete_metaobject_ids(store, identity_after_job, ids)
+      let job = BulkDeleteJob(id: job_id, done: True)
+      #(
+        MutationFieldResult(
+          key,
+          bulk_delete_payload(field, fragments, Some(job), user_errors),
+          list.append([job_id], deleted_ids),
+          [],
+          [
+            log_draft(
+              "metaobjectBulkDelete",
               list.append([job_id], deleted_ids),
-              [],
-              [
-                log_draft(
-                  "metaobjectBulkDelete",
-                  list.append([job_id], deleted_ids),
-                ),
-              ],
             ),
-            next_store,
-            final_identity,
-          )
-        }
-      }
+          ],
+        ),
+        next_store,
+        final_identity,
+      )
     }
   }
 }
@@ -4303,13 +4062,6 @@ fn bulk_delete_payload(
       #("userErrors", SrcList(list.map(user_errors, user_error_source))),
     ])
   project_selection(source, field, fragments)
-}
-
-fn top_level_error_result(
-  key: String,
-  errors: List(Json),
-) -> MutationFieldResult {
-  MutationFieldResult(key, json.null(), [], errors, [])
 }
 
 fn project_selection(
