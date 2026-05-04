@@ -68,7 +68,7 @@ pub fn apps_emits_log_draft_test() {
 pub fn bulk_operations_emits_log_draft_test() {
   enforce(
     "bulk_operations",
-    "{\"query\":\"mutation { bulkOperationRunQuery(query: \\\"{ products { edges { node { id } } } }\\\") { bulkOperation { id } userErrors { message } } }\"}",
+    "{\"query\":\"mutation { bulkOperationRunQuery(query: \\\"{ products { edges { node { id } } } }\\\", groupObjects: false) { bulkOperation { id } userErrors { message } } }\"}",
   )
 }
 
@@ -96,7 +96,7 @@ pub fn localization_emits_log_draft_test() {
 pub fn marketing_emits_log_draft_test() {
   enforce(
     "marketing",
-    "{\"query\":\"mutation { marketingActivityCreateExternal(input: { title: \\\"Launch\\\", remoteId: \\\"remote-1\\\", urlParameterValue: \\\"utm_campaign=launch\\\", utm: { campaign: \\\"launch\\\", source: \\\"email\\\", medium: \\\"newsletter\\\" }, channelHandle: \\\"email\\\" }) { marketingActivity { id } userErrors { message } } }\"}",
+    "{\"query\":\"mutation { marketingActivityCreateExternal(input: { title: \\\"Launch\\\", remoteId: \\\"remote-1\\\", remoteUrl: \\\"https://example.com/launch\\\", tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \\\"utm_campaign=launch\\\", utm: { campaign: \\\"launch\\\", source: \\\"email\\\", medium: \\\"newsletter\\\" }, channelHandle: \\\"email\\\" }) { marketingActivity { id } userErrors { message } } }\"}",
   )
 }
 

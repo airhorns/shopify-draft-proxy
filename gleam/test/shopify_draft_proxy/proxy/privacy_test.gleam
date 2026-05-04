@@ -132,7 +132,7 @@ pub fn unsupported_privacy_roots_stay_without_local_dispatch_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql(
       proxy,
-      "mutation { privacyFeaturesDisable { userErrors { field message code } } }",
+      "mutation { privacyFeaturesDisable(featuresToDisable: []) { userErrors { field message code } } }",
     )
   assert status == 400
   assert string.contains(

@@ -426,6 +426,34 @@ pub fn product_create_validation_branches_return_user_errors_test() {
     == 1
 }
 
+pub fn product_create_accepts_legacy_input_argument_shape_test() {
+  // Real Shopify accepts both `productCreate(product: ProductCreateInput!)`
+  // (current) and `productCreate(input: ProductInput!)` (older API versions).
+  // The proxy used to read only `product`, fabricating a misleading
+  // `["title"], "Title can't be blank"` userError when callers used the
+  // legacy `input:` keyword.
+  let query =
+    "mutation { productCreate(input: { title: \\\"Legacy Shape\\\", status: DRAFT }) { product { id title status } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Legacy Shape\",\"status\":\"DRAFT\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_create_missing_input_argument_top_level_error_test() {
+  // No `product:` and no `input:` argument → top-level GraphQL error,
+  // mirroring real Shopify's `missingRequiredArguments` extension code,
+  // rather than fabricating a misleading "Title can't be blank" userError.
+  let query =
+    "mutation { productCreate { product { id } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Field 'productCreate' is missing required arguments: product\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"productCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"productCreate\",\"arguments\":\"product\"}}]}"
+}
+
 pub fn product_variant_create_update_delete_stages_lifecycle_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())

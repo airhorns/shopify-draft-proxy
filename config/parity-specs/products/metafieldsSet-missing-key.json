@@ -14,7 +14,18 @@
   "notes": "Missing key is a top-level GraphQL INVALID_VARIABLE response for MetafieldsSetInput variables.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.errors[0].locations[0].line",
+        "matcher": "any-number",
+        "reason": "The checked-in proxy request is single-line repo formatting; the live capture came from a multi-line indented capture script document. Both point at the $metafields variable definition."
+      },
+      {
+        "path": "$.errors[0].locations[0].column",
+        "matcher": "any-number",
+        "reason": "Column varies with operation name length / leading indentation between the proxy request document and the capture script document. Both point at the $metafields variable definition."
+      }
+    ],
     "targets": [
       {
         "name": "graphql-errors",

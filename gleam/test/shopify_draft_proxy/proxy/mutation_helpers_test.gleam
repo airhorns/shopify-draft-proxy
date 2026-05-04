@@ -8,15 +8,18 @@
 
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/mutation_helpers.{
   RequiredArgument, build_missing_required_argument_error,
   build_missing_variable_error, build_null_argument_error, read_optional_string,
-  read_optional_string_array, validate_required_field_arguments,
-  validate_required_id_argument,
+  read_optional_string_array, validate_mutation_field_against_schema,
+  validate_required_field_arguments, validate_required_id_argument,
 }
+import shopify_draft_proxy/proxy/mutation_schema_lookup
 
 fn parse_field(document: String) -> Selection {
   let assert Ok(field) = root_field.get_root_field(document)
@@ -379,4 +382,295 @@ pub fn read_optional_string_array_absent_test() {
 pub fn read_optional_string_array_wrong_type_test() {
   let d = dict.from_list([#("tags", root_field.StringVal("not-a-list"))])
   assert read_optional_string_array(d, "tags") == None
+}
+
+// ---------- validate_mutation_field_against_schema ----------
+//
+// These exercise the schema-driven validator against the bundled
+// captured schema (`mutation_schema_lookup.default_schema()`).
+// We pick mutations whose required-argument shape is stable across
+// API versions:
+//   - `metafieldsSet(metafields: [MetafieldsSetInput!]!)` —
+//     required list-of-required-objects with required `key`, `ownerId`,
+//     `value` fields. Drives every list/element-required test.
+//   - `priceListCreate(input: PriceListCreateInput!)` —
+//     required input arg whose `parent` field is NON_NULL but
+//     leniently accepted by real Shopify on a top-level variable.
+//   - `productCreateMedia(productId: ID!, media: [CreateMediaInput!]!)` —
+//     two required top-level args; used for the "missing args joined
+//     with ", "" path.
+//   - `productDelete(input: ProductDeleteInput!, synchronous: Boolean = true)` —
+//     a NON_NULL arg next to one with a default, to confirm
+//     defaults make an arg optional.
+
+fn run_schema_validator(
+  document: String,
+  variables: List(#(String, root_field.ResolvedValue)),
+  operation_name: String,
+) -> List(json.Json) {
+  let assert Ok(field) = root_field.get_root_field(document)
+  validate_mutation_field_against_schema(
+    field,
+    dict.from_list(variables),
+    operation_name,
+    "mutation",
+    document,
+    mutation_schema_lookup.default_schema(),
+  )
+}
+
+fn rendered(errors: List(json.Json)) -> List(String) {
+  list.map(errors, json.to_string)
+}
+
+pub fn schema_validator_unknown_mutation_returns_empty_test() {
+  // Mutation not in the captured schema: validator stays out of the
+  // way — per-handler logic still runs.
+  let errors =
+    run_schema_validator(
+      "mutation { madeUpMutationFoo(input: {}) { id } }",
+      [],
+      "madeUpMutationFoo",
+    )
+  assert errors == []
+}
+
+pub fn schema_validator_required_arg_missing_test() {
+  // metafieldsSet has one required arg `metafields`. Omitting it
+  // produces a missingRequiredArguments envelope.
+  let errors =
+    run_schema_validator(
+      "mutation { metafieldsSet { metafields { id } userErrors { field message } } }",
+      [],
+      "metafieldsSet",
+    )
+  assert list.length(errors) == 1
+  let assert [s] = rendered(errors)
+  assert string.contains(
+    s,
+    "\"message\":\"Field 'metafieldsSet' is missing required arguments: metafields\"",
+  )
+  assert string.contains(s, "\"code\":\"missingRequiredArguments\"")
+  assert string.contains(s, "\"arguments\":\"metafields\"")
+}
+
+pub fn schema_validator_multiple_required_args_missing_joined_test() {
+  // productCreateMedia has two required args: productId, media.
+  // Both omitted ⇒ one envelope, names joined with ", ".
+  let errors =
+    run_schema_validator(
+      "mutation { productCreateMedia { media { id } } }",
+      [],
+      "productCreateMedia",
+    )
+  let assert [s] = rendered(errors)
+  assert string.contains(s, "\"arguments\":\"productId, media\"")
+}
+
+pub fn schema_validator_required_arg_null_literal_test() {
+  // A literal `null` for a NON_NULL arg ⇒ argumentLiteralsIncompatible.
+  let errors =
+    run_schema_validator(
+      "mutation { metafieldsSet(metafields: null) { metafields { id } userErrors { field message } } }",
+      [],
+      "metafieldsSet",
+    )
+  let assert [s] = rendered(errors)
+  assert string.contains(s, "\"code\":\"argumentLiteralsIncompatible\"")
+  assert string.contains(s, "Expected type '[MetafieldsSetInput!]!'")
+}
+
+pub fn schema_validator_default_value_makes_arg_optional_test() {
+  // productDelete.synchronous is `Boolean = true` (default) — omitting
+  // it should NOT produce an error even though the schema lists it.
+  // The required `input` arg is supplied as a literal so we only
+  // measure the optional-arg behavior.
+  let errors =
+    run_schema_validator(
+      "mutation { productDelete(input: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message } } }",
+      [],
+      "productDelete",
+    )
+  assert errors == []
+}
+
+pub fn schema_validator_required_variable_non_null_declared_unbound_test() {
+  // Variable declared NON_NULL but never supplied ⇒ INVALID_VARIABLE.
+  let errors =
+    run_schema_validator(
+      "mutation Op($m: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $m) { metafields { id } } }",
+      [],
+      "metafieldsSet",
+    )
+  let assert [s] = rendered(errors)
+  assert string.contains(s, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(s, "Variable $m of type [MetafieldsSetInput!]!")
+  assert string.contains(s, "\"explanation\":\"Expected value to not be null\"")
+}
+
+pub fn schema_validator_required_variable_non_null_declared_null_test() {
+  // Variable declared NON_NULL, bound to NullVal ⇒ INVALID_VARIABLE.
+  let errors =
+    run_schema_validator(
+      "mutation Op($m: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $m) { metafields { id } } }",
+      [#("m", root_field.NullVal)],
+      "metafieldsSet",
+    )
+  let assert [s] = rendered(errors)
+  assert string.contains(s, "\"code\":\"INVALID_VARIABLE\"")
+}
+
+pub fn schema_validator_nullable_variable_unbound_lenient_test() {
+  // A nullable-declared variable bound to a NON_NULL arg passes through
+  // to the resolver — Shopify reports it via userErrors, not a top-level
+  // INVALID_VARIABLE. Validator must NOT fabricate one.
+  let errors =
+    run_schema_validator(
+      "mutation Op($m: [MetafieldsSetInput!]) { metafieldsSet(metafields: $m) { metafields { id } } }",
+      [],
+      "metafieldsSet",
+    )
+  assert errors == []
+}
+
+pub fn schema_validator_nullable_variable_null_lenient_test() {
+  let errors =
+    run_schema_validator(
+      "mutation Op($m: [MetafieldsSetInput!]) { metafieldsSet(metafields: $m) { metafields { id } } }",
+      [#("m", root_field.NullVal)],
+      "metafieldsSet",
+    )
+  assert errors == []
+}
+
+pub fn schema_validator_list_element_missing_required_field_test() {
+  // Variable bound to a list whose element is missing a NON_NULL field.
+  // Real Shopify is strict here ⇒ INVALID_VARIABLE with path [0, "key"].
+  let element =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("ownerId", root_field.StringVal("gid://shopify/Product/1")),
+        #("value", root_field.StringVal("v")),
+        // `key` deliberately missing.
+      ]),
+    )
+  let errors =
+    run_schema_validator(
+      "mutation Op($m: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $m) { metafields { id } } }",
+      [#("m", root_field.ListVal([element]))],
+      "metafieldsSet",
+    )
+  let assert [s] = rendered(errors)
+  assert string.contains(s, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(s, "\"path\":[0,\"key\"]")
+  assert string.contains(s, "\"explanation\":\"Expected value to not be null\"")
+}
+
+pub fn schema_validator_list_element_multiple_missing_fields_aggregated_test() {
+  // Multiple required fields missing across one element ⇒ one envelope
+  // with multiple `problems` entries.
+  let element =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("namespace", root_field.StringVal("custom")),
+        // ownerId, key, value all missing.
+      ]),
+    )
+  let errors =
+    run_schema_validator(
+      "mutation Op($m: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $m) { metafields { id } } }",
+      [#("m", root_field.ListVal([element]))],
+      "metafieldsSet",
+    )
+  let assert [s] = rendered(errors)
+  assert string.contains(s, "\"path\":[0,\"ownerId\"]")
+  assert string.contains(s, "\"path\":[0,\"key\"]")
+  assert string.contains(s, "\"path\":[0,\"value\"]")
+}
+
+pub fn schema_validator_list_multiple_elements_paths_indexed_test() {
+  // Two elements, each missing a different required field ⇒ paths
+  // carry distinct list indices.
+  let element_zero =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("ownerId", root_field.StringVal("gid://shopify/Product/1")),
+        #("value", root_field.StringVal("v")),
+        // missing `key`
+      ]),
+    )
+  let element_one =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("key", root_field.StringVal("k")),
+        #("value", root_field.StringVal("v")),
+        // missing `ownerId`
+      ]),
+    )
+  let errors =
+    run_schema_validator(
+      "mutation Op($m: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $m) { metafields { id } } }",
+      [#("m", root_field.ListVal([element_zero, element_one]))],
+      "metafieldsSet",
+    )
+  let assert [s] = rendered(errors)
+  assert string.contains(s, "\"path\":[0,\"key\"]")
+  assert string.contains(s, "\"path\":[1,\"ownerId\"]")
+}
+
+pub fn schema_validator_top_level_object_missing_field_lenient_test() {
+  // PriceListCreateInput.parent is NON_NULL in the schema, but real
+  // Shopify accepts the variable without it (the resolver surfaces the
+  // problem via `userErrors`). Validator must NOT flag it.
+  let input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Wholesale")),
+        #("currency", root_field.StringVal("USD")),
+        // `parent` deliberately missing — this should NOT be an error.
+      ]),
+    )
+  let errors =
+    run_schema_validator(
+      "mutation Op($input: PriceListCreateInput!) { priceListCreate(input: $input) { priceList { id } userErrors { field message } } }",
+      [#("input", input)],
+      "priceListCreate",
+    )
+  assert errors == []
+}
+
+pub fn schema_validator_well_formed_variable_no_errors_test() {
+  let element =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("ownerId", root_field.StringVal("gid://shopify/Product/1")),
+        #("namespace", root_field.StringVal("custom")),
+        #("key", root_field.StringVal("note")),
+        #("value", root_field.StringVal("hello")),
+        #("type", root_field.StringVal("single_line_text_field")),
+      ]),
+    )
+  let errors =
+    run_schema_validator(
+      "mutation Op($m: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $m) { metafields { id } } }",
+      [#("m", root_field.ListVal([element]))],
+      "metafieldsSet",
+    )
+  assert errors == []
+}
+
+pub fn schema_validator_literal_inline_object_skipped_test() {
+  // Strict NON_NULL checks on inline literal input objects produce
+  // false positives against the live runtime (which is more permissive
+  // than the introspection schema advertises). The validator skips them
+  // by design — the per-handler logic owns shape validation of literals.
+  // Confirm: `metafieldsSet` with a literal element missing `key` is
+  // NOT flagged here.
+  let errors =
+    run_schema_validator(
+      "mutation { metafieldsSet(metafields: [{ ownerId: \"gid://shopify/Product/1\", value: \"v\" }]) { metafields { id } userErrors { field message } } }",
+      [],
+      "metafieldsSet",
+    )
+  assert errors == []
 }

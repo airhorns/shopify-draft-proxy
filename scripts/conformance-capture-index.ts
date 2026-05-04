@@ -751,6 +751,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
   },
   {
+    domain: 'admin-platform',
+    captureId: 'mutation-input-schema',
+    scriptPath: 'scripts/capture-mutation-input-schema.mts',
+    purpose:
+      'Per-mutation argument and input-object field shapes (deprecated included) used by the central required-field validator.',
+    requiredAuthScopes: ['schema introspection access through the active Admin token'],
+    fixtureOutputs: ['config/admin-graphql-mutation-schema.json'],
+    cleanupBehavior: 'Read-only introspection; no cleanup expected.',
+    expectedStatusChecks: ['conformance:check', 'conformance:status'],
+  },
+  {
     domain: 'orders',
     captureId: 'orders',
     scriptPath: 'scripts/capture-order-conformance.mts',

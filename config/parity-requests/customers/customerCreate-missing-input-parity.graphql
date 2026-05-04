@@ -1,0 +1,11 @@
+mutation CustomerCreateMissingInput($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "query": "mutation DraftOrderUpdateInlineNullId {\n  draftOrderUpdate(id: null, input: {}) {\n    draftOrder { id }\n    userErrors { field message }\n  }\n}",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Argument 'id' on Field 'draftOrderUpdate' has an invalid value (null). Expected type 'ID!'.",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "path": ["mutation DraftOrderUpdateInlineNullId", "draftOrderUpdate", "id"],
+          "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": "id"
+          }
+        }
+      ]
+    }
+  },
+  "upstreamCalls": []
+}

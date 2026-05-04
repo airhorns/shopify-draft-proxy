@@ -712,6 +712,21 @@ pub fn webhook_subscription_create_blank_uri_user_error_test() {
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
 }
 
+pub fn webhook_subscription_create_accepts_callback_url_alias_test() {
+  // Real Shopify accepts `callbackUrl` on `WebhookSubscriptionInput` as a
+  // legacy alias for `uri`. The proxy used to read only `uri`, fabricating
+  // a misleading `["webhookSubscription", "callbackUrl"], "Address can't be
+  // blank"` userError when the field WAS populated under its legacy name.
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { callbackUrl: \"https://hooks.example.com/orders\", format: JSON }) { webhookSubscription { id topic uri format } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"ORDERS_CREATE\",\"uri\":\"https://hooks.example.com/orders\",\"format\":\"JSON\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids
+    == ["gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic"]
+}
+
 pub fn webhook_subscription_create_missing_topic_top_level_error_test() {
   // No `topic` argument → top-level GraphQL error
   let document =

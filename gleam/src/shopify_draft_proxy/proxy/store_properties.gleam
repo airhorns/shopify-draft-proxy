@@ -2296,11 +2296,7 @@ fn read_shop_policy_input(
 ) -> Option(Dict(String, root_field.ResolvedValue)) {
   case dict.get(args, "shopPolicy") {
     Ok(root_field.ObjectVal(values)) -> Some(values)
-    _ ->
-      case dict.get(args, "input") {
-        Ok(root_field.ObjectVal(values)) -> Some(values)
-        _ -> None
-      }
+    _ -> None
   }
 }
 

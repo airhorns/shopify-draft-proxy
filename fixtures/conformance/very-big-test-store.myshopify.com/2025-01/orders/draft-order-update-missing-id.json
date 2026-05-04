@@ -1,0 +1,32 @@
+{
+  "query": "mutation DraftOrderUpdateMissingId($id: ID!, $input: DraftOrderInput!) {\n  draftOrderUpdate(id: $id, input: $input) {\n    draftOrder { id }\n    userErrors { field message }\n  }\n}",
+  "variables": {
+    "input": {}
+  },
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $id of type ID! was provided invalid value",
+          "locations": [
+            {
+              "line": 1,
+              "column": 36
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": null,
+            "problems": [
+              {
+                "path": [],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "upstreamCalls": []
+}

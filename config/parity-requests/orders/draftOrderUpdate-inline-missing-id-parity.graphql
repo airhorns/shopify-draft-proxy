@@ -1,0 +1,11 @@
+mutation DraftOrderUpdateInlineMissingId {
+  draftOrderUpdate(input: {}) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

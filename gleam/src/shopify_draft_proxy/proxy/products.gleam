@@ -42,7 +42,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, build_null_argument_error, find_argument, single_root_log_draft,
+  type LogDraft, RequiredArgument, build_null_argument_error, find_argument,
+  single_root_log_draft, validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -6940,6 +6941,8 @@ fn handle_mutation_fields(
                 handle_product_create(
                   current_store,
                   current_identity,
+                  document,
+                  operation_path,
                   field,
                   fragments,
                   variables,
@@ -6953,13 +6956,26 @@ fn handle_mutation_fields(
                   "stage-locally",
                   Some("Gleam staged productCreate locally."),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             "productOptionUpdate" -> {
@@ -8674,28 +8690,37 @@ fn handle_product_options_create(
 fn handle_product_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  document: String,
+  operation_path: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = field_args(field, variables)
-  let input = read_arg_object(args, "product")
+  // Real Shopify accepts both `productCreate(product: ProductCreateInput!)`
+  // (current schema) and `productCreate(input: ProductInput!)` (older API
+  // versions / pre-2024). Reading only `product` made the proxy fabricate
+  // a misleading `["title"], "Title can't be blank"` userError when the
+  // legacy shape was used; emit a structurally honest top-level error
+  // instead when neither shows up at all.
+  let input = case read_arg_object(args, "product") {
+    Some(d) -> Some(d)
+    None -> read_arg_object(args, "input")
+  }
   case input {
-    None ->
-      mutation_result(
-        key,
-        product_create_payload(
-          store,
-          None,
-          [ProductUserError(["title"], "Title can't be blank", None)],
+    None -> {
+      let errors =
+        validate_required_field_arguments(
           field,
-          fragments,
-        ),
-        store,
-        identity,
-        [],
-      )
+          variables,
+          "productCreate",
+          [RequiredArgument("product", "ProductCreateInput!")],
+          operation_path,
+          document,
+        )
+      mutation_error_result(key, store, identity, errors)
+    }
     Some(input) ->
       case product_create_validation_error(input) {
         Some(error) ->

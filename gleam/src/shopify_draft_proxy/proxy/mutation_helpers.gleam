@@ -22,6 +22,7 @@
 ////   `webhooks` and `saved_searches` use these.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -31,8 +32,11 @@ import shopify_draft_proxy/graphql/ast.{
   VariableValue,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
+import shopify_draft_proxy/graphql/parser as graphql_parser
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/graphql/source as graphql_source
+import shopify_draft_proxy/proxy/mutation_schema.{type SchemaMutation}
+import shopify_draft_proxy/proxy/mutation_schema_lookup.{type MutationSchema}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -390,6 +394,501 @@ fn locations_payload(
         ]),
       )
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Schema-driven required-field validation
+// ---------------------------------------------------------------------------
+
+/// Validate one mutation field against the captured Admin GraphQL
+/// schema. Returns one JSON error object per problem; an empty list
+/// means "all good".
+///
+/// Two layers run in one pass:
+///
+///   1. Top-level required arguments — driven by every schema arg
+///      whose type is `NON_NULL` and has no server `defaultValue`.
+///      Emits `missingRequiredArguments` /
+///      `argumentLiteralsIncompatible` / `INVALID_VARIABLE` for
+///      missing top-level args.
+///
+///   2. Variable-bound input object coercion — for every arg whose
+///      AST value is a `VariableValue`, walk the resolved variable
+///      value against the schema arg type and aggregate every
+///      "missing required field" / "literal null on NON_NULL" into
+///      a single `INVALID_VARIABLE` error per offending variable
+///      (matching real Shopify's variable coercion envelope, which
+///      groups problems by variable rather than per-field).
+///
+/// Literal input-object internals are deliberately *not* validated
+/// here. Real Shopify is lenient at literal coercion time — missing
+/// NON_NULL fields on inline input objects come back as
+/// per-mutation `userErrors`, not GraphQL coercion errors — so
+/// strict introspection-driven validation produces false positives
+/// (`priceListCreate.parent`, `delegateAccessTokenCreate` legacy
+/// `accessScopes` alias, etc.). The handler is still authoritative
+/// for shape validation of literal input objects.
+///
+/// When the mutation is not in the captured schema, returns the
+/// empty list and lets the per-handler logic run unchanged. (Newer
+/// API versions or unsupported mutations will fall back to the
+/// existing per-handler validation.)
+pub fn validate_mutation_field_against_schema(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  operation_name: String,
+  operation_path: String,
+  source_body: String,
+  schema: MutationSchema,
+) -> List(Json) {
+  case mutation_schema_lookup.get_mutation(schema, operation_name) {
+    None -> []
+    Some(mutation) -> {
+      let arguments = case field {
+        Field(arguments: args, ..) -> args
+        _ -> []
+      }
+      let field_loc = field_location(field)
+      let var_defs = extract_variable_definitions(source_body)
+      let top_level_errors =
+        validate_top_level_args(
+          mutation,
+          arguments,
+          variables,
+          var_defs,
+          operation_name,
+          operation_path,
+          field_loc,
+          source_body,
+        )
+      let variable_errors =
+        validate_variable_bound_args(
+          mutation,
+          arguments,
+          variables,
+          var_defs,
+          source_body,
+          schema,
+        )
+      list.append(top_level_errors, variable_errors)
+    }
+  }
+}
+
+fn validate_top_level_args(
+  mutation: SchemaMutation,
+  arguments: List(Argument),
+  variables: Dict(String, root_field.ResolvedValue),
+  var_defs: Dict(String, VariableDef),
+  operation_name: String,
+  operation_path: String,
+  field_loc: Option(Location),
+  source_body: String,
+) -> List(Json) {
+  let #(missing_names, errors) =
+    list.fold(mutation.args, #([], []), fn(acc, schema_arg) {
+      let #(missing, errs) = acc
+      case
+        mutation_schema.is_non_null(schema_arg.type_),
+        schema_arg.default_value
+      {
+        False, _ -> acc
+        True, Some(_) -> acc
+        True, None -> {
+          let expected = mutation_schema.render_signature(schema_arg.type_)
+          case find_argument(arguments, schema_arg.name) {
+            None -> #(list.append(missing, [schema_arg.name]), errs)
+            Some(argument) ->
+              case argument.value {
+                NullValue(..) -> #(
+                  missing,
+                  list.append(errs, [
+                    build_null_argument_error(
+                      operation_name,
+                      schema_arg.name,
+                      expected,
+                      operation_path,
+                      field_loc,
+                      source_body,
+                    ),
+                  ]),
+                )
+                VariableValue(variable: var) -> {
+                  // Real Shopify only rejects a missing/null variable here
+                  // when the *variable's declared type* is NON_NULL — a
+                  // nullable-declared variable bound to a NON_NULL arg
+                  // passes through to the resolver, which surfaces the
+                  // problem as a `userErrors` entry. Mirror that.
+                  let declared_non_null = case
+                    dict.get(var_defs, var.name.value)
+                  {
+                    Ok(def) -> def.declared_non_null
+                    Error(_) -> True
+                  }
+                  case declared_non_null, dict.get(variables, var.name.value) {
+                    True, Ok(root_field.NullVal) | True, Error(_) -> #(
+                      missing,
+                      list.append(errs, [
+                        build_missing_variable_error(var.name.value, expected),
+                      ]),
+                    )
+                    _, _ -> acc
+                  }
+                }
+                _ -> acc
+              }
+          }
+        }
+      }
+    })
+  case missing_names {
+    [] -> errors
+    _ -> [
+      build_missing_required_argument_error(
+        operation_name,
+        string.join(missing_names, ", "),
+        operation_path,
+        field_loc,
+        source_body,
+      ),
+      ..errors
+    ]
+  }
+}
+
+/// One segment of a problem path. List indices appear as JSON
+/// integers in Shopify's `extensions.problems[].path` (e.g.
+/// `[0, "key"]`), so we keep ints distinct from string field names.
+type PathSegment {
+  StringSegment(String)
+  IntSegment(Int)
+}
+
+/// One missing-or-null leaf inside a variable's resolved value.
+/// `path` is rooted at the variable (NOT including the variable
+/// name itself) and matches the shape Shopify emits in
+/// `extensions.problems[]`.
+type ValueProblem {
+  ValueProblem(path: List(PathSegment), explanation: String)
+}
+
+/// For each top-level arg whose AST value is a `VariableValue`,
+/// validate the resolved variable value against the schema arg type
+/// and emit one INVALID_VARIABLE error per problematic variable.
+fn validate_variable_bound_args(
+  mutation: SchemaMutation,
+  arguments: List(Argument),
+  variables: Dict(String, root_field.ResolvedValue),
+  var_defs: Dict(String, VariableDef),
+  source_body: String,
+  schema: MutationSchema,
+) -> List(Json) {
+  list.flat_map(arguments, fn(arg) {
+    case arg {
+      Argument(name: arg_name, value: VariableValue(variable: var), ..) ->
+        case find_schema_arg(mutation.args, arg_name.value) {
+          None -> []
+          Some(schema_arg) ->
+            invalid_variable_errors_for(
+              var.name.value,
+              schema_arg.type_,
+              variables,
+              var_defs,
+              source_body,
+              schema,
+            )
+        }
+      _ -> []
+    }
+  })
+}
+
+fn invalid_variable_errors_for(
+  variable_name: String,
+  declared_type: mutation_schema.SchemaType,
+  variables: Dict(String, root_field.ResolvedValue),
+  var_defs: Dict(String, VariableDef),
+  source_body: String,
+  schema: MutationSchema,
+) -> List(Json) {
+  case dict.get(variables, variable_name) {
+    // Unbound variable: validate_top_level_args already emits the
+    // INVALID_VARIABLE-for-null envelope. Don't double-count.
+    Error(_) -> []
+    Ok(root_field.NullVal) -> []
+    Ok(resolved) -> {
+      let problems = collect_value_problems(resolved, declared_type, schema, [])
+      case problems {
+        [] -> []
+        _ -> {
+          let loc = case dict.get(var_defs, variable_name) {
+            Ok(def) -> def.loc
+            Error(_) -> None
+          }
+          [
+            build_invalid_variable_problems_error(
+              variable_name,
+              mutation_schema.render_signature(declared_type),
+              resolved,
+              problems,
+              loc,
+              source_body,
+            ),
+          ]
+        }
+      }
+    }
+  }
+}
+
+/// Walk a resolved variable value against its declared schema type,
+/// collecting "missing required field" problems Shopify would emit
+/// in the INVALID_VARIABLE envelope.
+///
+/// `inside_list` flips to True the first time we descend into a
+/// `ListType`. Real Shopify is strict about NON_NULL fields on input
+/// objects that appear *as list elements* (e.g.
+/// `[MetafieldsSetInput!]!.key` missing → INVALID_VARIABLE), but
+/// lenient about NON_NULL fields on a top-level single-object
+/// variable (e.g. `PriceListCreateInput!.parent` missing → no
+/// coercion error, the resolver surfaces it via `userErrors` if it
+/// cares). Mirror that asymmetry — flagging top-level objects too
+/// produces false positives against the live runtime that is more
+/// permissive than the introspection schema advertises.
+fn collect_value_problems(
+  resolved: root_field.ResolvedValue,
+  schema_type: mutation_schema.SchemaType,
+  schema: MutationSchema,
+  path: List(PathSegment),
+) -> List(ValueProblem) {
+  collect_value_problems_inner(
+    resolved,
+    schema_type,
+    schema,
+    path,
+    inside_list: False,
+  )
+}
+
+fn collect_value_problems_inner(
+  resolved: root_field.ResolvedValue,
+  schema_type: mutation_schema.SchemaType,
+  schema: MutationSchema,
+  path: List(PathSegment),
+  inside_list inside_list: Bool,
+) -> List(ValueProblem) {
+  case schema_type {
+    mutation_schema.NonNullType(of: inner) ->
+      case resolved {
+        root_field.NullVal -> [
+          ValueProblem(path: path, explanation: "Expected value to not be null"),
+        ]
+        _ ->
+          collect_value_problems_inner(
+            resolved,
+            inner,
+            schema,
+            path,
+            inside_list:,
+          )
+      }
+    mutation_schema.ListType(of: inner) ->
+      case resolved {
+        root_field.ListVal(items) ->
+          list.index_map(items, fn(item, idx) {
+            collect_value_problems_inner(
+              item,
+              inner,
+              schema,
+              list.append(path, [IntSegment(idx)]),
+              inside_list: True,
+            )
+          })
+          |> list.flatten
+        _ -> []
+      }
+    mutation_schema.NamedType(name: io_name) ->
+      case mutation_schema_lookup.get_input_object(schema, io_name) {
+        None -> []
+        Some(io) ->
+          case resolved {
+            root_field.ObjectVal(fields) ->
+              list.flat_map(io.input_fields, fn(field) {
+                let field_path = list.append(path, [StringSegment(field.name)])
+                let required =
+                  mutation_schema.is_non_null(field.type_)
+                  && option.is_none(field.default_value)
+                  && inside_list
+                case dict.get(fields, field.name), required {
+                  Error(_), True -> [
+                    ValueProblem(
+                      path: field_path,
+                      explanation: "Expected value to not be null",
+                    ),
+                  ]
+                  Error(_), False -> []
+                  Ok(child), _ ->
+                    collect_value_problems_inner(
+                      child,
+                      field.type_,
+                      schema,
+                      field_path,
+                      inside_list:,
+                    )
+                }
+              })
+            _ -> []
+          }
+      }
+  }
+}
+
+fn build_invalid_variable_problems_error(
+  variable_name: String,
+  variable_type: String,
+  value: root_field.ResolvedValue,
+  problems: List(ValueProblem),
+  var_def_loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let message_suffix = case problems {
+    [] -> ""
+    [first, ..] -> {
+      let path_str =
+        list.map(first.path, path_segment_to_string) |> string.join(".")
+      " for " <> path_str <> " (" <> first.explanation <> ")"
+    }
+  }
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Variable $"
+        <> variable_name
+        <> " of type "
+        <> variable_type
+        <> " was provided invalid value"
+        <> message_suffix,
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(var_def_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("INVALID_VARIABLE")),
+          #("value", root_field.resolved_value_to_json(value)),
+          #(
+            "problems",
+            json.preprocessed_array(
+              list.map(problems, fn(p) {
+                json.object([
+                  #("path", path_segments_to_json(p.path)),
+                  #("explanation", json.string(p.explanation)),
+                ])
+              }),
+            ),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn path_segment_to_string(segment: PathSegment) -> String {
+  case segment {
+    StringSegment(s) -> s
+    IntSegment(i) -> int.to_string(i)
+  }
+}
+
+fn path_segments_to_json(path: List(PathSegment)) -> Json {
+  json.preprocessed_array(
+    list.map(path, fn(segment) {
+      case segment {
+        StringSegment(s) -> json.string(s)
+        IntSegment(i) -> json.int(i)
+      }
+    }),
+  )
+}
+
+/// Carries the bits of a parsed `$var: Type` declaration the
+/// validator cares about: where it sits in the source (for
+/// `locations` in the error envelope) and whether the declared type
+/// is `NON_NULL`. The latter drives whether a null/missing variable
+/// causes a top-level INVALID_VARIABLE error or is allowed through
+/// to the resolver — Shopify only rejects when the *declared* type
+/// is NON_NULL, regardless of the bound argument's nullability.
+type VariableDef {
+  VariableDef(loc: Option(Location), declared_non_null: Bool)
+}
+
+fn extract_variable_definitions(
+  source_body: String,
+) -> Dict(String, VariableDef) {
+  case graphql_parser.parse(graphql_source.new(source_body)) {
+    Error(_) -> dict.new()
+    Ok(doc) -> {
+      let var_defs = case find_first_operation(doc.definitions) {
+        Some(ast.OperationDefinition(variable_definitions: vds, ..)) -> vds
+        _ -> []
+      }
+      list.fold(var_defs, dict.new(), fn(acc, vd) {
+        case vd {
+          ast.VariableDefinition(
+            variable: var,
+            type_ref: type_ref,
+            loc: loc,
+            ..,
+          ) ->
+            dict.insert(
+              acc,
+              var.name.value,
+              VariableDef(
+                loc: loc,
+                declared_non_null: type_ref_is_non_null(type_ref),
+              ),
+            )
+        }
+      })
+    }
+  }
+}
+
+fn type_ref_is_non_null(type_ref: ast.TypeRef) -> Bool {
+  case type_ref {
+    ast.NonNullType(..) -> True
+    _ -> False
+  }
+}
+
+fn find_first_operation(
+  definitions: List(ast.Definition),
+) -> Option(ast.Definition) {
+  case definitions {
+    [] -> None
+    [d, ..rest] ->
+      case d {
+        ast.OperationDefinition(..) -> Some(d)
+        _ -> find_first_operation(rest)
+      }
+  }
+}
+
+fn find_schema_arg(
+  schema_args: List(mutation_schema.SchemaArg),
+  name: String,
+) -> Option(mutation_schema.SchemaArg) {
+  case list.find(schema_args, fn(a) { a.name == name }) {
+    Ok(v) -> Some(v)
+    Error(_) -> None
   }
 }
 

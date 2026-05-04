@@ -1,0 +1,27 @@
+{
+  "query": "mutation InlineMissingInput {\n  customerCreate {\n    customer { id }\n    userErrors { field message }\n  }\n}",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Field 'customerCreate' is missing required arguments: input",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "path": ["mutation InlineMissingInput", "customerCreate"],
+          "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "customerCreate",
+            "arguments": "input"
+          }
+        }
+      ]
+    }
+  },
+  "upstreamCalls": []
+}

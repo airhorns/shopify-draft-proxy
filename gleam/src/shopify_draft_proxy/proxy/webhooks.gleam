@@ -1272,13 +1272,32 @@ fn read_webhook_subscription_input(
 fn normalize_uri_from_input(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Option(String) {
-  case dict.get(input, "uri") {
-    Ok(root_field.StringVal(raw)) ->
-      case string.trim(raw) {
-        "" -> None
-        trimmed -> Some(trimmed)
+  // Real Shopify exposes `callbackUrl` on `WebhookSubscriptionInput` as a
+  // (deprecated) alias for `uri` — confirmed by introspecting the 2025-01
+  // schema with `includeDeprecated: true`. Reading only `uri` made the
+  // proxy fabricate a misleading "Address can't be blank" userError when
+  // callers used the deprecated field name. (`callback_url` and `endpoint`
+  // are NOT real input fields and were stripped after the introspection
+  // check; they were artifacts of the search-query alias list in this
+  // module.)
+  read_first_string_field(input, ["uri", "callbackUrl"])
+}
+
+fn read_first_string_field(
+  input: Dict(String, root_field.ResolvedValue),
+  names: List(String),
+) -> Option(String) {
+  case names {
+    [] -> None
+    [name, ..rest] ->
+      case dict.get(input, name) {
+        Ok(root_field.StringVal(raw)) ->
+          case string.trim(raw) {
+            "" -> read_first_string_field(input, rest)
+            trimmed -> Some(trimmed)
+          }
+        _ -> read_first_string_field(input, rest)
       }
-    _ -> None
   }
 }
 
