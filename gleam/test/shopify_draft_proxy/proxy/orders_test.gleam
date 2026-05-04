@@ -2103,6 +2103,127 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
     == "{\"data\":{\"order\":{\"displayFulfillmentStatus\":\"UNFULFILLED\",\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},{\"status\":\"CLOSED\",\"lineItems\":{\"nodes\":[]}},{\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}}]}},\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\"},{\"status\":\"OPEN\"}]}}}"
 }
 
+pub fn orders_fulfillment_order_cancel_rejects_closed_orders_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-cancel-closed"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/cancel-closed"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/cancel-closed"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-order-cancel-closed"
+  let seeded =
+    fulfillment_order_lifecycle_store(
+      order_id,
+      fulfillment_order_id,
+      fulfillment_order_line_item_id,
+      line_item_id,
+    )
+
+  let cancel_mutation =
+    "
+    mutation Cancel($id: ID!) {
+      fulfillmentOrderCancel(id: $id) {
+        fulfillmentOrder {
+          id
+          status
+        }
+        replacementFulfillmentOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let assert Ok(first_cancel) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      cancel_mutation,
+      dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+    )
+  let assert Ok(second_cancel) =
+    orders.process_mutation(
+      first_cancel.store,
+      first_cancel.identity,
+      "/admin/api/2026-04/graphql.json",
+      cancel_mutation,
+      dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+    )
+  assert json.to_string(second_cancel.data)
+    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order cannot be cancelled in its current state.\",\"code\":\"fulfillment_order_cannot_be_cancelled\"}]}}}"
+}
+
+pub fn orders_fulfillment_order_cancel_rejects_manually_reported_progress_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-cancel-progress"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/cancel-progress"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/cancel-progress"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-order-cancel-progress"
+  let seeded =
+    fulfillment_order_lifecycle_store(
+      order_id,
+      fulfillment_order_id,
+      fulfillment_order_line_item_id,
+      line_item_id,
+    )
+
+  let report_mutation =
+    "
+    mutation Progress($id: ID!) {
+      fulfillmentOrderReportProgress(id: $id, progressReport: { reasonNotes: \"manual progress\" }) {
+        fulfillmentOrder {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(progress_outcome) =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      report_mutation,
+      dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+    )
+
+  let cancel_mutation =
+    "
+    mutation Cancel($id: ID!) {
+      fulfillmentOrderCancel(id: $id) {
+        fulfillmentOrder {
+          id
+        }
+        replacementFulfillmentOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let assert Ok(cancel_outcome) =
+    orders.process_mutation(
+      progress_outcome.store,
+      progress_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      cancel_mutation,
+      dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+    )
+  assert json.to_string(cancel_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order has manually reported progress.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
+}
+
 pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
   let order_id = "gid://shopify/Order/fulfillment-order-residual"
   let fulfillment_order_id = "gid://shopify/FulfillmentOrder/residual"

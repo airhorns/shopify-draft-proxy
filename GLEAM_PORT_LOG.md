@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-04 - Pass 197: HAR-573 fulfillment order cancel preconditions
+
+Tightens local `fulfillmentOrderCancel` staging so manually progressed or
+otherwise non-cancellable fulfillment orders return Shopify-shaped user errors
+instead of silently closing and replacing the order.
+
+| Module / fixture                                                                                                                   | Change                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam`                                                                  | Adds cancel precondition checks for status/requestStatus and local manual-progress markers, emits code-shaped cancel user errors, and preserves successful close-and-replacement staging. |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                                                                                 | Applies the same cancel guard to order-owned fulfillment-order lifecycle mutations and carries the manual-progress marker through report/open transitions.                                |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` / `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam` | Covers rejected `CLOSED` cancels, rejected manually progress-reported cancels, direct handler behavior, and the existing replacement fulfillment-order read-after-write path.             |
+| `docs/endpoints/orders.md` / `docs/endpoints/shipping-fulfillments.md`                                                             | Documents the HAR-573 cancel boundary, user-error codes, and local manual-progress guard.                                                                                                 |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `cd gleam && gleam test --target javascript -- orders_fulfillment_order_cancel`
+  (reproduction before fix: closed/manual-progress cancels incorrectly
+  succeeded with replacements and empty `userErrors`)
+- `cd gleam && gleam test --target javascript -- fulfillment_order_cancel`
+  (853 passed)
+- `cd gleam && gleam test --target javascript` (853 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 844 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2291 passed)
+- `git diff --check`
+
+### Findings
+
+- Rejected cancel attempts now leave store and synthetic identity unchanged and
+  return `fulfillment_order_cannot_be_cancelled` or
+  `fulfillment_order_has_manually_reported_progress` in the selected
+  `userErrors.code` field.
+- Successful cancel behavior remains local-only staging: the original
+  fulfillment order is closed, its line items are cleared, and an `OPEN`
+  replacement fulfillment order carries the remaining work for downstream
+  mutation/read consistency.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation used the
+  established OTP 28 container fallback.
+- Shopify Admin 2026-04 introspection exposes generic `UserError` for the
+  selected cancel error surface, while this ticket requires the documented
+  code-shaped local values.
+
+---
+
 ## 2026-05-04 - Pass 196: HAR-549 invalid product search syntax parity
 
 Adds live conformance coverage for malformed-looking Shopify Admin product

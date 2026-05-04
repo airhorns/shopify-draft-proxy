@@ -12,14 +12,16 @@ import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type DeliveryProfileRecord, type ShippingPackageRecord,
+  type CapturedJsonValue, type DeliveryProfileRecord,
+  type FulfillmentOrderRecord, type ShippingPackageRecord,
   type StorePropertyRecord, CalculatedOrderRecord, CapturedArray, CapturedBool,
   CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CarrierServiceRecord, DeliveryProfileRecord, FulfillmentRecord, LocationRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ReverseFulfillmentOrderRecord, ShippingPackageDimensionsRecord,
-  ShippingPackageRecord, ShippingPackageWeightRecord, StorePropertyBool,
-  StorePropertyNull, StorePropertyRecord, StorePropertyString,
+  CarrierServiceRecord, DeliveryProfileRecord, FulfillmentOrderRecord,
+  FulfillmentRecord, LocationRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ReverseFulfillmentOrderRecord,
+  ShippingPackageDimensionsRecord, ShippingPackageRecord,
+  ShippingPackageWeightRecord, StorePropertyBool, StorePropertyNull,
+  StorePropertyRecord, StorePropertyString,
 }
 
 fn package(id: String, name: String, default: Bool) -> ShippingPackageRecord {
@@ -1314,6 +1316,103 @@ pub fn fulfillment_event_create_stages_event_and_downstream_read_test() {
     <> "\",\"endCursor\":\"cursor:"
     <> event_id
     <> "\"}}}}}"
+}
+
+pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
+  let closed_order_id = "gid://shopify/FulfillmentOrder/direct-closed"
+  let progress_order_id = "gid://shopify/FulfillmentOrder/direct-progress"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      fulfillment_order_record(closed_order_id, "CLOSED", "UNSUBMITTED"),
+      fulfillment_order_record(progress_order_id, "OPEN", "UNSUBMITTED"),
+    ])
+
+  let cancel_mutation =
+    "
+    mutation Cancel($id: ID!) {
+      fulfillmentOrderCancel(id: $id) {
+        fulfillmentOrder {
+          id
+        }
+        replacementFulfillmentOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let assert Ok(closed_cancel) =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      cancel_mutation,
+      dict.from_list([#("id", root_field.StringVal(closed_order_id))]),
+    )
+  assert json.to_string(closed_cancel.data)
+    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order cannot be cancelled in its current state.\",\"code\":\"fulfillment_order_cannot_be_cancelled\"}]}}}"
+
+  let report_mutation =
+    "
+    mutation Progress($id: ID!) {
+      fulfillmentOrderReportProgress(id: $id, progressReport: { reasonNotes: \"manual progress\" }) {
+        fulfillmentOrder {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(progress_report) =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      report_mutation,
+      dict.from_list([#("id", root_field.StringVal(progress_order_id))]),
+    )
+  let assert Ok(progress_cancel) =
+    shipping_fulfillments.process_mutation(
+      progress_report.store,
+      progress_report.identity,
+      "/admin/api/2026-04/graphql.json",
+      cancel_mutation,
+      dict.from_list([#("id", root_field.StringVal(progress_order_id))]),
+    )
+  assert json.to_string(progress_cancel.data)
+    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order has manually reported progress.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
+}
+
+fn fulfillment_order_record(
+  id: String,
+  status: String,
+  request_status: String,
+) -> FulfillmentOrderRecord {
+  FulfillmentOrderRecord(
+    id: id,
+    order_id: None,
+    status: status,
+    request_status: request_status,
+    assigned_location_id: None,
+    assignment_status: None,
+    manually_held: False,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("status", CapturedString(status)),
+      #("requestStatus", CapturedString(request_status)),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+      #("fulfillmentHolds", CapturedArray([])),
+    ]),
+  )
 }
 
 pub fn reverse_delivery_lifecycle_and_detail_reads_stage_locally_test() {
