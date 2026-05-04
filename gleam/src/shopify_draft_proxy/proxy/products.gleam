@@ -9281,7 +9281,7 @@ fn handle_product_set(
           graphql_helpers.read_arg_object(args, "identifier"),
           input,
         )
-      case product_set_duplicate_variant_errors(input) {
+      case product_set_validation_errors(input) {
         [] ->
           stage_product_set(
             store,
@@ -9311,6 +9311,32 @@ fn handle_product_set(
           )
       }
     }
+  }
+}
+
+fn product_set_validation_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductOperationUserErrorRecord) {
+  list.append(
+    product_set_requires_variants_for_options_errors(input),
+    product_set_duplicate_variant_errors(input),
+  )
+}
+
+fn product_set_requires_variants_for_options_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductOperationUserErrorRecord) {
+  case
+    read_object_list_field(input, "productOptions"),
+    read_object_list_field(input, "variants")
+  {
+    [_, ..], [] -> [
+      ProductOperationUserErrorRecord(
+        field: Some(["input", "variants"]),
+        message: "Variants input is required when updating product options",
+      ),
+    ]
+    _, _ -> []
   }
 }
 
