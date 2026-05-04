@@ -1,0 +1,73 @@
+{
+  "query": "mutation OrderCreateValidationMatrixExtended($futureProcessedAt: OrderCreateOrderInput!, $redundantCustomer: OrderCreateOrderInput!) { futureProcessedAt: orderCreate(order: $futureProcessedAt) { order { id } userErrors { field code } } redundantCustomer: orderCreate(order: $redundantCustomer) { order { id } userErrors { field code } } lineItemTaxLineMissingRate: orderCreate(order: { email: \"hermes-order-validation-line-tax@example.com\", lineItems: [{ title: \"Validation custom item\", quantity: 1, priceSet: { shopMoney: { amount: \"1.00\", currencyCode: USD } }, taxLines: [{ title: \"Line tax\", rate: \"\", priceSet: { shopMoney: { amount: \"1.00\", currencyCode: USD } } }] }] }) { order { id } userErrors { field code } } shippingLineTaxLineMissingRate: orderCreate(order: { email: \"hermes-order-validation-shipping-tax@example.com\", lineItems: [{ variantId: \"gid://shopify/ProductVariant/48540157378793\", quantity: 1 }], shippingLines: [{ title: \"Standard\", priceSet: { shopMoney: { amount: \"5.00\", currencyCode: USD } }, taxLines: [{ title: \"Shipping tax\", rate: \"\", priceSet: { shopMoney: { amount: \"1.00\", currencyCode: USD } } }] }] }) { order { id } userErrors { field code } } }",
+  "variables": {
+    "futureProcessedAt": {
+      "email": "hermes-order-validation-future@example.com",
+      "processedAt": "2099-01-01T00:00:00Z",
+      "lineItems": [
+        {
+          "variantId": "gid://shopify/ProductVariant/48540157378793",
+          "quantity": 1
+        }
+      ]
+    },
+    "redundantCustomer": {
+      "email": "hermes-order-validation-redundant@example.com",
+      "customerId": "gid://shopify/Customer/1",
+      "customer": {
+        "toUpsert": {
+          "email": "hermes-order-validation-redundant@example.com"
+        }
+      },
+      "lineItems": [
+        {
+          "variantId": "gid://shopify/ProductVariant/48540157378793",
+          "quantity": 1
+        }
+      ]
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "futureProcessedAt": {
+          "order": null,
+          "userErrors": [
+            {
+              "field": ["order", "processedAt"],
+              "code": "PROCESSED_AT_INVALID"
+            }
+          ]
+        },
+        "redundantCustomer": {
+          "order": null,
+          "userErrors": [
+            {
+              "field": ["order"],
+              "code": "REDUNDANT_CUSTOMER_FIELDS"
+            }
+          ]
+        },
+        "lineItemTaxLineMissingRate": {
+          "order": null,
+          "userErrors": [
+            {
+              "field": ["order", "lineItems", 0, "taxLines", 0, "rate"],
+              "code": "TAX_LINE_RATE_MISSING"
+            }
+          ]
+        },
+        "shippingLineTaxLineMissingRate": {
+          "order": null,
+          "userErrors": [
+            {
+              "field": ["order", "shippingLines", 0, "taxLines", 0, "rate"],
+              "code": "TAX_LINE_RATE_MISSING"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
