@@ -9,6 +9,52 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-04 - Pass 197: HAR-562 order edit user-error payloads
+
+Aligns the Gleam order-edit handlers with Shopify's mutation payload contract
+for local user-error branches without sending supported mutations upstream.
+
+| Module / fixture                                         | Change                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`       | Replaces `data.<root>: null` order-edit early-outs with selected payload objects containing nullable resource fields and `userErrors`, adds `INVALID` codes, blocks begin for refunded/voided/cancelled orders, and rejects a second open session per order. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` | Adds focused coverage for missing begin order, refunded and locally cancelled begin orders, existing open session rejection, unknown variant, unknown calculated line item, and unknown calculated-order commit.                                             |
+| `docs/endpoints/orders.md`                               | Updates order-edit coverage notes so concurrent-session and unknown target user-error branches are no longer listed as open gaps.                                                                                                                            |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- orders_order_edit_begin_user_error_payload_shapes_test orders_order_edit_unknown_resource_user_error_payload_shapes_test orders_order_edit_add_variant_invalid_variant_payload_test orders_order_edit_set_quantity_payload_test orders_order_edit_begin_payload_test orders_order_edit_missing_id_validation_guardrails_test`
+  (852 passed)
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (852 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 843 passed)
+- `corepack pnpm conformance:check` (1427 passed)
+- `corepack pnpm typecheck`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm test` (123 files passed; 2291 passed)
+- `corepack pnpm build`
+- `git diff --check`
+
+### Findings
+
+- The pre-fix begin-not-found branch returned `{"data":{"orderEditBegin":null}}`;
+  the new shared order-edit error serializer keeps the mutation root non-null
+  while preserving selected nullable fields.
+- Existing missing-`$id` GraphQL validation remains top-level
+  `INVALID_VARIABLE` behavior and is intentionally separate from mutation-scoped
+  `userErrors`.
+
+### Risks / open items
+
+- The new unknown-target messages are local approximations anchored to the
+  ticket's field/code acceptance criteria. Fresh live capture can tighten exact
+  wording later if Shopify exposes different translated text in the target shop.
+
+---
+
 ## 2026-05-04 - Pass 196: HAR-549 invalid product search syntax parity
 
 Adds live conformance coverage for malformed-looking Shopify Admin product
