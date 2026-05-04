@@ -1272,13 +1272,34 @@ fn read_webhook_subscription_input(
 fn normalize_uri_from_input(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Option(String) {
-  case dict.get(input, "uri") {
-    Ok(root_field.StringVal(raw)) ->
-      case string.trim(raw) {
-        "" -> None
-        trimmed -> Some(trimmed)
+  // Mirror the search-query alias list (see `webhook_subscription_uri`
+  // matcher above): real Shopify accepts `callbackUrl` on
+  // `WebhookSubscriptionInput` as a legacy alias for `uri`. Reading only
+  // `uri` made the proxy fabricate a misleading "Address can't be blank"
+  // userError when callers used the legacy field name.
+  read_first_string_field(input, [
+    "uri",
+    "callbackUrl",
+    "callback_url",
+    "endpoint",
+  ])
+}
+
+fn read_first_string_field(
+  input: Dict(String, root_field.ResolvedValue),
+  names: List(String),
+) -> Option(String) {
+  case names {
+    [] -> None
+    [name, ..rest] ->
+      case dict.get(input, name) {
+        Ok(root_field.StringVal(raw)) ->
+          case string.trim(raw) {
+            "" -> read_first_string_field(input, rest)
+            trimmed -> Some(trimmed)
+          }
+        _ -> read_first_string_field(input, rest)
       }
-    _ -> None
   }
 }
 
