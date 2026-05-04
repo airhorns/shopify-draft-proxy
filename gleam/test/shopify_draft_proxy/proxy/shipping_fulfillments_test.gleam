@@ -1096,6 +1096,106 @@ pub fn local_pickup_unknown_location_returns_active_location_error_test() {
     == "{\"data\":{\"locationLocalPickupEnable\":{\"localPickupSettings\":null,\"userErrors\":[{\"field\":[\"localPickupSettings\"],\"message\":\"Unable to find an active location for location ID 999999999999\",\"code\":\"ACTIVE_LOCATION_NOT_FOUND\"}]}}}"
 }
 
+pub fn local_pickup_inactive_location_returns_active_location_error_test() {
+  let local_pickup_settings =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("locationId", root_field.StringVal("gid://shopify/Location/12")),
+        #("pickupTime", root_field.StringVal("ONE_HOUR")),
+      ]),
+    )
+  let assert Ok(outcome) =
+    shipping_fulfillments.process_mutation(
+      settings_store(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation EnablePickup($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) { locationLocalPickupEnable(localPickupSettings: $localPickupSettings) { localPickupSettings { pickupTime instructions } userErrors { field message code } } }",
+      dict.from_list([#("localPickupSettings", local_pickup_settings)]),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"locationLocalPickupEnable\":{\"localPickupSettings\":null,\"userErrors\":[{\"field\":[\"localPickupSettings\"],\"message\":\"Unable to find an active location for location ID 12\",\"code\":\"ACTIVE_LOCATION_NOT_FOUND\"}]}}}"
+}
+
+pub fn local_pickup_custom_pickup_time_returns_code_error_test() {
+  let local_pickup_settings =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("locationId", root_field.StringVal("gid://shopify/Location/10")),
+        #("pickupTime", root_field.StringVal("CUSTOM")),
+        #("instructions", root_field.StringVal("HAR-567 custom pickup time")),
+      ]),
+    )
+  let assert Ok(outcome) =
+    shipping_fulfillments.process_mutation(
+      settings_store(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation EnablePickup($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) { locationLocalPickupEnable(localPickupSettings: $localPickupSettings) { localPickupSettings { pickupTime instructions } userErrors { field message code } } }",
+      dict.from_list([#("localPickupSettings", local_pickup_settings)]),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"locationLocalPickupEnable\":{\"localPickupSettings\":null,\"userErrors\":[{\"field\":[\"localPickupSettings\"],\"message\":\"Custom pickup time is not allowed for local pickup settings.\",\"code\":\"CUSTOM_PICKUP_TIME_NOT_ALLOWED\"}]}}}"
+
+  let assert Ok(read_after_invalid) =
+    store_properties.process(
+      outcome.store,
+      "query ReadPickup($locationId: ID!) { location(id: $locationId) { id name localPickupSettingsV2 { pickupTime instructions } } }",
+      dict.from_list([
+        #("locationId", root_field.StringVal("gid://shopify/Location/10")),
+      ]),
+    )
+  assert json.to_string(read_after_invalid)
+    == "{\"data\":{\"location\":{\"id\":\"gid://shopify/Location/10\",\"name\":\"Shop location\",\"localPickupSettingsV2\":null}}}"
+}
+
+pub fn local_pickup_accepts_captured_multi_day_standard_values_test() {
+  let two_to_four_days_settings =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("locationId", root_field.StringVal("gid://shopify/Location/10")),
+        #("pickupTime", root_field.StringVal("TWO_TO_FOUR_DAYS")),
+        #("instructions", root_field.StringVal("HAR-567 two to four days")),
+      ]),
+    )
+  let assert Ok(two_to_four_days_outcome) =
+    shipping_fulfillments.process_mutation(
+      settings_store(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation EnablePickup($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) { locationLocalPickupEnable(localPickupSettings: $localPickupSettings) { localPickupSettings { pickupTime instructions } userErrors { field message code } } }",
+      dict.from_list([
+        #("localPickupSettings", two_to_four_days_settings),
+      ]),
+    )
+
+  assert json.to_string(two_to_four_days_outcome.data)
+    == "{\"data\":{\"locationLocalPickupEnable\":{\"localPickupSettings\":{\"pickupTime\":\"TWO_TO_FOUR_DAYS\",\"instructions\":\"HAR-567 two to four days\"},\"userErrors\":[]}}}"
+
+  let five_or_more_days_settings =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("locationId", root_field.StringVal("gid://shopify/Location/10")),
+        #("pickupTime", root_field.StringVal("FIVE_OR_MORE_DAYS")),
+        #("instructions", root_field.StringVal("HAR-567 five or more days")),
+      ]),
+    )
+  let assert Ok(five_or_more_days_outcome) =
+    shipping_fulfillments.process_mutation(
+      settings_store(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation EnablePickup($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) { locationLocalPickupEnable(localPickupSettings: $localPickupSettings) { localPickupSettings { pickupTime instructions } userErrors { field message code } } }",
+      dict.from_list([
+        #("localPickupSettings", five_or_more_days_settings),
+      ]),
+    )
+
+  assert json.to_string(five_or_more_days_outcome.data)
+    == "{\"data\":{\"locationLocalPickupEnable\":{\"localPickupSettings\":{\"pickupTime\":\"FIVE_OR_MORE_DAYS\",\"instructions\":\"HAR-567 five or more days\"},\"userErrors\":[]}}}"
+}
+
 pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
   let assert Ok(create_outcome) =
     shipping_fulfillments.process_mutation(

@@ -173,6 +173,44 @@
         }
       }
     },
+    "customPickupTimeEnable": {
+      "query": "#graphql\n  mutation ShippingLocalPickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {\n    locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {\n      localPickupSettings {\n        pickupTime\n        instructions\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "localPickupSettings": {
+          "locationId": "gid://shopify/Location/106318496050",
+          "pickupTime": "CUSTOM",
+          "instructions": "HAR-567 custom pickup time"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationLocalPickupEnable": {
+              "localPickupSettings": null,
+              "userErrors": [
+                {
+                  "field": ["localPickupSettings"],
+                  "message": "Custom pickup time is not allowed for local pickup settings.",
+                  "code": "CUSTOM_PICKUP_TIME_NOT_ALLOWED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "enable": {
       "query": "#graphql\n  mutation ShippingLocalPickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {\n    locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {\n      localPickupSettings {\n        pickupTime\n        instructions\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
