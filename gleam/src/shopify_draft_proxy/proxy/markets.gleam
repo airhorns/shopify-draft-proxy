@@ -2750,9 +2750,21 @@ fn price_list_input_errors(
     "" -> [user_error(["input", "name"], "Name can't be blank", "BLANK")]
     _ -> []
   }
-  let currency_errors = case
-    graphql_helpers.read_arg_string_nonempty(input, "currency")
-  {
+  let currency_errors = price_list_currency_errors(input, existing)
+  let parent_errors = case currency_errors {
+    [] -> price_list_parent_errors(input, existing)
+    _ -> []
+  }
+  name_errors
+  |> list.append(currency_errors)
+  |> list.append(parent_errors)
+}
+
+fn price_list_currency_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string_nonempty(input, "currency") {
     Some(currency) ->
       case valid_currency(currency) {
         True -> []
@@ -2764,17 +2776,80 @@ fn price_list_input_errors(
           ),
         ]
       }
-    None -> []
+    None ->
+      case existing {
+        Some(_) -> []
+        None -> [
+          user_error(["input", "currency"], "Currency can't be blank", "BLANK"),
+        ]
+      }
   }
-  list.append(name_errors, currency_errors)
+}
+
+fn price_list_parent_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_object(input, "parent") {
+    Some(parent) -> price_list_parent_adjustment_errors(parent)
+    None ->
+      case existing {
+        Some(_) -> []
+        None -> [
+          user_error(["input", "parent"], "Parent must exist", "REQUIRED"),
+        ]
+      }
+  }
+}
+
+fn price_list_parent_adjustment_errors(
+  parent: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_object(parent, "adjustment") {
+    Some(adjustment) ->
+      case graphql_helpers.read_arg_string_nonempty(adjustment, "type") {
+        Some("PERCENTAGE_DECREASE") | Some("PERCENTAGE_INCREASE") -> []
+        _ -> [
+          user_error(
+            ["input", "parent", "adjustment", "type"],
+            "Type is invalid",
+            "INVALID",
+          ),
+        ]
+      }
+    None -> [
+      user_error(
+        ["input", "parent", "adjustment"],
+        "Adjustment must exist",
+        "REQUIRED",
+      ),
+    ]
+  }
 }
 
 fn valid_currency(currency: String) -> Bool {
-  case currency {
-    "AED" | "AUD" | "CAD" | "CHF" | "EUR" | "GBP" | "JPY" | "NZD" | "USD" ->
-      True
-    _ -> False
-  }
+  list.contains(iso_currency_codes(), currency)
+}
+
+fn iso_currency_codes() -> List(String) {
+  [
+    "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN", "BAM",
+    "BBD", "BDT", "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BRL", "BSD", "BTN",
+    "BWP", "BYN", "BYR", "BZD", "CAD", "CDF", "CHF", "CLF", "CLP", "CNY", "COP",
+    "CRC", "CUC", "CUP", "CVE", "CZK", "DJF", "DKK", "DOP", "DZD", "EGP", "ERN",
+    "ETB", "EUR", "FJD", "FKP", "GBP", "GEL", "GHS", "GIP", "GMD", "GNF", "GTQ",
+    "GYD", "HKD", "HNL", "HTG", "HUF", "IDR", "ILS", "INR", "IQD", "IRR", "ISK",
+    "JMD", "JOD", "JPY", "KES", "KGS", "KHR", "KMF", "KPW", "KRW", "KWD", "KYD",
+    "KZT", "LAK", "LBP", "LKR", "LRD", "LSL", "LYD", "MAD", "MDL", "MGA", "MKD",
+    "MMK", "MNT", "MOP", "MRU", "MUR", "MVR", "MWK", "MXN", "MYR", "MZN", "NAD",
+    "NGN", "NIO", "NOK", "NPR", "NZD", "OMR", "PAB", "PEN", "PGK", "PHP", "PKR",
+    "PLN", "PYG", "QAR", "RON", "RSD", "RUB", "RWF", "SAR", "SBD", "SCR", "SDG",
+    "SEK", "SGD", "SHP", "SKK", "SLE", "SLL", "SOS", "SRD", "SSP", "STD", "STN",
+    "SVC", "SYP", "SZL", "THB", "TJS", "TMT", "TND", "TOP", "TRY", "TTD", "TWD",
+    "TZS", "UAH", "UGX", "USD", "UYU", "UZS", "VES", "VND", "VUV", "WST", "XAF",
+    "XAG", "XAU", "XBA", "XBB", "XBC", "XBD", "XCD", "XCG", "XDR", "XOF", "XPD",
+    "XPF", "XPT", "XTS", "YER", "ZAR", "ZMK", "ZMW", "ZWG",
+  ]
 }
 
 fn price_list_data(
@@ -2791,7 +2866,7 @@ fn price_list_data(
   let currency =
     graphql_helpers.read_arg_string_nonempty(input, "currency")
     |> option.or(captured_string_field(existing_value, "currency"))
-    |> option.unwrap("USD")
+    |> option.unwrap("")
   captured_object_upsert(existing_value, [
     #("__typename", CapturedString("PriceList")),
     #("id", CapturedString(id)),
@@ -2802,10 +2877,7 @@ fn price_list_data(
       captured_field(existing_value, "fixedPricesCount")
         |> option.unwrap(CapturedInt(0)),
     ),
-    #(
-      "parent",
-      captured_field(existing_value, "parent") |> option.unwrap(CapturedNull),
-    ),
+    #("parent", price_list_parent_data(input, existing_value)),
     #(
       "catalog",
       captured_field(existing_value, "catalog") |> option.unwrap(CapturedNull),
@@ -2821,6 +2893,46 @@ fn price_list_data(
         |> option.unwrap(empty_connection()),
     ),
   ])
+}
+
+fn price_list_parent_data(
+  input: Dict(String, root_field.ResolvedValue),
+  existing_value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case graphql_helpers.read_arg_object(input, "parent") {
+    Some(parent) -> {
+      let adjustment =
+        graphql_helpers.read_arg_object(parent, "adjustment")
+        |> option.unwrap(dict.new())
+      let adjustment_type =
+        graphql_helpers.read_arg_string_nonempty(adjustment, "type")
+        |> option.unwrap("")
+      let adjustment_value =
+        read_price_list_adjustment_value(adjustment)
+        |> option.unwrap(CapturedInt(0))
+      CapturedObject([
+        #(
+          "adjustment",
+          CapturedObject([
+            #("type", CapturedString(adjustment_type)),
+            #("value", adjustment_value),
+          ]),
+        ),
+      ])
+    }
+    None ->
+      captured_field(existing_value, "parent") |> option.unwrap(CapturedNull)
+  }
+}
+
+fn read_price_list_adjustment_value(
+  adjustment: Dict(String, root_field.ResolvedValue),
+) -> Option(CapturedJsonValue) {
+  case dict.get(adjustment, "value") {
+    Ok(root_field.IntVal(value)) -> Some(CapturedInt(value))
+    Ok(root_field.FloatVal(value)) -> Some(CapturedFloat(value))
+    _ -> None
+  }
 }
 
 fn product_level_fixed_price_errors(
