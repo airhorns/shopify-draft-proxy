@@ -561,7 +561,7 @@ fn serialize_node(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case dict.get(args, "id") {
     Ok(root_field.StringVal(id)) ->
       serialize_node_by_id(store, id, selection_children(field), fragments)
@@ -575,7 +575,7 @@ fn serialize_nodes(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let ids = case dict.get(args, "ids") {
     Ok(root_field.ListVal(values)) ->
       list.filter_map(values, fn(value) {
@@ -859,7 +859,7 @@ fn serialize_domain(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case dict.get(args, "id") {
     Ok(root_field.StringVal(id)) ->
       case store_properties.primary_domain_for_id(store, id) {
@@ -887,7 +887,7 @@ fn serialize_job(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case dict.get(args, "id") {
     Ok(root_field.StringVal(id)) ->
       case id {
@@ -957,7 +957,7 @@ fn filtered_taxonomy_categories(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let categories =
     store.list_effective_admin_platform_taxonomy_categories(store)
   let has_hierarchy_filter = has_taxonomy_hierarchy_filter(args)
@@ -1071,7 +1071,7 @@ fn taxonomy_has_next_page(
   case has_next_page {
     True -> True
     False -> {
-      let args = field_args(field, variables)
+      let args = graphql_helpers.field_args(field, variables)
       !has_taxonomy_hierarchy_filter(args)
       && read_string_arg(args, "search") == ""
       && read_string_arg(args, "after") == "eyJpZCI6ODUyfQ=="
@@ -1122,7 +1122,7 @@ fn ordered_taxonomy_categories(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> List(AdminPlatformTaxonomyCategoryRecord) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case has_taxonomy_hierarchy_filter(args) {
     True -> sort_taxonomy_hierarchy_categories(categories)
     False -> categories
@@ -1459,7 +1459,7 @@ fn handle_flow_generate_signature(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_string_arg(args, "id")
   let payload = read_string_arg(args, "payload")
   case valid_flow_trigger_id(id) {
@@ -1528,7 +1528,7 @@ fn handle_flow_trigger_receive(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let handle = read_string_arg(args, "handle")
   let payload = case dict.get(args, "payload") {
     Ok(value) -> value
@@ -1620,7 +1620,7 @@ fn handle_backup_region_update(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let code = case dict.get(args, "region") {
     Ok(root_field.ObjectVal(region)) -> read_string_arg(region, "countryCode")
     _ -> ""
@@ -1717,16 +1717,6 @@ fn resource_not_found_error(
     #("path", json.array([get_field_response_key(field)], json.string)),
     #("extensions", json.object([#("code", json.string("RESOURCE_NOT_FOUND"))])),
   ])
-}
-
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(args) -> args
-    Error(_) -> dict.new()
-  }
 }
 
 fn read_string_arg(

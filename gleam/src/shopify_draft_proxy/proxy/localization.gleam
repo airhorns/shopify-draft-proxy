@@ -954,16 +954,6 @@ fn root_payload_for_field(
   }
 }
 
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
-  }
-}
-
 fn read_arg_string(
   args: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -1023,7 +1013,7 @@ fn serialize_shop_locales_root(
   _fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let published = read_arg_bool(args, "published")
   let locales = list_shop_locales(store_in, published)
   json.array(locales, fn(locale) { serialize_shop_locale(locale, field) })
@@ -1057,7 +1047,7 @@ fn serialize_translatable_resource_root(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "resourceId") {
     Some(resource_id) -> {
       let resource = find_resource_or_synthesize(store_in, resource_id)
@@ -1280,7 +1270,7 @@ fn serialize_translations_for_resource(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let locale = read_arg_string(args, "locale")
   let market_id = read_arg_string(args, "marketId")
   let outdated = read_arg_bool(args, "outdated")
@@ -1336,7 +1326,7 @@ fn serialize_translatable_resources_root(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let resource_type = read_arg_string(args, "resourceType")
   let reverse = read_arg_bool(args, "reverse")
   let resources = list_resources(store_in, resource_type)
@@ -1359,7 +1349,7 @@ fn serialize_translatable_resources_by_ids_root(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let ids = case read_optional_string_array(args, "resourceIds") {
     Some(ids) -> ids
     None -> []
@@ -1567,7 +1557,7 @@ fn handle_shop_locale_enable(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let locale = case read_arg_string(args, "locale") {
     Some(s) -> s
     None -> ""
@@ -1640,7 +1630,7 @@ fn handle_shop_locale_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let locale = case read_arg_string(args, "locale") {
     Some(s) -> s
     None -> ""
@@ -1714,7 +1704,7 @@ fn handle_shop_locale_disable(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let locale = case read_arg_string(args, "locale") {
     Some(s) -> s
     None -> ""
@@ -1865,7 +1855,7 @@ fn handle_translations_register(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let resource_validation = validate_resource(store_in, args)
   let initial_errors = resource_validation.1
   let inputs = read_translation_inputs(args)
@@ -1946,7 +1936,7 @@ fn handle_translations_remove(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let resource_validation = validate_resource(store_in, args)
   let resource = resource_validation.0
   let initial_errors = resource_validation.1

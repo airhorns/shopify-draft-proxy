@@ -1104,7 +1104,7 @@ fn handle_market_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
   let name = read_arg_string(input, "name") |> option.unwrap("")
   let errors = case string.trim(name) {
@@ -1172,7 +1172,7 @@ fn handle_market_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
   case read_arg_string(args, "id") {
     Some(id) ->
@@ -1235,7 +1235,7 @@ fn handle_market_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_market_by_id(store, id) {
@@ -1285,7 +1285,7 @@ fn handle_catalog_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
   let title = read_arg_string_allow_empty(input, "title") |> option.unwrap("")
   let errors = case string.trim(title) {
@@ -1346,7 +1346,7 @@ fn handle_catalog_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
   case read_arg_string(args, "id") {
     Some(id) ->
@@ -1409,7 +1409,7 @@ fn handle_catalog_context_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "catalogId") {
     Some(id) ->
       case store.get_effective_catalog_by_id(store, id) {
@@ -1478,7 +1478,7 @@ fn handle_catalog_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_catalog_by_id(store, id) {
@@ -1528,7 +1528,7 @@ fn handle_price_list_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
   let errors = price_list_input_errors(input, None)
   case errors {
@@ -1578,7 +1578,7 @@ fn handle_price_list_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
   case read_arg_string(args, "id") {
     Some(id) ->
@@ -1659,7 +1659,7 @@ fn handle_price_list_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_price_list_by_id(store, id) {
@@ -1720,7 +1720,7 @@ fn handle_price_list_fixed_prices_by_product_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let price_list_id = read_price_list_id(args)
   let price_list =
     option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
@@ -1827,7 +1827,7 @@ fn handle_quantity_pricing_by_variant_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
   let price_list_id = read_price_list_id(args)
   let price_list =
@@ -1913,7 +1913,7 @@ fn handle_quantity_rules_add(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let price_list =
     option.then(read_price_list_id(args), store.get_effective_price_list_by_id(
       store,
@@ -1975,7 +1975,7 @@ fn handle_quantity_rules_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let price_list =
     option.then(read_price_list_id(args), store.get_effective_price_list_by_id(
       store,
@@ -2036,7 +2036,7 @@ fn handle_market_localizations_register(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let resource_id = read_arg_string(args, "resourceId")
   let errors = case resource_id {
     Some(id) ->
@@ -2075,7 +2075,7 @@ fn handle_market_localizations_remove(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let resource_id = read_arg_string(args, "resourceId")
   let errors = case resource_id {
     Some(id) ->
@@ -2116,7 +2116,7 @@ fn handle_web_presence_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
   let errors = web_presence_create_errors(input)
   case errors {
@@ -2163,7 +2163,7 @@ fn handle_web_presence_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_arg_string(args, "id")
   let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
   case id {
@@ -2218,7 +2218,7 @@ fn handle_web_presence_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_web_presence_by_id(store, id) {
@@ -3709,7 +3709,7 @@ fn root_payload_for_field(
             None -> json.null()
           }
         "marketLocalizableResource" -> {
-          let args = field_args(field, variables)
+          let args = graphql_helpers.field_args(field, variables)
           case read_arg_string(args, "resourceId") {
             Some(resource_id) ->
               project_record(
@@ -3738,7 +3738,7 @@ fn serialize_record_by_id(
   by_id: fn(String) -> Option(a),
   source: fn(a) -> SourceValue,
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case by_id(id) {
@@ -3879,16 +3879,6 @@ fn serialize_exact_count(field: Selection, count: Int) -> Json {
       },
     )
   json.object(entries)
-}
-
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
-  }
 }
 
 fn read_arg_string(

@@ -630,7 +630,7 @@ fn handle_definition_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_object_arg(args, "definition")
   let user_errors = build_create_definition_user_errors(store, input)
   case user_errors {
@@ -663,7 +663,7 @@ fn handle_definition_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_string(args, "id")
   let input = read_object_arg(args, "definition")
   case id {
@@ -726,7 +726,7 @@ fn handle_definition_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let id = read_string(field_args(field, variables), "id")
+  let id = read_string(graphql_helpers.field_args(field, variables), "id")
   case id {
     None -> #(
       definition_delete_result(key, field, None, [
@@ -785,7 +785,7 @@ fn handle_standard_definition_enable(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_string(args, "type") {
     None -> {
       let payload =
@@ -846,7 +846,8 @@ fn handle_metaobject_create(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let input = read_object_arg(field_args(field, variables), "metaobject")
+  let input =
+    read_object_arg(graphql_helpers.field_args(field, variables), "metaobject")
   let type_ = read_string(input, "type")
   // Pattern 2: cold LiveHybrid creates still stage locally, but first
   // hydrate the upstream definition so valid types do not fail as unknown.
@@ -941,7 +942,7 @@ fn handle_metaobject_update(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_object_arg(args, "metaobject")
   case read_string(args, "id") {
     None -> #(
@@ -1078,7 +1079,7 @@ fn handle_metaobject_upsert(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let #(type_, handle) = read_handle_value(read_object_arg(args, "handle"))
   let input = read_object_arg(args, "metaobject")
   case type_, handle {
@@ -1286,7 +1287,7 @@ fn handle_metaobject_delete(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let id = read_string(field_args(field, variables), "id")
+  let id = read_string(graphql_helpers.field_args(field, variables), "id")
   case id {
     None -> #(
       metaobject_delete_result(key, field, None, [
@@ -1337,7 +1338,7 @@ fn handle_metaobject_bulk_delete(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   // Pattern 2: type-scoped bulk delete needs the upstream selection set
   // before staging local deletes; downstream reads observe local markers.
   let store = maybe_hydrate_bulk_delete_selection(store, args, upstream)
@@ -3214,7 +3215,7 @@ fn serialize_definitions_connection(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let items = case read_string(args, "type") {
     Some(type_) ->
       list.filter(list_effective_metaobject_definitions(store), fn(defn) {
@@ -3314,7 +3315,7 @@ fn project_metaobject_selection(
       let key = get_field_response_key(selection)
       case name.value {
         "field" -> {
-          let args = field_args(selection, dict.new())
+          let args = graphql_helpers.field_args(selection, dict.new())
           let selected = case read_string(args, "key") {
             Some(field_key) ->
               list.find(metaobject.fields, fn(f) { f.key == field_key })
@@ -3425,7 +3426,7 @@ fn serialize_metaobjects_connection(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let items = case read_string(args, "type") {
     Some(type_) -> list_effective_metaobjects_by_type(store, type_)
     None -> list_effective_metaobjects(store)
@@ -4388,19 +4389,11 @@ fn optional_int_source(value: Option(Int)) -> SourceValue {
 // Readers and small utilities
 // ---------------------------------------------------------------------------
 
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  root_field.get_field_arguments(field, variables)
-  |> result.unwrap(dict.new())
-}
-
 fn read_id_arg(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Option(String) {
-  read_string(field_args(field, variables), "id")
+  read_string(graphql_helpers.field_args(field, variables), "id")
 }
 
 fn read_string_arg(
@@ -4408,7 +4401,7 @@ fn read_string_arg(
   variables: Dict(String, root_field.ResolvedValue),
   key: String,
 ) -> Option(String) {
-  read_string(field_args(field, variables), key)
+  read_string(graphql_helpers.field_args(field, variables), key)
 }
 
 fn read_bool_arg(
@@ -4416,14 +4409,18 @@ fn read_bool_arg(
   variables: Dict(String, root_field.ResolvedValue),
   key: String,
 ) -> Bool {
-  read_bool(field_args(field, variables), key) |> option.unwrap(False)
+  read_bool(graphql_helpers.field_args(field, variables), key)
+  |> option.unwrap(False)
 }
 
 fn read_handle_arg(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Option(String), Option(String)) {
-  read_handle_value(read_object_arg(field_args(field, variables), "handle"))
+  read_handle_value(read_object_arg(
+    graphql_helpers.field_args(field, variables),
+    "handle",
+  ))
 }
 
 fn read_handle_value(

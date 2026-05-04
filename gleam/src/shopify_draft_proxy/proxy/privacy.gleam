@@ -160,7 +160,7 @@ fn handle_data_sale_opt_out(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let email =
-    field_args(field, variables)
+    graphql_helpers.field_args(field, variables)
     |> read_arg_string("email")
     |> option_map(string.trim)
   case email {
@@ -331,16 +331,6 @@ fn optional_string_source(value: Option(String)) -> SourceValue {
   case value {
     Some(s) -> SrcString(s)
     None -> SrcNull
-  }
-}
-
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
   }
 }
 

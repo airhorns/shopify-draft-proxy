@@ -163,16 +163,6 @@ fn root_payload_for_field(
   }
 }
 
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
-  }
-}
-
 fn read_arg_string(
   args: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -344,7 +334,7 @@ fn serialize_gift_card_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_gift_card_by_id(store, id) {
@@ -836,7 +826,7 @@ fn list_gift_cards_for_connection(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> List(GiftCardRecord) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let reverse = case read_arg_bool(args, "reverse") {
     Some(True) -> True
     _ -> False
@@ -915,7 +905,7 @@ fn serialize_gift_cards_count(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let raw_query = read_arg_string(args, "query")
   let total =
     list.length(filter_gift_cards_by_query(
@@ -1451,7 +1441,7 @@ fn maybe_hydrate_gift_card_for_mutation(
     | "giftCardDeactivate"
     | "giftCardSendNotificationToCustomer"
     | "giftCardSendNotificationToRecipient" -> {
-      let args = field_args(field, variables)
+      let args = graphql_helpers.field_args(field, variables)
       case read_gift_card_id(args) {
         Some(id) -> maybe_hydrate_gift_card(store, id, upstream)
         None -> store
@@ -1750,7 +1740,7 @@ fn handle_gift_card_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_input(args)
   let #(gid, identity_after_id) =
     synthetic_identity.make_proxy_synthetic_gid(identity, "GiftCard")
@@ -1859,7 +1849,7 @@ fn handle_gift_card_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_input(args)
   let id = case read_arg_string(input, "id") {
     Some(s) -> Some(s)
@@ -1985,7 +1975,7 @@ fn handle_gift_card_transaction(
   payload_typename: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_gift_card_id(args)
   let existing = case id {
     Some(value) -> store.get_effective_gift_card_by_id(store, value)
@@ -2165,7 +2155,7 @@ fn handle_gift_card_deactivate(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_gift_card_id(args)
   let existing = case id {
     Some(value) -> store.get_effective_gift_card_by_id(store, value)
@@ -2244,7 +2234,7 @@ fn handle_gift_card_notification(
   payload_typename: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_gift_card_id(args)
   let existing = case id {
     Some(value) -> store.get_effective_gift_card_by_id(store, value)

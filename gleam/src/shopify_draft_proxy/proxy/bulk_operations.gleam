@@ -136,16 +136,6 @@ fn root_payload_for_field(
   }
 }
 
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
-  }
-}
-
 fn read_arg_string(
   args: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -176,7 +166,7 @@ fn serialize_bulk_operation_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_bulk_operation_by_id(store, id) {
@@ -193,7 +183,7 @@ fn serialize_current_bulk_operation(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let requested_type = option.unwrap(read_arg_string(args, "type"), "QUERY")
   let operations =
     store.list_effective_bulk_operations(store)
@@ -211,7 +201,7 @@ fn serialize_bulk_operations_connection(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let raw_query = read_arg_string(args, "query")
   let sort_key = option.unwrap(read_arg_string(args, "sortKey"), "CREATED_AT")
   let reverse = option.unwrap(read_arg_bool(args, "reverse"), False)
@@ -563,7 +553,7 @@ fn handle_bulk_operation_run_query(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let query = read_arg_string(args, "query")
   let group_objects = option.unwrap(read_arg_bool(args, "groupObjects"), False)
   case query, group_objects {
@@ -766,7 +756,7 @@ fn fetch_upstream_products_count(
   // Pattern 2: bulkOperationRunQuery stays a local staged mutation, but
   // a cold LiveHybrid product export reads Shopify's product count so
   // the staged BulkOperation counters match the upstream store.
-  let args = field_args(root, dict.new())
+  let args = graphql_helpers.field_args(root, dict.new())
   let variables = case read_arg_string(args, "query") {
     Some(query) -> json.object([#("query", json.string(query))])
     None -> json.object([])
@@ -920,7 +910,7 @@ fn handle_bulk_operation_run_mutation(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let mutation = read_arg_string(args, "mutation")
   let staged_upload_path = read_arg_string(args, "stagedUploadPath")
   case mutation, staged_upload_path {
@@ -1507,7 +1497,7 @@ fn handle_bulk_operation_cancel(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     None -> #(
       MutationFieldResult(

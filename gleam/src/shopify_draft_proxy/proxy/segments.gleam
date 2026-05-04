@@ -309,7 +309,7 @@ fn root_query_result(
       let value = root_payload_for_field(store, field, fragments, variables)
       case name.value {
         "segment" -> {
-          let args = field_args(field, variables)
+          let args = graphql_helpers.field_args(field, variables)
           case read_arg_string(args, "id"), json_is_null(value) {
             Some(_), True ->
               QueryFieldResult(
@@ -328,7 +328,7 @@ fn root_query_result(
           }
         }
         "customerSegmentMembersQuery" -> {
-          let args = field_args(field, variables)
+          let args = graphql_helpers.field_args(field, variables)
           case read_arg_string(args, "id"), json_is_null(value) {
             Some(_), True ->
               QueryFieldResult(
@@ -353,7 +353,7 @@ fn root_query_result(
           }
         }
         "customerSegmentMembers" -> {
-          let args = field_args(field, variables)
+          let args = graphql_helpers.field_args(field, variables)
           case
             customer_segment_members_error(store, args, field, document, key)
           {
@@ -424,16 +424,6 @@ fn root_payload_for_field(
         _ -> json.null()
       }
     _ -> json.null()
-  }
-}
-
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
   }
 }
 
@@ -536,7 +526,7 @@ fn serialize_segment_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_segment_by_id(store, id) {
@@ -770,7 +760,7 @@ fn serialize_customer_segment_members_query(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_arg_string(args, "id")
   let record = case id {
     Some(value) ->
@@ -816,7 +806,7 @@ fn serialize_customer_segment_members_connection(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let resolved = resolve_customer_segment_member_query(store, args)
   let members = list_customer_segment_members_for_query(store, resolved.query)
   serialize_customer_segment_member_connection(
@@ -1170,7 +1160,7 @@ fn serialize_customer_segment_membership(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let customer = case read_arg_string(args, "customerId") {
     Some(id) -> store.get_effective_customer_by_id(store, id)
     None -> None
@@ -1426,7 +1416,7 @@ fn handle_segment_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let raw_name = read_arg_string(args, "name")
   let raw_query = read_arg_string(args, "query")
   let name_errors = case raw_name {
@@ -1508,7 +1498,7 @@ fn handle_segment_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_arg_string(args, "id")
   let existing = case id {
     Some(value) -> store.get_effective_segment_by_id(store, value)
@@ -1616,7 +1606,7 @@ fn handle_segment_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_arg_string(args, "id")
   let existing = case id {
     Some(value) -> store.get_effective_segment_by_id(store, value)
@@ -1692,7 +1682,7 @@ fn handle_customer_segment_members_query_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = case dict.get(args, "input") {
     Ok(root_field.ObjectVal(fields)) -> fields
     _ -> dict.new()

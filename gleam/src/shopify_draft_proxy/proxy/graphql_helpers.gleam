@@ -178,6 +178,18 @@ pub fn read_nullable_string_argument(
   }
 }
 
+/// Resolved argument dictionary for a field, falling back to an empty
+/// dict when arguments cannot be resolved. Wraps
+/// `root_field.get_field_arguments` so callers can `dict.get` without
+/// thinking about the outer Result.
+pub fn field_args(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  root_field.get_field_arguments(field, variables)
+  |> result.unwrap(dict.new())
+}
+
 // ---------------------------------------------------------------------------
 // Projection helpers
 // ---------------------------------------------------------------------------

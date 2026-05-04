@@ -283,16 +283,6 @@ fn read_arg_bool(
   }
 }
 
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
-  }
-}
-
 fn input_object(
   args: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -313,7 +303,7 @@ fn serialize_validation_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_validation_by_id(store, id) {
@@ -330,7 +320,7 @@ fn serialize_shopify_function_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_shopify_function_by_id(store, id) {
@@ -383,7 +373,7 @@ fn serialize_shopify_functions_connection(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let api_type = read_arg_string(args, "apiType")
   let all = store.list_effective_shopify_functions(store)
   let items = case api_type {
@@ -905,7 +895,7 @@ fn handle_validation_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = case input_object(args, "validation") {
     Some(d) -> d
     None -> dict.new()
@@ -998,7 +988,7 @@ fn handle_validation_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = case read_arg_string(args, "id") {
     Some(s) -> s
     None -> ""
@@ -1139,7 +1129,7 @@ fn handle_validation_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = case read_arg_string(args, "id") {
     Some(s) -> s
     None -> ""
@@ -1176,7 +1166,7 @@ fn handle_cart_transform_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = case input_object(args, "cartTransform") {
     Some(d) -> d
     None -> args
@@ -1266,7 +1256,7 @@ fn handle_cart_transform_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = case read_arg_string(args, "id") {
     Some(s) -> s
     None -> ""
@@ -1303,7 +1293,7 @@ fn handle_tax_app_configure(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let ready = read_arg_bool(args, "ready")
   let user_errors = case ready {
     None -> [
@@ -1383,7 +1373,7 @@ fn function_reference_for_mutation(
 ) -> Option(#(FunctionReference, String)) {
   case field {
     Field(name: name, ..) -> {
-      let args = field_args(field, variables)
+      let args = graphql_helpers.field_args(field, variables)
       case name.value {
         "validationCreate" -> {
           let input = case input_object(args, "validation") {

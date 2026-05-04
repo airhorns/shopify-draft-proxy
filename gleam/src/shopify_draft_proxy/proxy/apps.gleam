@@ -279,16 +279,6 @@ fn read_arg_string(
   }
 }
 
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Per-root serializers
 // ---------------------------------------------------------------------------
@@ -311,7 +301,7 @@ fn serialize_app_installation_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_app_installation_by_id(store, id) {
@@ -329,7 +319,7 @@ fn serialize_app_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_app_by_id(store, id) {
@@ -346,7 +336,7 @@ fn serialize_app_by_handle(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "handle") {
     Some(handle) ->
       case store.find_effective_app_by_handle(store, handle) {
@@ -363,7 +353,7 @@ fn serialize_app_by_key(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "apiKey") {
     Some(api_key) ->
       case store.find_effective_app_by_api_key(store, api_key) {
@@ -1171,7 +1161,7 @@ fn handle_revoke_access_scopes(
   let key = get_field_response_key(field)
   let #(installation, store_after_ensure, identity_after_ensure) =
     ensure_current_installation(store, identity, origin)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let requested_scopes = case dict.get(args, "scopes") {
     Ok(root_field.ListVal(items)) ->
       list.filter_map(items, fn(item) {
@@ -1235,7 +1225,7 @@ fn handle_delegate_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = case dict.get(args, "input") {
     Ok(root_field.ObjectVal(d)) -> d
     _ -> dict.new()
@@ -1309,7 +1299,7 @@ fn handle_delegate_destroy(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let access_token = read_arg_string(args, "accessToken")
   let token = case access_token {
     Some(raw) ->
@@ -1376,7 +1366,7 @@ fn handle_purchase_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let #(installation, store_after_ensure, identity_after_ensure) =
     ensure_current_installation(store, identity, origin)
   let #(purchase_gid, identity_after_id) =
@@ -1439,7 +1429,7 @@ fn handle_subscription_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let #(installation, store_after_ensure, identity_after_ensure) =
     ensure_current_installation(store, identity, origin)
   let #(sub_gid, identity_after_sub_id) =
@@ -1532,7 +1522,7 @@ fn handle_subscription_cancel(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let subscription_id = read_arg_string(args, "id")
   let subscription = case subscription_id {
     Some(id) -> store.get_effective_app_subscription_by_id(store, id)
@@ -1624,7 +1614,7 @@ fn handle_line_item_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let line_item_id = read_arg_string(args, "id")
   let line_item = case line_item_id {
     Some(id) -> store.get_effective_app_subscription_line_item_by_id(store, id)
@@ -1734,7 +1724,7 @@ fn handle_trial_extend(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let subscription_id = read_arg_string(args, "id")
   let days = option.unwrap(read_arg_int(args, "days"), 0)
   let subscription = case subscription_id {
@@ -1814,7 +1804,7 @@ fn handle_usage_record_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let line_item_id = read_arg_string(args, "subscriptionLineItemId")
   let line_item = case line_item_id {
     Some(id) -> store.get_effective_app_subscription_line_item_by_id(store, id)

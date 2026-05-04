@@ -293,7 +293,7 @@ fn serialize_marketing_activity_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_marketing_activity_record_by_id(store, id) {
@@ -310,7 +310,7 @@ fn serialize_marketing_event_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_marketing_event_record_by_id(store, id) {
@@ -391,7 +391,7 @@ fn filter_records(
   variables: Dict(String, root_field.ResolvedValue),
   kind: MarketingKind,
 ) -> List(MarketingRecord) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let records = case kind {
     ActivityKind -> filter_activity_id_args(records, args)
     EventKind -> records
@@ -768,7 +768,7 @@ fn handle_marketing_mutation_root(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let _ = fragments
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case field {
     Field(name: name, ..) ->
       case name.value {
@@ -2041,16 +2041,6 @@ fn decimal_engagement_entries(
 // ===========================================================================
 // Shared helpers
 // ===========================================================================
-
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
-  }
-}
 
 fn read_arg_string(
   args: Dict(String, root_field.ResolvedValue),

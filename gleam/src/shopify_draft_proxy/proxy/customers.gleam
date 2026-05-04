@@ -363,7 +363,10 @@ fn customer_count_search_extensions(
         case name.value {
           "customersCount" ->
             build_customers_count_search_extension(
-              read_arg_string(field_args(field, variables), "query"),
+              read_arg_string(
+                graphql_helpers.field_args(field, variables),
+                "query",
+              ),
               get_field_response_key(field),
             )
           _ -> Error(Nil)
@@ -497,16 +500,6 @@ fn root_payload_for_field(
         _ -> json.null()
       }
     _ -> json.null()
-  }
-}
-
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
   }
 }
 
@@ -1274,7 +1267,7 @@ fn serialize_customer_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
@@ -1291,7 +1284,7 @@ fn serialize_customer_by_identifier(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let identifier = input_object(args, "identifier")
   case find_customer_by_identifier(store, identifier) {
     Some(customer) -> project_customer(store, customer, field, fragments)
@@ -1352,7 +1345,7 @@ fn serialize_customers_connection(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let query = read_arg_string(args, "query")
   let sort_key = read_arg_string(args, "sortKey")
   let reverse = read_arg_bool(args, "reverse") |> option.unwrap(False)
@@ -1607,7 +1600,7 @@ fn fetch_customers_count_source(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> Option(SourceValue) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let query_arg = read_arg_string(args, "query")
   let query =
     "query CustomerCountHydrate($query: String) {\n"
@@ -1655,7 +1648,7 @@ fn serialize_customer_account_page(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_customer_account_page_by_id(store, id) {
@@ -1769,7 +1762,7 @@ fn serialize_store_credit_account_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_store_credit_account_by_id(store, id) {
@@ -1798,7 +1791,7 @@ fn serialize_customer_payment_method_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let show_revoked = read_arg_bool(args, "showRevoked") |> option.unwrap(False)
   case read_arg_string(args, "id") {
     Some(id) ->
@@ -1834,7 +1827,7 @@ fn serialize_customer_merge_preview(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let one = read_arg_string(args, "customerOneId")
   let two = read_arg_string(args, "customerTwoId")
   case one, two {
@@ -1865,7 +1858,7 @@ fn serialize_customer_merge_job_status(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "jobId") {
     Some(job_id) ->
       case store.get_customer_merge_request(store, job_id) {
@@ -2040,7 +2033,7 @@ fn first_customer_merge_missing_argument_error(
         Field(name: name, ..) ->
           case name.value == "customerMerge" {
             True -> {
-              let args = field_args(field, variables)
+              let args = graphql_helpers.field_args(field, variables)
               let missing =
                 [
                   #("customerOneId", read_arg_string(args, "customerOneId")),
@@ -2169,7 +2162,7 @@ fn first_invalid_tax_exemption_error(
         Field(name: name, ..) ->
           case is_tax_exemption_root(name.value) {
             True -> {
-              let args = field_args(field, variables)
+              let args = graphql_helpers.field_args(field, variables)
               case invalid_tax_exemption_value(args) {
                 Some(value) ->
                   Some(invalid_tax_exemption_variable_error(value, 0, args))
@@ -2519,7 +2512,7 @@ fn hydrate_before_customer_mutation(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(Store, SyntheticIdentityRegistry) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case root_name {
     "customerUpdate" | "customerDelete" ->
       hydrate_optional_customer_id(
@@ -3315,7 +3308,8 @@ fn handle_customer_create(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input = input_object(field_args(field, variables), "input")
+  let input =
+    input_object(graphql_helpers.field_args(field, variables), "input")
   let errors = validate_customer_create(store, input, upstream)
   case errors {
     [] -> {
@@ -3769,7 +3763,8 @@ fn handle_customer_update(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input = input_object(field_args(field, variables), "input")
+  let input =
+    input_object(graphql_helpers.field_args(field, variables), "input")
   let id = read_obj_string(input, "id")
   case id {
     Some(customer_id) ->
@@ -3915,7 +3910,7 @@ fn handle_customer_set(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = input_object(args, "input")
   let identifier = input_object(args, "identifier")
   case
@@ -4200,7 +4195,8 @@ fn handle_customer_delete(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input = input_object(field_args(field, variables), "input")
+  let input =
+    input_object(graphql_helpers.field_args(field, variables), "input")
   let id = read_obj_string(input, "id")
   case id {
     Some(customer_id) ->
@@ -4290,7 +4286,7 @@ fn handle_customer_address_create(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let customer_id = read_arg_string(args, "customerId")
   let address_input = input_object(args, "address")
   let set_default = read_arg_bool(args, "setAsDefault") |> option.unwrap(False)
@@ -4404,7 +4400,7 @@ fn handle_customer_address_update(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let address_id = read_arg_string(args, "addressId")
   let address_input = input_object(args, "address")
   let set_default = read_arg_bool(args, "setAsDefault") |> option.unwrap(False)
@@ -4488,7 +4484,7 @@ fn handle_customer_address_delete(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let address_id = read_arg_string(args, "addressId")
   case address_id {
     Some(id) ->
@@ -4579,7 +4575,7 @@ fn handle_customer_update_default_address(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let customer_id = read_arg_string(args, "customerId")
   let address_id = read_arg_string(args, "addressId")
   case customer_id, address_id {
@@ -4647,7 +4643,7 @@ fn handle_customer_tax_exemptions(
   variables: Dict(String, root_field.ResolvedValue),
   mode: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let customer_id = read_arg_string(args, "customerId")
   let exemptions = case dict.get(args, "taxExemptions") {
     Ok(root_field.ListVal(items)) ->
@@ -4750,7 +4746,8 @@ fn handle_customer_tax_exemptions(
 }
 
 fn handle_email_consent(store, identity, field, fragments, variables) {
-  let input = input_object(field_args(field, variables), "input")
+  let input =
+    input_object(graphql_helpers.field_args(field, variables), "input")
   let customer_id = read_obj_string(input, "customerId")
   case customer_id {
     Some(id) ->
@@ -4826,7 +4823,8 @@ fn handle_email_consent(store, identity, field, fragments, variables) {
 }
 
 fn handle_sms_consent(store, identity, field, fragments, variables) {
-  let input = input_object(field_args(field, variables), "input")
+  let input =
+    input_object(graphql_helpers.field_args(field, variables), "input")
   let customer_id = read_obj_string(input, "customerId")
   case customer_id {
     Some(id) ->
@@ -4904,7 +4902,7 @@ fn handle_sms_consent(store, identity, field, fragments, variables) {
 }
 
 fn handle_data_erasure(store, identity, field, variables, cancel) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let customer_id = read_arg_string(args, "customerId")
   let root = case cancel {
     True -> "customerCancelDataErasure"
@@ -5005,7 +5003,7 @@ fn handle_data_erasure(store, identity, field, variables, cancel) {
 }
 
 fn handle_activation_url(store, identity, field, variables) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let customer_id = read_arg_string(args, "customerId")
   let errors = case customer_id {
     Some(id) ->
@@ -5068,7 +5066,7 @@ fn handle_activation_url(store, identity, field, variables) {
 }
 
 fn handle_account_invite(store, identity, field, fragments, variables) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let customer_id = read_arg_string(args, "customerId")
   case customer_id {
     Some(id) ->
@@ -5133,7 +5131,7 @@ fn handle_payment_method_update_email(
   fragments,
   variables,
 ) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_arg_string(args, "customerPaymentMethodId")
   case id {
     Some(payment_id) ->
@@ -5218,7 +5216,7 @@ fn handle_store_credit_adjustment(
   variables,
   is_credit,
 ) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let account_id = read_arg_string(args, "id")
   let input_name = case is_credit {
     True -> "creditInput"
@@ -5384,7 +5382,7 @@ fn handle_store_credit_adjustment(
 }
 
 fn handle_order_customer_set(store, identity, field, fragments, variables) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let order_id = read_arg_string(args, "orderId")
   let customer_id = read_arg_string(args, "customerId")
   case order_id, customer_id {
@@ -5464,7 +5462,7 @@ fn handle_order_customer_set(store, identity, field, fragments, variables) {
 }
 
 fn handle_order_customer_remove(store, identity, field, fragments, variables) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_arg_string(args, "orderId") {
     Some(order_id) ->
       case store.get_effective_customer_order_summary_by_id(store, order_id) {
@@ -5538,7 +5536,7 @@ fn handle_order_customer_remove(store, identity, field, fragments, variables) {
 }
 
 fn handle_customer_merge(store, identity, field, fragments, variables) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let one = read_arg_string(args, "customerOneId")
   let two = read_arg_string(args, "customerTwoId")
   let override = input_object(args, "overrideFields")

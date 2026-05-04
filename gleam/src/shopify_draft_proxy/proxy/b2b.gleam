@@ -490,21 +490,11 @@ fn query_field(
   }
 }
 
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(args) -> args
-    Error(_) -> dict.new()
-  }
-}
-
 fn read_id_arg(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Option(String) {
-  read_string(field_args(field, variables), "id")
+  read_string(graphql_helpers.field_args(field, variables), "id")
 }
 
 fn read_string(
@@ -1022,7 +1012,10 @@ fn serialize_company_connection(
 ) -> Json {
   let window =
     paginate_connection_items(
-      filter_companies_by_query(companies, field_args(field, variables)),
+      filter_companies_by_query(
+        companies,
+        graphql_helpers.field_args(field, variables),
+      ),
       field,
       variables,
       fn(company, _index) {
@@ -1298,7 +1291,7 @@ fn dispatch_mutation_root(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> RootResult {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case root {
     "companyCreate" -> handle_company_create(store, identity, args)
     "companyUpdate" -> handle_company_update(store, identity, args)

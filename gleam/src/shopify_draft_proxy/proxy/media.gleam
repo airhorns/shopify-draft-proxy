@@ -302,7 +302,9 @@ fn handle_file_create(
   variables: Dict(String, ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let inputs = field_args(field, variables) |> read_object_list_arg("files")
+  let inputs =
+    graphql_helpers.field_args(field, variables)
+    |> read_object_list_arg("files")
   let errors =
     inputs
     |> enumerate_objects
@@ -352,7 +354,9 @@ fn handle_file_update(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let inputs = field_args(field, variables) |> read_object_list_arg("files")
+  let inputs =
+    graphql_helpers.field_args(field, variables)
+    |> read_object_list_arg("files")
   // Pattern 2: `fileUpdate.referencesToAdd` validates product existence before
   // staging. In LiveHybrid, hydrate those product ids from upstream so attaching
   // an existing Shopify product stays local-only after the read; Snapshot mode
@@ -423,7 +427,9 @@ fn handle_file_delete(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let file_ids = field_args(field, variables) |> read_string_list_arg("fileIds")
+  let file_ids =
+    graphql_helpers.field_args(field, variables)
+    |> read_string_list_arg("fileIds")
   // Pattern 2: a Files API delete can target a Product media id whose ownership
   // is only known upstream. Hydrate the owning product/media rows first, then
   // stage the delete locally so downstream Product media reads see the removal.
@@ -478,7 +484,9 @@ fn handle_file_acknowledge_update_failed(
   variables: Dict(String, ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let file_ids = field_args(field, variables) |> read_string_list_arg("fileIds")
+  let file_ids =
+    graphql_helpers.field_args(field, variables)
+    |> read_string_list_arg("fileIds")
   let errors =
     file_ids
     |> list.flat_map(fn(file_id) {
@@ -549,7 +557,9 @@ fn handle_staged_uploads_create(
   variables: Dict(String, ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let inputs = field_args(field, variables) |> read_object_list_arg("input")
+  let inputs =
+    graphql_helpers.field_args(field, variables)
+    |> read_object_list_arg("input")
   let errors =
     inputs
     |> enumerate_objects
@@ -1589,13 +1599,6 @@ fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
       |> option.from_result
     _ -> None
   }
-}
-
-fn field_args(
-  field: Selection,
-  variables: Dict(String, ResolvedValue),
-) -> Dict(String, ResolvedValue) {
-  root_field.get_field_arguments(field, variables) |> result.unwrap(dict.new())
 }
 
 fn read_object_list_arg(
