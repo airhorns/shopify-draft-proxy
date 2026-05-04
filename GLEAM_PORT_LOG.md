@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 198: HAR-486 final Gleam runtime cutover
+## 2026-05-04 - Pass 199: HAR-486 final Gleam runtime cutover
 
 Promotes the Gleam implementation to the repository runtime authority and
 removes the legacy TypeScript proxy runtime. The root package now exports the
@@ -29,22 +29,24 @@ and the JavaScript shim.
 
 Validation:
 
-- `corepack pnpm test` (8 files passed; 1450 passed)
+- `corepack pnpm test` (8 files passed; 1452 passed)
 - `corepack pnpm lint` (passes with the pre-existing
   `scripts/parity-record.mts` unused catch-parameter warning)
 - `corepack pnpm typecheck`
-- `corepack pnpm conformance:check` (1432 passed)
+- `corepack pnpm conformance:check` (1434 passed)
 - `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm gleam:registry:check` (666 registry entries in sync)
 - `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
-  (392/392 strict parity scenarios, 0 capture-only)
-- `corepack pnpm gleam:port:coverage` (392 strict executable parity specs)
+  (393/393 strict parity scenarios, 0 capture-only)
+- `corepack pnpm gleam:port:coverage` (393 strict executable parity specs)
 - `corepack pnpm build`
-- `corepack pnpm gleam:test:js` (851 passed)
+- `corepack pnpm gleam:test:js` (855 passed)
 - `corepack pnpm gleam:test:erlang` failed on host OTP 25 with the known
   `gleam_json` OTP 27+ requirement
 - `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
-  (OTP 28, 842 passed)
-- `corepack pnpm gleam:smoke:js` (5 passed)
+  (OTP 28, 846 passed)
+- `corepack pnpm gleam:smoke:js` first attempt timed out in one
+  `/__meta/health` interop test after 5s; immediate rerun passed (5 passed)
 - `corepack pnpm elixir:smoke` (17 passed, 1 live test excluded)
 - `git diff --check`
 
@@ -63,6 +65,59 @@ Validation:
 ### Risks / open items
 
 - Host Erlang is still OTP 25 in this workspace, so local Erlang validation
+  requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 198: HAR-619 price list create currency and parent validation
+
+Aligns Markets `priceListCreate` with live Shopify behavior for DKK currencies
+and required parent adjustment input. The local handler now uses the
+Money::Currency-style ISO code set instead of the previous 9-code allowlist,
+requires `currency` and `parent` on create, validates parent adjustment type,
+and serializes the staged parent adjustment into downstream PriceList reads.
+
+| Module / fixture                                                                                      | Change                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`                                                   | Expands price-list currency validation, removes USD create fallback, requires create parent input, and stages adjustment. |
+| `gleam/test/shopify_draft_proxy/proxy/markets_mutation_test.gleam`                                    | Covers DKK success, missing currency, missing parent, and invalid adjustment type branches.                               |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-create-dkk.json`      | Records live DKK create success and cleanup of the disposable PriceList.                                                  |
+| `config/parity-specs/markets/price-list-create-dkk.json` / `config/parity-requests/markets/*.graphql` | Adds executable parity evidence for the DKK success payload.                                                              |
+| `docs/endpoints/markets.md`                                                                           | Documents the tighter price-list validation boundary.                                                                     |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- one-off live Admin GraphQL 2026-04 `priceListCreate` DKK capture with
+  `priceListDelete` cleanup
+- `corepack pnpm parity:record price-list-create-dkk`
+- `cd gleam && gleam test --target javascript -- markets_mutation_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+- `cd gleam && gleam test --target javascript` (855 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 846 passed)
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2297 passed)
+
+### Findings
+
+- Live Shopify accepts `priceListCreate` with `currency: DKK` when the input
+  includes a valid `parent.adjustment` of `PERCENTAGE_DECREASE`.
+- The existing invalid-currency capture omits `parent` and Shopify reports only
+  the currency inclusion error, so local parent validation is ordered after
+  currency validation to preserve that payload.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
   requires the established OTP 28 container fallback.
 
 ---
