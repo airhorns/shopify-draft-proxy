@@ -5131,6 +5131,11 @@ type MutationFieldResult {
     staged_resource_ids: List(String),
     top_level_errors: List(Json),
     top_level_error_data_entries: List(#(String, Json)),
+    /// True when local validation rejected the input before staging
+    /// any state. The dispatch site records the mutation log entry as
+    /// Failed (rather than Staged) so __meta/commit replay does not
+    /// re-send a payload Shopify will also reject.
+    staging_failed: Bool,
   )
 }
 
@@ -7205,14 +7210,21 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(store.Staged, "Gleam staged productSet locally.")
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productSet locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productSet locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8734,16 +8746,16 @@ fn handle_product_create(
         None -> {
           let #(product, identity_after_product) =
             created_product_record(store, identity, input)
-          let #(default_option, identity_after_option, option_ids) =
-            make_default_option_record(identity_after_product, product)
-          let #(default_variant, final_identity, variant_ids) =
-            make_default_variant_record(identity_after_option, product)
+          let #(options, default_variant, final_identity, graph_ids) =
+            make_product_create_option_graph(
+              identity_after_product,
+              product,
+              read_object_list_field(input, "productOptions"),
+            )
           let #(_, next_store) = store.upsert_staged_product(store, product)
           let next_store =
             next_store
-            |> store.replace_staged_options_for_product(product.id, [
-              default_option,
-            ])
+            |> store.replace_staged_options_for_product(product.id, options)
             |> store.replace_staged_variants_for_product(product.id, [
               default_variant,
             ])
@@ -8766,10 +8778,7 @@ fn handle_product_create(
             ),
             next_store,
             final_identity,
-            list.append(
-              [synced_product.id],
-              list.append(option_ids, variant_ids),
-            ),
+            [synced_product.id, ..graph_ids],
           )
         }
       }
@@ -9280,19 +9289,128 @@ fn handle_product_set(
           read_arg_object(args, "identifier"),
           input,
         )
-      stage_product_set(
-        store,
-        identity,
-        key,
-        existing,
-        input,
-        read_arg_bool_default_true(args, "synchronous"),
-        field,
-        variables,
-        fragments,
-      )
+      case product_set_duplicate_variant_errors(input) {
+        [] ->
+          stage_product_set(
+            store,
+            identity,
+            key,
+            existing,
+            input,
+            read_arg_bool_default_true(args, "synchronous"),
+            field,
+            variables,
+            fragments,
+          )
+        errors ->
+          mutation_rejected_result(
+            key,
+            product_set_payload(
+              store,
+              None,
+              None,
+              errors,
+              field,
+              variables,
+              fragments,
+            ),
+            store,
+            identity,
+          )
+      }
     }
   }
+}
+
+/// Detect input variants whose option-value tuples collide with an
+/// earlier variant in the same `productSet` input. Shopify rejects these
+/// at the API layer with one userError per offending later occurrence;
+/// without local detection the proxy stages the duplicates and the
+/// failure only surfaces at __meta/commit replay (see QA evidence in
+/// `config/parity-specs/products/productSet-duplicate-variants.json`).
+fn product_set_duplicate_variant_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductOperationUserErrorRecord) {
+  let variant_inputs = read_object_list_field(input, "variants")
+  case variant_inputs {
+    [] -> []
+    _ -> {
+      let positions = product_set_option_positions(input)
+      let signatures =
+        list.map(variant_inputs, fn(variant_input) {
+          product_set_variant_signature(variant_input, positions)
+        })
+      list.index_map(signatures, fn(signature, index) { #(index, signature) })
+      |> list.filter_map(fn(pair) {
+        let #(index, signature) = pair
+        let earlier = list.take(signatures, index)
+        case list.contains(earlier, signature) {
+          False -> Error(Nil)
+          True ->
+            Ok(ProductOperationUserErrorRecord(
+              field: Some(["input", "variants", int.to_string(index)]),
+              message: "The variant '"
+                <> product_set_variant_signature_title(signature)
+                <> "' already exists. Please change at least one option value.",
+            ))
+        }
+      })
+    }
+  }
+}
+
+fn product_set_option_positions(
+  input: Dict(String, ResolvedValue),
+) -> Dict(String, Int) {
+  read_object_list_field(input, "productOptions")
+  |> list.index_map(fn(option_input, index) { #(option_input, index) })
+  |> list.fold(dict.new(), fn(acc, pair) {
+    let #(option_input, index) = pair
+    case read_string_field(option_input, "name") {
+      None -> acc
+      Some(name) -> {
+        let position =
+          read_int_field(option_input, "position")
+          |> option.unwrap(index + 1)
+        dict.insert(acc, name, position)
+      }
+    }
+  })
+}
+
+fn product_set_variant_signature(
+  variant_input: Dict(String, ResolvedValue),
+  positions: Dict(String, Int),
+) -> List(#(Int, String, String)) {
+  read_object_list_field(variant_input, "optionValues")
+  |> list.filter_map(fn(option_value) {
+    case
+      read_string_field(option_value, "optionName"),
+      read_string_field(option_value, "name")
+    {
+      Some(option_name), Some(value) -> {
+        let position = dict.get(positions, option_name) |> result.unwrap(9999)
+        Ok(#(position, option_name, value))
+      }
+      _, _ -> Error(Nil)
+    }
+  })
+  |> list.sort(fn(a, b) {
+    let #(pos_a, _, _) = a
+    let #(pos_b, _, _) = b
+    int.compare(pos_a, pos_b)
+  })
+}
+
+fn product_set_variant_signature_title(
+  signature: List(#(Int, String, String)),
+) -> String {
+  signature
+  |> list.map(fn(entry) {
+    let #(_, _, value) = entry
+    value
+  })
+  |> string.join(" / ")
 }
 
 fn find_product_set_existing_product(
@@ -19714,6 +19832,25 @@ fn mutation_result(
     staged_resource_ids: staged_resource_ids,
     top_level_errors: [],
     top_level_error_data_entries: [],
+    staging_failed: False,
+  )
+}
+
+fn mutation_rejected_result(
+  key: String,
+  payload: Json,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  MutationFieldResult(
+    key: key,
+    payload: payload,
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    top_level_errors: [],
+    top_level_error_data_entries: [],
+    staging_failed: True,
   )
 }
 
@@ -19731,6 +19868,7 @@ fn mutation_error_result(
     staged_resource_ids: [],
     top_level_errors: errors,
     top_level_error_data_entries: [],
+    staging_failed: False,
   )
 }
 
@@ -19748,6 +19886,7 @@ fn mutation_error_with_null_data_result(
     staged_resource_ids: [],
     top_level_errors: errors,
     top_level_error_data_entries: [#(key, json.null())],
+    staging_failed: False,
   )
 }
 
@@ -22320,6 +22459,111 @@ fn ensure_unique_product_handle(store: Store, handle: String) -> String {
 fn product_handle_in_use(store: Store, handle: String) -> Bool {
   store.list_effective_products(store)
   |> list.any(fn(product) { product.handle == handle })
+}
+
+fn make_product_create_option_graph(
+  identity: SyntheticIdentityRegistry,
+  product: ProductRecord,
+  option_inputs: List(Dict(String, ResolvedValue)),
+) -> #(
+  List(ProductOptionRecord),
+  ProductVariantRecord,
+  SyntheticIdentityRegistry,
+  List(String),
+) {
+  case option_inputs {
+    [] -> {
+      let #(default_option, identity_after_option, option_ids) =
+        make_default_option_record(identity, product)
+      let #(default_variant, final_identity, variant_ids) =
+        make_default_variant_record(identity_after_option, product)
+      #(
+        [default_option],
+        default_variant,
+        final_identity,
+        list.append(option_ids, variant_ids),
+      )
+    }
+    _ -> {
+      let #(options, identity_after_options) =
+        make_created_option_records(identity, product.id, option_inputs)
+      let positioned_options = sort_and_position_options(options)
+      let #(default_variant, final_identity, variant_ids) =
+        make_default_variant_for_options(
+          identity_after_options,
+          product,
+          positioned_options,
+        )
+      let synced_options =
+        sync_product_options_with_variants(positioned_options, [default_variant])
+      let option_ids =
+        list.append(
+          list.map(synced_options, fn(option) { option.id }),
+          list.flat_map(synced_options, fn(option) {
+            list.map(option.option_values, fn(value) { value.id })
+          }),
+        )
+      #(
+        synced_options,
+        default_variant,
+        final_identity,
+        list.append(option_ids, variant_ids),
+      )
+    }
+  }
+}
+
+fn make_default_variant_for_options(
+  identity: SyntheticIdentityRegistry,
+  product: ProductRecord,
+  options: List(ProductOptionRecord),
+) -> #(ProductVariantRecord, SyntheticIdentityRegistry, List(String)) {
+  let selected_options =
+    list.map(options, fn(option) {
+      ProductVariantSelectedOptionRecord(
+        name: option.name,
+        value: first_option_value_name(option),
+      )
+    })
+  let #(variant_id, identity_after_variant) =
+    synthetic_identity.make_synthetic_gid(identity, "ProductVariant")
+  let #(inventory_item_id, next_identity) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_variant,
+      "InventoryItem",
+    )
+  #(
+    ProductVariantRecord(
+      id: variant_id,
+      product_id: product.id,
+      title: variant_title(selected_options),
+      sku: None,
+      barcode: None,
+      price: None,
+      compare_at_price: None,
+      taxable: None,
+      inventory_policy: None,
+      inventory_quantity: Some(0),
+      selected_options: selected_options,
+      media_ids: [],
+      inventory_item: Some(
+        InventoryItemRecord(
+          id: inventory_item_id,
+          tracked: Some(False),
+          requires_shipping: Some(True),
+          measurement: None,
+          country_code_of_origin: None,
+          province_code_of_origin: None,
+          harmonized_system_code: None,
+          inventory_levels: [],
+        ),
+      ),
+      contextual_pricing: None,
+      cursor: None,
+    ),
+    next_identity,
+    [variant_id, inventory_item_id],
+  )
 }
 
 fn make_default_option_record(

@@ -1,0 +1,110 @@
+{
+  "scenarioId": "productCreate-with-options-parity",
+  "operationNames": ["productCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-with-options-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Reproduces and locks in fidelity for productCreate with productOptions input. Real Shopify accepts productOptions, returns the materialized option/value graph, and synthesizes a first-combination default variant; the proxy must do the same instead of silently falling back to a Title / Default Title placeholder.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productCreate.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The proxy generates a stable local product GID for the staged session; Shopify returns the dev-store product GID."
+      },
+      {
+        "path": "$.productCreate.product.options[0].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "Product option IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productCreate.product.options[0].optionValues[0].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productCreate.product.options[0].optionValues[1].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productCreate.product.options[1].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "Product option IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productCreate.product.options[1].optionValues[0].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productCreate.product.variants.nodes[0].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Variant IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The downstream proxy read returns the locally generated product GID."
+      },
+      {
+        "path": "$.product.options[0].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "The downstream proxy read returns the locally generated product option ID."
+      },
+      {
+        "path": "$.product.options[0].optionValues[0].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns the locally generated product option value ID."
+      },
+      {
+        "path": "$.product.options[0].optionValues[1].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns the locally generated product option value ID."
+      },
+      {
+        "path": "$.product.options[1].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "The downstream proxy read returns the locally generated product option ID."
+      },
+      {
+        "path": "$.product.options[1].optionValues[0].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns the locally generated product option value ID."
+      },
+      {
+        "path": "$.product.variants.nodes[0].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The downstream proxy read returns the locally generated variant ID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-with-options-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

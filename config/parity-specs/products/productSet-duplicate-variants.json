@@ -1,0 +1,26 @@
+{
+  "scenarioId": "product-set-duplicate-variants",
+  "operationNames": ["productSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-duplicate-variants-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productSet-duplicate-variants.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Reproduces the QA-witnessed productSet commit failure where the proxy accepts input with duplicate variant option-value tuples and only discovers Shopify's userErrors at __meta/commit replay. The local proxy must reject the duplicates immediately with the same userErrors payload Shopify returns, so the entry is never replayed upstream.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}
