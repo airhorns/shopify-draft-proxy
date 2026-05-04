@@ -1,0 +1,9 @@
+mutation ProductVariantsBulkCreateValidationOptions($productId: ID!, $options: [OptionCreateInput!]!) {
+  productOptionsCreate(productId: $productId, options: $options) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

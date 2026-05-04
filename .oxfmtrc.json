@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": [],
+  "ignorePatterns": ["config/parity-requests/products/productVariantsBulkCreate-validation.graphql"],
   "printWidth": 120,
   "singleQuote": true
 }

@@ -1,4 +1,5 @@
 import gleam/dict
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
@@ -424,6 +425,18 @@ pub fn product_create_validation_branches_return_user_errors_test() {
   assert store.get_log(handle_proxy.store)
     |> list.length
     == 1
+
+  let variant_query =
+    "mutation { productCreate(product: { title: \\\"Invalid Variant Slice\\\", variants: [{ price: \\\"-5\\\" }] }) { product { id } userErrors { field message code } } }"
+  let #(Response(status: variant_status, body: variant_body, ..), variant_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(variant_query),
+    )
+  assert variant_status == 200
+  assert json.to_string(variant_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"variants\",\"0\",\"price\"],\"message\":\"Price must be greater than or equal to 0\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\"}]}}}"
+  assert store.list_effective_products(variant_proxy.store) == []
 }
 
 pub fn product_set_rejects_duplicate_variant_option_tuples_test() {
@@ -516,6 +529,163 @@ pub fn product_variant_create_update_delete_stages_lifecycle_test() {
   assert store.get_log(proxy.store)
     |> list.length
     == 3
+}
+
+pub fn product_variants_bulk_create_rejects_invalid_scalar_fields_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
+  let long_text = repeated_text("S", 256)
+  let valid_options =
+    "selectedOptions: [{ name: \\\"Color\\\", value: \\\"Red\\\" }, { name: \\\"Size\\\", value: \\\"Small\\\" }]"
+  let query =
+    "mutation { productVariantsBulkCreate(productId: \\\"gid://shopify/Product/optioned\\\", variants: [{ price: null, "
+    <> valid_options
+    <> " }, { price: \\\"-5\\\", "
+    <> valid_options
+    <> " }, { price: \\\"1000000000000000000\\\", "
+    <> valid_options
+    <> " }, { price: \\\"10\\\", compareAtPrice: \\\"1000000000000000000\\\", "
+    <> valid_options
+    <> " }, { price: \\\"10\\\", inventoryItem: { measurement: { weight: { value: -1, unit: KILOGRAMS } } }, "
+    <> valid_options
+    <> " }, { price: \\\"10\\\", inventoryQuantities: [{ locationId: \\\"gid://shopify/Location/1\\\", availableQuantity: 2000000000 }], "
+    <> valid_options
+    <> " }, { price: \\\"10\\\", inventoryItem: { sku: \\\""
+    <> long_text
+    <> "\\\" }, "
+    <> valid_options
+    <> " }, { price: \\\"10\\\", barcode: \\\""
+    <> long_text
+    <> "\\\", "
+    <> valid_options
+    <> " }, { price: \\\"10\\\", selectedOptions: [{ name: \\\"Color\\\", value: \\\""
+    <> long_text
+    <> "\\\" }, { name: \\\"Size\\\", value: \\\"Small\\\" }] }]) { product { id } productVariants { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productVariantsBulkCreate\":{\"product\":null,\"productVariants\":[],\"userErrors\":[{\"field\":[\"variants\",\"0\",\"price\"],\"message\":\"Price can't be blank\",\"code\":\"INVALID\"},{\"field\":[\"variants\",\"1\",\"price\"],\"message\":\"Price must be greater than or equal to 0\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\"},{\"field\":[\"variants\",\"2\",\"price\"],\"message\":\"Price must be less than 1000000000000000000\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"3\",\"compareAtPrice\"],\"message\":\"must be less than 1000000000000000000\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"4\"],\"message\":\"Weight must be greater than or equal to 0\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\"},{\"field\":[\"variants\",\"5\",\"inventoryQuantities\"],\"message\":\"Inventory quantity must be less than or equal to 1000000000\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"6\"],\"message\":\"SKU is too long (maximum is 255 characters)\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"6\"],\"message\":\"is too long (maximum is 255 characters)\",\"code\":null},{\"field\":[\"variants\",\"7\",\"barcode\"],\"message\":\"Barcode is too long (maximum is 255 characters)\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"8\",\"selectedOptions\",\"0\",\"value\"],\"message\":\"Option value name is too long\",\"code\":\"INVALID_INPUT\"}]}}}"
+  assert store.get_effective_variants_by_product_id(
+      next_proxy.store,
+      "gid://shopify/Product/optioned",
+    )
+    |> list.length
+    == 1
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productVariantsBulkCreate")
+  assert entry.status == store.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_variants_bulk_create_rejects_oversized_input_test() {
+  let proxy = draft_proxy.new()
+  let variants = repeat_csv("{ price: \\\"1\\\" }", 2049)
+  let query =
+    "mutation { productVariantsBulkCreate(productId: \\\"gid://shopify/Product/optioned\\\", variants: ["
+    <> variants
+    <> "]) { productVariants { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"The input array size of 2049 is greater than the maximum allowed of 2048.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"productVariantsBulkCreate\",\"variants\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}]}"
+  assert store.get_log(next_proxy.store) == []
+}
+
+pub fn product_variants_bulk_create_rejects_cumulative_variant_cap_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: variant_cap_store())
+  let query =
+    "mutation { productVariantsBulkCreate(productId: \\\"gid://shopify/Product/optioned\\\", variants: [{ price: \\\"1\\\", selectedOptions: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }]) { product { id } productVariants { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productVariantsBulkCreate\":{\"product\":null,\"productVariants\":[],\"userErrors\":[{\"field\":null,\"message\":\"You can only have a maximum of 2048 variants per product\",\"code\":\"LIMIT_EXCEEDED\"}]}}}"
+  assert store.get_effective_variants_by_product_id(
+      next_proxy.store,
+      "gid://shopify/Product/optioned",
+    )
+    |> list.length
+    == 2048
+}
+
+pub fn product_variants_bulk_update_rejects_invalid_scalar_fields_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
+  let query =
+    "mutation { productVariantsBulkUpdate(productId: \\\"gid://shopify/Product/optioned\\\", variants: [{ id: \\\"gid://shopify/ProductVariant/optioned\\\", price: \\\"-5\\\", inventoryQuantity: 1000000001, inventoryItem: { measurement: { weight: { value: 2000000000, unit: STONES } } } }]) { product { id } productVariants { id price inventoryQuantity } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productVariantsBulkUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\"},\"productVariants\":null,\"userErrors\":[{\"field\":[\"variants\",\"0\",\"price\"],\"message\":\"Price must be greater than or equal to 0\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\"},{\"field\":[\"variants\",\"0\"],\"message\":\"Weight must be less than 2000000000\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"0\"],\"message\":\"Weight unit is not included in the list\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"0\",\"inventoryQuantity\"],\"message\":\"Inventory quantity must be less than or equal to 1000000000\",\"code\":\"INVALID_INPUT\"}]}}}"
+  let assert [variant] =
+    store.get_effective_variants_by_product_id(
+      next_proxy.store,
+      "gid://shopify/Product/optioned",
+    )
+  assert variant.price == Some("0.00")
+  assert variant.inventory_quantity == Some(0)
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store.Failed
+}
+
+pub fn product_variant_create_and_update_reject_invalid_scalars_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
+  let create_query =
+    "mutation { productVariantCreate(input: { productId: \\\"gid://shopify/Product/optioned\\\", price: \\\"-5\\\", selectedOptions: [{ name: \\\"Color\\\", value: \\\"Blue\\\" }] }) { product { id } productVariant { id } userErrors { field message code } } }"
+
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productVariantCreate\":{\"product\":null,\"productVariant\":null,\"userErrors\":[{\"field\":[\"input\",\"price\"],\"message\":\"Price must be greater than or equal to 0\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\"}]}}}"
+
+  let update_query =
+    "mutation { productVariantUpdate(input: { id: \\\"gid://shopify/ProductVariant/optioned\\\", compareAtPrice: \\\"1000000000000000000\\\" }) { product { id } productVariant { id compareAtPrice } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"productVariantUpdate\":{\"product\":null,\"productVariant\":null,\"userErrors\":[{\"field\":[\"input\",\"compareAtPrice\"],\"message\":\"must be less than 1000000000000000000\",\"code\":\"INVALID_INPUT\"}]}}}"
+
+  let assert [variant] =
+    store.get_effective_variants_by_product_id(
+      proxy.store,
+      "gid://shopify/Product/optioned",
+    )
+  assert variant.price == Some("0.00")
+  assert variant.compare_at_price == None
+  let assert [create_entry, update_entry] = store.get_log(proxy.store)
+  assert create_entry.status == store.Failed
+  assert update_entry.status == store.Failed
+}
+
+pub fn product_set_rejects_invalid_variant_scalars_test() {
+  let query =
+    "mutation { productSet(input: { title: \\\"Scalar Validation Probe\\\", productOptions: [{ name: \\\"Title\\\", position: 1, values: [{ name: \\\"Default Title\\\" }] }], variants: [{ price: \\\"-5\\\", optionValues: [{ optionName: \\\"Title\\\", name: \\\"Default Title\\\" }] }] }, synchronous: true) { product { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"variants\",\"0\",\"price\"],\"message\":\"Price must be greater than or equal to 0\",\"code\":\"INVALID_VARIANT\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productSet")
+  assert entry.status == store.Failed
+  assert entry.staged_resource_ids == []
 }
 
 pub fn inventory_shipment_extended_roots_stage_locally_test() {
@@ -682,6 +852,63 @@ fn metafield_store() -> store.Store {
       owner_type: Some("PRODUCT"),
     ),
   ])
+}
+
+fn variant_cap_store() -> store.Store {
+  default_option_store()
+  |> store.upsert_base_product_variants(variant_cap_records(2047))
+}
+
+fn variant_cap_records(count: Int) -> List(ProductVariantRecord) {
+  variant_cap_records_loop(count, [])
+}
+
+fn variant_cap_records_loop(
+  remaining: Int,
+  acc: List(ProductVariantRecord),
+) -> List(ProductVariantRecord) {
+  case remaining <= 0 {
+    True -> acc
+    False -> {
+      let id = int.to_string(remaining)
+      variant_cap_records_loop(remaining - 1, [
+        ProductVariantRecord(
+          ..default_variant(),
+          id: "gid://shopify/ProductVariant/cap-" <> id,
+          title: "Variant " <> id,
+        ),
+        ..acc
+      ])
+    }
+  }
+}
+
+fn repeated_text(item: String, count: Int) -> String {
+  repeated_text_loop(item, count, "")
+}
+
+fn repeated_text_loop(item: String, remaining: Int, acc: String) -> String {
+  case remaining <= 0 {
+    True -> acc
+    False -> repeated_text_loop(item, remaining - 1, acc <> item)
+  }
+}
+
+fn repeat_csv(item: String, count: Int) -> String {
+  repeat_csv_loop(item, count, "")
+}
+
+fn repeat_csv_loop(item: String, remaining: Int, acc: String) -> String {
+  case remaining <= 0 {
+    True -> acc
+    False -> {
+      let next = case acc == "" {
+        True -> item
+        False -> acc <> ", " <> item
+      }
+      repeat_csv_loop(item, remaining - 1, next)
+    }
+  }
 }
 
 fn tracked_inventory_store() -> store.Store {
