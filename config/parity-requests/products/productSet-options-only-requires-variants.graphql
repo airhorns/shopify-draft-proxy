@@ -1,0 +1,34 @@
+mutation ProductSetOptionsOnlyRequiresVariants($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+      title
+      status
+      options {
+        id
+        name
+        position
+        values
+        optionValues {
+          id
+          name
+          hasVariants
+        }
+      }
+      variants(first: 20) {
+        nodes {
+          id
+          title
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
