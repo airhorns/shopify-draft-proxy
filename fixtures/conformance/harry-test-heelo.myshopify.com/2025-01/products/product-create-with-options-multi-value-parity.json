@@ -2,7 +2,7 @@
   "mutation": {
     "variables": {
       "product": {
-        "title": "Hermes Product Options Conformance 1777933614159",
+        "title": "Hermes Product Options Multi Value 1777933614159",
         "status": "DRAFT",
         "productOptions": [
           {
@@ -21,6 +21,9 @@
             "values": [
               {
                 "name": "Small"
+              },
+              {
+                "name": "Large"
               }
             ]
           }
@@ -31,39 +34,44 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10176741278002",
-            "title": "Hermes Product Options Conformance 1777933614159",
-            "handle": "hermes-product-options-conformance-1777933614159",
+            "id": "gid://shopify/Product/10176741310770",
+            "title": "Hermes Product Options Multi Value 1777933614159",
+            "handle": "hermes-product-options-multi-value-1777933614159",
             "status": "DRAFT",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12723953238322",
+                "id": "gid://shopify/ProductOption/12723953303858",
                 "name": "Color",
                 "position": 1,
                 "values": ["Red"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8003715498290",
+                    "id": "gid://shopify/ProductOptionValue/8003715596594",
                     "name": "Red",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/8003715531058",
+                    "id": "gid://shopify/ProductOptionValue/8003715629362",
                     "name": "Blue",
                     "hasVariants": false
                   }
                 ]
               },
               {
-                "id": "gid://shopify/ProductOption/12723953271090",
+                "id": "gid://shopify/ProductOption/12723953336626",
                 "name": "Size",
                 "position": 2,
                 "values": ["Small"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8003715563826",
+                    "id": "gid://shopify/ProductOptionValue/8003715662130",
                     "name": "Small",
                     "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8003715694898",
+                    "name": "Large",
+                    "hasVariants": false
                   }
                 ]
               }
@@ -71,7 +79,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51124960362802",
+                  "id": "gid://shopify/ProductVariant/51124960395570",
                   "title": "Red / Small",
                   "selectedOptions": [
                     {
@@ -106,39 +114,44 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10176741278002",
-        "title": "Hermes Product Options Conformance 1777933614159",
-        "handle": "hermes-product-options-conformance-1777933614159",
+        "id": "gid://shopify/Product/10176741310770",
+        "title": "Hermes Product Options Multi Value 1777933614159",
+        "handle": "hermes-product-options-multi-value-1777933614159",
         "status": "DRAFT",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12723953238322",
+            "id": "gid://shopify/ProductOption/12723953303858",
             "name": "Color",
             "position": 1,
             "values": ["Red"],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/8003715498290",
+                "id": "gid://shopify/ProductOptionValue/8003715596594",
                 "name": "Red",
                 "hasVariants": true
               },
               {
-                "id": "gid://shopify/ProductOptionValue/8003715531058",
+                "id": "gid://shopify/ProductOptionValue/8003715629362",
                 "name": "Blue",
                 "hasVariants": false
               }
             ]
           },
           {
-            "id": "gid://shopify/ProductOption/12723953271090",
+            "id": "gid://shopify/ProductOption/12723953336626",
             "name": "Size",
             "position": 2,
             "values": ["Small"],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/8003715563826",
+                "id": "gid://shopify/ProductOptionValue/8003715662130",
                 "name": "Small",
                 "hasVariants": true
+              },
+              {
+                "id": "gid://shopify/ProductOptionValue/8003715694898",
+                "name": "Large",
+                "hasVariants": false
               }
             ]
           }
@@ -146,7 +159,7 @@
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51124960362802",
+              "id": "gid://shopify/ProductVariant/51124960395570",
               "title": "Red / Small",
               "selectedOptions": [
                 {
