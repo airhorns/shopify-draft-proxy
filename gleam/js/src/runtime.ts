@@ -124,7 +124,7 @@ function jsonFromGleam<T>(tree: unknown): T {
 export class DraftProxy {
   #inner: GleamDraftProxy;
 
-  constructor(config: AppConfig, options: DraftProxyOptions = {}) {
+  constructor(config: AppConfig & DraftProxyOptions, options: DraftProxyOptions = {}) {
     this.#inner = with_default_registry(with_config(configToGleam(config)));
     if (config.snapshotPath !== undefined) {
       this.#inner = unwrapProxyResult(
@@ -132,8 +132,9 @@ export class DraftProxy {
         'snapshot loading',
       );
     }
-    if (options.state !== undefined) {
-      this.restoreState(options.state);
+    const state = options.state ?? config.state;
+    if (state !== undefined) {
+      this.restoreState(state);
     }
   }
 
@@ -235,6 +236,6 @@ function unwrapProxyResult(result: Result<GleamDraftProxy, unknown>, action: str
   throw new Error(`DraftProxy.${action} failed: ${message}`);
 }
 
-export function createDraftProxy(config: AppConfig, options?: DraftProxyOptions): DraftProxy {
+export function createDraftProxy(config: AppConfig & DraftProxyOptions, options?: DraftProxyOptions): DraftProxy {
   return new DraftProxy(config, options);
 }
