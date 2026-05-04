@@ -38,6 +38,16 @@
         "upstreamCapturePath": null
       },
       {
+        "name": "local-pickup-custom-pickup-time-user-errors",
+        "capturePath": "$.captures.customPickupTimeEnable.result.payload.data.locationLocalPickupEnable",
+        "proxyPath": "$.data.locationLocalPickupEnable",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-local-pickup-enable.graphql",
+          "variablesCapturePath": "$.captures.customPickupTimeEnable.variables"
+        }
+      },
+      {
         "name": "local-pickup-enable-payload",
         "capturePath": "$.captures.enable.result.payload.data.locationLocalPickupEnable",
         "proxyPath": "$.data.locationLocalPickupEnable",

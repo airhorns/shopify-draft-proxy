@@ -9,8 +9,7 @@ The port re-implements the TypeScript draft proxy in Gleam, targeting both
 Erlang (BEAM) and JavaScript (Node ESM). It is **incremental** — passes land
 domain-by-domain, with the original TypeScript implementation and tests kept
 intact until the whole port reaches verified 100% parity across the repository.
-Each pass appends an entry to `GLEAM_PORT_LOG.md`; the immutable
-acceptance bar lives in `GLEAM_PORT_INTENT.md`.
+The immutable acceptance bar lives in `GLEAM_PORT_INTENT.md`.
 
 This skill captures the patterns that have stabilized across passes 1–20 so
 new passes don't re-derive them. For generic Gleam idioms (decoders,
@@ -20,10 +19,9 @@ opaque types, pattern matching, OTP), use the `gleam` skill.
 
 1. `GLEAM_PORT_INTENT.md` — non-negotiables, acceptance criteria,
    working principles. Do not violate; if a constraint binds, flag it.
-2. `GLEAM_PORT_LOG.md` — most recent 2–3 passes (top of file, newest first).
-   Tells you what just landed, what's deferred, and what the next pass
-   candidates were. Skip the rest unless your task touches an already-ported
-   domain.
+2. `GLEAM_PORT_LOG.md` — historical porting context. Consult it when older
+   decisions, deferred work, or already-ported domains are relevant to the
+   task.
 3. `AGENTS.md` — repository-wide non-negotiables. The Gleam port inherits
    all of them.
 
@@ -32,12 +30,12 @@ opaque types, pattern matching, OTP), use the `gleam` skill.
 ```
 Working in gleam/?
 ├─ Porting a new domain          → references/domain-port-template.md
-├─ Modifying an existing domain  → read its module + that pass's log entry
+├─ Modifying an existing domain  → read its module + any relevant historical notes
 ├─ Hitting a "weird" error       → references/port-gotchas.md
 ├─ Adding a substrate helper     → check if it was already lifted in a pass
 │                                  (search GLEAM_PORT_LOG.md for "substrate")
 ├─ Cross-target FFI needed       → references/port-gotchas.md (FFI section)
-└─ Don't know what to port next  → tail of GLEAM_PORT_LOG.md → "Pass N candidates"
+└─ Don't know what to port next  → Linear / operation registry coverage gaps
 ```
 
 ## Cross-target rule
@@ -889,9 +887,8 @@ for a missing cassette entry — fix the recording instead.
 
 ## Workflow for a new pass
 
-1. Pick a candidate from the most recent log entry's "Pass N candidates"
-   list, or from `config/operation-registry.json` filtered by
-   `implemented: true` and not yet ported.
+1. Pick a candidate from Linear or from `config/operation-registry.json`
+   filtered by `implemented: true` and not yet ported.
 2. Read the corresponding `src/proxy/<domain>.ts` (TS source) and its
    slice of `src/state/types.ts` and `src/state/store.ts`.
 3. Skim parity specs at `config/parity-specs/<domain>/` if any exist —
@@ -900,9 +897,8 @@ for a missing cassette entry — fix the recording instead.
    path → dispatcher wiring. Do **not** interleave domains.
 5. Land tests alongside, on both targets. Prefer the `run(store, query)`
    helper pattern from existing test files.
-6. Append an entry to `GLEAM_PORT_LOG.md` with the standard sections:
-   summary paragraph, module table, "What landed", "Findings", "Risks /
-   open items", "Pass N+1 candidates".
+6. Update any affected docs that describe the runtime, endpoints, or helper
+   patterns changed by the pass.
 
 See `references/domain-port-template.md` for the concrete checklist.
 
