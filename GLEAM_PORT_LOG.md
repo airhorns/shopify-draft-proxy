@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 198: HAR-573 fulfillment order cancel preconditions
+## 2026-05-04 - Pass 199: HAR-573 fulfillment order cancel preconditions
 
 Tightens local `fulfillmentOrderCancel` staging so manually progressed or
 otherwise non-cancellable fulfillment orders return Shopify-shaped user errors
@@ -59,6 +59,59 @@ Validation:
 - Shopify Admin 2026-04 introspection exposes generic `UserError` for the
   selected cancel error surface, while this ticket requires the documented
   code-shaped local values.
+
+---
+
+## 2026-05-04 - Pass 198: HAR-619 price list create currency and parent validation
+
+Aligns Markets `priceListCreate` with live Shopify behavior for DKK currencies
+and required parent adjustment input. The local handler now uses the
+Money::Currency-style ISO code set instead of the previous 9-code allowlist,
+requires `currency` and `parent` on create, validates parent adjustment type,
+and serializes the staged parent adjustment into downstream PriceList reads.
+
+| Module / fixture                                                                                      | Change                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/markets.gleam`                                                   | Expands price-list currency validation, removes USD create fallback, requires create parent input, and stages adjustment. |
+| `gleam/test/shopify_draft_proxy/proxy/markets_mutation_test.gleam`                                    | Covers DKK success, missing currency, missing parent, and invalid adjustment type branches.                               |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-create-dkk.json`      | Records live DKK create success and cleanup of the disposable PriceList.                                                  |
+| `config/parity-specs/markets/price-list-create-dkk.json` / `config/parity-requests/markets/*.graphql` | Adds executable parity evidence for the DKK success payload.                                                              |
+| `docs/endpoints/markets.md`                                                                           | Documents the tighter price-list validation boundary.                                                                     |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- one-off live Admin GraphQL 2026-04 `priceListCreate` DKK capture with
+  `priceListDelete` cleanup
+- `corepack pnpm parity:record price-list-create-dkk`
+- `cd gleam && gleam test --target javascript -- markets_mutation_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+- `cd gleam && gleam test --target javascript` (855 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 846 passed)
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2297 passed)
+
+### Findings
+
+- Live Shopify accepts `priceListCreate` with `currency: DKK` when the input
+  includes a valid `parent.adjustment` of `PERCENTAGE_DECREASE`.
+- The existing invalid-currency capture omits `parent` and Shopify reports only
+  the currency inclusion error, so local parent validation is ordered after
+  currency validation to preserve that payload.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
 
 ---
 
