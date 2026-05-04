@@ -7,6 +7,7 @@
 //// Shopify side effects.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -44,6 +45,10 @@ import shopify_draft_proxy/state/types.{
 }
 
 const domain = "b2b"
+
+const default_string_max_length = 255
+
+const notes_max_length = 5000
 
 pub type B2BError {
   ParseFailed(root_field.RootFieldError)
@@ -1276,6 +1281,236 @@ fn user_error(field: Option(List(String)), message: String, code: String) {
   UserError(field: field, message: message, code: code)
 }
 
+fn field_path(prefix: List(String), field: String) -> List(String) {
+  list.append(prefix, [field])
+}
+
+fn validate_length(
+  value: String,
+  field: String,
+  prefix: List(String),
+  label: String,
+  max: Int,
+) -> List(UserError) {
+  case string.length(value) > max {
+    True -> [
+      user_error(
+        Some(field_path(prefix, field)),
+        label
+          <> " is too long (maximum is "
+          <> int.to_string(max)
+          <> " characters)",
+        "TOO_LONG",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn validate_html(
+  value: String,
+  field: String,
+  prefix: List(String),
+  label: String,
+) -> List(UserError) {
+  case contains_html_tags(value) {
+    True -> [
+      user_error(
+        Some(field_path(prefix, field)),
+        label <> " contains HTML tags",
+        "CONTAINS_HTML_TAGS",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn validate_text_field(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  error_field: String,
+  prefix: List(String),
+  label: String,
+  max: Int,
+  reject_html: Bool,
+) -> List(UserError) {
+  case read_string(input, field) {
+    Some(value) -> {
+      let html_errors = case reject_html {
+        True -> validate_html(value, error_field, prefix, label)
+        False -> []
+      }
+      html_errors
+      |> list.append(validate_length(value, error_field, prefix, label, max))
+    }
+    None -> []
+  }
+}
+
+fn sanitize_name_field(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case read_string(input, "name") {
+    Some(value) ->
+      dict.insert(input, "name", root_field.StringVal(strip_html(value)))
+    None -> input
+  }
+}
+
+fn validate_company_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(UserError)) {
+  let input = sanitize_name_field(input)
+  let errors =
+    validate_text_field(
+      input,
+      "name",
+      "name",
+      prefix,
+      "Name",
+      default_string_max_length,
+      False,
+    )
+    |> list.append(validate_text_field(
+      input,
+      "note",
+      "notes",
+      prefix,
+      "Notes",
+      notes_max_length,
+      True,
+    ))
+  #(input, errors)
+}
+
+fn validate_contact_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(UserError)) {
+  let errors =
+    validate_text_field(
+      input,
+      "title",
+      "title",
+      prefix,
+      "Title",
+      default_string_max_length,
+      True,
+    )
+    |> list.append(validate_text_field(
+      input,
+      "note",
+      "notes",
+      prefix,
+      "Notes",
+      notes_max_length,
+      True,
+    ))
+    |> list.append(validate_text_field(
+      input,
+      "notes",
+      "notes",
+      prefix,
+      "Notes",
+      notes_max_length,
+      True,
+    ))
+  #(input, errors)
+}
+
+fn validate_location_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(UserError)) {
+  let input = sanitize_name_field(input)
+  let errors =
+    validate_text_field(
+      input,
+      "name",
+      "name",
+      prefix,
+      "Name",
+      default_string_max_length,
+      False,
+    )
+    |> list.append(validate_text_field(
+      input,
+      "note",
+      "notes",
+      prefix,
+      "Notes",
+      notes_max_length,
+      True,
+    ))
+  #(input, errors)
+}
+
+fn contains_html_tags(value: String) -> Bool {
+  contains_html_tag_loop(string.to_graphemes(value))
+}
+
+fn contains_html_tag_loop(graphemes: List(String)) -> Bool {
+  case graphemes {
+    [] -> False
+    ["<", next, ..rest] ->
+      case is_html_tag_start(next) && contains_tag_close(rest) {
+        True -> True
+        False -> contains_html_tag_loop([next, ..rest])
+      }
+    [_, ..rest] -> contains_html_tag_loop(rest)
+  }
+}
+
+fn contains_tag_close(graphemes: List(String)) -> Bool {
+  case graphemes {
+    [] -> False
+    ["<", ..] -> False
+    [">", ..] -> True
+    [_, ..rest] -> contains_tag_close(rest)
+  }
+}
+
+fn is_html_tag_start(value: String) -> Bool {
+  value == "/"
+  || value == "!"
+  || value == "?"
+  || string.contains(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    value,
+  )
+}
+
+fn strip_html(value: String) -> String {
+  strip_html_loop(string.to_graphemes(value), False, [])
+}
+
+fn strip_html_loop(
+  graphemes: List(String),
+  in_tag: Bool,
+  acc: List(String),
+) -> String {
+  case graphemes {
+    [] -> string.concat(list.reverse(acc))
+    [first, ..rest] ->
+      case in_tag, first {
+        True, ">" -> strip_html_loop(rest, False, acc)
+        True, _ -> strip_html_loop(rest, True, acc)
+        False, "<" -> {
+          case rest {
+            [next, ..after_next] ->
+              case is_html_tag_start(next) && contains_tag_close(after_next) {
+                True -> strip_html_loop(after_next, True, acc)
+                False -> strip_html_loop(rest, False, [first, ..acc])
+              }
+            _ -> strip_html_loop(rest, False, [first, ..acc])
+          }
+        }
+        False, _ -> strip_html_loop(rest, False, [first, ..acc])
+      }
+  }
+}
+
 fn resource_not_found(field: List(String)) {
   user_error(
     Some(field),
@@ -1370,7 +1605,16 @@ fn contact_data_from_input(
   existing: Dict(String, StorePropertyValue),
 ) -> Dict(String, StorePropertyValue) {
   list.fold(
-    ["firstName", "lastName", "email", "title", "locale", "phone"],
+    [
+      "firstName",
+      "lastName",
+      "email",
+      "title",
+      "locale",
+      "phone",
+      "note",
+      "notes",
+    ],
     existing,
     fn(acc, key) { maybe_put_string(acc, input, key) },
   )
@@ -1649,10 +1893,32 @@ fn handle_company_create(
   args: Dict(String, root_field.ResolvedValue),
 ) -> RootResult {
   let input = read_object(args, "input")
-  let company_input = read_object(input, "company")
+  let #(company_input, company_errors) =
+    validate_company_input(read_object(input, "company"), ["input", "company"])
+  let #(location_input, location_errors) =
+    validate_location_input(read_object(input, "companyLocation"), [
+      "input",
+      "companyLocation",
+    ])
+  let #(contact_input, contact_errors) = case
+    dict.get(input, "companyContact")
+  {
+    Ok(root_field.ObjectVal(raw_contact_input)) -> {
+      let #(validated, errors) =
+        validate_contact_input(raw_contact_input, ["input", "companyContact"])
+      #(Some(validated), errors)
+    }
+    _ -> #(None, [])
+  }
+  let validation_errors =
+    company_errors
+    |> list.append(location_errors)
+    |> list.append(contact_errors)
   let name = read_string(company_input, "name") |> option_string("")
-  case string.trim(name) {
-    "" ->
+  case validation_errors, string.trim(name) {
+    [_, ..], _ ->
+      RootResult(empty_payload(validation_errors), store, identity, [])
+    [], "" ->
       RootResult(
         empty_payload([
           user_error(
@@ -1665,21 +1931,16 @@ fn handle_company_create(
         identity,
         [],
       )
-    _ -> {
+    _, _ -> {
       let #(company_id, identity) = make_gid(identity, "Company")
       let #(now, identity) = timestamp(identity)
       let #(roles, store, identity) =
         create_default_roles(store, identity, company_id)
       let #(location, store, identity) =
-        create_location(
-          store,
-          identity,
-          company_id,
-          read_object(input, "companyLocation"),
-          name,
-        )
+        create_location(store, identity, company_id, location_input, name)
       let #(contact, store, identity) = case dict.get(input, "companyContact") {
-        Ok(root_field.ObjectVal(contact_input)) -> {
+        Ok(root_field.ObjectVal(_)) -> {
+          let assert Some(contact_input) = contact_input
           let #(created, next_store, next_identity) =
             create_contact(store, identity, company_id, contact_input, True)
           #(Some(created), next_store, next_identity)
@@ -1756,13 +2017,16 @@ fn handle_company_update(
     Some(company_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let input = read_object(args, "input")
+          let #(input, validation_errors) =
+            validate_company_input(read_object(args, "input"), ["input"])
           let name = case dict.get(input, "name") {
             Ok(root_field.StringVal(value)) -> value
             _ -> source_string(data_get(company.data, "name"))
           }
-          case string.trim(name) {
-            "" ->
+          case validation_errors, string.trim(name) {
+            [_, ..], _ ->
+              RootResult(empty_payload(validation_errors), store, identity, [])
+            [], "" ->
               RootResult(
                 empty_payload([
                   user_error(
@@ -1775,7 +2039,7 @@ fn handle_company_update(
                 identity,
                 [],
               )
-            _ -> {
+            _, _ -> {
               let #(now, identity) = timestamp(identity)
               let updated =
                 B2BCompanyRecord(
@@ -1947,28 +2211,30 @@ fn handle_contact_create(
     Some(company_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let #(contact, store, identity) =
-            create_contact(
-              store,
-              identity,
-              company_id,
-              read_object(args, "input"),
-              False,
-            )
-          let #(company, store) =
-            stage_company(
-              store,
-              B2BCompanyRecord(
-                ..company,
-                contact_ids: append_unique(company.contact_ids, contact.id),
-              ),
-            )
-          RootResult(
-            Payload(..empty_payload([]), company_contact: Some(contact)),
-            store,
-            identity,
-            [contact.id, company.id],
-          )
+          let #(input, validation_errors) =
+            validate_contact_input(read_object(args, "input"), ["input"])
+          case validation_errors {
+            [_, ..] ->
+              RootResult(empty_payload(validation_errors), store, identity, [])
+            [] -> {
+              let #(contact, store, identity) =
+                create_contact(store, identity, company_id, input, False)
+              let #(company, store) =
+                stage_company(
+                  store,
+                  B2BCompanyRecord(
+                    ..company,
+                    contact_ids: append_unique(company.contact_ids, contact.id),
+                  ),
+                )
+              RootResult(
+                Payload(..empty_payload([]), company_contact: Some(contact)),
+                store,
+                identity,
+                [contact.id, company.id],
+              )
+            }
+          }
         }
         None ->
           not_found_result(store, identity, "companyContact", ["companyId"])
@@ -1986,24 +2252,28 @@ fn handle_contact_update(
     Some(contact_id) ->
       case store.get_effective_b2b_company_contact_by_id(store, contact_id) {
         Some(contact) -> {
-          let #(now, identity) = timestamp(identity)
-          let updated =
-            B2BCompanyContactRecord(
-              ..contact,
-              data: contact_data_from_input(
-                read_object(args, "input"),
-                now,
-                contact.data,
-              ),
-            )
-          let #(updated, store) =
-            store.upsert_staged_b2b_company_contact(store, updated)
-          RootResult(
-            Payload(..empty_payload([]), company_contact: Some(updated)),
-            store,
-            identity,
-            [updated.id],
-          )
+          let #(input, validation_errors) =
+            validate_contact_input(read_object(args, "input"), ["input"])
+          case validation_errors {
+            [_, ..] ->
+              RootResult(empty_payload(validation_errors), store, identity, [])
+            [] -> {
+              let #(now, identity) = timestamp(identity)
+              let updated =
+                B2BCompanyContactRecord(
+                  ..contact,
+                  data: contact_data_from_input(input, now, contact.data),
+                )
+              let #(updated, store) =
+                store.upsert_staged_b2b_company_contact(store, updated)
+              RootResult(
+                Payload(..empty_payload([]), company_contact: Some(updated)),
+                store,
+                identity,
+                [updated.id],
+              )
+            }
+          }
         }
         None ->
           RootResult(
@@ -2386,31 +2656,42 @@ fn handle_location_create(
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
           let fallback = source_string(data_get(company.data, "name"))
-          let #(location, store, identity) =
-            create_location(
-              store,
-              identity,
-              company_id,
-              read_object(args, "input"),
-              case fallback {
-                "" -> "Company location"
-                _ -> fallback
-              },
-            )
-          let #(company, store) =
-            stage_company(
-              store,
-              B2BCompanyRecord(
-                ..company,
-                location_ids: append_unique(company.location_ids, location.id),
-              ),
-            )
-          RootResult(
-            Payload(..empty_payload([]), company_location: Some(location)),
-            store,
-            identity,
-            [location.id, company.id],
-          )
+          let #(input, validation_errors) =
+            validate_location_input(read_object(args, "input"), ["input"])
+          case validation_errors {
+            [_, ..] ->
+              RootResult(empty_payload(validation_errors), store, identity, [])
+            [] -> {
+              let #(location, store, identity) =
+                create_location(
+                  store,
+                  identity,
+                  company_id,
+                  input,
+                  case fallback {
+                    "" -> "Company location"
+                    _ -> fallback
+                  },
+                )
+              let #(company, store) =
+                stage_company(
+                  store,
+                  B2BCompanyRecord(
+                    ..company,
+                    location_ids: append_unique(
+                      company.location_ids,
+                      location.id,
+                    ),
+                  ),
+                )
+              RootResult(
+                Payload(..empty_payload([]), company_location: Some(location)),
+                store,
+                identity,
+                [location.id, company.id],
+              )
+            }
+          }
         }
         None ->
           not_found_result(store, identity, "companyLocation", ["companyId"])
@@ -2428,23 +2709,26 @@ fn handle_location_update(
     Some(id) ->
       case store.get_effective_b2b_company_location_by_id(store, id) {
         Some(location) -> {
-          let #(now, identity) = timestamp(identity)
-          let #(data, identity) =
-            location_data_from_input(
-              identity,
-              read_object(args, "input"),
-              now,
-              location.data,
-            )
-          let updated = B2BCompanyLocationRecord(..location, data: data)
-          let #(updated, store) =
-            store.upsert_staged_b2b_company_location(store, updated)
-          RootResult(
-            Payload(..empty_payload([]), company_location: Some(updated)),
-            store,
-            identity,
-            [updated.id],
-          )
+          let #(input, validation_errors) =
+            validate_location_input(read_object(args, "input"), ["input"])
+          case validation_errors {
+            [_, ..] ->
+              RootResult(empty_payload(validation_errors), store, identity, [])
+            [] -> {
+              let #(now, identity) = timestamp(identity)
+              let #(data, identity) =
+                location_data_from_input(identity, input, now, location.data)
+              let updated = B2BCompanyLocationRecord(..location, data: data)
+              let #(updated, store) =
+                store.upsert_staged_b2b_company_location(store, updated)
+              RootResult(
+                Payload(..empty_payload([]), company_location: Some(updated)),
+                store,
+                identity,
+                [updated.id],
+              )
+            }
+          }
         }
         None ->
           RootResult(

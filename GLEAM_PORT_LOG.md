@@ -9,6 +9,44 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-04 - Pass 198: HAR-625 B2B string validation guardrails
+
+Adds source-driven local validation for B2B free-text fields so supported
+company/contact/location mutations fail before staging values Shopify's B2B
+change layer rejects.
+
+| Module / fixture                                      | Change                                                                                                                                                               |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/b2b.gleam`       | Enforces 255-character `name`/`title` limits, 5000-character notes limits, `CONTAINS_HTML_TAGS` for blocked title/notes fields, and strips name HTML before staging. |
+| `gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam` | Covers company name length/sanitization, company notes HTML+length rejection, contact title/notes rejection, and location name/notes rejection.                      |
+| `docs/endpoints/b2b.md`                               | Documents the B2B string validation boundary and the live-probe mismatch that prevented promoting an HTML-sanitization parity fixture.                               |
+
+Validation:
+
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:probe`
+- 2026-04 live probe against `harry-test-heelo.myshopify.com` confirmed length
+  errors and `notes` field labeling, but still accepted HTML title/name values;
+  HAR-625 therefore remains source-behavior/runtime-test backed for HTML
+  sanitization.
+- `cd gleam && gleam test --target javascript -- b2b_test` (855 passed)
+
+### Findings
+
+- Current Admin GraphQL schema exposes `CompanyInput.note` and
+  `CompanyLocationInput.note`, but Shopify reports those user-error fields as
+  `notes`.
+- The current 2026-04 conformance store accepts `CompanyContactInput.title`
+  with HTML and has no `note`/`notes` field on `CompanyContactInput`, which
+  conflicts with the internal B2B change behavior described in HAR-625.
+
+### Risks / open items
+
+- HTML sanitization is covered by runtime tests rather than a checked-in parity
+  fixture until the live conformance target exhibits the ticketed
+  `CONTAINS_HTML_TAGS` behavior.
+
+---
+
 ## 2026-05-04 - Pass 197: HAR-550 product option autogeneration fidelity
 
 Tightens product option/variant autogeneration parity for `productCreate` and

@@ -173,3 +173,14 @@ lifecycle capture. The new scenario records `companyUpdate`,
 reads. The capture showed that contact creation materializes customer
 references, revoking the main contact returns `Company.mainContact: null`, and
 `companiesCount` does not accept a `query` argument in 2026-04.
+
+HAR-625 adds local free-text guardrails for supported B2B mutations before any
+staged state is written. Company and company-location `name` values are
+HTML-stripped before blank/length checks and local staging; `name` values longer
+than 255 characters fail with `TOO_LONG`. Company-contact `title` values longer
+than 255 characters fail with `TOO_LONG`, and title/notes-style fields with
+markup fail with `CONTAINS_HTML_TAGS`. Company and company-location `note`
+inputs use Shopify's `notes` user-error field label and fail above 5000
+characters. The runtime test coverage is source-behavior driven: a 2026-04 live
+probe on `harry-test-heelo.myshopify.com` still accepted some HTML values, so no
+HTML-sanitization parity fixture was promoted from that probe.
