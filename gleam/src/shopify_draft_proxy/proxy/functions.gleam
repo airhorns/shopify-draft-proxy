@@ -99,7 +99,6 @@ pub fn handle_function_query(
   }
 }
 
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
   store: Store,
@@ -478,9 +477,15 @@ fn validation_to_source(
     #("title", graphql_helpers.option_string_source(record.title)),
     #("enable", graphql_helpers.option_bool_source(record.enable)),
     #("enabled", graphql_helpers.option_bool_source(record.enable)),
-    #("blockOnFailure", graphql_helpers.option_bool_source(record.block_on_failure)),
+    #(
+      "blockOnFailure",
+      graphql_helpers.option_bool_source(record.block_on_failure),
+    ),
     #("functionId", function_id_source),
-    #("functionHandle", graphql_helpers.option_string_source(record.function_handle)),
+    #(
+      "functionHandle",
+      graphql_helpers.option_string_source(record.function_handle),
+    ),
     #("shopifyFunction", shopify_function_source),
     #("createdAt", graphql_helpers.option_string_source(record.created_at)),
     #("updatedAt", graphql_helpers.option_string_source(record.updated_at)),
@@ -502,9 +507,15 @@ fn cart_transform_to_source(record: CartTransformRecord) -> SourceValue {
     #("__typename", SrcString("CartTransform")),
     #("id", SrcString(record.id)),
     #("title", graphql_helpers.option_string_source(record.title)),
-    #("blockOnFailure", graphql_helpers.option_bool_source(record.block_on_failure)),
+    #(
+      "blockOnFailure",
+      graphql_helpers.option_bool_source(record.block_on_failure),
+    ),
     #("functionId", function_id_source),
-    #("functionHandle", graphql_helpers.option_string_source(record.function_handle)),
+    #(
+      "functionHandle",
+      graphql_helpers.option_string_source(record.function_handle),
+    ),
     #("createdAt", graphql_helpers.option_string_source(record.created_at)),
     #("updatedAt", graphql_helpers.option_string_source(record.updated_at)),
     #("metafield", SrcNull),
@@ -571,7 +582,6 @@ fn empty_page_info_source() -> SourceValue {
     #("endCursor", SrcNull),
   ])
 }
-
 
 // ===========================================================================
 // Mutation path

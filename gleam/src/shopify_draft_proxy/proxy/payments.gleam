@@ -148,7 +148,6 @@ pub fn handle_payments_query(
   }
 }
 
-
 fn query_payload(
   store: Store,
   field: Selection,

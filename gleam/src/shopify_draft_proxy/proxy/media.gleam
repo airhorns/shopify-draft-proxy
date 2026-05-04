@@ -134,7 +134,6 @@ fn serialize_root_fields(
   json.object(entries)
 }
 
-
 pub fn process(
   store: Store,
   document: String,
@@ -1310,7 +1309,8 @@ fn maybe_hydrate_product(
   case store.get_effective_product_by_id(store, product_id) {
     Some(_) -> store
     None -> {
-      let query = "query MediaProductHydrate($id: ID!) {
+      let query =
+        "query MediaProductHydrate($id: ID!) {
   product(id: $id) { id title handle status }
 }
 "
@@ -1349,7 +1349,8 @@ fn maybe_hydrate_file_product_media(
   case missing_file_ids {
     [] -> store
     _ -> {
-      let query = "query MediaFileReferencesHydrate($fileIds: [ID!]!) {
+      let query =
+        "query MediaFileReferencesHydrate($fileIds: [ID!]!) {
   nodes(ids: $fileIds) {
     id
     __typename
@@ -1693,7 +1694,6 @@ fn encode_upload_segment(value: String) -> String {
   |> string.replace(":", "%3A")
   |> string.replace("/", "%2F")
 }
-
 
 fn enumerate_objects(
   items: List(Dict(String, ResolvedValue)),

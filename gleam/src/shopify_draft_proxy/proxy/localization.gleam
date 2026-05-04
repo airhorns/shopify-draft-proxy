@@ -141,7 +141,6 @@ pub fn handle_localization_query(
   }
 }
 
-
 pub fn process(
   store_in: Store,
   document: String,

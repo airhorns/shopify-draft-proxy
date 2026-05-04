@@ -391,7 +391,6 @@ fn saved_search_to_source(
   ])
 }
 
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
   store: Store,
@@ -557,7 +556,12 @@ fn handle_mutation_fields(
         _ -> #(pairs, current)
       }
     })
-  Ok(MutationOutcome(..outcome, data: graphql_helpers.wrap_data(json.object(entries))))
+  Ok(
+    MutationOutcome(
+      ..outcome,
+      data: graphql_helpers.wrap_data(json.object(entries)),
+    ),
+  )
 }
 
 fn handle_create(

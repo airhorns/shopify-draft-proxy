@@ -262,7 +262,6 @@ fn serialize_root_fields(
   )
 }
 
-
 pub fn process(
   store: Store,
   document: String,
@@ -3179,16 +3178,28 @@ pub fn metaobject_definition_source(
     #("id", SrcString(definition.id)),
     #("type", SrcString(definition.type_)),
     #("name", graphql_helpers.option_string_source(definition.name)),
-    #("description", graphql_helpers.option_string_source(definition.description)),
-    #("displayNameKey", graphql_helpers.option_string_source(definition.display_name_key)),
+    #(
+      "description",
+      graphql_helpers.option_string_source(definition.description),
+    ),
+    #(
+      "displayNameKey",
+      graphql_helpers.option_string_source(definition.display_name_key),
+    ),
     #("access", access_source(definition.access)),
     #("capabilities", definition_capabilities_source(definition.capabilities)),
     #(
       "fieldDefinitions",
       SrcList(list.map(definition.field_definitions, field_definition_source)),
     ),
-    #("hasThumbnailField", graphql_helpers.option_bool_source(definition.has_thumbnail_field)),
-    #("metaobjectsCount", graphql_helpers.option_int_source(definition.metaobjects_count)),
+    #(
+      "hasThumbnailField",
+      graphql_helpers.option_bool_source(definition.has_thumbnail_field),
+    ),
+    #(
+      "metaobjectsCount",
+      graphql_helpers.option_int_source(definition.metaobjects_count),
+    ),
     #(
       "standardTemplate",
       standard_template_source(definition.standard_template),
@@ -3260,7 +3271,10 @@ pub fn metaobject_source(
     #("id", SrcString(projected.id)),
     #("handle", SrcString(projected.handle)),
     #("type", SrcString(projected.type_)),
-    #("displayName", graphql_helpers.option_string_source(projected.display_name)),
+    #(
+      "displayName",
+      graphql_helpers.option_string_source(projected.display_name),
+    ),
     #("createdAt", graphql_helpers.option_string_source(projected.created_at)),
     #("updatedAt", graphql_helpers.option_string_source(projected.updated_at)),
     #(
@@ -4228,7 +4242,10 @@ fn field_definition_source(
     #("__typename", SrcString("MetaobjectFieldDefinition")),
     #("key", SrcString(definition.key)),
     #("name", graphql_helpers.option_string_source(definition.name)),
-    #("description", graphql_helpers.option_string_source(definition.description)),
+    #(
+      "description",
+      graphql_helpers.option_string_source(definition.description),
+    ),
     #("required", graphql_helpers.option_bool_source(definition.required)),
     #("type", type_source(definition.type_)),
     #(
@@ -4304,7 +4321,9 @@ fn metaobject_capabilities_source(
   }
   let online_store = case capabilities.online_store {
     Some(MetaobjectOnlineStoreCapabilityRecord(template_suffix: suffix)) ->
-      src_object([#("templateSuffix", graphql_helpers.option_string_source(suffix))])
+      src_object([
+        #("templateSuffix", graphql_helpers.option_string_source(suffix)),
+      ])
     None -> SrcNull
   }
   src_object([
@@ -4352,7 +4371,6 @@ fn metaobject_json_value_to_source(value: MetaobjectJsonValue) -> SourceValue {
       )
   }
 }
-
 
 // ---------------------------------------------------------------------------
 // Readers and small utilities

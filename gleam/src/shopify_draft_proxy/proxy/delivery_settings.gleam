@@ -95,7 +95,6 @@ fn project_settings(
   }
 }
 
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(document: String) -> Result(Json, DeliverySettingsError) {
   use data <- result.try(handle_delivery_settings_query(document))

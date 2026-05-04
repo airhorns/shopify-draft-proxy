@@ -235,7 +235,6 @@ fn serialize_root_fields(
   json.object(entries)
 }
 
-
 pub fn process(
   store: Store,
   document: String,
@@ -2539,7 +2538,8 @@ fn hydrate_definitions_by_namespace(
   namespace: String,
   upstream: UpstreamContext,
 ) -> Store {
-  let query = "query MetafieldDefinitionsHydrateByNamespace($ownerType: MetafieldOwnerType!, $namespace: String!) {
+  let query =
+    "query MetafieldDefinitionsHydrateByNamespace($ownerType: MetafieldOwnerType!, $namespace: String!) {
   metafieldDefinitions(ownerType: $ownerType, first: 50, namespace: $namespace, sortKey: PINNED_POSITION) {
 "
     <> metafield_definition_hydrate_selection("    ")
@@ -2574,10 +2574,7 @@ fn hydrate_definition_by_id(
 ) -> Store {
   let query = "query MetafieldDefinitionHydrateById($id: ID!) {
   metafieldDefinition(id: $id) {
-"
-    <> metafield_definition_node_hydrate_selection("    ")
-    <> "  }\n"
-    <> "}\n"
+" <> metafield_definition_node_hydrate_selection("    ") <> "  }\n" <> "}\n"
   let variables = json.object([#("id", json.string(id))])
   case
     upstream_query.fetch_sync(

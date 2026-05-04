@@ -184,7 +184,6 @@ pub fn process(
   }
 }
 
-
 /// Pattern 2 for cold LiveHybrid shipping reads: fetch the captured
 /// upstream response, hydrate the shipping/store slices needed by
 /// later local lifecycle handlers, and return Shopify's payload
@@ -2010,7 +2009,8 @@ fn maybe_hydrate_fulfillment_order(
           case store.get_effective_fulfillment_order_by_id(store_in, id) {
             Some(_) -> store_in
             None -> {
-              let query = "query ShippingFulfillmentOrderHydrate($id: ID!) {
+              let query =
+                "query ShippingFulfillmentOrderHydrate($id: ID!) {
   fulfillmentOrder(id: $id) {
     id status requestStatus fulfillAt fulfillBy updatedAt
     supportedActions { action }
@@ -2054,7 +2054,8 @@ fn maybe_hydrate_delivery_profile(
       case store.get_effective_delivery_profile_by_id(store_in, id) {
         Some(_) -> store_in
         None -> {
-          let query = "query ShippingDeliveryProfileHydrate($id: ID!) {
+          let query =
+            "query ShippingDeliveryProfileHydrate($id: ID!) {
   deliveryProfile(id: $id) { id name default merchantOwned version }
 }
 "
@@ -2094,7 +2095,8 @@ fn maybe_hydrate_delivery_profile_variants(
   case missing {
     [] -> store_in
     _ -> {
-      let query = "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) {
+      let query =
+        "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) {
   nodes(ids: $ids) {
     ... on ProductVariant { id title product { id title handle } }
   }
@@ -2132,7 +2134,8 @@ fn maybe_hydrate_shipping_package(
           // GraphQL has no package read root in the captured API version,
           // so the cassette supplies the recorded local seed package.
           // Without a cassette/Snapshot mode this remains a no-op.
-          let query = "query ShippingPackageHydrate($id: ID!) {
+          let query =
+            "query ShippingPackageHydrate($id: ID!) {
   shippingPackage(id: $id) { id name type default weight { value unit } dimensions { length width height unit } createdAt updatedAt }
 }
 "

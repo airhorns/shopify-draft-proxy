@@ -158,7 +158,10 @@ fn consume_comparator(s: String) -> #(Option(SearchQueryComparator), String) {
     #("=", Equal),
   ]
   case list.find(prefixes, fn(p) { string.starts_with(s, p.0) }) {
-    Ok(#(prefix, cmp)) -> #(Some(cmp), string.drop_start(s, string.length(prefix)))
+    Ok(#(prefix, cmp)) -> #(
+      Some(cmp),
+      string.drop_start(s, string.length(prefix)),
+    )
     Error(_) -> #(None, s)
   }
 }

@@ -105,7 +105,6 @@ pub fn handle_gift_card_query(
   }
 }
 
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
   store: Store,
@@ -538,7 +537,10 @@ fn serialize_gift_card_recipient_attributes(
     src_object([
       #("__typename", SrcString("GiftCardRecipientAttributes")),
       #("message", graphql_helpers.option_string_source(attributes.message)),
-      #("preferredName", graphql_helpers.option_string_source(attributes.preferred_name)),
+      #(
+        "preferredName",
+        graphql_helpers.option_string_source(attributes.preferred_name),
+      ),
       #(
         "sendNotificationAt",
         graphql_helpers.option_string_source(attributes.send_notification_at),
@@ -547,7 +549,6 @@ fn serialize_gift_card_recipient_attributes(
     ])
   project_graphql_value(source, selections, fragments)
 }
-
 
 fn serialize_gift_card_transaction(
   transaction: GiftCardTransactionRecord,
@@ -1409,7 +1410,8 @@ fn maybe_hydrate_gift_card(
   case store.get_effective_gift_card_by_id(store, id) {
     Some(_) -> store
     None -> {
-      let query = "query GiftCardHydrate($id: ID!) {
+      let query =
+        "query GiftCardHydrate($id: ID!) {
   giftCard(id: $id) {
     id
     lastCharacters

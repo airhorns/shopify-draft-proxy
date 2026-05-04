@@ -1818,7 +1818,8 @@ fn fetch_taken_code_error(
       case code {
         None -> None
         Some(code) -> {
-          let query = "query DiscountUniquenessCheck($code: String!) {
+          let query =
+            "query DiscountUniquenessCheck($code: String!) {
   codeDiscountNodeByCode(code: $code) { id }
 }
 "
@@ -1894,7 +1895,8 @@ fn maybe_hydrate_discount(
       // `status:expired` can compute correct counts after the bulk-job
       // status-mutation effects apply on top of the hydrated base
       // record.
-      let query = "query DiscountHydrate($id: ID!) {
+      let query =
+        "query DiscountHydrate($id: ID!) {
   codeNode: codeDiscountNode(id: $id) {
     id
     codeDiscount {
@@ -2200,7 +2202,8 @@ fn maybe_hydrate_shopify_function(
       case find_shopify_function(store, reference) {
         Some(_) -> store
         None -> {
-          let query = "query ShopifyFunctionByHandle($handle: String!) {
+          let query =
+            "query ShopifyFunctionByHandle($handle: String!) {
   shopifyFunctions(first: 1, apiType: \"discount\", handle: $handle) {
     nodes {
       id

@@ -125,7 +125,6 @@ pub fn is_online_store_mutation_root(name: String) -> Bool {
   }
 }
 
-
 pub fn process(
   store: Store,
   document: String,
@@ -337,7 +336,12 @@ pub fn process_mutation(
         )
       #(list.append(pairs, [#(key, payload)]), merged)
     })
-  Ok(MutationOutcome(..outcome, data: graphql_helpers.wrap_data(json.object(entries))))
+  Ok(
+    MutationOutcome(
+      ..outcome,
+      data: graphql_helpers.wrap_data(json.object(entries)),
+    ),
+  )
 }
 
 fn handle_mutation_field(

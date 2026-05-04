@@ -327,7 +327,6 @@ fn user_error_source(err: UserError) -> SourceValue {
   ])
 }
 
-
 fn find_customer_by_email(
   customers: List(CustomerRecord),
   email: String,
@@ -351,7 +350,8 @@ fn fetch_upstream_customer_by_email(
   email: String,
   upstream: UpstreamContext,
 ) -> Option(CustomerRecord) {
-  let query = "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) {
+  let query =
+    "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) {
   customerByIdentifier(identifier: $identifier) {
     id
     email

@@ -972,14 +972,23 @@ fn shop_address_source(address: ShopAddressRecord) -> SourceValue {
     #("company", graphql_helpers.option_string_source(address.company)),
     #("coordinatesValidated", SrcBool(address.coordinates_validated)),
     #("country", graphql_helpers.option_string_source(address.country)),
-    #("countryCodeV2", graphql_helpers.option_string_source(address.country_code_v2)),
+    #(
+      "countryCodeV2",
+      graphql_helpers.option_string_source(address.country_code_v2),
+    ),
     #("formatted", SrcList(list.map(address.formatted, SrcString))),
-    #("formattedArea", graphql_helpers.option_string_source(address.formatted_area)),
+    #(
+      "formattedArea",
+      graphql_helpers.option_string_source(address.formatted_area),
+    ),
     #("latitude", optional_float_source(address.latitude)),
     #("longitude", optional_float_source(address.longitude)),
     #("phone", graphql_helpers.option_string_source(address.phone)),
     #("province", graphql_helpers.option_string_source(address.province)),
-    #("provinceCode", graphql_helpers.option_string_source(address.province_code)),
+    #(
+      "provinceCode",
+      graphql_helpers.option_string_source(address.province_code),
+    ),
     #("zip", graphql_helpers.option_string_source(address.zip)),
   ])
 }
@@ -2445,7 +2454,6 @@ fn read_numeric_gid_tail(id: String) -> Option(String) {
     Error(_) -> None
   }
 }
-
 
 fn optional_float_source(value: Option(Float)) -> SourceValue {
   case value {

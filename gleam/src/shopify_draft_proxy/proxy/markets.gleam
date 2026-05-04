@@ -125,7 +125,6 @@ pub fn handle_markets_query(
   Ok(serialize_root_fields(store, fields, fragments, variables))
 }
 
-
 pub fn process(
   store: Store,
   document: String,

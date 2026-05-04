@@ -337,7 +337,6 @@ pub fn handle_webhook_subscription_query(
   }
 }
 
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
   store: Store,
@@ -596,8 +595,10 @@ fn webhook_subscription_to_source(
   let name_source = graphql_helpers.option_string_source(record.name)
   let format_source = graphql_helpers.option_string_source(record.format)
   let filter_source = graphql_helpers.option_string_source(record.filter)
-  let created_at_source = graphql_helpers.option_string_source(record.created_at)
-  let updated_at_source = graphql_helpers.option_string_source(record.updated_at)
+  let created_at_source =
+    graphql_helpers.option_string_source(record.created_at)
+  let updated_at_source =
+    graphql_helpers.option_string_source(record.updated_at)
   let endpoint_source = endpoint_to_source(record.endpoint)
   let include_fields_source =
     SrcList(list.map(record.include_fields, fn(s) { SrcString(s) }))
@@ -645,7 +646,6 @@ fn endpoint_to_source(
       ])
   }
 }
-
 
 // ---------------------------------------------------------------------------
 // Mutations

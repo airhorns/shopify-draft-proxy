@@ -1902,7 +1902,10 @@ fn inventory_transfer_source(
     #("__typename", SrcString("InventoryTransfer")),
     #("id", SrcString(transfer.id)),
     #("name", SrcString(transfer.name)),
-    #("referenceName", graphql_helpers.option_string_source(transfer.reference_name)),
+    #(
+      "referenceName",
+      graphql_helpers.option_string_source(transfer.reference_name),
+    ),
     #("status", SrcString(transfer.status)),
     #("note", graphql_helpers.option_string_source(transfer.note)),
     #("tags", SrcList(list.map(transfer.tags, SrcString))),
@@ -2083,10 +2086,19 @@ fn inventory_shipment_tracking_source(
   case tracking {
     Some(tracking) ->
       src_object([
-        #("trackingNumber", graphql_helpers.option_string_source(tracking.tracking_number)),
+        #(
+          "trackingNumber",
+          graphql_helpers.option_string_source(tracking.tracking_number),
+        ),
         #("company", graphql_helpers.option_string_source(tracking.company)),
-        #("trackingUrl", graphql_helpers.option_string_source(tracking.tracking_url)),
-        #("arrivesAt", graphql_helpers.option_string_source(tracking.arrives_at)),
+        #(
+          "trackingUrl",
+          graphql_helpers.option_string_source(tracking.tracking_url),
+        ),
+        #(
+          "arrivesAt",
+          graphql_helpers.option_string_source(tracking.arrives_at),
+        ),
       ])
     None -> SrcNull
   }
@@ -2160,7 +2172,10 @@ fn shipment_inventory_item_source(
         #("id", SrcString(item.id)),
         #("sku", graphql_helpers.option_string_source(variant.sku)),
         #("tracked", graphql_helpers.option_bool_source(item.tracked)),
-        #("requiresShipping", graphql_helpers.option_bool_source(item.requires_shipping)),
+        #(
+          "requiresShipping",
+          graphql_helpers.option_bool_source(item.requires_shipping),
+        ),
         #("measurement", optional_measurement_source(item.measurement)),
         #(
           "countryCodeOfOrigin",
@@ -4013,15 +4028,24 @@ fn product_source_with_relationships(
   src_object([
     #("__typename", SrcString("Product")),
     #("id", SrcString(product.id)),
-    #("legacyResourceId", graphql_helpers.option_string_source(product.legacy_resource_id)),
+    #(
+      "legacyResourceId",
+      graphql_helpers.option_string_source(product.legacy_resource_id),
+    ),
     #("title", SrcString(product.title)),
     #("handle", SrcString(product.handle)),
     #("status", SrcString(product.status)),
     #("vendor", graphql_helpers.option_string_source(product.vendor)),
     #("productType", graphql_helpers.option_string_source(product.product_type)),
     #("tags", SrcList(list.map(product.tags, SrcString))),
-    #("totalInventory", graphql_helpers.option_int_source(product.total_inventory)),
-    #("tracksInventory", graphql_helpers.option_bool_source(product.tracks_inventory)),
+    #(
+      "totalInventory",
+      graphql_helpers.option_int_source(product.total_inventory),
+    ),
+    #(
+      "tracksInventory",
+      graphql_helpers.option_bool_source(product.tracks_inventory),
+    ),
     #("createdAt", graphql_helpers.option_string_source(product.created_at)),
     #("updatedAt", graphql_helpers.option_string_source(product.updated_at)),
     #("publishedAt", graphql_helpers.option_string_source(product.published_at)),
@@ -4030,7 +4054,10 @@ fn product_source_with_relationships(
       "onlineStorePreviewUrl",
       graphql_helpers.option_string_source(product.online_store_preview_url),
     ),
-    #("templateSuffix", graphql_helpers.option_string_source(product.template_suffix)),
+    #(
+      "templateSuffix",
+      graphql_helpers.option_string_source(product.template_suffix),
+    ),
     #("seo", product_seo_source(product.seo)),
     #("category", optional_product_category_source(product.category)),
     #(
@@ -4093,7 +4120,10 @@ fn product_media_source(media: ProductMediaRecord) -> SourceValue {
     #("__typename", SrcString(product_media_typename(media))),
     #("id", graphql_helpers.option_string_source(media.id)),
     #("alt", graphql_helpers.option_string_source(media.alt)),
-    #("mediaContentType", graphql_helpers.option_string_source(media.media_content_type)),
+    #(
+      "mediaContentType",
+      graphql_helpers.option_string_source(media.media_content_type),
+    ),
     #("status", graphql_helpers.option_string_source(media.status)),
     #("preview", product_media_preview_source(media)),
     #(
@@ -4191,18 +4221,30 @@ fn collection_source_with_store_and_publication(
   src_object([
     #("__typename", SrcString("Collection")),
     #("id", SrcString(collection.id)),
-    #("legacyResourceId", graphql_helpers.option_string_source(collection.legacy_resource_id)),
+    #(
+      "legacyResourceId",
+      graphql_helpers.option_string_source(collection.legacy_resource_id),
+    ),
     #("title", SrcString(collection.title)),
     #("handle", SrcString(collection.handle)),
     #("updatedAt", graphql_helpers.option_string_source(collection.updated_at)),
-    #("description", graphql_helpers.option_string_source(collection.description)),
-    #("descriptionHtml", graphql_helpers.option_string_source(collection.description_html)),
+    #(
+      "description",
+      graphql_helpers.option_string_source(collection.description),
+    ),
+    #(
+      "descriptionHtml",
+      graphql_helpers.option_string_source(collection.description_html),
+    ),
     #("publishedOnPublication", SrcBool(published_on_publication)),
     #("availablePublicationsCount", count_source(publication_count)),
     #("resourcePublicationsCount", count_source(publication_count)),
     #("publicationCount", count_source(publication_count)),
     #("sortOrder", graphql_helpers.option_string_source(collection.sort_order)),
-    #("templateSuffix", graphql_helpers.option_string_source(collection.template_suffix)),
+    #(
+      "templateSuffix",
+      graphql_helpers.option_string_source(collection.template_suffix),
+    ),
     #("products", collection_products_connection_source(store, collection)),
   ])
 }
@@ -4472,10 +4514,19 @@ fn product_variant_source_with_inventory(
     #("sku", graphql_helpers.option_string_source(variant.sku)),
     #("barcode", graphql_helpers.option_string_source(variant.barcode)),
     #("price", graphql_helpers.option_string_source(variant.price)),
-    #("compareAtPrice", graphql_helpers.option_string_source(variant.compare_at_price)),
+    #(
+      "compareAtPrice",
+      graphql_helpers.option_string_source(variant.compare_at_price),
+    ),
     #("taxable", graphql_helpers.option_bool_source(variant.taxable)),
-    #("inventoryPolicy", graphql_helpers.option_string_source(variant.inventory_policy)),
-    #("inventoryQuantity", graphql_helpers.option_int_source(variant.inventory_quantity)),
+    #(
+      "inventoryPolicy",
+      graphql_helpers.option_string_source(variant.inventory_policy),
+    ),
+    #(
+      "inventoryQuantity",
+      graphql_helpers.option_int_source(variant.inventory_quantity),
+    ),
     #(
       "selectedOptions",
       SrcList(list.map(variant.selected_options, selected_option_source)),
@@ -4601,7 +4652,10 @@ fn inventory_item_source_with_variant(
     #("__typename", SrcString("InventoryItem")),
     #("id", SrcString(item.id)),
     #("tracked", graphql_helpers.option_bool_source(item.tracked)),
-    #("requiresShipping", graphql_helpers.option_bool_source(item.requires_shipping)),
+    #(
+      "requiresShipping",
+      graphql_helpers.option_bool_source(item.requires_shipping),
+    ),
     #("measurement", optional_measurement_source(item.measurement)),
     #(
       "countryCodeOfOrigin",
@@ -4921,7 +4975,6 @@ fn empty_connection_source() -> SourceValue {
     ),
   ])
 }
-
 
 fn optional_captured_json_source(
   value: Option(CapturedJsonValue),
@@ -20941,8 +20994,14 @@ fn inventory_adjustment_change_source(
     #("__typename", SrcString("InventoryChange")),
     #("name", SrcString(change.name)),
     #("delta", SrcInt(change.delta)),
-    #("quantityAfterChange", graphql_helpers.option_int_source(change.quantity_after_change)),
-    #("ledgerDocumentUri", graphql_helpers.option_string_source(change.ledger_document_uri)),
+    #(
+      "quantityAfterChange",
+      graphql_helpers.option_int_source(change.quantity_after_change),
+    ),
+    #(
+      "ledgerDocumentUri",
+      graphql_helpers.option_string_source(change.ledger_document_uri),
+    ),
     #("item", item),
     #(
       "location",
@@ -25586,7 +25645,6 @@ fn make_inventory_item_for_variant(
     None -> #(None, identity)
   }
 }
-
 
 pub fn process(
   store: Store,

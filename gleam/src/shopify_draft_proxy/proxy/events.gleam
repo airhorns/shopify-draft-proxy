@@ -80,7 +80,6 @@ fn serialize_exact_zero_count(field: Selection) -> Json {
   json.object(entries)
 }
 
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(document: String) -> Result(Json, EventsError) {
   use data <- result.try(handle_events_query(document))

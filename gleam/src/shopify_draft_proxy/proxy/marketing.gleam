@@ -104,7 +104,6 @@ pub fn handle_marketing_query(
   }
 }
 
-
 pub fn process(
   store: Store,
   document: String,
@@ -2285,7 +2284,6 @@ fn optional_marketing_object(
     None -> MarketingNull
   }
 }
-
 
 fn optional_string_list_source(value: Option(List(String))) -> SourceValue {
   case value {

@@ -227,7 +227,6 @@ pub fn handle_query_request(
   }
 }
 
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
   store: Store,
@@ -522,11 +521,16 @@ fn segment_to_source(record: SegmentRecord) -> SourceValue {
     #("id", SrcString(record.id)),
     #("name", graphql_helpers.option_string_source(record.name)),
     #("query", graphql_helpers.option_string_source(record.query)),
-    #("creationDate", graphql_helpers.option_string_source(record.creation_date)),
-    #("lastEditDate", graphql_helpers.option_string_source(record.last_edit_date)),
+    #(
+      "creationDate",
+      graphql_helpers.option_string_source(record.creation_date),
+    ),
+    #(
+      "lastEditDate",
+      graphql_helpers.option_string_source(record.last_edit_date),
+    ),
   ])
 }
-
 
 fn serialize_segments_connection(
   store: Store,
@@ -976,7 +980,10 @@ fn default_email_address_source(
   case value {
     Some(record) ->
       src_object([
-        #("emailAddress", graphql_helpers.option_string_source(record.email_address)),
+        #(
+          "emailAddress",
+          graphql_helpers.option_string_source(record.email_address),
+        ),
       ])
     None -> SrcNull
   }
