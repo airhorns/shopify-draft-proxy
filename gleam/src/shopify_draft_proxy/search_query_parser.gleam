@@ -649,8 +649,13 @@ fn tokenize_unquoted_step(
     False ->
       case g {
         "(" -> {
-          let tokens = flush_token(tokens, current, options)
-          tokenize_loop(rest, [LParenToken, ..tokens], "", None, options)
+          case can_start_parenthesized_group(current) {
+            True -> {
+              let tokens = flush_token(tokens, current, options)
+              tokenize_loop(rest, [LParenToken, ..tokens], "", None, options)
+            }
+            False -> tokenize_loop(rest, tokens, current <> g, None, options)
+          }
         }
         ")" -> {
           let tokens = flush_token(tokens, current, options)
@@ -670,6 +675,13 @@ fn tokenize_unquoted_step(
           }
         _ -> tokenize_loop(rest, tokens, current <> g, None, options)
       }
+  }
+}
+
+fn can_start_parenthesized_group(current: String) -> Bool {
+  case current {
+    "" -> True
+    _ -> False
   }
 }
 

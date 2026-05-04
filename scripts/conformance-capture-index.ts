@@ -117,6 +117,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-invalid-search-query-syntax',
+    scriptPath: 'scripts/capture-product-invalid-search-query-conformance.ts',
+    purpose: 'Malformed product search query syntax behavior on a disposable product.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-invalid-search-query-syntax.json`,
+      'config/parity-specs/products/product-invalid-search-query-syntax.json',
+      'config/parity-requests/products/product-invalid-search-query-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, waits for tag search indexing, captures malformed search reads, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-mutations',
     scriptPath: 'scripts/capture-product-mutation-conformance.mts',
     purpose: 'productCreate/productUpdate/productDelete success and validation behavior.',
