@@ -145,13 +145,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-create-with-options',
     scriptPath: 'scripts/capture-product-create-with-options-conformance.mts',
     purpose:
-      'productCreate invoked with `productOptions` input, capturing the option/variant graph Shopify returns plus the immediate downstream product read.',
+      'productCreate invoked with `productOptions` input and productSet option-only validation, capturing option/variant graphs plus immediate downstream product reads.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-create-with-options-parity.json`,
+      `${CAPTURE_ROOT}product-create-with-options-multi-value-parity.json`,
+      `${CAPTURE_ROOT}product-set-options-only-requires-variants.json`,
       'config/parity-specs/products/productCreate-with-options-parity.json',
+      'config/parity-specs/products/productCreate-with-options-multi-value-parity.json',
+      'config/parity-specs/products/productSet-options-only-requires-variants.json',
     ],
-    cleanupBehavior: 'Creates one disposable product and deletes it in best-effort cleanup.',
+    cleanupBehavior:
+      'Creates disposable products for successful productCreate captures and deletes them in best-effort cleanup; the productSet validation branch must not create a product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
