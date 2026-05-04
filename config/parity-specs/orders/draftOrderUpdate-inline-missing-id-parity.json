@@ -1,0 +1,32 @@
+{
+  "scenarioId": "draft-order-update-inline-missing-id-argument-error",
+  "operationNames": ["draftOrderUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-update-inline-missing-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderUpdate-inline-missing-id-parity.graphql",
+    "variablesPath": "config/parity-requests/orders/draftOrderUpdate-inline-missing-id-parity.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Hand-synthesized capture mirroring Shopify's `missingRequiredArguments` envelope when `draftOrderUpdate` is invoked without its required `id` argument (with `input` provided). The schema-driven validator in `proxy/mutation_helpers.gleam` is the single source for this error envelope; the fixture format follows the existing `draftOrderComplete-inline-missing-id` capture verbatim.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "top-level-error-message",
+        "capturePath": "$.mutation.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "top-level-error-extensions",
+        "capturePath": "$.mutation.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
+      }
+    ]
+  }
+}

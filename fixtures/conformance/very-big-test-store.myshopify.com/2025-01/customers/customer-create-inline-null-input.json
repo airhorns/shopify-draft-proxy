@@ -1,0 +1,26 @@
+{
+  "query": "mutation InlineNullInput {\n  customerCreate(input: null) {\n    customer { id }\n    userErrors { field message }\n  }\n}",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Argument 'input' on Field 'customerCreate' has an invalid value (null). Expected type 'CustomerInput!'.",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "path": ["mutation InlineNullInput", "customerCreate", "input"],
+          "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": "input"
+          }
+        }
+      ]
+    }
+  },
+  "upstreamCalls": []
+}

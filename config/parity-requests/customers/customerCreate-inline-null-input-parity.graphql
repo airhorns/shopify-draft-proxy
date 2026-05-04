@@ -1,0 +1,11 @@
+mutation InlineNullInput {
+  customerCreate(input: null) {
+    customer {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

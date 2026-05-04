@@ -1,0 +1,11 @@
+mutation DraftOrderUpdateInlineNullId {
+  draftOrderUpdate(id: null, input: {}) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

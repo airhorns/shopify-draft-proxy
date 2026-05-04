@@ -1,0 +1,27 @@
+{
+  "query": "mutation DraftOrderUpdateInlineMissingId {\n  draftOrderUpdate(input: {}) {\n    draftOrder { id }\n    userErrors { field message }\n  }\n}",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Field 'draftOrderUpdate' is missing required arguments: id",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "path": ["mutation DraftOrderUpdateInlineMissingId", "draftOrderUpdate"],
+          "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "draftOrderUpdate",
+            "arguments": "id"
+          }
+        }
+      ]
+    }
+  },
+  "upstreamCalls": []
+}
