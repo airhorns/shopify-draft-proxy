@@ -1185,12 +1185,17 @@ fn route_mutation(
       }
     Ok(ProductsDomain) ->
       case
-        products.process_mutation(
+        products.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
           query,
           variables,
+          upstream_query.UpstreamContext(
+            proxy.upstream_transport,
+            proxy.config.shopify_admin_origin,
+            request_headers,
+          ),
         )
       {
         Ok(outcome) ->

@@ -4,6 +4,7 @@
   "apiVersion": "2025-01",
   "capturedAt": "2026-04-28T10:59:15Z",
   "source": "live-shopify-disposable-capture",
+  "upstreamCalls": [],
   "notes": [
     "Disposable blog, article, page, and menu records were created and cleaned up during capture.",
     "Page.onlineStoreUrl was absent from the Page schema; Article.seo was absent from the Article schema.",

@@ -25,26 +25,6 @@
         "path": "$.product.metafields.pageInfo.endCursor",
         "matcher": "non-empty-string",
         "reason": "Shopify returns opaque base64 cursors while the local serializer uses stable synthetic cursors for staged metafields."
-      },
-      {
-        "path": "$.metafieldsSet.metafields[*].compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
-      {
-        "path": "$.product.primarySpec.compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
-      {
-        "path": "$.product.origin.compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
-      {
-        "path": "$.product.metafields.nodes[*].compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
       }
     ],
     "targets": [

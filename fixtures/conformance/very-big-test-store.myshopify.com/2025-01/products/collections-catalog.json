@@ -1273,5 +1273,1299 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "CollectionsCatalogRead",
+      "variables": {
+        "catalogFirst": 20,
+        "first": 3,
+        "titleWildcardQuery": "title:VAN*",
+        "customTypeQuery": "collection_type:custom",
+        "smartTypeQuery": "collection_type:smart",
+        "updatedSortQuery": "collection_type:smart",
+        "emptyQuery": "title:No collection should match this 157*",
+        "productMembershipQuery": "product_id:8397255672041"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "collections": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDI0NzY1MzE5NDUsImxhc3RfdmFsdWUiOiI0MDI0NzY1MzE5NDUifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/402476531945",
+                    "legacyResourceId": "402476531945",
+                    "title": "Home page",
+                    "handle": "frontpage",
+                    "updatedAt": "2026-04-24T21:10:53Z",
+                    "description": "",
+                    "descriptionHtml": "",
+                    "image": null,
+                    "productsCount": {
+                      "count": 1,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": null,
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397254426857",
+                            "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                            "handle": "vans-authentic-lo-pro-burgandy-white",
+                            "vendor": "VANS"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNDY1MzcsImxhc3RfdmFsdWUiOiI0Mjk4MjYxNDY1MzcifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826146537",
+                    "legacyResourceId": "429826146537",
+                    "title": "VANS",
+                    "handle": "vans",
+                    "updatedAt": "2026-04-24T21:10:53Z",
+                    "description": "Vans collection",
+                    "descriptionHtml": "Vans collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544094441",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/a340ce89e0298e52c438ae79591e3284.jpg?v=1710381279",
+                      "altText": null,
+                      "width": 1610,
+                      "height": 805
+                    },
+                    "productsCount": {
+                      "count": 10,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "VANS"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NjcyMDQxLCJsYXN0X3ZhbHVlIjoiNCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397255672041",
+                            "title": "VANS | OLD SKOOL (BUTTERFLY) TRUE WHITE | BLACK",
+                            "handle": "vans-old-skool-butterfly-true-white-black",
+                            "vendor": "VANS"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDkyMzkzLCJsYXN0X3ZhbHVlIjoiMyJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397254492393",
+                            "title": "VANS | AUTHENTIC | (MULTI EYELETS) | GRADIENT/CRIMSON",
+                            "handle": "vans-authentic-multi-eyelets-gradient-crimson",
+                            "vendor": "VANS"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NjcyMDQxLCJsYXN0X3ZhbHVlIjoiNCJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDkyMzkzLCJsYXN0X3ZhbHVlIjoiMyJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNzkzMDUsImxhc3RfdmFsdWUiOiI0Mjk4MjYxNzkzMDUifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826179305",
+                    "legacyResourceId": "429826179305",
+                    "title": "ADIDAS",
+                    "handle": "adidas",
+                    "updatedAt": "2026-04-24T21:10:53Z",
+                    "description": "Adidas collection",
+                    "descriptionHtml": "Adidas collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544127209",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/97a3b1227876bf099d279fd38290e567.jpg?v=1710381280",
+                      "altText": null,
+                      "width": 1000,
+                      "height": 676
+                    },
+                    "productsCount": {
+                      "count": 4,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "ADIDAS"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2OTQ5OTkzLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397256949993",
+                            "title": "ADIDAS | KID'S STAN SMITH",
+                            "handle": "adidas-kids-stan-smith",
+                            "vendor": "ADIDAS"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NDQyNjY1LCJsYXN0X3ZhbHVlIjoiMSJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397255442665",
+                            "title": "ADIDAS | SUPERSTAR 80S",
+                            "handle": "adidas-superstar-80s",
+                            "vendor": "ADIDAS"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2OTQ5OTkzLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NDQyNjY1LCJsYXN0X3ZhbHVlIjoiMSJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYyMTIwNzMsImxhc3RfdmFsdWUiOiI0Mjk4MjYyMTIwNzMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826212073",
+                    "legacyResourceId": "429826212073",
+                    "title": "NIKE",
+                    "handle": "nike",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Nike collection",
+                    "descriptionHtml": "Nike collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544159977",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/52e93c3a86b9b62e023e5977ab218302.png?v=1710381281",
+                      "altText": null,
+                      "width": 308,
+                      "height": 164
+                    },
+                    "productsCount": {
+                      "count": 3,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "NIKE"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2Nzg2MTUzLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397256786153",
+                            "title": "NIKE | TODDLER ROSHE ONE",
+                            "handle": "nike-toddler-roshe-one",
+                            "vendor": "NIKE"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1OTk5NzIxLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397255999721",
+                            "title": "NIKE | CRACKLE PRINT TB TEE",
+                            "handle": "nike-crackle-print-tb-tee",
+                            "vendor": "NIKE"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2Nzg2MTUzLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1OTk5NzIxLCJsYXN0X3ZhbHVlIjoiMSJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYyNDQ4NDEsImxhc3RfdmFsdWUiOiI0Mjk4MjYyNDQ4NDEifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826244841",
+                    "legacyResourceId": "429826244841",
+                    "title": "CONVERSE",
+                    "handle": "converse",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Converse collection",
+                    "descriptionHtml": "Converse collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544192745",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/1651743658af793833e0a0d9cf6a9c5d.png?v=1710381282",
+                      "altText": null,
+                      "width": 2000,
+                      "height": 1231
+                    },
+                    "productsCount": {
+                      "count": 3,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "CONVERSE"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NDkxMjQxLCJsYXN0X3ZhbHVlIjoiMyJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397256491241",
+                            "title": "CONVERSE | CHUCK TAYLOR ALL STAR LO",
+                            "handle": "converse-chuck-taylor-all-star-lo",
+                            "vendor": "CONVERSE"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NTg5NTQ1LCJsYXN0X3ZhbHVlIjoiMSJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397256589545",
+                            "title": "CONVERSE | CHUCK TAYLOR ALL STAR II HI",
+                            "handle": "converse-chuck-taylor-all-star-ii-hi",
+                            "vendor": "CONVERSE"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NDkxMjQxLCJsYXN0X3ZhbHVlIjoiMyJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NTg5NTQ1LCJsYXN0X3ZhbHVlIjoiMSJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYyNzc2MDksImxhc3RfdmFsdWUiOiI0Mjk4MjYyNzc2MDkifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826277609",
+                    "legacyResourceId": "429826277609",
+                    "title": "ASICS TIGER",
+                    "handle": "asics-tiger",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Asics Tiger collection",
+                    "descriptionHtml": "Asics Tiger collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544225513",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/b351cead33b2b72e7177e70512530f09.jpg?v=1710381283",
+                      "altText": null,
+                      "width": 425,
+                      "height": 220
+                    },
+                    "productsCount": {
+                      "count": 1,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "ASICS TIGER"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MTE0OTg1LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397255114985",
+                            "title": "ASICS TIGER | GEL-LYTE V '30 YEARS OF GEL' PACK",
+                            "handle": "asics-tiger-gel-lyte-v-30-years-of-gel-pack",
+                            "vendor": "ASICS TIGER"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MTE0OTg1LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MTE0OTg1LCJsYXN0X3ZhbHVlIjoiMCJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYzMTAzNzcsImxhc3RfdmFsdWUiOiI0Mjk4MjYzMTAzNzcifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826310377",
+                    "legacyResourceId": "429826310377",
+                    "title": "PALLADUIM",
+                    "handle": "palladuim",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Palladium collection",
+                    "descriptionHtml": "Palladium collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544258281",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/8300014746383175003dc61767159d34.png?v=1710381284",
+                      "altText": null,
+                      "width": 195,
+                      "height": 195
+                    },
+                    "productsCount": {
+                      "count": 1,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "PALLADIUM"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0OTgzOTEzLCJsYXN0X3ZhbHVlIjoiMCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397254983913",
+                            "title": "PALLADIUM | PALLATECH HI TX | CHEVRON",
+                            "handle": "palladium-pallatech-hi-tx-chevron",
+                            "vendor": "PALLADIUM"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0OTgzOTEzLCJsYXN0X3ZhbHVlIjoiMCJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0OTgzOTEzLCJsYXN0X3ZhbHVlIjoiMCJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYzNDMxNDUsImxhc3RfdmFsdWUiOiI0Mjk4MjYzNDMxNDUifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826343145",
+                    "legacyResourceId": "429826343145",
+                    "title": "PUMA",
+                    "handle": "puma",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Puma collection",
+                    "descriptionHtml": "Puma collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544291049",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/ffcaaa66e8de92f803f3440640e9f676.jpg?v=1710381285",
+                      "altText": null,
+                      "width": 730,
+                      "height": 365
+                    },
+                    "productsCount": {
+                      "count": 1,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "PUMA"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MjEzMjg5LCJsYXN0X3ZhbHVlIjoiMSJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397255213289",
+                            "title": "PUMA | SUEDE CLASSIC REGAL",
+                            "handle": "puma-suede-classic-regal",
+                            "vendor": "PUMA"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MjEzMjg5LCJsYXN0X3ZhbHVlIjoiMSJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MjEzMjg5LCJsYXN0X3ZhbHVlIjoiMSJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYzNzU5MTMsImxhc3RfdmFsdWUiOiI0Mjk4MjYzNzU5MTMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826375913",
+                    "legacyResourceId": "429826375913",
+                    "title": "SUPRA",
+                    "handle": "supra",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Supra collection",
+                    "descriptionHtml": "Supra collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544323817",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/df080c448876c51c09b759c507db18c5.jpg?v=1710381286",
+                      "altText": null,
+                      "width": 333,
+                      "height": 250
+                    },
+                    "productsCount": {
+                      "count": 1,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "SUPRA"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MzQ0MzYxLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397255344361",
+                            "title": "SUPRA | MENS VAIDER",
+                            "handle": "supra-mens-vaider",
+                            "vendor": "SUPRA"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MzQ0MzYxLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1MzQ0MzYxLCJsYXN0X3ZhbHVlIjoiMSJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY0MDg2ODEsImxhc3RfdmFsdWUiOiI0Mjk4MjY0MDg2ODEifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826408681",
+                    "legacyResourceId": "429826408681",
+                    "title": "TIMBERLAND",
+                    "handle": "timberland",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Timberland collection",
+                    "descriptionHtml": "Timberland collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544356585",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/de257d81c4c71c6a281b05f0e79b057c.jpg?v=1710381287",
+                      "altText": null,
+                      "width": 700,
+                      "height": 700
+                    },
+                    "productsCount": {
+                      "count": 1,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "TIMBERLAND"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1OTAxNDE3LCJsYXN0X3ZhbHVlIjoiNCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397255901417",
+                            "title": "TIMBERLAND | MENS 6 INCH PREMIUM BOOT",
+                            "handle": "timberland-mens-6-inch-premium-boot",
+                            "vendor": "TIMBERLAND"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1OTAxNDE3LCJsYXN0X3ZhbHVlIjoiNCJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1OTAxNDE3LCJsYXN0X3ZhbHVlIjoiNCJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY0NDE0NDksImxhc3RfdmFsdWUiOiI0Mjk4MjY0NDE0NDkifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826441449",
+                    "legacyResourceId": "429826441449",
+                    "title": "DR MARTENS",
+                    "handle": "dr-martens",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Dr Martens collection",
+                    "descriptionHtml": "Dr Martens collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544389353",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/a5f66d7e0c3e36ebbd2b7b632b2e4c47.jpg?v=1710381288",
+                      "altText": null,
+                      "width": 220,
+                      "height": 125
+                    },
+                    "productsCount": {
+                      "count": 3,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "DR MARTENS"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2MzI3NDAxLCJsYXN0X3ZhbHVlIjoiMyJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397256327401",
+                            "title": "DR MARTENS | 1460Z DMC 8-EYE BOOT | CHERRY SMOOTH",
+                            "handle": "dr-martens-1460z-dmc-8-eye-boot-cherry-smooth",
+                            "vendor": "DR MARTENS"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2MjYxODY1LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397256261865",
+                            "title": "DR MARTENS | CAVENDISH 3-EYE SHOE BLACK",
+                            "handle": "dr-martens-cavendish-3-eye-shoe-black",
+                            "vendor": "DR MARTENS"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2MzI3NDAxLCJsYXN0X3ZhbHVlIjoiMyJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2MjYxODY1LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY0NzQyMTcsImxhc3RfdmFsdWUiOiI0Mjk4MjY0NzQyMTcifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826474217",
+                    "legacyResourceId": "429826474217",
+                    "title": "HERSCHEL",
+                    "handle": "herschel",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Herschel collection",
+                    "descriptionHtml": "Herschel collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544422121",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/7e6bb0fa16ee31d6537c58e4d9d453a8.png?v=1710381289",
+                      "altText": null,
+                      "width": 250,
+                      "height": 250
+                    },
+                    "productsCount": {
+                      "count": 1,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "HERSCHEL"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MjEyMTM3LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397257212137",
+                            "title": "HERSCHEL | IONA",
+                            "handle": "herschel-iona",
+                            "vendor": "HERSCHEL"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MjEyMTM3LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MjEyMTM3LCJsYXN0X3ZhbHVlIjoiMCJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY1MDY5ODUsImxhc3RfdmFsdWUiOiI0Mjk4MjY1MDY5ODUifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826506985",
+                    "legacyResourceId": "429826506985",
+                    "title": "FLEX FIT",
+                    "handle": "flex-fit",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Flex Fit collection",
+                    "descriptionHtml": "Flex Fit collection",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544454889",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/0c892d0c64bcd739e0a7d96f3d7d9afd.png?v=1710381290",
+                      "altText": null,
+                      "width": 195,
+                      "height": 195
+                    },
+                    "productsCount": {
+                      "count": 1,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "FLEX FIT"
+                        }
+                      ]
+                    },
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mjc3NjczLCJsYXN0X3ZhbHVlIjoiMCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397257277673",
+                            "title": "FLEX FIT | MINI OTTOMAN BLACK",
+                            "handle": "flex-fit-mini-ottoman-black",
+                            "vendor": "FLEX FIT"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mjc3NjczLCJsYXN0X3ZhbHVlIjoiMCJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mjc3NjczLCJsYXN0X3ZhbHVlIjoiMCJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY1Mzk3NTMsImxhc3RfdmFsdWUiOiI0Mjk4MjY1Mzk3NTMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826539753",
+                    "legacyResourceId": "429826539753",
+                    "title": "MEN",
+                    "handle": "men",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Collection for men",
+                    "descriptionHtml": "Collection for men ",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544487657",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/cde37406b76337f4438c62f57be75df2.jpg?v=1710381292",
+                      "altText": null,
+                      "width": 480,
+                      "height": 200
+                    },
+                    "productsCount": {
+                      "count": 20,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": null,
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1OTAxNDE3LCJsYXN0X3ZhbHVlIjoiNCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397255901417",
+                            "title": "TIMBERLAND | MENS 6 INCH PREMIUM BOOT",
+                            "handle": "timberland-mens-6-inch-premium-boot",
+                            "vendor": "TIMBERLAND"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NjcyMDQxLCJsYXN0X3ZhbHVlIjoiNCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397255672041",
+                            "title": "VANS | OLD SKOOL (BUTTERFLY) TRUE WHITE | BLACK",
+                            "handle": "vans-old-skool-butterfly-true-white-black",
+                            "vendor": "VANS"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1OTAxNDE3LCJsYXN0X3ZhbHVlIjoiNCJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NjcyMDQxLCJsYXN0X3ZhbHVlIjoiNCJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY1NzI1MjEsImxhc3RfdmFsdWUiOiI0Mjk4MjY1NzI1MjEifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826572521",
+                    "legacyResourceId": "429826572521",
+                    "title": "WOMEN",
+                    "handle": "women",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Collection for women",
+                    "descriptionHtml": "Collection for women",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544520425",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/0711d7a9ab22e1d866c244756574349b.jpg?v=1710381294",
+                      "altText": null,
+                      "width": 480,
+                      "height": 200
+                    },
+                    "productsCount": {
+                      "count": 4,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": null,
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2MzI3NDAxLCJsYXN0X3ZhbHVlIjoiMyJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397256327401",
+                            "title": "DR MARTENS | 1460Z DMC 8-EYE BOOT | CHERRY SMOOTH",
+                            "handle": "dr-martens-1460z-dmc-8-eye-boot-cherry-smooth",
+                            "vendor": "DR MARTENS"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2MjYxODY1LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397256261865",
+                            "title": "DR MARTENS | CAVENDISH 3-EYE SHOE BLACK",
+                            "handle": "dr-martens-cavendish-3-eye-shoe-black",
+                            "vendor": "DR MARTENS"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2MzI3NDAxLCJsYXN0X3ZhbHVlIjoiMyJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2MjYxODY1LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY2MDUyODksImxhc3RfdmFsdWUiOiI0Mjk4MjY2MDUyODkifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826605289",
+                    "legacyResourceId": "429826605289",
+                    "title": "KID",
+                    "handle": "kid",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "Collection for kids",
+                    "descriptionHtml": "Collection for kids",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544553193",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/3b6a545a8f309a6085625bcadcb19712.jpg?v=1710381295",
+                      "altText": null,
+                      "width": 736,
+                      "height": 490
+                    },
+                    "productsCount": {
+                      "count": 3,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": null,
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2OTQ5OTkzLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397256949993",
+                            "title": "ADIDAS | KID'S STAN SMITH",
+                            "handle": "adidas-kids-stan-smith",
+                            "vendor": "ADIDAS"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2Nzg2MTUzLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397256786153",
+                            "title": "NIKE | TODDLER ROSHE ONE",
+                            "handle": "nike-toddler-roshe-one",
+                            "vendor": "NIKE"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2OTQ5OTkzLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2Nzg2MTUzLCJsYXN0X3ZhbHVlIjoiMSJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY2MzgwNTcsImxhc3RfdmFsdWUiOiI0Mjk4MjY2MzgwNTcifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826638057",
+                    "legacyResourceId": "429826638057",
+                    "title": "SALE",
+                    "handle": "sale",
+                    "updatedAt": "2026-04-24T21:10:54Z",
+                    "description": "On sale",
+                    "descriptionHtml": "On sale",
+                    "image": {
+                      "id": "gid://shopify/CollectionImage/1684544585961",
+                      "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/82c7b0b668b962bb4ffae786c8e827cd.jpg?v=1710381296",
+                      "altText": null,
+                      "width": 480,
+                      "height": 200
+                    },
+                    "productsCount": {
+                      "count": 1,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": null,
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/8397254426857",
+                            "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                            "handle": "vans-authentic-lo-pro-burgandy-white",
+                            "vendor": "VANS"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0NjgwMzEzNDA3NzcsImxhc3RfdmFsdWUiOiI0NjgwMzEzNDA3NzcifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/468031340777",
+                    "legacyResourceId": "468031340777",
+                    "title": "Hermes Graph Collection 1776313707276",
+                    "handle": "hermes-graph-collection-1776313707276",
+                    "updatedAt": "2026-04-17T12:52:38Z",
+                    "description": "",
+                    "descriptionHtml": "",
+                    "image": null,
+                    "productsCount": {
+                      "count": 2,
+                      "precision": "EXACT"
+                    },
+                    "sortOrder": "BEST_SELLING",
+                    "templateSuffix": null,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    },
+                    "ruleSet": null,
+                    "products": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo5MjU1Mzc4MDU5NDk3LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/9255378059497",
+                            "title": "Dup 1776313707276",
+                            "handle": "dup-1776313707276",
+                            "vendor": "HERMES"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo5MjU1Mzc3OTYxMTkzLCJsYXN0X3ZhbHVlIjoiMCJ9",
+                          "node": {
+                            "id": "gid://shopify/Product/9255377961193",
+                            "title": "Hermes Graph Source 1776313707276",
+                            "handle": "hermes-graph-source-1776313707276",
+                            "vendor": "HERMES"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo5MjU1Mzc4MDU5NDk3LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo5MjU1Mzc3OTYxMTkzLCJsYXN0X3ZhbHVlIjoiMCJ9"
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDI0NzY1MzE5NDUsImxhc3RfdmFsdWUiOiI0MDI0NzY1MzE5NDUifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo0NjgwMzEzNDA3NzcsImxhc3RfdmFsdWUiOiI0NjgwMzEzNDA3NzcifQ=="
+              }
+            },
+            "titleWildcard": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNDY1MzcsImxhc3RfdmFsdWUiOiJ2YW5zIn0=",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826146537",
+                    "title": "VANS",
+                    "handle": "vans",
+                    "updatedAt": "2026-04-24T21:10:53Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNDY1MzcsImxhc3RfdmFsdWUiOiJ2YW5zIn0=",
+                "endCursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNDY1MzcsImxhc3RfdmFsdWUiOiJ2YW5zIn0="
+              }
+            },
+            "customCollections": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDI0NzY1MzE5NDUsImxhc3RfdmFsdWUiOiI0MDI0NzY1MzE5NDUifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/402476531945",
+                    "title": "Home page",
+                    "handle": "frontpage",
+                    "ruleSet": null
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY1Mzk3NTMsImxhc3RfdmFsdWUiOiI0Mjk4MjY1Mzk3NTMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826539753",
+                    "title": "MEN",
+                    "handle": "men",
+                    "ruleSet": null
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY1NzI1MjEsImxhc3RfdmFsdWUiOiI0Mjk4MjY1NzI1MjEifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826572521",
+                    "title": "WOMEN",
+                    "handle": "women",
+                    "ruleSet": null
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDI0NzY1MzE5NDUsImxhc3RfdmFsdWUiOiI0MDI0NzY1MzE5NDUifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo0Mjk4MjY1NzI1MjEsImxhc3RfdmFsdWUiOiI0Mjk4MjY1NzI1MjEifQ=="
+              }
+            },
+            "smartCollections": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNzkzMDUsImxhc3RfdmFsdWUiOiJBRElEQVMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826179305",
+                    "title": "ADIDAS",
+                    "handle": "adidas",
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "ADIDAS"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYyNzc2MDksImxhc3RfdmFsdWUiOiJBU0lDUyBUSUdFUiJ9",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826277609",
+                    "title": "ASICS TIGER",
+                    "handle": "asics-tiger",
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "ASICS TIGER"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYyNDQ4NDEsImxhc3RfdmFsdWUiOiJDT05WRVJTRSJ9",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826244841",
+                    "title": "CONVERSE",
+                    "handle": "converse",
+                    "ruleSet": {
+                      "appliedDisjunctively": false,
+                      "rules": [
+                        {
+                          "column": "TITLE",
+                          "relation": "CONTAINS",
+                          "condition": "CONVERSE"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNzkzMDUsImxhc3RfdmFsdWUiOiJBRElEQVMifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo0Mjk4MjYyNDQ4NDEsImxhc3RfdmFsdWUiOiJDT05WRVJTRSJ9"
+              }
+            },
+            "updatedNewest": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY1MDY5ODUsImxhc3RfdmFsdWUiOiIyMDI2LTA0LTI0IDIxOjEwOjU0LjAwMDAwMCJ9",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826506985",
+                    "title": "FLEX FIT",
+                    "handle": "flex-fit",
+                    "updatedAt": "2026-04-24T21:10:54Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY0NzQyMTcsImxhc3RfdmFsdWUiOiIyMDI2LTA0LTI0IDIxOjEwOjU0LjAwMDAwMCJ9",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826474217",
+                    "title": "HERSCHEL",
+                    "handle": "herschel",
+                    "updatedAt": "2026-04-24T21:10:54Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY0NDE0NDksImxhc3RfdmFsdWUiOiIyMDI2LTA0LTI0IDIxOjEwOjU0LjAwMDAwMCJ9",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826441449",
+                    "title": "DR MARTENS",
+                    "handle": "dr-martens",
+                    "updatedAt": "2026-04-24T21:10:54Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0Mjk4MjY1MDY5ODUsImxhc3RfdmFsdWUiOiIyMDI2LTA0LTI0IDIxOjEwOjU0LjAwMDAwMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0Mjk4MjY0NDE0NDksImxhc3RfdmFsdWUiOiIyMDI2LTA0LTI0IDIxOjEwOjU0LjAwMDAwMCJ9"
+              }
+            },
+            "productMembership": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNDY1MzcsImxhc3RfdmFsdWUiOiI0Mjk4MjYxNDY1MzcifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826146537",
+                    "title": "VANS",
+                    "handle": "vans"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk4MjY1Mzk3NTMsImxhc3RfdmFsdWUiOiI0Mjk4MjY1Mzk3NTMifQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/429826539753",
+                    "title": "MEN",
+                    "handle": "men"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNDY1MzcsImxhc3RfdmFsdWUiOiI0Mjk4MjYxNDY1MzcifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo0Mjk4MjY1Mzk3NTMsImxhc3RfdmFsdWUiOiI0Mjk4MjY1Mzk3NTMifQ=="
+              }
+            },
+            "emptyUnmatched": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 61,
+              "actualQueryCost": 53,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1929,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -181,5 +181,54 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/9801098789170", "gid://shopify/Product/9801098821938"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard",
+                "handle": "the-inventory-not-tracked-snowboard",
+                "status": "ACTIVE",
+                "collections": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Collection/494967390514",
+                      "title": "Home page",
+                      "handle": "frontpage"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/Product/9801098821938",
+                "title": "Gift Card",
+                "handle": "gift-card",
+                "status": "ACTIVE",
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

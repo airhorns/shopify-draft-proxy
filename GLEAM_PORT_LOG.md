@@ -9,6 +9,66 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-04 - Pass 194: HAR-545 final parity drain
+
+Drains the final `expectedGleamParityFailures` manifest to zero and makes the
+entire cassette-backed parity corpus green on both Gleam targets. The remaining
+failures were product-domain scenarios that needed Pattern 2 hydration breadth,
+fixture cassette repair from checked-in capture evidence, and several local
+overlay fixes so supported mutations continue to stage locally without runtime
+Shopify writes.
+
+| Module / fixture                                                                    | Change                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config/gleam-port-ci-gates.json`                                                   | Empties `expectedGleamParityFailures`.                                                                                                                                                          |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                                | Extends product-domain Pattern 2 hydration, fixes product/variant/inventory/publication/selling-plan read-after-write behavior, and makes hydrate ID ordering deterministic across targets.     |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam`                   | Aligns singular `metafieldDelete` compatibility for unknown local IDs.                                                                                                                          |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                                   | Aligns product collection listing order without changing collection membership order.                                                                                                           |
+| `fixtures/conformance/**/products/*.json` and `config/parity-specs/products/*.json` | Repairs product cassettes/spec expectations from checked-in capture evidence, including metafields, collections, inventory, media, variants, productSet, publications, selling plans, and tags. |
+| `fixtures/conformance/**/online-store-article-media-navigation-follow-through.json` | Adds explicit empty `upstreamCalls` so the runner has no skipped/missing-cassette scenarios.                                                                                                    |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam`                 | Updates local compatibility coverage for singular `metafieldDelete`.                                                                                                                            |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- parity_test` (827 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- parity_test'`
+  (OTP 28, 822 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm lint` (passes with the pre-existing `scripts/parity-record.mts`
+  unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2263 passed, 2 existing skipped)
+- `git diff --check`
+- Repository scans: `expectedGleamParityFailures.length === 0`, no
+  missing/malformed parity `upstreamCalls`, no `skip: true`, and no `seedX`.
+
+### Findings
+
+- The final manifest entries were all product-domain scenarios left after the
+  earlier product read-slice migration. They were not final-cleanup metadata
+  only; they required substantive local product behavior and cassette-backed
+  hydration.
+- Pattern 2 hydration needed deterministic `ProductsHydrateNodes` ID ordering.
+  JavaScript and Erlang iterate dictionaries differently, so hydrate variables
+  now sort Shopify GIDs before lookup and the affected cassettes use the same
+  stable order.
+- The checked-in captures contained enough evidence for the cassette repairs;
+  no live Shopify credential or re-recording was needed.
+
+### Risks / open items
+
+- The parity migration scaffolding remains in place by design. The follow-up
+  issue owns removing the manifest and expected-failure runner plumbing.
+- Host Erlang is still OTP 25 in this workspace, so Erlang validation used the
+  established OTP 28 container fallback.
+
+---
+
 ## 2026-05-03 - Pass 193: HAR-513 JS live-hybrid passthrough
 
 Completes the JavaScript async upstream forwarding path for live-hybrid

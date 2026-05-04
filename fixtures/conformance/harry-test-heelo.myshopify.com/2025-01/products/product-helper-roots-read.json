@@ -1070,5 +1070,160 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductHelperRoots",
+      "variables": {
+        "helperProductId": "gid://shopify/Product/9801098789170",
+        "productHandle": "the-inventory-not-tracked-snowboard",
+        "variantId": "gid://shopify/ProductVariant/49875425296690",
+        "missingProductId": "gid://shopify/Product/999999999999",
+        "missingVariantId": "gid://shopify/ProductVariant/999999999999",
+        "missingJobId": "gid://shopify/ProductDuplicateJob/999999999999",
+        "missingOperationId": "gid://shopify/ProductSetOperation/999999999999"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Access denied for productResourceFeedback field. Required access: `read_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.",
+              "locations": [
+                {
+                  "line": 104,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel."
+              },
+              "path": ["productResourceFeedback"]
+            }
+          ],
+          "data": {
+            "byId": {
+              "id": "gid://shopify/Product/9801098789170",
+              "handle": "the-inventory-not-tracked-snowboard",
+              "title": "The Inventory Not Tracked Snowboard"
+            },
+            "byHandle": {
+              "id": "gid://shopify/Product/9801098789170",
+              "handle": "the-inventory-not-tracked-snowboard",
+              "title": "The Inventory Not Tracked Snowboard"
+            },
+            "missingProduct": null,
+            "variantById": {
+              "id": "gid://shopify/ProductVariant/49875425296690",
+              "title": "Default Title",
+              "sku": "sku-untracked-1",
+              "product": {
+                "id": "gid://shopify/Product/9801098789170"
+              }
+            },
+            "missingVariant": null,
+            "productVariants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/49875425296690",
+                  "title": "Default Title",
+                  "sku": "sku-untracked-1",
+                  "product": {
+                    "id": "gid://shopify/Product/9801098789170"
+                  }
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/49875425329458",
+                  "title": "$10",
+                  "sku": null,
+                  "product": {
+                    "id": "gid://shopify/Product/9801098821938"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0="
+              }
+            },
+            "productVariantsCount": {
+              "count": 2279,
+              "precision": "EXACT"
+            },
+            "productTags": {
+              "nodes": ["1/8\"", "10mm", "14mm"],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoiMVwvOFwiIiwibGFzdF92YWx1ZSI6IjFcLzhcIiJ9",
+                  "node": "1/8\""
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoiMTBtbSIsImxhc3RfdmFsdWUiOiIxMG1tIn0=",
+                  "node": "10mm"
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoiMTRtbSIsImxhc3RfdmFsdWUiOiIxNG1tIn0=",
+                  "node": "14mm"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoiMVwvOFwiIiwibGFzdF92YWx1ZSI6IjFcLzhcIiJ9",
+                "endCursor": "eyJsYXN0X2lkIjoiMTRtbSIsImxhc3RfdmFsdWUiOiIxNG1tIn0="
+              }
+            },
+            "productTypes": {
+              "nodes": ["accessories", "Apparel", "Badge"],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoiYWNjZXNzb3JpZXMiLCJsYXN0X3ZhbHVlIjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoiQmFkZ2UiLCJsYXN0X3ZhbHVlIjoyfQ=="
+              }
+            },
+            "productVendors": {
+              "nodes": ["ACS", "Aerospoke", "Bookman"],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoiQUNTIiwibGFzdF92YWx1ZSI6MH0=",
+                "endCursor": "eyJsYXN0X2lkIjoiQm9va21hbiIsImxhc3RfdmFsdWUiOjJ9"
+              }
+            },
+            "productSavedSearches": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "productResourceFeedback": null,
+            "productOperation": null,
+            "productDuplicateJob": {
+              "id": "gid://shopify/ProductDuplicateJob/999999999999",
+              "done": true
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 35,
+              "actualQueryCost": 33,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1967,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

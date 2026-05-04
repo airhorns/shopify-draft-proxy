@@ -865,5 +865,164 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/9257219817705"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/9257219817705",
+                "title": "Hermes Product Graph 1776550889941",
+                "handle": "hermes-product-graph-1776550889941",
+                "status": "DRAFT",
+                "vendor": "HERMES",
+                "productType": "SNOWBOARD",
+                "tags": ["1776550889941", "conformance", "product-graph"],
+                "descriptionHtml": "",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "onlineStorePreviewUrl": "https://v58oon56ip2ba84y-63755419881.shopifypreview.com/products_preview?preview_key=30aed9a1fc8d2bcb194fd2d5b5df2041&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMThUMjM6MjE6MzUuNzA2WiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--b03e1969f2657c76f9b7ee5d32a4980ddac91606",
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/11660598378729",
+                    "name": "Color",
+                    "position": 1,
+                    "values": ["Blue", "Black"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/4718346371305",
+                        "name": "Blue",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/4718346404073",
+                        "name": "Black",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/50897201856745",
+                      "title": "Blue",
+                      "sku": "GRAPH-BLUE-1776550889941",
+                      "barcode": null,
+                      "price": "79.99",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 7,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Blue"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53044947222761",
+                        "tracked": true,
+                        "requiresShipping": true,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        },
+                        "countryCodeOfOrigin": null,
+                        "provinceCodeOfOrigin": null,
+                        "harmonizedSystemCode": null
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/50897201889513",
+                      "title": "Black",
+                      "sku": "GRAPH-BLACK-1776550889941",
+                      "barcode": null,
+                      "price": "69.99",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 3,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Black"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53044947255529",
+                        "tracked": false,
+                        "requiresShipping": true,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        },
+                        "countryCodeOfOrigin": null,
+                        "provinceCodeOfOrigin": null,
+                        "harmonizedSystemCode": null
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Collection/468143964393",
+                      "title": "Hermes Product Graph Collection 1776550889941",
+                      "handle": "hermes-product-graph-collection-1776550889941"
+                    }
+                  ]
+                },
+                "media": {
+                  "nodes": [
+                    {
+                      "mediaContentType": "IMAGE",
+                      "alt": "Product graph media 1776550889941",
+                      "preview": {
+                        "image": {
+                          "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/placeholder-images-image_medium_d964138d-bf44-4a5c-b044-398a9204e353.png?v=1776550894"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "metafield": {
+                  "id": "gid://shopify/Metafield/35246257012969",
+                  "namespace": "custom",
+                  "key": "material",
+                  "type": "single_line_text_field",
+                  "value": "canvas"
+                },
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/35246257012969",
+                      "namespace": "custom",
+                      "key": "material",
+                      "type": "single_line_text_field",
+                      "value": "canvas"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

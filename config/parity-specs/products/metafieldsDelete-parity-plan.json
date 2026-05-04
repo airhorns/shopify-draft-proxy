@@ -15,23 +15,13 @@
   "notes": "Live capture covers Shopify's current plural `metafieldsDelete` root, including a mixed product-owned batch where an existing metafield returns its identifier, a nonexistent namespace/key returns `null` in the same ordered `deletedMetafields` list, and immediate downstream `product.metafield(...)` / `product.metafields` reads show the existing metafield removed. The same fixture also records non-comparison edge evidence for nonexistent owner, empty input, and missing required key validation.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.product.metafields.pageInfo.startCursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque and not stable across local replay; the retained metafield node set and pageInfo booleans remain strict."
-      },
-      {
-        "path": "$.product.metafields.pageInfo.endCursor",
-        "matcher": "any-string",
-        "reason": "Shopify connection cursors are opaque and not stable across local replay; the retained metafield node set and pageInfo booleans remain strict."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "mutation-data",
         "capturePath": "$.mutation.response.data",
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": []
       },
       {
         "name": "downstream-read-data",
@@ -45,7 +35,8 @@
               "fromPrimaryProxyPath": "$.data.metafieldsDelete.deletedMetafields[0].ownerId"
             }
           }
-        }
+        },
+        "expectedDifferences": []
       }
     ]
   }

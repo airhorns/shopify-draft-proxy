@@ -104,5 +104,358 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductVariantsRead",
+      "variables": {
+        "productId": "gid://shopify/Product/8971842846953",
+        "variantId": "gid://shopify/ProductVariant/48540157378793",
+        "inventoryItemId": "gid://shopify/InventoryItem/50643009569001"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/8971842846953",
+              "title": "Test Product - 6635",
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/11289360335081",
+                  "name": "Title",
+                  "position": 1,
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/3233084244201",
+                      "name": "Default Title",
+                      "hasVariants": true
+                    }
+                  ]
+                }
+              ],
+              "variants": {
+                "edges": [
+                  {
+                    "node": {
+                      "id": "gid://shopify/ProductVariant/48540157378793",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/50643009569001",
+                        "tracked": false,
+                        "requiresShipping": true,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        },
+                        "countryCodeOfOrigin": null,
+                        "provinceCodeOfOrigin": null,
+                        "harmonizedSystemCode": null,
+                        "inventoryLevels": {
+                          "edges": [
+                            {
+                              "cursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9",
+                              "node": {
+                                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001",
+                                "location": {
+                                  "id": "gid://shopify/Location/68509171945",
+                                  "name": "103 ossington"
+                                },
+                                "quantities": [
+                                  {
+                                    "name": "available",
+                                    "quantity": 0,
+                                    "updatedAt": "2025-07-01T23:57:25Z"
+                                  },
+                                  {
+                                    "name": "on_hand",
+                                    "quantity": 0,
+                                    "updatedAt": null
+                                  },
+                                  {
+                                    "name": "incoming",
+                                    "quantity": 0,
+                                    "updatedAt": null
+                                  }
+                                ]
+                              }
+                            }
+                          ],
+                          "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9",
+                            "endCursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "variant": {
+              "id": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Default Title",
+              "sku": null,
+              "barcode": null,
+              "price": "0.00",
+              "compareAtPrice": null,
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Title"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/50643009569001",
+                "tracked": false,
+                "requiresShipping": true,
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
+                },
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null,
+                "inventoryLevels": {
+                  "edges": [
+                    {
+                      "cursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9",
+                      "node": {
+                        "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001",
+                        "location": {
+                          "id": "gid://shopify/Location/68509171945",
+                          "name": "103 ossington"
+                        },
+                        "quantities": [
+                          {
+                            "name": "available",
+                            "quantity": 0,
+                            "updatedAt": "2025-07-01T23:57:25Z"
+                          },
+                          {
+                            "name": "on_hand",
+                            "quantity": 0,
+                            "updatedAt": null
+                          },
+                          {
+                            "name": "incoming",
+                            "quantity": 0,
+                            "updatedAt": null
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9",
+                    "endCursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9"
+                  }
+                }
+              },
+              "product": {
+                "id": "gid://shopify/Product/8971842846953",
+                "title": "Test Product - 6635"
+              }
+            },
+            "stock": {
+              "id": "gid://shopify/InventoryItem/50643009569001",
+              "tracked": false,
+              "requiresShipping": true,
+              "measurement": {
+                "weight": {
+                  "unit": "KILOGRAMS",
+                  "value": 0
+                }
+              },
+              "countryCodeOfOrigin": null,
+              "provinceCodeOfOrigin": null,
+              "harmonizedSystemCode": null,
+              "inventoryLevels": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9",
+                    "node": {
+                      "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001",
+                      "location": {
+                        "id": "gid://shopify/Location/68509171945",
+                        "name": "103 ossington"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2025-07-01T23:57:25Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9",
+                  "endCursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9"
+                }
+              }
+            },
+            "stockBackreference": {
+              "id": "gid://shopify/InventoryItem/50643009569001",
+              "tracked": false,
+              "requiresShipping": true,
+              "measurement": {
+                "weight": {
+                  "unit": "KILOGRAMS",
+                  "value": 0
+                }
+              },
+              "countryCodeOfOrigin": null,
+              "provinceCodeOfOrigin": null,
+              "harmonizedSystemCode": null,
+              "inventoryLevels": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9",
+                    "node": {
+                      "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001",
+                      "location": {
+                        "id": "gid://shopify/Location/68509171945",
+                        "name": "103 ossington"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2025-07-01T23:57:25Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9",
+                  "endCursor": "eyJsYXN0X2lkIjo1MzU4NDM5MjA5MzkyOSwibGFzdF92YWx1ZSI6NTM1ODQzOTIwOTM5Mjl9"
+                }
+              },
+              "variant": {
+                "id": "gid://shopify/ProductVariant/48540157378793",
+                "title": "Default Title",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "product": {
+                  "id": "gid://shopify/Product/8971842846953",
+                  "title": "Test Product - 6635"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 61,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "InventoryLevelRead",
+      "variables": {
+        "inventoryLevelId": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001"
+      },
+      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 inventory level passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "inventoryLevel": {
+              "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001",
+              "location": {
+                "id": "gid://shopify/Location/68509171945",
+                "name": "103 ossington"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0,
+                  "updatedAt": "2025-07-01T23:57:25Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 61,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

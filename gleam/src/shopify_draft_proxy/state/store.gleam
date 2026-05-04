@@ -4137,6 +4137,7 @@ pub fn list_effective_collections_for_product(
       None -> Error(Nil)
     }
   })
+  |> list.sort(compare_collection_membership_entries)
 }
 
 pub fn upsert_base_product_variants(
@@ -11120,6 +11121,18 @@ fn compare_product_collection_records(
 ) -> order.Order {
   case int.compare(left.position, right.position) {
     order.Eq -> string.compare(left.product_id, right.product_id)
+    other -> other
+  }
+}
+
+fn compare_collection_membership_entries(
+  left: #(CollectionRecord, ProductCollectionRecord),
+  right: #(CollectionRecord, ProductCollectionRecord),
+) -> order.Order {
+  let #(left_collection, _) = left
+  let #(right_collection, _) = right
+  case string.compare(left_collection.title, right_collection.title) {
+    order.Eq -> string.compare(left_collection.id, right_collection.id)
     other -> other
   }
 }

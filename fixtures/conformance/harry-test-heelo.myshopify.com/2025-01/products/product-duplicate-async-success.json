@@ -195,5 +195,28 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10172162900274"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10172162900274",
+                "title": "HAR407 Async Source 1777353746125",
+                "handle": "har407-async-source-1777353746125",
+                "status": "DRAFT"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

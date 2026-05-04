@@ -159,6 +159,41 @@
           }
         }
       }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/9264105488617"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/9264105488617",
+                "title": "Hermes Product Publication Conformance 1777078193573",
+                "status": "DRAFT",
+                "productPublications": [
+                  {
+                    "publicationId": "gid://shopify/Publication/82090459369"
+                  }
+                ],
+                "publishedOnCurrentPublication": false,
+                "availablePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                },
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              }
+            ]
+          }
+        }
+      }
     }
   ]
 }

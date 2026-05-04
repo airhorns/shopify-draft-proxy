@@ -14,18 +14,7 @@
   "notes": "Missing ownerId is a top-level GraphQL INVALID_VARIABLE response for MetafieldsSetInput variables.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.errors[0].locations[0].line",
-        "matcher": "any-number",
-        "reason": "GraphQL validation error locations depend on document formatting; the error code, message, path, and invalid value remain strict."
-      },
-      {
-        "path": "$.errors[0].locations[0].column",
-        "matcher": "any-number",
-        "reason": "GraphQL validation error locations depend on document formatting; the error code, message, path, and invalid value remain strict."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "graphql-errors",

@@ -223,7 +223,7 @@ pub fn metafield_delete_stages_product_owned_deletion_test() {
     == 1
 }
 
-pub fn metafield_delete_unknown_id_returns_user_error_test() {
+pub fn metafield_delete_unknown_id_keeps_compatibility_payload_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: metafield_store())
   let query =
@@ -234,7 +234,7 @@ pub fn metafield_delete_unknown_id_returns_user_error_test() {
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"metafieldDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Metafield not found\"}]}}}"
+    == "{\"data\":{\"metafieldDelete\":{\"deletedId\":\"gid://shopify/Metafield/missing\",\"userErrors\":[]}}}"
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1

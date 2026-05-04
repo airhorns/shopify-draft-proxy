@@ -298,5 +298,271 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/53204673823026"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/53204673823026",
+                "tracked": true,
+                "requiresShipping": true,
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/106318430514?inventory_item_id=53204673823026",
+                      "isActive": true,
+                      "location": {
+                        "id": "gid://shopify/Location/106318430514",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/106318463282?inventory_item_id=53204673823026",
+                      "isActive": true,
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/51101855646002",
+                  "title": "Default Title",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/10171266400562",
+                    "title": "gid://shopify/Product/10171266400562",
+                    "handle": "gid://shopify/Product/10171266400562",
+                    "status": "ACTIVE",
+                    "totalInventory": 0,
+                    "tracksInventory": true
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "InventoryItemsEmptyRead",
+      "variables": {},
+      "query": "hand-synthesized from checked-in safeReadEvidence.inventoryItemsEmptyByImpossibleId for HAR-545 Pattern 1 inventoryItems read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "inventoryItems": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "InventoryPropertiesRead",
+      "variables": {},
+      "query": "hand-synthesized from checked-in safeReadEvidence.inventoryProperties for HAR-545 Pattern 1 inventoryProperties read passthrough",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "inventoryProperties": {
+              "quantityNames": [
+                {
+                  "name": "available",
+                  "displayName": "Available",
+                  "isInUse": true,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                },
+                {
+                  "name": "committed",
+                  "displayName": "Committed",
+                  "isInUse": true,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                },
+                {
+                  "name": "damaged",
+                  "displayName": "Damaged",
+                  "isInUse": false,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                },
+                {
+                  "name": "incoming",
+                  "displayName": "Incoming",
+                  "isInUse": false,
+                  "belongsTo": [],
+                  "comprises": []
+                },
+                {
+                  "name": "on_hand",
+                  "displayName": "On hand",
+                  "isInUse": true,
+                  "belongsTo": [],
+                  "comprises": ["available", "committed", "damaged", "quality_control", "reserved", "safety_stock"]
+                },
+                {
+                  "name": "quality_control",
+                  "displayName": "Quality control",
+                  "isInUse": false,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                },
+                {
+                  "name": "reserved",
+                  "displayName": "Reserved",
+                  "isInUse": true,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                },
+                {
+                  "name": "safety_stock",
+                  "displayName": "Safety stock",
+                  "isInUse": false,
+                  "belongsTo": ["on_hand"],
+                  "comprises": []
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "InventoryQuantityDownstreamRead",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+        "productId": "gid://shopify/Product/10171266400562"
+      },
+      "query": "hand-synthesized from checked-in inventorySetQuantities downstreamRead for HAR-545 Pattern 2 inventory hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10171266400562",
+              "totalInventory": 0,
+              "tracksInventory": true
+            },
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53204673823026",
+              "tracked": true,
+              "variant": {
+                "id": "gid://shopify/ProductVariant/51101855646002",
+                "inventoryQuantity": 9,
+                "product": {
+                  "id": "gid://shopify/Product/10171266400562",
+                  "totalInventory": 0
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/106318430514?inventory_item_id=53204673823026",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": ""
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 7
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 7
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/106318463282?inventory_item_id=53204673823026",
+                    "location": {
+                      "id": "gid://shopify/Location/106318463282",
+                      "name": ""
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 2
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 2
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

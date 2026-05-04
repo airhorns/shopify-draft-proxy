@@ -16,36 +16,6 @@
     "mode": "strict-json",
     "expectedDifferences": [
       {
-        "path": "$.metafieldsSet.metafields[*].id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
-      },
-      {
-        "path": "$.metafieldsSet.metafields[*].compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
-      {
-        "path": "$.product.variants.nodes[0].care.id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
-      },
-      {
-        "path": "$.product.variants.nodes[0].care.compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
-      {
-        "path": "$.product.variants.nodes[0].metafields.nodes[*].id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
-      },
-      {
-        "path": "$.product.variants.nodes[0].metafields.nodes[*].compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
-      {
         "path": "$.product.variants.nodes[0].metafields.pageInfo.startCursor",
         "matcher": "non-empty-string",
         "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
@@ -56,26 +26,6 @@
         "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
       },
       {
-        "path": "$.productVariant.care.id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
-      },
-      {
-        "path": "$.productVariant.care.compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
-      {
-        "path": "$.productVariant.metafields.nodes[*].id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
-      },
-      {
-        "path": "$.productVariant.metafields.nodes[*].compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
-      {
         "path": "$.productVariant.metafields.pageInfo.startCursor",
         "matcher": "non-empty-string",
         "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
@@ -84,26 +34,6 @@
         "path": "$.productVariant.metafields.pageInfo.endCursor",
         "matcher": "non-empty-string",
         "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
-      },
-      {
-        "path": "$.collection.season.id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
-      },
-      {
-        "path": "$.collection.season.compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
-      },
-      {
-        "path": "$.collection.metafields.nodes[*].id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
-      },
-      {
-        "path": "$.collection.metafields.nodes[*].compareDigest",
-        "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
       },
       {
         "path": "$.collection.metafields.pageInfo.startCursor",
@@ -120,7 +50,8 @@
       {
         "name": "mutation-data",
         "capturePath": "$.mutation.response.data",
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": []
       },
       {
         "name": "downstream-read-data",
@@ -129,7 +60,8 @@
           "documentPath": "config/parity-requests/products/metafieldsSet-owner-expansion-downstream-read.graphql",
           "variablesCapturePath": "$.downstreamReadVariables"
         },
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": []
       }
     ]
   }
