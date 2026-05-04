@@ -1,0 +1,39 @@
+{
+  "scenarioId": "metaobject-create-cold-hydration",
+  "operationNames": ["metaobjectCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["upstream-definition-hydration", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-create-cold-hydration.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-create-cold-hydration-create.graphql",
+    "variablesCapturePath": "$.setup[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Cold-start metaobjectCreate parity. Proves that when the proxy has no local record of a metaobject definition, the metaobjectCreate handler hydrates the definition from upstream (Pattern 2) instead of returning UNDEFINED_OBJECT_TYPE. The cassette only carries the MetaobjectDefinitionHydrateByType lookup; the create stages locally.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-entry-payload",
+        "capturePath": "$.setup[0].response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+fragment MetaobjectColdCreateFields on Metaobject {
+  id
+  handle
+  type
+  displayName
+  updatedAt
+  capabilities {
+    publishable {
+      status
+    }
+    onlineStore {
+      templateSuffix
+    }
+  }
+  fields {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+  titleField: field(key: "title") {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+}
+
+mutation MetaobjectCreateColdHydrationCreate($metaobject: MetaobjectCreateInput!) {
+  metaobjectCreate(metaobject: $metaobject) {
+    metaobject {
+      ...MetaobjectColdCreateFields
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}
