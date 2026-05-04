@@ -207,36 +207,6 @@ fn query_payload(
   }
 }
 
-fn read_arg_string(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(String) {
-  case dict.get(args, name) {
-    Ok(root_field.StringVal(value)) if value != "" -> Some(value)
-    _ -> None
-  }
-}
-
-fn read_arg_bool(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Bool) {
-  case dict.get(args, name) {
-    Ok(root_field.BoolVal(value)) -> Some(value)
-    _ -> None
-  }
-}
-
-fn read_arg_object(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Dict(String, root_field.ResolvedValue) {
-  case dict.get(args, name) {
-    Ok(root_field.ObjectVal(value)) -> value
-    _ -> dict.new()
-  }
-}
-
 fn has_key(input: Dict(String, root_field.ResolvedValue), key: String) -> Bool {
   case dict.get(input, key) {
     Ok(_) -> True
@@ -401,7 +371,8 @@ fn serialize_payment_terms_templates(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let type_filter = read_arg_string(args, "paymentTermsType")
+  let type_filter =
+    graphql_helpers.read_arg_string_nonempty(args, "paymentTermsType")
   let templates =
     payment_terms_templates()
     |> list.filter(fn(template) {
@@ -478,7 +449,7 @@ fn serialize_payment_customization_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_payment_customization_by_id(store, id) {
         Some(record) -> project_payment_customization(record, field, fragments)
@@ -544,8 +515,9 @@ fn serialize_customer_payment_method_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let show_revoked = read_arg_bool(args, "showRevoked") |> option.unwrap(False)
-  case read_arg_string(args, "id") {
+  let show_revoked =
+    graphql_helpers.read_arg_bool(args, "showRevoked") |> option.unwrap(False)
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case
         store.get_effective_customer_payment_method_by_id(
@@ -569,7 +541,7 @@ fn serialize_customer_payment_methods_owner(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
         Some(customer) ->
@@ -658,7 +630,7 @@ fn serialize_draft_order_payment_terms(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.payment_terms_owner_exists(store, id) {
         True -> project_draft_order_payment_terms(store, id, field, fragments)
@@ -862,24 +834,36 @@ fn payment_mutation_hydrate_inputs(
         "customerPaymentMethodCreditCardCreate"
         | "customerPaymentMethodRemoteCreate"
         | "customerPaymentMethodPaypalBillingAgreementCreate" -> #(
-          option_to_list(read_arg_string(args, "customerId")),
+          option_to_list(graphql_helpers.read_arg_string_nonempty(
+            args,
+            "customerId",
+          )),
           [],
           [],
         )
         "customerPaymentMethodCreditCardUpdate"
         | "customerPaymentMethodPaypalBillingAgreementUpdate" -> #(
           [],
-          option_to_list(read_arg_string(args, "id")),
+          option_to_list(graphql_helpers.read_arg_string_nonempty(args, "id")),
           [],
         )
         "customerPaymentMethodGetDuplicationData" -> #(
-          option_to_list(read_arg_string(args, "targetCustomerId")),
-          option_to_list(read_arg_string(args, "customerPaymentMethodId")),
+          option_to_list(graphql_helpers.read_arg_string_nonempty(
+            args,
+            "targetCustomerId",
+          )),
+          option_to_list(graphql_helpers.read_arg_string_nonempty(
+            args,
+            "customerPaymentMethodId",
+          )),
           [],
         )
         "customerPaymentMethodCreateFromDuplicationData" -> {
           let method_id =
-            read_arg_string(args, "encryptedDuplicationData")
+            graphql_helpers.read_arg_string_nonempty(
+              args,
+              "encryptedDuplicationData",
+            )
             |> option.then(fn(raw) {
               case decode_duplication_data(raw) {
                 Ok(payload) ->
@@ -888,20 +872,29 @@ fn payment_mutation_hydrate_inputs(
               }
             })
           #(
-            option_to_list(read_arg_string(args, "customerId")),
+            option_to_list(graphql_helpers.read_arg_string_nonempty(
+              args,
+              "customerId",
+            )),
             option_to_list(method_id),
             [],
           )
         }
         "customerPaymentMethodGetUpdateUrl" | "customerPaymentMethodRevoke" -> #(
           [],
-          option_to_list(read_arg_string(args, "customerPaymentMethodId")),
+          option_to_list(graphql_helpers.read_arg_string_nonempty(
+            args,
+            "customerPaymentMethodId",
+          )),
           [],
         )
         "paymentTermsCreate" -> #(
           [],
           [],
-          option_to_list(read_arg_string(args, "referenceId")),
+          option_to_list(graphql_helpers.read_arg_string_nonempty(
+            args,
+            "referenceId",
+          )),
         )
         _ -> #([], [], [])
       }
@@ -1180,10 +1173,11 @@ fn validate_create_input(
 
 fn create_payment_customization(store, identity, field, fragments, variables) {
   let input =
-    read_arg_object(
+    graphql_helpers.read_arg_object(
       graphql_helpers.field_args(field, variables),
       "paymentCustomization",
     )
+    |> option.unwrap(dict.new())
   let errors = validate_create_input(input)
   case errors {
     [_, ..] -> #(
@@ -1231,7 +1225,8 @@ fn create_payment_customization(store, identity, field, fragments, variables) {
 
 fn update_payment_customization(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
-  let id = read_arg_string(args, "id") |> option.unwrap("")
+  let id =
+    graphql_helpers.read_arg_string_nonempty(args, "id") |> option.unwrap("")
   case store.get_effective_payment_customization_by_id(store, id) {
     None -> #(
       MutationFieldResult(
@@ -1252,7 +1247,9 @@ fn update_payment_customization(store, identity, field, fragments, variables) {
       identity,
     )
     Some(current) -> {
-      let input = read_arg_object(args, "paymentCustomization")
+      let input =
+        graphql_helpers.read_arg_object(args, "paymentCustomization")
+        |> option.unwrap(dict.new())
       let updated =
         PaymentCustomizationRecord(
           ..current,
@@ -1282,7 +1279,10 @@ fn update_payment_customization(store, identity, field, fragments, variables) {
 
 fn delete_payment_customization(store, identity, field, fragments, variables) {
   let id =
-    read_arg_string(graphql_helpers.field_args(field, variables), "id")
+    graphql_helpers.read_arg_string_nonempty(
+      graphql_helpers.field_args(field, variables),
+      "id",
+    )
     |> option.unwrap("")
   case store.get_effective_payment_customization_by_id(store, id) {
     None ->
@@ -1326,7 +1326,8 @@ fn activate_payment_customizations(
 ) {
   let args = graphql_helpers.field_args(field, variables)
   let ids = read_string_list(args, "ids") |> unique_strings([])
-  let enabled = read_arg_bool(args, "enabled") |> option.unwrap(False)
+  let enabled =
+    graphql_helpers.read_arg_bool(args, "enabled") |> option.unwrap(False)
   let #(next_store, updated_ids, missing_ids) =
     list.fold(ids, #(store, [], []), fn(acc, id) {
       let #(current_store, updated, missing) = acc
@@ -1724,7 +1725,11 @@ fn create_credit_card_payment_method(
 ) {
   let args = graphql_helpers.field_args(field, variables)
   case
-    customer_by_id(store, read_arg_string(args, "customerId"), "customerId")
+    customer_by_id(
+      store,
+      graphql_helpers.read_arg_string_nonempty(args, "customerId"),
+      "customerId",
+    )
   {
     Error(error) ->
       payment_method_result(
@@ -1766,7 +1771,13 @@ fn update_credit_card_payment_method(
   variables,
 ) {
   let args = graphql_helpers.field_args(field, variables)
-  case active_payment_method(store, read_arg_string(args, "id"), "id") {
+  case
+    active_payment_method(
+      store,
+      graphql_helpers.read_arg_string_nonempty(args, "id"),
+      "id",
+    )
+  {
     Error(error) ->
       payment_method_result(
         store,
@@ -1813,7 +1824,11 @@ fn count_object_values(input: Dict(String, root_field.ResolvedValue)) -> Int {
 fn create_remote_payment_method(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
   case
-    customer_by_id(store, read_arg_string(args, "customerId"), "customerId")
+    customer_by_id(
+      store,
+      graphql_helpers.read_arg_string_nonempty(args, "customerId"),
+      "customerId",
+    )
   {
     Error(error) ->
       payment_method_result(
@@ -1827,7 +1842,9 @@ fn create_remote_payment_method(store, identity, field, fragments, variables) {
         [],
       )
     Ok(customer) -> {
-      let remote_reference = read_arg_object(args, "remoteReference")
+      let remote_reference =
+        graphql_helpers.read_arg_object(args, "remoteReference")
+        |> option.unwrap(dict.new())
       case count_object_values(remote_reference) == 1 {
         False ->
           payment_method_result(
@@ -1868,7 +1885,11 @@ fn create_remote_payment_method(store, identity, field, fragments, variables) {
 fn create_paypal_payment_method(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
   case
-    customer_by_id(store, read_arg_string(args, "customerId"), "customerId")
+    customer_by_id(
+      store,
+      graphql_helpers.read_arg_string_nonempty(args, "customerId"),
+      "customerId",
+    )
   {
     Error(error) ->
       payment_method_result(
@@ -1882,7 +1903,8 @@ fn create_paypal_payment_method(store, identity, field, fragments, variables) {
         [],
       )
     Ok(customer) -> {
-      let inactive = read_arg_bool(args, "inactive") |> option.unwrap(False)
+      let inactive =
+        graphql_helpers.read_arg_bool(args, "inactive") |> option.unwrap(False)
       let #(record, next_identity) =
         create_payment_method_record(
           identity,
@@ -1905,7 +1927,13 @@ fn create_paypal_payment_method(store, identity, field, fragments, variables) {
 
 fn update_paypal_payment_method(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
-  case active_payment_method(store, read_arg_string(args, "id"), "id") {
+  case
+    active_payment_method(
+      store,
+      graphql_helpers.read_arg_string_nonempty(args, "id"),
+      "id",
+    )
+  {
     Error(error) ->
       payment_method_result(
         store,
@@ -1956,7 +1984,7 @@ fn get_payment_method_duplication_data(
   case
     active_payment_method(
       store,
-      read_arg_string(args, "customerPaymentMethodId"),
+      graphql_helpers.read_arg_string_nonempty(args, "customerPaymentMethodId"),
       "customerPaymentMethodId",
     )
   {
@@ -1975,7 +2003,7 @@ fn get_payment_method_duplication_data(
       case
         customer_by_id(
           store,
-          read_arg_string(args, "targetCustomerId"),
+          graphql_helpers.read_arg_string_nonempty(args, "targetCustomerId"),
           "targetCustomerId",
         )
       {
@@ -1992,7 +2020,8 @@ fn get_payment_method_duplication_data(
           )
         Ok(target_customer) -> {
           let target_shop_id =
-            read_arg_string(args, "targetShopId") |> option.unwrap("")
+            graphql_helpers.read_arg_string_nonempty(args, "targetShopId")
+            |> option.unwrap("")
           let data =
             encode_duplication_data(
               method.id,
@@ -2022,7 +2051,7 @@ fn create_payment_method_from_duplication_data(
   variables,
 ) {
   let args = graphql_helpers.field_args(field, variables)
-  let customer_id = read_arg_string(args, "customerId")
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   case customer_by_id(store, customer_id, "customerId") {
     Error(error) ->
       payment_method_result(
@@ -2036,7 +2065,12 @@ fn create_payment_method_from_duplication_data(
         [],
       )
     Ok(customer) -> {
-      case read_arg_string(args, "encryptedDuplicationData") {
+      case
+        graphql_helpers.read_arg_string_nonempty(
+          args,
+          "encryptedDuplicationData",
+        )
+      {
         None -> invalid_duplication_result(store, identity, field, fragments)
         Some(raw) ->
           case decode_duplication_data(raw) {
@@ -2125,7 +2159,7 @@ fn get_payment_method_update_url(store, identity, field, fragments, variables) {
   case
     active_payment_method(
       store,
-      read_arg_string(args, "customerPaymentMethodId"),
+      graphql_helpers.read_arg_string_nonempty(args, "customerPaymentMethodId"),
       "customerPaymentMethodId",
     )
   {
@@ -2178,7 +2212,7 @@ fn revoke_payment_method(store, identity, field, fragments, variables) {
   case
     active_payment_method(
       store,
-      read_arg_string(args, "customerPaymentMethodId"),
+      graphql_helpers.read_arg_string_nonempty(args, "customerPaymentMethodId"),
       "customerPaymentMethodId",
     )
   {
@@ -2277,8 +2311,11 @@ fn payment_terms_owner_exists_in_response(value: commit.JsonValue) -> Bool {
 
 fn create_payment_terms(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
-  let reference_id = read_arg_string(args, "referenceId")
-  let attrs = read_arg_object(args, "paymentTermsAttributes")
+  let reference_id =
+    graphql_helpers.read_arg_string_nonempty(args, "referenceId")
+  let attrs =
+    graphql_helpers.read_arg_object(args, "paymentTermsAttributes")
+    |> option.unwrap(dict.new())
   case
     reference_id,
     reference_id |> option.map(store.payment_terms_owner_exists(store, _))
@@ -2319,9 +2356,15 @@ fn create_payment_terms(store, identity, field, fragments, variables) {
 
 fn update_payment_terms(store, identity, field, fragments, variables) {
   let input =
-    read_arg_object(graphql_helpers.field_args(field, variables), "input")
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let id = read_string_field(input, "paymentTermsId")
-  let attrs = read_arg_object(input, "paymentTermsAttributes")
+  let attrs =
+    graphql_helpers.read_arg_object(input, "paymentTermsAttributes")
+    |> option.unwrap(dict.new())
   case id {
     Some(payment_terms_id) ->
       case store.get_effective_payment_terms_by_id(store, payment_terms_id) {
@@ -2384,7 +2427,11 @@ fn update_payment_terms(store, identity, field, fragments, variables) {
 
 fn delete_payment_terms(store, identity, field, fragments, variables) {
   let input =
-    read_arg_object(graphql_helpers.field_args(field, variables), "input")
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let id = read_string_field(input, "paymentTermsId")
   case id {
     Some(payment_terms_id) ->
@@ -2587,7 +2634,7 @@ fn payment_terms_result(
 
 fn send_payment_reminder(store, identity, field, fragments, variables) {
   let payment_schedule_id =
-    read_arg_string(
+    graphql_helpers.read_arg_string_nonempty(
       graphql_helpers.field_args(field, variables),
       "paymentScheduleId",
     )

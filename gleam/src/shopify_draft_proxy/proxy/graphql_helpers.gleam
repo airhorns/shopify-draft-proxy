@@ -190,6 +190,76 @@ pub fn field_args(
   |> result.unwrap(dict.new())
 }
 
+/// Read a string argument from a resolved-arg dict. Returns `None`
+/// when the argument is absent, null, or not a string. An empty
+/// string is preserved as `Some("")` — handlers that distinguish
+/// `""` from missing (e.g. to reproduce Shopify's "invalid global id
+/// ''" variable error) need this faithful read. Callers that prefer
+/// "empty as missing" should use `read_arg_string_nonempty`.
+pub fn read_arg_string(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(args, name) {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Read a string argument, but treat empty strings as missing. Returns
+/// `None` when the argument is absent, null, not a string, or `""`.
+/// This is the convenience semantic many handlers use when an empty
+/// value is never meaningful (e.g. ids, handles, locale codes).
+pub fn read_arg_string_nonempty(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(args, name) {
+    Ok(root_field.StringVal("")) -> None
+    Ok(root_field.StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Read an integer argument from a resolved-arg dict. Returns `None`
+/// when the argument is absent, null, or not an integer.
+pub fn read_arg_int(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Int) {
+  case dict.get(args, name) {
+    Ok(root_field.IntVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Read a boolean argument from a resolved-arg dict. Returns `None`
+/// when the argument is absent, null, or not a boolean. Callers that
+/// want a defaulted `Bool` should pipe through `option.unwrap(False)`.
+pub fn read_arg_bool(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case dict.get(args, name) {
+    Ok(root_field.BoolVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Read an object argument from a resolved-arg dict. Returns `None`
+/// when the argument is absent, null, or not an object. Callers that
+/// want an empty-default `Dict` should pipe through
+/// `option.unwrap(dict.new())`.
+pub fn read_arg_object(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(args, name) {
+    Ok(root_field.ObjectVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Projection helpers
 // ---------------------------------------------------------------------------

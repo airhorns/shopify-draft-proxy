@@ -269,16 +269,6 @@ fn root_payload_for_field(
   }
 }
 
-fn read_arg_string(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(String) {
-  case dict.get(args, name) {
-    Ok(root_field.StringVal(s)) -> Some(s)
-    _ -> None
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Per-root serializers
 // ---------------------------------------------------------------------------
@@ -302,7 +292,7 @@ fn serialize_app_installation_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_app_installation_by_id(store, id) {
         Some(installation) ->
@@ -320,7 +310,7 @@ fn serialize_app_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_app_by_id(store, id) {
         Some(app) -> project_app(app, field, fragments)
@@ -337,7 +327,7 @@ fn serialize_app_by_handle(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "handle") {
+  case graphql_helpers.read_arg_string(args, "handle") {
     Some(handle) ->
       case store.find_effective_app_by_handle(store, handle) {
         Some(app) -> project_app(app, field, fragments)
@@ -354,7 +344,7 @@ fn serialize_app_by_key(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "apiKey") {
+  case graphql_helpers.read_arg_string(args, "apiKey") {
     Some(api_key) ->
       case store.find_effective_app_by_api_key(store, api_key) {
         Some(app) -> project_app(app, field, fragments)
@@ -1230,7 +1220,8 @@ fn handle_delegate_create(
     Ok(root_field.ObjectVal(d)) -> d
     _ -> dict.new()
   }
-  let delegate_scope = read_arg_string(input, "delegateAccessScope")
+  let delegate_scope =
+    graphql_helpers.read_arg_string(input, "delegateAccessScope")
   let legacy_scopes = case dict.get(input, "accessScopes") {
     Ok(root_field.ListVal(items)) ->
       list.filter_map(items, fn(item) {
@@ -1300,7 +1291,7 @@ fn handle_delegate_destroy(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let access_token = read_arg_string(args, "accessToken")
+  let access_token = graphql_helpers.read_arg_string(args, "accessToken")
   let token = case access_token {
     Some(raw) ->
       store.find_delegated_access_token_by_hash(store, token_hash(raw))
@@ -1379,9 +1370,10 @@ fn handle_purchase_create(
   let purchase =
     AppOneTimePurchaseRecord(
       id: purchase_gid,
-      name: option.unwrap(read_arg_string(args, "name"), ""),
+      name: option.unwrap(graphql_helpers.read_arg_string(args, "name"), ""),
       status: "PENDING",
-      is_test: read_arg_bool(args, "test"),
+      is_test: graphql_helpers.read_arg_bool(args, "test")
+        |> option.unwrap(False),
       created_at: timestamp,
       price: read_money_input(args, "price"),
     )
@@ -1465,10 +1457,11 @@ fn handle_subscription_create(
   let subscription =
     AppSubscriptionRecord(
       id: sub_gid,
-      name: option.unwrap(read_arg_string(args, "name"), ""),
+      name: option.unwrap(graphql_helpers.read_arg_string(args, "name"), ""),
       status: "PENDING",
-      is_test: read_arg_bool(args, "test"),
-      trial_days: read_arg_int(args, "trialDays"),
+      is_test: graphql_helpers.read_arg_bool(args, "test")
+        |> option.unwrap(False),
+      trial_days: graphql_helpers.read_arg_int(args, "trialDays"),
       current_period_end: None,
       created_at: timestamp,
       line_item_ids: list.map(line_items, fn(li) { li.id }),
@@ -1523,7 +1516,7 @@ fn handle_subscription_cancel(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let subscription_id = read_arg_string(args, "id")
+  let subscription_id = graphql_helpers.read_arg_string(args, "id")
   let subscription = case subscription_id {
     Some(id) -> store.get_effective_app_subscription_by_id(store, id)
     None -> None
@@ -1615,7 +1608,7 @@ fn handle_line_item_update(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let line_item_id = read_arg_string(args, "id")
+  let line_item_id = graphql_helpers.read_arg_string(args, "id")
   let line_item = case line_item_id {
     Some(id) -> store.get_effective_app_subscription_line_item_by_id(store, id)
     None -> None
@@ -1725,8 +1718,8 @@ fn handle_trial_extend(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let subscription_id = read_arg_string(args, "id")
-  let days = option.unwrap(read_arg_int(args, "days"), 0)
+  let subscription_id = graphql_helpers.read_arg_string(args, "id")
+  let days = option.unwrap(graphql_helpers.read_arg_int(args, "days"), 0)
   let subscription = case subscription_id {
     Some(id) -> store.get_effective_app_subscription_by_id(store, id)
     None -> None
@@ -1805,7 +1798,8 @@ fn handle_usage_record_create(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let line_item_id = read_arg_string(args, "subscriptionLineItemId")
+  let line_item_id =
+    graphql_helpers.read_arg_string(args, "subscriptionLineItemId")
   let line_item = case line_item_id {
     Some(id) -> store.get_effective_app_subscription_line_item_by_id(store, id)
     None -> None
@@ -1847,10 +1841,16 @@ fn handle_usage_record_create(
         AppUsageRecord(
           id: record_gid,
           subscription_line_item_id: li.id,
-          description: option.unwrap(read_arg_string(args, "description"), ""),
+          description: option.unwrap(
+            graphql_helpers.read_arg_string(args, "description"),
+            "",
+          ),
           price: read_money_input(args, "price"),
           created_at: timestamp,
-          idempotency_key: read_arg_string(args, "idempotencyKey"),
+          idempotency_key: graphql_helpers.read_arg_string(
+            args,
+            "idempotencyKey",
+          ),
         )
       let #(_, store_after) = store.stage_app_usage_record(store, record)
       let payload =
@@ -1979,26 +1979,6 @@ fn trailing_segment(id: String) -> String {
   }
 }
 
-fn read_arg_bool(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Bool {
-  case dict.get(args, name) {
-    Ok(root_field.BoolVal(b)) -> b
-    _ -> False
-  }
-}
-
-fn read_arg_int(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Int) {
-  case dict.get(args, name) {
-    Ok(root_field.IntVal(n)) -> Some(n)
-    _ -> None
-  }
-}
-
 fn read_money_input(
   args: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -2050,7 +2030,7 @@ fn read_line_item_plan(
         Ok(root_field.StringVal(s)) -> s
         _ -> "EVERY_30_DAYS"
       }
-      let plan_handle = read_arg_string(r, "planHandle")
+      let plan_handle = graphql_helpers.read_arg_string(r, "planHandle")
       AppRecurringPricing(
         price: price,
         interval: interval,
@@ -2064,7 +2044,7 @@ fn read_line_item_plan(
         Ok(root_field.StringVal(s)) -> s
         _ -> "EVERY_30_DAYS"
       }
-      let terms = read_arg_string(usage_dict, "terms")
+      let terms = graphql_helpers.read_arg_string(usage_dict, "terms")
       AppUsagePricing(
         capped_amount: capped,
         balance_used: Money(amount: "0.0", currency_code: capped.currency_code),

@@ -363,7 +363,7 @@ fn customer_count_search_extensions(
         case name.value {
           "customersCount" ->
             build_customers_count_search_extension(
-              read_arg_string(
+              graphql_helpers.read_arg_string_nonempty(
                 graphql_helpers.field_args(field, variables),
                 "query",
               ),
@@ -503,40 +503,6 @@ fn root_payload_for_field(
   }
 }
 
-fn read_arg_string(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(String) {
-  case dict.get(args, name) {
-    Ok(root_field.StringVal(s)) ->
-      case s {
-        "" -> None
-        _ -> Some(s)
-      }
-    _ -> None
-  }
-}
-
-fn read_arg_bool(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Bool) {
-  case dict.get(args, name) {
-    Ok(root_field.BoolVal(b)) -> Some(b)
-    _ -> None
-  }
-}
-
-fn read_arg_object(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Dict(String, root_field.ResolvedValue)) {
-  case dict.get(args, name) {
-    Ok(root_field.ObjectVal(d)) -> Some(d)
-    _ -> None
-  }
-}
-
 fn read_obj_string(
   obj: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -629,13 +595,6 @@ fn update_nullable_note(
     Ok(root_field.NullVal) -> None
     _ -> existing
   }
-}
-
-fn input_object(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Dict(String, root_field.ResolvedValue) {
-  read_arg_object(args, name) |> option.unwrap(dict.new())
 }
 
 fn optional_string_source(value: Option(String)) -> SourceValue {
@@ -1268,7 +1227,7 @@ fn serialize_customer_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
         Some(customer) -> project_customer(store, customer, field, fragments)
@@ -1285,7 +1244,9 @@ fn serialize_customer_by_identifier(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let identifier = input_object(args, "identifier")
+  let identifier =
+    graphql_helpers.read_arg_object(args, "identifier")
+    |> option.unwrap(dict.new())
   case find_customer_by_identifier(store, identifier) {
     Some(customer) -> project_customer(store, customer, field, fragments)
     None -> json.null()
@@ -1346,9 +1307,10 @@ fn serialize_customers_connection(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let query = read_arg_string(args, "query")
-  let sort_key = read_arg_string(args, "sortKey")
-  let reverse = read_arg_bool(args, "reverse") |> option.unwrap(False)
+  let query = graphql_helpers.read_arg_string_nonempty(args, "query")
+  let sort_key = graphql_helpers.read_arg_string_nonempty(args, "sortKey")
+  let reverse =
+    graphql_helpers.read_arg_bool(args, "reverse") |> option.unwrap(False)
   let seeded_connection =
     store.get_base_customer_catalog_connection(
       store,
@@ -1601,7 +1563,7 @@ fn fetch_customers_count_source(
   upstream: UpstreamContext,
 ) -> Option(SourceValue) {
   let args = graphql_helpers.field_args(field, variables)
-  let query_arg = read_arg_string(args, "query")
+  let query_arg = graphql_helpers.read_arg_string_nonempty(args, "query")
   let query =
     "query CustomerCountHydrate($query: String) {\n"
     <> "  customersCount(query: $query) { count precision }\n"
@@ -1649,7 +1611,7 @@ fn serialize_customer_account_page(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_customer_account_page_by_id(store, id) {
         Some(page) -> project_account_page(page, field, fragments)
@@ -1763,7 +1725,7 @@ fn serialize_store_credit_account_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_store_credit_account_by_id(store, id) {
         Some(account) ->
@@ -1792,8 +1754,9 @@ fn serialize_customer_payment_method_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let show_revoked = read_arg_bool(args, "showRevoked") |> option.unwrap(False)
-  case read_arg_string(args, "id") {
+  let show_revoked =
+    graphql_helpers.read_arg_bool(args, "showRevoked") |> option.unwrap(False)
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case
         store.get_effective_customer_payment_method_by_id(
@@ -1828,8 +1791,8 @@ fn serialize_customer_merge_preview(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let one = read_arg_string(args, "customerOneId")
-  let two = read_arg_string(args, "customerTwoId")
+  let one = graphql_helpers.read_arg_string_nonempty(args, "customerOneId")
+  let two = graphql_helpers.read_arg_string_nonempty(args, "customerTwoId")
   case one, two {
     Some(one_id), Some(two_id) ->
       case
@@ -1859,7 +1822,7 @@ fn serialize_customer_merge_job_status(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "jobId") {
+  case graphql_helpers.read_arg_string_nonempty(args, "jobId") {
     Some(job_id) ->
       case store.get_customer_merge_request(store, job_id) {
         Some(request) -> project_merge_request(request, field, fragments)
@@ -2036,8 +1999,20 @@ fn first_customer_merge_missing_argument_error(
               let args = graphql_helpers.field_args(field, variables)
               let missing =
                 [
-                  #("customerOneId", read_arg_string(args, "customerOneId")),
-                  #("customerTwoId", read_arg_string(args, "customerTwoId")),
+                  #(
+                    "customerOneId",
+                    graphql_helpers.read_arg_string_nonempty(
+                      args,
+                      "customerOneId",
+                    ),
+                  ),
+                  #(
+                    "customerTwoId",
+                    graphql_helpers.read_arg_string_nonempty(
+                      args,
+                      "customerTwoId",
+                    ),
+                  ),
                 ]
                 |> list.filter_map(fn(pair) {
                   case pair {
@@ -2518,7 +2493,9 @@ fn hydrate_before_customer_mutation(
       hydrate_optional_customer_id(
         store,
         identity,
-        input_object(args, "input") |> read_obj_string("id"),
+        graphql_helpers.read_arg_object(args, "input")
+          |> option.unwrap(dict.new())
+          |> read_obj_string("id"),
         upstream,
       )
     "customerAddTaxExemptions"
@@ -2529,7 +2506,7 @@ fn hydrate_before_customer_mutation(
       hydrate_optional_customer_id(
         store,
         identity,
-        read_arg_string(args, "customerId"),
+        graphql_helpers.read_arg_string_nonempty(args, "customerId"),
         upstream,
       )
     "customerEmailMarketingConsentUpdate"
@@ -2537,13 +2514,15 @@ fn hydrate_before_customer_mutation(
       hydrate_optional_customer_id(
         store,
         identity,
-        input_object(args, "input") |> read_obj_string("customerId"),
+        graphql_helpers.read_arg_object(args, "input")
+          |> option.unwrap(dict.new())
+          |> read_obj_string("customerId"),
         upstream,
       )
     "customerMerge" -> {
       let ids = [
-        read_arg_string(args, "customerOneId"),
-        read_arg_string(args, "customerTwoId"),
+        graphql_helpers.read_arg_string_nonempty(args, "customerOneId"),
+        graphql_helpers.read_arg_string_nonempty(args, "customerTwoId"),
       ]
       list.fold(ids, #(store, identity), fn(acc, id) {
         let #(current_store, current_identity) = acc
@@ -2559,27 +2538,27 @@ fn hydrate_before_customer_mutation(
       hydrate_optional_store_credit_account_id(
         store,
         identity,
-        read_arg_string(args, "id"),
+        graphql_helpers.read_arg_string_nonempty(args, "id"),
         upstream,
       )
     "orderCustomerSet" -> {
       let with_order =
         hydrate_optional_customer_order_id(
           store,
-          read_arg_string(args, "orderId"),
+          graphql_helpers.read_arg_string_nonempty(args, "orderId"),
           upstream,
         )
       hydrate_optional_customer_id(
         with_order,
         identity,
-        read_arg_string(args, "customerId"),
+        graphql_helpers.read_arg_string_nonempty(args, "customerId"),
         upstream,
       )
     }
     "orderCustomerRemove" -> #(
       hydrate_optional_customer_order_id(
         store,
-        read_arg_string(args, "orderId"),
+        graphql_helpers.read_arg_string_nonempty(args, "orderId"),
         upstream,
       ),
       identity,
@@ -3309,7 +3288,11 @@ fn handle_customer_create(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
-    input_object(graphql_helpers.field_args(field, variables), "input")
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let errors = validate_customer_create(store, input, upstream)
   case errors {
     [] -> {
@@ -3764,7 +3747,11 @@ fn handle_customer_update(
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
-    input_object(graphql_helpers.field_args(field, variables), "input")
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let id = read_obj_string(input, "id")
   case id {
     Some(customer_id) ->
@@ -3911,8 +3898,11 @@ fn handle_customer_set(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
-  let input = input_object(args, "input")
-  let identifier = input_object(args, "identifier")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let identifier =
+    graphql_helpers.read_arg_object(args, "identifier")
+    |> option.unwrap(dict.new())
   case
     find_customer_by_identifier(store, identifier),
     read_obj_string(input, "id")
@@ -4196,7 +4186,11 @@ fn handle_customer_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
-    input_object(graphql_helpers.field_args(field, variables), "input")
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let id = read_obj_string(input, "id")
   case id {
     Some(customer_id) ->
@@ -4287,9 +4281,12 @@ fn handle_customer_address_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
-  let customer_id = read_arg_string(args, "customerId")
-  let address_input = input_object(args, "address")
-  let set_default = read_arg_bool(args, "setAsDefault") |> option.unwrap(False)
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
+  let address_input =
+    graphql_helpers.read_arg_object(args, "address")
+    |> option.unwrap(dict.new())
+  let set_default =
+    graphql_helpers.read_arg_bool(args, "setAsDefault") |> option.unwrap(False)
   case customer_id {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
@@ -4401,9 +4398,12 @@ fn handle_customer_address_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
-  let address_id = read_arg_string(args, "addressId")
-  let address_input = input_object(args, "address")
-  let set_default = read_arg_bool(args, "setAsDefault") |> option.unwrap(False)
+  let address_id = graphql_helpers.read_arg_string_nonempty(args, "addressId")
+  let address_input =
+    graphql_helpers.read_arg_object(args, "address")
+    |> option.unwrap(dict.new())
+  let set_default =
+    graphql_helpers.read_arg_bool(args, "setAsDefault") |> option.unwrap(False)
   case address_id {
     Some(id) ->
       case store.get_effective_customer_address_by_id(store, id) {
@@ -4485,7 +4485,7 @@ fn handle_customer_address_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
-  let address_id = read_arg_string(args, "addressId")
+  let address_id = graphql_helpers.read_arg_string_nonempty(args, "addressId")
   case address_id {
     Some(id) ->
       case store.get_effective_customer_address_by_id(store, id) {
@@ -4576,8 +4576,8 @@ fn handle_customer_update_default_address(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
-  let customer_id = read_arg_string(args, "customerId")
-  let address_id = read_arg_string(args, "addressId")
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
+  let address_id = graphql_helpers.read_arg_string_nonempty(args, "addressId")
   case customer_id, address_id {
     Some(cid), Some(aid) ->
       case
@@ -4644,7 +4644,7 @@ fn handle_customer_tax_exemptions(
   mode: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
-  let customer_id = read_arg_string(args, "customerId")
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   let exemptions = case dict.get(args, "taxExemptions") {
     Ok(root_field.ListVal(items)) ->
       list.filter_map(items, fn(item) {
@@ -4747,7 +4747,11 @@ fn handle_customer_tax_exemptions(
 
 fn handle_email_consent(store, identity, field, fragments, variables) {
   let input =
-    input_object(graphql_helpers.field_args(field, variables), "input")
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let customer_id = read_obj_string(input, "customerId")
   case customer_id {
     Some(id) ->
@@ -4824,7 +4828,11 @@ fn handle_email_consent(store, identity, field, fragments, variables) {
 
 fn handle_sms_consent(store, identity, field, fragments, variables) {
   let input =
-    input_object(graphql_helpers.field_args(field, variables), "input")
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let customer_id = read_obj_string(input, "customerId")
   case customer_id {
     Some(id) ->
@@ -4903,7 +4911,7 @@ fn handle_sms_consent(store, identity, field, fragments, variables) {
 
 fn handle_data_erasure(store, identity, field, variables, cancel) {
   let args = graphql_helpers.field_args(field, variables)
-  let customer_id = read_arg_string(args, "customerId")
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   let root = case cancel {
     True -> "customerCancelDataErasure"
     False -> "customerRequestDataErasure"
@@ -5004,7 +5012,7 @@ fn handle_data_erasure(store, identity, field, variables, cancel) {
 
 fn handle_activation_url(store, identity, field, variables) {
   let args = graphql_helpers.field_args(field, variables)
-  let customer_id = read_arg_string(args, "customerId")
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   let errors = case customer_id {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
@@ -5067,7 +5075,7 @@ fn handle_activation_url(store, identity, field, variables) {
 
 fn handle_account_invite(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
-  let customer_id = read_arg_string(args, "customerId")
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   case customer_id {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
@@ -5132,7 +5140,8 @@ fn handle_payment_method_update_email(
   variables,
 ) {
   let args = graphql_helpers.field_args(field, variables)
-  let id = read_arg_string(args, "customerPaymentMethodId")
+  let id =
+    graphql_helpers.read_arg_string_nonempty(args, "customerPaymentMethodId")
   case id {
     Some(payment_id) ->
       case
@@ -5217,12 +5226,14 @@ fn handle_store_credit_adjustment(
   is_credit,
 ) {
   let args = graphql_helpers.field_args(field, variables)
-  let account_id = read_arg_string(args, "id")
+  let account_id = graphql_helpers.read_arg_string_nonempty(args, "id")
   let input_name = case is_credit {
     True -> "creditInput"
     False -> "debitInput"
   }
-  let input = input_object(args, input_name)
+  let input =
+    graphql_helpers.read_arg_object(args, input_name)
+    |> option.unwrap(dict.new())
   let amount = read_money(input)
   let root = case is_credit {
     True -> "storeCreditAccountCredit"
@@ -5383,8 +5394,8 @@ fn handle_store_credit_adjustment(
 
 fn handle_order_customer_set(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
-  let order_id = read_arg_string(args, "orderId")
-  let customer_id = read_arg_string(args, "customerId")
+  let order_id = graphql_helpers.read_arg_string_nonempty(args, "orderId")
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   case order_id, customer_id {
     Some(order_id), Some(customer_id) ->
       case
@@ -5463,7 +5474,7 @@ fn handle_order_customer_set(store, identity, field, fragments, variables) {
 
 fn handle_order_customer_remove(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "orderId") {
+  case graphql_helpers.read_arg_string_nonempty(args, "orderId") {
     Some(order_id) ->
       case store.get_effective_customer_order_summary_by_id(store, order_id) {
         Some(order) -> {
@@ -5537,9 +5548,11 @@ fn handle_order_customer_remove(store, identity, field, fragments, variables) {
 
 fn handle_customer_merge(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
-  let one = read_arg_string(args, "customerOneId")
-  let two = read_arg_string(args, "customerTwoId")
-  let override = input_object(args, "overrideFields")
+  let one = graphql_helpers.read_arg_string_nonempty(args, "customerOneId")
+  let two = graphql_helpers.read_arg_string_nonempty(args, "customerTwoId")
+  let override =
+    graphql_helpers.read_arg_object(args, "overrideFields")
+    |> option.unwrap(dict.new())
   case one, two {
     Some(one_id), Some(two_id) ->
       case one_id == two_id {

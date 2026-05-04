@@ -136,30 +136,6 @@ fn root_payload_for_field(
   }
 }
 
-fn read_arg_string(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(String) {
-  case dict.get(args, name) {
-    Ok(root_field.StringVal(s)) ->
-      case s {
-        "" -> None
-        _ -> Some(s)
-      }
-    _ -> None
-  }
-}
-
-fn read_arg_bool(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Bool) {
-  case dict.get(args, name) {
-    Ok(root_field.BoolVal(b)) -> Some(b)
-    _ -> None
-  }
-}
-
 fn serialize_bulk_operation_by_id(
   store: Store,
   field: Selection,
@@ -167,7 +143,7 @@ fn serialize_bulk_operation_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_bulk_operation_by_id(store, id) {
         Some(operation) -> project_bulk_operation(operation, field, fragments)
@@ -184,7 +160,11 @@ fn serialize_current_bulk_operation(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let requested_type = option.unwrap(read_arg_string(args, "type"), "QUERY")
+  let requested_type =
+    option.unwrap(
+      graphql_helpers.read_arg_string_nonempty(args, "type"),
+      "QUERY",
+    )
   let operations =
     store.list_effective_bulk_operations(store)
     |> list.filter(fn(operation) { operation.type_ == requested_type })
@@ -202,9 +182,14 @@ fn serialize_bulk_operations_connection(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let raw_query = read_arg_string(args, "query")
-  let sort_key = option.unwrap(read_arg_string(args, "sortKey"), "CREATED_AT")
-  let reverse = option.unwrap(read_arg_bool(args, "reverse"), False)
+  let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
+  let sort_key =
+    option.unwrap(
+      graphql_helpers.read_arg_string_nonempty(args, "sortKey"),
+      "CREATED_AT",
+    )
+  let reverse =
+    option.unwrap(graphql_helpers.read_arg_bool(args, "reverse"), False)
   let operations =
     store.list_effective_bulk_operations(store)
     |> search_query_parser.apply_search_query(
@@ -554,8 +539,9 @@ fn handle_bulk_operation_run_query(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let query = read_arg_string(args, "query")
-  let group_objects = option.unwrap(read_arg_bool(args, "groupObjects"), False)
+  let query = graphql_helpers.read_arg_string_nonempty(args, "query")
+  let group_objects =
+    option.unwrap(graphql_helpers.read_arg_bool(args, "groupObjects"), False)
   case query, group_objects {
     None, _ -> #(
       MutationFieldResult(
@@ -757,7 +743,7 @@ fn fetch_upstream_products_count(
   // a cold LiveHybrid product export reads Shopify's product count so
   // the staged BulkOperation counters match the upstream store.
   let args = graphql_helpers.field_args(root, dict.new())
-  let variables = case read_arg_string(args, "query") {
+  let variables = case graphql_helpers.read_arg_string_nonempty(args, "query") {
     Some(query) -> json.object([#("query", json.string(query))])
     None -> json.object([])
   }
@@ -911,8 +897,9 @@ fn handle_bulk_operation_run_mutation(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let mutation = read_arg_string(args, "mutation")
-  let staged_upload_path = read_arg_string(args, "stagedUploadPath")
+  let mutation = graphql_helpers.read_arg_string_nonempty(args, "mutation")
+  let staged_upload_path =
+    graphql_helpers.read_arg_string_nonempty(args, "stagedUploadPath")
   case mutation, staged_upload_path {
     None, _ -> #(
       MutationFieldResult(
@@ -1498,7 +1485,7 @@ fn handle_bulk_operation_cancel(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     None -> #(
       MutationFieldResult(
         key: key,

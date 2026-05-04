@@ -259,40 +259,6 @@ fn root_payload_for_field(
   }
 }
 
-fn read_arg_string(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(String) {
-  case dict.get(args, name) {
-    Ok(root_field.StringVal(s)) ->
-      case s {
-        "" -> None
-        _ -> Some(s)
-      }
-    _ -> None
-  }
-}
-
-fn read_arg_bool(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Bool) {
-  case dict.get(args, name) {
-    Ok(root_field.BoolVal(b)) -> Some(b)
-    _ -> None
-  }
-}
-
-fn input_object(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Dict(String, root_field.ResolvedValue)) {
-  case dict.get(args, name) {
-    Ok(root_field.ObjectVal(d)) -> Some(d)
-    _ -> None
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Per-root serializers
 // ---------------------------------------------------------------------------
@@ -304,7 +270,7 @@ fn serialize_validation_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_validation_by_id(store, id) {
         Some(record) -> project_validation(store, record, field, fragments)
@@ -321,7 +287,7 @@ fn serialize_shopify_function_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_shopify_function_by_id(store, id) {
         Some(record) -> project_shopify_function(record, field, fragments)
@@ -374,7 +340,7 @@ fn serialize_shopify_functions_connection(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let api_type = read_arg_string(args, "apiType")
+  let api_type = graphql_helpers.read_arg_string(args, "apiType")
   let all = store.list_effective_shopify_functions(store)
   let items = case api_type {
     Some(filter) ->
@@ -866,8 +832,8 @@ fn read_function_reference(
   input: Dict(String, root_field.ResolvedValue),
 ) -> FunctionReference {
   FunctionReference(
-    function_id: read_arg_string(input, "functionId"),
-    function_handle: read_arg_string(input, "functionHandle"),
+    function_id: graphql_helpers.read_arg_string(input, "functionId"),
+    function_handle: graphql_helpers.read_arg_string(input, "functionHandle"),
   )
 }
 
@@ -896,7 +862,7 @@ fn handle_validation_create(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = case input_object(args, "validation") {
+  let input = case graphql_helpers.read_arg_object(args, "validation") {
     Some(d) -> d
     None -> dict.new()
   }
@@ -914,7 +880,7 @@ fn handle_validation_create(
       )
     }
     _, _ -> {
-      let title = read_arg_string(input, "title")
+      let title = graphql_helpers.read_arg_string(input, "title")
       let fallback = case title {
         Some(t) -> t
         None -> "Local validation function"
@@ -931,15 +897,17 @@ fn handle_validation_create(
         synthetic_identity.make_synthetic_timestamp(identity_after_fn)
       let #(validation_id, identity_final) =
         synthetic_identity.make_synthetic_gid(identity_after_ts, "Validation")
-      let enable = case read_arg_bool(input, "enable") {
+      let enable = case graphql_helpers.read_arg_bool(input, "enable") {
         Some(b) -> Some(b)
         None ->
-          case read_arg_bool(input, "enabled") {
+          case graphql_helpers.read_arg_bool(input, "enabled") {
             Some(b) -> Some(b)
             None -> Some(True)
           }
       }
-      let block_on_failure = case read_arg_bool(input, "blockOnFailure") {
+      let block_on_failure = case
+        graphql_helpers.read_arg_bool(input, "blockOnFailure")
+      {
         Some(b) -> Some(b)
         None -> Some(False)
       }
@@ -989,7 +957,7 @@ fn handle_validation_update(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let id = case read_arg_string(args, "id") {
+  let id = case graphql_helpers.read_arg_string(args, "id") {
     Some(s) -> s
     None -> ""
   }
@@ -1006,7 +974,7 @@ fn handle_validation_update(
       )
     }
     Some(current) -> {
-      let input = case input_object(args, "validation") {
+      let input = case graphql_helpers.read_arg_object(args, "validation") {
         Some(d) -> d
         None -> dict.new()
       }
@@ -1048,19 +1016,21 @@ fn handle_validation_update(
       }
       let #(timestamp, identity_after_ts) =
         synthetic_identity.make_synthetic_timestamp(identity_after_fn)
-      let new_title = case read_arg_string(input, "title") {
+      let new_title = case graphql_helpers.read_arg_string(input, "title") {
         Some(s) -> Some(s)
         None -> current.title
       }
-      let new_enable = case read_arg_bool(input, "enable") {
+      let new_enable = case graphql_helpers.read_arg_bool(input, "enable") {
         Some(b) -> Some(b)
         None ->
-          case read_arg_bool(input, "enabled") {
+          case graphql_helpers.read_arg_bool(input, "enabled") {
             Some(b) -> Some(b)
             None -> current.enable
           }
       }
-      let new_block_on_failure = case read_arg_bool(input, "blockOnFailure") {
+      let new_block_on_failure = case
+        graphql_helpers.read_arg_bool(input, "blockOnFailure")
+      {
         Some(b) -> Some(b)
         None -> current.block_on_failure
       }
@@ -1130,7 +1100,7 @@ fn handle_validation_delete(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let id = case read_arg_string(args, "id") {
+  let id = case graphql_helpers.read_arg_string(args, "id") {
     Some(s) -> s
     None -> ""
   }
@@ -1167,7 +1137,7 @@ fn handle_cart_transform_create(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = case input_object(args, "cartTransform") {
+  let input = case graphql_helpers.read_arg_object(args, "cartTransform") {
     Some(d) -> d
     None -> args
   }
@@ -1185,7 +1155,7 @@ fn handle_cart_transform_create(
       )
     }
     _, _ -> {
-      let title = read_arg_string(input, "title")
+      let title = graphql_helpers.read_arg_string(input, "title")
       let fallback = case title {
         Some(t) -> t
         None -> "Local cart transform function"
@@ -1213,7 +1183,9 @@ fn handle_cart_transform_create(
         Some(_) -> reference.function_handle
         None -> shopify_fn.handle
       }
-      let block_on_failure = case read_arg_bool(input, "blockOnFailure") {
+      let block_on_failure = case
+        graphql_helpers.read_arg_bool(input, "blockOnFailure")
+      {
         Some(b) -> Some(b)
         None -> Some(False)
       }
@@ -1257,7 +1229,7 @@ fn handle_cart_transform_delete(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let id = case read_arg_string(args, "id") {
+  let id = case graphql_helpers.read_arg_string(args, "id") {
     Some(s) -> s
     None -> ""
   }
@@ -1294,7 +1266,7 @@ fn handle_tax_app_configure(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let ready = read_arg_bool(args, "ready")
+  let ready = graphql_helpers.read_arg_bool(args, "ready")
   let user_errors = case ready {
     None -> [
       UserError(
@@ -1376,14 +1348,14 @@ fn function_reference_for_mutation(
       let args = graphql_helpers.field_args(field, variables)
       case name.value {
         "validationCreate" -> {
-          let input = case input_object(args, "validation") {
+          let input = case graphql_helpers.read_arg_object(args, "validation") {
             Some(d) -> d
             None -> dict.new()
           }
           Some(#(read_function_reference(input), "VALIDATION"))
         }
         "validationUpdate" -> {
-          let input = case input_object(args, "validation") {
+          let input = case graphql_helpers.read_arg_object(args, "validation") {
             Some(d) -> d
             None -> dict.new()
           }
@@ -1394,7 +1366,9 @@ fn function_reference_for_mutation(
           }
         }
         "cartTransformCreate" -> {
-          let input = case input_object(args, "cartTransform") {
+          let input = case
+            graphql_helpers.read_arg_object(args, "cartTransform")
+          {
             Some(d) -> d
             None -> args
           }

@@ -1105,8 +1105,10 @@ fn handle_market_create(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
-  let name = read_arg_string(input, "name") |> option.unwrap("")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let name =
+    graphql_helpers.read_arg_string_nonempty(input, "name") |> option.unwrap("")
   let errors = case string.trim(name) {
     "" -> [
       user_error(["input", "name"], "Name can't be blank", "BLANK"),
@@ -1173,8 +1175,9 @@ fn handle_market_update(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
-  case read_arg_string(args, "id") {
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_market_by_id(store, id) {
         Some(existing) -> {
@@ -1236,7 +1239,7 @@ fn handle_market_delete(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_market_by_id(store, id) {
         Some(_) ->
@@ -1286,7 +1289,8 @@ fn handle_catalog_create(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let title = read_arg_string_allow_empty(input, "title") |> option.unwrap("")
   let errors = case string.trim(title) {
     "" -> [user_error(["input", "title"], "Title can't be blank", "BLANK")]
@@ -1347,8 +1351,9 @@ fn handle_catalog_update(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
-  case read_arg_string(args, "id") {
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_catalog_by_id(store, id) {
         Some(existing) -> {
@@ -1410,12 +1415,12 @@ fn handle_catalog_context_update(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "catalogId") {
+  case graphql_helpers.read_arg_string_nonempty(args, "catalogId") {
     Some(id) ->
       case store.get_effective_catalog_by_id(store, id) {
         Some(existing) -> {
           let market_ids =
-            read_arg_object(args, "contextsToAdd")
+            graphql_helpers.read_arg_object(args, "contextsToAdd")
             |> option.then(read_arg_string_array(_, "marketIds"))
             |> option.unwrap([])
           let data =
@@ -1479,7 +1484,7 @@ fn handle_catalog_delete(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_catalog_by_id(store, id) {
         Some(_) ->
@@ -1529,7 +1534,8 @@ fn handle_price_list_create(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let errors = price_list_input_errors(input, None)
   case errors {
     [] -> {
@@ -1579,8 +1585,9 @@ fn handle_price_list_update(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
-  case read_arg_string(args, "id") {
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_price_list_by_id(store, id) {
         Some(existing) -> {
@@ -1660,7 +1667,7 @@ fn handle_price_list_delete(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_price_list_by_id(store, id) {
         Some(existing) -> {
@@ -1749,11 +1756,12 @@ fn handle_price_list_fixed_prices_by_product_update(
     Some(existing), [] -> {
       let added_product_ids =
         list.filter_map(price_inputs, fn(input) {
-          read_arg_string(input, "productId") |> option_to_result
+          graphql_helpers.read_arg_string_nonempty(input, "productId")
+          |> option_to_result
         })
       let fixed_inputs =
         list.flat_map(price_inputs, fn(input) {
-          case read_arg_string(input, "productId") {
+          case graphql_helpers.read_arg_string_nonempty(input, "productId") {
             Some(product_id) ->
               store.get_effective_variants_by_product_id(store, product_id)
               |> list.map(fn(variant) {
@@ -1828,7 +1836,8 @@ fn handle_quantity_pricing_by_variant_update(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let price_list_id = read_price_list_id(args)
   let price_list =
     option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
@@ -2037,7 +2046,7 @@ fn handle_market_localizations_register(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let resource_id = read_arg_string(args, "resourceId")
+  let resource_id = graphql_helpers.read_arg_string_nonempty(args, "resourceId")
   let errors = case resource_id {
     Some(id) ->
       case store.find_effective_metafield_by_id(store, id) {
@@ -2076,7 +2085,7 @@ fn handle_market_localizations_remove(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let resource_id = read_arg_string(args, "resourceId")
+  let resource_id = graphql_helpers.read_arg_string_nonempty(args, "resourceId")
   let errors = case resource_id {
     Some(id) ->
       case store.find_effective_metafield_by_id(store, id) {
@@ -2117,7 +2126,8 @@ fn handle_web_presence_create(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let errors = web_presence_create_errors(input)
   case errors {
     [] -> {
@@ -2164,8 +2174,9 @@ fn handle_web_presence_update(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let id = read_arg_string(args, "id")
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let id = graphql_helpers.read_arg_string_nonempty(args, "id")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case id {
     Some(id_value) ->
       case store.get_effective_web_presence_by_id(store, id_value) {
@@ -2219,7 +2230,7 @@ fn handle_web_presence_delete(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_web_presence_by_id(store, id) {
         Some(_) -> {
@@ -2450,7 +2461,9 @@ fn web_presence_delete_not_found_result(
 fn web_presence_create_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
-  let domain_errors = case read_arg_string(input, "domainId") {
+  let domain_errors = case
+    graphql_helpers.read_arg_string_nonempty(input, "domainId")
+  {
     Some(_) -> [
       user_error(
         ["input", "domainId"],
@@ -2460,7 +2473,9 @@ fn web_presence_create_errors(
     ]
     None -> []
   }
-  let locale_errors = case read_arg_string(input, "defaultLocale") {
+  let locale_errors = case
+    graphql_helpers.read_arg_string_nonempty(input, "defaultLocale")
+  {
     Some(locale) ->
       case locale == "en" {
         True -> []
@@ -2483,10 +2498,12 @@ fn web_presence_data(
   input: Dict(String, root_field.ResolvedValue),
 ) -> CapturedJsonValue {
   let default_locale =
-    read_arg_string(input, "defaultLocale") |> option.unwrap("en")
+    graphql_helpers.read_arg_string_nonempty(input, "defaultLocale")
+    |> option.unwrap("en")
   let alternate_locales =
     read_arg_string_array(input, "alternateLocales") |> option.unwrap([])
-  let suffix = read_arg_string(input, "subfolderSuffix")
+  let suffix =
+    graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
   CapturedObject([
     #("__typename", CapturedString("MarketWebPresence")),
     #("id", CapturedString(id)),
@@ -2609,11 +2626,11 @@ fn market_data(
     |> option.or(captured_string_field(existing_value, "name"))
     |> option.unwrap("")
   let status =
-    read_arg_string(input, "status")
+    graphql_helpers.read_arg_string_nonempty(input, "status")
     |> option.or(captured_string_field(existing_value, "status"))
     |> option.unwrap("ACTIVE")
   let enabled =
-    read_arg_bool(input, "enabled")
+    graphql_helpers.read_arg_bool(input, "enabled")
     |> option.unwrap(status == "ACTIVE")
   captured_object_upsert(existing_value, [
     #("__typename", CapturedString("Market")),
@@ -2659,11 +2676,11 @@ fn catalog_data(
     |> option.unwrap("")
     |> string.trim
   let status =
-    read_arg_string(input, "status")
+    graphql_helpers.read_arg_string_nonempty(input, "status")
     |> option.or(captured_string_field(existing_value, "status"))
     |> option.unwrap("ACTIVE")
   let market_ids =
-    read_arg_object(input, "context")
+    graphql_helpers.read_arg_object(input, "context")
     |> option.then(read_arg_string_array(_, "marketIds"))
     |> option.unwrap([])
   captured_object_upsert(existing_value, [
@@ -2737,7 +2754,9 @@ fn price_list_input_errors(
     "" -> [user_error(["input", "name"], "Name can't be blank", "BLANK")]
     _ -> []
   }
-  let currency_errors = case read_arg_string(input, "currency") {
+  let currency_errors = case
+    graphql_helpers.read_arg_string_nonempty(input, "currency")
+  {
     Some(currency) ->
       case valid_currency(currency) {
         True -> []
@@ -2774,7 +2793,7 @@ fn price_list_data(
     |> option.unwrap("")
     |> string.trim
   let currency =
-    read_arg_string(input, "currency")
+    graphql_helpers.read_arg_string_nonempty(input, "currency")
     |> option.or(captured_string_field(existing_value, "currency"))
     |> option.unwrap("USD")
   captured_object_upsert(existing_value, [
@@ -2818,7 +2837,9 @@ fn product_level_fixed_price_errors(
     |> enumerate_dicts
     |> list.filter_map(fn(entry) {
       let #(input, index) = entry
-      let product_id = read_arg_string(input, "productId") |> option.unwrap("")
+      let product_id =
+        graphql_helpers.read_arg_string_nonempty(input, "productId")
+        |> option.unwrap("")
       case store.get_effective_product_by_id(store, product_id) {
         Some(_) -> Error(Nil)
         None ->
@@ -2868,7 +2889,8 @@ fn upsert_fixed_price_nodes(
     inputs
     |> list.filter_map(fn(input) {
       use variant_id <- result.try(
-        read_arg_string(input, "variantId") |> option_to_result,
+        graphql_helpers.read_arg_string_nonempty(input, "variantId")
+        |> option_to_result,
       )
       use variant <- result.try(
         store.get_effective_variant_by_id(store, variant_id) |> option_to_result,
@@ -2933,11 +2955,17 @@ fn price_edge_for_variant(
       "node",
       CapturedObject([
         #("__typename", CapturedString("PriceListPrice")),
-        #("price", money_payload(read_arg_object(input, "price"), currency)),
+        #(
+          "price",
+          money_payload(
+            graphql_helpers.read_arg_object(input, "price"),
+            currency,
+          ),
+        ),
         #(
           "compareAtPrice",
           optional_money_payload(
-            read_arg_object(input, "compareAtPrice"),
+            graphql_helpers.read_arg_object(input, "compareAtPrice"),
             currency,
           ),
         ),
@@ -3051,7 +3079,9 @@ fn quantity_rules_input_errors(
   |> enumerate_dicts
   |> list.filter_map(fn(entry) {
     let #(input, index) = entry
-    let variant_id = read_arg_string(input, "variantId") |> option.unwrap("")
+    let variant_id =
+      graphql_helpers.read_arg_string_nonempty(input, "variantId")
+      |> option.unwrap("")
     case store.get_effective_variant_by_id(store, variant_id) {
       Some(_) -> Error(Nil)
       None ->
@@ -3095,7 +3125,9 @@ fn variant_not_found_errors(
   |> enumerate_dicts
   |> list.filter_map(fn(entry) {
     let #(input, index) = entry
-    let variant_id = read_arg_string(input, "variantId") |> option.unwrap("")
+    let variant_id =
+      graphql_helpers.read_arg_string_nonempty(input, "variantId")
+      |> option.unwrap("")
     case store.get_effective_variant_by_id(store, variant_id) {
       Some(_) -> Error(Nil)
       None ->
@@ -3127,7 +3159,8 @@ fn upsert_quantity_rule_nodes(
     inputs
     |> list.filter_map(fn(input) {
       use variant_id <- result.try(
-        read_arg_string(input, "variantId") |> option_to_result,
+        graphql_helpers.read_arg_string_nonempty(input, "variantId")
+        |> option_to_result,
       )
       use variant <- result.try(
         store.get_effective_variant_by_id(store, variant_id) |> option_to_result,
@@ -3178,7 +3211,8 @@ fn quantity_rule_payloads(
     inputs
     |> list.filter_map(fn(input) {
       use variant_id <- result.try(
-        read_arg_string(input, "variantId") |> option_to_result,
+        graphql_helpers.read_arg_string_nonempty(input, "variantId")
+        |> option_to_result,
       )
       use variant <- result.try(
         store.get_effective_variant_by_id(store, variant_id) |> option_to_result,
@@ -3197,12 +3231,19 @@ fn quantity_rule_node(
     #("__typename", CapturedString("QuantityRule")),
     #(
       "minimum",
-      CapturedInt(read_arg_int(input, "minimum") |> option.unwrap(1)),
+      CapturedInt(
+        graphql_helpers.read_arg_int(input, "minimum") |> option.unwrap(1),
+      ),
     ),
-    #("maximum", optional_captured_int(read_arg_int(input, "maximum"))),
+    #(
+      "maximum",
+      optional_captured_int(graphql_helpers.read_arg_int(input, "maximum")),
+    ),
     #(
       "increment",
-      CapturedInt(read_arg_int(input, "increment") |> option.unwrap(1)),
+      CapturedInt(
+        graphql_helpers.read_arg_int(input, "increment") |> option.unwrap(1),
+      ),
     ),
     #("isDefault", CapturedBool(False)),
     #("originType", CapturedString("FIXED")),
@@ -3234,7 +3275,8 @@ fn upsert_quantity_price_break_nodes(
               rebuild_price_edge_with_breaks(
                 edge,
                 list.filter(inputs, fn(input) {
-                  read_arg_string(input, "variantId") == Some(variant_id)
+                  graphql_helpers.read_arg_string_nonempty(input, "variantId")
+                  == Some(variant_id)
                 })
                   |> list.filter_map(fn(input) {
                     use variant <- result.try(
@@ -3276,12 +3318,15 @@ fn quantity_price_break_node(
     #("id", CapturedString(variant.id <> ":quantity-price-break")),
     #(
       "minimumQuantity",
-      CapturedInt(read_arg_int(input, "minimumQuantity") |> option.unwrap(1)),
+      CapturedInt(
+        graphql_helpers.read_arg_int(input, "minimumQuantity")
+        |> option.unwrap(1),
+      ),
     ),
     #(
       "price",
       money_payload(
-        read_arg_object(input, "price"),
+        graphql_helpers.read_arg_object(input, "price"),
         price_list_currency(price_list),
       ),
     ),
@@ -3330,9 +3375,10 @@ fn money_payload(
         #(
           "amount",
           CapturedString(
-            read_arg_string(value, "amount")
+            graphql_helpers.read_arg_string_nonempty(value, "amount")
             |> option.or(
-              read_arg_int(value, "amount") |> option.map(int.to_string),
+              graphql_helpers.read_arg_int(value, "amount")
+              |> option.map(int.to_string),
             )
             |> option.unwrap("0")
             |> format_money_amount,
@@ -3341,7 +3387,8 @@ fn money_payload(
         #(
           "currencyCode",
           CapturedString(
-            read_arg_string(value, "currencyCode") |> option.unwrap(currency),
+            graphql_helpers.read_arg_string_nonempty(value, "currencyCode")
+            |> option.unwrap(currency),
           ),
         ),
       ])
@@ -3535,7 +3582,8 @@ fn mutation_variant_ids(
 ) -> List(String) {
   inputs
   |> list.filter_map(fn(input) {
-    read_arg_string(input, "variantId") |> option_to_result
+    graphql_helpers.read_arg_string_nonempty(input, "variantId")
+    |> option_to_result
   })
 }
 
@@ -3710,7 +3758,7 @@ fn root_payload_for_field(
           }
         "marketLocalizableResource" -> {
           let args = graphql_helpers.field_args(field, variables)
-          case read_arg_string(args, "resourceId") {
+          case graphql_helpers.read_arg_string_nonempty(args, "resourceId") {
             Some(resource_id) ->
               project_record(
                 field,
@@ -3739,7 +3787,7 @@ fn serialize_record_by_id(
   source: fn(a) -> SourceValue,
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case by_id(id) {
         Some(record) -> project_record(field, fragments, source(record))
@@ -3881,56 +3929,12 @@ fn serialize_exact_count(field: Selection, count: Int) -> Json {
   json.object(entries)
 }
 
-fn read_arg_string(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(String) {
-  case dict.get(args, name) {
-    Ok(root_field.StringVal(s)) ->
-      case s {
-        "" -> None
-        _ -> Some(s)
-      }
-    _ -> None
-  }
-}
-
 fn read_arg_string_allow_empty(
   args: Dict(String, root_field.ResolvedValue),
   name: String,
 ) -> Option(String) {
   case dict.get(args, name) {
     Ok(root_field.StringVal(s)) -> Some(s)
-    _ -> None
-  }
-}
-
-fn read_arg_bool(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Bool) {
-  case dict.get(args, name) {
-    Ok(root_field.BoolVal(value)) -> Some(value)
-    _ -> None
-  }
-}
-
-fn read_arg_int(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Int) {
-  case dict.get(args, name) {
-    Ok(root_field.IntVal(value)) -> Some(value)
-    _ -> None
-  }
-}
-
-fn read_arg_object(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Dict(String, root_field.ResolvedValue)) {
-  case dict.get(args, name) {
-    Ok(root_field.ObjectVal(fields)) -> Some(fields)
     _ -> None
   }
 }
@@ -3954,14 +3958,17 @@ fn read_arg_object_array(
 fn read_price_list_id(
   args: Dict(String, root_field.ResolvedValue),
 ) -> Option(String) {
-  case read_arg_string(args, "priceListId") {
+  case graphql_helpers.read_arg_string_nonempty(args, "priceListId") {
     Some(id) -> Some(id)
     None ->
-      case read_arg_string(args, "id") {
+      case graphql_helpers.read_arg_string_nonempty(args, "id") {
         Some(id) -> Some(id)
         None ->
-          read_arg_object(args, "input")
-          |> option.then(read_arg_string(_, "priceListId"))
+          graphql_helpers.read_arg_object(args, "input")
+          |> option.then(graphql_helpers.read_arg_string_nonempty(
+            _,
+            "priceListId",
+          ))
       }
   }
 }

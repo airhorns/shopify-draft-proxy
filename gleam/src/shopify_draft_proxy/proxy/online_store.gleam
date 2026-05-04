@@ -649,7 +649,11 @@ fn create_content(
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let input =
-    input_object(graphql_helpers.field_args(field, variables), payload_key)
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      payload_key,
+    )
+    |> option.unwrap(dict.new())
   let #(record, identity) =
     make_content(outcome.identity, kind, input, None, None)
   let #(_, store) =
@@ -680,8 +684,11 @@ fn create_article(
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let article_input = input_object(args, "article")
-  let blog_from_arg = input_object(args, "blog")
+  let article_input =
+    graphql_helpers.read_arg_object(args, "article")
+    |> option.unwrap(dict.new())
+  let blog_from_arg =
+    graphql_helpers.read_arg_object(args, "blog") |> option.unwrap(dict.new())
   let #(blog_id, store, identity, staged_blog_ids) = case
     input_string(article_input, "blogId")
   {
@@ -737,7 +744,9 @@ fn update_content(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let id = input_string(args, "id")
-  let input = input_object(args, payload_key)
+  let input =
+    graphql_helpers.read_arg_object(args, payload_key)
+    |> option.unwrap(dict.new())
   case id {
     Some(id) ->
       case store.get_effective_online_store_content_by_id(outcome.store, id) {
@@ -999,7 +1008,9 @@ fn update_theme(
         store.get_effective_online_store_integration_by_id(outcome.store, id)
       {
         Some(existing) -> {
-          let input = input_object(args, "input")
+          let input =
+            graphql_helpers.read_arg_object(args, "input")
+            |> option.unwrap(dict.new())
           let role = case root {
             "themePublish" -> Some("MAIN")
             _ -> input_string(input, "role")
@@ -1158,7 +1169,11 @@ fn create_script_tag(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
   let input =
-    input_object(graphql_helpers.field_args(field, variables), "input")
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let #(record, identity) =
     make_integration(outcome.identity, "scriptTag", [
       #("__typename", SrcString("ScriptTag")),
@@ -1194,7 +1209,8 @@ fn update_script_tag(
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
   let id = input_string(args, "id")
-  let input = input_object(args, "input")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case id {
     Some(id) ->
       case
@@ -1269,7 +1285,11 @@ fn create_pixel(
   let args = graphql_helpers.field_args(field, variables)
   let settings = case kind {
     "webPixel" ->
-      value_source_from_dict(input_object(args, "webPixel"), "settings")
+      value_source_from_dict(
+        graphql_helpers.read_arg_object(args, "webPixel")
+          |> option.unwrap(dict.new()),
+        "settings",
+      )
     _ -> SrcNull
   }
   let #(record, identity) =
@@ -1429,7 +1449,11 @@ fn create_storefront_token(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
   let input =
-    input_object(graphql_helpers.field_args(field, variables), "input")
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let #(record, identity) =
     make_integration(outcome.identity, "storefrontAccessToken", [
       #("__typename", SrcString("StorefrontAccessToken")),
@@ -1463,7 +1487,8 @@ fn delete_storefront_token(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
-  let input = input_object(args, "input")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let id = input_string(input, "id")
   let key = get_field_response_key(field)
   let #(deleted, errors, store) = case id {
@@ -1520,7 +1545,11 @@ fn create_mobile_app(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
   let input =
-    input_object(graphql_helpers.field_args(field, variables), "input")
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let app_type =
     option_string(input_string(input, "applicationType"), "ANDROID")
   let typename = case app_type {
@@ -2717,16 +2746,6 @@ fn user_errors_source(
   SrcList(errors)
 }
 
-fn input_object(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Dict(String, root_field.ResolvedValue) {
-  case dict.get(args, name) {
-    Ok(root_field.ObjectVal(fields)) -> fields
-    _ -> dict.new()
-  }
-}
-
 fn input_list(
   args: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -3064,7 +3083,9 @@ fn make_theme_files(
     case file {
       root_field.ObjectVal(fields) -> {
         let filename = option_string(input_string(fields, "filename"), "")
-        let body = input_object(fields, "body")
+        let body =
+          graphql_helpers.read_arg_object(fields, "body")
+          |> option.unwrap(dict.new())
         let content = option_string(input_string(body, "value"), "")
         src_object([
           #("__typename", SrcString("OnlineStoreThemeFile")),

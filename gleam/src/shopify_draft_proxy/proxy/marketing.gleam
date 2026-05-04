@@ -294,7 +294,7 @@ fn serialize_marketing_activity_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_marketing_activity_record_by_id(store, id) {
         Some(record) -> project_marketing_record(record, field, fragments)
@@ -311,7 +311,7 @@ fn serialize_marketing_event_by_id(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_marketing_event_record_by_id(store, id) {
         Some(record) -> project_marketing_record(record, field, fragments)
@@ -396,7 +396,7 @@ fn filter_records(
     ActivityKind -> filter_activity_id_args(records, args)
     EventKind -> records
   }
-  let query = read_arg_string(args, "query")
+  let query = graphql_helpers.read_arg_string_nonempty(args, "query")
   let records =
     search_query_parser.apply_search_query(
       records,
@@ -404,7 +404,9 @@ fn filter_records(
       search_query_parser.default_parse_options(),
       fn(record, term) { matches_positive_marketing_term(record, term, kind) },
     )
-  let sort_key = case read_arg_string(args, "sortKey") {
+  let sort_key = case
+    graphql_helpers.read_arg_string_nonempty(args, "sortKey")
+  {
     Some(key) -> key
     None ->
       case kind {
@@ -413,7 +415,7 @@ fn filter_records(
       }
   }
   let sorted = sort_records(records, sort_key, kind)
-  case read_arg_bool(args, "reverse") {
+  case graphql_helpers.read_arg_bool(args, "reverse") {
     Some(True) -> list.reverse(sorted)
     _ -> sorted
   }
@@ -806,7 +808,8 @@ fn marketing_activity_create(
   key: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input = read_arg_object(args, "input")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case
     is_known_local_marketing_activity_extension(read_value_string(
       input,
@@ -853,7 +856,8 @@ fn marketing_activity_update(
   key: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input = read_arg_object(args, "input")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case read_value_string(input, "id") {
     Some(id) ->
       case store.get_effective_marketing_activity_record_by_id(store, id) {
@@ -889,7 +893,8 @@ fn marketing_activity_create_external(
   key: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input = read_arg_object(args, "input")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case has_attribution(input) {
     False ->
       validation_result(
@@ -930,13 +935,21 @@ fn marketing_activity_update_external(
   key: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input = read_arg_object(args, "input")
-  let selector_utm = read_utm(read_arg_object(args, "utm"))
-  let activity = case read_arg_string(args, "remoteId") {
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let selector_utm =
+    read_utm(
+      graphql_helpers.read_arg_object(args, "utm") |> option.unwrap(dict.new()),
+    )
+  let activity = case
+    graphql_helpers.read_arg_string_nonempty(args, "remoteId")
+  {
     Some(remote_id) ->
       store.get_effective_marketing_activity_by_remote_id(store, remote_id)
     None ->
-      case read_arg_string(args, "marketingActivityId") {
+      case
+        graphql_helpers.read_arg_string_nonempty(args, "marketingActivityId")
+      {
         Some(id) ->
           store.get_effective_marketing_activity_record_by_id(store, id)
         None -> find_marketing_activity_by_utm(store, selector_utm)
@@ -952,7 +965,9 @@ fn marketing_activity_update_external(
         identity,
       )
     Some(activity) -> {
-      let requested_utm = read_arg_object(args, "utm")
+      let requested_utm =
+        graphql_helpers.read_arg_object(args, "utm")
+        |> option.unwrap(dict.new())
       case
         dict.is_empty(requested_utm)
         || same_utm(
@@ -987,7 +1002,8 @@ fn marketing_activity_upsert_external(
   key: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input = read_arg_object(args, "input")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let existing = case read_value_string(input, "remoteId") {
     Some(remote_id) ->
       store.get_effective_marketing_activity_by_remote_id(store, remote_id)
@@ -1039,11 +1055,15 @@ fn marketing_activity_delete_external(
   key: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let activity = case read_arg_string(args, "remoteId") {
+  let activity = case
+    graphql_helpers.read_arg_string_nonempty(args, "remoteId")
+  {
     Some(remote_id) ->
       store.get_effective_marketing_activity_by_remote_id(store, remote_id)
     None ->
-      case read_arg_string(args, "marketingActivityId") {
+      case
+        graphql_helpers.read_arg_string_nonempty(args, "marketingActivityId")
+      {
         Some(id) ->
           store.get_effective_marketing_activity_record_by_id(store, id)
         None -> None
@@ -1114,7 +1134,9 @@ fn marketing_engagement_create(
   key: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input = read_arg_object(args, "marketingEngagement")
+  let input =
+    graphql_helpers.read_arg_object(args, "marketingEngagement")
+    |> option.unwrap(dict.new())
   case resolve_marketing_engagement_identifier(store, args) {
     Error(user_error) ->
       validation_result(
@@ -1151,9 +1173,13 @@ fn marketing_engagements_delete(
   key: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let channel_handle = read_arg_string(args, "channelHandle")
+  let channel_handle =
+    graphql_helpers.read_arg_string_nonempty(args, "channelHandle")
   let delete_all =
-    option.unwrap(read_arg_bool(args, "deleteEngagementsForAllChannels"), False)
+    option.unwrap(
+      graphql_helpers.read_arg_bool(args, "deleteEngagementsForAllChannels"),
+      False,
+    )
   case channel_handle, delete_all {
     Some(_), True ->
       validation_result(
@@ -1922,9 +1948,11 @@ fn resolve_marketing_engagement_identifier(
   store: Store,
   args: Dict(String, root_field.ResolvedValue),
 ) -> Result(EngagementIdentifier, UserError) {
-  let marketing_activity_id = read_arg_string(args, "marketingActivityId")
-  let remote_id = read_arg_string(args, "remoteId")
-  let channel_handle = read_arg_string(args, "channelHandle")
+  let marketing_activity_id =
+    graphql_helpers.read_arg_string_nonempty(args, "marketingActivityId")
+  let remote_id = graphql_helpers.read_arg_string_nonempty(args, "remoteId")
+  let channel_handle =
+    graphql_helpers.read_arg_string_nonempty(args, "channelHandle")
   let count =
     option_count(marketing_activity_id)
     + option_count(remote_id)
@@ -2042,30 +2070,6 @@ fn decimal_engagement_entries(
 // Shared helpers
 // ===========================================================================
 
-fn read_arg_string(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(String) {
-  case dict.get(args, name) {
-    Ok(root_field.StringVal(s)) ->
-      case s {
-        "" -> None
-        _ -> Some(s)
-      }
-    _ -> None
-  }
-}
-
-fn read_arg_bool(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Bool) {
-  case dict.get(args, name) {
-    Ok(root_field.BoolVal(value)) -> Some(value)
-    _ -> None
-  }
-}
-
 fn read_arg_string_list(
   args: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -2079,16 +2083,6 @@ fn read_arg_string_list(
         }
       })
     _ -> []
-  }
-}
-
-fn read_arg_object(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Dict(String, root_field.ResolvedValue) {
-  case dict.get(args, name) {
-    Ok(root_field.ObjectVal(value)) -> value
-    _ -> dict.new()
   }
 }
 
