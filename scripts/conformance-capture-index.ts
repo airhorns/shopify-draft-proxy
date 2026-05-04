@@ -806,6 +806,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
+    domain: 'orders',
+    captureId: 'order-edit-lifecycle-user-errors',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-lifecycle-user-errors-conformance.mts',
+    purpose:
+      'orderEditBegin/AddVariant/SetQuantity/Commit missing-resource userError payload roots for lifecycle validation.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-lifecycle-user-errors.json`,
+      'config/parity-specs/orders/orderEdit-lifecycle-userErrors.json',
+      'config/parity-requests/orders/orderEdit-lifecycle-userErrors-*.graphql',
+    ],
+    cleanupBehavior: 'Validation-only order-edit probes use missing Shopify GIDs and do not create merchant resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'shipping-fulfillments',
     captureId: 'fulfillment-detail-events',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },

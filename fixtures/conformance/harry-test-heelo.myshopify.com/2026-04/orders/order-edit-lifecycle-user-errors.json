@@ -1,0 +1,150 @@
+{
+  "scenarioId": "orderEdit-lifecycle-userErrors",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "cases": [
+    {
+      "name": "begin-not-found",
+      "query": "mutation OrderEditLifecycleBeginNotFound($id: ID!) {\n    orderEditBegin(id: $id) {\n      calculatedOrder {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/0"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditBegin": {
+              "calculatedOrder": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The order does not exist."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "add-variant-missing-calculated-order",
+      "query": "mutation OrderEditLifecycleAddVariantMissingCalculatedOrder($id: ID!, $variantId: ID!, $quantity: Int!) {\n    orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {\n      calculatedOrder {\n        id\n      }\n      calculatedLineItem {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/999999999999999",
+        "variantId": "gid://shopify/ProductVariant/999999999999999",
+        "quantity": 1
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditAddVariant": {
+              "calculatedOrder": null,
+              "calculatedLineItem": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The calculated order does not exist."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "set-quantity-missing-calculated-order",
+      "query": "mutation OrderEditLifecycleSetQuantityMissingCalculatedOrder($id: ID!, $lineItemId: ID!, $quantity: Int!) {\n    orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {\n      calculatedOrder {\n        id\n      }\n      calculatedLineItem {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/999999999999999",
+        "lineItemId": "gid://shopify/CalculatedLineItem/999999999999999",
+        "quantity": 1
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditSetQuantity": {
+              "calculatedOrder": null,
+              "calculatedLineItem": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The calculated order does not exist."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "commit-missing-calculated-order",
+      "query": "mutation OrderEditLifecycleCommitMissingCalculatedOrder($id: ID!) {\n    orderEditCommit(id: $id) {\n      order {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/999999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditCommit": {
+              "order": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The calculated order does not exist."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

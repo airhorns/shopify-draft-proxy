@@ -507,6 +507,14 @@ pub fn orders_order_edit_add_variant_payload_test() {
         cursor: None,
       ),
     ])
+    |> store.upsert_base_orders([
+      order_edit_test_order("gid://shopify/Order/7012", "PAID", None, [
+        order_edit_test_session(
+          "gid://shopify/Order/7012",
+          "gid://shopify/CalculatedOrder/10",
+        ),
+      ]),
+    ])
   let mutation =
     "
     mutation OrderEditExistingWorkflowAddVariantPayload(
@@ -618,9 +626,19 @@ pub fn orders_order_edit_add_variant_invalid_variant_payload_test() {
       ),
       #("allowDuplicates", root_field.BoolVal(False)),
     ])
+  let session_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order("gid://shopify/Order/7010", "PAID", None, [
+        order_edit_test_session(
+          "gid://shopify/Order/7010",
+          "gid://shopify/CalculatedOrder/1",
+        ),
+      ]),
+    ])
   let assert Ok(outcome) =
     orders.process_mutation(
-      store.new(),
+      session_store,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
@@ -663,7 +681,7 @@ pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
       ]),
     )
   assert json.to_string(missing_outcome.data)
-    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Order does not exist\",\"code\":\"INVALID\"}]}}}"
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The order does not exist.\",\"code\":\"INVALID\"}]}}}"
 
   let refunded_id = "gid://shopify/Order/7001"
   let refunded_store =
@@ -680,7 +698,7 @@ pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
       dict.from_list([#("id", root_field.StringVal(refunded_id))]),
     )
   assert json.to_string(refunded_outcome.data)
-    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Order is not editable\",\"code\":\"INVALID\"}]}}}"
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The order cannot be edited.\",\"code\":\"INVALID\"}]}}}"
 
   let cancel_id = "gid://shopify/Order/7002"
   let cancel_store =
@@ -720,7 +738,7 @@ pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
       dict.from_list([#("id", root_field.StringVal(cancel_id))]),
     )
   assert json.to_string(canceled_begin_outcome.data)
-    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Order is not editable\",\"code\":\"INVALID\"}]}}}"
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The order cannot be edited.\",\"code\":\"INVALID\"}]}}}"
 
   let existing_session_id = "gid://shopify/CalculatedOrder/99"
   let existing_session_order_id = "gid://shopify/Order/7003"
@@ -781,6 +799,31 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
       ]),
     )
   assert json.to_string(add_variant_outcome.data)
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
+
+  let session_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order("gid://shopify/Order/7011", "PAID", None, [
+        order_edit_test_session(
+          "gid://shopify/Order/7011",
+          "gid://shopify/CalculatedOrder/1",
+        ),
+      ]),
+    ])
+  let assert Ok(missing_variant_outcome) =
+    orders.process_mutation(
+      session_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      add_variant,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #("variantId", root_field.StringVal("gid://shopify/ProductVariant/404")),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+    )
+  assert json.to_string(missing_variant_outcome.data)
     == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"variantId\"],\"message\":\"Variant does not exist\",\"code\":\"INVALID\"}]}}}"
 
   let set_quantity =
@@ -820,6 +863,24 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
       ]),
     )
   assert json.to_string(set_quantity_outcome.data)
+    == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
+
+  let assert Ok(missing_line_outcome) =
+    orders.process_mutation(
+      session_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      set_quantity,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #(
+          "lineItemId",
+          root_field.StringVal("gid://shopify/CalculatedLineItem/404"),
+        ),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+    )
+  assert json.to_string(missing_line_outcome.data)
     == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"lineItemId\"],\"message\":\"Line item does not exist\",\"code\":\"INVALID\"}]}}}"
 
   let commit =
@@ -849,7 +910,7 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
       ]),
     )
   assert json.to_string(commit_outcome.data)
-    == "{\"data\":{\"orderEditCommit\":{\"order\":null,\"successMessages\":[],\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Calculated order does not exist\",\"code\":\"INVALID\"}]}}}"
+    == "{\"data\":{\"orderEditCommit\":{\"order\":null,\"successMessages\":[],\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
 }
 
 fn order_edit_test_order(
@@ -955,6 +1016,15 @@ pub fn orders_order_edit_set_quantity_payload_test() {
                     ),
                   ]),
                 ]),
+              ),
+            ]),
+          ),
+          #(
+            "orderEditSessions",
+            types.CapturedArray([
+              order_edit_test_session(
+                order_id,
+                "gid://shopify/CalculatedOrder/1",
               ),
             ]),
           ),
