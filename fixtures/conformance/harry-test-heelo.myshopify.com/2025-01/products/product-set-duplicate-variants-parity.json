@@ -13,12 +13,42 @@
           { "name": "Color", "position": 2, "values": [{ "name": "Red" }, { "name": "Blue" }, { "name": "White" }] }
         ],
         "variants": [
-          { "optionValues": [{ "optionName": "Size", "name": "S" }, { "optionName": "Color", "name": "Red" }] },
-          { "optionValues": [{ "optionName": "Size", "name": "S" }, { "optionName": "Color", "name": "Blue" }] },
-          { "optionValues": [{ "optionName": "Size", "name": "M" }, { "optionName": "Color", "name": "Red" }] },
-          { "optionValues": [{ "optionName": "Size", "name": "M" }, { "optionName": "Color", "name": "White" }] },
-          { "optionValues": [{ "optionName": "Size", "name": "S" }, { "optionName": "Color", "name": "Red" }] },
-          { "optionValues": [{ "optionName": "Size", "name": "M" }, { "optionName": "Color", "name": "White" }] }
+          {
+            "optionValues": [
+              { "optionName": "Size", "name": "S" },
+              { "optionName": "Color", "name": "Red" }
+            ]
+          },
+          {
+            "optionValues": [
+              { "optionName": "Size", "name": "S" },
+              { "optionName": "Color", "name": "Blue" }
+            ]
+          },
+          {
+            "optionValues": [
+              { "optionName": "Size", "name": "M" },
+              { "optionName": "Color", "name": "Red" }
+            ]
+          },
+          {
+            "optionValues": [
+              { "optionName": "Size", "name": "M" },
+              { "optionName": "Color", "name": "White" }
+            ]
+          },
+          {
+            "optionValues": [
+              { "optionName": "Size", "name": "S" },
+              { "optionName": "Color", "name": "Red" }
+            ]
+          },
+          {
+            "optionValues": [
+              { "optionName": "Size", "name": "M" },
+              { "optionName": "Color", "name": "White" }
+            ]
+          }
         ]
       }
     },
