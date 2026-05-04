@@ -284,7 +284,9 @@ fn resolved_value_matches_local_product(
       }
     ObjectVal(fields) ->
       dict.values(fields)
-      |> list.any(fn(field) { resolved_value_matches_local_product(proxy, field) })
+      |> list.any(fn(field) {
+        resolved_value_matches_local_product(proxy, field)
+      })
     ListVal(items) ->
       list.any(items, fn(item) {
         resolved_value_matches_local_product(proxy, item)
