@@ -13,6 +13,7 @@ defmodule ShopifyDraftProxy do
 
   @compile {:no_warn_undefined, {:shopify_draft_proxy@proxy@draft_proxy, :new, 0}}
   @compile {:no_warn_undefined, {:shopify_draft_proxy@proxy@draft_proxy, :with_config, 1}}
+  @compile {:no_warn_undefined, {:shopify_draft_proxy@proxy@draft_proxy, :with_default_registry, 1}}
   @compile {:no_warn_undefined, {:shopify_draft_proxy@proxy@draft_proxy, :process_request, 2}}
   @compile {:no_warn_undefined, {:shopify_draft_proxy@proxy@draft_proxy, :default_graphql_path, 1}}
   @compile {:no_warn_undefined, {:shopify_draft_proxy@proxy@draft_proxy, :dump_state, 2}}
@@ -33,7 +34,7 @@ defmodule ShopifyDraftProxy do
   end
 
   def new do
-    %__MODULE__{raw: DraftProxy.new()}
+    %__MODULE__{raw: DraftProxy.new() |> DraftProxy.with_default_registry()}
   end
 
   def with_config(opts) when is_list(opts) do
@@ -41,7 +42,13 @@ defmodule ShopifyDraftProxy do
     port = Keyword.get(opts, :port, 4000)
     origin = Keyword.get(opts, :shopify_admin_origin, "https://shopify.com")
     snapshot_path = option(Keyword.get(opts, :snapshot_path))
-    %__MODULE__{raw: DraftProxy.with_config({:config, read_mode, port, origin, snapshot_path})}
+
+    raw =
+      {:config, read_mode, port, origin, snapshot_path}
+      |> DraftProxy.with_config()
+      |> DraftProxy.with_default_registry()
+
+    %__MODULE__{raw: raw}
   end
 
   def request(%__MODULE__{raw: raw}, method, path, body \\ "", headers \\ %{}) do

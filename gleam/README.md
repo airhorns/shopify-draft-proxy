@@ -352,6 +352,36 @@ hosts without native `escript` or `mix`, the script falls back to the
 `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container and installs Elixir
 inside the disposable container before running the smoke project.
 
+### Live end-to-end smokes
+
+In addition to the offline interop smoke above, `elixir_smoke/` ships a
+`:live`-tagged test that exercises the full live-hybrid mutation +
+commit cycle against a real Shopify test store. It is the canonical
+proof that the Elixir wrapper attaches the operation registry, that
+`productCreate` stages locally with a synthetic GID instead of leaking
+upstream, and that `/__meta/commit` replays through `:httpc` and gets
+real GIDs back.
+
+```sh
+# Elixir/Erlang target:
+corepack pnpm e2e:elixir-product-create-commit-smoke
+# → runs scripts/elixir-e2e-product-create-commit-smoke.ts which
+#   rebuilds the Erlang shipment, refreshes the conformance token, and
+#   invokes `mix test --only live test/live_hybrid_e2e_test.exs`.
+
+# JS / Node target (same scenario, in-process Koa app):
+corepack pnpm e2e:product-create-commit-smoke
+# → runs scripts/e2e-product-create-commit-smoke.mts.
+```
+
+Both scripts pull credentials through `scripts/shopify-conformance-auth.mts`
+and clean up any products they create on success **and** failure (cleanup
+runs in `on_exit` / `finally`). Running both before merging committable-
+mutation changes is the cross-target sanity check; running just the
+Elixir one verifies the BEAM-side wrapper. The `:live` tag in
+`elixir_smoke/test_helper.exs` keeps these out of plain `mix test` so
+the offline smoke stays hermetic.
+
 ## Remaining Unsupported Boundaries
 
 - The package is not yet published to npm or Hex.

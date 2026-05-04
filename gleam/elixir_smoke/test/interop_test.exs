@@ -41,6 +41,11 @@ defmodule ShopifyDraftProxy.InteropTest do
     assert create_body =~ ~s("userErrors":[])
     [_, product_id] = Regex.run(~r/"id":"(gid:\/\/shopify\/Product\/[^"]+)"/, create_body)
 
+    assert String.contains?(product_id, "shopify-draft-proxy=synthetic"),
+           "ShopifyDraftProxy.new/0 must attach the default operation registry so " <>
+             "supported mutations like productCreate are staged locally with a synthetic " <>
+             "GID instead of being passed through to Shopify. Got: #{product_id}"
+
     read =
       ShopifyDraftProxy.graphql(
         created_proxy,
@@ -123,6 +128,21 @@ defmodule ShopifyDraftProxy.InteropTest do
     config = ShopifyDraftProxy.config(proxy)
     assert config.body =~ ~s("readMode":"live-hybrid")
     assert config.body =~ ~s("shopifyAdminOrigin":"https://my-shop.myshopify.com")
+  end
+
+  test "new/0 and with_config/1 attach the default operation registry" do
+    for proxy <- [
+          ShopifyDraftProxy.new(),
+          ShopifyDraftProxy.with_config(read_mode: :snapshot)
+        ] do
+      registry = elem(proxy.raw, 4)
+
+      assert is_list(registry) and length(registry) >= 60,
+             "Elixir wrapper must attach the vendored operation registry; otherwise " <>
+               "supported mutations resolve to Passthrough and leak to Shopify in " <>
+               "live-hybrid mode (violates AGENTS.md non-negotiable #3). Got registry: " <>
+               inspect(registry)
+    end
   end
 
   test "default_graphql_path/1 builds the documented Admin path" do

@@ -21,6 +21,11 @@ defmodule ShopifyDraftProxy.ElixirSmoke.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger]]
+    # `:inets` and `:ssl` back the `:httpc` calls that the live e2e
+    # smoke (`test/live_hybrid_e2e_test.exs`) uses to talk to Shopify
+    # directly for cleanup verification. The unit interop tests don't
+    # need them, but they are cheap to start and keep both flows in one
+    # mix project.
+    [extra_applications: [:logger, :inets, :ssl]]
   end
 end
