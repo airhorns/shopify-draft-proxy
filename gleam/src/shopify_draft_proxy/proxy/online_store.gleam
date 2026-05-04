@@ -1293,19 +1293,67 @@ fn create_pixel(
       )
     _ -> SrcNull
   }
-  let #(record, identity) =
-    make_integration(outcome.identity, kind, [
-      #(
-        "__typename",
-        SrcString(case kind {
-          "webPixel" -> "WebPixel"
-          _ -> "ServerPixel"
-        }),
-      ),
+  let duplicate_web_pixel =
+    kind == "webPixel"
+    && list.any(
+      store.list_effective_online_store_integrations(outcome.store, "webPixel"),
+      same_current_app_web_pixel,
+    )
+  case duplicate_web_pixel {
+    True ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        root,
+        kind,
+        None,
+        [web_pixel_taken_error()],
+        outcome.store,
+        outcome.identity,
+        [],
+      )
+    False ->
+      create_pixel_record(
+        outcome,
+        field,
+        fragments,
+        variables,
+        root,
+        kind,
+        settings,
+      )
+  }
+}
+
+fn create_pixel_record(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+  kind: String,
+  settings: graphql_helpers.SourceValue,
+) -> #(String, Json, MutationOutcome) {
+  let type_name = case kind {
+    "webPixel" -> "WebPixel"
+    _ -> "ServerPixel"
+  }
+  let entries = case kind {
+    "webPixel" -> [
+      #("__typename", SrcString(type_name)),
+      #("settings", settings),
+      #("status", web_pixel_status_source(settings)),
+    ]
+    _ -> [
+      #("__typename", SrcString(type_name)),
       #("settings", settings),
       #("status", SrcString("CONNECTED")),
       #("webhookEndpointAddress", SrcNull),
-    ])
+    ]
+  }
+  let #(record, identity) = make_integration(outcome.identity, kind, entries)
   let #(_, store) =
     store.upsert_staged_online_store_integration(outcome.store, record)
   integration_payload_result(
@@ -1343,7 +1391,31 @@ fn update_pixel(
       ))
   }
   case existing {
-    Some(record) ->
+    Some(record) -> {
+      let input =
+        graphql_helpers.read_arg_object(args, kind)
+        |> option.unwrap(dict.new())
+      let prior = captured_to_source(record.data)
+      let settings =
+        value_or_default(
+          input,
+          "settings",
+          source_field(prior, "settings", SrcNull),
+        )
+      let record = case kind {
+        "webPixel" ->
+          OnlineStoreIntegrationRecord(
+            ..record,
+            data: base_source(prior, [
+                #("settings", settings),
+                #("status", web_pixel_status_source(settings)),
+              ])
+              |> source_to_captured,
+          )
+        _ -> record
+      }
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(outcome.store, record)
       integration_payload_result(
         outcome,
         field,
@@ -1353,10 +1425,11 @@ fn update_pixel(
         kind,
         Some(record),
         [],
-        outcome.store,
+        store,
         outcome.identity,
         [record.id],
       )
+    }
     None ->
       integration_payload_result(
         outcome,
@@ -1366,7 +1439,7 @@ fn update_pixel(
         root,
         kind,
         None,
-        [user_error(["id"], "Pixel does not exist")],
+        [web_pixel_user_error(["id"], "Pixel does not exist", None)],
         outcome.store,
         outcome.identity,
         [],
@@ -1662,7 +1735,7 @@ fn delete_integration(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
   root: String,
-  _kind: String,
+  kind: String,
   deleted_key: String,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
@@ -1677,17 +1750,9 @@ fn delete_integration(
           [],
           store.delete_staged_online_store_integration(outcome.store, id),
         )
-        None -> #(
-          SrcNull,
-          [user_error(["id"], "Integration does not exist")],
-          outcome.store,
-        )
+        None -> #(SrcNull, [integration_not_found_error(kind)], outcome.store)
       }
-    None -> #(
-      SrcNull,
-      [user_error(["id"], "Integration does not exist")],
-      outcome.store,
-    )
+    None -> #(SrcNull, [integration_not_found_error(kind)], outcome.store)
   }
   let payload =
     project_payload_source(
@@ -2244,7 +2309,7 @@ fn project_integration_record(
   fragments: FragmentMap,
   _variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let source = captured_to_source(record.data)
+  let source = integration_projection_source(record)
   let entries =
     list.map(
       get_selected_child_fields(
@@ -2278,6 +2343,22 @@ fn project_integration_record(
       },
     )
   json.object(entries)
+}
+
+fn integration_projection_source(
+  record: OnlineStoreIntegrationRecord,
+) -> graphql_helpers.SourceValue {
+  let source = captured_to_source(record.data)
+  case record.kind {
+    "webPixel" ->
+      base_source(without_source_field(source, "webhookEndpointAddress"), [
+        #(
+          "status",
+          web_pixel_status_source(source_field(source, "settings", SrcNull)),
+        ),
+      ])
+    _ -> source
+  }
 }
 
 fn project_content_payload(
@@ -2741,6 +2822,63 @@ fn user_error(
   ])
 }
 
+fn web_pixel_taken_error() -> graphql_helpers.SourceValue {
+  src_object([
+    #("__typename", SrcString("WebPixelUserError")),
+    #("field", SrcNull),
+    #("message", SrcString("Web pixel is taken.")),
+    #("code", SrcString("TAKEN")),
+  ])
+}
+
+fn web_pixel_user_error(
+  field: List(String),
+  message: String,
+  code: Option(String),
+) -> graphql_helpers.SourceValue {
+  src_object([
+    #("__typename", SrcString("WebPixelUserError")),
+    #("field", SrcList(list.map(field, SrcString))),
+    #("message", SrcString(message)),
+    #("code", case code {
+      Some(code) -> SrcString(code)
+      None -> SrcNull
+    }),
+  ])
+}
+
+fn integration_not_found_error(kind: String) -> graphql_helpers.SourceValue {
+  case kind {
+    "webPixel" ->
+      web_pixel_user_error(["id"], "Integration does not exist", None)
+    _ -> user_error(["id"], "Integration does not exist")
+  }
+}
+
+fn web_pixel_status_source(
+  settings: graphql_helpers.SourceValue,
+) -> graphql_helpers.SourceValue {
+  case settings {
+    SrcNull -> SrcString("NEEDS_CONFIGURATION")
+    _ -> SrcString("CONNECTED")
+  }
+}
+
+fn same_current_app_web_pixel(record: OnlineStoreIntegrationRecord) -> Bool {
+  current_app_key(captured_to_source(record.data)) == current_app_key(SrcNull)
+}
+
+fn current_app_key(source: graphql_helpers.SourceValue) -> Option(String) {
+  case source_optional_string_field(source, "apiPermission") {
+    Some(value) -> Some(value)
+    None ->
+      case source_optional_string_field(source, "api_permission") {
+        Some(value) -> Some(value)
+        None -> None
+      }
+  }
+}
+
 fn user_errors_source(
   errors: List(graphql_helpers.SourceValue),
 ) -> graphql_helpers.SourceValue {
@@ -2863,6 +3001,16 @@ fn source_field(
         Error(_) -> default
       }
     _ -> default
+  }
+}
+
+fn without_source_field(
+  source: graphql_helpers.SourceValue,
+  name: String,
+) -> graphql_helpers.SourceValue {
+  case source {
+    SrcObject(fields) -> SrcObject(dict.delete(fields, name))
+    _ -> source
   }
 }
 

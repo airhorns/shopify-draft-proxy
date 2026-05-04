@@ -2147,8 +2147,21 @@ fn online_store_integration_json(
     #("cursor", optional_string(record.cursor)),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
-    #("data", captured_json_value_json(record.data)),
+    #("data", captured_json_value_json(online_store_integration_data(record))),
   ])
+}
+
+fn online_store_integration_data(
+  record: types.OnlineStoreIntegrationRecord,
+) -> types.CapturedJsonValue {
+  case record.kind, record.data {
+    "webPixel", types.CapturedObject(fields) ->
+      types.CapturedObject(
+        fields
+        |> list.filter(fn(pair) { pair.0 != "webhookEndpointAddress" }),
+      )
+    _, data -> data
+  }
 }
 
 fn deleted_online_store_ids_json(

@@ -9,6 +9,51 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-04 - Pass 197: HAR-572 WebPixel duplicate create guard
+
+Aligns the Online Store WebPixel staging path with Shopify Core's duplicate
+per-app guard and tightens WebPixel persisted-field fidelity.
+
+| Module / fixture                                                                                                                                                                                                                                                                    | Change                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/online_store.gleam`                                                                                                                                                                                                                            | Rejects a second effective local `webPixelCreate` for the current app key with a `TAKEN` `WebPixelUserError`, derives local WebPixel status from settings presence, updates WebPixel settings/status on update, and keeps `webhookEndpointAddress` out of WebPixel projection. |
+| `gleam/src/shopify_draft_proxy/state/serialization.gleam`                                                                                                                                                                                                                           | Filters legacy/new `webhookEndpointAddress` data out of serialized WebPixel state while leaving ServerPixel data intact.                                                                                                                                                       |
+| `gleam/test/shopify_draft_proxy/proxy/online_store_test.gleam`                                                                                                                                                                                                                      | Adds targeted runtime coverage for duplicate create, WebPixel user error typenames, status derivation, and WebPixel vs ServerPixel state serialization.                                                                                                                        |
+| `config/parity-specs/online-store/web-pixel-create-duplicate-returns-taken.json` / `config/parity-requests/online-store/web-pixel-create-duplicate-returns-taken.graphql` / `fixtures/conformance/local-runtime/2026-04/online-store/web-pixel-create-duplicate-returns-taken.json` | Adds executable local-runtime parity that runs `webPixelCreate` twice in one proxy session and strictly compares the second response to the Shopify Core duplicate guard shape.                                                                                                |
+| `docs/endpoints/online-store.md`                                                                                                                                                                                                                                                    | Documents the duplicate guard, `WebPixelUserError` evidence, status derivation, and ServerPixel-only webhook endpoint field boundary.                                                                                                                                          |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- online_store_test` (855 passed)
+- `cd gleam && gleam test --target javascript -- parity_test` (855 passed)
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (855 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'` (OTP 28, 846 passed)
+- `corepack pnpm conformance:check` (1429 passed)
+- `corepack pnpm lint` (passed with pre-existing `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2293 tests passed)
+- `git diff --check`
+
+### Findings
+
+- The current Online Store integration record does not carry a first-class
+  calling app/api_permission field. The duplicate check therefore matches
+  existing records with the same optional stored app key, falling back to the
+  current single-app local session when no key is present.
+- WebPixel projection now recomputes `status` from stored settings so restored
+  older state with a stale hardcoded status does not leak the previous value.
+
+### Risks / open items
+
+- The duplicate fixture is local-runtime evidence backed by the ticket's
+  Shopify Core behavior description, not a fresh live Shopify capture; pixel
+  live access remains scope-sensitive as documented in the Online Store endpoint
+  notes.
+
+---
+
 ## 2026-05-04 - Pass 196: HAR-549 invalid product search syntax parity
 
 Adds live conformance coverage for malformed-looking Shopify Admin product
