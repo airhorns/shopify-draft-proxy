@@ -9389,8 +9389,7 @@ fn product_set_variant_signature(
       read_string_field(option_value, "name")
     {
       Some(option_name), Some(value) -> {
-        let position =
-          dict.get(positions, option_name) |> result.unwrap(9999)
+        let position = dict.get(positions, option_name) |> result.unwrap(9999)
         Ok(#(position, option_name, value))
       }
       _, _ -> Error(Nil)
