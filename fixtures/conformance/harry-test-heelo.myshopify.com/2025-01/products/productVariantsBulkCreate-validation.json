@@ -5,8 +5,8 @@
     "atomicNoWrite compares before/after product reads and must remain true for each captured rejection."
   ],
   "run": {
-    "runId": "har-574-1777936293709",
-    "productId": "gid://shopify/Product/10176764182834",
+    "runId": "har-574-1777938491793",
+    "productId": "gid://shopify/Product/10176778862898",
     "storeDomain": "harry-test-heelo.myshopify.com",
     "apiVersion": "2025-01"
   },
@@ -15,7 +15,7 @@
       "query": "#graphql\n  mutation ProductVariantScalarValidationCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        status\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "har-574-1777936293709 Product Variant Scalar Validation",
+          "title": "har-574-1777938491793 Product Variant Scalar Validation",
           "status": "DRAFT"
         }
       },
@@ -25,8 +25,8 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10176764182834",
-                "title": "har-574-1777936293709 Product Variant Scalar Validation",
+                "id": "gid://shopify/Product/10176778862898",
+                "title": "har-574-1777938491793 Product Variant Scalar Validation",
                 "status": "DRAFT"
               },
               "userErrors": []
@@ -49,7 +49,7 @@
     "setupOptions": {
       "query": "#graphql\n  mutation ProductVariantScalarValidationOptions($productId: ID!, $options: [OptionCreateInput!]!) {\n    productOptionsCreate(productId: $productId, options: $options) {\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "options": [
           {
             "name": "Color",
@@ -98,9 +98,9 @@
       }
     },
     "priceNull": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": null,
@@ -148,9 +148,9 @@
       "atomicNoWrite": true
     },
     "priceNegative": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": "-5",
@@ -198,9 +198,9 @@
       "atomicNoWrite": true
     },
     "priceTooLarge": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": "1000000000000000000",
@@ -248,9 +248,9 @@
       "atomicNoWrite": true
     },
     "compareAtPriceTooLarge": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": "10",
@@ -299,9 +299,9 @@
       "atomicNoWrite": true
     },
     "weightNegative": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": "10",
@@ -357,9 +357,9 @@
       "atomicNoWrite": true
     },
     "weightTooLarge": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": "10",
@@ -415,9 +415,9 @@
       "atomicNoWrite": true
     },
     "inventoryTooHigh": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": "10",
@@ -471,9 +471,9 @@
       "atomicNoWrite": true
     },
     "skuTooLong": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": "10",
@@ -529,9 +529,9 @@
       "atomicNoWrite": true
     },
     "barcodeTooLong": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": "10",
@@ -580,9 +580,9 @@
       "atomicNoWrite": true
     },
     "optionValueTooLong": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": "10",
@@ -630,9 +630,9 @@
       "atomicNoWrite": true
     },
     "maxInputSize": {
-      "query": "#graphql\n  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkCreate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10176764182834",
+        "productId": "gid://shopify/Product/10176778862898",
         "variants": [
           {
             "price": "1"
@@ -6791,8 +6791,8 @@
               "message": "The input array size of 2049 is greater than the maximum allowed of 2048.",
               "locations": [
                 {
-                  "line": 3,
-                  "column": 5
+                  "line": 2,
+                  "column": 3
                 }
               ],
               "path": ["productVariantsBulkCreate", "variants"],

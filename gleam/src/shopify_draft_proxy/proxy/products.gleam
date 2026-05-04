@@ -25443,10 +25443,6 @@ fn is_on_hand_component_quantity_name(name: String) -> Bool {
   }
 }
 
-const max_inventory_quantity = 1_000_000_000
-
-const min_inventory_quantity = -1_000_000_000
-
 fn valid_inventory_set_quantity_name(name: String) -> Bool {
   case name {
     "available" | "on_hand" -> True

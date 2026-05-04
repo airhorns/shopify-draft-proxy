@@ -89,19 +89,18 @@ const productStateQuery = `#graphql
   }
 `;
 
-const bulkCreateMutation = `#graphql
-  mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-    productVariantsBulkCreate(productId: $productId, variants: $variants) {
-      productVariants {
-        id
-      }
-      userErrors {
-        field
-        message
-        code
-      }
+const bulkCreateMutation = `mutation ProductVariantsBulkCreateValidation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkCreate(productId: $productId, variants: $variants) {
+    productVariants {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
     }
   }
+}
 `;
 
 function stableJson(value: unknown): string {
