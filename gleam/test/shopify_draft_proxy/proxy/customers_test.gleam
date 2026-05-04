@@ -133,7 +133,7 @@ pub fn store_credit_credit_debit_readback_test() {
   let #(Response(status: credit_status, body: credit_body, ..), proxy) =
     graphql(
       proxy,
-      "mutation { storeCreditAccountCredit(id: \"gid://shopify/StoreCreditAccount/900\", creditInput: { amount: { amount: \"2.50\", currencyCode: USD } }) { storeCreditAccountTransaction { amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } account { id balance { amount currencyCode } owner { ... on Customer { id email } } } event origin } userErrors { field message code } } }",
+      "mutation { storeCreditAccountCredit(id: \"gid://shopify/StoreCreditAccount/900\", creditInput: { creditAmount: { amount: \"2.50\", currencyCode: USD } }) { storeCreditAccountTransaction { amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } account { id balance { amount currencyCode } owner { ... on Customer { id email } } } event origin } userErrors { field message code } } }",
     )
   assert credit_status == 200
   assert string.contains(
@@ -144,7 +144,7 @@ pub fn store_credit_credit_debit_readback_test() {
   let #(Response(status: debit_status, body: debit_body, ..), proxy) =
     graphql(
       proxy,
-      "mutation { storeCreditAccountDebit(id: \"gid://shopify/StoreCreditAccount/900\", debitInput: { amount: { amount: \"1.25\", currencyCode: USD } }) { storeCreditAccountTransaction { amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } account { id balance { amount currencyCode } } event } userErrors { field message code } } }",
+      "mutation { storeCreditAccountDebit(id: \"gid://shopify/StoreCreditAccount/900\", debitInput: { debitAmount: { amount: \"1.25\", currencyCode: USD } }) { storeCreditAccountTransaction { amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } account { id balance { amount currencyCode } } event } userErrors { field message code } } }",
     )
   assert debit_status == 200
   assert string.contains(

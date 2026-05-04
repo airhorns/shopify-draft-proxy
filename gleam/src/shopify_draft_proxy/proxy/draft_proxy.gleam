@@ -47,6 +47,7 @@ import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/mutation_schema_lookup
 import shopify_draft_proxy/proxy/online_store
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/orders
@@ -692,6 +693,75 @@ fn finalize_mutation_outcome(
 }
 
 fn route_mutation(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+  request_path: String,
+  request_headers: Dict(String, String),
+  query: String,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  // Schema-driven required-field validation runs once, here, before
+  // any domain handler executes. Mirrors how a real GraphQL server
+  // validates a request against its schema before invoking
+  // resolvers: any missing NON_NULL argument or required input-object
+  // attribute is rejected up front with the same `errors` envelope
+  // real Shopify produces — no domain handler sees the request.
+  case schema_validation_errors(parsed, query, variables) {
+    [] ->
+      route_mutation_to_domain(
+        proxy,
+        parsed,
+        request_path,
+        request_headers,
+        query,
+        primary_root_field,
+        variables,
+      )
+    errors -> #(schema_validation_error_response(errors), proxy)
+  }
+}
+
+fn schema_validation_error_response(errors: List(Json)) -> Response {
+  Response(
+    status: 200,
+    body: json.object([#("errors", json.preprocessed_array(errors))]),
+    headers: [],
+  )
+}
+
+fn schema_validation_errors(
+  parsed: ParsedOperation,
+  query: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(Json) {
+  case root_field.get_root_fields(query) {
+    Error(_) -> []
+    Ok(fields) -> {
+      let schema = mutation_schema_lookup.default_schema()
+      let operation_path = case parsed.name {
+        Some(name) -> "mutation " <> name
+        None -> "mutation"
+      }
+      list.flat_map(fields, fn(field) {
+        case field {
+          Field(name: name, ..) ->
+            mutation_helpers.validate_mutation_field_against_schema(
+              field,
+              variables,
+              name.value,
+              operation_path,
+              query,
+              schema,
+            )
+          _ -> []
+        }
+      })
+    }
+  }
+}
+
+fn route_mutation_to_domain(
   proxy: DraftProxy,
   parsed: ParsedOperation,
   request_path: String,

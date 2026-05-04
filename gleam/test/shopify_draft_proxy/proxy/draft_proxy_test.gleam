@@ -460,7 +460,7 @@ pub fn graphql_saved_search_create_missing_input_test() {
     draft_proxy.process_request(proxy, request)
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"Input is required\"}]}}}"
+    == "{\"errors\":[{\"message\":\"Field 'savedSearchCreate' is missing required arguments: input\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"savedSearchCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"savedSearchCreate\",\"arguments\":\"input\"}}]}"
 }
 
 pub fn graphql_saved_search_create_blank_name_test() {
@@ -560,7 +560,7 @@ pub fn meta_log_reflects_failed_mutation_test() {
   let proxy = draft_proxy.new()
   let create_request =
     graphql_request(
-      "{\"query\":\"mutation { savedSearchCreate { savedSearch { id } userErrors { field message } } }\"}",
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"   \\\", query: \\\"tag:promo\\\", resourceType: ORDER }) { savedSearch { id } userErrors { field message } } }\"}",
     )
   let #(_, proxy) = draft_proxy.process_request(proxy, create_request)
   let #(Response(body: body, ..), _) =

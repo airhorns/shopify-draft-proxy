@@ -252,20 +252,6 @@ pub fn shop_policy_update_reuses_existing_policy_test() {
   assert !string.contains(serialized, "\"updatedAt\":\"2026-04-25T11:52:29Z\"")
 }
 
-pub fn shop_policy_update_accepts_input_argument_test() {
-  let mutation_body =
-    "{\"query\":\"mutation { shopPolicyUpdate(input: { type: SHIPPING_POLICY, body: \\\"<p>Ships</p>\\\" }) { shopPolicy { id title body type } userErrors { field message code } } }\"}"
-  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
-    draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
-  let serialized = json.to_string(response_body)
-
-  assert status == 200
-  assert string.contains(serialized, "\"userErrors\":[]")
-  assert string.contains(serialized, "\"title\":\"Shipping policy\"")
-  assert string.contains(serialized, "\"body\":\"<p>Ships</p>\"")
-  assert string.contains(serialized, "\"type\":\"SHIPPING_POLICY\"")
-}
-
 pub fn oversized_shop_policy_body_returns_user_error_test() {
   let too_big = string.repeat("x", 524_289)
   let mutation_body =
