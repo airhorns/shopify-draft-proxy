@@ -127,6 +127,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-create-with-options',
+    scriptPath: 'scripts/capture-product-create-with-options-conformance.mts',
+    purpose:
+      'productCreate invoked with `productOptions` input, capturing the option/variant graph Shopify returns plus the immediate downstream product read.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-create-with-options-parity.json`,
+      'config/parity-specs/products/productCreate-with-options-parity.json',
+    ],
+    cleanupBehavior: 'Creates one disposable product and deletes it in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-state-mutations',
     scriptPath: 'scripts/capture-product-state-mutation-conformance.mts',
     purpose: 'productChangeStatus/tagsAdd/tagsRemove mutation branches.',
