@@ -290,6 +290,37 @@ pub fn option_string_json(value: Option(String)) -> Json {
   }
 }
 
+/// Wrap a successful response payload in the standard `{"data": ...}`
+/// GraphQL envelope.
+pub fn wrap_data(data: Json) -> Json {
+  json.object([#("data", data)])
+}
+
+/// `Option(String)` → `SourceValue`: `SrcString` when present, `SrcNull`
+/// when absent.
+pub fn option_string_source(value: Option(String)) -> SourceValue {
+  case value {
+    Some(s) -> SrcString(s)
+    None -> SrcNull
+  }
+}
+
+/// `Option(Bool)` → `SourceValue`.
+pub fn option_bool_source(value: Option(Bool)) -> SourceValue {
+  case value {
+    Some(b) -> SrcBool(b)
+    None -> SrcNull
+  }
+}
+
+/// `Option(Int)` → `SourceValue`.
+pub fn option_int_source(value: Option(Int)) -> SourceValue {
+  case value {
+    Some(i) -> SrcInt(i)
+    None -> SrcNull
+  }
+}
+
 /// One-element JSON array describing the line/column of `loc` in
 /// `document`. Mirrors GraphQL's `errors[].locations` shape.
 pub fn locations_json(loc: Location, document: String) -> Json {

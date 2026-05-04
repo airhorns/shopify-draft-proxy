@@ -80,13 +80,8 @@ fn serialize_exact_zero_count(field: Selection) -> Json {
   json.object(entries)
 }
 
-/// Wrap a successful events response in the standard GraphQL envelope.
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(document: String) -> Result(Json, EventsError) {
   use data <- result.try(handle_events_query(document))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }

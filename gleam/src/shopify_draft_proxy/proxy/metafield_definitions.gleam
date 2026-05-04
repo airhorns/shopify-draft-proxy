@@ -235,10 +235,6 @@ fn serialize_root_fields(
   json.object(entries)
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 pub fn process(
   store: Store,
   document: String,
@@ -249,7 +245,7 @@ pub fn process(
     document,
     variables,
   ))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 pub fn process_mutation(
@@ -363,7 +359,7 @@ fn handle_mutation_fields(
       }
     })
   let envelope = case top_errors {
-    [] -> wrap_data(json.object(entries))
+    [] -> graphql_helpers.wrap_data(json.object(entries))
     [_, ..] -> json.object([#("errors", json.preprocessed_array(top_errors))])
   }
   let staged_resource_ids = case top_errors {
@@ -2543,8 +2539,9 @@ fn hydrate_definitions_by_namespace(
   upstream: UpstreamContext,
 ) -> Store {
   let query =
-    "query MetafieldDefinitionsHydrateByNamespace($ownerType: MetafieldOwnerType!, $namespace: String!) {\n"
-    <> "  metafieldDefinitions(ownerType: $ownerType, first: 50, namespace: $namespace, sortKey: PINNED_POSITION) {\n"
+    "query MetafieldDefinitionsHydrateByNamespace($ownerType: MetafieldOwnerType!, $namespace: String!) {
+  metafieldDefinitions(ownerType: $ownerType, first: 50, namespace: $namespace, sortKey: PINNED_POSITION) {
+"
     <> metafield_definition_hydrate_selection("    ")
     <> "  }\n"
     <> "}\n"
@@ -2575,12 +2572,9 @@ fn hydrate_definition_by_id(
   id: String,
   upstream: UpstreamContext,
 ) -> Store {
-  let query =
-    "query MetafieldDefinitionHydrateById($id: ID!) {\n"
-    <> "  metafieldDefinition(id: $id) {\n"
-    <> metafield_definition_node_hydrate_selection("    ")
-    <> "  }\n"
-    <> "}\n"
+  let query = "query MetafieldDefinitionHydrateById($id: ID!) {
+  metafieldDefinition(id: $id) {
+" <> metafield_definition_node_hydrate_selection("    ") <> "  }\n" <> "}\n"
   let variables = json.object([#("id", json.string(id))])
   case
     upstream_query.fetch_sync(

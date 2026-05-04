@@ -14,7 +14,7 @@ import shopify_draft_proxy/graphql/root_field.{
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SelectedFieldOptions,
-  SerializeConnectionConfig, SrcInt, SrcList, SrcNull, SrcString,
+  SerializeConnectionConfig, SrcList, SrcNull, SrcString,
   default_connection_page_info_options, default_connection_window_options,
   default_selected_field_options, get_document_fragments, get_field_response_key,
   get_selected_child_fields, paginate_connection_items, project_graphql_value,
@@ -134,17 +134,13 @@ fn serialize_root_fields(
   json.object(entries)
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 pub fn process(
   store: Store,
   document: String,
   variables: Dict(String, ResolvedValue),
 ) -> Result(Json, MediaError) {
   case handle_media_query(store, document, variables) {
-    Ok(data) -> Ok(wrap_data(data))
+    Ok(data) -> Ok(graphql_helpers.wrap_data(data))
     Error(e) -> Error(e)
   }
 }
@@ -732,11 +728,11 @@ fn file_source(file: FileRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString(file_typename(file))),
     #("id", SrcString(file.id)),
-    #("alt", optional_string_source(file.alt)),
-    #("contentType", optional_string_source(file.content_type)),
+    #("alt", graphql_helpers.option_string_source(file.alt)),
+    #("contentType", graphql_helpers.option_string_source(file.content_type)),
     #("createdAt", SrcString(file.created_at)),
     #("fileStatus", SrcString(file.file_status)),
-    #("filename", optional_string_source(file.filename)),
+    #("filename", graphql_helpers.option_string_source(file.filename)),
     #("image", file_image_source(file)),
   ])
 }
@@ -749,8 +745,8 @@ fn file_image_source(file: FileRecord) -> SourceValue {
         Some(url) ->
           src_object([
             #("url", SrcString(url)),
-            #("width", optional_int_source(file.image_width)),
-            #("height", optional_int_source(file.image_height)),
+            #("width", graphql_helpers.option_int_source(file.image_width)),
+            #("height", graphql_helpers.option_int_source(file.image_height)),
           ])
         None -> SrcNull
       }
@@ -1314,9 +1310,10 @@ fn maybe_hydrate_product(
     Some(_) -> store
     None -> {
       let query =
-        "query MediaProductHydrate($id: ID!) {\n"
-        <> "  product(id: $id) { id title handle status }\n"
-        <> "}\n"
+        "query MediaProductHydrate($id: ID!) {
+  product(id: $id) { id title handle status }
+}
+"
       let variables = json.object([#("id", json.string(product_id))])
       case
         upstream_query.fetch_sync(
@@ -1353,20 +1350,21 @@ fn maybe_hydrate_file_product_media(
     [] -> store
     _ -> {
       let query =
-        "query MediaFileReferencesHydrate($fileIds: [ID!]!) {\n"
-        <> "  nodes(ids: $fileIds) {\n"
-        <> "    id\n"
-        <> "    __typename\n"
-        <> "    ... on MediaImage {\n"
-        <> "      alt\n"
-        <> "      mediaContentType\n"
-        <> "      status\n"
-        <> "      preview { image { url width height } }\n"
-        <> "      image { url width height }\n"
-        <> "      references(first: 10) { nodes { ... on Product { id title handle status } } }\n"
-        <> "    }\n"
-        <> "  }\n"
-        <> "}\n"
+        "query MediaFileReferencesHydrate($fileIds: [ID!]!) {
+  nodes(ids: $fileIds) {
+    id
+    __typename
+    ... on MediaImage {
+      alt
+      mediaContentType
+      status
+      preview { image { url width height } }
+      image { url width height }
+      references(first: 10) { nodes { ... on Product { id title handle status } } }
+    }
+  }
+}
+"
       let variables =
         json.object([
           #("fileIds", json.array(missing_file_ids, json.string)),
@@ -1695,20 +1693,6 @@ fn encode_upload_segment(value: String) -> String {
   value
   |> string.replace(":", "%3A")
   |> string.replace("/", "%2F")
-}
-
-fn optional_string_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(inner) -> SrcString(inner)
-    None -> SrcNull
-  }
-}
-
-fn optional_int_source(value: Option(Int)) -> SourceValue {
-  case value {
-    Some(inner) -> SrcInt(inner)
-    None -> SrcNull
-  }
 }
 
 fn enumerate_objects(

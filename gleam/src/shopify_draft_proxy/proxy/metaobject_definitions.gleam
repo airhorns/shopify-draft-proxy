@@ -262,17 +262,13 @@ fn serialize_root_fields(
   )
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 pub fn process(
   store: Store,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, MetaobjectDefinitionsError) {
   case handle_metaobject_definitions_query(store, document, variables) {
-    Ok(data) -> Ok(wrap_data(data))
+    Ok(data) -> Ok(graphql_helpers.wrap_data(data))
     Error(e) -> Error(e)
   }
 }
@@ -3181,23 +3177,35 @@ pub fn metaobject_definition_source(
     #("__typename", SrcString("MetaobjectDefinition")),
     #("id", SrcString(definition.id)),
     #("type", SrcString(definition.type_)),
-    #("name", optional_string_source(definition.name)),
-    #("description", optional_string_source(definition.description)),
-    #("displayNameKey", optional_string_source(definition.display_name_key)),
+    #("name", graphql_helpers.option_string_source(definition.name)),
+    #(
+      "description",
+      graphql_helpers.option_string_source(definition.description),
+    ),
+    #(
+      "displayNameKey",
+      graphql_helpers.option_string_source(definition.display_name_key),
+    ),
     #("access", access_source(definition.access)),
     #("capabilities", definition_capabilities_source(definition.capabilities)),
     #(
       "fieldDefinitions",
       SrcList(list.map(definition.field_definitions, field_definition_source)),
     ),
-    #("hasThumbnailField", optional_bool_source(definition.has_thumbnail_field)),
-    #("metaobjectsCount", optional_int_source(definition.metaobjects_count)),
+    #(
+      "hasThumbnailField",
+      graphql_helpers.option_bool_source(definition.has_thumbnail_field),
+    ),
+    #(
+      "metaobjectsCount",
+      graphql_helpers.option_int_source(definition.metaobjects_count),
+    ),
     #(
       "standardTemplate",
       standard_template_source(definition.standard_template),
     ),
-    #("createdAt", optional_string_source(definition.created_at)),
-    #("updatedAt", optional_string_source(definition.updated_at)),
+    #("createdAt", graphql_helpers.option_string_source(definition.created_at)),
+    #("updatedAt", graphql_helpers.option_string_source(definition.updated_at)),
   ])
 }
 
@@ -3263,9 +3271,12 @@ pub fn metaobject_source(
     #("id", SrcString(projected.id)),
     #("handle", SrcString(projected.handle)),
     #("type", SrcString(projected.type_)),
-    #("displayName", optional_string_source(projected.display_name)),
-    #("createdAt", optional_string_source(projected.created_at)),
-    #("updatedAt", optional_string_source(projected.updated_at)),
+    #(
+      "displayName",
+      graphql_helpers.option_string_source(projected.display_name),
+    ),
+    #("createdAt", graphql_helpers.option_string_source(projected.created_at)),
+    #("updatedAt", graphql_helpers.option_string_source(projected.updated_at)),
     #(
       "capabilities",
       metaobject_capabilities_source(projected.capabilities, definition),
@@ -3573,8 +3584,8 @@ fn metaobject_field_source(field: MetaobjectFieldRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("MetaobjectField")),
     #("key", SrcString(field.key)),
-    #("type", optional_string_source(field.type_)),
-    #("value", optional_string_source(field.value)),
+    #("type", graphql_helpers.option_string_source(field.type_)),
+    #("value", graphql_helpers.option_string_source(field.value)),
     #("jsonValue", metaobject_field_json_value_source(field)),
     #("definition", case field.definition {
       Some(defn) -> field_definition_reference_source(defn)
@@ -3946,7 +3957,7 @@ fn serialize_referenced_by_connection(
             #("key", SrcString(meta_field.key)),
             #(
               "name",
-              optional_string_source(case meta_field.definition {
+              graphql_helpers.option_string_source(case meta_field.definition {
                 Some(defn) -> defn.name
                 None -> None
               }),
@@ -4005,7 +4016,7 @@ fn definition_delete_result(
 ) -> MutationFieldResult {
   let source =
     src_object([
-      #("deletedId", optional_string_source(deleted_id)),
+      #("deletedId", graphql_helpers.option_string_source(deleted_id)),
       #("userErrors", SrcList(list.map(user_errors, user_error_source))),
     ])
   MutationFieldResult(
@@ -4028,7 +4039,7 @@ fn metaobject_delete_result(
 ) -> MutationFieldResult {
   let source =
     src_object([
-      #("deletedId", optional_string_source(deleted_id)),
+      #("deletedId", graphql_helpers.option_string_source(deleted_id)),
       #("userErrors", SrcList(list.map(user_errors, user_error_source))),
     ])
   MutationFieldResult(
@@ -4183,8 +4194,8 @@ fn user_error_source(error: UserError) -> SourceValue {
     }),
     #("message", SrcString(error.message)),
     #("code", SrcString(error.code)),
-    #("elementKey", optional_string_source(error.element_key)),
-    #("elementIndex", optional_int_source(error.element_index)),
+    #("elementKey", graphql_helpers.option_string_source(error.element_key)),
+    #("elementIndex", graphql_helpers.option_int_source(error.element_index)),
   ])
 }
 
@@ -4197,7 +4208,7 @@ fn access_source(access: Dict(String, Option(String))) -> SourceValue {
     dict.to_list(access)
     |> list.map(fn(pair) {
       let #(key, value) = pair
-      #(key, optional_string_source(value))
+      #(key, graphql_helpers.option_string_source(value))
     })
     |> dict.from_list,
   )
@@ -4230,9 +4241,12 @@ fn field_definition_source(
   src_object([
     #("__typename", SrcString("MetaobjectFieldDefinition")),
     #("key", SrcString(definition.key)),
-    #("name", optional_string_source(definition.name)),
-    #("description", optional_string_source(definition.description)),
-    #("required", optional_bool_source(definition.required)),
+    #("name", graphql_helpers.option_string_source(definition.name)),
+    #(
+      "description",
+      graphql_helpers.option_string_source(definition.description),
+    ),
+    #("required", graphql_helpers.option_bool_source(definition.required)),
     #("type", type_source(definition.type_)),
     #(
       "validations",
@@ -4247,8 +4261,8 @@ fn field_definition_reference_source(
   src_object([
     #("__typename", SrcString("MetaobjectFieldDefinition")),
     #("key", SrcString(definition.key)),
-    #("name", optional_string_source(definition.name)),
-    #("required", optional_bool_source(definition.required)),
+    #("name", graphql_helpers.option_string_source(definition.name)),
+    #("required", graphql_helpers.option_bool_source(definition.required)),
     #("type", type_source(definition.type_)),
   ])
 }
@@ -4267,7 +4281,7 @@ fn field_definition_reference(
 fn type_source(type_: MetaobjectDefinitionTypeRecord) -> SourceValue {
   src_object([
     #("name", SrcString(type_.name)),
-    #("category", optional_string_source(type_.category)),
+    #("category", graphql_helpers.option_string_source(type_.category)),
   ])
 }
 
@@ -4276,7 +4290,7 @@ fn validation_source(
 ) -> SourceValue {
   src_object([
     #("name", SrcString(validation.name)),
-    #("value", optional_string_source(validation.value)),
+    #("value", graphql_helpers.option_string_source(validation.value)),
   ])
 }
 
@@ -4286,8 +4300,8 @@ fn standard_template_source(
   case template {
     Some(MetaobjectStandardTemplateRecord(type_: type_, name: name)) ->
       src_object([
-        #("type", optional_string_source(type_)),
-        #("name", optional_string_source(name)),
+        #("type", graphql_helpers.option_string_source(type_)),
+        #("name", graphql_helpers.option_string_source(name)),
       ])
     None -> SrcNull
   }
@@ -4307,7 +4321,9 @@ fn metaobject_capabilities_source(
   }
   let online_store = case capabilities.online_store {
     Some(MetaobjectOnlineStoreCapabilityRecord(template_suffix: suffix)) ->
-      src_object([#("templateSuffix", optional_string_source(suffix))])
+      src_object([
+        #("templateSuffix", graphql_helpers.option_string_source(suffix)),
+      ])
     None -> SrcNull
   }
   src_object([
@@ -4322,7 +4338,7 @@ fn metaobject_publishable_capability_source(
 ) -> SourceValue {
   case capabilities.publishable {
     Some(MetaobjectPublishableCapabilityRecord(status: status)) ->
-      src_object([#("status", optional_string_source(status))])
+      src_object([#("status", graphql_helpers.option_string_source(status))])
     None ->
       case definition {
         Some(defn) ->
@@ -4353,27 +4369,6 @@ fn metaobject_json_value_to_source(value: MetaobjectJsonValue) -> SourceValue {
         })
         |> dict.from_list,
       )
-  }
-}
-
-fn optional_string_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(value) -> SrcString(value)
-    None -> SrcNull
-  }
-}
-
-fn optional_bool_source(value: Option(Bool)) -> SourceValue {
-  case value {
-    Some(value) -> SrcBool(value)
-    None -> SrcNull
-  }
-}
-
-fn optional_int_source(value: Option(Int)) -> SourceValue {
-  case value {
-    Some(value) -> SrcInt(value)
-    None -> SrcNull
   }
 }
 
