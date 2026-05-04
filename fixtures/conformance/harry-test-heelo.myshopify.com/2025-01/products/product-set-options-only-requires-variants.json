@@ -1,0 +1,62 @@
+{
+  "mutation": {
+    "variables": {
+      "synchronous": true,
+      "input": {
+        "title": "Hermes ProductSet Options Only 1777933614159",
+        "status": "DRAFT",
+        "productOptions": [
+          {
+            "name": "Color",
+            "position": 1,
+            "values": [
+              {
+                "name": "Red"
+              },
+              {
+                "name": "Blue"
+              }
+            ]
+          },
+          {
+            "name": "Size",
+            "position": 2,
+            "values": [
+              {
+                "name": "Small"
+              },
+              {
+                "name": "Large"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "productSet": {
+          "product": null,
+          "userErrors": [
+            {
+              "field": ["input", "variants"],
+              "message": "Variants input is required when updating product options"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

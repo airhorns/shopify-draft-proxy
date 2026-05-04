@@ -460,6 +460,20 @@ pub fn product_set_rejects_duplicate_variant_option_tuples_test() {
   assert entry.staged_resource_ids == []
 }
 
+pub fn product_set_requires_variants_when_updating_options_test() {
+  let query =
+    "mutation { productSet(input: { title: \\\"Options Only\\\", status: DRAFT, productOptions: [{ name: \\\"Color\\\", position: 1, values: [{ name: \\\"Red\\\" }, { name: \\\"Blue\\\" }] }, { name: \\\"Size\\\", position: 2, values: [{ name: \\\"Small\\\" }, { name: \\\"Large\\\" }] }] }, synchronous: true) { product { id } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"variants\"],\"message\":\"Variants input is required when updating product options\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productSet")
+  assert entry.status == store.Failed
+  assert entry.staged_resource_ids == []
+}
+
 pub fn product_create_accepts_legacy_input_argument_shape_test() {
   // Real Shopify accepts both `productCreate(product: ProductCreateInput!)`
   // (current) and `productCreate(input: ProductInput!)` (older API versions).

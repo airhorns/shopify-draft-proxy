@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 197: HAR-574 product variant scalar validation
+## 2026-05-04 - Pass 198: HAR-574 product variant scalar validation
 
 Adds shared Shopify-like scalar validation for product variant mutation inputs
 and backs the bulk-create validation branches with a new live capture and
@@ -45,6 +45,61 @@ blank` with code `INVALID`.
   `productVariantUpdate` remains unavailable on the captured 2025-01 schema, so
   their scalar validation is covered by shared runtime tests plus the
   bulk-create conformance oracle.
+
+---
+
+## 2026-05-04 - Pass 197: HAR-550 product option autogeneration fidelity
+
+Tightens product option/variant autogeneration parity for `productCreate` and
+`productSet` from live Shopify evidence. `productCreate(productOptions:)` is
+now explicitly covered for the multi-value case where Shopify creates only the
+first-value variant and keeps extra option values non-variant-backed, while
+`productSet(input.productOptions)` now locally rejects missing/empty
+`input.variants` with Shopify's captured user error instead of staging a stale
+`Title / Default Title` variant.
+
+| Module / fixture                                                               | Change                                                                                                                               |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                           | Adds the `productSet` option-change guardrail requiring variant input before local staging.                                          |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam`            | Covers the guardrail and verifies the mutation log entry is marked `Failed` with no staged resource ids.                             |
+| `scripts/capture-product-create-with-options-conformance.mts`                  | Extends the live capture harness to record multi-value `productCreate` evidence and the `productSet` options-only validation branch. |
+| `config/parity-specs/products/*options*` / `fixtures/conformance/**/products/` | Adds executable parity specs and captured fixtures for the new evidence, and refreshes the original options capture.                 |
+| `docs/endpoints/products.md`                                                   | Documents the asymmetric `productCreate` / `productSet` option behavior.                                                             |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `corepack pnpm conformance:capture -- --run product-create-with-options`
+- `cd gleam && gleam test --target javascript -- products_mutation_test parity_test`
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (850 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 841 passed)
+- `corepack pnpm gleam:build:js`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2291 passed)
+- `git diff --check`
+
+### Findings
+
+- Shopify does not generate the full Cartesian variant matrix for
+  `productCreate(productOptions:)`; it creates one first-value variant and
+  leaves extra option values in `optionValues` with `hasVariants: false`.
+- Shopify rejects `productSet(input.productOptions)` without variants using
+  `field: ["input", "variants"]`, so the local proxy should fail that branch
+  before staging any product/options/variants or replaying it at commit time.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
 
 ---
 
