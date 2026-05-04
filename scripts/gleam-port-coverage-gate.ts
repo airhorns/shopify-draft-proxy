@@ -19,13 +19,6 @@ const parityRunnerTestPath = path.join(repoRoot, 'gleam', 'test', 'parity_test.g
 const packageJsonPath = path.join(repoRoot, 'package.json');
 
 const gateConfigSchema = z.strictObject({
-  expectedGleamParityFailures: z.array(
-    z.strictObject({
-      specPath: z.string().min(1),
-      reason: z.string().min(1),
-      targets: z.array(z.enum(['erlang', 'javascript'])).optional(),
-    }),
-  ),
   requiredWorkflowCommands: z.array(z.string().min(1)),
   captureToolingChecks: z.array(z.string().min(1)),
 });
@@ -52,11 +45,6 @@ function formatList(values: string[]): string {
   return values.length === 0 ? '(none)' : values.join(', ');
 }
 
-function expectedFailureKey(failure: GateConfig['expectedGleamParityFailures'][number]): string {
-  const targets = failure.targets ? sorted(failure.targets).join('+') : '*';
-  return `${failure.specPath} [${targets}]`;
-}
-
 function pushMissingPath(errors: string[], label: string, relativePath: string): void {
   if (!existsSync(path.join(repoRoot, relativePath))) {
     errors.push(`${label} does not exist: ${relativePath}`);
@@ -72,32 +60,6 @@ function extractGleamParityRunnerSpecPaths(source: string): string[] {
 }
 
 function checkParityInventory(config: GateConfig, errors: string[]): void {
-  const paritySpecPaths = listConformanceParitySpecPaths(repoRoot);
-  const paritySpecSet = new Set(paritySpecPaths);
-
-  const expectedFailureKeys = config.expectedGleamParityFailures.map(expectedFailureKey);
-  const uniqueExpectedFailureKeys = new Set(expectedFailureKeys);
-  if (uniqueExpectedFailureKeys.size !== expectedFailureKeys.length) {
-    const seen = new Set<string>();
-    const duplicates = sorted(
-      expectedFailureKeys.filter((key) => {
-        if (seen.has(key)) {
-          return true;
-        }
-        seen.add(key);
-        return false;
-      }),
-    );
-    errors.push(`Expected Gleam parity failure list has duplicate specs: ${formatList(duplicates)}.`);
-  }
-
-  for (const specPath of new Set(config.expectedGleamParityFailures.map((failure) => failure.specPath))) {
-    pushMissingPath(errors, 'Expected Gleam parity failure spec', specPath);
-    if (!paritySpecSet.has(specPath)) {
-      errors.push(`Expected Gleam parity failure spec is not discovered by convention: ${specPath}`);
-    }
-  }
-
   checkGleamParityRunner(errors);
 
   for (const scenario of loadConformanceScenarios(repoRoot)) {
@@ -128,10 +90,6 @@ function checkGleamParityRunner(errors: string[]): void {
 
   if (!runnerSource.includes('discover.discover(')) {
     errors.push('Gleam parity runner must discover parity specs through parity/discover.');
-  }
-
-  if (!runnerSource.includes('expectedGleamParityFailures')) {
-    errors.push('Gleam parity runner must read expectedGleamParityFailures from config/gleam-port-ci-gates.json.');
   }
 }
 
@@ -182,7 +140,6 @@ function run(): void {
     [
       'Gleam port CI gate passed:',
       `- ${listConformanceParitySpecPaths(repoRoot).length} parity specs discovered and all checked-in specs are strict executable comparisons`,
-      `- ${config.expectedGleamParityFailures.length} expected Gleam parity failures are manifest-backed`,
       '- Gleam parity runner discovers the full parity corpus and does not hardcode a spec allowlist',
       '- CI workflow and TypeScript capture-tooling checks are wired',
     ].join('\n') + '\n',

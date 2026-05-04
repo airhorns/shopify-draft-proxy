@@ -1,5 +1,4 @@
 {
-  "expectedGleamParityFailures": [],
   "requiredWorkflowCommands": [
     "corepack pnpm lint",
     "corepack pnpm typecheck",

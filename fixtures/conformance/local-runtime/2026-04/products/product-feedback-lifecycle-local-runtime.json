@@ -1,14 +1,6 @@
 {
   "fixtureKind": "local-runtime-product-feedback-lifecycle",
   "apiVersion": "2026-04",
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/7001",
-      "title": "Feedback Product",
-      "handle": "feedback-product",
-      "status": "ACTIVE"
-    }
-  ],
   "create": {
     "variables": {
       "feedbackInput": [

@@ -1,18 +1,4 @@
 {
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/9801098789170",
-      "title": "The Inventory Not Tracked Snowboard",
-      "handle": "the-inventory-not-tracked-snowboard",
-      "status": "ACTIVE"
-    },
-    {
-      "id": "gid://shopify/Product/9801098821938",
-      "title": "Gift Card",
-      "handle": "gift-card",
-      "status": "ACTIVE"
-    }
-  ],
   "mutation": {
     "variables": {
       "firstProductId": "gid://shopify/Product/9801098789170",

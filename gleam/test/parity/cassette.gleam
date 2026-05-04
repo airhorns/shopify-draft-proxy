@@ -311,8 +311,8 @@ pub fn transport_from_capture(
   Ok(make_transport(entries))
 }
 
-/// Empty cassette — every request misses. Useful for snapshot-empty
-/// mode where no upstream traffic is permitted.
+/// Empty cassette — every request misses. Useful for local runner tests that
+/// assert no upstream traffic is permitted.
 pub fn empty() -> SyncTransport {
   make_transport([])
 }

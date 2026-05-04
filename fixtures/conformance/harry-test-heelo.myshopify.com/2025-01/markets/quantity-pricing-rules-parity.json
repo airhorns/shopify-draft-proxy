@@ -8,21 +8,6 @@
     "variantId": "gid://shopify/ProductVariant/49875425296690",
     "priceListContext": "existing CompanyLocationCatalog-backed price list in disposable conformance shop"
   },
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/10000000000001",
-      "title": "HAR-321 quantity pricing seed product",
-      "variants": {
-        "nodes": [
-          {
-            "id": "gid://shopify/ProductVariant/49875425296690",
-            "title": "Default Title",
-            "sku": null
-          }
-        ]
-      }
-    }
-  ],
   "data": {
     "priceList": {
       "__typename": "PriceList",

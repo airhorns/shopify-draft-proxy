@@ -30,9 +30,9 @@ import parity/diff.{type Mismatch}
 import parity/json_value.{type JsonValue, JArray, JObject, JString}
 import parity/jsonpath
 import parity/spec.{
-  type Spec, type Target, LiveHybridMode, NoVariables, OverrideRequest, ProxyLog,
-  ProxyResponse, ProxyState, ReusePrimary, SnapshotEmptyMode,
-  VariablesFromCapture, VariablesFromFile, VariablesInline,
+  type Spec, type Target, NoVariables, OverrideRequest, ProxyLog, ProxyResponse,
+  ProxyState, ReusePrimary, VariablesFromCapture, VariablesFromFile,
+  VariablesInline,
 }
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
@@ -50,12 +50,8 @@ pub type RunError {
   JsonError(path: String, reason: String)
   /// Spec was malformed.
   SpecError(reason: String)
-  /// Spec is in `LiveHybridMode` but the referenced capture file does
-  /// not carry an `upstreamCalls` cassette. The scenario hasn't been
-  /// migrated to cassette playback yet — re-record with
-  /// `pnpm parity:record <scenario-id>`. The parity-test gate treats
-  /// this as a "skipped" outcome, not a failure.
-  SpecNotMigrated(spec_path: String, reason: String)
+  /// Referenced capture file does not carry a valid `upstreamCalls` cassette.
+  MissingCassette(spec_path: String, reason: String)
   /// Variables JSONPath did not resolve.
   VariablesUnresolved(path: String)
   /// `fromPrimaryProxyPath` substitution path didn't resolve.
@@ -142,7 +138,7 @@ pub fn run_with_config(
   let capture_path = resolve(config, parsed.capture_file)
   use capture_source <- result.try(read_file(capture_path))
   use capture <- result.try(parse_json(capture_path, capture_source))
-  use proxy <- result.try(build_proxy_for_mode(
+  use proxy <- result.try(build_proxy(
     spec_path,
     parsed,
     capture_source,
@@ -187,72 +183,51 @@ pub fn run_with_config(
   ))
 }
 
-/// Build the `DraftProxy` instance the runner drives the spec through,
-/// configured for the spec's parity `mode`:
+/// Build the `DraftProxy` instance the runner drives the spec through.
 ///
-/// - `LiveHybridMode` — installs the cassette transport recorded in
-///   `capture.upstreamCalls` and switches `read_mode` to `LiveHybrid`,
-///   so handler-issued upstream calls (via `proxy/upstream_query`) are
-///   served deterministically from the cassette. If the capture has no
-///   `upstreamCalls` (or it is malformed), returns `SpecNotMigrated` so
-///   the parity-test gate can treat the spec as awaiting migration
-///   rather than as a real failure.
-/// - `SnapshotEmptyMode` — runs against an empty `Snapshot`-mode proxy
-///   with no transport installed, asserting the proxy's cold-state
-///   behavior. Cassette is ignored even if present.
-fn build_proxy_for_mode(
+/// The proxy installs the cassette transport recorded in `capture.upstreamCalls`
+/// and switches `read_mode` to `LiveHybrid`, so handler-issued upstream calls
+/// (via `proxy/upstream_query`) are served deterministically from the cassette.
+/// A missing or malformed cassette is a hard runner error.
+fn build_proxy(
   spec_path: String,
   parsed: Spec,
   capture_source: String,
   debug: Bool,
 ) -> Result(DraftProxy, RunError) {
-  case parsed.mode {
-    SnapshotEmptyMode -> {
-      case debug {
-        True ->
+  case cassette.parse_calls_from_capture(capture_source) {
+    Error(_) ->
+      Error(MissingCassette(
+        spec_path: spec_path,
+        reason: "capture has no `upstreamCalls` field (or it is "
+          <> "malformed); run `pnpm parity:record "
+          <> parsed.scenario_id
+          <> "` to record upstream traffic. An empty array is "
+          <> "valid for mutation-only scenarios.",
+      ))
+    Ok(entries) -> {
+      let transport = case debug {
+        True -> {
           io.println_error(
-            "[runner] mode=snapshot-empty scenario=" <> parsed.scenario_id,
+            "[runner] mode=live-hybrid scenario="
+            <> parsed.scenario_id
+            <> " cassette_entries="
+            <> int.to_string(cassette.entry_count(entries)),
           )
-        False -> Nil
-      }
-      Ok(draft_proxy.new())
-    }
-    LiveHybridMode -> {
-      case cassette.parse_calls_from_capture(capture_source) {
-        Error(_) ->
-          Error(SpecNotMigrated(
-            spec_path: spec_path,
-            reason: "capture has no `upstreamCalls` field (or it is "
-              <> "malformed); run `pnpm parity:record "
-              <> parsed.scenario_id
-              <> "` to record upstream traffic. An empty array is "
-              <> "valid for mutation-only scenarios.",
-          ))
-        Ok(entries) -> {
-          let transport = case debug {
-            True -> {
-              io.println_error(
-                "[runner] mode=live-hybrid scenario="
-                <> parsed.scenario_id
-                <> " cassette_entries="
-                <> int.to_string(cassette.entry_count(entries)),
-              )
-              cassette.make_logging_transport(entries)
-            }
-            False -> cassette.make_transport(entries)
-          }
-          let proxy =
-            draft_proxy.with_config(Config(
-              read_mode: LiveHybrid,
-              port: 4000,
-              shopify_admin_origin: "https://shopify.com",
-              snapshot_path: None,
-            ))
-            |> draft_proxy.with_default_registry()
-            |> draft_proxy.with_upstream_transport(transport)
-          Ok(proxy)
+          cassette.make_logging_transport(entries)
         }
+        False -> cassette.make_transport(entries)
       }
+      let proxy =
+        draft_proxy.with_config(Config(
+          read_mode: LiveHybrid,
+          port: 4000,
+          shopify_admin_origin: "https://shopify.com",
+          snapshot_path: None,
+        ))
+        |> draft_proxy.with_default_registry()
+        |> draft_proxy.with_upstream_transport(transport)
+      Ok(proxy)
     }
   }
 }
@@ -1058,27 +1033,13 @@ fn unique_sorted(values: List(String)) -> List(String) {
   |> list.sort(by: string.compare)
 }
 
-/// True iff the spec has not yet been migrated to cassette playback.
-/// The parity-test gate uses this to count specs as "skipped" instead
-/// of "failed" while the migration is in progress.
-pub fn is_spec_not_migrated(error: RunError) -> Bool {
-  case error {
-    SpecNotMigrated(_, _) -> True
-    _ -> False
-  }
-}
-
 pub fn render_error(error: RunError) -> String {
   case error {
     FileError(path, reason) -> "file error at " <> path <> ": " <> reason
     JsonError(path, reason) -> "json error at " <> path <> ": " <> reason
     SpecError(reason) -> "spec error: " <> reason
-    SpecNotMigrated(spec_path, reason) ->
-      "spec not migrated to cassette playback: "
-      <> spec_path
-      <> " ("
-      <> reason
-      <> ")"
+    MissingCassette(spec_path, reason) ->
+      "missing parity cassette: " <> spec_path <> " (" <> reason <> ")"
     VariablesUnresolved(path) -> "variables jsonpath did not resolve: " <> path
     PrimaryRefUnresolved(path) ->
       "fromPrimaryProxyPath did not resolve in primary response: " <> path

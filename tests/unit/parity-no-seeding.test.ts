@@ -1,4 +1,4 @@
-// Lockdown lint: enforces the post-migration parity contract.
+// Lockdown lint: enforces the steady-state parity contract.
 //
 // The parity runner used to pre-seed `base_state` from each capture's
 // `seedX` keys before running the proxy request. That hid real coverage
@@ -11,10 +11,6 @@
 // - Any capture under `fixtures/conformance/**` carries a top-level
 //   `seedProducts` / `seedCustomers` / etc. key.
 //
-// Dead `seed_*` helpers may temporarily remain in `runner.gleam` while
-// the per-domain migration is still in flight; this test deliberately
-// only checks call sites, not declarations.
-
 import { readFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -100,12 +96,7 @@ describe('parity lockdown lint', () => {
     );
   });
 
-  // Enabled at cutover. Dead `seed_*_preconditions` helpers — unreachable
-  // from `run_with_config` after the rewrite — still call upsert_base_*
-  // until the per-domain migration deletes them. The structural gate is
-  // the first test above (the dispatcher is never called); this check
-  // becomes meaningful once dead-code cleanup happens.
-  it.skip('runner.gleam does not call store.upsert_base_* mutators', () => {
+  it('runner.gleam does not call store.upsert_base_* mutators', () => {
     const source = readFileSync(RUNNER_PATH, 'utf8');
     const lines = source.split('\n');
     const offenders: string[] = [];
@@ -118,12 +109,7 @@ describe('parity lockdown lint', () => {
     expect(offenders, `Parity runner must not call upsert_base_*:\n${offenders.join('\n')}`).toEqual([]);
   });
 
-  // Enabled at cutover (end of per-domain migration, plan step 6). During
-  // the migration, captures are re-recorded one domain at a time and the
-  // pre-existing `seedX` keys are removed by the recorder. Until every
-  // domain has flipped, this test is skipped — the structural runner-side
-  // gates above already prevent new cheating from being added.
-  it.skip('no capture under fixtures/conformance/ has top-level seedX keys', async () => {
+  it('no capture under fixtures/conformance/ has top-level seedX keys', async () => {
     const captureFiles = await walkJsonFiles(FIXTURES_ROOT);
     const offenders: string[] = [];
     for (const path of captureFiles) {

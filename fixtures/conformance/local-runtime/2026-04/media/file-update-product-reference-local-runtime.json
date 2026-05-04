@@ -9,14 +9,6 @@
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-create-delete-parity.json",
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-update-parity.json"
   ],
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/429001",
-      "title": "File reference target",
-      "handle": "file-reference-target",
-      "status": "ACTIVE"
-    }
-  ],
   "evidence": [
     "Snapshot-mode fileCreate stages a Files API MediaImage record without upstream fetch.",
     "fileUpdate.referencesToAdd attaches the file to an existing product as product media.",

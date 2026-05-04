@@ -206,8 +206,8 @@ JavaScript targets via `pnpm gleam:test`.
   `draft_proxy.with_upstream_transport`. Operation handlers may call
   `proxy/upstream_query.fetch_*` to reach upstream; the cassette
   serves those calls deterministically
-- supports a `snapshot-empty` spec mode that asserts cold-state
-  behavior with no transport installed
+- treats a missing or malformed `upstreamCalls` cassette as a hard
+  parity failure; every checked-in spec is expected to run
 - compares captured Shopify payload slices to proxy payload slices with
   strict JSON semantics; nondeterministic values are tolerated only via
   explicit path-scoped rules (`expectedDifferences`) in the spec
@@ -216,7 +216,7 @@ JavaScript targets via `pnpm gleam:test`.
   captured responses
 - see `docs/parity-runner.md` for the cassette schema, the two
   per-operation upstream-access patterns, the empty-snapshot variant,
-  and the per-domain migration playbook
+  and the coverage repair playbook
 
 ## State model
 

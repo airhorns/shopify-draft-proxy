@@ -17,31 +17,6 @@
     "inventoryShipmentReceive",
     "inventoryShipmentDelete"
   ],
-  "seedProducts": [
-    {
-      "id": "gid://shopify/Product/9405",
-      "title": "Shipment Hoodie",
-      "handle": "shipment-hoodie",
-      "status": "ACTIVE",
-      "totalInventory": 1,
-      "tracksInventory": true,
-      "variants": {
-        "nodes": [
-          {
-            "id": "gid://shopify/ProductVariant/94051",
-            "title": "Default Title",
-            "sku": "SHIP-ROOT",
-            "inventoryQuantity": 1,
-            "inventoryItem": {
-              "id": "gid://shopify/InventoryItem/94051",
-              "tracked": true,
-              "requiresShipping": true
-            }
-          }
-        ]
-      }
-    }
-  ],
   "workflow": {
     "createInTransit": {
       "variables": {
