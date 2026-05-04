@@ -1818,10 +1818,10 @@ fn fetch_taken_code_error(
       case code {
         None -> None
         Some(code) -> {
-          let query =
-            "query DiscountUniquenessCheck($code: String!) {\n"
-            <> "  codeDiscountNodeByCode(code: $code) { id }\n"
-            <> "}\n"
+          let query = "query DiscountUniquenessCheck($code: String!) {
+  codeDiscountNodeByCode(code: $code) { id }
+}
+"
           let variables = json.object([#("code", json.string(code))])
           case
             upstream_query.fetch_sync(
@@ -1894,54 +1894,54 @@ fn maybe_hydrate_discount(
       // `status:expired` can compute correct counts after the bulk-job
       // status-mutation effects apply on top of the hydrated base
       // record.
-      let query =
-        "query DiscountHydrate($id: ID!) {\n"
-        <> "  codeNode: codeDiscountNode(id: $id) {\n"
-        <> "    id\n"
-        <> "    codeDiscount {\n"
-        <> "      __typename\n"
-        <> "      ... on DiscountCodeBasic {\n"
-        <> "        title\n"
-        <> "        status\n"
-        <> "        codes(first: 250) { nodes { id code } }\n"
-        <> "      }\n"
-        <> "      ... on DiscountCodeApp {\n"
-        <> "        title\n"
-        <> "        status\n"
-        <> "      }\n"
-        <> "      ... on DiscountCodeBxgy {\n"
-        <> "        title\n"
-        <> "        status\n"
-        <> "      }\n"
-        <> "      ... on DiscountCodeFreeShipping {\n"
-        <> "        title\n"
-        <> "        status\n"
-        <> "      }\n"
-        <> "    }\n"
-        <> "  }\n"
-        <> "  automaticNode: automaticDiscountNode(id: $id) {\n"
-        <> "    id\n"
-        <> "    automaticDiscount {\n"
-        <> "      __typename\n"
-        <> "      ... on DiscountAutomaticBasic {\n"
-        <> "        title\n"
-        <> "        status\n"
-        <> "      }\n"
-        <> "      ... on DiscountAutomaticApp {\n"
-        <> "        title\n"
-        <> "        status\n"
-        <> "      }\n"
-        <> "      ... on DiscountAutomaticBxgy {\n"
-        <> "        title\n"
-        <> "        status\n"
-        <> "      }\n"
-        <> "      ... on DiscountAutomaticFreeShipping {\n"
-        <> "        title\n"
-        <> "        status\n"
-        <> "      }\n"
-        <> "    }\n"
-        <> "  }\n"
-        <> "}\n"
+      let query = "query DiscountHydrate($id: ID!) {
+  codeNode: codeDiscountNode(id: $id) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+        codes(first: 250) { nodes { id code } }
+      }
+      ... on DiscountCodeApp {
+        title
+        status
+      }
+      ... on DiscountCodeBxgy {
+        title
+        status
+      }
+      ... on DiscountCodeFreeShipping {
+        title
+        status
+      }
+    }
+  }
+  automaticNode: automaticDiscountNode(id: $id) {
+    id
+    automaticDiscount {
+      __typename
+      ... on DiscountAutomaticBasic {
+        title
+        status
+      }
+      ... on DiscountAutomaticApp {
+        title
+        status
+      }
+      ... on DiscountAutomaticBxgy {
+        title
+        status
+      }
+      ... on DiscountAutomaticFreeShipping {
+        title
+        status
+      }
+    }
+  }
+}
+"
       let variables = json.object([#("id", json.string(id))])
       case
         upstream_query.fetch_sync(
@@ -2200,25 +2200,25 @@ fn maybe_hydrate_shopify_function(
       case find_shopify_function(store, reference) {
         Some(_) -> store
         None -> {
-          let query =
-            "query ShopifyFunctionByHandle($handle: String!) {\n"
-            <> "  shopifyFunctions(first: 1, apiType: \"discount\", handle: $handle) {\n"
-            <> "    nodes {\n"
-            <> "      id\n"
-            <> "      title\n"
-            <> "      handle\n"
-            <> "      apiType\n"
-            <> "      description\n"
-            <> "      appKey\n"
-            <> "      app {\n"
-            <> "        id\n"
-            <> "        title\n"
-            <> "        handle\n"
-            <> "        apiKey\n"
-            <> "      }\n"
-            <> "    }\n"
-            <> "  }\n"
-            <> "}\n"
+          let query = "query ShopifyFunctionByHandle($handle: String!) {
+  shopifyFunctions(first: 1, apiType: \"discount\", handle: $handle) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+  }
+}
+"
           let variables = json.object([#("handle", json.string(reference))])
           case
             upstream_query.fetch_sync(

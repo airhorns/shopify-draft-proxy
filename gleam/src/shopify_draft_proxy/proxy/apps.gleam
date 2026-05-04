@@ -114,10 +114,6 @@ pub fn handle_app_query(
   }
 }
 
-/// Wrap a successful apps response in the standard GraphQL envelope.
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
 
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
@@ -126,7 +122,7 @@ pub fn process(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, AppsError) {
   use data <- result.try(handle_app_query(store, document, variables))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 /// True iff the app-domain store has any local app/installation/billing/access
@@ -508,12 +504,12 @@ fn app_to_source(app: AppRecord) -> graphql_helpers.SourceValue {
   src_object([
     #("__typename", SrcString("App")),
     #("id", SrcString(app.id)),
-    #("apiKey", optional_string_to_source(app.api_key)),
-    #("handle", optional_string_to_source(app.handle)),
-    #("title", optional_string_to_source(app.title)),
-    #("developerName", optional_string_to_source(app.developer_name)),
-    #("embedded", optional_bool_to_source(app.embedded)),
-    #("previouslyInstalled", optional_bool_to_source(app.previously_installed)),
+    #("apiKey", graphql_helpers.option_string_source(app.api_key)),
+    #("handle", graphql_helpers.option_string_source(app.handle)),
+    #("title", graphql_helpers.option_string_source(app.title)),
+    #("developerName", graphql_helpers.option_string_source(app.developer_name)),
+    #("embedded", graphql_helpers.option_bool_source(app.embedded)),
+    #("previouslyInstalled", graphql_helpers.option_bool_source(app.previously_installed)),
     #(
       "requestedAccessScopes",
       SrcList(list.map(app.requested_access_scopes, access_scope_to_source)),
@@ -527,7 +523,7 @@ fn access_scope_to_source(
   src_object([
     #("__typename", SrcString("AccessScope")),
     #("handle", SrcString(scope.handle)),
-    #("description", optional_string_to_source(scope.description)),
+    #("description", graphql_helpers.option_string_source(scope.description)),
   ])
 }
 
@@ -588,8 +584,8 @@ fn app_installation_to_source(
     #("__typename", SrcString("AppInstallation")),
     #("id", SrcString(installation.id)),
     #("app", app_source),
-    #("launchUrl", optional_string_to_source(installation.launch_url)),
-    #("uninstallUrl", optional_string_to_source(installation.uninstall_url)),
+    #("launchUrl", graphql_helpers.option_string_source(installation.launch_url)),
+    #("uninstallUrl", graphql_helpers.option_string_source(installation.uninstall_url)),
     #(
       "accessScopes",
       SrcList(list.map(installation.access_scopes, access_scope_to_source)),
@@ -610,7 +606,7 @@ fn app_installation_to_source(
       "oneTimePurchases",
       one_time_purchase_connection_source(one_time_purchases),
     ),
-    #("uninstalledAt", optional_string_to_source(installation.uninstalled_at)),
+    #("uninstalledAt", graphql_helpers.option_string_source(installation.uninstalled_at)),
   ])
 }
 
@@ -634,10 +630,10 @@ fn subscription_to_source(
     #("name", SrcString(subscription.name)),
     #("status", SrcString(subscription.status)),
     #("test", SrcBool(subscription.is_test)),
-    #("trialDays", optional_int_to_source(subscription.trial_days)),
+    #("trialDays", graphql_helpers.option_int_source(subscription.trial_days)),
     #(
       "currentPeriodEnd",
-      optional_string_to_source(subscription.current_period_end),
+      graphql_helpers.option_string_source(subscription.current_period_end),
     ),
     #("createdAt", SrcString(subscription.created_at)),
     #(
@@ -684,7 +680,7 @@ fn pricing_to_source(
         #("__typename", SrcString("AppRecurringPricing")),
         #("price", money_to_source(price)),
         #("interval", SrcString(interval)),
-        #("planHandle", optional_string_to_source(handle)),
+        #("planHandle", graphql_helpers.option_string_source(handle)),
       ])
     AppUsagePricing(
       capped_amount: capped,
@@ -697,7 +693,7 @@ fn pricing_to_source(
         #("cappedAmount", money_to_source(capped)),
         #("balanceUsed", money_to_source(balance)),
         #("interval", SrcString(interval)),
-        #("terms", optional_string_to_source(terms)),
+        #("terms", graphql_helpers.option_string_source(terms)),
       ])
   }
 }
@@ -734,7 +730,7 @@ fn usage_record_to_source(
     #("description", SrcString(record.description)),
     #("price", money_to_source(record.price)),
     #("createdAt", SrcString(record.created_at)),
-    #("idempotencyKey", optional_string_to_source(record.idempotency_key)),
+    #("idempotencyKey", graphql_helpers.option_string_source(record.idempotency_key)),
     #("subscriptionLineItem", subscription_line_item_source),
   ])
 }
@@ -861,33 +857,6 @@ fn page_info_source(
     #("startCursor", start_cursor),
     #("endCursor", end_cursor),
   ])
-}
-
-// ---------------------------------------------------------------------------
-// Small Option → SourceValue helpers
-// ---------------------------------------------------------------------------
-
-fn optional_string_to_source(
-  value: Option(String),
-) -> graphql_helpers.SourceValue {
-  case value {
-    Some(s) -> SrcString(s)
-    None -> SrcNull
-  }
-}
-
-fn optional_bool_to_source(value: Option(Bool)) -> graphql_helpers.SourceValue {
-  case value {
-    Some(b) -> SrcBool(b)
-    None -> SrcNull
-  }
-}
-
-fn optional_int_to_source(value: Option(Int)) -> graphql_helpers.SourceValue {
-  case value {
-    Some(i) -> SrcInt(i)
-    None -> SrcNull
-  }
 }
 
 // ===========================================================================
@@ -2137,7 +2106,7 @@ fn project_delegate_create_payload(
         SrcList(list.map(access_scopes, fn(s) { SrcString(s) })),
       ),
       #("createdAt", SrcString(created_at)),
-      #("expiresIn", optional_int_to_source(expires_in)),
+      #("expiresIn", graphql_helpers.option_int_source(expires_in)),
     ])
   let payload =
     src_object([
@@ -2177,7 +2146,7 @@ fn project_purchase_create_payload(
   let payload =
     src_object([
       #("appPurchaseOneTime", purchase_source),
-      #("confirmationUrl", optional_string_to_source(confirmation)),
+      #("confirmationUrl", graphql_helpers.option_string_source(confirmation)),
       #("userErrors", user_errors_source(user_errors)),
     ])
   project_payload(payload, field, fragments)
@@ -2198,7 +2167,7 @@ fn project_subscription_create_payload(
   let payload =
     src_object([
       #("appSubscription", sub_source),
-      #("confirmationUrl", optional_string_to_source(confirmation)),
+      #("confirmationUrl", graphql_helpers.option_string_source(confirmation)),
       #("userErrors", user_errors_source(user_errors)),
     ])
   project_payload(payload, field, fragments)

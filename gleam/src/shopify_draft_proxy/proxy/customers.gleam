@@ -302,9 +302,6 @@ pub fn handle_customer_query(
   }
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
 
 pub fn process(
   proxy: DraftProxy,
@@ -335,7 +332,7 @@ fn process_with_upstream(
 
 fn wrap_query_payload(data: Json, search_extensions: List(Json)) -> Json {
   case search_extensions {
-    [] -> wrap_data(data)
+    [] -> graphql_helpers.wrap_data(data)
     [_, ..] ->
       json.object([
         #("data", data),
@@ -597,19 +594,6 @@ fn update_nullable_note(
   }
 }
 
-fn optional_string_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(s) -> SrcString(s)
-    None -> SrcNull
-  }
-}
-
-fn optional_bool_source(value: Option(Bool)) -> SourceValue {
-  case value {
-    Some(b) -> SrcBool(b)
-    None -> SrcNull
-  }
-}
 
 fn money_source(value: Money) -> SourceValue {
   src_object([
@@ -625,13 +609,13 @@ fn default_email_source(
   case value {
     Some(v) ->
       src_object([
-        #("emailAddress", optional_string_source(v.email_address)),
-        #("marketingState", optional_string_source(v.marketing_state)),
+        #("emailAddress", graphql_helpers.option_string_source(v.email_address)),
+        #("marketingState", graphql_helpers.option_string_source(v.marketing_state)),
         #(
           "marketingOptInLevel",
-          optional_string_source(v.marketing_opt_in_level),
+          graphql_helpers.option_string_source(v.marketing_opt_in_level),
         ),
-        #("marketingUpdatedAt", optional_string_source(v.marketing_updated_at)),
+        #("marketingUpdatedAt", graphql_helpers.option_string_source(v.marketing_updated_at)),
       ])
     None -> SrcNull
   }
@@ -643,16 +627,16 @@ fn default_phone_source(
   case value {
     Some(v) ->
       src_object([
-        #("phoneNumber", optional_string_source(v.phone_number)),
-        #("marketingState", optional_string_source(v.marketing_state)),
+        #("phoneNumber", graphql_helpers.option_string_source(v.phone_number)),
+        #("marketingState", graphql_helpers.option_string_source(v.marketing_state)),
         #(
           "marketingOptInLevel",
-          optional_string_source(v.marketing_opt_in_level),
+          graphql_helpers.option_string_source(v.marketing_opt_in_level),
         ),
-        #("marketingUpdatedAt", optional_string_source(v.marketing_updated_at)),
+        #("marketingUpdatedAt", graphql_helpers.option_string_source(v.marketing_updated_at)),
         #(
           "marketingCollectedFrom",
-          optional_string_source(v.marketing_collected_from),
+          graphql_helpers.option_string_source(v.marketing_collected_from),
         ),
       ])
     None -> SrcNull
@@ -665,12 +649,12 @@ fn email_consent_source(
   case value {
     Some(v) ->
       src_object([
-        #("marketingState", optional_string_source(v.marketing_state)),
+        #("marketingState", graphql_helpers.option_string_source(v.marketing_state)),
         #(
           "marketingOptInLevel",
-          optional_string_source(v.marketing_opt_in_level),
+          graphql_helpers.option_string_source(v.marketing_opt_in_level),
         ),
-        #("consentUpdatedAt", optional_string_source(v.consent_updated_at)),
+        #("consentUpdatedAt", graphql_helpers.option_string_source(v.consent_updated_at)),
       ])
     None -> SrcNull
   }
@@ -682,15 +666,15 @@ fn sms_consent_source(
   case value {
     Some(v) ->
       src_object([
-        #("marketingState", optional_string_source(v.marketing_state)),
+        #("marketingState", graphql_helpers.option_string_source(v.marketing_state)),
         #(
           "marketingOptInLevel",
-          optional_string_source(v.marketing_opt_in_level),
+          graphql_helpers.option_string_source(v.marketing_opt_in_level),
         ),
-        #("consentUpdatedAt", optional_string_source(v.consent_updated_at)),
+        #("consentUpdatedAt", graphql_helpers.option_string_source(v.consent_updated_at)),
         #(
           "consentCollectedFrom",
-          optional_string_source(v.consent_collected_from),
+          graphql_helpers.option_string_source(v.consent_collected_from),
         ),
       ])
     None -> SrcNull
@@ -726,21 +710,21 @@ fn default_address_source(
     Some(v) ->
       src_object([
         #("__typename", SrcString("MailingAddress")),
-        #("id", optional_string_source(v.id)),
-        #("firstName", optional_string_source(v.first_name)),
-        #("lastName", optional_string_source(v.last_name)),
-        #("address1", optional_string_source(v.address1)),
-        #("address2", optional_string_source(v.address2)),
-        #("city", optional_string_source(v.city)),
-        #("company", optional_string_source(v.company)),
-        #("province", optional_string_source(v.province)),
-        #("provinceCode", optional_string_source(v.province_code)),
-        #("country", optional_string_source(v.country)),
-        #("countryCodeV2", optional_string_source(v.country_code_v2)),
-        #("zip", optional_string_source(v.zip)),
-        #("phone", optional_string_source(v.phone)),
-        #("name", optional_string_source(v.name)),
-        #("formattedArea", optional_string_source(v.formatted_area)),
+        #("id", graphql_helpers.option_string_source(v.id)),
+        #("firstName", graphql_helpers.option_string_source(v.first_name)),
+        #("lastName", graphql_helpers.option_string_source(v.last_name)),
+        #("address1", graphql_helpers.option_string_source(v.address1)),
+        #("address2", graphql_helpers.option_string_source(v.address2)),
+        #("city", graphql_helpers.option_string_source(v.city)),
+        #("company", graphql_helpers.option_string_source(v.company)),
+        #("province", graphql_helpers.option_string_source(v.province)),
+        #("provinceCode", graphql_helpers.option_string_source(v.province_code)),
+        #("country", graphql_helpers.option_string_source(v.country)),
+        #("countryCodeV2", graphql_helpers.option_string_source(v.country_code_v2)),
+        #("zip", graphql_helpers.option_string_source(v.zip)),
+        #("phone", graphql_helpers.option_string_source(v.phone)),
+        #("name", graphql_helpers.option_string_source(v.name)),
+        #("formattedArea", graphql_helpers.option_string_source(v.formatted_area)),
       ])
     None -> SrcNull
   }
@@ -756,21 +740,21 @@ fn customer_to_source(store: Store, customer: CustomerRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("Customer")),
     #("id", SrcString(customer.id)),
-    #("firstName", optional_string_source(customer.first_name)),
-    #("lastName", optional_string_source(customer.last_name)),
-    #("displayName", optional_string_source(customer.display_name)),
-    #("email", optional_string_source(customer.email)),
-    #("legacyResourceId", optional_string_source(customer.legacy_resource_id)),
-    #("locale", optional_string_source(customer.locale)),
-    #("note", optional_string_source(customer.note)),
-    #("canDelete", optional_bool_source(customer.can_delete)),
-    #("verifiedEmail", optional_bool_source(customer.verified_email)),
+    #("firstName", graphql_helpers.option_string_source(customer.first_name)),
+    #("lastName", graphql_helpers.option_string_source(customer.last_name)),
+    #("displayName", graphql_helpers.option_string_source(customer.display_name)),
+    #("email", graphql_helpers.option_string_source(customer.email)),
+    #("legacyResourceId", graphql_helpers.option_string_source(customer.legacy_resource_id)),
+    #("locale", graphql_helpers.option_string_source(customer.locale)),
+    #("note", graphql_helpers.option_string_source(customer.note)),
+    #("canDelete", graphql_helpers.option_bool_source(customer.can_delete)),
+    #("verifiedEmail", graphql_helpers.option_bool_source(customer.verified_email)),
     #("dataSaleOptOut", SrcBool(customer.data_sale_opt_out)),
-    #("taxExempt", optional_bool_source(customer.tax_exempt)),
+    #("taxExempt", graphql_helpers.option_bool_source(customer.tax_exempt)),
     #("taxExemptions", SrcList(list.map(customer.tax_exemptions, SrcString))),
-    #("state", optional_string_source(customer.state)),
+    #("state", graphql_helpers.option_string_source(customer.state)),
     #("tags", SrcList(list.map(customer.tags, SrcString))),
-    #("numberOfOrders", optional_string_source(customer.number_of_orders)),
+    #("numberOfOrders", graphql_helpers.option_string_source(customer.number_of_orders)),
     #("amountSpent", case customer.amount_spent {
       Some(m) -> money_source(m)
       None -> SrcNull
@@ -815,8 +799,8 @@ fn customer_to_source(store: Store, customer: CustomerRecord) -> SourceValue {
         None -> SrcNull
       },
     ),
-    #("createdAt", optional_string_source(customer.created_at)),
-    #("updatedAt", optional_string_source(customer.updated_at)),
+    #("createdAt", graphql_helpers.option_string_source(customer.created_at)),
+    #("updatedAt", graphql_helpers.option_string_source(customer.updated_at)),
   ])
 }
 
@@ -868,13 +852,13 @@ fn page_info_source(
         #("hasPreviousPage", SrcBool(info.has_previous_page)),
         #(
           "startCursor",
-          optional_string_source(
+          graphql_helpers.option_string_source(
             info.start_cursor |> option.or(source_string_option(start)),
           ),
         ),
         #(
           "endCursor",
-          optional_string_source(
+          graphql_helpers.option_string_source(
             info.end_cursor |> option.or(source_string_option(end)),
           ),
         ),
@@ -974,9 +958,9 @@ fn order_summary_source(
   src_object([
     #("__typename", SrcString("Order")),
     #("id", SrcString(order.id)),
-    #("name", optional_string_source(order.name)),
-    #("email", optional_string_source(order.email)),
-    #("createdAt", optional_string_source(order.created_at)),
+    #("name", graphql_helpers.option_string_source(order.name)),
+    #("email", graphql_helpers.option_string_source(order.email)),
+    #("createdAt", graphql_helpers.option_string_source(order.created_at)),
     #("currentTotalPriceSet", case order.current_total_price {
       Some(money) -> src_object([#("shopMoney", money_source(money))])
       None -> SrcNull
@@ -1025,9 +1009,9 @@ fn metafield_source(metafield: CustomerMetafieldRecord) -> SourceValue {
     #("key", SrcString(metafield.key)),
     #("type", SrcString(metafield.type_)),
     #("value", SrcString(metafield.value)),
-    #("compareDigest", optional_string_source(metafield.compare_digest)),
-    #("createdAt", optional_string_source(metafield.created_at)),
-    #("updatedAt", optional_string_source(metafield.updated_at)),
+    #("compareDigest", graphql_helpers.option_string_source(metafield.compare_digest)),
+    #("createdAt", graphql_helpers.option_string_source(metafield.created_at)),
+    #("updatedAt", graphql_helpers.option_string_source(metafield.updated_at)),
   ])
 }
 
@@ -1147,8 +1131,8 @@ fn payment_method_source(
       Some(instrument) -> payments.instrument_source(instrument)
       None -> SrcNull
     }),
-    #("revokedAt", optional_string_source(payment_method.revoked_at)),
-    #("revokedReason", optional_string_source(payment_method.revoked_reason)),
+    #("revokedAt", graphql_helpers.option_string_source(payment_method.revoked_at)),
+    #("revokedReason", graphql_helpers.option_string_source(payment_method.revoked_reason)),
     #("subscriptionContracts", empty_connection_source()),
   ])
 }
@@ -1157,10 +1141,10 @@ fn customer_owner_source(customer: CustomerRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("Customer")),
     #("id", SrcString(customer.id)),
-    #("firstName", optional_string_source(customer.first_name)),
-    #("lastName", optional_string_source(customer.last_name)),
-    #("displayName", optional_string_source(customer.display_name)),
-    #("email", optional_string_source(customer.email)),
+    #("firstName", graphql_helpers.option_string_source(customer.first_name)),
+    #("lastName", graphql_helpers.option_string_source(customer.last_name)),
+    #("displayName", graphql_helpers.option_string_source(customer.display_name)),
+    #("email", graphql_helpers.option_string_source(customer.email)),
     #(
       "defaultEmailAddress",
       default_email_source(customer.default_email_address),
@@ -1564,10 +1548,10 @@ fn fetch_customers_count_source(
 ) -> Option(SourceValue) {
   let args = graphql_helpers.field_args(field, variables)
   let query_arg = graphql_helpers.read_arg_string_nonempty(args, "query")
-  let query =
-    "query CustomerCountHydrate($query: String) {\n"
-    <> "  customersCount(query: $query) { count precision }\n"
-    <> "}\n"
+  let query = "query CustomerCountHydrate($query: String) {
+  customersCount(query: $query) { count precision }
+}
+"
   let upstream_variables = case query_arg {
     Some(query) -> json.object([#("query", json.string(query))])
     None -> json.object([])
@@ -1674,13 +1658,13 @@ fn serialize_customer_account_pages(
 fn fetch_customer_account_pages(
   upstream: UpstreamContext,
 ) -> Option(List(CustomerAccountPageRecord)) {
-  let query =
-    "query CustomerAccountPagesHydrate {\n"
-    <> "  customerAccountPages(first: 250) {\n"
-    <> "    nodes { id title handle defaultCursor }\n"
-    <> "    pageInfo { startCursor endCursor }\n"
-    <> "  }\n"
-    <> "}\n"
+  let query = "query CustomerAccountPagesHydrate {
+  customerAccountPages(first: 250) {
+    nodes { id title handle defaultCursor }
+    pageInfo { startCursor endCursor }
+  }
+}
+"
   case
     upstream_query.fetch_sync(
       upstream.origin,
@@ -3548,10 +3532,10 @@ fn upstream_customer_duplicate_exists(
   exclude_customer_id: Option(String),
   upstream: UpstreamContext,
 ) -> Bool {
-  let query =
-    "query CustomerDuplicateHydrate($query: String!) {\n"
-    <> "  customers(first: 1, query: $query) { nodes { id } }\n"
-    <> "}\n"
+  let query = "query CustomerDuplicateHydrate($query: String!) {
+  customers(first: 1, query: $query) { nodes { id } }
+}
+"
   let variables = json.object([#("query", json.string(query_value))])
   case
     upstream_query.fetch_sync(
@@ -4985,7 +4969,7 @@ fn handle_data_erasure(store, identity, field, variables, cancel) {
         src_object([
           #("__typename", SrcString(typename)),
           #("customerId", case errors {
-            [] -> optional_string_source(customer_id)
+            [] -> graphql_helpers.option_string_source(customer_id)
             _ -> SrcNull
           }),
           #("userErrors", SrcList(list.map(errors, user_error_source))),
@@ -5783,7 +5767,7 @@ fn customer_payload_json(
             Some(c) -> customer_to_source(store, c)
             None -> SrcNull
           }),
-          #("deletedCustomerId", optional_string_source(deleted_customer_id)),
+          #("deletedCustomerId", graphql_helpers.option_string_source(deleted_customer_id)),
           #("address", case customer_address {
             Some(a) -> address_source(a)
             None -> SrcNull
@@ -5816,7 +5800,7 @@ fn address_payload_json(
             Some(a) -> address_source(a)
             None -> SrcNull
           }),
-          #("deletedAddressId", optional_string_source(deleted_address_id)),
+          #("deletedAddressId", graphql_helpers.option_string_source(deleted_address_id)),
           #("userErrors", SrcList(list.map(user_errors, user_error_source))),
         ]),
         selections,
@@ -5943,7 +5927,7 @@ fn user_error_source(err: UserError) -> SourceValue {
       _ -> SrcList(list.map(err.field, SrcString))
     }),
     #("message", SrcString(err.message)),
-    #("code", optional_string_source(err.code)),
+    #("code", graphql_helpers.option_string_source(err.code)),
   ])
 }
 

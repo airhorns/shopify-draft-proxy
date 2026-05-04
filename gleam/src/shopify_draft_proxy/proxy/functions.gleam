@@ -99,11 +99,6 @@ pub fn handle_function_query(
   }
 }
 
-/// Wrap a successful functions response in the standard GraphQL
-/// envelope.
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
 
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
@@ -112,7 +107,7 @@ pub fn process(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, FunctionsError) {
   use data <- result.try(handle_function_query(store, document, variables))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 /// True when functions-domain reads need local handling because the
@@ -480,15 +475,15 @@ fn validation_to_source(
   src_object([
     #("__typename", SrcString("Validation")),
     #("id", SrcString(record.id)),
-    #("title", optional_string_to_source(record.title)),
-    #("enable", optional_bool_to_source(record.enable)),
-    #("enabled", optional_bool_to_source(record.enable)),
-    #("blockOnFailure", optional_bool_to_source(record.block_on_failure)),
+    #("title", graphql_helpers.option_string_source(record.title)),
+    #("enable", graphql_helpers.option_bool_source(record.enable)),
+    #("enabled", graphql_helpers.option_bool_source(record.enable)),
+    #("blockOnFailure", graphql_helpers.option_bool_source(record.block_on_failure)),
     #("functionId", function_id_source),
-    #("functionHandle", optional_string_to_source(record.function_handle)),
+    #("functionHandle", graphql_helpers.option_string_source(record.function_handle)),
     #("shopifyFunction", shopify_function_source),
-    #("createdAt", optional_string_to_source(record.created_at)),
-    #("updatedAt", optional_string_to_source(record.updated_at)),
+    #("createdAt", graphql_helpers.option_string_source(record.created_at)),
+    #("updatedAt", graphql_helpers.option_string_source(record.updated_at)),
     #("metafield", SrcNull),
     #("metafields", empty_metafield_connection_source()),
   ])
@@ -506,12 +501,12 @@ fn cart_transform_to_source(record: CartTransformRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("CartTransform")),
     #("id", SrcString(record.id)),
-    #("title", optional_string_to_source(record.title)),
-    #("blockOnFailure", optional_bool_to_source(record.block_on_failure)),
+    #("title", graphql_helpers.option_string_source(record.title)),
+    #("blockOnFailure", graphql_helpers.option_bool_source(record.block_on_failure)),
     #("functionId", function_id_source),
-    #("functionHandle", optional_string_to_source(record.function_handle)),
-    #("createdAt", optional_string_to_source(record.created_at)),
-    #("updatedAt", optional_string_to_source(record.updated_at)),
+    #("functionHandle", graphql_helpers.option_string_source(record.function_handle)),
+    #("createdAt", graphql_helpers.option_string_source(record.created_at)),
+    #("updatedAt", graphql_helpers.option_string_source(record.updated_at)),
     #("metafield", SrcNull),
     #("metafields", empty_metafield_connection_source()),
   ])
@@ -521,11 +516,11 @@ fn shopify_function_to_source(record: ShopifyFunctionRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("ShopifyFunction")),
     #("id", SrcString(record.id)),
-    #("title", optional_string_to_source(record.title)),
-    #("handle", optional_string_to_source(record.handle)),
-    #("apiType", optional_string_to_source(record.api_type)),
-    #("description", optional_string_to_source(record.description)),
-    #("appKey", optional_string_to_source(record.app_key)),
+    #("title", graphql_helpers.option_string_source(record.title)),
+    #("handle", graphql_helpers.option_string_source(record.handle)),
+    #("apiType", graphql_helpers.option_string_source(record.api_type)),
+    #("description", graphql_helpers.option_string_source(record.description)),
+    #("appKey", graphql_helpers.option_string_source(record.app_key)),
     #("app", shopify_function_app_to_source(record.app)),
   ])
 }
@@ -537,11 +532,11 @@ fn shopify_function_app_to_source(
     None -> SrcNull
     Some(record) ->
       src_object([
-        #("__typename", optional_string_to_source(record.typename)),
-        #("id", optional_string_to_source(record.id)),
-        #("title", optional_string_to_source(record.title)),
-        #("handle", optional_string_to_source(record.handle)),
-        #("apiKey", optional_string_to_source(record.api_key)),
+        #("__typename", graphql_helpers.option_string_source(record.typename)),
+        #("id", graphql_helpers.option_string_source(record.id)),
+        #("title", graphql_helpers.option_string_source(record.title)),
+        #("handle", graphql_helpers.option_string_source(record.handle)),
+        #("apiKey", graphql_helpers.option_string_source(record.api_key)),
       ])
   }
 }
@@ -554,7 +549,7 @@ fn tax_app_configuration_to_source(
     #("id", SrcString(record.id)),
     #("ready", SrcBool(record.ready)),
     #("state", SrcString(record.state)),
-    #("updatedAt", optional_string_to_source(record.updated_at)),
+    #("updatedAt", graphql_helpers.option_string_source(record.updated_at)),
   ])
 }
 
@@ -577,19 +572,6 @@ fn empty_page_info_source() -> SourceValue {
   ])
 }
 
-fn optional_string_to_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(s) -> SrcString(s)
-    None -> SrcNull
-  }
-}
-
-fn optional_bool_to_source(value: Option(Bool)) -> SourceValue {
-  case value {
-    Some(b) -> SrcBool(b)
-    None -> SrcNull
-  }
-}
 
 // ===========================================================================
 // Mutation path

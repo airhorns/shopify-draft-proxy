@@ -125,9 +125,6 @@ pub fn handle_markets_query(
   Ok(serialize_root_fields(store, fields, fragments, variables))
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
 
 pub fn process(
   store: Store,
@@ -135,7 +132,7 @@ pub fn process(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, MarketsError) {
   use data <- result.try(handle_markets_query(store, document, variables))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 /// Pattern 2 for cold Markets LiveHybrid reads: fetch the captured upstream

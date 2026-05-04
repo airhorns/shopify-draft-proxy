@@ -184,9 +184,6 @@ pub fn process(
   }
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
 
 /// Pattern 2 for cold LiveHybrid shipping reads: fetch the captured
 /// upstream response, hydrate the shipping/store slices needed by
@@ -1166,7 +1163,7 @@ fn handle_query_fields(
     })
   let data = json.object(data_entries)
   case errors {
-    [] -> wrap_data(data)
+    [] -> graphql_helpers.wrap_data(data)
     _ ->
       json.object([
         #("errors", json.array(errors, fn(error) { error })),
@@ -2013,18 +2010,18 @@ fn maybe_hydrate_fulfillment_order(
           case store.get_effective_fulfillment_order_by_id(store_in, id) {
             Some(_) -> store_in
             None -> {
-              let query =
-                "query ShippingFulfillmentOrderHydrate($id: ID!) {\n"
-                <> "  fulfillmentOrder(id: $id) {\n"
-                <> "    id status requestStatus fulfillAt fulfillBy updatedAt\n"
-                <> "    supportedActions { action }\n"
-                <> "    assignedLocation { name location { id name } }\n"
-                <> "    fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }\n"
-                <> "    merchantRequests(first: 10) { nodes { kind message requestOptions } }\n"
-                <> "    lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }\n"
-                <> "    order { id name displayFulfillmentStatus }\n"
-                <> "  }\n"
-                <> "}\n"
+              let query = "query ShippingFulfillmentOrderHydrate($id: ID!) {
+  fulfillmentOrder(id: $id) {
+    id status requestStatus fulfillAt fulfillBy updatedAt
+    supportedActions { action }
+    assignedLocation { name location { id name } }
+    fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }
+    merchantRequests(first: 10) { nodes { kind message requestOptions } }
+    lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
+    order { id name displayFulfillmentStatus }
+  }
+}
+"
               let variables = json.object([#("id", json.string(id))])
               case
                 upstream_query.fetch_sync(
@@ -2057,10 +2054,10 @@ fn maybe_hydrate_delivery_profile(
       case store.get_effective_delivery_profile_by_id(store_in, id) {
         Some(_) -> store_in
         None -> {
-          let query =
-            "query ShippingDeliveryProfileHydrate($id: ID!) {\n"
-            <> "  deliveryProfile(id: $id) { id name default merchantOwned version }\n"
-            <> "}\n"
+          let query = "query ShippingDeliveryProfileHydrate($id: ID!) {
+  deliveryProfile(id: $id) { id name default merchantOwned version }
+}
+"
           let variables = json.object([#("id", json.string(id))])
           case
             upstream_query.fetch_sync(
@@ -2097,12 +2094,12 @@ fn maybe_hydrate_delivery_profile_variants(
   case missing {
     [] -> store_in
     _ -> {
-      let query =
-        "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) {\n"
-        <> "  nodes(ids: $ids) {\n"
-        <> "    ... on ProductVariant { id title product { id title handle } }\n"
-        <> "  }\n"
-        <> "}\n"
+      let query = "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on ProductVariant { id title product { id title handle } }
+  }
+}
+"
       let variables = json.object([#("ids", json.array(missing, json.string))])
       case
         upstream_query.fetch_sync(
@@ -2135,10 +2132,10 @@ fn maybe_hydrate_shipping_package(
           // GraphQL has no package read root in the captured API version,
           // so the cassette supplies the recorded local seed package.
           // Without a cassette/Snapshot mode this remains a no-op.
-          let query =
-            "query ShippingPackageHydrate($id: ID!) {\n"
-            <> "  shippingPackage(id: $id) { id name type default weight { value unit } dimensions { length width height unit } createdAt updatedAt }\n"
-            <> "}\n"
+          let query = "query ShippingPackageHydrate($id: ID!) {
+  shippingPackage(id: $id) { id name type default weight { value unit } dimensions { length width height unit } createdAt updatedAt }
+}
+"
           let variables = json.object([#("id", json.string(id))])
           case
             upstream_query.fetch_sync(

@@ -105,11 +105,6 @@ pub fn handle_gift_card_query(
   }
 }
 
-/// Wrap a successful gift-cards response in the standard GraphQL
-/// envelope.
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
 
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
@@ -118,7 +113,7 @@ pub fn process(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, GiftCardsError) {
   use data <- result.try(handle_gift_card_query(store, document, variables))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 // ---------------------------------------------------------------------------
@@ -542,23 +537,17 @@ fn serialize_gift_card_recipient_attributes(
   let source =
     src_object([
       #("__typename", SrcString("GiftCardRecipientAttributes")),
-      #("message", optional_string_to_source(attributes.message)),
-      #("preferredName", optional_string_to_source(attributes.preferred_name)),
+      #("message", graphql_helpers.option_string_source(attributes.message)),
+      #("preferredName", graphql_helpers.option_string_source(attributes.preferred_name)),
       #(
         "sendNotificationAt",
-        optional_string_to_source(attributes.send_notification_at),
+        graphql_helpers.option_string_source(attributes.send_notification_at),
       ),
       #("recipient", recipient_source),
     ])
   project_graphql_value(source, selections, fragments)
 }
 
-fn optional_string_to_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(s) -> SrcString(s)
-    None -> SrcNull
-  }
-}
 
 fn serialize_gift_card_transaction(
   transaction: GiftCardTransactionRecord,
@@ -1420,43 +1409,43 @@ fn maybe_hydrate_gift_card(
   case store.get_effective_gift_card_by_id(store, id) {
     Some(_) -> store
     None -> {
-      let query =
-        "query GiftCardHydrate($id: ID!) {\n"
-        <> "  giftCard(id: $id) {\n"
-        <> "    id\n"
-        <> "    lastCharacters\n"
-        <> "    maskedCode\n"
-        <> "    enabled\n"
-        <> "    deactivatedAt\n"
-        <> "    expiresOn\n"
-        <> "    note\n"
-        <> "    templateSuffix\n"
-        <> "    createdAt\n"
-        <> "    updatedAt\n"
-        <> "    initialValue { amount currencyCode }\n"
-        <> "    balance { amount currencyCode }\n"
-        <> "    customer { id }\n"
-        <> "    recipientAttributes {\n"
-        <> "      message\n"
-        <> "      preferredName\n"
-        <> "      sendNotificationAt\n"
-        <> "      recipient { id }\n"
-        <> "    }\n"
-        <> "    transactions(first: 250) {\n"
-        <> "      nodes {\n"
-        <> "        __typename\n"
-        <> "        id\n"
-        <> "        note\n"
-        <> "        processedAt\n"
-        <> "        amount { amount currencyCode }\n"
-        <> "      }\n"
-        <> "    }\n"
-        <> "  }\n"
-        <> "  giftCardConfiguration {\n"
-        <> "    issueLimit { amount currencyCode }\n"
-        <> "    purchaseLimit { amount currencyCode }\n"
-        <> "  }\n"
-        <> "}\n"
+      let query = "query GiftCardHydrate($id: ID!) {
+  giftCard(id: $id) {
+    id
+    lastCharacters
+    maskedCode
+    enabled
+    deactivatedAt
+    expiresOn
+    note
+    templateSuffix
+    createdAt
+    updatedAt
+    initialValue { amount currencyCode }
+    balance { amount currencyCode }
+    customer { id }
+    recipientAttributes {
+      message
+      preferredName
+      sendNotificationAt
+      recipient { id }
+    }
+    transactions(first: 250) {
+      nodes {
+        __typename
+        id
+        note
+        processedAt
+        amount { amount currencyCode }
+      }
+    }
+  }
+  giftCardConfiguration {
+    issueLimit { amount currencyCode }
+    purchaseLimit { amount currencyCode }
+  }
+}
+"
       let variables = json.object([#("id", json.string(id))])
       case
         upstream_query.fetch_sync(

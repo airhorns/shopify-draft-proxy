@@ -104,9 +104,6 @@ pub fn handle_marketing_query(
   }
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
 
 pub fn process(
   store: Store,
@@ -114,7 +111,7 @@ pub fn process(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, MarketingError) {
   use data <- result.try(handle_marketing_query(store, document, variables))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 pub fn hydrate_marketing_from_upstream_payload(
@@ -1407,7 +1404,7 @@ fn user_error_source(user_error: UserError) -> SourceValue {
   src_object([
     #("field", optional_string_list_source(user_error.field)),
     #("message", SrcString(user_error.message)),
-    #("code", optional_string_source(user_error.code)),
+    #("code", graphql_helpers.option_string_source(user_error.code)),
   ])
 }
 
@@ -2289,12 +2286,6 @@ fn optional_marketing_object(
   }
 }
 
-fn optional_string_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(value) -> SrcString(value)
-    None -> SrcNull
-  }
-}
 
 fn optional_string_list_source(value: Option(List(String))) -> SourceValue {
   case value {

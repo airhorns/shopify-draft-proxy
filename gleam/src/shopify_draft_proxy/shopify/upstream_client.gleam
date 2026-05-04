@@ -19,6 +19,7 @@ import gleam/httpc
 @target(javascript)
 import gleam/javascript/promise.{type Promise}
 import gleam/list
+import gleam/result
 import shopify_draft_proxy/proxy/commit.{
   type CommitTransportError, type HttpOutcome,
 }
@@ -71,7 +72,7 @@ pub fn build_graphql_request(
   inbound_headers: Dict(String, String),
 ) -> Result(gleam_http_request.Request(String), Nil) {
   let url = origin <> path
-  use base <- result_try(gleam_http_request.to(url))
+  use base <- result.try(gleam_http_request.to(url))
   Ok(
     base
     |> gleam_http_request.set_method(http.Post)
@@ -87,13 +88,6 @@ fn apply_headers(
   list.fold(headers, req, fn(acc, pair) {
     gleam_http_request.set_header(acc, pair.0, pair.1)
   })
-}
-
-fn result_try(r: Result(a, b), fun: fn(a) -> Result(c, b)) -> Result(c, b) {
-  case r {
-    Ok(value) -> fun(value)
-    Error(e) -> Error(e)
-  }
 }
 
 // ---------------------------------------------------------------------------

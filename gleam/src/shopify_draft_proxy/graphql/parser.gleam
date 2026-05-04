@@ -16,12 +16,12 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
 import shopify_draft_proxy/graphql/ast.{
-  type Argument, type Definition, type Directive, type Document, type Name,
-  type ObjectField, type Selection, type SelectionSet, type TypeRef, type Value,
-  type Variable, type VariableDefinition, Argument, BooleanValue, Directive,
-  Document, EnumValue, Field, FloatValue, FragmentDefinition, FragmentSpread,
-  InlineFragment, IntValue, ListType, ListValue, Location, Mutation, Name,
-  NamedType, NonNullType, NullValue, ObjectField, ObjectValue,
+  type Argument, type Definition, type Directive, type Document, type Location,
+  type Name, type ObjectField, type Selection, type SelectionSet, type TypeRef,
+  type Value, type Variable, type VariableDefinition, Argument, BooleanValue,
+  Directive, Document, EnumValue, Field, FloatValue, FragmentDefinition,
+  FragmentSpread, InlineFragment, IntValue, ListType, ListValue, Location,
+  Mutation, Name, NamedType, NonNullType, NullValue, ObjectField, ObjectValue,
   OperationDefinition, Query, SelectionSet, StringValue, Subscription, Variable,
   VariableDefinition, VariableValue,
 }
@@ -42,6 +42,19 @@ pub type Parser {
   Parser(lexer: lexer.Lexer, token: Token, last_token: Token)
 }
 
+/// Location spanning from `start`'s start position to the parser's most
+/// recently consumed token's end. Used for AST nodes that span multiple
+/// tokens.
+fn node_loc(start: Token, parser: Parser) -> option.Option(Location) {
+  Some(Location(start: start.start, end: parser.last_token.end))
+}
+
+/// Location for a single token.
+fn token_loc(t: Token) -> option.Option(Location) {
+  Some(Location(start: t.start, end: t.end))
+}
+
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -53,7 +66,7 @@ pub fn parse(source: Source) -> Result(Document, ParseError) {
     Ok(parser) -> {
       let start = parser.token
       use #(definitions, parser) <- result.try(parse_definitions(parser, []))
-      let loc = Some(Location(start: start.start, end: parser.last_token.end))
+      let loc = node_loc(start, parser)
       Ok(Document(definitions: definitions, loc: loc))
     }
   }
@@ -112,7 +125,7 @@ fn parse_operation_definition(
   case peek(parser, tk.BraceL) {
     True -> {
       use #(selection_set, parser) <- result.try(parse_selection_set(parser))
-      let loc = Some(Location(start: start.start, end: parser.last_token.end))
+      let loc = node_loc(start, parser)
       Ok(#(
         OperationDefinition(
           operation: Query,
@@ -137,7 +150,7 @@ fn parse_operation_definition(
       use #(var_defs, parser) <- result.try(parse_variable_definitions(parser))
       use #(directives, parser) <- result.try(parse_directives(parser, False))
       use #(selection_set, parser) <- result.try(parse_selection_set(parser))
-      let loc = Some(Location(start: start.start, end: parser.last_token.end))
+      let loc = node_loc(start, parser)
       Ok(#(
         OperationDefinition(
           operation: operation,
@@ -176,7 +189,7 @@ fn parse_fragment_definition(
   use #(type_cond, parser) <- result.try(parse_named_type(parser))
   use #(directives, parser) <- result.try(parse_directives(parser, False))
   use #(ss, parser) <- result.try(parse_selection_set(parser))
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(
     FragmentDefinition(
       name: name,
@@ -215,7 +228,7 @@ fn parse_variable_definition(
     False -> Ok(#(None, parser))
   })
   use #(directives, parser) <- result.try(parse_directives(parser, True))
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(
     VariableDefinition(
       variable: variable,
@@ -232,7 +245,7 @@ fn parse_variable(parser: Parser) -> Result(#(Variable, Parser), ParseError) {
   let start = parser.token
   use #(_, parser) <- result.try(expect_token(parser, tk.Dollar))
   use #(name, parser) <- result.try(parse_name(parser))
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(Variable(name: name, loc: loc), parser))
 }
 
@@ -250,7 +263,7 @@ fn parse_selection_set(
     parse_selection,
     tk.BraceR,
   ))
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(SelectionSet(selections: selections, loc: loc), parser))
 }
 
@@ -282,7 +295,7 @@ fn parse_field(parser: Parser) -> Result(#(Selection, Parser), ParseError) {
     }
     False -> Ok(#(None, parser))
   })
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(
     Field(
       alias: alias,
@@ -307,7 +320,7 @@ fn parse_fragment(parser: Parser) -> Result(#(Selection, Parser), ParseError) {
     True -> {
       use #(name, parser) <- result.try(parse_fragment_name(parser))
       use #(directives, parser) <- result.try(parse_directives(parser, False))
-      let loc = Some(Location(start: start.start, end: parser.last_token.end))
+      let loc = node_loc(start, parser)
       Ok(#(FragmentSpread(name: name, directives: directives, loc: loc), parser))
     }
     False -> {
@@ -320,7 +333,7 @@ fn parse_fragment(parser: Parser) -> Result(#(Selection, Parser), ParseError) {
       })
       use #(directives, parser) <- result.try(parse_directives(parser, False))
       use #(ss, parser) <- result.try(parse_selection_set(parser))
-      let loc = Some(Location(start: start.start, end: parser.last_token.end))
+      let loc = node_loc(start, parser)
       Ok(#(
         InlineFragment(
           type_condition: type_cond,
@@ -365,7 +378,7 @@ fn parse_argument(
   use #(name, parser) <- result.try(parse_name(parser))
   use #(_, parser) <- result.try(expect_token(parser, tk.Colon))
   use #(value, parser) <- result.try(parse_value_literal(parser, is_const))
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(Argument(name: name, value: value, loc: loc), parser))
 }
 
@@ -398,7 +411,7 @@ fn parse_directive(
   use #(_, parser) <- result.try(expect_token(parser, tk.At))
   use #(name, parser) <- result.try(parse_name(parser))
   use #(args, parser) <- result.try(parse_arguments(parser, is_const))
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(Directive(name: name, arguments: args, loc: loc), parser))
 }
 
@@ -420,7 +433,7 @@ fn parse_value_literal(
         Some(v) -> v
         None -> ""
       }
-      let loc = Some(Location(start: token_now.start, end: token_now.end))
+      let loc = token_loc(token_now)
       Ok(#(IntValue(value: v, loc: loc), parser))
     }
     tk.Float -> {
@@ -429,7 +442,7 @@ fn parse_value_literal(
         Some(v) -> v
         None -> ""
       }
-      let loc = Some(Location(start: token_now.start, end: token_now.end))
+      let loc = token_loc(token_now)
       Ok(#(FloatValue(value: v, loc: loc), parser))
     }
     tk.String -> {
@@ -438,12 +451,12 @@ fn parse_value_literal(
         Some(v) -> v
         None -> ""
       }
-      let loc = Some(Location(start: token_now.start, end: token_now.end))
+      let loc = token_loc(token_now)
       Ok(#(StringValue(value: v, block: False, loc: loc), parser))
     }
     tk.Name -> {
       use parser <- result.try(advance_parser(parser))
-      let loc = Some(Location(start: token_now.start, end: token_now.end))
+      let loc = token_loc(token_now)
       case token_now.value {
         Some("true") -> Ok(#(BooleanValue(value: True, loc: loc), parser))
         Some("false") -> Ok(#(BooleanValue(value: False, loc: loc), parser))
@@ -479,7 +492,7 @@ fn parse_list(
     fn(p) { parse_value_literal(p, is_const) },
     tk.BracketR,
   ))
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(ListValue(values: values, loc: loc), parser))
 }
 
@@ -494,7 +507,7 @@ fn parse_object(
     fn(p) { parse_object_field(p, is_const) },
     tk.BraceR,
   ))
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(ObjectValue(fields: fields, loc: loc), parser))
 }
 
@@ -506,7 +519,7 @@ fn parse_object_field(
   use #(name, parser) <- result.try(parse_name(parser))
   use #(_, parser) <- result.try(expect_token(parser, tk.Colon))
   use #(value, parser) <- result.try(parse_value_literal(parser, is_const))
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(ObjectField(name: name, value: value, loc: loc), parser))
 }
 
@@ -526,7 +539,7 @@ fn parse_type_reference(
     True -> {
       use #(inner, parser) <- result.try(parse_type_reference(parser))
       use #(_, parser) <- result.try(expect_token(parser, tk.BracketR))
-      let loc = Some(Location(start: start.start, end: parser.last_token.end))
+      let loc = node_loc(start, parser)
       Ok(#(ListType(inner: inner, loc: loc), parser))
     }
     False -> parse_named_type(parser)
@@ -534,7 +547,7 @@ fn parse_type_reference(
   use #(was_bang, parser) <- result.try(expect_optional_token(parser, tk.Bang))
   case was_bang {
     True -> {
-      let loc = Some(Location(start: start.start, end: parser.last_token.end))
+      let loc = node_loc(start, parser)
       Ok(#(NonNullType(inner: inner, loc: loc), parser))
     }
     False -> Ok(#(inner, parser))
@@ -544,7 +557,7 @@ fn parse_type_reference(
 fn parse_named_type(parser: Parser) -> Result(#(TypeRef, Parser), ParseError) {
   let start = parser.token
   use #(name, parser) <- result.try(parse_name(parser))
-  let loc = Some(Location(start: start.start, end: parser.last_token.end))
+  let loc = node_loc(start, parser)
   Ok(#(NamedType(name: name, loc: loc), parser))
 }
 
@@ -559,7 +572,7 @@ fn parse_name(parser: Parser) -> Result(#(Name, Parser), ParseError) {
     Some(v) -> v
     None -> ""
   }
-  let loc = Some(Location(start: saved.start, end: saved.end))
+  let loc = token_loc(saved)
   Ok(#(Name(value: value, loc: loc), parser))
 }
 

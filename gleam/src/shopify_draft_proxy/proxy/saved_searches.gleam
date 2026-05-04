@@ -391,11 +391,6 @@ fn saved_search_to_source(
   ])
 }
 
-/// Wrap a successful saved-searches response in the standard GraphQL
-/// envelope.
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
 
 /// Convenience: parse + handle + wrap, for the dispatcher.
 pub fn process(
@@ -404,7 +399,7 @@ pub fn process(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, SavedSearchesError) {
   use data <- result.try(handle_saved_search_query(store, document, variables))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 /// Predicate matching the TS `isSavedSearchQueryRoot`. Useful for the
@@ -562,7 +557,7 @@ fn handle_mutation_fields(
         _ -> #(pairs, current)
       }
     })
-  Ok(MutationOutcome(..outcome, data: wrap_data(json.object(entries))))
+  Ok(MutationOutcome(..outcome, data: graphql_helpers.wrap_data(json.object(entries))))
 }
 
 fn handle_create(
