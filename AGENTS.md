@@ -239,8 +239,9 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
 The proxy runtime lives under `gleam/src/shopify_draft_proxy/` and
 compiles to both Erlang/BEAM and JavaScript.
 
-- **Read first:** `GLEAM_PORT_INTENT.md` (non-negotiables) and the most
-  recent 2–3 entries at the top of `GLEAM_PORT_LOG.md` (running narrative).
+- **Read first:** `GLEAM_PORT_INTENT.md` (non-negotiables). Use
+  `GLEAM_PORT_LOG.md` only as historical context when older porting decisions
+  matter for the task.
 - **Skill:** `.agents/skills/gleam-port/SKILL.md` covers the
   runtime-specific patterns (domain module surface, store slice shapes,
   `MutationOutcome`, dispatcher wiring, synthetic-id mint helpers, FFI
@@ -252,8 +253,6 @@ compiles to both Erlang/BEAM and JavaScript.
 - **Both targets, every change:** `gleam test --target erlang` AND
   `gleam test --target javascript`. Drift between them is the most
   expensive bug class.
-- **Append a log entry** to `GLEAM_PORT_LOG.md` for every pass. The log
-  is the running narrative; `GLEAM_PORT_INTENT.md` stays stable.
 
 The legacy TypeScript runtime under `src/` is being retired
 domain-by-domain as Gleam ports reach parity. Do not add new behavior
