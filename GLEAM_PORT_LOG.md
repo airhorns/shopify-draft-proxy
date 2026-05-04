@@ -9,6 +9,69 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-04 - Pass 196: HAR-479 integration inventory guard
+
+Adds a fixed integration migration inventory for the legacy TypeScript
+integration suite on top of the current strict Gleam parity corpus. The
+inventory maps every current `tests/integration/*.test.ts` file to Gleam test
+evidence, parity spec evidence, retained TypeScript boundary coverage, or a
+retirement reason. CI now runs the inventory verifier so new TypeScript-only
+integration files must be explicitly accounted for during cutover.
+
+The verifier intentionally does not require every recorded legacy TypeScript
+test to keep existing on disk forever. It records the baseline once, validates
+all inventory entries and evidence paths, and scans the current
+`tests/integration` tree only for unrecorded additions. That preserves the
+reviewed direction to avoid blocking intentional TypeScript integration
+deletions during the final pass while still catching new unmapped tests.
+
+| Module                                          | Change                                                                                                                           |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `config/gleam-integration-inventory.json`       | Adds 84 integration mappings with 275 parity spec links and 6 retained TypeScript boundary notes.                                |
+| `scripts/verify-gleam-integration-inventory.ts` | Adds the executable inventory verifier for baseline shape, evidence paths, current TS additions, and Gleam test path references. |
+| `package.json` / `.github/workflows/ci.yml`     | Adds and wires `corepack pnpm gleam:integration-inventory`.                                                                      |
+| `scripts/gleam-port-coverage-gate.ts`           | Requires the new CI inventory command and package script.                                                                        |
+| `tests/integration/gleam-interop.test.ts`       | Raises one interop assertion timeout without changing assertions so the required root Vitest invocation is stable.               |
+
+Validation:
+
+- `corepack pnpm gleam:integration-inventory` (84 entries, 84 current TS
+  integration files scanned, 61 Gleam test files scanned, 275 parity spec
+  links, 6 retained TypeScript boundaries)
+- `corepack pnpm gleam:port:coverage`
+- `cd gleam && gleam test --target javascript` (849 passed)
+- `cd gleam && gleam test --target erlang` failed on the host runtime with
+  `undef` for `shopify_draft_proxy@@main.run`
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 840 passed)
+- `corepack pnpm gleam:build:js`
+- `corepack pnpm test -- tests/integration/gleam-interop.test.ts` (123 files
+  passed; 2287 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `git diff --check`
+
+### Findings
+
+- Current main drifted from the closed PR inventory by one deleted legacy file
+  (`event-query-shapes.test.ts`) and one new retained boundary file
+  (`gleam-js-http-adapter-parity.test.ts`).
+- The root `pnpm test -- tests/integration/gleam-interop.test.ts` invocation
+  runs the broader Vitest suite in this workspace. The health-route interop
+  assertion can take slightly over 5 seconds under that load, so its timeout is
+  now 10 seconds with identical assertions.
+
+### Risks / open items
+
+- Six entries remain retained TypeScript boundaries until the final cutover:
+  interop, JS HTTP adapter parity, launch scripts, meta-route operator HTML,
+  snapshot-file loading, and the TypeScript runtime performance smoke.
+- Host Erlang remains unsuitable for the required Erlang validation in this
+  workspace; the OTP 28 container fallback remains the working validation path.
+
+---
+
 ## 2026-05-04 - Pass 195: HAR-546 parity scaffold removal
 
 Removes the completed parity-migration safety rails so every checked-in parity

@@ -66,6 +66,9 @@ jobs:
       - name: Check remaining TypeScript conformance capture tooling
         run: corepack pnpm conformance:capture:check
 
+      - name: Check Gleam integration migration inventory
+        run: corepack pnpm gleam:integration-inventory
+
       - name: Find latest main conformance baseline
         id: main_conformance_baseline
         if: github.event_name == 'pull_request'

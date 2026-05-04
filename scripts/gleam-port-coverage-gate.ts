@@ -20,6 +20,7 @@ const requiredWorkflowCommands = [
   'corepack pnpm gleam:registry:check',
   'corepack pnpm conformance:check',
   'corepack pnpm conformance:capture:check',
+  'corepack pnpm gleam:integration-inventory',
   'corepack pnpm conformance:status',
   'corepack pnpm gleam:port:coverage',
   'corepack pnpm build',
@@ -117,6 +118,7 @@ function checkWorkflowAndPackageScripts(errors: string[]): void {
   const requiredScripts = new Map<string, string[]>([
     ['gleam:registry:check', ['gleam/scripts/sync-operation-registry.sh']],
     ['gleam:port:coverage', ['./scripts/gleam-port-coverage-gate.ts']],
+    ['gleam:integration-inventory', ['./scripts/verify-gleam-integration-inventory.ts']],
     ['conformance:capture:check', captureToolingChecks],
   ]);
 

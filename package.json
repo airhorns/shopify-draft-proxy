@@ -25,6 +25,7 @@
     "gleam:build:erlang": "cd gleam && gleam build --target erlang",
     "gleam:registry:check": "bash gleam/scripts/sync-operation-registry.sh && cd gleam && gleam format src/shopify_draft_proxy/proxy/operation_registry_data.gleam && cd .. && git diff --exit-code -- gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam",
     "gleam:port:coverage": "tsx ./scripts/gleam-port-coverage-gate.ts",
+    "gleam:integration-inventory": "tsx ./scripts/verify-gleam-integration-inventory.ts",
     "gleam:export:erlang": "cd gleam && gleam export erlang-shipment",
     "gleam:test": "cd gleam && gleam test --target javascript && gleam test --target erlang",
     "gleam:test:js": "cd gleam && gleam test --target javascript",
