@@ -1,0 +1,50 @@
+{
+  "notes": "Hand-synthesized from QA-witnessed productSet commit failure. The proxy currently accepts productSet input with duplicate variant option-value combinations and only discovers the userErrors at __meta/commit replay against Shopify. This fixture captures the canonical Shopify userErrors shape so the local proxy can emit the same payload at staging time. Variants 4 and 5 (zero-indexed) duplicate the option tuples of variants 0 and 3 respectively.",
+  "mutation": {
+    "variables": {
+      "synchronous": true,
+      "input": {
+        "title": "Duplicate Variant Probe",
+        "status": "DRAFT",
+        "vendor": "PARITY",
+        "productType": "PROBE",
+        "productOptions": [
+          { "name": "Size", "position": 1, "values": [{ "name": "S" }, { "name": "M" }] },
+          { "name": "Color", "position": 2, "values": [{ "name": "Red" }, { "name": "Blue" }, { "name": "White" }] }
+        ],
+        "variants": [
+          { "optionValues": [{ "optionName": "Size", "name": "S" }, { "optionName": "Color", "name": "Red" }] },
+          { "optionValues": [{ "optionName": "Size", "name": "S" }, { "optionName": "Color", "name": "Blue" }] },
+          { "optionValues": [{ "optionName": "Size", "name": "M" }, { "optionName": "Color", "name": "Red" }] },
+          { "optionValues": [{ "optionName": "Size", "name": "M" }, { "optionName": "Color", "name": "White" }] },
+          { "optionValues": [{ "optionName": "Size", "name": "S" }, { "optionName": "Color", "name": "Red" }] },
+          { "optionValues": [{ "optionName": "Size", "name": "M" }, { "optionName": "Color", "name": "White" }] }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "productSet": {
+          "product": null,
+          "userErrors": [
+            {
+              "field": ["input", "variants", "4"],
+              "message": "The variant 'S / Red' already exists. Please change at least one option value."
+            },
+            {
+              "field": ["input", "variants", "5"],
+              "message": "The variant 'M / White' already exists. Please change at least one option value."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 15
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

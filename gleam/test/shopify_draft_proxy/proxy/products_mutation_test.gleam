@@ -426,6 +426,27 @@ pub fn product_create_validation_branches_return_user_errors_test() {
     == 1
 }
 
+pub fn product_set_rejects_duplicate_variant_option_tuples_test() {
+  // Reproduces the QA-witnessed productSet failure mode where the
+  // proxy used to accept input with duplicate variant option-value
+  // tuples, only discovering Shopify's userErrors at __meta/commit
+  // replay. The local proxy must reject the duplicates immediately
+  // and record the entry as Failed so commit replay does not re-send
+  // a payload Shopify will also reject. See
+  // config/parity-specs/products/productSet-duplicate-variants.json.
+  let query =
+    "mutation { productSet(input: { title: \\\"Duplicate Variant Probe\\\", status: DRAFT, productOptions: [{ name: \\\"Size\\\", position: 1, values: [{ name: \\\"S\\\" }, { name: \\\"M\\\" }] }, { name: \\\"Color\\\", position: 2, values: [{ name: \\\"Red\\\" }, { name: \\\"Blue\\\" }] }], variants: [{ optionValues: [{ optionName: \\\"Size\\\", name: \\\"S\\\" }, { optionName: \\\"Color\\\", name: \\\"Red\\\" }] }, { optionValues: [{ optionName: \\\"Size\\\", name: \\\"M\\\" }, { optionName: \\\"Color\\\", name: \\\"Blue\\\" }] }, { optionValues: [{ optionName: \\\"Size\\\", name: \\\"S\\\" }, { optionName: \\\"Color\\\", name: \\\"Red\\\" }] }] }, synchronous: true) { product { id } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"variants\",\"2\"],\"message\":\"The variant 'S / Red' already exists. Please change at least one option value.\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productSet")
+  assert entry.status == store.Failed
+  assert entry.staged_resource_ids == []
+}
+
 pub fn product_create_accepts_legacy_input_argument_shape_test() {
   // Real Shopify accepts both `productCreate(product: ProductCreateInput!)`
   // (current) and `productCreate(input: ProductInput!)` (older API versions).

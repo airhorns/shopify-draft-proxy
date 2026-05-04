@@ -1,0 +1,11 @@
+mutation ProductSetDuplicateVariants($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
