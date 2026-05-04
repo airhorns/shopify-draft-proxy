@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 196: HAR-550 product option autogeneration fidelity
+## 2026-05-04 - Pass 197: HAR-550 product option autogeneration fidelity
 
 Tightens product option/variant autogeneration parity for `productCreate` and
 `productSet` from live Shopify evidence. `productCreate(productOptions:)` is
@@ -61,6 +61,61 @@ Validation:
 
 - Host Erlang remains OTP 25 in this workspace, so Erlang validation still
   requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 196: HAR-549 invalid product search syntax parity
+
+Adds live conformance coverage for malformed-looking Shopify Admin product
+search strings and aligns the shared Gleam search parser with the captured
+local-staging behavior.
+
+| Module / fixture                                                                                                                                   | Change                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/capture-product-invalid-search-query-conformance.ts` / `scripts/conformance-capture-index.ts`                                             | Adds an aggregate-indexed capture that creates a disposable product, waits for tag search indexing, captures valid and malformed product search reads, then deletes the product.             |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-invalid-search-query-syntax.json`                                    | Records Shopify's normal data envelopes for malformed search strings: `tag:(value` and `tag:("value"` return zero matches, while bare leading `(` and dangling `OR` still match the product. |
+| `config/parity-specs/products/product-invalid-search-query-syntax.json` / `config/parity-requests/products/product-invalid-search-query-*.graphql` | Adds strict executable parity that stages `productCreate` locally and then exercises the product search overlay path with the captured malformed queries.                                    |
+| `gleam/src/shopify_draft_proxy/search_query_parser.gleam` / `gleam/test/shopify_draft_proxy/search_query_parser_test.gleam`                        | Keeps `(` as a literal term character when it appears immediately after a field/comparator buffer instead of treating `tag:(...` as a grouped expression.                                    |
+| `docs/endpoints/products.md`                                                                                                                       | Documents the captured forgiving product search syntax boundary and the new parity fixture.                                                                                                  |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `corepack pnpm conformance:capture -- --run product-invalid-search-query-syntax`
+- `corepack pnpm parity:record product-invalid-search-query-syntax` (verified
+  the staged scenario records zero upstream calls)
+- `cd gleam && gleam test --target javascript -- search_query_parser_test parity_test`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm conformance:check`
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (850 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 841 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2291 passed)
+- `git diff --check`
+
+### Findings
+
+- Shopify did not emit top-level GraphQL errors for the probed malformed
+  product search syntax. The relevant fidelity rule is search-term
+  interpretation: field-prefixed open-paren values are literal non-matches, but
+  bare leading groups and dangling `OR` remain forgiving.
+- The existing local parser already matched Shopify's forgiving bare-leading
+  `(` and dangling `OR` behavior. The mismatch was specifically `tag:(value`,
+  where the old tokenizer split `tag:` from the grouped value and accidentally
+  matched the staged product.
+
+### Risks / open items
+
+- Product search indexing still requires a short wait after live
+  `productCreate`; the capture script asserts the valid tag search first so it
+  fails before writing a stale malformed-query fixture.
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation used the
+  established OTP 28 container fallback.
 
 ---
 

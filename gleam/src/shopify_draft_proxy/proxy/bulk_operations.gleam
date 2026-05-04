@@ -21,7 +21,7 @@ import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionWindow,
-  SerializeConnectionConfig, SrcInt, SrcList, SrcNull, SrcString,
+  SerializeConnectionConfig, SrcList, SrcNull, SrcString,
   default_connection_page_info_options, default_connection_window_options,
   default_selected_field_options, get_document_fragments, get_field_response_key,
   get_selected_child_fields, paginate_connection_items, project_graphql_value,
@@ -78,10 +78,6 @@ pub fn handle_bulk_operations_query(
   }
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 pub fn process(
   store: Store,
   document: String,
@@ -92,7 +88,7 @@ pub fn process(
     document,
     variables,
   ))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 fn serialize_root_fields(
@@ -251,23 +247,22 @@ fn bulk_operation_source(operation: BulkOperationRecord) -> SourceValue {
     #("id", SrcString(operation.id)),
     #("status", SrcString(operation.status)),
     #("type", SrcString(operation.type_)),
-    #("errorCode", optional_string_to_source(operation.error_code)),
+    #("errorCode", graphql_helpers.option_string_source(operation.error_code)),
     #("createdAt", SrcString(operation.created_at)),
-    #("completedAt", optional_string_to_source(operation.completed_at)),
+    #(
+      "completedAt",
+      graphql_helpers.option_string_source(operation.completed_at),
+    ),
     #("objectCount", SrcString(operation.object_count)),
     #("rootObjectCount", SrcString(operation.root_object_count)),
-    #("fileSize", optional_string_to_source(operation.file_size)),
-    #("url", optional_string_to_source(operation.url)),
-    #("partialDataUrl", optional_string_to_source(operation.partial_data_url)),
-    #("query", optional_string_to_source(operation.query)),
+    #("fileSize", graphql_helpers.option_string_source(operation.file_size)),
+    #("url", graphql_helpers.option_string_source(operation.url)),
+    #(
+      "partialDataUrl",
+      graphql_helpers.option_string_source(operation.partial_data_url),
+    ),
+    #("query", graphql_helpers.option_string_source(operation.query)),
   ])
-}
-
-fn optional_string_to_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(s) -> SrcString(s)
-    None -> SrcNull
-  }
 }
 
 fn bulk_operation_cursor(
@@ -839,13 +834,16 @@ fn product_export_source(product: ProductRecord) -> SourceValue {
     #("title", SrcString(product.title)),
     #("handle", SrcString(product.handle)),
     #("status", SrcString(product.status)),
-    #("vendor", optional_string_to_source(product.vendor)),
-    #("productType", optional_string_to_source(product.product_type)),
+    #("vendor", graphql_helpers.option_string_source(product.vendor)),
+    #("productType", graphql_helpers.option_string_source(product.product_type)),
     #("tags", SrcList(list.map(product.tags, SrcString))),
-    #("totalInventory", optional_int_to_source(product.total_inventory)),
-    #("createdAt", optional_string_to_source(product.created_at)),
-    #("updatedAt", optional_string_to_source(product.updated_at)),
-    #("publishedAt", optional_string_to_source(product.published_at)),
+    #(
+      "totalInventory",
+      graphql_helpers.option_int_source(product.total_inventory),
+    ),
+    #("createdAt", graphql_helpers.option_string_source(product.created_at)),
+    #("updatedAt", graphql_helpers.option_string_source(product.updated_at)),
+    #("publishedAt", graphql_helpers.option_string_source(product.published_at)),
     #("descriptionHtml", SrcString(product.description_html)),
   ])
 }
@@ -864,20 +862,19 @@ fn product_variant_export_source(
     #("__typename", SrcString("ProductVariant")),
     #("id", SrcString(variant.id)),
     #("title", SrcString(variant.title)),
-    #("sku", optional_string_to_source(variant.sku)),
-    #("barcode", optional_string_to_source(variant.barcode)),
-    #("price", optional_string_to_source(variant.price)),
-    #("compareAtPrice", optional_string_to_source(variant.compare_at_price)),
-    #("inventoryQuantity", optional_int_to_source(variant.inventory_quantity)),
+    #("sku", graphql_helpers.option_string_source(variant.sku)),
+    #("barcode", graphql_helpers.option_string_source(variant.barcode)),
+    #("price", graphql_helpers.option_string_source(variant.price)),
+    #(
+      "compareAtPrice",
+      graphql_helpers.option_string_source(variant.compare_at_price),
+    ),
+    #(
+      "inventoryQuantity",
+      graphql_helpers.option_int_source(variant.inventory_quantity),
+    ),
     #("product", product_source),
   ])
-}
-
-fn optional_int_to_source(value: Option(Int)) -> SourceValue {
-  case value {
-    Some(i) -> SrcInt(i)
-    None -> SrcNull
-  }
 }
 
 fn make_jsonl(rows: List(Json)) -> String {

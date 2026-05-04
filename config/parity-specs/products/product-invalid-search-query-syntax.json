@@ -1,0 +1,82 @@
+{
+  "scenarioId": "product-invalid-search-query-syntax",
+  "operationNames": ["productCreate", "products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "search-filter-semantics", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-invalid-search-query-syntax.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-invalid-search-query-create.graphql",
+    "variablesCapturePath": "$.captures.productCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-549 live evidence for malformed product search query syntax on the local staged overlay path. Shopify returns normal data with no top-level errors: field-prefixed open-parenthesis values such as `tag:(value` and `tag:(\"value\"` behave as literal non-matching field values, while a bare leading parenthesis and dangling OR remain forgiving and still match the staged product.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productCreate.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The proxy generates a stable local product GID while Shopify returns the disposable dev-store product GID."
+      },
+      {
+        "path": "$.products.nodes[*].id",
+        "matcher": "shopify-gid:Product",
+        "reason": "Search result product IDs are allocated independently by Shopify and the local staging identity registry."
+      }
+    ],
+    "targets": [
+      {
+        "name": "product-create-payload",
+        "capturePath": "$.captures.productCreate.result.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "valid-tag-search-after-create",
+        "capturePath": "$.captures.validTagSearchAfterCreate.result.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-invalid-search-query-search.graphql",
+          "variablesCapturePath": "$.captures.validTagSearchAfterCreate.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "field-open-paren-search-after-create",
+        "capturePath": "$.captures.fieldOpenParenSearchAfterCreate.result.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-invalid-search-query-search.graphql",
+          "variablesCapturePath": "$.captures.fieldOpenParenSearchAfterCreate.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "field-quoted-open-paren-search-after-create",
+        "capturePath": "$.captures.fieldQuotedOpenParenSearchAfterCreate.result.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-invalid-search-query-search.graphql",
+          "variablesCapturePath": "$.captures.fieldQuotedOpenParenSearchAfterCreate.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "bare-leading-paren-search-after-create",
+        "capturePath": "$.captures.bareLeadingParenSearchAfterCreate.result.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-invalid-search-query-search.graphql",
+          "variablesCapturePath": "$.captures.bareLeadingParenSearchAfterCreate.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "dangling-or-search-after-create",
+        "capturePath": "$.captures.danglingOrSearchAfterCreate.result.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-invalid-search-query-search.graphql",
+          "variablesCapturePath": "$.captures.danglingOrSearchAfterCreate.variables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

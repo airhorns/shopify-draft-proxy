@@ -141,10 +141,6 @@ pub fn handle_localization_query(
   }
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 pub fn process(
   store_in: Store,
   document: String,
@@ -155,7 +151,7 @@ pub fn process(
     document,
     variables,
   ))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 /// Pattern 2: cold LiveHybrid localization reads need the captured

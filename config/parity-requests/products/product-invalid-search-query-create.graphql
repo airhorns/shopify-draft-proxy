@@ -1,0 +1,14 @@
+mutation ProductInvalidSearchQueryCreate($input: ProductInput!) {
+  productCreate(input: $input) {
+    product {
+      id
+      title
+      tags
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

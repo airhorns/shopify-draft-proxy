@@ -1,0 +1,257 @@
+{
+  "notes": [
+    "HAR-549 capture for malformed Shopify Admin product search query syntax.",
+    "Shopify returned normal data envelopes with no top-level errors for these malformed-looking queries.",
+    "`tag:(value` and `tag:(\"value\"` behaved as literal non-matching field values; bare leading `(` and dangling `OR` were forgiving and still matched the disposable product.",
+    "The capture waited 12000ms after productCreate so product tag search was visible before probing malformed queries."
+  ],
+  "run": {
+    "runId": "har-549-1777933588686",
+    "productTitle": "har-549-1777933588686 Invalid Search Query",
+    "productTag": "har-549-1777933588686",
+    "searchIndexWaitMs": 12000
+  },
+  "captures": {
+    "productCreate": {
+      "query": "mutation ProductInvalidSearchQueryCreate($input: ProductInput!) {\n  productCreate(input: $input) {\n    product {\n      id\n      title\n      tags\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "har-549-1777933588686 Invalid Search Query",
+          "tags": ["har-549-1777933588686"],
+          "status": "ACTIVE"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10176741245234",
+                "title": "har-549-1777933588686 Invalid Search Query",
+                "tags": ["har-549-1777933588686"],
+                "status": "ACTIVE"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "validTagSearchAfterCreate": {
+      "query": "query ProductInvalidSearchQuerySearch($query: String!) {\n  products(first: 5, query: $query, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n  productsCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "tag:har-549-1777933588686"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10176741245234",
+                  "title": "har-549-1777933588686 Invalid Search Query",
+                  "tags": ["har-549-1777933588686"]
+                }
+              ]
+            },
+            "productsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fieldOpenParenSearchAfterCreate": {
+      "query": "query ProductInvalidSearchQuerySearch($query: String!) {\n  products(first: 5, query: $query, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n  productsCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "tag:(har-549-1777933588686"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "products": {
+              "nodes": []
+            },
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fieldQuotedOpenParenSearchAfterCreate": {
+      "query": "query ProductInvalidSearchQuerySearch($query: String!) {\n  products(first: 5, query: $query, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n  productsCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "tag:(\"har-549-1777933588686\""
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "products": {
+              "nodes": []
+            },
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "bareLeadingParenSearchAfterCreate": {
+      "query": "query ProductInvalidSearchQuerySearch($query: String!) {\n  products(first: 5, query: $query, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n  productsCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "(har-549-1777933588686"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10176741245234",
+                  "title": "har-549-1777933588686 Invalid Search Query",
+                  "tags": ["har-549-1777933588686"]
+                }
+              ]
+            },
+            "productsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "danglingOrSearchAfterCreate": {
+      "query": "query ProductInvalidSearchQuerySearch($query: String!) {\n  products(first: 5, query: $query, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n  productsCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "tag:har-549-1777933588686 OR"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10176741245234",
+                  "title": "har-549-1777933588686 Invalid Search Query",
+                  "tags": ["har-549-1777933588686"]
+                }
+              ]
+            },
+            "productsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanupDelete": {
+      "query": "#graphql\n  mutation ProductInvalidSearchQueryCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10176741245234"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10176741245234",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

@@ -122,7 +122,7 @@ pub fn process(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, PaymentsError) {
   use data <- result.try(handle_payments_query(store, document, variables))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
 
 pub fn handle_payments_query(
@@ -146,10 +146,6 @@ pub fn handle_payments_query(
       )
     }
   }
-}
-
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
 }
 
 fn query_payload(

@@ -306,7 +306,7 @@ fn data_sale_payload(
       project_graphql_value(
         src_object([
           #("__typename", SrcString("DataSaleOptOutPayload")),
-          #("customerId", optional_string_source(customer_id)),
+          #("customerId", graphql_helpers.option_string_source(customer_id)),
           #("userErrors", SrcList(list.map(errors, user_error_source))),
         ]),
         selections,
@@ -323,15 +323,8 @@ fn user_error_source(err: UserError) -> SourceValue {
       _ -> SrcList(list.map(err.field, SrcString))
     }),
     #("message", SrcString(err.message)),
-    #("code", optional_string_source(err.code)),
+    #("code", graphql_helpers.option_string_source(err.code)),
   ])
-}
-
-fn optional_string_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(s) -> SrcString(s)
-    None -> SrcNull
-  }
 }
 
 fn find_customer_by_email(
@@ -358,14 +351,15 @@ fn fetch_upstream_customer_by_email(
   upstream: UpstreamContext,
 ) -> Option(CustomerRecord) {
   let query =
-    "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) {\n"
-    <> "  customerByIdentifier(identifier: $identifier) {\n"
-    <> "    id\n"
-    <> "    email\n"
-    <> "    dataSaleOptOut\n"
-    <> "    defaultEmailAddress { emailAddress }\n"
-    <> "  }\n"
-    <> "}\n"
+    "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) {
+  customerByIdentifier(identifier: $identifier) {
+    id
+    email
+    dataSaleOptOut
+    defaultEmailAddress { emailAddress }
+  }
+}
+"
   let variables =
     json.object([
       #("identifier", json.object([#("emailAddress", json.string(email))])),

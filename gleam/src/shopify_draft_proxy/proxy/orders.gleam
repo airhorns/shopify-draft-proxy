@@ -15415,12 +15415,13 @@ fn maybe_hydrate_order_for_fulfillment(
     True -> store_in
     False -> {
       let query =
-        "query OrdersFulfillmentHydrate($id: ID!) {\n"
-        <> "  fulfillment(id: $id) {\n"
-        <> "    id\n"
-        <> "    order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } }\n"
-        <> "  }\n"
-        <> "}\n"
+        "query OrdersFulfillmentHydrate($id: ID!) {
+  fulfillment(id: $id) {
+    id
+    order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } }
+  }
+}
+"
       let variables = json.object([#("id", json.string(fulfillment_id))])
       case
         upstream_query.fetch_sync(
@@ -15489,9 +15490,10 @@ fn maybe_hydrate_draft_order_by_id(
     True -> store_in
     False -> {
       let query =
-        "query OrdersDraftOrderHydrate($id: ID!) {\n"
-        <> "  draftOrder(id: $id) { id name status ready email taxExempt taxesIncluded reserveInventoryUntil paymentTerms invoiceUrl note tags customAttributes { key value } customer { id email displayName } billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip phone } shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip phone } shippingLine { title code custom originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } appliedDiscount { title description value valueType amountSet { shopMoney { amount currencyCode } } } subtotalPriceSet { shopMoney { amount currencyCode } } totalDiscountsSet { shopMoney { amount currencyCode } } totalShippingPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } totalQuantityOfLineItems lineItems { nodes { id title name quantity sku variantTitle custom requiresShipping taxable customAttributes { key value } appliedDiscount { title description value valueType amountSet { shopMoney { amount currencyCode } } } originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } discountedTotalSet { shopMoney { amount currencyCode } } totalDiscountSet { shopMoney { amount currencyCode } } variant { id title sku } } } order { id email customer { id email displayName } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } lineItems { nodes { id title name quantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } variant { id title sku } } } } }\n"
-        <> "}\n"
+        "query OrdersDraftOrderHydrate($id: ID!) {
+  draftOrder(id: $id) { id name status ready email taxExempt taxesIncluded reserveInventoryUntil paymentTerms invoiceUrl note tags customAttributes { key value } customer { id email displayName } billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip phone } shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip phone } shippingLine { title code custom originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } appliedDiscount { title description value valueType amountSet { shopMoney { amount currencyCode } } } subtotalPriceSet { shopMoney { amount currencyCode } } totalDiscountsSet { shopMoney { amount currencyCode } } totalShippingPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } totalQuantityOfLineItems lineItems { nodes { id title name quantity sku variantTitle custom requiresShipping taxable customAttributes { key value } appliedDiscount { title description value valueType amountSet { shopMoney { amount currencyCode } } } originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } discountedTotalSet { shopMoney { amount currencyCode } } totalDiscountSet { shopMoney { amount currencyCode } } variant { id title sku } } } order { id email customer { id email displayName } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } lineItems { nodes { id title name quantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } variant { id title sku } } } } }
+}
+"
       let variables = json.object([#("id", json.string(draft_order_id))])
       case
         upstream_query.fetch_sync(
@@ -15573,9 +15575,10 @@ fn maybe_hydrate_customer_by_id(
     True -> store_in
     False -> {
       let query =
-        "query OrdersDraftOrderCustomerHydrate($id: ID!) {\n"
-        <> "  customer(id: $id) { id email displayName firstName lastName }\n"
-        <> "}\n"
+        "query OrdersDraftOrderCustomerHydrate($id: ID!) {
+  customer(id: $id) { id email displayName firstName lastName }
+}
+"
       let variables = json.object([#("id", json.string(customer_id))])
       case
         upstream_query.fetch_sync(
@@ -15659,9 +15662,10 @@ fn maybe_hydrate_product_variant_by_id(
     True -> store_in
     False -> {
       let query =
-        "query OrdersProductVariantHydrate($id: ID!) {\n"
-        <> "  productVariant(id: $id) { id title sku price product { id title } }\n"
-        <> "}\n"
+        "query OrdersProductVariantHydrate($id: ID!) {
+  productVariant(id: $id) { id title sku price product { id title } }
+}
+"
       let variables = json.object([#("id", json.string(variant_id))])
       case
         upstream_query.fetch_sync(
@@ -15751,9 +15755,10 @@ fn maybe_hydrate_draft_order_variant_catalog(
     True -> store_in
     False -> {
       let query =
-        "query OrdersDraftOrderVariantHydrate($id: ID!) {\n"
-        <> "  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n"
-        <> "}\n"
+        "query OrdersDraftOrderVariantHydrate($id: ID!) {
+  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }
+}
+"
       let variables = json.object([#("id", json.string(variant_id))])
       case
         upstream_query.fetch_sync(
@@ -15839,9 +15844,10 @@ fn maybe_hydrate_order_by_id(
     True -> store_in
     False -> {
       let query =
-        "query OrdersOrderHydrate($id: ID!) {\n"
-        <> "  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } transactions { kind status gateway amountSet { shopMoney { amount currencyCode } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } } lineItems { nodes { id title name quantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } variant { id title sku } } } }\n"
-        <> "}\n"
+        "query OrdersOrderHydrate($id: ID!) {
+  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } transactions { kind status gateway amountSet { shopMoney { amount currencyCode } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } } lineItems { nodes { id title name quantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } variant { id title sku } } } }
+}
+"
       let variables = json.object([#("id", json.string(order_id))])
       case
         upstream_query.fetch_sync(

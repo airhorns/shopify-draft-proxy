@@ -17,7 +17,7 @@ import gleam/float
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
-import gleam/option.{type Option, None, Some}
+import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
@@ -122,20 +122,9 @@ fn get_operation(document: String) -> Result(Definition, RootFieldError) {
 }
 
 fn first_operation(doc: Document) -> Result(Definition, RootFieldError) {
-  case find_operation(doc.definitions) {
+  case parse_operation.find_operation(doc.definitions) {
     None -> Error(NoOperationFound)
     Some(op) -> Ok(op)
-  }
-}
-
-fn find_operation(definitions: List(Definition)) -> Option(Definition) {
-  case definitions {
-    [] -> None
-    [d, ..rest] ->
-      case d {
-        OperationDefinition(..) -> Some(d)
-        _ -> find_operation(rest)
-      }
   }
 }
 

@@ -125,10 +125,6 @@ pub fn is_online_store_mutation_root(name: String) -> Bool {
   }
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 pub fn process(
   store: Store,
   document: String,
@@ -155,7 +151,7 @@ fn process_with_upstream(
         handle_query_field(store, field, fragments, variables, upstream),
       )
     })
-  Ok(wrap_data(json.object(entries)))
+  Ok(graphql_helpers.wrap_data(json.object(entries)))
 }
 
 /// Online-store cold catalog/search reads use Pattern 1 in LiveHybrid: when
@@ -340,7 +336,12 @@ pub fn process_mutation(
         )
       #(list.append(pairs, [#(key, payload)]), merged)
     })
-  Ok(MutationOutcome(..outcome, data: wrap_data(json.object(entries))))
+  Ok(
+    MutationOutcome(
+      ..outcome,
+      data: graphql_helpers.wrap_data(json.object(entries)),
+    ),
+  )
 }
 
 fn handle_mutation_field(

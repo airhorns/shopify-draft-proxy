@@ -1567,7 +1567,7 @@ fn publication_source(
   src_object([
     #("__typename", SrcString("Publication")),
     #("id", SrcString(publication.id)),
-    #("name", optional_string_source(publication.name)),
+    #("name", graphql_helpers.option_string_source(publication.name)),
     #("autoPublish", SrcBool(publication.auto_publish |> option.unwrap(False))),
     #(
       "supportsFuturePublishing",
@@ -1615,8 +1615,8 @@ fn channel_source(store: Store, channel: ChannelRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("Channel")),
     #("id", SrcString(channel.id)),
-    #("name", optional_string_source(channel.name)),
-    #("handle", optional_string_source(channel.handle)),
+    #("name", graphql_helpers.option_string_source(channel.name)),
+    #("handle", graphql_helpers.option_string_source(channel.handle)),
     #("publication", optional_publication_source(publication)),
     #("productsCount", count_source(product_count)),
   ])
@@ -1630,7 +1630,7 @@ fn optional_publication_source(
       src_object([
         #("__typename", SrcString("Publication")),
         #("id", SrcString(publication.id)),
-        #("name", optional_string_source(publication.name)),
+        #("name", graphql_helpers.option_string_source(publication.name)),
       ])
     None -> SrcNull
   }
@@ -1761,8 +1761,8 @@ fn product_feed_source(feed: ProductFeedRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("ProductFeed")),
     #("id", SrcString(feed.id)),
-    #("country", optional_string_source(feed.country)),
-    #("language", optional_string_source(feed.language)),
+    #("country", graphql_helpers.option_string_source(feed.country)),
+    #("language", graphql_helpers.option_string_source(feed.language)),
     #("status", SrcString(feed.status)),
   ])
 }
@@ -1902,9 +1902,12 @@ fn inventory_transfer_source(
     #("__typename", SrcString("InventoryTransfer")),
     #("id", SrcString(transfer.id)),
     #("name", SrcString(transfer.name)),
-    #("referenceName", optional_string_source(transfer.reference_name)),
+    #(
+      "referenceName",
+      graphql_helpers.option_string_source(transfer.reference_name),
+    ),
     #("status", SrcString(transfer.status)),
-    #("note", optional_string_source(transfer.note)),
+    #("note", graphql_helpers.option_string_source(transfer.note)),
     #("tags", SrcList(list.map(transfer.tags, SrcString))),
     #("dateCreated", SrcString(transfer.date_created)),
     #("totalQuantity", SrcInt(total_quantity)),
@@ -2006,7 +2009,7 @@ fn inventory_transfer_line_item_source(
   src_object([
     #("__typename", SrcString("InventoryTransferLineItem")),
     #("id", SrcString(line_item.id)),
-    #("title", optional_string_source(line_item.title)),
+    #("title", graphql_helpers.option_string_source(line_item.title)),
     #("totalQuantity", SrcInt(line_item.total_quantity)),
     #("shippedQuantity", SrcInt(line_item.shipped_quantity)),
     #(
@@ -2083,10 +2086,19 @@ fn inventory_shipment_tracking_source(
   case tracking {
     Some(tracking) ->
       src_object([
-        #("trackingNumber", optional_string_source(tracking.tracking_number)),
-        #("company", optional_string_source(tracking.company)),
-        #("trackingUrl", optional_string_source(tracking.tracking_url)),
-        #("arrivesAt", optional_string_source(tracking.arrives_at)),
+        #(
+          "trackingNumber",
+          graphql_helpers.option_string_source(tracking.tracking_number),
+        ),
+        #("company", graphql_helpers.option_string_source(tracking.company)),
+        #(
+          "trackingUrl",
+          graphql_helpers.option_string_source(tracking.tracking_url),
+        ),
+        #(
+          "arrivesAt",
+          graphql_helpers.option_string_source(tracking.arrives_at),
+        ),
       ])
     None -> SrcNull
   }
@@ -2158,21 +2170,24 @@ fn shipment_inventory_item_source(
       src_object([
         #("__typename", SrcString("InventoryItem")),
         #("id", SrcString(item.id)),
-        #("sku", optional_string_source(variant.sku)),
-        #("tracked", optional_bool_source(item.tracked)),
-        #("requiresShipping", optional_bool_source(item.requires_shipping)),
+        #("sku", graphql_helpers.option_string_source(variant.sku)),
+        #("tracked", graphql_helpers.option_bool_source(item.tracked)),
+        #(
+          "requiresShipping",
+          graphql_helpers.option_bool_source(item.requires_shipping),
+        ),
         #("measurement", optional_measurement_source(item.measurement)),
         #(
           "countryCodeOfOrigin",
-          optional_string_source(item.country_code_of_origin),
+          graphql_helpers.option_string_source(item.country_code_of_origin),
         ),
         #(
           "provinceCodeOfOrigin",
-          optional_string_source(item.province_code_of_origin),
+          graphql_helpers.option_string_source(item.province_code_of_origin),
         ),
         #(
           "harmonizedSystemCode",
-          optional_string_source(item.harmonized_system_code),
+          graphql_helpers.option_string_source(item.harmonized_system_code),
         ),
         #(
           "inventoryLevels",
@@ -4013,24 +4028,36 @@ fn product_source_with_relationships(
   src_object([
     #("__typename", SrcString("Product")),
     #("id", SrcString(product.id)),
-    #("legacyResourceId", optional_string_source(product.legacy_resource_id)),
+    #(
+      "legacyResourceId",
+      graphql_helpers.option_string_source(product.legacy_resource_id),
+    ),
     #("title", SrcString(product.title)),
     #("handle", SrcString(product.handle)),
     #("status", SrcString(product.status)),
-    #("vendor", optional_string_source(product.vendor)),
-    #("productType", optional_string_source(product.product_type)),
+    #("vendor", graphql_helpers.option_string_source(product.vendor)),
+    #("productType", graphql_helpers.option_string_source(product.product_type)),
     #("tags", SrcList(list.map(product.tags, SrcString))),
-    #("totalInventory", optional_int_source(product.total_inventory)),
-    #("tracksInventory", optional_bool_source(product.tracks_inventory)),
-    #("createdAt", optional_string_source(product.created_at)),
-    #("updatedAt", optional_string_source(product.updated_at)),
-    #("publishedAt", optional_string_source(product.published_at)),
+    #(
+      "totalInventory",
+      graphql_helpers.option_int_source(product.total_inventory),
+    ),
+    #(
+      "tracksInventory",
+      graphql_helpers.option_bool_source(product.tracks_inventory),
+    ),
+    #("createdAt", graphql_helpers.option_string_source(product.created_at)),
+    #("updatedAt", graphql_helpers.option_string_source(product.updated_at)),
+    #("publishedAt", graphql_helpers.option_string_source(product.published_at)),
     #("descriptionHtml", SrcString(product.description_html)),
     #(
       "onlineStorePreviewUrl",
-      optional_string_source(product.online_store_preview_url),
+      graphql_helpers.option_string_source(product.online_store_preview_url),
     ),
-    #("templateSuffix", optional_string_source(product.template_suffix)),
+    #(
+      "templateSuffix",
+      graphql_helpers.option_string_source(product.template_suffix),
+    ),
     #("seo", product_seo_source(product.seo)),
     #("category", optional_product_category_source(product.category)),
     #(
@@ -4091,10 +4118,13 @@ fn product_media_cursor(media: ProductMediaRecord, _index: Int) -> String {
 fn product_media_source(media: ProductMediaRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString(product_media_typename(media))),
-    #("id", optional_string_source(media.id)),
-    #("alt", optional_string_source(media.alt)),
-    #("mediaContentType", optional_string_source(media.media_content_type)),
-    #("status", optional_string_source(media.status)),
+    #("id", graphql_helpers.option_string_source(media.id)),
+    #("alt", graphql_helpers.option_string_source(media.alt)),
+    #(
+      "mediaContentType",
+      graphql_helpers.option_string_source(media.media_content_type),
+    ),
+    #("status", graphql_helpers.option_string_source(media.status)),
     #("preview", product_media_preview_source(media)),
     #(
       "image",
@@ -4191,18 +4221,30 @@ fn collection_source_with_store_and_publication(
   src_object([
     #("__typename", SrcString("Collection")),
     #("id", SrcString(collection.id)),
-    #("legacyResourceId", optional_string_source(collection.legacy_resource_id)),
+    #(
+      "legacyResourceId",
+      graphql_helpers.option_string_source(collection.legacy_resource_id),
+    ),
     #("title", SrcString(collection.title)),
     #("handle", SrcString(collection.handle)),
-    #("updatedAt", optional_string_source(collection.updated_at)),
-    #("description", optional_string_source(collection.description)),
-    #("descriptionHtml", optional_string_source(collection.description_html)),
+    #("updatedAt", graphql_helpers.option_string_source(collection.updated_at)),
+    #(
+      "description",
+      graphql_helpers.option_string_source(collection.description),
+    ),
+    #(
+      "descriptionHtml",
+      graphql_helpers.option_string_source(collection.description_html),
+    ),
     #("publishedOnPublication", SrcBool(published_on_publication)),
     #("availablePublicationsCount", count_source(publication_count)),
     #("resourcePublicationsCount", count_source(publication_count)),
     #("publicationCount", count_source(publication_count)),
-    #("sortOrder", optional_string_source(collection.sort_order)),
-    #("templateSuffix", optional_string_source(collection.template_suffix)),
+    #("sortOrder", graphql_helpers.option_string_source(collection.sort_order)),
+    #(
+      "templateSuffix",
+      graphql_helpers.option_string_source(collection.template_suffix),
+    ),
     #("products", collection_products_connection_source(store, collection)),
   ])
 }
@@ -4469,13 +4511,22 @@ fn product_variant_source_with_inventory(
     #("__typename", SrcString("ProductVariant")),
     #("id", SrcString(variant.id)),
     #("title", SrcString(variant.title)),
-    #("sku", optional_string_source(variant.sku)),
-    #("barcode", optional_string_source(variant.barcode)),
-    #("price", optional_string_source(variant.price)),
-    #("compareAtPrice", optional_string_source(variant.compare_at_price)),
-    #("taxable", optional_bool_source(variant.taxable)),
-    #("inventoryPolicy", optional_string_source(variant.inventory_policy)),
-    #("inventoryQuantity", optional_int_source(variant.inventory_quantity)),
+    #("sku", graphql_helpers.option_string_source(variant.sku)),
+    #("barcode", graphql_helpers.option_string_source(variant.barcode)),
+    #("price", graphql_helpers.option_string_source(variant.price)),
+    #(
+      "compareAtPrice",
+      graphql_helpers.option_string_source(variant.compare_at_price),
+    ),
+    #("taxable", graphql_helpers.option_bool_source(variant.taxable)),
+    #(
+      "inventoryPolicy",
+      graphql_helpers.option_string_source(variant.inventory_policy),
+    ),
+    #(
+      "inventoryQuantity",
+      graphql_helpers.option_int_source(variant.inventory_quantity),
+    ),
     #(
       "selectedOptions",
       SrcList(list.map(variant.selected_options, selected_option_source)),
@@ -4600,20 +4651,23 @@ fn inventory_item_source_with_variant(
   src_object([
     #("__typename", SrcString("InventoryItem")),
     #("id", SrcString(item.id)),
-    #("tracked", optional_bool_source(item.tracked)),
-    #("requiresShipping", optional_bool_source(item.requires_shipping)),
+    #("tracked", graphql_helpers.option_bool_source(item.tracked)),
+    #(
+      "requiresShipping",
+      graphql_helpers.option_bool_source(item.requires_shipping),
+    ),
     #("measurement", optional_measurement_source(item.measurement)),
     #(
       "countryCodeOfOrigin",
-      optional_string_source(item.country_code_of_origin),
+      graphql_helpers.option_string_source(item.country_code_of_origin),
     ),
     #(
       "provinceCodeOfOrigin",
-      optional_string_source(item.province_code_of_origin),
+      graphql_helpers.option_string_source(item.province_code_of_origin),
     ),
     #(
       "harmonizedSystemCode",
-      optional_string_source(item.harmonized_system_code),
+      graphql_helpers.option_string_source(item.harmonized_system_code),
     ),
     #(
       "inventoryLevels",
@@ -4741,7 +4795,7 @@ fn inventory_level_source(level: InventoryLevelRecord) -> SourceValue {
   src_object([
     #("__typename", SrcString("InventoryLevel")),
     #("id", SrcString(level.id)),
-    #("isActive", optional_bool_source(level.is_active)),
+    #("isActive", graphql_helpers.option_bool_source(level.is_active)),
     #(
       "location",
       src_object([
@@ -4762,7 +4816,7 @@ fn inventory_level_source_with_item(
   src_object([
     #("__typename", SrcString("InventoryLevel")),
     #("id", SrcString(level.id)),
-    #("isActive", optional_bool_source(level.is_active)),
+    #("isActive", graphql_helpers.option_bool_source(level.is_active)),
     #(
       "location",
       src_object([
@@ -4780,7 +4834,7 @@ fn quantity_source(quantity: InventoryQuantityRecord) -> SourceValue {
   src_object([
     #("name", SrcString(quantity.name)),
     #("quantity", SrcInt(quantity.quantity)),
-    #("updatedAt", optional_string_source(quantity.updated_at)),
+    #("updatedAt", graphql_helpers.option_string_source(quantity.updated_at)),
   ])
 }
 
@@ -4887,8 +4941,8 @@ fn variant_product_source(store: Store, product_id: String) -> SourceValue {
 
 fn product_seo_source(seo: ProductSeoRecord) -> SourceValue {
   src_object([
-    #("title", optional_string_source(seo.title)),
-    #("description", optional_string_source(seo.description)),
+    #("title", graphql_helpers.option_string_source(seo.title)),
+    #("description", graphql_helpers.option_string_source(seo.description)),
   ])
 }
 
@@ -4920,27 +4974,6 @@ fn empty_connection_source() -> SourceValue {
       ]),
     ),
   ])
-}
-
-fn optional_string_source(value: Option(String)) -> SourceValue {
-  case value {
-    Some(value) -> SrcString(value)
-    None -> SrcNull
-  }
-}
-
-fn optional_int_source(value: Option(Int)) -> SourceValue {
-  case value {
-    Some(value) -> SrcInt(value)
-    None -> SrcNull
-  }
-}
-
-fn optional_bool_source(value: Option(Bool)) -> SourceValue {
-  case value {
-    Some(value) -> SrcBool(value)
-    None -> SrcNull
-  }
 }
 
 fn optional_captured_json_source(
@@ -20031,7 +20064,7 @@ fn publication_mutation_payload(
     src_object([
       #("__typename", SrcString(typename)),
       #("publication", publication_value),
-      #("deletedId", optional_string_source(deleted_id)),
+      #("deletedId", graphql_helpers.option_string_source(deleted_id)),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -20125,7 +20158,7 @@ fn product_feed_delete_payload(
   project_graphql_value(
     src_object([
       #("__typename", SrcString("ProductFeedDeletePayload")),
-      #("deletedId", optional_string_source(deleted_id)),
+      #("deletedId", graphql_helpers.option_string_source(deleted_id)),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -20142,7 +20175,7 @@ fn product_full_sync_payload(
   project_graphql_value(
     src_object([
       #("__typename", SrcString("ProductFullSyncPayload")),
-      #("id", optional_string_source(id)),
+      #("id", graphql_helpers.option_string_source(id)),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -20323,7 +20356,7 @@ fn inventory_transfer_delete_payload(
   project_graphql_value(
     src_object([
       #("__typename", SrcString("InventoryTransferDeletePayload")),
-      #("deletedId", optional_string_source(deleted_id)),
+      #("deletedId", graphql_helpers.option_string_source(deleted_id)),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -20447,7 +20480,7 @@ fn inventory_shipment_delete_payload(
   project_graphql_value(
     src_object([
       #("__typename", SrcString("InventoryShipmentDeletePayload")),
-      #("id", optional_string_source(id)),
+      #("id", graphql_helpers.option_string_source(id)),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -20954,7 +20987,7 @@ fn inventory_adjustment_group_source(
         #("reason", SrcString(group.reason)),
         #(
           "referenceDocumentUri",
-          optional_string_source(group.reference_document_uri),
+          graphql_helpers.option_string_source(group.reference_document_uri),
         ),
         #("app", inventory_adjustment_app_source()),
         #(
@@ -20987,8 +21020,14 @@ fn inventory_adjustment_change_source(
     #("__typename", SrcString("InventoryChange")),
     #("name", SrcString(change.name)),
     #("delta", SrcInt(change.delta)),
-    #("quantityAfterChange", optional_int_source(change.quantity_after_change)),
-    #("ledgerDocumentUri", optional_string_source(change.ledger_document_uri)),
+    #(
+      "quantityAfterChange",
+      graphql_helpers.option_int_source(change.quantity_after_change),
+    ),
+    #(
+      "ledgerDocumentUri",
+      graphql_helpers.option_string_source(change.ledger_document_uri),
+    ),
     #("item", item),
     #(
       "location",
@@ -21157,7 +21196,7 @@ fn user_errors_source(errors: List(ProductUserError)) -> SourceValue {
       src_object([
         #("field", SrcList(list.map(field, SrcString))),
         #("message", SrcString(message)),
-        #("code", optional_string_source(code)),
+        #("code", graphql_helpers.option_string_source(code)),
       ])
     }),
   )
@@ -21177,7 +21216,7 @@ fn bulk_variant_user_errors_source(
       src_object([
         #("field", field_value),
         #("message", SrcString(message)),
-        #("code", optional_string_source(code)),
+        #("code", graphql_helpers.option_string_source(code)),
       ])
     }),
   )
@@ -25633,15 +25672,11 @@ fn make_inventory_item_for_variant(
   }
 }
 
-pub fn wrap_data(data: Json) -> Json {
-  json.object([#("data", data)])
-}
-
 pub fn process(
   store: Store,
   document: String,
   variables: Dict(String, ResolvedValue),
 ) -> Result(Json, ProductsError) {
   use data <- result.try(handle_products_query(store, document, variables))
-  Ok(wrap_data(data))
+  Ok(graphql_helpers.wrap_data(data))
 }
