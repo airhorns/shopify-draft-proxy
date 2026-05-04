@@ -613,7 +613,7 @@ fn serialize_location_root(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let location = case read_string(args, "id") {
     Some(id) -> store.get_effective_store_property_location_by_id(store, id)
     None ->
@@ -635,7 +635,7 @@ fn serialize_location_by_identifier_result(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> QueryFieldResult {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case dict.get(args, "identifier") {
     Ok(root_field.ObjectVal(identifier)) ->
       case read_string(identifier, "id") {
@@ -732,7 +732,7 @@ fn serialize_business_entity_root(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let entity = case read_string(args, "id") {
     Some(id) -> store.get_business_entity_by_id(store, id)
     None ->
@@ -750,7 +750,7 @@ fn serialize_publishable_root(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_publishable_by_id(store, id) {
@@ -824,14 +824,6 @@ fn find_primary_business_entity(
         _ -> find_primary_business_entity(rest)
       }
   }
-}
-
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  root_field.get_field_arguments(field, variables)
-  |> result.unwrap(dict.new())
 }
 
 fn custom_location_identifier_error(key: String) -> Json {
@@ -1215,7 +1207,7 @@ fn stage_location_add(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> GenericMutationResult {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_object(args, "input")
   let name = input |> option.then(fn(values) { read_string(values, "name") })
   case name {
@@ -1306,7 +1298,7 @@ fn stage_location_edit(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> GenericMutationResult {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_string(args, "id")
   case id {
     Some(location_id) ->
@@ -1379,7 +1371,7 @@ fn stage_location_delete(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> GenericMutationResult {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let location_id = read_string(args, "locationId")
   case location_id {
     Some(id) -> {
@@ -1578,7 +1570,7 @@ fn stage_publishable_mutation(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> GenericMutationResult {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_string(args, "id") |> option.unwrap("")
   let key = root_name <> ":" <> id
   // Pattern 2: generic publishable roots stage locally, but cold

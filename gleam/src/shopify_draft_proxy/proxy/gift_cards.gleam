@@ -163,60 +163,6 @@ fn root_payload_for_field(
   }
 }
 
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
-  }
-}
-
-fn read_arg_string(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(String) {
-  case dict.get(args, name) {
-    Ok(root_field.StringVal(s)) ->
-      case s {
-        "" -> None
-        _ -> Some(s)
-      }
-    _ -> None
-  }
-}
-
-fn read_arg_int(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Int) {
-  case dict.get(args, name) {
-    Ok(root_field.IntVal(n)) -> Some(n)
-    _ -> None
-  }
-}
-
-fn read_arg_bool(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Bool) {
-  case dict.get(args, name) {
-    Ok(root_field.BoolVal(b)) -> Some(b)
-    _ -> None
-  }
-}
-
-fn input_object(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Option(Dict(String, root_field.ResolvedValue)) {
-  case dict.get(args, name) {
-    Ok(root_field.ObjectVal(d)) -> Some(d)
-    _ -> None
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Decimal helpers (mirror parseDecimalAmount / formatDecimalAmount)
 // ---------------------------------------------------------------------------
@@ -328,7 +274,7 @@ fn normalize_money_value(
 fn read_input(
   args: Dict(String, root_field.ResolvedValue),
 ) -> Dict(String, root_field.ResolvedValue) {
-  case input_object(args, "input") {
+  case graphql_helpers.read_arg_object(args, "input") {
     Some(d) -> d
     None -> dict.new()
   }
@@ -344,8 +290,8 @@ fn serialize_gift_card_by_id(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
-  case read_arg_string(args, "id") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_gift_card_by_id(store, id) {
         Some(record) -> project_gift_card(record, field, fragments, variables)
@@ -472,20 +418,34 @@ fn gift_card_field_entry(
         "enabled" -> #(key, json.bool(record.enabled))
         "disabledAt" | "deactivatedAt" -> #(
           key,
-          option_string_json(record.deactivated_at),
+          graphql_helpers.option_string_json(record.deactivated_at),
         )
-        "expiresOn" -> #(key, option_string_json(record.expires_on))
-        "note" -> #(key, option_string_json(record.note))
-        "templateSuffix" -> #(key, option_string_json(record.template_suffix))
+        "expiresOn" -> #(
+          key,
+          graphql_helpers.option_string_json(record.expires_on),
+        )
+        "note" -> #(key, graphql_helpers.option_string_json(record.note))
+        "templateSuffix" -> #(
+          key,
+          graphql_helpers.option_string_json(record.template_suffix),
+        )
         "createdAt" -> #(key, json.string(record.created_at))
         "updatedAt" -> #(key, json.string(record.updated_at))
         "initialValue" -> #(
           key,
-          serialize_money(record.initial_value, child_selections(ss), fragments),
+          serialize_money(
+            record.initial_value,
+            graphql_helpers.selection_set_selections(ss),
+            fragments,
+          ),
         )
         "balance" -> #(
           key,
-          serialize_money(record.balance, child_selections(ss), fragments),
+          serialize_money(
+            record.balance,
+            graphql_helpers.selection_set_selections(ss),
+            fragments,
+          ),
         )
         "transactions" -> #(
           key,
@@ -503,7 +463,7 @@ fn gift_card_field_entry(
             Some(attrs) ->
               serialize_gift_card_recipient_attributes(
                 attrs,
-                child_selections(ss),
+                graphql_helpers.selection_set_selections(ss),
                 fragments,
               )
             None -> json.null()
@@ -514,20 +474,6 @@ fn gift_card_field_entry(
         _ -> #(key, json.null())
       }
     _ -> #(key, json.null())
-  }
-}
-
-fn child_selections(ss: Option(ast.SelectionSet)) -> List(Selection) {
-  case ss {
-    Some(SelectionSet(selections: selections, ..)) -> selections
-    None -> []
-  }
-}
-
-fn option_string_json(value: Option(String)) -> Json {
-  case value {
-    Some(s) -> json.string(s)
-    None -> json.null()
   }
 }
 
@@ -542,7 +488,7 @@ fn customer_object_json(
       // *not* a projected object. Selections are ignored beyond the
       // top-level field check.
       let _ = ss
-      json.object([#("id", option_string_json(customer_id))])
+      json.object([#("id", graphql_helpers.option_string_json(customer_id))])
     }
   }
 }
@@ -752,11 +698,15 @@ fn transaction_field_entry(
         "__typename" -> #(key, json.string("GiftCardTransaction"))
         "id" -> #(key, json.string(transaction.id))
         "kind" -> #(key, json.string(transaction.kind))
-        "note" -> #(key, option_string_json(transaction.note))
+        "note" -> #(key, graphql_helpers.option_string_json(transaction.note))
         "processedAt" -> #(key, json.string(transaction.processed_at))
         "amount" -> #(
           key,
-          serialize_money(transaction.amount, child_selections(ss), fragments),
+          serialize_money(
+            transaction.amount,
+            graphql_helpers.selection_set_selections(ss),
+            fragments,
+          ),
         )
         "giftCard" -> #(key, case giftcard {
           Some(gc) -> project_gift_card(gc, field, fragments, variables)
@@ -804,7 +754,7 @@ fn serialize_gift_card_transactions_connection(
   ) -> Json {
     serialize_gift_card_transaction(
       transaction,
-      child_selections(case node_field {
+      graphql_helpers.selection_set_selections(case node_field {
         Field(selection_set: ss, ..) -> ss
         _ -> None
       }),
@@ -836,13 +786,13 @@ fn list_gift_cards_for_connection(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> List(GiftCardRecord) {
-  let args = field_args(field, variables)
-  let reverse = case read_arg_bool(args, "reverse") {
+  let args = graphql_helpers.field_args(field, variables)
+  let reverse = case graphql_helpers.read_arg_bool(args, "reverse") {
     Some(True) -> True
     _ -> False
   }
-  let raw_query = read_arg_string(args, "query")
-  let sort_key = read_arg_string(args, "sortKey")
+  let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
+  let sort_key = graphql_helpers.read_arg_string_nonempty(args, "sortKey")
   let filtered =
     filter_gift_cards_by_query(
       store.list_effective_gift_cards(store),
@@ -915,14 +865,14 @@ fn serialize_gift_cards_count(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = field_args(field, variables)
-  let raw_query = read_arg_string(args, "query")
+  let args = graphql_helpers.field_args(field, variables)
+  let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
   let total =
     list.length(filter_gift_cards_by_query(
       store.list_effective_gift_cards(store),
       raw_query,
     ))
-  let limit = read_arg_int(args, "limit")
+  let limit = graphql_helpers.read_arg_int(args, "limit")
   let limit_clean = case limit {
     Some(n) ->
       case n >= 0 {
@@ -1423,15 +1373,16 @@ fn read_gift_card_id(
   args: Dict(String, root_field.ResolvedValue),
 ) -> Option(String) {
   let input = read_input(args)
-  case read_arg_string(args, "id") {
+  case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(s) -> Some(s)
     None ->
-      case read_arg_string(args, "giftCardId") {
+      case graphql_helpers.read_arg_string_nonempty(args, "giftCardId") {
         Some(s) -> Some(s)
         None ->
-          case read_arg_string(input, "id") {
+          case graphql_helpers.read_arg_string_nonempty(input, "id") {
             Some(s) -> Some(s)
-            None -> read_arg_string(input, "giftCardId")
+            None ->
+              graphql_helpers.read_arg_string_nonempty(input, "giftCardId")
           }
       }
   }
@@ -1451,7 +1402,7 @@ fn maybe_hydrate_gift_card_for_mutation(
     | "giftCardDeactivate"
     | "giftCardSendNotificationToCustomer"
     | "giftCardSendNotificationToRecipient" -> {
-      let args = field_args(field, variables)
+      let args = graphql_helpers.field_args(field, variables)
       case read_gift_card_id(args) {
         Some(id) -> maybe_hydrate_gift_card(store, id, upstream)
         None -> store
@@ -1750,7 +1701,7 @@ fn handle_gift_card_create(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_input(args)
   let #(gid, identity_after_id) =
     synthetic_identity.make_proxy_synthetic_gid(identity, "GiftCard")
@@ -1786,14 +1737,20 @@ fn handle_gift_card_create(
       )
     }
     False -> {
-      let code = normalize_gift_card_code(read_arg_string(input, "code"), gid)
+      let code =
+        normalize_gift_card_code(
+          graphql_helpers.read_arg_string_nonempty(input, "code"),
+          gid,
+        )
       let last_chars = last_characters_from_code(code)
       let masked = masked_code_string(last_chars)
       let #(now, identity_after_ts) =
         synthetic_identity.make_synthetic_timestamp(identity_after_id)
       let recipient_attributes =
         read_recipient_attributes(dict_get(input, "recipientAttributes"), None)
-      let recipient_id = case read_arg_string(input, "recipientId") {
+      let recipient_id = case
+        graphql_helpers.read_arg_string_nonempty(input, "recipientId")
+      {
         Some(s) -> Some(s)
         None ->
           case recipient_attributes {
@@ -1809,14 +1766,23 @@ fn handle_gift_card_create(
           masked_code: masked,
           enabled: True,
           deactivated_at: None,
-          expires_on: read_arg_string(input, "expiresOn"),
-          note: read_arg_string(input, "note"),
-          template_suffix: read_arg_string(input, "templateSuffix"),
+          expires_on: graphql_helpers.read_arg_string_nonempty(
+            input,
+            "expiresOn",
+          ),
+          note: graphql_helpers.read_arg_string_nonempty(input, "note"),
+          template_suffix: graphql_helpers.read_arg_string_nonempty(
+            input,
+            "templateSuffix",
+          ),
           created_at: now,
           updated_at: now,
           initial_value: initial_value,
           balance: initial_value,
-          customer_id: read_arg_string(input, "customerId"),
+          customer_id: graphql_helpers.read_arg_string_nonempty(
+            input,
+            "customerId",
+          ),
           recipient_id: recipient_id,
           source: Some("api_client"),
           recipient_attributes: recipient_attributes,
@@ -1859,11 +1825,11 @@ fn handle_gift_card_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let input = read_input(args)
-  let id = case read_arg_string(input, "id") {
+  let id = case graphql_helpers.read_arg_string_nonempty(input, "id") {
     Some(s) -> Some(s)
-    None -> read_arg_string(args, "id")
+    None -> graphql_helpers.read_arg_string_nonempty(args, "id")
   }
   let existing = case id {
     Some(value) -> store.get_effective_gift_card_by_id(store, value)
@@ -1874,19 +1840,20 @@ fn handle_gift_card_update(
       let #(now, identity_after_ts) =
         synthetic_identity.make_synthetic_timestamp(identity)
       let new_note = case dict_has_key(input, "note") {
-        True -> read_arg_string(input, "note")
+        True -> graphql_helpers.read_arg_string_nonempty(input, "note")
         False -> current.note
       }
       let new_template = case dict_has_key(input, "templateSuffix") {
-        True -> read_arg_string(input, "templateSuffix")
+        True ->
+          graphql_helpers.read_arg_string_nonempty(input, "templateSuffix")
         False -> current.template_suffix
       }
       let new_expires = case dict_has_key(input, "expiresOn") {
-        True -> read_arg_string(input, "expiresOn")
+        True -> graphql_helpers.read_arg_string_nonempty(input, "expiresOn")
         False -> current.expires_on
       }
       let new_customer = case dict_has_key(input, "customerId") {
-        True -> read_arg_string(input, "customerId")
+        True -> graphql_helpers.read_arg_string_nonempty(input, "customerId")
         False -> current.customer_id
       }
       let existing_attrs = effective_recipient_attributes(current)
@@ -1895,7 +1862,7 @@ fn handle_gift_card_update(
         dict_has_key(input, "recipientAttributes")
       {
         True, _ -> #(
-          read_arg_string(input, "recipientId"),
+          graphql_helpers.read_arg_string_nonempty(input, "recipientId"),
           current.recipient_attributes,
         )
         False, True -> {
@@ -1985,7 +1952,7 @@ fn handle_gift_card_transaction(
   payload_typename: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_gift_card_id(args)
   let existing = case id {
     Some(value) -> store.get_effective_gift_card_by_id(store, value)
@@ -2165,7 +2132,7 @@ fn handle_gift_card_deactivate(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_gift_card_id(args)
   let existing = case id {
     Some(value) -> store.get_effective_gift_card_by_id(store, value)
@@ -2244,7 +2211,7 @@ fn handle_gift_card_notification(
   payload_typename: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = read_gift_card_id(args)
   let existing = case id {
     Some(value) -> store.get_effective_gift_card_by_id(store, value)
@@ -2336,10 +2303,10 @@ fn read_recipient_attributes(
     None -> existing
     Some(root_field.NullVal) -> None
     Some(root_field.ObjectVal(d)) -> {
-      let id = case read_arg_string(d, "id") {
+      let id = case graphql_helpers.read_arg_string_nonempty(d, "id") {
         Some(s) -> Some(s)
         None ->
-          case read_arg_string(d, "recipientId") {
+          case graphql_helpers.read_arg_string_nonempty(d, "recipientId") {
             Some(s) -> Some(s)
             None ->
               case existing {
@@ -2349,7 +2316,7 @@ fn read_recipient_attributes(
           }
       }
       let message = case dict_has_key(d, "message") {
-        True -> read_arg_string(d, "message")
+        True -> graphql_helpers.read_arg_string_nonempty(d, "message")
         False ->
           case existing {
             Some(a) -> a.message
@@ -2357,7 +2324,7 @@ fn read_recipient_attributes(
           }
       }
       let preferred_name = case dict_has_key(d, "preferredName") {
-        True -> read_arg_string(d, "preferredName")
+        True -> graphql_helpers.read_arg_string_nonempty(d, "preferredName")
         False ->
           case existing {
             Some(a) -> a.preferred_name
@@ -2365,7 +2332,8 @@ fn read_recipient_attributes(
           }
       }
       let send_at = case dict_has_key(d, "sendNotificationAt") {
-        True -> read_arg_string(d, "sendNotificationAt")
+        True ->
+          graphql_helpers.read_arg_string_nonempty(d, "sendNotificationAt")
         False ->
           case existing {
             Some(a) -> a.send_notification_at
@@ -2389,7 +2357,7 @@ fn read_mutation_money(
   preferred_input_key: String,
 ) -> Money {
   let input = read_input(args)
-  let nested = case input_object(args, preferred_input_key) {
+  let nested = case graphql_helpers.read_arg_object(args, preferred_input_key) {
     Some(d) -> d
     None -> input
   }
@@ -2413,13 +2381,13 @@ fn read_mutation_note(
   preferred_input_key: String,
 ) -> Option(String) {
   let input = read_input(args)
-  let nested = case input_object(args, preferred_input_key) {
+  let nested = case graphql_helpers.read_arg_object(args, preferred_input_key) {
     Some(d) -> d
     None -> input
   }
-  case read_arg_string(args, "note") {
+  case graphql_helpers.read_arg_string_nonempty(args, "note") {
     Some(s) -> Some(s)
-    None -> read_arg_string(nested, "note")
+    None -> graphql_helpers.read_arg_string_nonempty(nested, "note")
   }
 }
 
@@ -2428,13 +2396,13 @@ fn read_mutation_processed_at(
   preferred_input_key: String,
 ) -> Option(String) {
   let input = read_input(args)
-  let nested = case input_object(args, preferred_input_key) {
+  let nested = case graphql_helpers.read_arg_object(args, preferred_input_key) {
     Some(d) -> d
     None -> input
   }
-  case read_arg_string(args, "processedAt") {
+  case graphql_helpers.read_arg_string_nonempty(args, "processedAt") {
     Some(s) -> Some(s)
-    None -> read_arg_string(nested, "processedAt")
+    None -> graphql_helpers.read_arg_string_nonempty(nested, "processedAt")
   }
 }
 
@@ -2619,7 +2587,10 @@ fn payload_field_entry(
           Some(gc) -> project_gift_card(gc, field, fragments, variables)
           None -> json.null()
         })
-        "giftCardCode" -> #(key, option_string_json(payload.gift_card_code))
+        "giftCardCode" -> #(
+          key,
+          graphql_helpers.option_string_json(payload.gift_card_code),
+        )
         "giftCardTransaction"
         | "transaction"
         | "giftCardCreditTransaction"
@@ -2629,7 +2600,7 @@ fn payload_field_entry(
             Some(tx) ->
               serialize_gift_card_transaction(
                 tx,
-                child_selections(ss),
+                graphql_helpers.selection_set_selections(ss),
                 payload.gift_card,
                 fragments,
                 variables,
@@ -2641,7 +2612,7 @@ fn payload_field_entry(
           key,
           serialize_user_errors(
             payload.user_errors,
-            child_selections(ss),
+            graphql_helpers.selection_set_selections(ss),
             fragments,
           ),
         )

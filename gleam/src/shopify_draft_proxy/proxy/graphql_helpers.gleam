@@ -13,9 +13,11 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Definition, type Selection, Argument, Field, FragmentDefinition,
-  FragmentSpread, InlineFragment, IntValue, NamedType, SelectionSet,
+  type Definition, type Location, type Selection, type SelectionSet, Argument,
+  Field, FragmentDefinition, FragmentSpread, InlineFragment, IntValue, NamedType,
+  SelectionSet,
 }
+import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parser
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/graphql/source
@@ -62,6 +64,24 @@ pub fn get_selected_child_fields(
     _ -> []
   }
   flatten_field_selections(selections, options)
+}
+
+/// Direct child selections of a field, without inline-fragment flattening.
+/// Returns `[]` when the selection is not a `Field` or has no selection set.
+pub fn field_raw_selections(field: Selection) -> List(Selection) {
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      selections
+    _ -> []
+  }
+}
+
+/// Selections inside an optional selection set, with empty fallback when None.
+pub fn selection_set_selections(ss: Option(SelectionSet)) -> List(Selection) {
+  case ss {
+    Some(SelectionSet(selections: selections, ..)) -> selections
+    None -> []
+  }
 }
 
 fn flatten_field_selections(
@@ -175,6 +195,122 @@ pub fn read_nullable_string_argument(
         _ -> None
       }
     Error(_) -> None
+  }
+}
+
+/// Resolved argument dictionary for a field, falling back to an empty
+/// dict when arguments cannot be resolved. Wraps
+/// `root_field.get_field_arguments` so callers can `dict.get` without
+/// thinking about the outer Result.
+pub fn field_args(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  root_field.get_field_arguments(field, variables)
+  |> result.unwrap(dict.new())
+}
+
+/// Read a string argument from a resolved-arg dict. Returns `None`
+/// when the argument is absent, null, or not a string. An empty
+/// string is preserved as `Some("")` — handlers that distinguish
+/// `""` from missing (e.g. to reproduce Shopify's "invalid global id
+/// ''" variable error) need this faithful read. Callers that prefer
+/// "empty as missing" should use `read_arg_string_nonempty`.
+pub fn read_arg_string(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(args, name) {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Read a string argument, but treat empty strings as missing. Returns
+/// `None` when the argument is absent, null, not a string, or `""`.
+/// This is the convenience semantic many handlers use when an empty
+/// value is never meaningful (e.g. ids, handles, locale codes).
+pub fn read_arg_string_nonempty(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(args, name) {
+    Ok(root_field.StringVal("")) -> None
+    Ok(root_field.StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Read an integer argument from a resolved-arg dict. Returns `None`
+/// when the argument is absent, null, or not an integer.
+pub fn read_arg_int(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Int) {
+  case dict.get(args, name) {
+    Ok(root_field.IntVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Read a boolean argument from a resolved-arg dict. Returns `None`
+/// when the argument is absent, null, or not a boolean. Callers that
+/// want a defaulted `Bool` should pipe through `option.unwrap(False)`.
+pub fn read_arg_bool(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case dict.get(args, name) {
+    Ok(root_field.BoolVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Read an object argument from a resolved-arg dict. Returns `None`
+/// when the argument is absent, null, or not an object. Callers that
+/// want an empty-default `Dict` should pipe through
+/// `option.unwrap(dict.new())`.
+pub fn read_arg_object(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(args, name) {
+    Ok(root_field.ObjectVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+/// Encode an `Option(String)` as JSON: the string when present, `null`
+/// when absent. Common shape for nullable scalar fields in mutation
+/// payloads.
+pub fn option_string_json(value: Option(String)) -> Json {
+  case value {
+    Some(s) -> json.string(s)
+    None -> json.null()
+  }
+}
+
+/// One-element JSON array describing the line/column of `loc` in
+/// `document`. Mirrors GraphQL's `errors[].locations` shape.
+pub fn locations_json(loc: Location, document: String) -> Json {
+  let computed =
+    graphql_location.get_location(source.new(document), position: loc.start)
+  json.preprocessed_array([
+    json.object([
+      #("line", json.int(computed.line)),
+      #("column", json.int(computed.column)),
+    ]),
+  ])
+}
+
+/// `locations_json` for a field selection: extract the location from
+/// the field, or return an empty array when the field carries no
+/// location. Mirrors how a few handlers attach error locations to the
+/// originating selection without unwrapping manually.
+pub fn field_locations_json(field: Selection, document: String) -> Json {
+  case field {
+    Field(loc: Some(loc), ..) -> locations_json(loc, document)
+    _ -> json.preprocessed_array([])
   }
 }
 

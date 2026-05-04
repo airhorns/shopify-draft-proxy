@@ -22,7 +22,6 @@ import shopify_draft_proxy/graphql/ast.{
   ObjectField, ObjectValue, OperationDefinition, SelectionSet, StringValue,
   VariableDefinition, VariableValue,
 }
-import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/parser
 import shopify_draft_proxy/graphql/root_field.{
@@ -3682,7 +3681,7 @@ fn serialize_product_operation_root(
         Some(operation) ->
           project_graphql_value(
             product_operation_source(store, operation),
-            raw_child_selections(field),
+            graphql_helpers.field_raw_selections(field),
             fragments,
           )
         None -> json.null()
@@ -3844,14 +3843,6 @@ fn product_set_payload(
       }
     })
   json.object(entries)
-}
-
-fn raw_child_selections(field: Selection) -> List(Selection) {
-  case field {
-    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
-      selections
-    _ -> []
-  }
 }
 
 fn read_identifier_argument(
@@ -8650,8 +8641,8 @@ fn handle_product_options_create(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "productId") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
         key,
@@ -8691,7 +8682,8 @@ fn handle_product_options_create(
             key,
             product_id,
             read_option_create_inputs(args),
-            read_arg_string(args, "variantStrategy") == Some("CREATE"),
+            graphql_helpers.read_arg_string(args, "variantStrategy")
+              == Some("CREATE"),
             field,
             fragments,
           )
@@ -8709,16 +8701,16 @@ fn handle_product_create(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   // Real Shopify accepts both `productCreate(product: ProductCreateInput!)`
   // (current schema) and `productCreate(input: ProductInput!)` (older API
   // versions / pre-2024). Reading only `product` made the proxy fabricate
   // a misleading `["title"], "Title can't be blank"` userError when the
   // legacy shape was used; emit a structurally honest top-level error
   // instead when neither shows up at all.
-  let input = case read_arg_object(args, "product") {
+  let input = case graphql_helpers.read_arg_object(args, "product") {
     Some(d) -> Some(d)
-    None -> read_arg_object(args, "input")
+    None -> graphql_helpers.read_arg_object(args, "input")
   }
   case input {
     None -> {
@@ -8793,8 +8785,8 @@ fn handle_product_options_delete(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "productId") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
         key,
@@ -8849,8 +8841,8 @@ fn handle_product_options_reorder(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "productId") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
         key,
@@ -8910,8 +8902,8 @@ fn handle_product_change_status(
   {
     Some(error) -> mutation_error_result(key, store, identity, [error])
     None -> {
-      let args = field_args(field, variables)
-      case read_arg_string(args, "productId") {
+      let args = graphql_helpers.field_args(field, variables)
+      case graphql_helpers.read_arg_string(args, "productId") {
         None ->
           mutation_result(
             key,
@@ -8927,7 +8919,7 @@ fn handle_product_change_status(
             [],
           )
         Some(product_id) -> {
-          let status = read_arg_string(args, "status")
+          let status = graphql_helpers.read_arg_string(args, "status")
           case is_valid_product_status(status) {
             False ->
               mutation_result(
@@ -9017,11 +9009,11 @@ fn handle_product_delete(
   case product_delete_input_error(document, field, variables) {
     Some(error) -> mutation_error_result(key, store, identity, [error])
     None -> {
-      let args = field_args(field, variables)
-      let input = read_arg_object(args, "input")
+      let args = graphql_helpers.field_args(field, variables)
+      let input = graphql_helpers.read_arg_object(args, "input")
       let id = case input {
-        Some(input) -> read_arg_string(input, "id")
-        None -> read_arg_string(args, "id")
+        Some(input) -> graphql_helpers.read_arg_string(input, "id")
+        None -> graphql_helpers.read_arg_string(args, "id")
       }
       case id {
         None ->
@@ -9072,10 +9064,10 @@ fn handle_product_update(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "product")
+  let args = graphql_helpers.field_args(field, variables)
+  let input = graphql_helpers.read_arg_object(args, "product")
   let id = case input {
-    Some(input) -> read_arg_string(input, "id")
+    Some(input) -> graphql_helpers.read_arg_string(input, "id")
     None -> None
   }
   case id {
@@ -9171,8 +9163,8 @@ fn handle_product_duplicate(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let product_id = read_arg_string(args, "productId")
+  let args = graphql_helpers.field_args(field, variables)
+  let product_id = graphql_helpers.read_arg_string(args, "productId")
   let synchronous = case dict.get(args, "synchronous") {
     Ok(BoolVal(False)) -> False
     _ -> True
@@ -9241,7 +9233,7 @@ fn handle_product_duplicate(
             key,
             product_id,
             source_product,
-            read_arg_string(args, "newTitle"),
+            graphql_helpers.read_arg_string(args, "newTitle"),
             synchronous,
             field,
             variables,
@@ -9259,8 +9251,8 @@ fn handle_product_set(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_object(args, "input") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_object(args, "input") {
     None ->
       mutation_result(
         key,
@@ -9286,7 +9278,7 @@ fn handle_product_set(
       let existing =
         find_product_set_existing_product(
           store,
-          read_arg_object(args, "identifier"),
+          graphql_helpers.read_arg_object(args, "identifier"),
           input,
         )
       case product_set_duplicate_variant_errors(input) {
@@ -9744,10 +9736,10 @@ fn handle_product_publication_mutation(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input")
+  let args = graphql_helpers.field_args(field, variables)
+  let input = graphql_helpers.read_arg_object(args, "input")
   let id = case input {
-    Some(input) -> read_arg_string(input, "id")
+    Some(input) -> graphql_helpers.read_arg_string(input, "id")
     None -> None
   }
   case id {
@@ -9817,11 +9809,13 @@ fn handle_publication_mutation(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case root_name {
     "publicationCreate" -> {
       let store = ensure_default_publication_baseline(store)
-      let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+      let input =
+        graphql_helpers.read_arg_object(args, "input")
+        |> option.unwrap(dict.new())
       let #(publication_id, next_identity) =
         make_unique_publication_gid(store, identity)
       let name = read_string_field(input, "name")
@@ -9854,9 +9848,11 @@ fn handle_publication_mutation(
       )
     }
     "publicationUpdate" -> {
-      let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+      let input =
+        graphql_helpers.read_arg_object(args, "input")
+        |> option.unwrap(dict.new())
       let publication_id =
-        read_arg_string(args, "id")
+        graphql_helpers.read_arg_string(args, "id")
         |> option.or(read_string_field(input, "id"))
       case publication_id {
         None ->
@@ -9933,7 +9929,7 @@ fn handle_publication_mutation(
       }
     }
     "publicationDelete" -> {
-      case read_arg_string(args, "id") {
+      case graphql_helpers.read_arg_string(args, "id") {
         None ->
           mutation_result(
             key,
@@ -10026,8 +10022,8 @@ fn handle_publishable_publication_mutation(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let publishable_id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let publishable_id = graphql_helpers.read_arg_string(args, "id")
   let publication_targets = read_publication_targets(args)
   case publishable_id {
     None ->
@@ -10313,8 +10309,9 @@ fn handle_product_feed_create(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   // The captured local-runtime fixture comes from the TS path where the
   // mutation-log entry consumes the first synthetic id before the feed is
   // minted, so preserve that observable id sequence for this staged root.
@@ -10350,8 +10347,8 @@ fn handle_product_feed_delete(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let id = graphql_helpers.read_arg_string(args, "id")
   case id {
     Some(feed_id) ->
       case store.get_effective_product_feed_by_id(store, feed_id) {
@@ -10405,8 +10402,8 @@ fn handle_product_full_sync(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let id = graphql_helpers.read_arg_string(args, "id")
   case id {
     Some(feed_id) ->
       case store.get_effective_product_feed_by_id(store, feed_id) {
@@ -10459,8 +10456,9 @@ fn handle_product_bundle_mutation(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let product_id = read_string_field(input, "productId")
   let existing_product = case product_id {
     Some(id) -> store.get_effective_product_by_id(store, id)
@@ -10496,8 +10494,9 @@ fn handle_combined_listing_update(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let parent_product_id = read_arg_string(args, "parentProductId")
+  let args = graphql_helpers.field_args(field, variables)
+  let parent_product_id =
+    graphql_helpers.read_arg_string(args, "parentProductId")
   let parent_product = case parent_product_id {
     Some(id) -> store.get_effective_product_by_id(store, id)
     None -> None
@@ -10546,7 +10545,7 @@ fn handle_product_variant_relationship_bulk_update(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let inputs = read_arg_object_list(args, "input")
   let missing_ids =
     inputs
@@ -10689,8 +10688,8 @@ fn handle_product_create_media(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let product_id = read_arg_string(args, "productId")
+  let args = graphql_helpers.field_args(field, variables)
+  let product_id = graphql_helpers.read_arg_string(args, "productId")
   case product_id {
     Some("") ->
       mutation_error_result(key, store, identity, [
@@ -10848,8 +10847,8 @@ fn handle_product_update_media(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let product_id = read_arg_string(args, "productId")
+  let args = graphql_helpers.field_args(field, variables)
+  let product_id = graphql_helpers.read_arg_string(args, "productId")
   case product_id {
     Some("") ->
       mutation_error_result(key, store, identity, [
@@ -10997,8 +10996,8 @@ fn handle_product_delete_media(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let product_id = read_arg_string(args, "productId")
+  let args = graphql_helpers.field_args(field, variables)
+  let product_id = graphql_helpers.read_arg_string(args, "productId")
   case product_id {
     Some("") ->
       mutation_error_result(key, store, identity, [
@@ -11129,8 +11128,8 @@ fn handle_product_reorder_media(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "id") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "id") {
     None ->
       mutation_result(
         key,
@@ -11288,8 +11287,8 @@ fn handle_product_variant_media_mutation(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "productId") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
         key,
@@ -11958,7 +11957,9 @@ fn invalid_product_media_product_id_variable_error(
     find_variable_definition_location(document, "productId")
   {
     Some(loc) ->
-      list.append(base, [#("locations", locations_json(loc, document))])
+      list.append(base, [
+        #("locations", graphql_helpers.locations_json(loc, document)),
+      ])
     None -> base
   }
   json.object(
@@ -12010,7 +12011,9 @@ fn invalid_product_media_content_type_variable_error(
     find_variable_definition_location(document, "media")
   {
     Some(loc) ->
-      list.append(base, [#("locations", locations_json(loc, document))])
+      list.append(base, [
+        #("locations", graphql_helpers.locations_json(loc, document)),
+      ])
     None -> base
   }
   json.object(
@@ -12041,17 +12044,6 @@ fn invalid_product_media_content_type_variable_error(
   )
 }
 
-fn locations_json(loc: Location, document: String) -> Json {
-  let source = graphql_source.new(document)
-  let computed = graphql_location.get_location(source, position: loc.start)
-  json.preprocessed_array([
-    json.object([
-      #("line", json.int(computed.line)),
-      #("column", json.int(computed.column)),
-    ]),
-  ])
-}
-
 fn handle_bulk_product_resource_feedback_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -12060,7 +12052,7 @@ fn handle_bulk_product_resource_feedback_create(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let initial = #(store, identity, [], [], [])
   let #(next_store, next_identity, feedback, user_errors, staged_ids) =
     read_arg_object_list(args, "feedbackInput")
@@ -12143,8 +12135,9 @@ fn handle_shop_resource_feedback_create(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let #(record, next_identity) =
     make_shop_resource_feedback_record(identity, input)
   case record {
@@ -12363,8 +12356,9 @@ fn handle_inventory_transfer_create(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let #(transfer, user_errors, identity_after_transfer) =
     make_inventory_transfer_record(store, identity, input, status)
   case transfer, user_errors {
@@ -12447,8 +12441,8 @@ fn handle_inventory_transfer_edit(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let transfer_id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let transfer_id = graphql_helpers.read_arg_string(args, "id")
   case get_inventory_transfer_by_optional_id(store, transfer_id) {
     None ->
       mutation_result(
@@ -12468,7 +12462,9 @@ fn handle_inventory_transfer_edit(
         [],
       )
     Some(transfer) -> {
-      let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+      let input =
+        graphql_helpers.read_arg_object(args, "input")
+        |> option.unwrap(dict.new())
       let next_transfer =
         InventoryTransferRecord(
           ..transfer,
@@ -12533,8 +12529,9 @@ fn handle_inventory_transfer_set_items(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let transfer_id = read_string_field(input, "id")
   case get_inventory_transfer_by_optional_id(store, transfer_id) {
     None ->
@@ -12672,8 +12669,9 @@ fn handle_inventory_transfer_remove_items(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let transfer_id = read_string_field(input, "id")
   case get_inventory_transfer_by_optional_id(store, transfer_id) {
     None ->
@@ -12818,7 +12816,11 @@ fn handle_inventory_transfer_mark_ready(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let transfer_id = read_arg_string(field_args(field, variables), "id")
+  let transfer_id =
+    graphql_helpers.read_arg_string(
+      graphql_helpers.field_args(field, variables),
+      "id",
+    )
   case get_inventory_transfer_by_optional_id(store, transfer_id) {
     None ->
       mutation_result(
@@ -12903,7 +12905,11 @@ fn handle_inventory_transfer_cancel(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let transfer_id = read_arg_string(field_args(field, variables), "id")
+  let transfer_id =
+    graphql_helpers.read_arg_string(
+      graphql_helpers.field_args(field, variables),
+      "id",
+    )
   case get_inventory_transfer_by_optional_id(store, transfer_id) {
     None ->
       mutation_result(
@@ -12967,7 +12973,11 @@ fn handle_inventory_transfer_duplicate(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let transfer_id = read_arg_string(field_args(field, variables), "id")
+  let transfer_id =
+    graphql_helpers.read_arg_string(
+      graphql_helpers.field_args(field, variables),
+      "id",
+    )
   case get_inventory_transfer_by_optional_id(store, transfer_id) {
     None ->
       mutation_result(
@@ -13034,7 +13044,11 @@ fn handle_inventory_transfer_delete(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let transfer_id = read_arg_string(field_args(field, variables), "id")
+  let transfer_id =
+    graphql_helpers.read_arg_string(
+      graphql_helpers.field_args(field, variables),
+      "id",
+    )
   case get_inventory_transfer_by_optional_id(store, transfer_id) {
     None ->
       mutation_result(
@@ -13582,8 +13596,9 @@ fn handle_inventory_shipment_create(
       "InventoryShipmentCreateInTransitPayload"
     _ -> "InventoryShipmentCreatePayload"
   }
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let movement_id = read_string_field(input, "movementId")
   let line_item_inputs = read_object_list_field(input, "lineItems")
   let user_errors =
@@ -13684,8 +13699,8 @@ fn handle_inventory_shipment_set_tracking(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let id = graphql_helpers.read_arg_string(args, "id")
   let existing =
     option.then(id, fn(id) {
       store.get_effective_inventory_shipment_by_id(store, id)
@@ -13772,8 +13787,8 @@ fn handle_inventory_shipment_mark_in_transit(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let id = graphql_helpers.read_arg_string(args, "id")
   let existing =
     option.then(id, fn(id) {
       store.get_effective_inventory_shipment_by_id(store, id)
@@ -13859,8 +13874,8 @@ fn handle_inventory_shipment_add_items(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let id = graphql_helpers.read_arg_string(args, "id")
   let existing =
     option.then(id, fn(id) {
       store.get_effective_inventory_shipment_by_id(store, id)
@@ -13970,8 +13985,8 @@ fn handle_inventory_shipment_remove_items(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let id = graphql_helpers.read_arg_string(args, "id")
   let existing =
     option.then(id, fn(id) {
       store.get_effective_inventory_shipment_by_id(store, id)
@@ -14094,8 +14109,8 @@ fn handle_inventory_shipment_receive(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let id = graphql_helpers.read_arg_string(args, "id")
   let existing =
     option.then(id, fn(id) {
       store.get_effective_inventory_shipment_by_id(store, id)
@@ -14185,8 +14200,8 @@ fn handle_inventory_shipment_update_item_quantities(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let id = graphql_helpers.read_arg_string(args, "id")
   let existing =
     option.then(id, fn(id) {
       store.get_effective_inventory_shipment_by_id(store, id)
@@ -14278,8 +14293,8 @@ fn handle_inventory_shipment_delete(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let id = read_arg_string(args, "id")
+  let args = graphql_helpers.field_args(field, variables)
+  let id = graphql_helpers.read_arg_string(args, "id")
   let existing =
     option.then(id, fn(id) {
       store.get_effective_inventory_shipment_by_id(store, id)
@@ -14964,10 +14979,10 @@ fn handle_product_variant_create(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input")
+  let args = graphql_helpers.field_args(field, variables)
+  let input = graphql_helpers.read_arg_object(args, "input")
   let product_id = case input {
-    Some(input) -> read_arg_string(input, "productId")
+    Some(input) -> graphql_helpers.read_arg_string(input, "productId")
     None -> None
   }
   case product_id, input {
@@ -15082,10 +15097,10 @@ fn handle_product_variant_update(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input")
+  let args = graphql_helpers.field_args(field, variables)
+  let input = graphql_helpers.read_arg_object(args, "input")
   let variant_id = case input {
-    Some(input) -> read_arg_string(input, "id")
+    Some(input) -> graphql_helpers.read_arg_string(input, "id")
     None -> None
   }
   case variant_id, input {
@@ -15189,8 +15204,8 @@ fn handle_product_variant_delete(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "id") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "id") {
     None ->
       mutation_result(
         key,
@@ -15263,8 +15278,8 @@ fn handle_product_variants_bulk_create(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "productId") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
         key,
@@ -15337,7 +15352,7 @@ fn handle_product_variants_bulk_create(
                 !list.is_empty(variant_inputs)
                 && list.length(effective_variants) == 1
                 && {
-                  read_arg_string(args, "strategy")
+                  graphql_helpers.read_arg_string(args, "strategy")
                   == Some("REMOVE_STANDALONE_VARIANT")
                   || product_has_standalone_default_variant(
                     effective_options,
@@ -15438,8 +15453,8 @@ fn handle_product_variants_bulk_update(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "productId") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
         key,
@@ -15573,8 +15588,8 @@ fn handle_product_variants_bulk_delete(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "productId") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
         key,
@@ -15697,8 +15712,8 @@ fn handle_product_variants_bulk_reorder(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "productId") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
         key,
@@ -15795,8 +15810,9 @@ fn handle_inventory_adjust_quantities(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case
     inventory_adjust_202604_contract_error(
       uses_202604_contract,
@@ -15937,7 +15953,7 @@ fn handle_inventory_activate(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let inventory_item_id = read_string_field(args, "inventoryItemId")
   let location_id = read_string_field(args, "locationId")
   let user_errors = case dict.get(args, "available") {
@@ -16019,7 +16035,7 @@ fn handle_inventory_deactivate(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let inventory_level_id = read_string_field(args, "inventoryLevelId")
   let target = case inventory_level_id {
     Some(inventory_level_id) ->
@@ -16076,7 +16092,7 @@ fn handle_inventory_bulk_toggle_activation(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let inventory_item_id = read_string_field(args, "inventoryItemId")
   let first_update =
     read_arg_object_list(args, "inventoryItemUpdates")
@@ -16190,9 +16206,10 @@ fn handle_inventory_item_update(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let inventory_item_id = read_string_field(args, "id")
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let existing_variant = case inventory_item_id {
     Some(inventory_item_id) ->
       store.find_effective_variant_by_inventory_item_id(
@@ -16294,8 +16311,9 @@ fn handle_inventory_set_quantities(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let quantity_name = read_non_empty_string_field(input, "name")
   let reason = read_non_empty_string_field(input, "reason")
   let quantities = read_inventory_set_quantity_inputs(input)
@@ -16497,8 +16515,9 @@ fn handle_inventory_move_quantities(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let reason = read_non_empty_string_field(input, "reason")
   let changes = read_inventory_move_quantity_inputs(input)
   case reason, changes {
@@ -16665,10 +16684,10 @@ fn handle_collection_update(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input")
+  let args = graphql_helpers.field_args(field, variables)
+  let input = graphql_helpers.read_arg_object(args, "input")
   let collection_id = case input {
-    Some(input) -> read_arg_string(input, "id")
+    Some(input) -> graphql_helpers.read_arg_string(input, "id")
     None -> None
   }
   case collection_id {
@@ -16757,8 +16776,9 @@ fn handle_collection_create(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case read_non_empty_string_field(input, "title") {
     None ->
       mutation_result(
@@ -16851,8 +16871,8 @@ fn handle_collection_add_products(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "id") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "id") {
     None ->
       mutation_result(
         key,
@@ -16926,8 +16946,8 @@ fn handle_collection_add_products_v2(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "id") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "id") {
     None ->
       mutation_result(
         key,
@@ -17131,10 +17151,10 @@ fn handle_collection_delete(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let input = read_arg_object(args, "input")
+  let args = graphql_helpers.field_args(field, variables)
+  let input = graphql_helpers.read_arg_object(args, "input")
   let collection_id = case input {
-    Some(input) -> read_arg_string(input, "id")
+    Some(input) -> graphql_helpers.read_arg_string(input, "id")
     None -> None
   }
   case collection_id {
@@ -17192,8 +17212,8 @@ fn handle_collection_remove_products(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "id") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "id") {
     None ->
       mutation_result(
         key,
@@ -17303,8 +17323,8 @@ fn handle_collection_reorder_products(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "id") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "id") {
     None ->
       mutation_result(
         key,
@@ -17639,8 +17659,8 @@ fn handle_tags_update(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "id") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "id") {
     None ->
       mutation_result(
         key,
@@ -17752,8 +17772,8 @@ fn product_delete_input_error(
             Some(_) -> None
           }
         VariableValue(variable: variable) -> {
-          let args = field_args(field, variables)
-          let input = read_arg_object(args, "input")
+          let args = graphql_helpers.field_args(field, variables)
+          let input = graphql_helpers.read_arg_object(args, "input")
           let invalid = case input {
             Some(input) ->
               case dict.get(input, "id") {
@@ -17946,21 +17966,7 @@ fn find_variable_definition(
 }
 
 fn locations_payload(loc: Option(Location), document: String) -> Option(Json) {
-  case loc {
-    None -> None
-    Some(loc) -> {
-      let source = graphql_source.new(document)
-      let computed = graphql_location.get_location(source, position: loc.start)
-      Some(
-        json.preprocessed_array([
-          json.object([
-            #("line", json.int(computed.line)),
-            #("column", json.int(computed.column)),
-          ]),
-        ]),
-      )
-    }
-  }
+  option.map(loc, graphql_helpers.locations_json(_, document))
 }
 
 fn resolved_input_to_json(input: Option(Dict(String, ResolvedValue))) -> Json {
@@ -18168,8 +18174,8 @@ fn handle_product_option_update(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  case read_arg_string(args, "productId") {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
         key,
@@ -18201,7 +18207,7 @@ fn handle_product_option_update(
             [],
           )
         Some(product) ->
-          case read_arg_object(args, "option") {
+          case graphql_helpers.read_arg_object(args, "option") {
             None ->
               mutation_result(
                 key,
@@ -18424,12 +18430,15 @@ fn handle_selling_plan_group_mutation(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case root_name {
     "sellingPlanGroupCreate" -> {
-      let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+      let input =
+        graphql_helpers.read_arg_object(args, "input")
+        |> option.unwrap(dict.new())
       let resources =
-        read_arg_object(args, "resources") |> option.unwrap(dict.new())
+        graphql_helpers.read_arg_object(args, "resources")
+        |> option.unwrap(dict.new())
       let #(group, next_identity) =
         make_selling_plan_group_record(identity, input, None, resources)
       let #(_, next_store) =
@@ -18454,7 +18463,7 @@ fn handle_selling_plan_group_mutation(
       )
     }
     "sellingPlanGroupUpdate" -> {
-      let id = read_arg_string(args, "id")
+      let id = graphql_helpers.read_arg_string(args, "id")
       case
         id
         |> option.then(fn(id) {
@@ -18482,7 +18491,8 @@ fn handle_selling_plan_group_mutation(
           )
         Some(existing) -> {
           let input =
-            read_arg_object(args, "input") |> option.unwrap(dict.new())
+            graphql_helpers.read_arg_object(args, "input")
+            |> option.unwrap(dict.new())
           let deleted_plan_ids =
             read_string_list_field(input, "sellingPlansToDelete")
             |> option.unwrap([])
@@ -18520,7 +18530,7 @@ fn handle_selling_plan_group_mutation(
       }
     }
     "sellingPlanGroupDelete" -> {
-      let id = read_arg_string(args, "id")
+      let id = graphql_helpers.read_arg_string(args, "id")
       case
         id
         |> option.then(fn(id) {
@@ -18571,7 +18581,7 @@ fn handle_selling_plan_group_mutation(
       }
     }
     "sellingPlanGroupAddProducts" | "sellingPlanGroupAddProductVariants" -> {
-      let id = read_arg_string(args, "id")
+      let id = graphql_helpers.read_arg_string(args, "id")
       case
         id
         |> option.then(fn(id) {
@@ -18641,7 +18651,7 @@ fn handle_selling_plan_group_mutation(
     }
     "sellingPlanGroupRemoveProducts"
     | "sellingPlanGroupRemoveProductVariants" -> {
-      let id = read_arg_string(args, "id")
+      let id = graphql_helpers.read_arg_string(args, "id")
       case
         id
         |> option.then(fn(id) {
@@ -18764,10 +18774,10 @@ fn handle_product_selling_plan_group_mutation(
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   case root_name {
     "productJoinSellingPlanGroups" | "productLeaveSellingPlanGroups" -> {
-      let product_id = read_arg_string(args, "id")
+      let product_id = graphql_helpers.read_arg_string(args, "id")
       case
         product_id
         |> option.then(fn(id) { store.get_effective_product_by_id(store, id) })
@@ -18822,7 +18832,7 @@ fn handle_product_selling_plan_group_mutation(
     }
     "productVariantJoinSellingPlanGroups"
     | "productVariantLeaveSellingPlanGroups" -> {
-      let variant_id = read_arg_string(args, "id")
+      let variant_id = graphql_helpers.read_arg_string(args, "id")
       case
         variant_id
         |> option.then(fn(id) { store.get_effective_variant_by_id(store, id) })
@@ -21165,37 +21175,6 @@ fn nullable_field_user_errors_source(
   )
 }
 
-fn field_args(
-  field: Selection,
-  variables: Dict(String, ResolvedValue),
-) -> Dict(String, ResolvedValue) {
-  case get_field_arguments(field, variables) {
-    Ok(args) -> args
-    Error(_) -> dict.new()
-  }
-}
-
-fn read_arg_string(
-  args: Dict(String, ResolvedValue),
-  name: String,
-) -> Option(String) {
-  case dict.get(args, name) {
-    Ok(StringVal(value)) -> Some(value)
-    Ok(NullVal) -> None
-    _ -> None
-  }
-}
-
-fn read_arg_object(
-  args: Dict(String, ResolvedValue),
-  name: String,
-) -> Option(Dict(String, ResolvedValue)) {
-  case dict.get(args, name) {
-    Ok(ObjectVal(input)) -> Some(input)
-    _ -> None
-  }
-}
-
 fn read_arg_object_list(
   args: Dict(String, ResolvedValue),
   name: String,
@@ -23098,7 +23077,7 @@ fn read_product_variant_positions(
           let #(positions, errors) = acc
           let #(input, index) = pair
           let path = ["positions", int.to_string(index)]
-          let variant_id = read_arg_string(input, "id")
+          let variant_id = graphql_helpers.read_arg_string(input, "id")
           let raw_position = read_int_field(input, "position")
           let id_errors = case variant_id {
             None -> [
@@ -23214,7 +23193,9 @@ fn find_variant_update(
   variant_id: String,
 ) -> Option(Dict(String, ResolvedValue)) {
   updates
-  |> list.find(fn(input) { read_arg_string(input, "id") == Some(variant_id) })
+  |> list.find(fn(input) {
+    graphql_helpers.read_arg_string(input, "id") == Some(variant_id)
+  })
   |> option.from_result
 }
 

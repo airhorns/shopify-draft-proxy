@@ -648,7 +648,12 @@ fn create_content(
   payload_key: String,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
-  let input = input_object(field_args(field, variables), payload_key)
+  let input =
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      payload_key,
+    )
+    |> option.unwrap(dict.new())
   let #(record, identity) =
     make_content(outcome.identity, kind, input, None, None)
   let #(_, store) =
@@ -678,9 +683,12 @@ fn create_article(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
-  let article_input = input_object(args, "article")
-  let blog_from_arg = input_object(args, "blog")
+  let args = graphql_helpers.field_args(field, variables)
+  let article_input =
+    graphql_helpers.read_arg_object(args, "article")
+    |> option.unwrap(dict.new())
+  let blog_from_arg =
+    graphql_helpers.read_arg_object(args, "blog") |> option.unwrap(dict.new())
   let #(blog_id, store, identity, staged_blog_ids) = case
     input_string(article_input, "blogId")
   {
@@ -734,9 +742,11 @@ fn update_content(
   payload_key: String,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = input_string(args, "id")
-  let input = input_object(args, payload_key)
+  let input =
+    graphql_helpers.read_arg_object(args, payload_key)
+    |> option.unwrap(dict.new())
   case id {
     Some(id) ->
       case store.get_effective_online_store_content_by_id(outcome.store, id) {
@@ -801,7 +811,7 @@ fn delete_content(
   deleted_key: String,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
-  let id = input_string(field_args(field, variables), "id")
+  let id = input_string(graphql_helpers.field_args(field, variables), "id")
   let #(deleted, errors, store) = case id {
     Some(id) ->
       case store.get_effective_online_store_content_by_id(outcome.store, id) {
@@ -848,7 +858,7 @@ fn moderate_comment(
   root: String,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
-  let id = input_string(field_args(field, variables), "id")
+  let id = input_string(graphql_helpers.field_args(field, variables), "id")
   let status = case root {
     "commentApprove" -> "PUBLISHED"
     "commentSpam" -> "SPAM"
@@ -899,7 +909,7 @@ fn delete_comment(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
-  let id = input_string(field_args(field, variables), "id")
+  let id = input_string(graphql_helpers.field_args(field, variables), "id")
   let #(deleted, errors, store) = case id {
     Some(id) ->
       case store.get_effective_online_store_content_by_id(outcome.store, id) {
@@ -942,7 +952,7 @@ fn create_theme(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let source = input_string(args, "source")
   let errors = case source {
     Some(_) -> []
@@ -990,7 +1000,7 @@ fn update_theme(
   variables: Dict(String, root_field.ResolvedValue),
   root: String,
 ) -> #(String, Json, MutationOutcome) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = input_string(args, "id")
   case id {
     Some(id) ->
@@ -998,7 +1008,9 @@ fn update_theme(
         store.get_effective_online_store_integration_by_id(outcome.store, id)
       {
         Some(existing) -> {
-          let input = input_object(args, "input")
+          let input =
+            graphql_helpers.read_arg_object(args, "input")
+            |> option.unwrap(dict.new())
           let role = case root {
             "themePublish" -> Some("MAIN")
             _ -> input_string(input, "role")
@@ -1088,7 +1100,7 @@ fn theme_files_change(
   root: String,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let theme_id = case input_string(args, "themeId") {
     Some(id) -> Some(id)
     None -> input_string(args, "id")
@@ -1156,7 +1168,12 @@ fn create_script_tag(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
-  let input = input_object(field_args(field, variables), "input")
+  let input =
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let #(record, identity) =
     make_integration(outcome.identity, "scriptTag", [
       #("__typename", SrcString("ScriptTag")),
@@ -1190,9 +1207,10 @@ fn update_script_tag(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = input_string(args, "id")
-  let input = input_object(args, "input")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case id {
     Some(id) ->
       case
@@ -1264,10 +1282,14 @@ fn create_pixel(
   root: String,
   kind: String,
 ) -> #(String, Json, MutationOutcome) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let settings = case kind {
     "webPixel" ->
-      value_source_from_dict(input_object(args, "webPixel"), "settings")
+      value_source_from_dict(
+        graphql_helpers.read_arg_object(args, "webPixel")
+          |> option.unwrap(dict.new()),
+        "settings",
+      )
     _ -> SrcNull
   }
   let #(record, identity) =
@@ -1308,7 +1330,7 @@ fn update_pixel(
   root: String,
   kind: String,
 ) -> #(String, Json, MutationOutcome) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = input_string(args, "id")
   let existing = case id {
     Some(id) ->
@@ -1364,7 +1386,7 @@ fn update_server_pixel_endpoint(
       outcome.store,
       "serverPixel",
     ))
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let address = case mode {
     "arn" -> input_string(args, "arn")
     _ ->
@@ -1426,7 +1448,12 @@ fn create_storefront_token(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
-  let input = input_object(field_args(field, variables), "input")
+  let input =
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let #(record, identity) =
     make_integration(outcome.identity, "storefrontAccessToken", [
       #("__typename", SrcString("StorefrontAccessToken")),
@@ -1459,8 +1486,9 @@ fn delete_storefront_token(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
-  let args = field_args(field, variables)
-  let input = input_object(args, "input")
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let id = input_string(input, "id")
   let key = get_field_response_key(field)
   let #(deleted, errors, store) = case id {
@@ -1516,7 +1544,12 @@ fn create_mobile_app(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
-  let input = input_object(field_args(field, variables), "input")
+  let input =
+    graphql_helpers.read_arg_object(
+      graphql_helpers.field_args(field, variables),
+      "input",
+    )
+    |> option.unwrap(dict.new())
   let app_type =
     option_string(input_string(input, "applicationType"), "ANDROID")
   let typename = case app_type {
@@ -1570,7 +1603,7 @@ fn update_mobile_app(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
-  let args = field_args(field, variables)
+  let args = graphql_helpers.field_args(field, variables)
   let id = input_string(args, "id")
   case id {
     Some(id) ->
@@ -1632,7 +1665,7 @@ fn delete_integration(
   deleted_key: String,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
-  let id = input_string(field_args(field, variables), "id")
+  let id = input_string(graphql_helpers.field_args(field, variables), "id")
   let #(deleted, errors, store) = case id {
     Some(id) ->
       case
@@ -1973,7 +2006,7 @@ fn singular_content(
   variables: Dict(String, root_field.ResolvedValue),
   kind: String,
 ) -> Json {
-  let id = input_string(field_args(field, variables), "id")
+  let id = input_string(graphql_helpers.field_args(field, variables), "id")
   case id {
     Some(id) ->
       case store.get_effective_online_store_content_by_id(store, id) {
@@ -2029,7 +2062,7 @@ fn singular_integration(
   variables: Dict(String, root_field.ResolvedValue),
   kind: String,
 ) -> Json {
-  let id = input_string(field_args(field, variables), "id")
+  let id = input_string(graphql_helpers.field_args(field, variables), "id")
   case id {
     Some(id) ->
       case store.get_effective_online_store_integration_by_id(store, id) {
@@ -2497,7 +2530,8 @@ fn filter_content_by_query(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> List(OnlineStoreContentRecord) {
-  let query = input_string(field_args(field, variables), "query")
+  let query =
+    input_string(graphql_helpers.field_args(field, variables), "query")
   case query {
     None -> records
     Some(query) ->
@@ -2710,26 +2744,6 @@ fn user_errors_source(
   errors: List(graphql_helpers.SourceValue),
 ) -> graphql_helpers.SourceValue {
   SrcList(errors)
-}
-
-fn field_args(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Dict(String, root_field.ResolvedValue) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(args) -> args
-    Error(_) -> dict.new()
-  }
-}
-
-fn input_object(
-  args: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> Dict(String, root_field.ResolvedValue) {
-  case dict.get(args, name) {
-    Ok(root_field.ObjectVal(fields)) -> fields
-    _ -> dict.new()
-  }
 }
 
 fn input_list(
@@ -3069,7 +3083,9 @@ fn make_theme_files(
     case file {
       root_field.ObjectVal(fields) -> {
         let filename = option_string(input_string(fields, "filename"), "")
-        let body = input_object(fields, "body")
+        let body =
+          graphql_helpers.read_arg_object(fields, "body")
+          |> option.unwrap(dict.new())
         let content = option_string(input_string(body, "value"), "")
         src_object([
           #("__typename", SrcString("OnlineStoreThemeFile")),
