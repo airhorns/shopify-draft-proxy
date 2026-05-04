@@ -602,6 +602,64 @@ pub fn inventory_shipment_extended_roots_stage_locally_test() {
   assert string.contains(remove_entry.query, "inventoryShipmentRemoveItems")
 }
 
+pub fn inventory_set_quantities_validates_name_quantity_and_duplicates_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+
+  let invalid_name_query =
+    "mutation { inventorySetQuantities(input: { name: \\\"damaged\\\", reason: \\\"correction\\\", ignoreCompareQuantity: true, quantities: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", quantity: 5 }] }) { inventoryAdjustmentGroup { id } userErrors { field message code } } }"
+  let #(Response(status: invalid_name_status, body: invalid_name_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(invalid_name_query))
+  assert invalid_name_status == 200
+  assert json.to_string(invalid_name_body)
+    == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"The quantity name must be either 'available' or 'on_hand'.\",\"code\":\"INVALID_NAME\"}]}}}"
+
+  let too_high_query =
+    "mutation { inventorySetQuantities(input: { name: \\\"available\\\", reason: \\\"correction\\\", ignoreCompareQuantity: true, quantities: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", quantity: 1000000001 }] }) { inventoryAdjustmentGroup { id } userErrors { field message code } } }"
+  let #(Response(status: too_high_status, body: too_high_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(too_high_query))
+  assert too_high_status == 200
+  assert json.to_string(too_high_body)
+    == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"quantities\",\"0\",\"quantity\"],\"message\":\"The quantity can't be higher than 1,000,000,000.\",\"code\":\"INVALID_QUANTITY_TOO_HIGH\"}]}}}"
+
+  let negative_query =
+    "mutation { inventorySetQuantities(input: { name: \\\"available\\\", reason: \\\"correction\\\", ignoreCompareQuantity: true, quantities: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", quantity: -1 }] }) { inventoryAdjustmentGroup { id } userErrors { field message code } } }"
+  let #(Response(status: negative_status, body: negative_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(negative_query))
+  assert negative_status == 200
+  assert json.to_string(negative_body)
+    == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"quantities\",\"0\",\"quantity\"],\"message\":\"The quantity can't be negative.\",\"code\":\"INVALID_QUANTITY_NEGATIVE\"}]}}}"
+
+  let duplicate_query =
+    "mutation { inventorySetQuantities(input: { name: \\\"available\\\", reason: \\\"correction\\\", ignoreCompareQuantity: true, quantities: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", quantity: 2 }, { inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", quantity: 3 }] }) { inventoryAdjustmentGroup { id } userErrors { field message code } } }"
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(duplicate_query))
+  assert duplicate_status == 200
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"quantities\",\"0\",\"locationId\"],\"message\":\"The combination of inventoryItemId and locationId must be unique.\",\"code\":\"NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR\"},{\"field\":[\"input\",\"quantities\",\"1\",\"locationId\"],\"message\":\"The combination of inventoryItemId and locationId must be unique.\",\"code\":\"NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR\"}]}}}"
+}
+
+pub fn inventory_set_and_adjust_quantities_accept_on_hand_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+
+  let set_query =
+    "mutation { inventorySetQuantities(input: { name: \\\"on_hand\\\", reason: \\\"correction\\\", ignoreCompareQuantity: true, quantities: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", quantity: 4 }] }) { inventoryAdjustmentGroup { changes { name delta item { id } location { id name } } } userErrors { field message code } } }"
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(set_query))
+  assert set_status == 200
+  assert json.to_string(set_body)
+    == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"available\",\"delta\":3,\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}},{\"name\":\"on_hand\",\"delta\":3,\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}}]},\"userErrors\":[]}}}"
+
+  let adjust_query =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"on_hand\\\", reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: 2, ledgerDocumentUri: \\\"ledger://har-568/on-hand\\\" }] }) { inventoryAdjustmentGroup { changes { name delta ledgerDocumentUri item { id } location { id name } } } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, body: adjust_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(adjust_query))
+  assert adjust_status == 200
+  assert json.to_string(adjust_body)
+    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"on_hand\",\"delta\":2,\"ledgerDocumentUri\":\"ledger://har-568/on-hand\",\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}}]},\"userErrors\":[]}}}"
+}
+
 pub fn inventory_transfer_edit_and_duplicate_stage_locally_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
