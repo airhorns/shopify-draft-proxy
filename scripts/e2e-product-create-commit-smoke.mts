@@ -3,7 +3,7 @@
 /**
  * Live end-to-end smoke for the JavaScript/Node path.
  *
- * Boots an in-process Koa app (`createApp`) backed by the JS-target
+ * Boots an in-process Node HTTP app (`createApp`) backed by the JS-target
  * Gleam proxy in live-hybrid mode, stages 3 productCreate mutations
  * through it, asserts the staged IDs are synthetic and not yet visible
  * upstream, runs `/__meta/commit` to replay through real Shopify, then
@@ -19,8 +19,7 @@ import 'dotenv/config';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 
-import { createApp } from '../src/app.js';
-import type { AppConfig } from '../src/config.js';
+import { createApp, type AppConfig } from '../gleam/js/src/index.js';
 
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';

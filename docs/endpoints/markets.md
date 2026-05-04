@@ -98,8 +98,8 @@ Stage-local mutations:
 
 ### Validation anchors
 
-- Runtime reads: `tests/integration/markets-query-shapes.test.ts`
-- Runtime lifecycle staging: `tests/integration/markets-lifecycle-flow.test.ts`
-- Runtime market localization staging: `tests/integration/markets-localization-flow.test.ts`
-- Conformance parity: `tests/unit/conformance-parity-scenarios.test.ts`
+- Runtime reads: `gleam/test/parity_test.gleam`
+- Runtime lifecycle staging: `gleam/test/parity_test.gleam`
+- Runtime market localization staging: `gleam/test/parity_test.gleam`
+- Conformance parity: `gleam/test/parity_test.gleam`
 - Conformance fixtures and requests: `config/parity-specs/markets/market*.json`, `config/parity-specs/markets/markets*.json`, `config/parity-specs/markets/catalog*.json`, `config/parity-specs/markets/price-list*.json`, and matching files under `config/parity-requests/markets/`

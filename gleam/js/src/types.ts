@@ -1,7 +1,6 @@
-// TS-side public types for the Gleam shim. Mirrors `src/proxy-instance.ts`
-// and `src/config.ts` from the top-level package — every exported
-// symbol the existing TS runtime offers must be callable through this
-// shim with the same shape.
+// TS-side public types for the Gleam shim. Every exported symbol from
+// the package runtime surface should stay callable through this shim
+// with the same shape.
 
 export type ReadMode = 'snapshot' | 'live-hybrid' | 'passthrough';
 

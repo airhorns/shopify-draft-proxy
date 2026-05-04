@@ -14,7 +14,7 @@
  *      with the `SHOPIFY_CONFORMANCE_*` env populated.
  *
  * Sibling: `scripts/e2e-product-create-commit-smoke.mts` exercises the
- * same flow against the JS-target proxy embedded in a Node Koa app —
+ * same flow against the JS-target proxy embedded in a Node HTTP app —
  * keep both green when changing committable mutation behaviour.
  *
  * Run via:  `pnpm e2e:elixir-product-create-commit-smoke`

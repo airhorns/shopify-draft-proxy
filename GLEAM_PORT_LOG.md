@@ -9,6 +9,64 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-04 - Pass 196: HAR-486 final Gleam runtime cutover
+
+Promotes the Gleam implementation to the repository runtime authority and
+removes the legacy TypeScript proxy runtime. The root package now exports the
+Gleam-backed JavaScript shim under `gleam/js/dist`, launch scripts use the Node
+HTTP adapter, and the root `src/` runtime tree is gone. Remaining TypeScript is
+tooling or interop code: conformance capture/report scripts, registry helpers,
+and the JavaScript shim.
+
+| Module / area                                    | Change                                                                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `package.json` / `tsconfig.json`                 | Points package `main`/`types`/exports, dev/start/build/typecheck/test scripts at the Gleam-backed JS shim.    |
+| `src/**`                                         | Deletes the legacy TypeScript app, Koa adapter, proxy dispatcher, domain handlers, state, and store code.     |
+| `scripts/support/**`                             | Moves retained JSON-schema, registry, GraphQL-parser, and Shopify helper code out of root `src`.              |
+| `tests/**`                                       | Removes retired TypeScript runtime tests and keeps JS shim, launch, registry, and conformance tooling checks. |
+| `config/operation-registry.json`                 | Repoints implemented runtime evidence away from deleted TS tests to the executable Gleam parity runner.       |
+| `docs/**` / `README.md` / `GLEAM_PORT_INTENT.md` | Documents that runtime authority is now Gleam and TypeScript is limited to tooling/interop boundaries.        |
+
+Validation:
+
+- `corepack pnpm test` (8 files passed; 1441 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm conformance:check` (1423 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
+  (389/389 strict parity scenarios, 0 capture-only)
+- `corepack pnpm gleam:port:coverage`
+- `corepack pnpm build`
+- `corepack pnpm gleam:test:js` (849 passed)
+- `corepack pnpm gleam:test:erlang` failed on host OTP 25 with the known
+  `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 840 passed)
+- `corepack pnpm gleam:smoke:js` (5 passed)
+- `corepack pnpm elixir:smoke` (17 passed, 1 live test excluded)
+- `git diff --check`
+
+### Findings
+
+- Pass 195 made the final cutover possible: the Gleam parity runner now executes
+  every checked-in parity spec as required evidence with no expected-failure
+  manifest or skipped parity mode.
+- Registry `runtimeTests` cannot keep pointing at deleted TypeScript runtime
+  tests. The final registry evidence path is the strict Gleam parity corpus,
+  and the retained operation-registry test now verifies implemented runtime-test
+  paths exist on disk.
+- The root `src/` tree no longer carries runtime code. TypeScript support code
+  that scripts still need lives under `scripts/support`.
+
+### Risks / open items
+
+- Host Erlang is still OTP 25 in this workspace, so local Erlang validation
+  requires the established OTP 28 container fallback.
+
+---
+
 ## 2026-05-04 - Pass 195: HAR-546 parity scaffold removal
 
 Removes the completed parity-migration safety rails so every checked-in parity

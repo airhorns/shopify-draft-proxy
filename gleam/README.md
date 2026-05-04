@@ -369,7 +369,7 @@ corepack pnpm e2e:elixir-product-create-commit-smoke
 #   rebuilds the Erlang shipment, refreshes the conformance token, and
 #   invokes `mix test --only live test/live_hybrid_e2e_test.exs`.
 
-# JS / Node target (same scenario, in-process Koa app):
+# JS / Node target (same scenario, in-process Node HTTP app):
 corepack pnpm e2e:product-create-commit-smoke
 # → runs scripts/e2e-product-create-commit-smoke.mts.
 ```
@@ -412,7 +412,7 @@ the offline smoke stays hermetic.
 - `gleam.toml` - package manifest. JavaScript is the default target; Erlang is
   tested alongside it.
 
-After full parity is complete, the TypeScript runtime under `../src` will be
-deleted instead of maintained beside this implementation. TypeScript repository
-tooling for capture, registry generation, and packaging may remain where it is
-still useful.
+The legacy TypeScript runtime under `../src` has been deleted instead of
+maintained beside this implementation. TypeScript repository tooling for
+capture, registry generation, JavaScript interop, and packaging remains where it
+is still useful.

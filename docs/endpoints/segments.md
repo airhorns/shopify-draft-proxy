@@ -72,9 +72,9 @@ Staged mutations:
 
 ### Validation anchors
 
-- Segment reads: `tests/integration/segment-query-shapes.test.ts`
-- Segment lifecycle: `tests/integration/segment-lifecycle-flow.test.ts`
-- Customer segment members: `tests/integration/customer-segment-member-flow.test.ts`
+- Segment reads: `gleam/test/parity_test.gleam`
+- Segment lifecycle: `gleam/test/parity_test.gleam`
+- Customer segment members: `gleam/test/parity_test.gleam`
 - Conformance fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments/segments-baseline.json`
 - Segment lifecycle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json`
 - Customer segment member fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-lifecycle.json`
@@ -84,5 +84,5 @@ Staged mutations:
 - Customer segment member parity spec: `config/parity-specs/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar parity spec: `config/parity-specs/segments/segment-query-grammar-not-contains.json`
 - Segment query grammar capture script: `scripts/capture-segment-query-grammar-conformance.ts`
-- HAR-458 review coverage: `tests/integration/customer-segment-member-flow.test.ts` covers segmentId-backed member query
+- HAR-458 review coverage: `gleam/test/parity_test.gleam` covers segmentId-backed member query
   jobs, direct query reads, and accepted-but-unmodeled filter storage boundaries.

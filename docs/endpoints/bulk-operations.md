@@ -173,8 +173,8 @@ The fixture also captures two safe no-write product export lifecycles:
 
 ### Validation anchors
 
-- Registry and schema checks: `tests/unit/operation-registry.test.ts`, `tests/unit/json-file-schemas.test.ts`
-- Root inventory discovery: `tests/unit/graphql-operation-coverage.test.ts`
+- Registry and schema checks: `tests/unit/operation-registry.test.ts`, `gleam/test/parity_test.gleam`
+- Root inventory discovery: `gleam/test/parity_test.gleam`
 - Captured root inventory: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
-- Strict parity runner: `tests/unit/conformance-parity-scenarios.test.ts` via `corepack pnpm conformance:parity`
-- Bulk Operations local runtime and meta observability: `tests/integration/bulk-operation-conformance-flow.test.ts`
+- Strict parity runner: `gleam/test/parity_test.gleam` via `corepack pnpm conformance:parity`
+- Bulk Operations local runtime and meta observability: `gleam/test/parity_test.gleam`

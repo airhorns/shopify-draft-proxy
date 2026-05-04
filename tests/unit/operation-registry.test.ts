@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   listImplementedOperationRegistryEntries,
   listOperationRegistryEntries,
-} from '../../src/proxy/operation-registry.js';
+} from '../../scripts/support/operation-registry.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -19,6 +19,19 @@ describe('operation registry', () => {
     for (const entry of listImplementedOperationRegistryEntries()) {
       expect(entry.runtimeTests.length).toBeGreaterThan(0);
       expect('conformance' in entry).toBe(false);
+    }
+  });
+
+  it('keeps implemented runtime test references executable on disk', () => {
+    for (const entry of listImplementedOperationRegistryEntries()) {
+      for (const runtimeTest of entry.runtimeTests) {
+        expect(() => {
+          execFileSync('test', ['-f', runtimeTest], {
+            cwd: repoRoot,
+            stdio: 'pipe',
+          });
+        }, `${entry.name} runtime test should exist: ${runtimeTest}`).not.toThrow();
+      }
     }
   });
 

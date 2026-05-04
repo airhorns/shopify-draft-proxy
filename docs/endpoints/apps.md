@@ -94,8 +94,8 @@ The capture records:
 
 ### Validation
 
-- `tests/integration/app-billing-access-flow.test.ts`
-- `tests/integration/proxy-capability-classification.test.ts`
+- `gleam/test/parity_test.gleam`
+- `gleam/test/parity_test.gleam`
 - `tests/unit/app-billing-conformance-fixture.test.ts`
 - `config/parity-specs/apps/app-billing-access-local-staging.json`, including
   app-domain generic Node read targets

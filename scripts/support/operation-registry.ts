@@ -1,5 +1,5 @@
 import operationRegistryJson from '../../config/operation-registry.json' with { type: 'json' };
-import { operationRegistrySchema, type OperationRegistryEntry } from '../json-schemas.js';
+import { operationRegistrySchema, type OperationRegistryEntry } from './json-schemas.js';
 
 export type CapabilityDomain =
   | 'products'

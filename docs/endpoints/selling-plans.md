@@ -61,8 +61,8 @@ behavior.
 Validation entry points:
 
 - `corepack pnpm conformance:capture -- --run selling-plan-groups`
-- `corepack pnpm vitest run tests/integration/selling-plan-group-flow.test.ts`
-- `corepack pnpm vitest run tests/integration/admin-platform-query-shapes.test.ts`
+- `corepack pnpm vitest run gleam/test/parity_test.gleam`
+- `corepack pnpm vitest run gleam/test/parity_test.gleam`
 - `config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json`
 - `config/parity-specs/products/selling-plan-product-variant-associations.json`
 - `config/parity-specs/products/selling-plan-group-lifecycle.json`

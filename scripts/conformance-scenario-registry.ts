@@ -9,7 +9,7 @@ import {
   type ConformanceScenarioOverride,
   type OperationRegistryEntry,
   type ParitySpec,
-} from '../src/json-schemas.js';
+} from './support/json-schemas.js';
 
 export const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 

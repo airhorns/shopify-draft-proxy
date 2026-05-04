@@ -1,10 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import type { Server } from 'node:http';
-import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { createApp as createLegacyApp } from '../../src/app.js';
 import type { AppConfig, DraftProxyHttpApp } from '../../gleam/js/src/index.js';
 
 let createGleamApp: (config: AppConfig) => DraftProxyHttpApp;
@@ -55,68 +53,85 @@ async function getGleamJson(origin: string, path: string, init: RequestInit = {}
   return { status: response.status, body: await response.json() };
 }
 
-describe('Gleam JS HTTP adapter legacy route parity', () => {
-  it('matches legacy Koa meta route response shapes', async () => {
-    const legacy = createLegacyApp(config).callback();
-
+describe('Gleam JS HTTP adapter route surface', () => {
+  it('serves the required meta route response shapes', async () => {
     await withGleamServer(async (origin) => {
-      for (const path of ['/__meta/health', '/__meta/config', '/__meta/log'] as const) {
-        const legacyResponse = await request(legacy).get(path);
-        const gleamResponse = await getGleamJson(origin, path);
-        expect(gleamResponse).toEqual({
-          status: legacyResponse.status,
-          body: legacyResponse.body,
-        });
-      }
-
-      const legacyState = await request(legacy).get('/__meta/state');
-      const gleamState = await getGleamJson(origin, '/__meta/state');
-      expect(gleamState.status).toBe(legacyState.status);
-      expect(gleamState.body).toEqual({
-        baseState: expect.any(Object),
-        stagedState: expect.any(Object),
+      expect(await getGleamJson(origin, '/__meta/health')).toEqual({
+        status: 200,
+        body: {
+          ok: true,
+          message: 'shopify-draft-proxy is running',
+        },
       });
 
-      const legacyReset = await request(legacy).post('/__meta/reset');
-      const gleamReset = await getGleamJson(origin, '/__meta/reset', { method: 'POST' });
-      expect(gleamReset).toEqual({
-        status: legacyReset.status,
-        body: legacyReset.body,
+      expect(await getGleamJson(origin, '/__meta/config')).toEqual({
+        status: 200,
+        body: {
+          runtime: { readMode: 'snapshot' },
+          proxy: { port: 0, shopifyAdminOrigin: 'https://shopify.com' },
+          snapshot: { enabled: false, path: null },
+        },
+      });
+
+      expect(await getGleamJson(origin, '/__meta/log')).toEqual({
+        status: 200,
+        body: { entries: [] },
+      });
+
+      expect(await getGleamJson(origin, '/__meta/state')).toMatchObject({
+        status: 200,
+        body: {
+          baseState: expect.any(Object),
+          stagedState: expect.any(Object),
+        },
+      });
+
+      expect(await getGleamJson(origin, '/__meta/reset', { method: 'POST' })).toEqual({
+        status: 200,
+        body: { ok: true, message: 'state reset' },
       });
     });
   });
 
-  it('matches legacy Koa Admin GraphQL and error envelopes for the required route surface', async () => {
-    const legacy = createLegacyApp(config).callback();
+  it('serves Admin GraphQL and error envelopes for the required route surface', async () => {
     const graphQLBody = {
       query:
         'mutation { savedSearchCreate(input: { name: "Promo products", query: "tag:promo", resourceType: PRODUCT }) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } } }',
     };
 
     await withGleamServer(async (origin) => {
-      const legacyCreate = await request(legacy).post('/admin/api/2026-04/graphql.json').send(graphQLBody);
       const gleamCreate = await getGleamJson(origin, '/admin/api/2026-04/graphql.json', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(graphQLBody),
       });
-      expect(gleamCreate).toEqual({
-        status: legacyCreate.status,
-        body: legacyCreate.body,
+      expect(gleamCreate).toMatchObject({
+        status: 200,
+        body: {
+          data: {
+            savedSearchCreate: {
+              savedSearch: {
+                id: 'gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic',
+                name: 'Promo products',
+                query: 'tag:promo',
+                resourceType: 'PRODUCT',
+              },
+              userErrors: [],
+            },
+          },
+        },
       });
 
-      const legacyMissing = await request(legacy).get('/missing');
       const gleamMissing = await getGleamJson(origin, '/missing');
       expect(gleamMissing).toEqual({
-        status: legacyMissing.status,
-        body: legacyMissing.body,
+        status: 404,
+        body: { errors: [{ message: 'Not found' }] },
       });
 
-      const legacyMethod = await request(legacy).post('/__meta/health');
       const gleamMethod = await getGleamJson(origin, '/__meta/health', { method: 'POST' });
       expect(gleamMethod).toEqual({
-        status: legacyMethod.status,
-        body: legacyMethod.body,
+        status: 405,
+        body: { errors: [{ message: 'Method not allowed' }] },
       });
     });
   });

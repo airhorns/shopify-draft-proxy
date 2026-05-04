@@ -192,8 +192,9 @@ still TypeScript under `scripts/`:
   vendored Gleam operation registry in sync with
   `config/operation-registry.json`
 
-The legacy TypeScript proxy runtime under `src/` is in retirement;
-domain modules are deleted as their Gleam ports reach parity.
+The legacy TypeScript proxy runtime under `src/` has been removed. Remaining
+TypeScript lives outside root `src/` and is limited to the JavaScript interop
+shim plus conformance, capture, registry, and report tooling.
 
 ### `gleam/test/parity/runner.gleam` + `gleam/test/parity_test.gleam`
 

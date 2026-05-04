@@ -1,4 +1,4 @@
-import type { ParsedOperation } from '../graphql/parse-operation.js';
+import type { ParsedOperation } from './graphql/parse-operation.js';
 import {
   listImplementedOperationRegistryEntries,
   type CapabilityDomain,

@@ -56,8 +56,8 @@ Admin GraphQL 2026-04 Function metadata docs keep validation and cart-transform 
 ### Shape evidence
 
 - Root availability is captured in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`.
-- Runtime local-staging evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-metadata-flow.json` and enforced by `tests/integration/functions-flow.test.ts`.
-- App/owner metadata evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-owner-metadata-flow.json` and enforced by the `functions-owner-metadata-local-staging` parity spec plus `tests/integration/functions-flow.test.ts`; the scenario seeds known `ShopifyFunction` records and verifies validation/cart-transform lifecycle reads preserve captured `appKey` and `app` selections instead of inventing or dropping owner metadata.
+- Runtime local-staging evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-metadata-flow.json` and enforced by `gleam/test/parity_test.gleam`.
+- App/owner metadata evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-owner-metadata-flow.json` and enforced by the `functions-owner-metadata-local-staging` parity spec plus `gleam/test/parity_test.gleam`; the scenario seeds known `ShopifyFunction` records and verifies validation/cart-transform lifecycle reads preserve captured `appKey` and `app` selections instead of inventing or dropping owner metadata.
 - Live app ownership evidence is recorded in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-owner-metadata-read.json` and enforced by `config/parity-specs/functions/functions-live-owner-metadata-read.json`. The fixture was captured after deploying the repo-local conformance app with released `conformance-validation` and `conformance-cart-transform` Function extensions, and the parity request verifies `shopifyFunction` / `shopifyFunctions` reads preserve `appKey` and selected `app` fields without Function execution.
 - HAR-416 mutation probes against the live store now reach validation/cart-transform resolver userErrors. The fixture records wrong Function API type, unknown/unowned Function handle, invalid metafield, and duplicate cart-transform registration branches. Shopify allowed duplicate `validationCreate` calls for the same validation Function on this shop, so that branch is recorded as live success evidence plus cleanup rather than a duplicate userError. True cross-app references still require a second installed app; the fixture records unknown/unowned handles as the reachable unattended authority boundary. `taxAppConfigure` remains blocked by tax-calculation-app authority even with the refreshed grant, and the access-denied payload is preserved as blocker evidence.
 - Shopify Admin docs for the current API describe `validationCreate` / `validationUpdate` inputs as Function-handle based validation metadata with `enable`, `blockOnFailure`, `metafields`, and `title`.
@@ -72,8 +72,8 @@ Admin GraphQL 2026-04 Function metadata docs keep validation and cart-transform 
 
 ### Validation
 
-- `tests/integration/functions-flow.test.ts`
-- `tests/unit/capabilities.test.ts`
-- `tests/unit/capabilities-anonymous.test.ts`
+- `gleam/test/parity_test.gleam`
+- `gleam/test/parity_test.gleam`
+- `gleam/test/parity_test.gleam`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

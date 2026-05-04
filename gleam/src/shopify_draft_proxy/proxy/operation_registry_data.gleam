@@ -26,7 +26,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["product", "Product"],
-      runtime_tests: ["tests/integration/product-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -36,7 +36,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productByIdentifier", "ProductByIdentifier"],
-      runtime_tests: ["tests/integration/product-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Supports id and handle identifier branches against effective local product state. customId returns null until product unique-metafield evidence exists.",
       ),
@@ -48,10 +48,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["products", "Products"],
-      runtime_tests: [
-        "tests/integration/product-query-shapes.test.ts",
-        "tests/integration/product-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -61,10 +58,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productsCount", "ProductsCount"],
-      runtime_tests: [
-        "tests/integration/product-query-shapes.test.ts",
-        "tests/integration/product-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -74,7 +68,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productVariants", "ProductVariants"],
-      runtime_tests: ["tests/integration/product-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Top-level variant helper connection resolves from effective local product variants, with local pagination, reverse, basic sort keys, and Shopify-style query filtering for id/product_id/title/sku/barcode/vendor/product_type/tag terms.",
       ),
@@ -86,7 +80,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productVariantsCount", "ProductVariantsCount"],
-      runtime_tests: ["tests/integration/product-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Counts effective local product variants with the same supported query terms as productVariants; limit precision remains exact for the in-memory model.",
       ),
@@ -98,7 +92,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productTags", "ProductTags"],
-      runtime_tests: ["tests/integration/product-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Serializes a distinct sorted StringConnection from effective local product tags; absent product data returns an empty connection.",
       ),
@@ -110,7 +104,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productTypes", "ProductTypes"],
-      runtime_tests: ["tests/integration/product-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Serializes a distinct sorted StringConnection from effective local productType values; absent product data returns an empty connection.",
       ),
@@ -122,7 +116,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productVendors", "ProductVendors"],
-      runtime_tests: ["tests/integration/product-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Serializes a distinct sorted StringConnection from effective local vendor values; absent product data returns an empty connection.",
       ),
@@ -134,7 +128,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productOperation", "ProductOperation"],
-      runtime_tests: ["tests/integration/product-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Resolves locally staged ProductSetOperation records created by asynchronous productSet(synchronous: false) and ProductDuplicateOperation records created by asynchronous productDuplicate(synchronous: false); unknown operation IDs return null.",
       ),
@@ -146,7 +140,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productDuplicateJob", "ProductDuplicateJob"],
-      runtime_tests: ["tests/integration/product-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Models Shopify's observed unknown ProductDuplicateJob shape as done: true with the requested id. Async productDuplicate status is exposed through productOperation(id:) as a ProductDuplicateOperation, matching current Admin API helper behavior.",
       ),
@@ -158,10 +152,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productResourceFeedback", "ProductResourceFeedback"],
-      runtime_tests: [
-        "tests/integration/product-query-shapes.test.ts",
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Returns null for absent local feedback and exposes locally staged ProductResourceFeedback rows after bulkProductResourceFeedbackCreate. Live harry-test-heelo capture is access-denied without read_resource_feedbacks plus sales-channel configuration, so success-path feedback evidence is enforced by local-runtime parity.",
       ),
@@ -173,10 +164,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productFeed", "ProductFeed"],
-      runtime_tests: [
-        "tests/integration/product-query-shapes.test.ts",
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode no-data reads match captured 2025-01 harry-test-heelo null behavior, and locally staged productFeedCreate/productFeedDelete updates productFeed(id:) read-after-write results. Live-hybrid feed reads continue to proxy upstream when no staged feed state exists because staged product writes do not currently affect feed membership.",
       ),
@@ -188,10 +176,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productFeeds", "ProductFeeds"],
-      runtime_tests: [
-        "tests/integration/product-query-shapes.test.ts",
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode no-data reads match the captured empty ProductFeedConnection shape, and locally staged productFeedCreate/productFeedDelete updates productFeeds connection read-after-write results. Live-hybrid feed reads continue to proxy upstream when no staged feed state exists because staged product writes do not currently affect feed membership.",
       ),
@@ -203,7 +188,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["sellingPlanGroup", "SellingPlanGroup"],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-308 models local detail reads for staged selling-plan groups, including unknown-id null behavior and product/product-variant membership connections.",
       ),
@@ -215,7 +200,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["sellingPlanGroups", "SellingPlanGroups"],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-308 models local catalog reads for staged selling-plan groups with connection pagination and downstream product/variant membership visibility.",
       ),
@@ -227,7 +212,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["publicApiVersions", "PublicApiVersions"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode utility read support backed by HAR-315 2026-04 capture. The local list is fixture-backed and should be refreshed when Shopify's supported Admin API version window changes.",
       ),
@@ -239,7 +224,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["node", "Node"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode support resolves locally modeled resource GIDs through a conservative GID-type dispatch table that delegates to existing supported detail handlers or direct serializers. Unknown ids, missing local records, malformed GIDs, and unsupported resource families return null; HAR-413 covers normalized discount DiscountNode wrapper dispatch, HAR-418 parity covers representative Product, Collection, Customer, and Location node payloads, and an introspection-backed test snapshots unsupported Shopify Node implementors for follow-up HAR-424.",
       ),
@@ -251,7 +236,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["nodes", "Nodes"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode support applies the same conservative GID-type dispatch per input id while preserving input order. Missing ids, unsupported resource families, and malformed GIDs return null entries; HAR-413 covers normalized discount DiscountNode wrapper dispatch, HAR-418 parity covers representative Product, Collection, Customer, and Location nodes(ids:) payloads, and an introspection-backed test snapshots unsupported Shopify Node implementors for follow-up HAR-424.",
       ),
@@ -263,7 +248,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["job", "Job"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode utility guardrail backed by HAR-315 2026-04 capture: an arbitrary Job GID returns a completed Job payload with the requested id and a QueryRoot link. Local async job lifecycle storage remains out of scope.",
       ),
@@ -275,7 +260,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["taxonomy", "Taxonomy"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode taxonomy category reads are modeled from captured 2026-04 catalog/search/hierarchy slices: unmatched search empty connections, non-empty root catalog pages, hierarchy-filtered category pages, raw Shopify cursors/pageInfo for captured windows, simple term search over captured id/name/fullName fields, and selected hierarchy fields. Generic TaxonomyCategory Node dispatch is supported only for taxonomy records present in snapshot/local state. The proxy does not claim exhaustive Shopify taxonomy catalog coverage beyond records present in snapshot/local state.",
       ),
@@ -287,7 +272,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["domain", "Domain"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode support resolves the effective shop primaryDomain by id when present and returns null for unknown ids, matching HAR-315 unknown-domain capture. Broader domain catalog/market web presence behavior is not modeled.",
       ),
@@ -299,7 +284,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["backupRegion", "BackupRegion"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode utility read support returns staged/snapshot backupRegion first, then derives a MarketRegionCountry from effective shop myshopifyDomain + shopAddress.countryCodeV2 for conformance-backed domain/country pairs. Captured MarketRegionCountry ids are treated as shop-domain-scoped evidence, not platform-global country ids. HAR-315 backs harry-test-heelo.myshopify.com CA, market baseline captures add harry-test-heelo.myshopify.com AE/AT/AU/BE/CH/CZ/DE/DK/ES/FI/MX and very-big-test-store.myshopify.com CA/US. Effective shops outside that backed map return null instead of the captured Canada fixture; no-shop parity requests preserve the HAR-315 Canada fallback.",
       ),
@@ -311,7 +296,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["backupRegionUpdate", "BackupRegionUpdate"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-374 stages captured backup-region updates locally without mutating Shopify at runtime. Conformance covers current-region CA idempotent success and REGION_NOT_FOUND validation; mutation support remains CA-only until additional backupRegionUpdate success captures exist.",
       ),
@@ -323,7 +308,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["staffMember", "StaffMember"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode captured blocker guardrail only: the current conformance credential returns ACCESS_DENIED for staffMember without read_users and eligible app/store access. Authorized staff identity modeling remains unsupported.",
       ),
@@ -335,7 +320,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["staffMembers", "StaffMembers"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode captured blocker guardrail only: the current conformance credential returns ACCESS_DENIED for staffMembers. Authorized staff catalog modeling remains unsupported.",
       ),
@@ -347,7 +332,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["flowGenerateSignature", "FlowGenerateSignature"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-374 generates deterministic proxy-local Flow signatures for local Flow trigger IDs, records only payload/signature hashes in meta state, preserves the raw mutation for commit replay, and mirrors captured RESOURCE_NOT_FOUND behavior for unknown FlowTrigger IDs.",
       ),
@@ -359,7 +344,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["flowTriggerReceive", "FlowTriggerReceive"],
-      runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-374 records local Flow trigger receipts for explicit local handles without external delivery, preserves raw mutations for commit replay, and mirrors captured invalid-handle and 50000-byte payload validation branches.",
       ),
@@ -431,7 +416,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["currentAppInstallation", "CurrentAppInstallation"],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-526 routes current app installation reads through a gated LiveHybrid app handler: cold reads can pass through to Shopify, while staged/hydrated app billing and access state resolves locally for downstream read-after-write and read-after-uninstall parity.",
       ),
@@ -443,7 +428,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["appPurchaseOneTimeCreate", "AppPurchaseOneTimeCreate"],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-364 stages one-time app purchases locally with synthetic confirmation URLs, pending purchase state, downstream currentAppInstallation.oneTimePurchases reads, meta log/state evidence, and raw mutation replay metadata.",
       ),
@@ -455,7 +440,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["appSubscriptionCreate", "AppSubscriptionCreate"],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-364 stages app subscriptions locally with synthetic confirmation URLs, pending subscription and line-item state, downstream installation billing reads, meta log/state evidence, and raw mutation replay metadata.",
       ),
@@ -467,7 +452,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["appSubscriptionCancel", "AppSubscriptionCancel"],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-364 stages app subscription cancellation locally without billing side effects and exposes cancelled subscription state plus userErrors for unknown subscription IDs.",
       ),
@@ -482,7 +467,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "appSubscriptionLineItemUpdate",
         "AppSubscriptionLineItemUpdate",
       ],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-364 stages usage line-item capped amount updates locally with synthetic confirmation URLs and unknown line-item userErrors.",
       ),
@@ -494,7 +479,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["appSubscriptionTrialExtend", "AppSubscriptionTrialExtend"],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-364 stages trial day extensions locally and exposes downstream subscription reads without runtime Shopify writes.",
       ),
@@ -506,7 +491,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["appUsageRecordCreate", "AppUsageRecordCreate"],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-364 stages usage records locally on staged usage subscription line items, including idempotency-key storage and usageRecords readback.",
       ),
@@ -518,7 +503,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["appRevokeAccessScopes", "AppRevokeAccessScopes"],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-364 stages access-scope revocation locally against the current app installation and surfaces requested unknown-scope userErrors without changing the real app grant.",
       ),
@@ -530,7 +515,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["appUninstall", "AppUninstall"],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-364 stages app uninstall locally by marking the current installation unavailable for downstream reads while preserving raw commit replay metadata.",
       ),
@@ -542,7 +527,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["delegateAccessTokenCreate", "DelegateAccessTokenCreate"],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-364 stages delegated token creation locally with a synthetic returned token and stores only a hash/preview in meta-visible state.",
       ),
@@ -554,7 +539,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["delegateAccessTokenDestroy", "DelegateAccessTokenDestroy"],
-      runtime_tests: ["tests/integration/app-billing-access-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-364 stages delegated token destruction locally by matching the raw token to a stored hash and returning status/userErrors without contacting Shopify.",
       ),
@@ -566,10 +551,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productVariant", "ProductVariant"],
-      runtime_tests: [
-        "tests/integration/product-query-shapes.test.ts",
-        "tests/integration/product-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -579,7 +561,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productVariantByIdentifier", "ProductVariantByIdentifier"],
-      runtime_tests: ["tests/integration/product-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Supports id identifier lookups against effective local variant state. customId returns null until product-variant unique-metafield evidence exists.",
       ),
@@ -591,10 +573,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["inventoryItem", "InventoryItem"],
-      runtime_tests: [
-        "tests/integration/product-query-shapes.test.ts",
-        "tests/integration/product-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -604,7 +583,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["inventoryItems", "InventoryItems"],
-      runtime_tests: ["tests/integration/inventory-quantity-roots.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Lists the effective product-backed inventory items from normalized product variant state, including empty no-data connections and a narrow id/sku/tracked search slice.",
       ),
@@ -616,7 +595,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["inventoryShipment", "InventoryShipment"],
-      runtime_tests: ["tests/integration/inventory-shipment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Reads locally staged inventory shipments and returns null for unknown ids in snapshot mode. Current support is scoped to product-backed inventory items and shipment line/status/tracking fields captured through 2025-01 schema introspection.",
       ),
@@ -628,10 +607,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["inventoryLevel", "InventoryLevel"],
-      runtime_tests: [
-        "tests/integration/product-query-shapes.test.ts",
-        "tests/integration/product-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -641,7 +617,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["inventoryProperties", "InventoryProperties"],
-      runtime_tests: ["tests/integration/inventory-quantity-roots.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Returns the captured 2025-01 quantity-name catalog used by inventory-level reads and staged quantity mutations.",
       ),
@@ -653,7 +629,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["inventoryTransfer", "InventoryTransfer"],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Reads locally staged inventory transfers by id, including Shopify-like null misses in snapshot mode.",
       ),
@@ -665,7 +641,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["inventoryTransfers", "InventoryTransfers"],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Lists locally staged inventory transfers with shared cursor pagination and empty no-data connections.",
       ),
@@ -677,10 +653,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["collection", "Collection"],
-      runtime_tests: [
-        "tests/integration/collection-query-shapes.test.ts",
-        "tests/integration/collection-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -690,10 +663,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["collectionByIdentifier", "CollectionByIdentifier"],
-      runtime_tests: [
-        "tests/integration/collection-query-shapes.test.ts",
-        "tests/integration/collection-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Supports id and handle identifier branches against effective local collection state. customId currently returns null until collection unique-metafield evidence exists.",
       ),
@@ -705,10 +675,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["collectionByHandle", "CollectionByHandle"],
-      runtime_tests: [
-        "tests/integration/collection-query-shapes.test.ts",
-        "tests/integration/collection-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Deprecated Shopify root supported as a handle lookup over effective local collection state.",
       ),
@@ -720,10 +687,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["collections", "Collections"],
-      runtime_tests: [
-        "tests/integration/collection-query-shapes.test.ts",
-        "tests/integration/collection-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -733,7 +697,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["locations", "Locations"],
-      runtime_tests: ["tests/integration/location-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -743,7 +707,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["shop", "Shop"],
-      runtime_tests: ["tests/integration/shop-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -753,7 +717,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["location", "Location"],
-      runtime_tests: ["tests/integration/location-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -763,7 +727,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["locationByIdentifier", "LocationByIdentifier"],
-      runtime_tests: ["tests/integration/location-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -773,7 +737,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["businessEntities", "BusinessEntities"],
-      runtime_tests: ["tests/integration/business-entity-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -783,7 +747,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["businessEntity", "BusinessEntity"],
-      runtime_tests: ["tests/integration/business-entity-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -793,7 +757,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["companies", "Companies"],
-      runtime_tests: ["tests/integration/b2b-company-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -803,7 +767,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["companiesCount", "CompaniesCount"],
-      runtime_tests: ["tests/integration/b2b-company-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -813,7 +777,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["company", "Company"],
-      runtime_tests: ["tests/integration/b2b-company-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -823,7 +787,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["companyContact", "CompanyContact"],
-      runtime_tests: ["tests/integration/b2b-company-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -833,7 +797,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["companyContactRole", "CompanyContactRole"],
-      runtime_tests: ["tests/integration/b2b-company-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -843,7 +807,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["companyLocation", "CompanyLocation"],
-      runtime_tests: ["tests/integration/b2b-company-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -853,7 +817,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["companyLocations", "CompanyLocations"],
-      runtime_tests: ["tests/integration/b2b-company-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -863,7 +827,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companiesDelete", "CompaniesDelete"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -875,7 +839,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyAddressDelete", "CompanyAddressDelete"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -890,7 +854,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "companyAssignCustomerAsContact",
         "CompanyAssignCustomerAsContact",
       ],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -902,7 +866,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyAssignMainContact", "CompanyAssignMainContact"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -914,7 +878,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyContactAssignRole", "CompanyContactAssignRole"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -926,7 +890,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyContactAssignRoles", "CompanyContactAssignRoles"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -938,7 +902,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyContactCreate", "CompanyContactCreate"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -950,7 +914,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyContactDelete", "CompanyContactDelete"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -965,7 +929,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "companyContactRemoveFromCompany",
         "CompanyContactRemoveFromCompany",
       ],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -977,7 +941,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyContactRevokeRole", "CompanyContactRevokeRole"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -989,7 +953,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyContactRevokeRoles", "CompanyContactRevokeRoles"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1001,7 +965,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyContactsDelete", "CompanyContactsDelete"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1028,7 +992,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyContactUpdate", "CompanyContactUpdate"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1040,7 +1004,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyCreate", "CompanyCreate"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1052,7 +1016,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyDelete", "CompanyDelete"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1067,7 +1031,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "companyLocationAssignAddress",
         "CompanyLocationAssignAddress",
       ],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1079,7 +1043,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyLocationAssignRoles", "CompanyLocationAssignRoles"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1094,7 +1058,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "companyLocationAssignStaffMembers",
         "CompanyLocationAssignStaffMembers",
       ],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1106,7 +1070,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyLocationCreate", "CompanyLocationCreate"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1118,7 +1082,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyLocationDelete", "CompanyLocationDelete"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1133,7 +1097,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "companyLocationRemoveStaffMembers",
         "CompanyLocationRemoveStaffMembers",
       ],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1145,7 +1109,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyLocationRevokeRoles", "CompanyLocationRevokeRoles"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1157,7 +1121,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyLocationsDelete", "CompanyLocationsDelete"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1172,7 +1136,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "companyLocationTaxSettingsUpdate",
         "CompanyLocationTaxSettingsUpdate",
       ],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1184,7 +1148,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyLocationUpdate", "CompanyLocationUpdate"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1196,7 +1160,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyRevokeMainContact", "CompanyRevokeMainContact"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1208,7 +1172,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["companyUpdate", "CompanyUpdate"],
-      runtime_tests: ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging.",
       ),
@@ -1233,9 +1197,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["cashTrackingSession", "CashTrackingSession"],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown CashTrackingSession id; the local overlay mirrors absent-session reads only and must not synthesize POS cash sessions, balances, staff, or register activity without disposable non-empty evidence.",
       ),
@@ -1247,9 +1209,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["cashTrackingSessions", "CashTrackingSessions"],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned an empty cashTrackingSessions connection with false pageInfo flags; future non-empty support needs a POS cash-tracking state model and must not invent cash drawer records.",
       ),
@@ -1261,7 +1221,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customerPaymentMethod", "CustomerPaymentMethod"],
-      runtime_tests: ["tests/integration/customer-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Local customer payment method reads serialize from normalized customerPaymentMethods state, including showRevoked filtering, instrument unions, customer links, and payment-method subscription contracts. LiveHybrid mutation flows hydrate existing customer/payment-method shells through cassette-backed Pattern 2 reads before local staging; broader live overlay evidence still depends on a conformance grant with read_customer_payment_methods.",
       ),
@@ -1285,9 +1245,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["paymentCustomization", "PaymentCustomization"],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode payment customization detail reads are modeled from normalized state. Unknown ids return null; function ownership and error-history selections only replay captured normalized values.",
       ),
@@ -1299,9 +1257,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["paymentCustomizations", "PaymentCustomizations"],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot-mode payment customization catalog reads are modeled from normalized state with empty/no-data connections, cursor pagination, reverse ordering, and captured-safe enabled/function_id/id filters. Lifecycle writes are supported by the paymentCustomizationCreate, paymentCustomizationUpdate, paymentCustomizationActivation, and paymentCustomizationDelete mutation entries.",
       ),
@@ -1313,7 +1269,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["validation", "Validation"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Function validation detail reads are modeled from normalized metadata state. Function references expose stored ShopifyFunction metadata only; external Shopify Function code is never executed locally.",
       ),
@@ -1325,7 +1281,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["validations", "Validations"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Function validation catalog reads serialize normalized local metadata with Shopify-like empty/no-data connections and cursor pagination.",
       ),
@@ -1337,7 +1293,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["cartTransforms", "CartTransforms"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Cart transform catalog reads serialize normalized local metadata with Shopify-like empty/no-data connections and cursor pagination. Checkout cart transform execution is intentionally not modeled.",
       ),
@@ -1349,7 +1305,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["shopifyFunction", "ShopifyFunction"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Shopify Function detail reads expose metadata recorded from function-backed local configuration inputs. The proxy does not execute Function WASM or call extension runtimes.",
       ),
@@ -1361,7 +1317,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["shopifyFunctions", "ShopifyFunctions"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Shopify Function catalog reads expose locally recorded validation/cart-transform function metadata and optional apiType filtering. The proxy does not discover or execute external Function code.",
       ),
@@ -1373,7 +1329,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["paymentTermsTemplates", "PaymentTermsTemplates"],
-      runtime_tests: ["tests/integration/payment-terms-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot and live-hybrid payment terms template reads serialize the captured standard template catalog, including due-day values, translated names, and paymentTermsType filtering. Payment terms lifecycle mutations remain out of scope.",
       ),
@@ -1409,9 +1365,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["pointOfSaleDevice", "PointOfSaleDevice"],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown PointOfSaleDevice id; future non-empty support needs captured POS device inventory and must not invent hardware records.",
       ),
@@ -1423,9 +1377,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["dispute", "Dispute"],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown ShopifyPaymentsDispute id; non-empty dispute modeling requires authorized dispute fixtures and must not invent chargeback amounts, reasons, or statuses.",
       ),
@@ -1437,9 +1389,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["disputes", "Disputes"],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned an empty disputes connection while disputeEvidence was denied separately; future non-empty support needs authorized Shopify Payments dispute evidence before local overlay behavior.",
       ),
@@ -1466,9 +1416,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "shopPayPaymentRequestReceipt",
         "ShopPayPaymentRequestReceipt",
       ],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Shop Pay payment request receipt no-data support. HAR-316 captured 2025-01 harry-test-heelo unknown-token null behavior; future non-empty capture should avoid creating customer-visible payment requests before broader local overlay support.",
       ),
@@ -1483,9 +1431,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "shopPayPaymentRequestReceipts",
         "ShopPayPaymentRequestReceipts",
       ],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Shop Pay payment request receipt no-data support. HAR-316 captured 2025-01 harry-test-heelo empty connection behavior with type-only node selections; future non-empty capture should avoid creating customer-visible payment requests before broader local overlay support.",
       ),
@@ -1497,7 +1443,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["shopifyPaymentsAccount", "ShopifyPaymentsAccount"],
-      runtime_tests: ["tests/integration/business-entity-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot overlay supports the direct root from normalized Shopify Payments account fixtures shared with BusinessEntity.shopifyPaymentsAccount. Safe scalar fields are exposed when captured; payouts, disputes, and balanceTransactions serialize as empty no-data connections until non-empty account activity fixtures exist. Balance, bank account, statement descriptor, payout schedule, and other payment-account-sensitive fields remain explicit unsupported diagnostics. The 2026-04-25 harry-test-heelo capture still returned ACCESS_DENIED without read_shopify_payments/read_shopify_payments_accounts.",
       ),
@@ -1521,7 +1467,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["channel", "Channel"],
-      runtime_tests: ["tests/integration/publication-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot/local overlay models the deprecated channel root from explicit Channel records or hydrated/staged Publication records. Full live non-empty channel parity remains limited by available capture evidence.",
       ),
@@ -1533,7 +1479,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["channels", "Channels"],
-      runtime_tests: ["tests/integration/publication-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot/local overlay models the deprecated channels connection from explicit Channel records or hydrated/staged Publication records. Full live non-empty channel parity remains limited by available capture evidence.",
       ),
@@ -1545,7 +1491,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["publication", "Publication"],
-      runtime_tests: ["tests/integration/publication-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1555,7 +1501,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["publications", "Publications"],
-      runtime_tests: ["tests/integration/publication-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1565,7 +1511,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["publicationsCount", "PublicationsCount"],
-      runtime_tests: ["tests/integration/publication-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1575,7 +1521,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["publishedProductsCount", "PublishedProductsCount"],
-      runtime_tests: ["tests/integration/publication-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1585,7 +1531,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["storeCreditAccount", "StoreCreditAccount"],
-      runtime_tests: ["tests/integration/store-credit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-317: snapshot/local reads expose only seeded or staged store credit accounts. Unknown ids return null, customer nested connections remain empty unless normalized accounts exist, and balances are never fabricated.",
       ),
@@ -1597,7 +1543,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customer", "Customer"],
-      runtime_tests: ["tests/integration/customer-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1607,7 +1553,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customerAccountPage", "CustomerAccountPage"],
-      runtime_tests: ["tests/integration/customer-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-322: snapshot mode resolves customer account page details from normalized local state and returns null for absent IDs. Live capture on harry-test-heelo showed the built-in Orders, Profile, and Settings pages; live-hybrid keeps upstream payloads authoritative for this read-only system surface.",
       ),
@@ -1664,7 +1610,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customers", "Customers"],
-      runtime_tests: ["tests/integration/customer-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1674,7 +1620,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customerAccountPages", "CustomerAccountPages"],
-      runtime_tests: ["tests/integration/customer-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-322: snapshot mode serializes normalized customer account pages through the shared connection helpers and returns an empty connection when no account-page snapshot state exists. Live capture on harry-test-heelo showed Orders, Profile, and Settings default pages.",
       ),
@@ -1686,7 +1632,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customersCount", "CustomersCount"],
-      runtime_tests: ["tests/integration/customer-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1696,10 +1642,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customerByIdentifier", "CustomerByIdentifier"],
-      runtime_tests: [
-        "tests/integration/customer-query-shapes.test.ts",
-        "tests/integration/customer-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1709,7 +1652,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customerMergePreview", "CustomerMergePreview"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1719,7 +1662,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customerMergeJobStatus", "CustomerMergeJobStatus"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1729,7 +1672,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerCreate", "CustomerCreate"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1739,7 +1682,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerUpdate", "CustomerUpdate"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1749,7 +1692,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerDelete", "CustomerDelete"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1759,7 +1702,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerRequestDataErasure", "CustomerRequestDataErasure"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-322: stages a local customer data-erasure request intent for customers already present in normalized state, returns customerId/userErrors, exposes the intent in meta state/logs, and preserves the original raw mutation for commit replay. Granted-scope live conformance captures success payloads and DOES_NOT_EXIST unknown-customer userErrors.",
       ),
@@ -1771,7 +1714,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerCancelDataErasure", "CustomerCancelDataErasure"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-322: stages a local data-erasure cancellation intent for customers already present in normalized state, returns customerId/userErrors, exposes the intent in meta state/logs, and preserves the original raw mutation for commit replay. Granted-scope live conformance captures success payloads, DOES_NOT_EXIST unknown-customer userErrors, and NOT_BEING_ERASED repeat-cancel cleanup behavior.",
       ),
@@ -1783,7 +1726,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerAddressCreate", "CustomerAddressCreate"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1793,7 +1736,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerAddressUpdate", "CustomerAddressUpdate"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1803,7 +1746,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerAddressDelete", "CustomerAddressDelete"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1816,7 +1759,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerUpdateDefaultAddress",
         "CustomerUpdateDefaultAddress",
       ],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1829,7 +1772,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerEmailMarketingConsentUpdate",
         "CustomerEmailMarketingConsentUpdate",
       ],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1842,7 +1785,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerSmsMarketingConsentUpdate",
         "CustomerSmsMarketingConsentUpdate",
       ],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1852,7 +1795,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerAddTaxExemptions", "CustomerAddTaxExemptions"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1865,7 +1808,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerRemoveTaxExemptions",
         "CustomerRemoveTaxExemptions",
       ],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1878,7 +1821,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerReplaceTaxExemptions",
         "CustomerReplaceTaxExemptions",
       ],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1888,7 +1831,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerSet", "CustomerSet"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1901,7 +1844,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerGenerateAccountActivationUrl",
         "CustomerGenerateAccountActivationUrl",
       ],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Staged locally with a synthetic non-deliverable activation URL. The original raw mutation is retained in the mutation log for commit replay; runtime support does not request a live Shopify activation URL.",
       ),
@@ -1916,7 +1859,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerSendAccountInviteEmail",
         "CustomerSendAccountInviteEmail",
       ],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Buffered locally as a staged outbound invite intent. Runtime support validates the customer, updates local account state to invited when applicable, and keeps the original raw mutation for commit-time email delivery.",
       ),
@@ -1928,7 +1871,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["storeCreditAccountCredit", "StoreCreditAccountCredit"],
-      runtime_tests: ["tests/integration/store-credit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-317: stages credit adjustments only for existing normalized store credit accounts, updates local balance/transactions, returns captured unknown-id userErrors locally, and keeps the original raw mutation for commit replay without runtime Shopify writes.",
       ),
@@ -1940,7 +1883,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["storeCreditAccountDebit", "StoreCreditAccountDebit"],
-      runtime_tests: ["tests/integration/store-credit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-317: stages debit adjustments only for existing normalized store credit accounts, enforces local currency/funds checks, updates downstream balance/transactions, and keeps the original raw mutation for commit replay without runtime Shopify writes.",
       ),
@@ -1955,7 +1898,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerPaymentMethodSendUpdateEmail",
         "CustomerPaymentMethodSendUpdateEmail",
       ],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Buffered locally as a staged payment-method update-email intent. Runtime support validates that the payment method is present in the local customer-payment graph, preserves the original raw mutation for commit-time delivery, and mirrors Shopify's not-found userError for unknown payment methods.",
       ),
@@ -1967,7 +1910,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["customerMerge", "CustomerMerge"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -1977,7 +1920,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["sellingPlanGroupCreate", "SellingPlanGroupCreate"],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-308 stages selling-plan group create locally, including nested sellingPlansToCreate and initial product/product-variant resources, without runtime Shopify writes.",
       ),
@@ -1989,7 +1932,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["sellingPlanGroupUpdate", "SellingPlanGroupUpdate"],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-308 stages group scalar updates, selling plan updates/creates/deletes, and unknown-id GROUP_DOES_NOT_EXIST userErrors locally.",
       ),
@@ -2001,7 +1944,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["sellingPlanGroupDelete", "SellingPlanGroupDelete"],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-308 stages group deletion locally; downstream detail/catalog/product/variant reads omit deleted groups and unknown deletes return Shopify-like GROUP_DOES_NOT_EXIST userErrors.",
       ),
@@ -2016,7 +1959,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "sellingPlanGroupAddProducts",
         "SellingPlanGroupAddProducts",
       ],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-308 stages product membership locally and makes product.sellingPlanGroups reads observe the membership.",
       ),
@@ -2031,7 +1974,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "sellingPlanGroupRemoveProducts",
         "SellingPlanGroupRemoveProducts",
       ],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-308 stages product membership removal locally and returns removedProductIds with Shopify-like unknown-id userErrors.",
       ),
@@ -2046,7 +1989,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "sellingPlanGroupAddProductVariants",
         "SellingPlanGroupAddProductVariants",
       ],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-308 stages product variant membership locally and makes ProductVariant.sellingPlanGroups reads observe the membership.",
       ),
@@ -2061,7 +2004,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "sellingPlanGroupRemoveProductVariants",
         "SellingPlanGroupRemoveProductVariants",
       ],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-308 stages product variant membership removal locally and returns removedProductVariantIds with Shopify-like unknown-id userErrors.",
       ),
@@ -2076,7 +2019,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "productJoinSellingPlanGroups",
         "ProductJoinSellingPlanGroups",
       ],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-299 stages product-to-selling-plan-group membership locally and exposes product.sellingPlanGroups / counts without runtime Shopify writes.",
       ),
@@ -2091,7 +2034,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "productLeaveSellingPlanGroups",
         "ProductLeaveSellingPlanGroups",
       ],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-299 stages product selling-plan-group membership removal locally and refreshes downstream product membership reads.",
       ),
@@ -2106,7 +2049,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "productVariantJoinSellingPlanGroups",
         "ProductVariantJoinSellingPlanGroups",
       ],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-299 stages variant-to-selling-plan-group membership locally and exposes ProductVariant.sellingPlanGroups / direct counts without runtime Shopify writes.",
       ),
@@ -2121,7 +2064,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "productVariantLeaveSellingPlanGroups",
         "ProductVariantLeaveSellingPlanGroups",
       ],
-      runtime_tests: ["tests/integration/selling-plan-group-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-299 stages variant selling-plan-group membership removal locally and refreshes downstream ProductVariant membership reads.",
       ),
@@ -2133,7 +2076,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["tagsAdd"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2143,7 +2086,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["tagsRemove"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2156,10 +2099,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "bulkProductResourceFeedbackCreate",
         "BulkProductResourceFeedbackCreate",
       ],
-      runtime_tests: [
-        "tests/integration/product-query-shapes.test.ts",
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages ProductResourceFeedback records locally, preserves the raw mutation in the staged log for commit, and exposes immediate productResourceFeedback(id:) read-after-write results without runtime Shopify writes. Live HAR-362 evidence still records current sales-channel/scope blockers for Shopify success capture.",
       ),
@@ -2171,9 +2111,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["shopResourceFeedbackCreate", "ShopResourceFeedbackCreate"],
-      runtime_tests: [
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages shop-level AppFeedback locally and preserves meta state/log visibility without runtime Shopify writes. Shopify success capture requires sales-channel/resource-feedback app configuration beyond the current disposable store.",
       ),
@@ -2185,10 +2123,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productCreate", "ProductCreate"],
-      runtime_tests: [
-        "tests/integration/product-draft-flow.test.ts",
-        "tests/integration/proxy-capability-classification.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2198,7 +2133,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productUpdate", "ProductUpdate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2208,7 +2143,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productDelete", "ProductDelete"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2218,7 +2153,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productDuplicate", "ProductDuplicate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages synchronous duplicate payloads and asynchronous productDuplicate(synchronous: false) ProductDuplicateOperation records locally without runtime Shopify writes; async operation completion is observable through productOperation(id:).",
       ),
@@ -2230,7 +2165,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productSet", "ProductSet"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2240,7 +2175,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productChangeStatus", "ProductChangeStatus"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2250,10 +2185,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productFeedCreate", "ProductFeedCreate"],
-      runtime_tests: [
-        "tests/integration/proxy-capability-classification.test.ts",
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages ProductFeed rows locally with ACTIVE status and exposes productFeed/productFeeds read-after-write results. Current live store evidence still records Shopify channel lookup blockers for success capture.",
       ),
@@ -2265,10 +2197,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productFeedDelete", "ProductFeedDelete"],
-      runtime_tests: [
-        "tests/integration/proxy-capability-classification.test.ts",
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Deletes locally staged ProductFeed rows and returns Shopify-like unknown-id userErrors for absent feeds without runtime Shopify writes.",
       ),
@@ -2280,10 +2209,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productFullSync", "ProductFullSync"],
-      runtime_tests: [
-        "tests/integration/proxy-capability-classification.test.ts",
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages product-feed sync acknowledgement locally for known staged feeds and returns captured unknown-id userErrors for absent feeds without runtime Shopify writes.",
       ),
@@ -2295,10 +2221,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productBundleCreate", "ProductBundleCreate"],
-      runtime_tests: [
-        "tests/integration/proxy-capability-classification.test.ts",
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages a bundle product, ProductBundleOperation, and normalized bundle components locally, with downstream Product.bundleComponents reads.",
       ),
@@ -2310,10 +2233,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productBundleUpdate", "ProductBundleUpdate"],
-      runtime_tests: [
-        "tests/integration/proxy-capability-classification.test.ts",
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages bundle title/component updates and ProductBundleOperation rows locally, with downstream Product.bundleComponents reads.",
       ),
@@ -2325,10 +2245,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["combinedListingUpdate", "CombinedListingUpdate"],
-      runtime_tests: [
-        "tests/integration/proxy-capability-classification.test.ts",
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages parent/child combined-listing roles and child relationships locally, with downstream Product.combinedListing and combinedListingRole reads.",
       ),
@@ -2340,7 +2257,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["publicationCreate", "PublicationCreate"],
-      runtime_tests: ["tests/integration/publication-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Local lifecycle support stages Publication catalog rows only. Product and Collection visibility changes still flow through the existing publishable/product publication roots; deleting a staged or hydrated publication removes that target from locally modeled product/collection publication memberships.",
       ),
@@ -2352,7 +2269,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["publicationUpdate", "PublicationUpdate"],
-      runtime_tests: ["tests/integration/publication-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Local lifecycle support updates the normalized Publication catalog row. It does not claim broader channel specification or app-publication setup behavior beyond selected downstream reads.",
       ),
@@ -2364,7 +2281,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["publicationDelete", "PublicationDelete"],
-      runtime_tests: ["tests/integration/publication-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Local lifecycle support removes the normalized Publication row and strips that publication target from locally modeled Product and Collection visibility.",
       ),
@@ -2376,7 +2293,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productPublish", "ProductPublish"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Deprecated product-specific publication root retained for existing apps and captured aggregate parity. Stages product publication target IDs locally, preserves raw mutation log order, and updates downstream product publication aggregate reads without runtime Shopify writes.",
       ),
@@ -2388,7 +2305,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productUnpublish", "ProductUnpublish"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Deprecated product-specific publication root retained for existing apps and captured aggregate parity. Removes product publication target IDs locally, preserves raw mutation log order, and updates downstream product publication aggregate reads without runtime Shopify writes.",
       ),
@@ -2400,7 +2317,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["locationAdd", "LocationAdd"],
-      runtime_tests: ["tests/integration/location-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2410,7 +2327,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["locationEdit", "LocationEdit"],
-      runtime_tests: ["tests/integration/location-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2420,7 +2337,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["locationActivate", "LocationActivate"],
-      runtime_tests: ["tests/integration/location-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2430,7 +2347,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["locationDeactivate", "LocationDeactivate"],
-      runtime_tests: ["tests/integration/location-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2440,7 +2357,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["locationDelete", "LocationDelete"],
-      runtime_tests: ["tests/integration/location-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -2450,10 +2367,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["publishablePublish", "PublishablePublish"],
-      runtime_tests: [
-        "tests/integration/product-draft-flow.test.ts",
-        "tests/integration/collection-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-177/HAR-163 slices: stages generic Publishable mutations locally when the publishable ID is a Product or Collection. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; unsupported Publishable targets return local userErrors instead of proxying upstream.",
       ),
@@ -2468,7 +2382,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "publishablePublishToCurrentChannel",
         "PublishablePublishToCurrentChannel",
       ],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-177 product slice: stages generic Publishable mutations locally when the publishable ID is a Product. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; non-product Publishable targets return local userErrors instead of proxying upstream.",
       ),
@@ -2480,10 +2394,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["publishableUnpublish", "PublishableUnpublish"],
-      runtime_tests: [
-        "tests/integration/product-draft-flow.test.ts",
-        "tests/integration/collection-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-177/HAR-163 slices: stages generic Publishable mutations locally when the publishable ID is a Product or Collection. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; unsupported Publishable targets return local userErrors instead of proxying upstream.",
       ),
@@ -2498,7 +2409,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "publishableUnpublishToCurrentChannel",
         "PublishableUnpublishToCurrentChannel",
       ],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-177 product slice: stages generic Publishable mutations locally when the publishable ID is a Product. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; non-product Publishable targets return local userErrors instead of proxying upstream.",
       ),
@@ -2510,7 +2421,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["shopPolicyUpdate", "ShopPolicyUpdate"],
-      runtime_tests: ["tests/integration/shop-policy-update-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream.",
       ),
@@ -2522,7 +2433,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["productSavedSearches", "ProductSavedSearches"],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312: serves Product SavedSearch connections from effective local saved-search state with Shopify-like empty connection and cursor pageInfo behavior.",
       ),
@@ -2534,7 +2445,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["collectionSavedSearches", "CollectionSavedSearches"],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312: serves Collection SavedSearch connections from effective local saved-search state with Shopify-like empty connection and cursor pageInfo behavior.",
       ),
@@ -2546,7 +2457,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customerSavedSearches", "CustomerSavedSearches"],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312/HAR-402: serves Customer SavedSearch connections, including local query filtering by name/query/resource type, from effective local saved-search state. Customer saved-search creation is deprecated by Shopify and returns a local userError instead of staging a new customer saved search.",
       ),
@@ -2558,7 +2469,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["orderSavedSearches", "OrderSavedSearches"],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312/HAR-402: serves Order SavedSearch connections from effective local saved-search state while preserving the captured default order saved searches when no merchant-created saved searches are present.",
       ),
@@ -2570,7 +2481,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312/HAR-402: serves DraftOrder SavedSearch connections from effective local saved-search state while preserving the captured default draft-order saved searches when no merchant-created saved searches are present.",
       ),
@@ -2582,7 +2493,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["fileSavedSearches", "FileSavedSearches"],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312: serves File SavedSearch connections from effective local saved-search state with Shopify-like empty connection behavior when absent.",
       ),
@@ -2594,7 +2505,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["codeDiscountSavedSearches", "CodeDiscountSavedSearches"],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312/HAR-402: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence. Shopify 2026-04 rejects query: on this root, so executable parity uses first-only reads.",
       ),
@@ -2609,7 +2520,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "automaticDiscountSavedSearches",
         "AutomaticDiscountSavedSearches",
       ],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312/HAR-402: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence. Shopify 2026-04 rejects query: on this root, so executable parity uses first-only reads.",
       ),
@@ -2624,7 +2535,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountRedeemCodeSavedSearches",
         "DiscountRedeemCodeSavedSearches",
       ],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312: serves DiscountRedeemCode SavedSearch connections from effective local saved-search state with local query filtering.",
       ),
@@ -2636,7 +2547,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["savedSearchCreate", "SavedSearchCreate"],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312/HAR-402: stages supported saved-search resource types locally, derives searchTerms/filters from the Admin query string, returns Shopify's CUSTOMER deprecation userError, and leaves URL_REDIRECT saved searches unsupported until navigation-scope conformance succeeds.",
       ),
@@ -2648,7 +2559,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["savedSearchUpdate", "SavedSearchUpdate"],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312: stages saved-search name/query updates locally and returns the captured missing-id userError shape for unknown saved searches.",
       ),
@@ -2660,7 +2571,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["savedSearchDelete", "SavedSearchDelete"],
-      runtime_tests: ["tests/integration/saved-search-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-312: stages saved-search deletion tombstones locally and returns the captured missing-id userError shape for unknown saved searches.",
       ),
@@ -2822,7 +2733,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["article", "Article"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303/HAR-410: snapshot/local detail reads return staged or hydrated Article records and null for missing IDs; nested blog/comments/count fields plus captured article image and ARTICLE-owned metafield selections are resolved from the local online-store content graph.",
       ),
@@ -2834,7 +2745,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["articleAuthors", "ArticleAuthors"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: derives the author connection from locally staged or hydrated article authors with Shopify-like empty connection behavior.",
       ),
@@ -2846,7 +2757,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["articles", "Articles"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303/HAR-410: supports snapshot/local Article catalog reads, empty connections, simple id/title/handle/status text filtering, sort/reverse, cursor windows, staged read-after-write effects, and captured article image/metafield projection.",
       ),
@@ -2858,7 +2769,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["articleTags", "ArticleTags"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: derives article tags from the effective local article graph and returns an empty list when no articles carry tags.",
       ),
@@ -2870,7 +2781,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["articleCreate", "ArticleCreate"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303/HAR-410: stages Article creation locally, including handle/publication/tag/author fields, image input, ARTICLE-owned metafield inputs, and optional inline blog creation, with downstream article/blog reads updated and raw mutation preserved for commit replay.",
       ),
@@ -2882,7 +2793,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["articleUpdate", "ArticleUpdate"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303/HAR-410: stages Article updates locally for supported scalar lifecycle fields, image replacement, and ARTICLE-owned metafield replacement while keeping downstream detail/catalog/blog article reads coherent without runtime Shopify writes.",
       ),
@@ -2894,7 +2805,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["articleDelete", "ArticleDelete"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages Article tombstones locally so detail reads return null and catalog/blog article reads omit the deleted article.",
       ),
@@ -2906,7 +2817,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["blog", "Blog"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: snapshot/local Blog detail reads return staged or hydrated records with nested articles/counts and null for missing IDs.",
       ),
@@ -2918,7 +2829,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["blogs", "Blogs"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: supports snapshot/local Blog catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged lifecycle visibility.",
       ),
@@ -2930,7 +2841,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["blogsCount", "BlogsCount"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: returns an EXACT Count from the effective local blog graph, honoring the same simple query filter as blogs.",
       ),
@@ -2942,7 +2853,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["blogCreate", "BlogCreate"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages Blog creation locally with title, handle, template suffix, and comment policy, then updates downstream blog/blogs/blogsCount reads without upstream writes.",
       ),
@@ -2954,7 +2865,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["blogUpdate", "BlogUpdate"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages Blog scalar updates locally and keeps nested article/catalog/count reads coherent.",
       ),
@@ -2966,7 +2877,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["blogDelete", "BlogDelete"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages Blog deletion locally so detail reads return null and blog catalog/count reads omit the deleted blog.",
       ),
@@ -2978,7 +2889,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["page", "Page"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: snapshot/local Page detail reads return staged or hydrated records and null for missing IDs.",
       ),
@@ -2990,7 +2901,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["pages", "Pages"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: supports snapshot/local Page catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged lifecycle visibility.",
       ),
@@ -3002,7 +2913,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["pagesCount", "PagesCount"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: returns an EXACT Count from the effective local page graph.",
       ),
@@ -3014,7 +2925,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["pageCreate", "PageCreate"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages Page creation locally with handle/body/publication/template fields and downstream page/pages/pagesCount visibility.",
       ),
@@ -3026,7 +2937,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["pageUpdate", "PageUpdate"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages Page scalar updates locally and keeps downstream reads coherent.",
       ),
@@ -3038,7 +2949,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["pageDelete", "PageDelete"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages Page tombstones locally so detail reads return null and page catalog/count reads omit deleted pages.",
       ),
@@ -3050,7 +2961,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["comment", "Comment"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: snapshot/local Comment detail reads return staged or hydrated records and null for missing local IDs; live Shopify returned an internal error for an unknown comment ID during capture and that quirk is documented rather than emulated.",
       ),
@@ -3062,7 +2973,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["comments", "Comments"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: supports snapshot/local Comment catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged moderation/delete visibility.",
       ),
@@ -3074,7 +2985,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["commentApprove", "CommentApprove"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages comment approval locally for hydrated/snapshot comments, setting the local status to PUBLISHED and updating downstream comment reads without upstream writes.",
       ),
@@ -3086,7 +2997,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["commentSpam", "CommentSpam"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages comment spam classification locally for hydrated/snapshot comments, setting the local status to SPAM.",
       ),
@@ -3098,7 +3009,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["commentNotSpam", "CommentNotSpam"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages not-spam moderation locally for hydrated/snapshot comments, returning the comment to a pending local status.",
       ),
@@ -3110,7 +3021,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["commentDelete", "CommentDelete"],
-      runtime_tests: ["tests/integration/online-store-content-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-303: stages Comment tombstones locally so detail reads return null and comment/article comment catalogs omit the deleted comment.",
       ),
@@ -3146,9 +3057,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["theme", "Theme"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: snapshot/local detail reads return staged or hydrated OnlineStoreTheme records with local theme-file connection projection and null for missing IDs.",
       ),
@@ -3160,9 +3069,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["themes", "Themes"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: supports snapshot/local Theme catalog reads, role/name filters, reverse ordering, cursor windows, and staged publish/update/delete visibility.",
       ),
@@ -3174,9 +3081,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["scriptTag", "ScriptTag"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: snapshot/local detail reads return staged or hydrated ScriptTag records and null for missing IDs without loading storefront scripts.",
       ),
@@ -3188,9 +3093,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["scriptTags", "ScriptTags"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: supports snapshot/local ScriptTag catalog reads, simple query/src filters, reverse ordering, cursor windows, and staged lifecycle visibility.",
       ),
@@ -3202,9 +3105,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["webPixel", "WebPixel"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: snapshot/local reads return the current staged WebPixel configuration or null when absent; no tracking code is activated at runtime.",
       ),
@@ -3216,9 +3117,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["serverPixel", "ServerPixel"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: snapshot/local reads return the current staged ServerPixel configuration or null when absent; EventBridge/PubSub endpoints are stored only as inert local configuration.",
       ),
@@ -3230,9 +3129,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["mobilePlatformApplication", "MobilePlatformApplication"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: snapshot/local detail reads return staged MobilePlatformApplication union records and null for missing IDs.",
       ),
@@ -3244,9 +3141,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["mobilePlatformApplications", "MobilePlatformApplications"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: supports snapshot/local MobilePlatformApplication catalog reads with union projection and staged lifecycle visibility.",
       ),
@@ -3294,9 +3189,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["themeCreate", "ThemeCreate"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3308,9 +3201,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["themeUpdate", "ThemeUpdate"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3322,9 +3213,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["themeDelete", "ThemeDelete"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3336,9 +3225,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["themePublish", "ThemePublish"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3350,9 +3237,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["themeFilesCopy", "ThemeFilesCopy"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3364,9 +3249,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["themeFilesUpsert", "ThemeFilesUpsert"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3378,9 +3261,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["themeFilesDelete", "ThemeFilesDelete"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3392,9 +3273,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["scriptTagCreate", "ScriptTagCreate"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3406,9 +3285,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["scriptTagUpdate", "ScriptTagUpdate"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3420,9 +3297,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["scriptTagDelete", "ScriptTagDelete"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3434,9 +3309,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["webPixelCreate", "WebPixelCreate"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3448,9 +3321,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["webPixelUpdate", "WebPixelUpdate"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3462,9 +3333,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["webPixelDelete", "WebPixelDelete"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3476,9 +3345,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["serverPixelCreate", "ServerPixelCreate"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3490,9 +3357,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["serverPixelDelete", "ServerPixelDelete"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3507,9 +3372,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "eventBridgeServerPixelUpdate",
         "EventBridgeServerPixelUpdate",
       ],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3521,9 +3384,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["pubSubServerPixelUpdate", "PubSubServerPixelUpdate"],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3538,9 +3399,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "storefrontAccessTokenCreate",
         "StorefrontAccessTokenCreate",
       ],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3555,9 +3414,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "storefrontAccessTokenDelete",
         "StorefrontAccessTokenDelete",
       ],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3572,9 +3429,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "mobilePlatformApplicationCreate",
         "MobilePlatformApplicationCreate",
       ],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3589,9 +3444,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "mobilePlatformApplicationUpdate",
         "MobilePlatformApplicationUpdate",
       ],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3606,9 +3459,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "mobilePlatformApplicationDelete",
         "MobilePlatformApplicationDelete",
       ],
-      runtime_tests: [
-        "tests/integration/online-store-integrations-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation.",
       ),
@@ -3680,7 +3531,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["dataSaleOptOut", "DataSaleOptOut"],
-      runtime_tests: ["tests/integration/customer-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-255: stages customer email data-sale opt-out locally without runtime Shopify writes, returns customerId/userErrors, creates a local opted-out customer for unknown valid emails, and overlays downstream Customer.dataSaleOptOut reads.",
       ),
@@ -3692,9 +3543,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["bulkOperation", "BulkOperation"],
-      runtime_tests: [
-        "tests/integration/bulk-operation-conformance-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-263: reads BulkOperation records from the normalized in-memory job model with Shopify-like missing-id/null behavior; query export and mutation import execution remain unsupported.",
       ),
@@ -3706,9 +3555,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["bulkOperations", "BulkOperations"],
-      runtime_tests: [
-        "tests/integration/bulk-operation-conformance-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-263: lists effective in-memory BulkOperation jobs with shared connection helpers, cursor windows, CREATED_AT/ID sorting, reverse, and captured id/status/operation_type/created_at query filters.",
       ),
@@ -3720,9 +3567,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["currentBulkOperation", "CurrentBulkOperation"],
-      runtime_tests: [
-        "tests/integration/bulk-operation-conformance-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-263: derives the deprecated currentBulkOperation root from the newest local BulkOperation for the requested type, defaulting to QUERY.",
       ),
@@ -3734,9 +3579,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["bulkOperationRunQuery", "BulkOperationRunQuery"],
-      runtime_tests: [
-        "tests/integration/bulk-operation-conformance-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-264: stages supported products/productVariants query exports locally, writes completed BulkOperation jobs plus JSONL result records, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, groupObjects, and unsupported nested connection shapes without runtime Shopify passthrough.",
       ),
@@ -3748,9 +3591,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["bulkOperationRunMutation", "BulkOperationRunMutation"],
-      runtime_tests: [
-        "tests/integration/bulk-operation-conformance-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-265: stages mutation imports locally only for single-root product inner mutations that are already locally implemented. Uploaded JSONL variables must come from the proxy's staged upload handoff; unsupported inner roots create an explicit failed local BulkOperation and are not sent upstream at runtime. Commit replay is preserved as ordered inner mutation log entries with the outer bulk request attached as metadata.",
       ),
@@ -3762,9 +3603,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["bulkOperationCancel", "BulkOperationCancel"],
-      runtime_tests: [
-        "tests/integration/bulk-operation-conformance-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-263: cancels staged BulkOperation jobs locally, returns captured unknown-id and terminal-state userErrors without proxying supported cancel attempts upstream, and records the local cancel attempt in the meta log.",
       ),
@@ -3776,7 +3615,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productOptionsCreate", "ProductOptionsCreate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3786,7 +3625,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productOptionUpdate", "ProductOptionUpdate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3796,7 +3635,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productOptionsDelete", "ProductOptionsDelete"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3806,7 +3645,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productOptionsReorder", "ProductOptionsReorder"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-299 stages option and option-value reorder locally, remaps variant selectedOptions/title order, and sorts the variant connection from the reordered option/value sequence without runtime Shopify writes.",
       ),
@@ -3818,7 +3657,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productVariantsBulkCreate", "ProductVariantsBulkCreate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3828,7 +3667,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productVariantsBulkUpdate", "ProductVariantsBulkUpdate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3838,7 +3677,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productVariantsBulkDelete", "ProductVariantsBulkDelete"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3848,7 +3687,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productVariantsBulkReorder", "ProductVariantsBulkReorder"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Local staging reorders the effective product variant list by `ProductVariantPositionInput.position` and exposes the new order through product variant connections without runtime Shopify writes.",
       ),
@@ -3860,7 +3699,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productVariantCreate", "ProductVariantCreate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3870,7 +3709,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productVariantUpdate", "ProductVariantUpdate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3880,7 +3719,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productVariantDelete", "ProductVariantDelete"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3890,7 +3729,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productCreateMedia", "ProductCreateMedia"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3900,7 +3739,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productUpdateMedia", "ProductUpdateMedia"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3910,7 +3749,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productDeleteMedia", "ProductDeleteMedia"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3920,7 +3759,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productReorderMedia", "ProductReorderMedia"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Local staging applies `MoveInput` media moves to the effective product media order, returns an async-style `Job`, and exposes the reordered media/image connections without runtime Shopify writes.",
       ),
@@ -3932,7 +3771,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productVariantAppendMedia", "ProductVariantAppendMedia"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-299 stages variant-specific media attachments as ordered media IDs on ProductVariant and exposes ProductVariant.media without runtime Shopify writes.",
       ),
@@ -3944,7 +3783,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["productVariantDetachMedia", "ProductVariantDetachMedia"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-299 stages variant-specific media detaches locally and updates ProductVariant.media reads without removing product-level media.",
       ),
@@ -3959,9 +3798,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "productVariantRelationshipBulkUpdate",
         "ProductVariantRelationshipBulkUpdate",
       ],
-      runtime_tests: [
-        "tests/integration/product-merchandising-feedback-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages ProductVariantComponent relationships locally and exposes downstream ProductVariant.requiresComponents/productVariantComponents reads.",
       ),
@@ -3973,7 +3810,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryItemUpdate", "InventoryItemUpdate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -3983,10 +3820,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryAdjustQuantities", "InventoryAdjustQuantities"],
-      runtime_tests: [
-        "tests/integration/product-draft-flow.test.ts",
-        "tests/integration/inventory-quantity-roots.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages local inventory adjustments. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route while preserving 2025-01 fixture behavior.",
       ),
@@ -3998,7 +3832,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventorySetQuantities", "InventorySetQuantities"],
-      runtime_tests: ["tests/integration/inventory-quantity-roots.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages absolute inventory quantity writes locally over product-backed inventory levels. Captured 2025-01 behavior for available quantities uses compareQuantity/ignoreCompareQuantity, mirrors deltas into on_hand, updates variant/inventory-item quantity reads immediately, and leaves product totalInventory lagging. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route.",
       ),
@@ -4010,7 +3844,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryMoveQuantities", "InventoryMoveQuantities"],
-      runtime_tests: ["tests/integration/inventory-quantity-roots.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages same-location quantity moves locally over product-backed inventory levels. Captured 2025-01 available-to-damaged moves update named level quantities and variant inventoryQuantity while preserving on_hand and product totalInventory lag.",
       ),
@@ -4022,7 +3856,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryActivate", "InventoryActivate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages activation locally, including 2026-04 same item/location reactivation that preserves inactive inventory-level id and quantity rows without runtime Shopify writes.",
       ),
@@ -4034,7 +3868,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryDeactivate", "InventoryDeactivate"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages deactivation locally by marking product-backed inventory levels inactive, preserving them for includeInactive reads and later reactivation while retaining the captured minimum-one-active-location guard.",
       ),
@@ -4049,7 +3883,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "inventoryBulkToggleActivation",
         "InventoryBulkToggleActivation",
       ],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4059,7 +3893,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryTransferCreate", "InventoryTransferCreate"],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages draft transfers over product-backed inventory items with captured tracked-item validation and downstream transfer reads.",
       ),
@@ -4074,7 +3908,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "inventoryTransferCreateAsReadyToShip",
         "InventoryTransferCreateAsReadyToShip",
       ],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages a ready-to-ship transfer and reserves origin inventory locally when sufficient available quantity exists.",
       ),
@@ -4086,7 +3920,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryTransferEdit", "InventoryTransferEdit"],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages editable transfer metadata and location snapshot changes for locally modeled transfer records.",
       ),
@@ -4098,7 +3932,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryTransferSetItems", "InventoryTransferSetItems"],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages replacement line-item quantities for draft transfers and returns Shopify-shaped line item update deltas.",
       ),
@@ -4113,7 +3947,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "inventoryTransferRemoveItems",
         "InventoryTransferRemoveItems",
       ],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages line-item removal for locally modeled transfers and returns removed quantity deltas.",
       ),
@@ -4128,7 +3962,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "inventoryTransferMarkAsReadyToShip",
         "InventoryTransferMarkAsReadyToShip",
       ],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Transitions draft transfers to READY_TO_SHIP and mirrors captured inventory effects by moving origin available quantity into reserved quantity.",
       ),
@@ -4140,7 +3974,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryTransferDuplicate", "InventoryTransferDuplicate"],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Duplicates locally modeled transfers as new draft transfer records without runtime Shopify writes.",
       ),
@@ -4152,7 +3986,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryTransferCancel", "InventoryTransferCancel"],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages transfer cancellation and releases locally reserved origin inventory for ready-to-ship transfers.",
       ),
@@ -4164,7 +3998,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryTransferDelete", "InventoryTransferDelete"],
-      runtime_tests: ["tests/integration/inventory-transfer-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Deletes draft transfers locally and mirrors Shopify's captured non-draft delete guardrail.",
       ),
@@ -4176,7 +4010,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryShipmentCreate", "InventoryShipmentCreate"],
-      runtime_tests: ["tests/integration/inventory-shipment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages a draft shipment over existing product-backed inventory items with local line-item, tracking, and read-after-write detail support. Transfer/movement routing remains opaque until HAR-307 transfer state is available.",
       ),
@@ -4191,7 +4025,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "inventoryShipmentCreateInTransit",
         "InventoryShipmentCreateInTransit",
       ],
-      runtime_tests: ["tests/integration/inventory-shipment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages an in-transit shipment locally and increases the destination inventory item's incoming quantity in the first known product-backed inventory level.",
       ),
@@ -4203,7 +4037,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryShipmentAddItems", "InventoryShipmentAddItems"],
-      runtime_tests: ["tests/integration/inventory-shipment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages line-item additions for local draft/in-transit shipments and updates incoming inventory for in-transit additions.",
       ),
@@ -4218,7 +4052,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "inventoryShipmentRemoveItems",
         "InventoryShipmentRemoveItems",
       ],
-      runtime_tests: ["tests/integration/inventory-shipment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages line-item removal for local draft/in-transit shipments and reverses unreceived incoming inventory for removed in-transit items.",
       ),
@@ -4233,7 +4067,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "inventoryShipmentUpdateItemQuantities",
         "InventoryShipmentUpdateItemQuantities",
       ],
-      runtime_tests: ["tests/integration/inventory-shipment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages local shipment line quantity changes, rejecting quantities below already received amounts and updating incoming inventory deltas for in-transit shipments.",
       ),
@@ -4248,7 +4082,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "inventoryShipmentSetTracking",
         "InventoryShipmentSetTracking",
       ],
-      runtime_tests: ["tests/integration/inventory-shipment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages local shipment tracking details for unreceived shipments.",
       ),
@@ -4263,7 +4097,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "inventoryShipmentMarkInTransit",
         "InventoryShipmentMarkInTransit",
       ],
-      runtime_tests: ["tests/integration/inventory-shipment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages draft-to-in-transit transition locally and increases incoming inventory for unreceived shipment quantities.",
       ),
@@ -4275,7 +4109,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryShipmentReceive", "InventoryShipmentReceive"],
-      runtime_tests: ["tests/integration/inventory-shipment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages accepted/rejected receipt quantities locally. Accepted quantities move from incoming to available/on_hand inventory; rejected quantities only reduce incoming.",
       ),
@@ -4287,7 +4121,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["inventoryShipmentDelete", "InventoryShipmentDelete"],
-      runtime_tests: ["tests/integration/inventory-shipment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Deletes local draft/in-transit shipments and reverses unreceived incoming inventory for in-transit shipment lines. Received shipments return a local status userError.",
       ),
@@ -4299,7 +4133,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metafieldsSet", "MetafieldsSet"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4309,7 +4143,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metafieldsDelete", "MetafieldsDelete"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4319,7 +4153,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metafieldDelete", "MetafieldDelete"],
-      runtime_tests: ["tests/integration/product-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4329,9 +4163,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["metafieldDefinition", "MetafieldDefinition"],
-      runtime_tests: [
-        "tests/integration/metafield-definition-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Product-owner definition detail reads are modeled locally from normalized metafield definition state and product-owned metafields.",
       ),
@@ -4343,9 +4175,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["metafieldDefinitions", "MetafieldDefinitions"],
-      runtime_tests: [
-        "tests/integration/metafield-definition-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Product-owner definition catalogs are modeled locally with owner type, namespace, key, pinned, constraint, query, sort, and pagination filters.",
       ),
@@ -4360,9 +4190,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "standardMetafieldDefinitionTemplates",
         "StandardMetafieldDefinitionTemplates",
       ],
-      runtime_tests: [
-        "tests/integration/metafield-definition-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 standard template catalog root used before standardMetafieldDefinitionEnable. Registry-only declared gap until template catalog capture and modeling exist.",
       ),
@@ -4374,9 +4202,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metafieldDefinitionCreate", "MetafieldDefinitionCreate"],
-      runtime_tests: [
-        "tests/integration/metafield-definition-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages product-owner metafield definition creation from MetafieldDefinitionInput, including normalized definition state, selected validation/access/capability fields, optional pinning, downstream read visibility, and mutation-log preservation without runtime Shopify writes.",
       ),
@@ -4388,9 +4214,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metafieldDefinitionUpdate", "MetafieldDefinitionUpdate"],
-      runtime_tests: [
-        "tests/integration/metafield-definition-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages product-owner metafield definition updates for existing normalized definitions. Type, namespace, key, and owner type remain immutable; selected name, description, validations, access, and capability fields update downstream reads.",
       ),
@@ -4402,9 +4226,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metafieldDefinitionDelete", "MetafieldDefinitionDelete"],
-      runtime_tests: [
-        "tests/integration/metafield-definition-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages product-owner metafield definition deletion by id or identifier. The local tombstone hides base/staged definitions from downstream reads; deleteAllAssociatedMetafields conservatively removes matching product-owned metafields only.",
       ),
@@ -4416,10 +4238,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metafieldDefinitionPin", "MetafieldDefinitionPin"],
-      runtime_tests: [
-        "tests/integration/metafield-definition-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages product-owner definition pinning for existing normalized definitions. Pin assigns the next owner-type pinned position; downstream definition detail and catalog reads reflect pinnedStatus and PINNED_POSITION ordering without runtime Shopify writes.",
       ),
@@ -4431,10 +4250,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metafieldDefinitionUnpin", "MetafieldDefinitionUnpin"],
-      runtime_tests: [
-        "tests/integration/metafield-definition-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages product-owner definition unpinning for existing normalized definitions. Unpin clears the definition pinned position and compacts higher owner-type positions so downstream pinned catalogs remain Shopify-like.",
       ),
@@ -4449,9 +4265,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "standardMetafieldDefinitionEnable",
         "StandardMetafieldDefinitionEnable",
       ],
-      runtime_tests: [
-        "tests/integration/metafield-definition-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Local staging support for fixture-backed standard template IDs/namespaces captured by HAR-257. Successful calls create normalized metafield definition records locally and downstream definition reads observe them without runtime Shopify writes.",
       ),
@@ -4463,7 +4277,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["metaobject", "Metaobject"],
-      runtime_tests: ["tests/integration/metaobject-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 entry ID lookup root. HAR-243 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including missing ID nullability, selected field shape, capabilities, ordered fields, field(key:) lookup, and safe empty referencedBy behavior.",
       ),
@@ -4475,7 +4289,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["metaobjectByHandle", "MetaobjectByHandle"],
-      runtime_tests: ["tests/integration/metaobject-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 handle lookup root. HAR-243 supports normalized type-plus-handle lookup in snapshot and live-hybrid overlay modes, including missing handle nullability.",
       ),
@@ -4487,7 +4301,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["metaobjects", "Metaobjects"],
-      runtime_tests: ["tests/integration/metaobject-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 entry connection root. HAR-243 supports normalized type-scoped entry connections, empty connections, stable local cursors, pagination, reverse, documented sort keys, and field-value query filters.",
       ),
@@ -4499,9 +4313,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["metaobjectDefinition", "MetaobjectDefinition"],
-      runtime_tests: [
-        "tests/integration/metaobject-definition-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 definition read root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including ID lookup nullability, captured field ordering, capabilities, access settings, and no-data behavior.",
       ),
@@ -4513,9 +4325,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["metaobjectDefinitionByType", "MetaobjectDefinitionByType"],
-      runtime_tests: [
-        "tests/integration/metaobject-definition-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 definition type lookup root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including type identity and missing-type nullability.",
       ),
@@ -4527,9 +4337,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["metaobjectDefinitions", "MetaobjectDefinitions"],
-      runtime_tests: [
-        "tests/integration/metaobject-definition-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 definition catalog root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including definition pagination, reverse ordering, standard-template metadata, and empty connection behavior.",
       ),
@@ -4541,7 +4349,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metaobjectCreate", "MetaobjectCreate"],
-      runtime_tests: ["tests/integration/metaobject-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages metaobject entry creation for existing effective definitions, captured field/value projection, handle identity, publishable status defaults/input, definition counts, downstream entry reads, meta state/log visibility, and commit replay ordering without runtime Shopify writes.",
       ),
@@ -4553,7 +4361,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metaobjectUpdate", "MetaobjectUpdate"],
-      runtime_tests: ["tests/integration/metaobject-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages effective metaobject entry field, handle, displayName, and publishable status updates with downstream ID/handle/catalog read-after-write behavior and local NOT_FOUND/TAKEN userErrors.",
       ),
@@ -4565,7 +4373,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metaobjectUpsert", "MetaobjectUpsert"],
-      runtime_tests: ["tests/integration/metaobject-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages handle-scoped metaobject upsert, updating an existing effective row or creating a new row against an existing effective definition with immediate downstream entry/catalog visibility.",
       ),
@@ -4577,7 +4385,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metaobjectDelete", "MetaobjectDelete"],
-      runtime_tests: ["tests/integration/metaobject-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages metaobject entry deletion tombstones, Shopify-like deletedId/NOT_FOUND userError payloads for selected fields, definition count updates, downstream absence, and meta state/log visibility without runtime Shopify writes.",
       ),
@@ -4589,7 +4397,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metaobjectBulkDelete", "MetaobjectBulkDelete"],
-      runtime_tests: ["tests/integration/metaobject-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages ids/where-type metaobject bulk deletion with a completed local job payload, ordered missing-row userErrors, definition count updates, downstream absence, and meta state visibility.",
       ),
@@ -4601,9 +4409,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metaobjectDefinitionCreate", "MetaobjectDefinitionCreate"],
-      runtime_tests: [
-        "tests/integration/metaobject-definition-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages merchant-owned metaobject definition creation for captured 2026-04 fields, default access/capabilities, ordered field definitions, and downstream definition reads without runtime Shopify writes. Merchant-owned admin access input returns the captured ADMIN_ACCESS_INPUT_NOT_ALLOWED guardrail locally.",
       ),
@@ -4615,9 +4421,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
-      runtime_tests: [
-        "tests/integration/metaobject-definition-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages definition updates for normalized name, description, displayNameKey, access, capabilities, field definition create/update/delete operations, and resetFieldOrder-driven read ordering. Entry migration/validation side effects remain outside the current local entry model.",
       ),
@@ -4629,9 +4433,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["metaobjectDefinitionDelete", "MetaobjectDefinitionDelete"],
-      runtime_tests: [
-        "tests/integration/metaobject-definition-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages definition deletion for definitions with no modeled associated entries and hides deleted base/staged definitions from downstream reads. Definitions with associated metaobjects return an explicit local unsupported userError until entry cascade behavior is modeled.",
       ),
@@ -4646,9 +4448,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "standardMetaobjectDefinitionEnable",
         "StandardMetaobjectDefinitionEnable",
       ],
-      runtime_tests: [
-        "tests/integration/metaobject-definition-draft-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages captured-safe standard metaobject definition enablement for the bounded local template catalog and returns TEMPLATE_NOT_FOUND for unknown template types without runtime Shopify writes.",
       ),
@@ -4660,7 +4460,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["collectionCreate", "CollectionCreate"],
-      runtime_tests: ["tests/integration/collection-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4670,7 +4470,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["collectionUpdate", "CollectionUpdate"],
-      runtime_tests: ["tests/integration/collection-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4680,7 +4480,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["collectionDelete", "CollectionDelete"],
-      runtime_tests: ["tests/integration/collection-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4690,7 +4490,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["collectionAddProducts", "CollectionAddProducts"],
-      runtime_tests: ["tests/integration/collection-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4700,7 +4500,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["collectionAddProductsV2", "CollectionAddProductsV2"],
-      runtime_tests: ["tests/integration/collection-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-299 stages the V2 async-shaped collection add locally, returning a Job payload while making downstream collection/product membership reads observe the new manual-order memberships.",
       ),
@@ -4712,7 +4512,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["collectionRemoveProducts", "CollectionRemoveProducts"],
-      runtime_tests: ["tests/integration/collection-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4722,7 +4522,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["collectionReorderProducts", "CollectionReorderProducts"],
-      runtime_tests: ["tests/integration/collection-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4732,7 +4532,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["order", "Order"],
-      runtime_tests: ["tests/integration/order-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4742,7 +4542,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["return", "Return"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-311 order-backed Return detail lookup. Snapshot and local live-hybrid reads resolve returns already present on the local order graph, return null for missing IDs, and keep top-level Return serialization aligned with nested Order.returns after staged returnCreate/returnRequest/lifecycle mutations.",
       ),
@@ -4754,7 +4554,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["orders", "Orders"],
-      runtime_tests: ["tests/integration/order-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4764,7 +4564,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["ordersCount", "OrdersCount"],
-      runtime_tests: ["tests/integration/order-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4810,7 +4610,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["reverseDelivery", "ReverseDelivery"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-370 local reverse-logistics slice. Resolves reverse deliveries staged from order-backed returns and returns null for missing IDs in snapshot mode; labels/tracking are stored as local metadata and no carrier or label side effects are invoked.",
       ),
@@ -4822,7 +4622,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["reverseFulfillmentOrder", "ReverseFulfillmentOrder"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-370 local reverse-logistics slice. Resolves reverse fulfillment orders staged from returnCreate/returnApproveRequest, including line-item quantities, disposal status, reverse deliveries, return linkage, and order linkage.",
       ),
@@ -4834,9 +4634,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["abandonedCheckouts", "AbandonedCheckouts"],
-      runtime_tests: [
-        "tests/integration/abandoned-checkout-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot/local reads serialize empty no-data connections and seeded normalized abandoned checkout records, including query filters for documented id, created_at, updated_at, status, recovery_state, email_state, and default text/title terms. Live capture on 2026-04-27 against harry-test-heelo.myshopify.com returned an empty connection/count; representative non-empty behavior is modeled from schema/introspection-backed seeded records until a disposable store can produce real abandoned checkout data.",
       ),
@@ -4848,9 +4646,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["abandonedCheckoutsCount", "AbandonedCheckoutsCount"],
-      runtime_tests: [
-        "tests/integration/abandoned-checkout-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot/local count reads return the Shopify-like Count payload with EXACT precision, including query filtering and limit-based AT_LEAST precision for local seeded records.",
       ),
@@ -4862,9 +4658,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["abandonment", "Abandonment"],
-      runtime_tests: [
-        "tests/integration/abandoned-checkout-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot/local detail reads return null for missing ids and project seeded Abandonment records, including the linked abandonedCheckoutPayload when the seeded record references a local abandoned checkout.",
       ),
@@ -4879,9 +4673,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "abandonmentByAbandonedCheckoutId",
         "AbandonmentByAbandonedCheckoutId",
       ],
-      runtime_tests: [
-        "tests/integration/abandoned-checkout-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot/local lookup reads return null for missing abandoned checkout ids and resolve seeded abandonment records by abandonedCheckoutId.",
       ),
@@ -4893,10 +4685,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderUpdate", "OrderUpdate"],
-      runtime_tests: [
-        "tests/integration/order-draft-flow.test.ts",
-        "tests/integration/order-edit-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4906,9 +4695,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderClose", "OrderClose"],
-      runtime_tests: [
-        "tests/integration/order-lifecycle-payment-customer-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4918,9 +4705,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderOpen", "OrderOpen"],
-      runtime_tests: [
-        "tests/integration/order-lifecycle-payment-customer-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4930,9 +4715,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderMarkAsPaid", "OrderMarkAsPaid"],
-      runtime_tests: [
-        "tests/integration/order-lifecycle-payment-customer-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -4942,10 +4725,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderCreateManualPayment", "OrderCreateManualPayment"],
-      runtime_tests: [
-        "tests/integration/order-payment-transaction-flow.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages manual payments locally for orders already present in the proxy state and preserves the captured 2026-04 access-denied branch for unhydrated/non-local orders. Live success capture remains blocked on the current conformance store because shop.plan.shopifyPlus is false.",
       ),
@@ -4972,7 +4752,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerPaymentMethodCreateFromDuplicationData",
         "CustomerPaymentMethodCreateFromDuplicationData",
       ],
-      runtime_tests: ["tests/integration/customer-payment-method-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages local duplication-data imports only from the proxy's non-secret synthetic duplication token. It creates a scrubbed normalized payment method for the target customer, preserves the original raw mutation for commit replay, and rejects unknown customers or invalid duplication data without runtime Shopify writes.",
       ),
@@ -4987,7 +4767,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerPaymentMethodCreditCardCreate",
         "CustomerPaymentMethodCreditCardCreate",
       ],
-      runtime_tests: ["tests/integration/customer-payment-method-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages a scrubbed CustomerCreditCard payment method for an existing local customer without storing cardserver session IDs, billing addresses, card digits, or vaulted card material. Downstream customerPaymentMethod and Customer.paymentMethods reads resolve from normalized local state without runtime Shopify writes.",
       ),
@@ -5002,7 +4782,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerPaymentMethodCreditCardUpdate",
         "CustomerPaymentMethodCreditCardUpdate",
       ],
-      runtime_tests: ["tests/integration/customer-payment-method-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages scrubbed credit-card updates over an existing normalized payment method without storing cardserver session IDs, billing addresses, card digits, or vaulted card material. Unknown or revoked payment methods return local userErrors and supported calls do not proxy upstream.",
       ),
@@ -5017,7 +4797,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerPaymentMethodGetDuplicationData",
         "CustomerPaymentMethodGetDuplicationData",
       ],
-      runtime_tests: ["tests/integration/customer-payment-method-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Returns a local-only synthetic duplication token for existing normalized payment methods and target customers. The token is non-secret, is accepted only by the proxy's create-from-duplication-data branch, and avoids real encrypted duplication material or runtime Shopify writes.",
       ),
@@ -5032,7 +4812,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerPaymentMethodGetUpdateUrl",
         "CustomerPaymentMethodGetUpdateUrl",
       ],
-      runtime_tests: ["tests/integration/customer-payment-method-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages a non-deliverable shopify-draft-proxy.local update URL for existing normalized payment methods and records it in meta state. It deliberately avoids requesting or storing Shopify's real expiring customer-facing update URL at runtime.",
       ),
@@ -5047,7 +4827,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerPaymentMethodPaypalBillingAgreementCreate",
         "CustomerPaymentMethodPaypalBillingAgreementCreate",
       ],
-      runtime_tests: ["tests/integration/customer-payment-method-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages a scrubbed CustomerPaypalBillingAgreement payment method for an existing local customer without storing PayPal billing agreement IDs, billing addresses, or account email. Downstream reads serialize only safe normalized instrument fields without runtime Shopify writes.",
       ),
@@ -5062,7 +4842,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerPaymentMethodPaypalBillingAgreementUpdate",
         "CustomerPaymentMethodPaypalBillingAgreementUpdate",
       ],
-      runtime_tests: ["tests/integration/customer-payment-method-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages scrubbed PayPal billing-address updates over an existing normalized payment method without storing billing addresses or PayPal account secrets. Unknown or revoked payment methods return local userErrors and supported calls do not proxy upstream.",
       ),
@@ -5077,7 +4857,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerPaymentMethodRemoteCreate",
         "CustomerPaymentMethodRemoteCreate",
       ],
-      runtime_tests: ["tests/integration/customer-payment-method-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages an initially incomplete normalized payment method for one remote gateway reference on an existing local customer. Gateway customer/payment tokens are not stored; downstream reads expose a safe null instrument until a later fixture-backed hydration slice models completed remote details.",
       ),
@@ -5092,7 +4872,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerPaymentMethodRevoke",
         "CustomerPaymentMethodRevoke",
       ],
-      runtime_tests: ["tests/integration/customer-payment-method-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages revocation on existing normalized payment methods by setting revokedAt/revokedReason locally. Revoked rows are hidden from customerPaymentMethod and Customer.paymentMethods unless showRevoked is true, and supported calls do not proxy destructive revocation upstream.",
       ),
@@ -5104,9 +4884,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderCapture", "OrderCapture"],
-      runtime_tests: [
-        "tests/integration/order-payment-transaction-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages captured order authorizations locally into CAPTURE transactions, updates downstream financial/capturable fields, and avoids live capture side effects at runtime.",
       ),
@@ -5118,9 +4896,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderCreateMandatePayment", "OrderCreateMandatePayment"],
-      runtime_tests: [
-        "tests/integration/order-payment-transaction-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages mandate-payment jobs locally with current mandateId request-shape coverage, session idempotency keys, synthetic paymentReferenceId values, and downstream order transaction/financial-status updates without contacting payment gateways or validating real mandate ownership.",
       ),
@@ -5135,9 +4911,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "paymentCustomizationActivation",
         "PaymentCustomizationActivation",
       ],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Payment customization activation is staged locally against normalized payment customization records. Unknown ids mirror captured PAYMENT_CUSTOMIZATION_NOT_FOUND userErrors; existing records update enabled without invoking Shopify Functions or checkout payment behavior, and duplicate ids are handled idempotently.",
       ),
@@ -5149,9 +4923,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["paymentCustomizationCreate", "PaymentCustomizationCreate"],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Payment customization create stages a normalized record locally with selected metafields, stable synthetic ids, current functionHandle input support, deprecated functionId input support, and downstream detail/catalog visibility. Captured missing required fields plus Function/metafield validation branches are handled locally without runtime Shopify writes.",
       ),
@@ -5163,9 +4935,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["paymentCustomizationDelete", "PaymentCustomizationDelete"],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Payment customization delete marks normalized records deleted locally. Unknown ids mirror captured PAYMENT_CUSTOMIZATION_NOT_FOUND userErrors, and downstream reads return Shopify-like null/empty structures.",
       ),
@@ -5177,9 +4947,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["paymentCustomizationUpdate", "PaymentCustomizationUpdate"],
-      runtime_tests: [
-        "tests/integration/payment-customization-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Payment customization update stages local scalar/metafield changes over normalized records, including current functionHandle and deprecated functionId identifier changes. Unknown ids and captured Function/metafield validation branches return Shopify-like PaymentCustomizationError payloads without proxying runtime writes upstream.",
       ),
@@ -5191,7 +4959,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["validationCreate", "ValidationCreate"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Validation create stages normalized Function validation metadata locally, records the function handle/id as ShopifyFunction metadata, and exposes downstream validation(s)/shopifyFunction(s) reads without executing external Function code or writing to Shopify at runtime.",
       ),
@@ -5203,7 +4971,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["validationUpdate", "ValidationUpdate"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Validation update stages scalar metadata changes locally over normalized validation records and refreshes downstream validation(s)/shopifyFunction(s) reads without executing external Function code.",
       ),
@@ -5215,7 +4983,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["validationDelete", "ValidationDelete"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Validation delete marks normalized validation metadata deleted locally. Downstream validation detail/catalog reads return null/empty structures while original raw mutations remain in the meta log for commit replay.",
       ),
@@ -5227,7 +4995,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["cartTransformCreate", "CartTransformCreate"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Cart transform create stages normalized metadata locally, records the function handle/id as ShopifyFunction metadata, and updates downstream cartTransforms/shopifyFunction(s) reads. Checkout cart transform execution is intentionally not modeled.",
       ),
@@ -5239,7 +5007,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["cartTransformDelete", "CartTransformDelete"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Cart transform delete marks normalized cart transform metadata deleted locally and updates downstream cartTransforms reads without executing or deregistering external Function code at runtime.",
       ),
@@ -5251,7 +5019,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["taxAppConfigure", "TaxAppConfigure"],
-      runtime_tests: ["tests/integration/functions-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Tax app configure stores local readiness metadata only. It does not invoke tax calculation callbacks, validate tax app installation authority, or execute external tax logic during proxy runtime.",
       ),
@@ -5263,7 +5031,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["paymentReminderSend", "PaymentReminderSend"],
-      runtime_tests: ["tests/integration/customer-payment-method-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages a local payment reminder intent for PaymentSchedule GIDs and records it in meta state/logs. Runtime support never sends customer email upstream; delivery can only happen later through explicit commit replay of the original raw mutation.",
       ),
@@ -5275,7 +5043,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["paymentTermsCreate", "PaymentTermsCreate"],
-      runtime_tests: ["tests/integration/payment-terms-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages payment terms creation onto eligible staged/base orders and staged draft orders without runtime Shopify writes. The local model uses the captured paymentTermsTemplates catalog, Shopify-documented create argument shape, and local guardrails for unknown targets, missing/unknown templates, and invalid schedule/template combinations.",
       ),
@@ -5287,7 +5055,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["paymentTermsDelete", "PaymentTermsDelete"],
-      runtime_tests: ["tests/integration/payment-terms-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages payment terms deletion by paymentTermsId across the order/draft-order graph and preserves duplicate-delete/not-found userErrors without runtime Shopify writes.",
       ),
@@ -5299,7 +5067,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["paymentTermsUpdate", "PaymentTermsUpdate"],
-      runtime_tests: ["tests/integration/payment-terms-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages payment terms updates by paymentTermsId, preserving stable payment terms IDs and schedule IDs where possible while updating downstream Order.paymentTerms and DraftOrder.paymentTerms reads.",
       ),
@@ -5338,9 +5106,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["transactionVoid", "TransactionVoid"],
-      runtime_tests: [
-        "tests/integration/order-payment-transaction-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages voids for uncaptured local authorization transactions using the current parentTransactionId request shape, retains legacy id compatibility for older fixtures, and updates downstream capturable/financial fields without proxying the supported mutation upstream.",
       ),
@@ -5352,9 +5118,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderCustomerSet", "OrderCustomerSet"],
-      runtime_tests: [
-        "tests/integration/order-lifecycle-payment-customer-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -5364,9 +5128,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderCustomerRemove", "OrderCustomerRemove"],
-      runtime_tests: [
-        "tests/integration/order-lifecycle-payment-customer-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -5376,9 +5138,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderInvoiceSend", "OrderInvoiceSend"],
-      runtime_tests: [
-        "tests/integration/order-lifecycle-payment-customer-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -5398,9 +5158,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderCancel", "OrderCancel"],
-      runtime_tests: [
-        "tests/integration/order-lifecycle-payment-customer-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -5410,7 +5168,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentCreate", "FulfillmentCreate"],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -5423,7 +5181,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentTrackingInfoUpdate",
         "FulfillmentTrackingInfoUpdate",
       ],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -5433,7 +5191,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentCancel", "FulfillmentCancel"],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -5443,7 +5201,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["fulfillment", "Fulfillment"],
-      runtime_tests: ["tests/integration/order-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 Fulfillment read root. Snapshot reads resolve from fulfillment records already present on the local order graph, return null for missing IDs, and keep top-level detail/event serialization aligned with nested Order.fulfillments.",
       ),
@@ -5455,7 +5213,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentEventCreate", "FulfillmentEventCreate"],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages events against order-backed fulfillments, exposes them through Fulfillment.events and nested Order.fulfillments, and updates captured shipment milestone fields without proxying the supported mutation upstream.",
       ),
@@ -5467,7 +5225,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["assignedFulfillmentOrders", "AssignedFulfillmentOrders"],
-      runtime_tests: ["tests/integration/order-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 fulfillment-order assignment catalog root. Snapshot/local support exposes order-backed fulfillment orders for staged request and cancellation-request workflows, filters assignmentStatus for the locally modeled request states, filters locationIds against stored assigned-location IDs, and keeps the captured live credential blocker documented for app-to-fulfillment-service association gaps.",
       ),
@@ -5479,7 +5237,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["fulfillmentOrder", "FulfillmentOrder"],
-      runtime_tests: ["tests/integration/order-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Snapshot reads resolve from fulfillment-order records already present on the local order graph, return null for missing IDs, and keep detail serialization aligned with nested Order.fulfillmentOrders, including staged hold/request/lifecycle replacement records when those were created by local supported mutations.",
       ),
@@ -5491,7 +5249,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["fulfillmentOrders", "FulfillmentOrders"],
-      runtime_tests: ["tests/integration/order-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 all-fulfillment-orders catalog root. Snapshot support lists fulfillment orders already present on the local order graph, excludes CLOSED rows unless includeClosed is true, supports local ID/status/request_status query terms, ID/status sorting, reverse, and cursor pagination without inventing absent records.",
       ),
@@ -5506,7 +5264,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "manualHoldsFulfillmentOrders",
         "ManualHoldsFulfillmentOrders",
       ],
-      runtime_tests: ["tests/integration/order-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 held fulfillment-order catalog root. Snapshot/local support returns Shopify-like empty connections when no held local work exists and lists order-backed fulfillment orders with locally staged fulfillmentHolds after fulfillmentOrderHold.",
       ),
@@ -5521,7 +5279,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentOrderAcceptCancellationRequest",
         "FulfillmentOrderAcceptCancellationRequest",
       ],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages fulfillment-service cancellation request acceptance for order-backed fulfillment orders, closes the accepted fulfillment order, preserves merchant request history, and exposes the staged requestStatus through downstream fulfillment-order reads without invoking service callbacks.",
       ),
@@ -5536,7 +5294,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentOrderAcceptFulfillmentRequest",
         "FulfillmentOrderAcceptFulfillmentRequest",
       ],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages fulfillment-service acceptance for submitted fulfillment requests, transitions requestStatus to ACCEPTED/status to IN_PROGRESS, and keeps downstream fulfillment-order reads consistent without invoking service callbacks.",
       ),
@@ -5548,7 +5306,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentOrderCancel", "FulfillmentOrderCancel"],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-234 captured 2026-04 lifecycle support for locally cancelling an open fulfillment order: the original closes with empty line items, a replacement OPEN fulfillment order carries remaining line items, downstream order/top-level reads observe both records, and runtime handling does not proxy upstream.",
       ),
@@ -5572,7 +5330,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentOrderHold", "FulfillmentOrderHold"],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-234 captured 2026-04 partial hold support with fulfillmentHold metadata, ON_HOLD status, held line-item quantities, remaining OPEN fulfillment-order creation, manualHoldsFulfillmentOrders visibility, and release read-after-write behavior.",
       ),
@@ -5599,7 +5357,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentOrderMerge", "FulfillmentOrderMerge"],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-367 captured 2026-04 merge support after a local split/deadline flow: local staging aggregates split fulfillment-order line quantities back onto the first fulfillment order, preserves the staged deadline, marks merged siblings CLOSED with zero quantities in downstream order fulfillment-order reads, and never proxies supported merge attempts upstream.",
       ),
@@ -5611,7 +5369,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentOrderMove", "FulfillmentOrderMove"],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-234 captured 2026-04 partial move support with moved/original/remaining fulfillment-order payloads, assigned-location changes, line-item quantity splitting, and downstream order/top-level reads.",
       ),
@@ -5623,7 +5381,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentOrderOpen", "FulfillmentOrderOpen"],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-234 captured 2026-04 MARK_AS_OPEN behavior after report-progress state: local staging returns OPEN status and restores open supported actions for downstream reads.",
       ),
@@ -5638,7 +5396,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentOrderRejectCancellationRequest",
         "FulfillmentOrderRejectCancellationRequest",
       ],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages cancellation request rejection for accepted order-backed fulfillment orders, transitions requestStatus to CANCELLATION_REJECTED, and preserves merchant request history without invoking service callbacks.",
       ),
@@ -5653,7 +5411,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentOrderRejectFulfillmentRequest",
         "FulfillmentOrderRejectFulfillmentRequest",
       ],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages rejection for submitted order-backed fulfillment requests, transitions requestStatus to REJECTED, preserves requested line-item quantities, and keeps downstream reads local without invoking service callbacks.",
       ),
@@ -5668,7 +5426,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentOrderReleaseHold",
         "FulfillmentOrderReleaseHold",
       ],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-234 captured 2026-04 release-hold support for app-created holds: local staging clears fulfillmentHolds, restores OPEN status/actions, and updates manualHoldsFulfillmentOrders/downstream fulfillment-order reads.",
       ),
@@ -5683,7 +5441,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentOrderReportProgress",
         "FulfillmentOrderReportProgress",
       ],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-234 captured 2026-04 report-progress support for OPEN merchant-managed fulfillment orders: local staging moves status to IN_PROGRESS and exposes MARK_AS_OPEN in downstream reads.",
       ),
@@ -5722,7 +5480,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentOrdersSetFulfillmentDeadline",
         "FulfillmentOrdersSetFulfillmentDeadline",
       ],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-367 captured 2026-04 fulfillment deadline support for open merchant-managed fulfillment orders: local staging returns `success: true`, writes `fulfillBy` on each selected fulfillment order, exposes the deadline in downstream order reads, and returns captured top-level RESOURCE_NOT_FOUND errors for unknown IDs.",
       ),
@@ -5734,7 +5492,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentOrderSplit", "FulfillmentOrderSplit"],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-367 captured 2026-04 quantity-based split support for open merchant-managed fulfillment orders: local staging keeps the original fulfillment order with reduced line-item quantities, creates a synthetic remaining fulfillment order for the split-off quantity, exposes MERGE/SPLIT supported-action changes, and preserves downstream read-after-write behavior without upstream writes.",
       ),
@@ -5749,7 +5507,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentOrderSubmitCancellationRequest",
         "FulfillmentOrderSubmitCancellationRequest",
       ],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages cancellation request creation for accepted order-backed fulfillment orders, records a CANCELLATION_REQUEST merchant request/message, and exposes it through downstream fulfillment-order reads without invoking service callbacks.",
       ),
@@ -5764,7 +5522,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fulfillmentOrderSubmitFulfillmentRequest",
         "FulfillmentOrderSubmitFulfillmentRequest",
       ],
-      runtime_tests: ["tests/integration/order-fulfillment-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages full and partial fulfillment requests for order-backed fulfillment orders, records FULFILLMENT_REQUEST merchant request messages/options, splits partial line-item quantities into submitted and unsubmitted fulfillment-order records, and avoids service callback side effects.",
       ),
@@ -5776,7 +5534,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["fulfillmentService", "FulfillmentService"],
-      runtime_tests: ["tests/integration/fulfillment-service-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 FulfillmentService ID lookup root. Snapshot reads resolve from the local fulfillment-service graph and return null for missing IDs; `Shop.fulfillmentServices` remains a nested shop field rather than a top-level list root.",
       ),
@@ -5788,7 +5546,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentServiceCreate", "FulfillmentServiceCreate"],
-      runtime_tests: ["tests/integration/fulfillment-service-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages third-party fulfillment-service creation with associated fulfillment-service location visibility, callback URL persistence, inventory/tracking flags, and raw mutation log retention. External callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked.",
       ),
@@ -5800,7 +5558,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentServiceDelete", "FulfillmentServiceDelete"],
-      runtime_tests: ["tests/integration/fulfillment-service-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages fulfillment-service deletion, including missing-id userErrors and associated location side effects for DELETE/TRANSFER versus KEEP inventory actions. Inventory movement itself remains in-memory only and no external endpoints are invoked.",
       ),
@@ -5812,7 +5570,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fulfillmentServiceUpdate", "FulfillmentServiceUpdate"],
-      runtime_tests: ["tests/integration/fulfillment-service-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages name, callback URL, tracking, inventory-management, and requires-shipping-method updates. The service handle remains stable while the associated fulfillment-service location name follows the service name.",
       ),
@@ -5824,7 +5582,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["availableCarrierServices", "AvailableCarrierServices"],
-      runtime_tests: ["tests/integration/shipping-settings-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL carrier-service availability root. Snapshot/local reads pair active local DeliveryCarrierService records with active merchant-managed locations and return an empty list when no local carrier services are available; local staging never invokes rate or service-discovery callbacks.",
       ),
@@ -5836,7 +5594,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["carrierService", "CarrierService"],
-      runtime_tests: ["tests/integration/carrier-service-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 DeliveryCarrierService ID lookup root. Snapshot reads resolve from the local carrier-service graph and return null for missing IDs; staged create/update/delete effects are visible without invoking callback URLs.",
       ),
@@ -5848,7 +5606,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["carrierServices", "CarrierServices"],
-      runtime_tests: ["tests/integration/carrier-service-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 DeliveryCarrierService connection root. Local support covers empty/no-data behavior, active/id query filters, ID/created/updated sorting, reverse ordering, and cursor pagination for snapshot plus staged carrier services.",
       ),
@@ -5860,7 +5618,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["carrierServiceCreate", "CarrierServiceCreate"],
-      runtime_tests: ["tests/integration/carrier-service-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages DeliveryCarrierService creation with name, callback URL, active status, and service-discovery flags. The original raw mutation is retained for commit replay and callback/service-discovery endpoints are not invoked at runtime.",
       ),
@@ -5872,7 +5630,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["carrierServiceDelete", "CarrierServiceDelete"],
-      runtime_tests: ["tests/integration/carrier-service-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages DeliveryCarrierService deletion with captured unknown-id userError behavior and downstream catalog/detail absence. Delete root presence was verified against Admin GraphQL 2026-04 before enabling support.",
       ),
@@ -5884,7 +5642,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["carrierServiceUpdate", "CarrierServiceUpdate"],
-      runtime_tests: ["tests/integration/carrier-service-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages DeliveryCarrierService updates for name, callback URL, active status, and service-discovery flags. Unknown IDs mirror the captured app ownership/not-found userError and downstream reads observe the staged values.",
       ),
@@ -5897,7 +5655,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["giftCard", "GiftCard"],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
       ],
       support_notes: Some(
@@ -5912,7 +5670,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["giftCards", "GiftCards"],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
       ],
       support_notes: Some(
@@ -5927,7 +5685,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["giftCardsCount", "GiftCardsCount"],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
       ],
       support_notes: Some(
@@ -5942,7 +5700,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["giftCardConfiguration", "GiftCardConfiguration"],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
       ],
       support_notes: Some(
@@ -5957,7 +5715,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["giftCardCreate", "GiftCardCreate"],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
       ],
       support_notes: Some(
@@ -5972,7 +5730,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["giftCardUpdate", "GiftCardUpdate"],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
       ],
       support_notes: Some(
@@ -5987,7 +5745,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["giftCardCredit", "GiftCardCredit"],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
       ],
       support_notes: Some(
@@ -6002,7 +5760,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["giftCardDebit", "GiftCardDebit"],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
       ],
       support_notes: Some(
@@ -6017,7 +5775,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["giftCardDeactivate", "GiftCardDeactivate"],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
       ],
       support_notes: Some(
@@ -6035,7 +5793,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "GiftCardSendNotificationToCustomer",
       ],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
       ],
       support_notes: Some(
@@ -6053,7 +5811,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "GiftCardSendNotificationToRecipient",
       ],
       runtime_tests: [
-        "tests/integration/gift-card-flow.test.ts",
+        "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam",
       ],
       support_notes: Some(
@@ -6118,9 +5876,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["deliveryPromiseSettings", "DeliveryPromiseSettings"],
-      runtime_tests: [
-        "tests/integration/delivery-settings-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-324 fixture-backed 2025-01 snapshot read. Local snapshot mode returns the captured no-promise-settings shape `deliveryDatesEnabled: false` and `processingTime: null`; mutation-backed promise provider/participant effects remain unsupported.",
       ),
@@ -6132,9 +5888,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["deliverySettings", "DeliverySettings"],
-      runtime_tests: [
-        "tests/integration/delivery-settings-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-324 fixture-backed 2025-01 snapshot read. Local snapshot mode returns captured no-legacy-mode settings with `legacyModeProfiles: false` and unblocked `legacyModeBlocked`; deliverySettingUpdate remains unsupported until setting transitions are modeled.",
       ),
@@ -6146,7 +5900,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["deliveryProfile", "DeliveryProfile"],
-      runtime_tests: ["tests/integration/delivery-profile-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 DeliveryProfile ID lookup root is fixture-backed in snapshot mode for captured scalar fields, nested location groups, zones, method definitions, product/variant assignments, unassigned locations, and missing-profile nullability. Delivery-profile writes remain unsupported until local staging models asynchronous removal jobs and nested validation behavior.",
       ),
@@ -6158,7 +5912,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["deliveryProfiles", "DeliveryProfiles"],
-      runtime_tests: ["tests/integration/delivery-profile-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 DeliveryProfile catalog root is fixture-backed in snapshot mode for first/last cursor windows, reverse ordering, merchantOwnedOnly filtering, and empty/no-data connection behavior. The local model does not invent delivery profiles when normalized fixtures are absent.",
       ),
@@ -6173,7 +5927,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "locationsAvailableForDeliveryProfilesConnection",
         "LocationsAvailableForDeliveryProfilesConnection",
       ],
-      runtime_tests: ["tests/integration/shipping-settings-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Delivery-profile origin-location helper root. Snapshot/local reads serialize active local locations through the shared connection helpers, including cursor pagination, reverse ordering, empty/no-data behavior, and local-pickup settings staged by locationLocalPickupEnable/Disable.",
       ),
@@ -6185,7 +5939,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["locationLocalPickupDisable", "LocationLocalPickupDisable"],
-      runtime_tests: ["tests/integration/shipping-settings-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally disables local pickup for active local Location records, returns captured ACTIVE_LOCATION_NOT_FOUND userErrors for unknown/inactive locations, updates downstream location(id:) and delivery-profile location reads, and preserves the original raw mutation for commit replay.",
       ),
@@ -6197,7 +5951,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["locationLocalPickupEnable", "LocationLocalPickupEnable"],
-      runtime_tests: ["tests/integration/shipping-settings-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally enables local pickup for active local Location records using captured DeliveryLocalPickupSettings payload shape, updates downstream location(id:) and delivery-profile location reads, and preserves the original raw mutation for commit replay.",
       ),
@@ -6209,7 +5963,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["shippingPackageDelete", "ShippingPackageDelete"],
-      runtime_tests: ["tests/integration/shipping-settings-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages deletion of normalized shipping packages and returns deletedId plus empty userErrors for known local package IDs. Unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape.",
       ),
@@ -6221,7 +5975,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["shippingPackageMakeDefault", "ShippingPackageMakeDefault"],
-      runtime_tests: ["tests/integration/shipping-settings-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages default package selection across normalized shipping packages and preserves raw mutation order for commit replay. Admin GraphQL exposes no package read root in this schema, so local visibility is through meta state and downstream package bookkeeping.",
       ),
@@ -6233,7 +5987,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["shippingPackageUpdate", "ShippingPackageUpdate"],
-      runtime_tests: ["tests/integration/shipping-settings-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages normalized custom shipping package name, type, default flag, weight, and dimensions updates for known package IDs. Unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape.",
       ),
@@ -6302,9 +6056,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["deliveryProfileCreate", "DeliveryProfileCreate"],
-      runtime_tests: [
-        "tests/integration/delivery-profile-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 deliveryProfileCreate stages locally for merchant-owned custom profiles, name validation, nested location groups/zones/static rate definitions, weight/price condition creation, variant association, downstream delivery profile reads, and meta log/state inspection. Carrier participants, selling-plan lifecycle semantics, and full delivery-setting eligibility validation remain outside the supported subset.",
       ),
@@ -6316,9 +6068,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["deliveryProfileRemove", "DeliveryProfileRemove"],
-      runtime_tests: [
-        "tests/integration/delivery-profile-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 deliveryProfileRemove stages locally for custom-profile removal, Shopify-like asynchronous Job payloads, missing-profile userErrors, default-profile denial, and downstream profile/catalog absence. Removal is immediate in local staged reads while commit replay retains the original mutation order for Shopify's asynchronous runtime behavior.",
       ),
@@ -6330,9 +6080,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["deliveryProfileUpdate", "DeliveryProfileUpdate"],
-      runtime_tests: [
-        "tests/integration/delivery-profile-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Admin GraphQL 2026-04 deliveryProfileUpdate stages locally for profile rename, nested location add/remove, location-group create/update/delete, zone create/update/delete, static rate method create/update/delete, condition update/delete, variant association/dissociation, and downstream profile reads. Legacy-mode transitions, carrier participant callbacks, and full selling-plan routing remain excluded until separately captured.",
       ),
@@ -6446,7 +6194,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderEditAddShippingLine", "OrderEditAddShippingLine"],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages calculated-order shipping-line additions locally and materializes committed shippingLines/totals on orderEditCommit without runtime Shopify writes.",
       ),
@@ -6461,7 +6209,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "orderEditRemoveShippingLine",
         "OrderEditRemoveShippingLine",
       ],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages calculated-order shipping-line removal locally and materializes committed shippingLines/totals on orderEditCommit without runtime Shopify writes.",
       ),
@@ -6476,7 +6224,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "orderEditUpdateShippingLine",
         "OrderEditUpdateShippingLine",
       ],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages calculated-order shipping-line updates locally and materializes committed shippingLines/totals on orderEditCommit without runtime Shopify writes.",
       ),
@@ -6488,7 +6236,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderDelete", "OrderDelete"],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages order tombstones locally so downstream order, orders, and ordersCount reads observe deletion without runtime Shopify writes.",
       ),
@@ -6500,7 +6248,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderEditAddCustomItem", "OrderEditAddCustomItem"],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages custom calculated line items locally and materializes them on orderEditCommit without runtime Shopify writes.",
       ),
@@ -6515,7 +6263,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "orderEditAddLineItemDiscount",
         "OrderEditAddLineItemDiscount",
       ],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages calculated line-item fixed/percentage discounts locally, recalculates totals, and preserves downstream committed order visibility.",
       ),
@@ -6527,7 +6275,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderEditRemoveDiscount", "OrderEditRemoveDiscount"],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages removal of locally added calculated line-item discounts and recalculates calculated-order totals without runtime Shopify writes.",
       ),
@@ -6539,7 +6287,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderCreate", "OrderCreate"],
-      runtime_tests: ["tests/integration/order-creation-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6552,9 +6300,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "abandonmentUpdateActivitiesDeliveryStatuses",
         "AbandonmentUpdateActivitiesDeliveryStatuses",
       ],
-      runtime_tests: [
-        "tests/integration/abandoned-checkout-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Local-only support for seeded/snapshot abandonment records. Unknown abandonment ids mirror the captured safe userError `abandonment_not_found`; known local records update the in-memory delivery activity map and selected abandonment payload without sending runtime writes to Shopify.",
       ),
@@ -6566,7 +6312,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["refundCreate", "RefundCreate"],
-      runtime_tests: ["tests/integration/order-refund-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6576,7 +6322,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["returnCreate", "ReturnCreate"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-311 order-backed local return creation. Stages Return rows against locally known orders/fulfillment line items, preserves original raw mutation for commit replay, and exposes staged returns through top-level return(id:) and nested Order.returns without runtime Shopify writes.",
       ),
@@ -6588,7 +6334,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["returnRequest", "ReturnRequest"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-311 order-backed return request staging. Creates REQUESTED local Return rows for known orders/fulfillment line items and keeps downstream Return/Order.returns reads consistent without upstream writes.",
       ),
@@ -6600,7 +6346,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["returnApproveRequest", "ReturnApproveRequest"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-370 local return request lifecycle support. Approves REQUESTED local returns to OPEN, creates reverse fulfillment order work, records raw mutation replay metadata, and keeps downstream return/order/reverse-fulfillment reads local.",
       ),
@@ -6612,7 +6358,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["returnDeclineRequest", "ReturnDeclineRequest"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-370 local return request lifecycle support. Declines REQUESTED local returns to DECLINED with captured reason/note metadata and does not send notification side effects or runtime Shopify writes.",
       ),
@@ -6624,7 +6370,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["returnCancel", "ReturnCancel"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-311 local lifecycle slice. Updates known local returns to CANCELED and exposes the status through top-level and nested return reads without runtime Shopify writes.",
       ),
@@ -6636,7 +6382,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["returnClose", "ReturnClose"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-311 local lifecycle slice. Updates known local returns to CLOSED, records a local closedAt timestamp, and exposes the status through downstream reads without runtime Shopify writes.",
       ),
@@ -6648,7 +6394,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["returnReopen", "ReturnReopen"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-311 local lifecycle slice. Reopens known local returns to OPEN, clears closedAt, and exposes the status through downstream reads without runtime Shopify writes.",
       ),
@@ -6660,7 +6406,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["removeFromReturn", "RemoveFromReturn"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-370 local return-line removal support. Reduces/removes local return line quantities, recomputes totalQuantity and reverse fulfillment line work, and keeps exchange-line removal explicitly unsupported until exchange fixtures exist.",
       ),
@@ -6672,7 +6418,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["returnProcess", "ReturnProcess"],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-370 bounded return processing support. Updates processed quantities, closes fully processed local returns, and syncs reverse fulfillment quantities; refund duties, shipping, financial transfers, exchange processing, and notifications remain documented side-effect boundaries.",
       ),
@@ -6687,7 +6433,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "reverseDeliveryCreateWithShipping",
         "ReverseDeliveryCreateWithShipping",
       ],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-370/HAR-442 local reverse delivery support. Creates reverse deliveries on order-backed reverse fulfillment orders with selected line items, expands an empty line-item input to all reverse fulfillment order line work, and stores local tracking/label metadata; carrier labels, notifications, and external shipping side effects are not invoked.",
       ),
@@ -6702,7 +6448,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "reverseDeliveryShippingUpdate",
         "ReverseDeliveryShippingUpdate",
       ],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-370 local reverse delivery update support. Updates staged tracking/label metadata and downstream reverseDelivery reads without runtime Shopify writes or notification side effects.",
       ),
@@ -6717,7 +6463,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "reverseFulfillmentOrderDispose",
         "ReverseFulfillmentOrderDispose",
       ],
-      runtime_tests: ["tests/integration/order-return-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-370 bounded disposition support. Updates staged reverse fulfillment order line remaining/disposed quantities and closes the reverse fulfillment order when all local work is disposed; inventory/location stock movements remain local metadata only.",
       ),
@@ -6729,7 +6475,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["draftOrder", "DraftOrder"],
-      runtime_tests: ["tests/integration/order-creation-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6739,7 +6485,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["draftOrders", "DraftOrders"],
-      runtime_tests: ["tests/integration/order-creation-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6749,7 +6495,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["draftOrdersCount", "DraftOrdersCount"],
-      runtime_tests: ["tests/integration/order-creation-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6762,9 +6508,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "draftOrderAvailableDeliveryOptions",
         "DraftOrderAvailableDeliveryOptions",
       ],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Captured 2025-01 no-data behavior returns empty delivery-rate/local-delivery/local-pickup arrays and empty pageInfo. Local snapshot/live-hybrid helper reads mirror that empty/no-data shape.",
       ),
@@ -6788,7 +6532,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderCreate", "DraftOrderCreate"],
-      runtime_tests: ["tests/integration/order-creation-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6798,7 +6542,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderComplete", "DraftOrderComplete"],
-      runtime_tests: ["tests/integration/order-creation-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6808,9 +6552,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderUpdate", "DraftOrderUpdate"],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6820,9 +6562,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderDuplicate", "DraftOrderDuplicate"],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6832,9 +6572,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderBulkAddTags", "DraftOrderBulkAddTags"],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6844,9 +6582,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderBulkRemoveTags", "DraftOrderBulkRemoveTags"],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6856,9 +6592,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderBulkDelete", "DraftOrderBulkDelete"],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6868,9 +6602,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderDelete", "DraftOrderDelete"],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6880,9 +6612,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderCalculate", "DraftOrderCalculate"],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Local support calculates DraftOrderInput into a CalculatedDraftOrder-like payload without staging or runtime Shopify writes. Covered fields share the draft-order pricing model and captured empty availableShippingRates behavior.",
       ),
@@ -6894,9 +6624,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderInvoicePreview", "DraftOrderInvoicePreview"],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Local support returns deterministic preview subject/html for staged draft orders and never sends invoice email or writes upstream.",
       ),
@@ -6908,9 +6636,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderInvoiceSend", "DraftOrderInvoiceSend"],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6920,9 +6646,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["draftOrderCreateFromOrder", "DraftOrderCreateFromOrder"],
-      runtime_tests: [
-        "tests/integration/draft-order-mutation-family-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6932,7 +6656,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderEditBegin", "OrderEditBegin"],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6942,7 +6666,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderEditAddVariant", "OrderEditAddVariant"],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6952,7 +6676,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderEditSetQuantity", "OrderEditSetQuantity"],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6962,7 +6686,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["orderEditCommit", "OrderEditCommit"],
-      runtime_tests: ["tests/integration/order-edit-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6972,10 +6696,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["discountNodes", "DiscountNodes"],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6985,10 +6706,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["discountNodesCount", "DiscountNodesCount"],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -6998,10 +6716,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["discountNode", "DiscountNode"],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7011,7 +6726,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: False,
       match_names: ["codeDiscountNodes", "CodeDiscountNodes"],
-      runtime_tests: ["tests/unit/capabilities.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7021,10 +6736,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["codeDiscountNode", "CodeDiscountNode"],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7034,10 +6746,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["codeDiscountNodeByCode", "CodeDiscountNodeByCode"],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7047,10 +6756,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["automaticDiscountNodes", "AutomaticDiscountNodes"],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-automatic-basic-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7060,10 +6766,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["automaticDiscountNode", "AutomaticDiscountNode"],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-query-shapes.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7073,10 +6776,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeBasicCreate", "DiscountCodeBasicCreate"],
-      runtime_tests: [
-        "tests/integration/discount-code-basic-lifecycle-flow.test.ts",
-        "tests/integration/discount-mutation-validation.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-193 stages native code-basic create locally with downstream discount reads and commit replay ID mapping. BXGY, free-shipping, automatic, and app-discount writes remain outside this support slice.",
       ),
@@ -7088,10 +6788,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeBasicUpdate", "DiscountCodeBasicUpdate"],
-      runtime_tests: [
-        "tests/integration/discount-code-basic-lifecycle-flow.test.ts",
-        "tests/integration/discount-mutation-validation.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-193 stages native code-basic updates locally for existing local discount records and preserves captured unknown-id DiscountUserError behavior.",
       ),
@@ -7103,10 +6800,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeBxgyCreate", "DiscountCodeBxgyCreate"],
-      runtime_tests: [
-        "tests/integration/discount-bxgy-flow.test.ts",
-        "tests/integration/discount-mutation-validation.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-195 stages native code BXGY create locally with product, variant, and collection references, read-after-write discount detail/catalog visibility, and captured validation guardrails. This models Admin GraphQL visibility only and does not claim checkout price-calculation behavior.",
       ),
@@ -7118,7 +6812,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeBxgyUpdate", "DiscountCodeBxgyUpdate"],
-      runtime_tests: ["tests/integration/discount-bxgy-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-195 stages native code BXGY updates for existing local BXGY code discounts and preserves downstream reads. Shared code activate/deactivate/delete roots apply to staged BXGY code discounts through the normalized discount state.",
       ),
@@ -7133,10 +6827,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountCodeFreeShippingCreate",
         "DiscountCodeFreeShippingCreate",
       ],
-      runtime_tests: [
-        "tests/integration/discount-mutation-validation.test.ts",
-        "tests/integration/discount-free-shipping-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7149,9 +6840,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountCodeFreeShippingUpdate",
         "DiscountCodeFreeShippingUpdate",
       ],
-      runtime_tests: [
-        "tests/integration/discount-free-shipping-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7161,9 +6850,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeActivate", "DiscountCodeActivate"],
-      runtime_tests: [
-        "tests/integration/discount-code-basic-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7173,9 +6860,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeDeactivate", "DiscountCodeDeactivate"],
-      runtime_tests: [
-        "tests/integration/discount-code-basic-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7185,9 +6870,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeDelete", "DiscountCodeDelete"],
-      runtime_tests: [
-        "tests/integration/discount-code-basic-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7197,10 +6880,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeBulkActivate", "DiscountCodeBulkActivate"],
-      runtime_tests: [
-        "tests/integration/discount-redeem-code-bulk-flow.test.ts",
-        "tests/integration/discount-app-bulk-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-366 stages id-, search-, and saved-search-scoped code-discount activation locally with a completed Job payload, meta state/log visibility, downstream status reads, and local refusal of missing, blank, or conflicting broad selectors.",
       ),
@@ -7212,11 +6892,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
-      runtime_tests: [
-        "tests/integration/discount-mutation-validation.test.ts",
-        "tests/integration/discount-redeem-code-bulk-flow.test.ts",
-        "tests/integration/discount-app-bulk-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-366 stages id-, search-, and saved-search-scoped code-discount deactivation locally with a completed Job payload, meta state/log visibility, downstream status reads, and captured selector-conflict guardrails.",
       ),
@@ -7228,10 +6904,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeBulkDelete", "DiscountCodeBulkDelete"],
-      runtime_tests: [
-        "tests/integration/discount-redeem-code-bulk-flow.test.ts",
-        "tests/integration/discount-app-bulk-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-366 stages id-, search-, and saved-search-scoped code-discount deletion locally with a completed Job payload, meta state/log visibility, downstream absence/count reads, and local refusal of missing, blank, or conflicting broad selectors.",
       ),
@@ -7243,9 +6916,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountRedeemCodeBulkAdd", "DiscountRedeemCodeBulkAdd"],
-      runtime_tests: [
-        "tests/integration/discount-redeem-code-bulk-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-366 supports explicit-code redeem-code bulk add locally with a completed DiscountRedeemCodeBulkCreation payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering.",
       ),
@@ -7262,9 +6933,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountRedeemCodeBulkDelete",
         "DiscountRedeemCodeBulkDelete",
       ],
-      runtime_tests: [
-        "tests/integration/discount-redeem-code-bulk-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-366 supports explicit redeem-code ID bulk delete locally with a completed Job payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering. Search and saved-search redeem-code selectors remain locally refused to avoid broad code deletion without captured redeem-code matching semantics.",
       ),
@@ -7279,10 +6948,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountAutomaticBasicCreate",
         "DiscountAutomaticBasicCreate",
       ],
-      runtime_tests: [
-        "tests/integration/discount-mutation-validation.test.ts",
-        "tests/integration/discount-automatic-basic-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7295,10 +6961,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountAutomaticBasicUpdate",
         "DiscountAutomaticBasicUpdate",
       ],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-automatic-basic-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7311,10 +6974,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountAutomaticBxgyCreate",
         "DiscountAutomaticBxgyCreate",
       ],
-      runtime_tests: [
-        "tests/integration/discount-bxgy-flow.test.ts",
-        "tests/integration/discount-mutation-validation.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-195 stages native automatic BXGY create locally with product, variant, and collection references, read-after-write discount detail/catalog visibility, and captured validation guardrails. This models Admin GraphQL visibility only and does not claim checkout price-calculation behavior.",
       ),
@@ -7329,7 +6989,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountAutomaticBxgyUpdate",
         "DiscountAutomaticBxgyUpdate",
       ],
-      runtime_tests: ["tests/integration/discount-bxgy-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-195 stages native automatic BXGY updates for existing local BXGY automatic discounts and preserves downstream reads. Shared automatic activate/deactivate/delete roots apply to staged BXGY automatic discounts through the normalized discount state.",
       ),
@@ -7344,10 +7004,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountAutomaticFreeShippingCreate",
         "DiscountAutomaticFreeShippingCreate",
       ],
-      runtime_tests: [
-        "tests/integration/discount-mutation-validation.test.ts",
-        "tests/integration/discount-free-shipping-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7360,9 +7017,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountAutomaticFreeShippingUpdate",
         "DiscountAutomaticFreeShippingUpdate",
       ],
-      runtime_tests: [
-        "tests/integration/discount-free-shipping-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7372,10 +7027,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountAutomaticActivate", "DiscountAutomaticActivate"],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-automatic-basic-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7388,10 +7040,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountAutomaticDeactivate",
         "DiscountAutomaticDeactivate",
       ],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-automatic-basic-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7401,10 +7050,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountAutomaticDelete", "DiscountAutomaticDelete"],
-      runtime_tests: [
-        "tests/unit/capabilities.test.ts",
-        "tests/integration/discount-automatic-basic-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7417,11 +7063,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "discountAutomaticBulkDelete",
         "DiscountAutomaticBulkDelete",
       ],
-      runtime_tests: [
-        "tests/integration/discount-mutation-validation.test.ts",
-        "tests/integration/discount-redeem-code-bulk-flow.test.ts",
-        "tests/integration/discount-app-bulk-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-366 stages id-, search-, and saved-search-scoped automatic-discount deletion locally with a completed Job payload, meta state/log visibility, downstream absence/count reads, and captured selector-conflict guardrails.",
       ),
@@ -7433,10 +7075,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeAppCreate", "DiscountCodeAppCreate"],
-      runtime_tests: [
-        "tests/integration/proxy-capability-classification.test.ts",
-        "tests/integration/discount-app-bulk-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-366 stages app-managed code discount creates locally only when the submitted functionId/functionHandle resolves to known Shopify Function metadata in local state. The proxy records appDiscountType/function ownership metadata, does not execute external Function logic, and exposes downstream app discount reads/counts.",
       ),
@@ -7448,7 +7087,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountCodeAppUpdate", "DiscountCodeAppUpdate"],
-      runtime_tests: ["tests/integration/discount-app-bulk-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-366 stages app-managed code discount updates locally for existing local DiscountCodeApp records when functionId/functionHandle resolves to known Shopify Function metadata. The proxy preserves appDiscountType/function ownership metadata and downstream reads without runtime Shopify writes.",
       ),
@@ -7460,7 +7099,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountAutomaticAppCreate", "DiscountAutomaticAppCreate"],
-      runtime_tests: ["tests/integration/discount-app-bulk-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-366 stages app-managed automatic discount creates locally only when the submitted functionId/functionHandle resolves to known Shopify Function metadata in local state. The proxy records appDiscountType/function ownership metadata, does not execute external Function logic, and exposes downstream app discount reads/counts.",
       ),
@@ -7472,7 +7111,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
-      runtime_tests: ["tests/integration/discount-app-bulk-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-366 stages app-managed automatic discount updates locally for existing local DiscountAutomaticApp records when functionId/functionHandle resolves to known Shopify Function metadata. The proxy preserves appDiscountType/function ownership metadata and downstream reads without runtime Shopify writes.",
       ),
@@ -7484,7 +7123,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["marketingActivities", "MarketingActivities"],
-      runtime_tests: ["tests/integration/marketing-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, cursor/pageInfo shapes, and staged external activity lifecycle overlays.",
       ),
@@ -7496,7 +7135,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["marketingActivity", "MarketingActivity"],
-      runtime_tests: ["tests/integration/marketing-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; staged external activity lifecycle mutations are visible immediately.",
       ),
@@ -7508,7 +7147,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["marketingEvent", "MarketingEvent"],
-      runtime_tests: ["tests/integration/marketing-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; no arbitrary marketing event records are synthesized.",
       ),
@@ -7520,7 +7159,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["marketingEvents", "MarketingEvents"],
-      runtime_tests: ["tests/integration/marketing-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, cursor/pageInfo shapes, and staged external activity lifecycle overlays.",
       ),
@@ -7532,9 +7171,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["marketingActivityCreate", "MarketingActivityCreate"],
-      runtime_tests: [
-        "tests/integration/marketing-activity-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages native/deprecated app-extension marketing activity creation from 2026-04 schema and validation evidence. The current Admin API create payload exposes userErrors only; downstream reads and meta state expose the staged non-external activity, while live success capture remains blocked until the conformance app has a deprecated marketing activity extension installed.",
       ),
@@ -7546,9 +7183,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["marketingActivityUpdate", "MarketingActivityUpdate"],
-      runtime_tests: [
-        "tests/integration/marketing-activity-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages updates for known locally staged native marketing activities without runtime Shopify writes. The 2026-04 live schema exposes only id on update input outside deprecated extension context, so local status/title update branches are documented compatibility behavior rather than captured current-schema success payloads.",
       ),
@@ -7563,9 +7198,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "marketingActivityCreateExternal",
         "MarketingActivityCreateExternal",
       ],
-      runtime_tests: [
-        "tests/integration/marketing-activity-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages external activity creation from captured write_marketing_events evidence. Preserves remoteId/UTM attribution, selected Shopify-like fields, userErrors, original mutation log retention, and downstream marketingActivity/marketingActivities visibility.",
       ),
@@ -7580,9 +7213,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "marketingActivityUpdateExternal",
         "MarketingActivityUpdateExternal",
       ],
-      runtime_tests: [
-        "tests/integration/marketing-activity-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages external activity updates by remoteId, UTM selector, or local staged id from captured write_marketing_events evidence. UTM mutation attempts return captured immutable-UTM userErrors; downstream marketing reads observe the updated activity/event fields.",
       ),
@@ -7597,9 +7228,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "marketingActivityUpsertExternal",
         "MarketingActivityUpsertExternal",
       ],
-      runtime_tests: [
-        "tests/integration/marketing-activity-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages external activity upserts using remoteId identity from captured write_marketing_events evidence. Missing remoteIds create staged activity/event rows; existing remoteIds update staged fields while preserving immutable UTM attribution.",
       ),
@@ -7614,9 +7243,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "marketingActivityDeleteExternal",
         "MarketingActivityDeleteExternal",
       ],
-      runtime_tests: [
-        "tests/integration/marketing-activity-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages external activity deletion by remoteId or staged id from captured write_marketing_events evidence. Missing activities return captured userErrors and successful deletes hide activity/event rows from downstream reads.",
       ),
@@ -7631,9 +7258,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "marketingActivitiesDeleteAllExternal",
         "MarketingActivitiesDeleteAllExternal",
       ],
-      runtime_tests: [
-        "tests/integration/marketing-activity-lifecycle-flow.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages bulk external activity deletion and returns a Shopify-like asynchronous Job payload from captured write_marketing_events evidence. Downstream marketing reads hide locally known external activities after the staged delete-all.",
       ),
@@ -7645,7 +7270,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["marketingEngagementCreate", "MarketingEngagementCreate"],
-      runtime_tests: ["tests/integration/marketing-engagement-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages activity-level marketing engagement metrics by marketing activity ID or remote ID from captured write_marketing_events evidence. Duplicate same-day writes replace the local engagement record; captured userErrors cover missing/invalid identifiers and unrecognized channel handles. Decimal conversion fields such as primaryConversions and allConversions are preserved when supplied. Immediate downstream activity adSpend remains unchanged to match captured Shopify reads.",
       ),
@@ -7657,7 +7282,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["marketingEngagementsDelete", "MarketingEngagementsDelete"],
-      runtime_tests: ["tests/integration/marketing-engagement-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Locally stages channel-level engagement deletion with captured selector validation. Activity-level engagement writes are retained because Shopify exposes no activity-level selector on marketingEngagementsDelete; delete-all removes known local channel engagement records and returns the captured result shape.",
       ),
@@ -7670,7 +7295,6 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["webhookSubscription", "WebhookSubscription"],
       runtime_tests: [
-        "tests/integration/webhook-subscription-query-shapes.test.ts",
         "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
       ],
@@ -7686,7 +7310,6 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["webhookSubscriptions", "WebhookSubscriptions"],
       runtime_tests: [
-        "tests/integration/webhook-subscription-query-shapes.test.ts",
         "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
       ],
@@ -7702,7 +7325,6 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["webhookSubscriptionsCount", "WebhookSubscriptionsCount"],
       runtime_tests: [
-        "tests/integration/webhook-subscription-query-shapes.test.ts",
         "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
       ],
@@ -7718,7 +7340,6 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["webhookSubscriptionCreate", "WebhookSubscriptionCreate"],
       runtime_tests: [
-        "tests/integration/webhook-subscription-mutation-flow.test.ts",
         "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
@@ -7735,7 +7356,6 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["webhookSubscriptionUpdate", "WebhookSubscriptionUpdate"],
       runtime_tests: [
-        "tests/integration/webhook-subscription-mutation-flow.test.ts",
         "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
@@ -7752,7 +7372,6 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["webhookSubscriptionDelete", "WebhookSubscriptionDelete"],
       runtime_tests: [
-        "tests/integration/webhook-subscription-mutation-flow.test.ts",
         "gleam/test/parity_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam",
         "gleam/test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
@@ -7768,7 +7387,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["segment", "Segment"],
-      runtime_tests: ["tests/integration/segment-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-215 captured read_customers segment detail baseline. Snapshot mode serves captured selected fields locally and returns Shopify-like null plus NOT_FOUND for unknown segment IDs.",
       ),
@@ -7780,7 +7399,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["segments", "Segments"],
-      runtime_tests: ["tests/integration/segment-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-215 captured catalog baseline. Snapshot mode preserves captured cursor/pageInfo payloads when hydrated and otherwise returns an empty connection; broader search/sort grammar remains unsupported until captured.",
       ),
@@ -7792,7 +7411,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["segmentsCount", "SegmentsCount"],
-      runtime_tests: ["tests/integration/segment-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-215 captured count precision baseline. Snapshot mode returns captured count/precision when hydrated and EXACT zero for empty local state.",
       ),
@@ -7804,7 +7423,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["segmentFilters", "SegmentFilters"],
-      runtime_tests: ["tests/integration/segment-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-215 captured filter metadata baseline. Snapshot mode preserves captured selected filter fields or returns an empty connection when no metadata has been hydrated.",
       ),
@@ -7816,7 +7435,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["segmentFilterSuggestions", "SegmentFilterSuggestions"],
-      runtime_tests: ["tests/integration/segment-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-215 captured filter suggestion baseline for a search argument. Snapshot mode preserves captured suggestion payloads or returns an empty connection; uncaptured search grammar remains unsupported.",
       ),
@@ -7828,7 +7447,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["segmentValueSuggestions", "SegmentValueSuggestions"],
-      runtime_tests: ["tests/integration/segment-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-215 captured value suggestion baseline for customer_tags. Snapshot mode preserves captured suggestion payloads or returns an empty connection; uncaptured filters remain unsupported.",
       ),
@@ -7840,7 +7459,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["segmentMigrations", "SegmentMigrations"],
-      runtime_tests: ["tests/integration/segment-query-shapes.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-215 captured migration catalog baseline. Snapshot mode preserves captured migration connection shape or returns an empty connection.",
       ),
@@ -7852,7 +7471,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customerSegmentMembers", "CustomerSegmentMembers"],
-      runtime_tests: ["tests/integration/customer-segment-member-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-217 captured member connection behavior for query, queryId, and segmentId reads. Local support is intentionally limited to number_of_orders numeric comparisons plus customer_tags CONTAINS / NOT CONTAINS string matches over effective customer state; unsupported segment grammar is not claimed.",
       ),
@@ -7867,7 +7486,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerSegmentMembersQuery",
         "CustomerSegmentMembersQuery",
       ],
-      runtime_tests: ["tests/integration/customer-segment-member-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-217 stages customer segment member query jobs locally and models immediate downstream lookup after the captured async job shape. Missing query IDs preserve Shopify's captured null plus INTERNAL_SERVER_ERROR response.",
       ),
@@ -7879,7 +7498,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["customerSegmentMembership", "CustomerSegmentMembership"],
-      runtime_tests: ["tests/integration/customer-segment-member-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-217 models membership booleans for existing local/staged segments using the selected supported query grammar, skips unknown segment IDs, and returns false for known segments when the customer is absent or does not match.",
       ),
@@ -7894,7 +7513,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerSegmentMembersQueryCreate",
         "CustomerSegmentMembersQueryCreate",
       ],
-      runtime_tests: ["tests/integration/customer-segment-member-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-217 locally stages query jobs and retains the original raw mutation for commit replay. Creation returns Shopify-like pending job fields while the stored local job is immediately available for downstream lookup/member reads; HAR-395 adds live-backed NOT CONTAINS tag grammar coverage.",
       ),
@@ -7906,7 +7525,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["segmentCreate", "SegmentCreate"],
-      runtime_tests: ["tests/integration/segment-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-216 stages segment creation locally with synthetic IDs/timestamps, captured blank/invalid-query validation, Shopify-like duplicate-name suffixing, and downstream segment catalog/count/detail reads; HAR-395 adds live-backed NOT CONTAINS tag grammar coverage.",
       ),
@@ -7918,7 +7537,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["segmentUpdate", "SegmentUpdate"],
-      runtime_tests: ["tests/integration/segment-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-216 stages segment updates locally with captured unknown-ID/validation userErrors, query/name replacement, duplicate-name suffixing, and read-after-write visibility.",
       ),
@@ -7930,7 +7549,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["segmentDelete", "SegmentDelete"],
-      runtime_tests: ["tests/integration/segment-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "HAR-216 stages segment deletion locally, returns captured unknown-ID userErrors, and removes deleted segments from downstream detail/catalog/count reads.",
       ),
@@ -7942,10 +7561,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["market", "Market"],
-      runtime_tests: [
-        "tests/integration/markets-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7955,10 +7571,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["markets", "Markets"],
-      runtime_tests: [
-        "tests/integration/markets-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7968,10 +7581,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["catalog", "Catalog"],
-      runtime_tests: [
-        "tests/integration/markets-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7981,10 +7591,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["catalogs", "Catalogs"],
-      runtime_tests: [
-        "tests/integration/markets-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -7994,10 +7601,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["catalogsCount", "CatalogsCount"],
-      runtime_tests: [
-        "tests/integration/markets-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8007,10 +7611,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["priceList", "PriceList"],
-      runtime_tests: [
-        "tests/integration/markets-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8020,10 +7621,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["priceLists", "PriceLists"],
-      runtime_tests: [
-        "tests/integration/markets-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8033,7 +7631,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["priceListCreate", "PriceListCreate"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages local price-list lifecycle state for Markets reads. Validation is conservative and fixture gaps are documented in docs/endpoints/markets.md.",
       ),
@@ -8045,7 +7643,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["priceListUpdate", "PriceListUpdate"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages local name, currency, parent adjustment, catalog link, and fixed-price reset-on-currency-change behavior for PriceList records.",
       ),
@@ -8057,7 +7655,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["priceListDelete", "PriceListDelete"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8067,7 +7665,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["priceListFixedPricesAdd", "PriceListFixedPricesAdd"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8077,7 +7675,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["priceListFixedPricesUpdate", "PriceListFixedPricesUpdate"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8087,7 +7685,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["priceListFixedPricesDelete", "PriceListFixedPricesDelete"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8100,7 +7698,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "priceListFixedPricesByProductUpdate",
         "PriceListFixedPricesByProductUpdate",
       ],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages product-scoped fixed-price upserts/deletes only for variants visible in normalized product state.",
       ),
@@ -8115,7 +7713,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "quantityPricingByVariantUpdate",
         "QuantityPricingByVariantUpdate",
       ],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages PriceList fixed prices, variant quantity rules, and quantity price breaks for variants visible in normalized product state.",
       ),
@@ -8127,7 +7725,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["quantityRulesAdd", "QuantityRulesAdd"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8137,7 +7735,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["quantityRulesDelete", "QuantityRulesDelete"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8147,10 +7745,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["webPresences", "WebPresences"],
-      runtime_tests: [
-        "tests/integration/markets-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8160,10 +7755,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["marketsResolvedValues", "MarketsResolvedValues"],
-      runtime_tests: [
-        "tests/integration/markets-query-shapes.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8173,10 +7765,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["marketLocalizableResource", "MarketLocalizableResource"],
-      runtime_tests: [
-        "tests/integration/markets-localization-flow.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Supports product metafield-backed MarketLocalizableResource identity/empty-content reads and explicitly seeded market-localizable content; default ad hoc product metafields do not invent marketLocalizableContent.",
       ),
@@ -8188,10 +7777,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["marketLocalizableResources", "MarketLocalizableResources"],
-      runtime_tests: [
-        "tests/integration/markets-localization-flow.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Supports resourceType: METAFIELD over product metafield resource identities while preserving empty marketLocalizableContent unless content is explicitly seeded; METAOBJECT returns the Shopify-like empty local slice until metaobject state exists.",
       ),
@@ -8206,10 +7792,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "marketLocalizableResourcesByIds",
         "MarketLocalizableResourcesByIds",
       ],
-      runtime_tests: [
-        "tests/integration/markets-localization-flow.test.ts",
-        "tests/unit/conformance-parity-scenarios.test.ts",
-      ],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Supports product metafield resource IDs, including default empty marketLocalizableContent behavior, and ignores unknown IDs with Shopify-like empty connection behavior.",
       ),
@@ -8221,7 +7804,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["marketCreate", "MarketCreate"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8231,7 +7814,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["marketUpdate", "MarketUpdate"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8241,7 +7824,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["marketDelete", "MarketDelete"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8251,7 +7834,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["catalogCreate", "CatalogCreate"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8261,7 +7844,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["catalogUpdate", "CatalogUpdate"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8271,7 +7854,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["catalogContextUpdate", "CatalogContextUpdate"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8281,7 +7864,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["catalogDelete", "CatalogDelete"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8291,7 +7874,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["webPresenceCreate", "WebPresenceCreate"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8301,7 +7884,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["webPresenceUpdate", "WebPresenceUpdate"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8311,7 +7894,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["webPresenceDelete", "WebPresenceDelete"],
-      runtime_tests: ["tests/integration/markets-lifecycle-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8324,7 +7907,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "marketLocalizationsRegister",
         "MarketLocalizationsRegister",
       ],
-      runtime_tests: ["tests/integration/markets-localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages market-specific values only for product metafield resources whose marketLocalizableContent is explicitly seeded; validates default ad hoc metafields as INVALID_KEY_FOR_MODEL without upstream writes.",
       ),
@@ -8336,7 +7919,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
-      runtime_tests: ["tests/integration/markets-localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Removes staged market-specific product metafield values locally when marketLocalizableContent is explicitly seeded; default ad hoc metafields return Shopify-like null localization payloads without upstream writes.",
       ),
@@ -8348,7 +7931,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["availableLocales", "AvailableLocales"],
-      runtime_tests: ["tests/integration/localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Serves the captured locale catalog slice locally, with snapshot state allowed to override the default seed.",
       ),
@@ -8360,7 +7943,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["shopLocales", "ShopLocales"],
-      runtime_tests: ["tests/integration/localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Serves shop locale reads from local state, including staged enable, update, disable, and published filtering.",
       ),
@@ -8372,7 +7955,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["translatableResource", "TranslatableResource"],
-      runtime_tests: ["tests/integration/localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Supports PRODUCT and product METAFIELD resources from the normalized local graph, including product SEO keys when present; missing or unsupported resources return null.",
       ),
@@ -8384,7 +7967,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["translatableResources", "TranslatableResources"],
-      runtime_tests: ["tests/integration/localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Supports resourceType PRODUCT and METAFIELD over locally known products/product metafields; other resource types return an explicit empty connection.",
       ),
@@ -8396,7 +7979,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["translatableResourcesByIds", "TranslatableResourcesByIds"],
-      runtime_tests: ["tests/integration/localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Resolves locally known product and product-metafield IDs and ignores unknown IDs with Shopify-like empty connection behavior.",
       ),
@@ -8408,7 +7991,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["shopLocaleEnable", "ShopLocaleEnable"],
-      runtime_tests: ["tests/integration/localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages session-local locale enablement without mutating Shopify; locale names come from the captured availableLocales slice.",
       ),
@@ -8420,7 +8003,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["shopLocaleUpdate", "ShopLocaleUpdate"],
-      runtime_tests: ["tests/integration/localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages published-state and market-web-presence association updates for locally known shop locales.",
       ),
@@ -8432,7 +8015,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["shopLocaleDisable", "ShopLocaleDisable"],
-      runtime_tests: ["tests/integration/localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages non-primary locale removal locally, removes translations for that locale, and returns the disabled locale string.",
       ),
@@ -8444,7 +8027,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["translationsRegister", "TranslationsRegister"],
-      runtime_tests: ["tests/integration/localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages translations for PRODUCT and product METAFIELD resources after local key, digest, enabled-shop-locale, and value validation; market-specific translation inputs are explicit unsupported branches.",
       ),
@@ -8456,7 +8039,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["translationsRemove", "TranslationsRemove"],
-      runtime_tests: ["tests/integration/localization-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Removes staged/base translations for supported local product and product-metafield resources without runtime Shopify writes.",
       ),
@@ -8468,7 +8051,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: OverlayRead,
       implemented: True,
       match_names: ["files", "Files"],
-      runtime_tests: ["tests/integration/media-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Serves snapshot and locally staged Files API records from normalized file state; live-hybrid overlay currently prefers local file state when present rather than merging upstream file catalogs.",
       ),
@@ -8480,7 +8063,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["stagedUploadsCreate", "StagedUploadsCreate"],
-      runtime_tests: ["tests/integration/media-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Returns inert draft-proxy staged upload target metadata without creating external upload storage or acknowledging uploaded content.",
       ),
@@ -8495,7 +8078,7 @@ pub fn default_registry() -> List(RegistryEntry) {
         "fileAcknowledgeUpdateFailed",
         "FileAcknowledgeUpdateFailed",
       ],
-      runtime_tests: ["tests/integration/media-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: Some(
         "Stages Files API update-failure acknowledgement locally for existing READY files, including FILE_DOES_NOT_EXIST and NON_READY_STATE userErrors plus downstream files read preservation. External upload storage and byte-transfer failure generation remain outside the supported boundary.",
       ),
@@ -8507,7 +8090,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fileCreate", "FileCreate"],
-      runtime_tests: ["tests/integration/media-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8517,7 +8100,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fileUpdate", "FileUpdate"],
-      runtime_tests: ["tests/integration/media-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
     RegistryEntry(
@@ -8527,7 +8110,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       execution: StageLocally,
       implemented: True,
       match_names: ["fileDelete", "FileDelete"],
-      runtime_tests: ["tests/integration/media-draft-flow.test.ts"],
+      runtime_tests: ["gleam/test/parity_test.gleam"],
       support_notes: None,
     ),
   ]
