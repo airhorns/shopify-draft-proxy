@@ -1,0 +1,179 @@
+{
+  "scenarioId": "webhook-subscription-cloud-uri-validation",
+  "operationNames": ["webhookSubscriptionCreate", "webhookSubscriptionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-cloud-uri-validation.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/webhooks_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.setup.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for public webhook subscription cloud URI validation. The primary request creates a temporary local subscription so update validation can run against an existing proxy ID; comparison targets cover only rejected create/update branches.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-pubsub-no-topic-rejected",
+        "capturePath": "$.cases.createPubsubNoTopicRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createPubsubNoTopicRejected.variables"
+        }
+      },
+      {
+        "name": "create-pubsub-bad-project-rejected",
+        "capturePath": "$.cases.createPubsubBadProjectRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createPubsubBadProjectRejected.variables"
+        }
+      },
+      {
+        "name": "create-pubsub-bad-topic-rejected",
+        "capturePath": "$.cases.createPubsubBadTopicRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createPubsubBadTopicRejected.variables"
+        }
+      },
+      {
+        "name": "create-arn-malformed-rejected",
+        "capturePath": "$.cases.createArnMalformedRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createArnMalformedRejected.variables"
+        }
+      },
+      {
+        "name": "create-arn-wrong-api-client-rejected",
+        "capturePath": "$.cases.createArnWrongApiClientRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createArnWrongApiClientRejected.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        }
+      },
+      {
+        "name": "create-kafka-rejected",
+        "capturePath": "$.cases.createKafkaRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createKafkaRejected.variables"
+        }
+      },
+      {
+        "name": "update-pubsub-no-topic-rejected",
+        "capturePath": "$.cases.updatePubsubNoTopicRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.updatePubsubNoTopicRejected.variables.webhookSubscription"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-pubsub-bad-project-rejected",
+        "capturePath": "$.cases.updatePubsubBadProjectRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.updatePubsubBadProjectRejected.variables.webhookSubscription"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-pubsub-bad-topic-rejected",
+        "capturePath": "$.cases.updatePubsubBadTopicRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.updatePubsubBadTopicRejected.variables.webhookSubscription"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-arn-malformed-rejected",
+        "capturePath": "$.cases.updateArnMalformedRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.updateArnMalformedRejected.variables.webhookSubscription"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-arn-wrong-api-client-rejected",
+        "capturePath": "$.cases.updateArnWrongApiClientRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.updateArnWrongApiClientRejected.variables.webhookSubscription"
+            }
+          },
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        }
+      },
+      {
+        "name": "update-kafka-rejected",
+        "capturePath": "$.cases.updateKafkaRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.updateKafkaRejected.variables.webhookSubscription"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
