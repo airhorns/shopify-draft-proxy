@@ -64,6 +64,15 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: Online-store body scrubber evidence conflicts with live Admin capture
+
+HAR-561 implements the ticketed local page/article body scrubber behavior, but the live conformance probe is a fidelity trap: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned a `pageCreate` body containing a script block verbatim, and the immediate `page(id:)` read returned the same verbatim body and body summary text.
+
+Practical rule:
+
+- do not add `online-store/page-body-script-scrubbed` as a captured parity spec until the Shopify behavior/source-of-truth disagreement is resolved; checking in the live fixture would assert the opposite of the ticketed behavior, while adding expected differences for `body` / `bodySummary` would mask the field under test.
+- keep local scrubber coverage in runtime tests, and re-probe Shopify before using this scenario as live fidelity evidence.
+
 ## Current: B2B same-as-shipping exposes separate public address IDs in 2026-04
 
 HAR-623 captured B2B location/address management on Admin GraphQL 2026-04. A
