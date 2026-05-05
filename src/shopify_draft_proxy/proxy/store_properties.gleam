@@ -2218,6 +2218,10 @@ fn upsert_location_metafields(
         created_at: Some(created_at),
         updated_at: Some(updated_at),
         owner_type: Some("LOCATION"),
+        market_localizable_content: option.map(found, fn(record) {
+          record.market_localizable_content
+        })
+          |> option.unwrap([]),
       )
     let record = case found {
       Some(existing_record)

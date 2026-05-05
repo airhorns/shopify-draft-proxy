@@ -2337,6 +2337,7 @@ fn metafield_store() -> store.Store {
       created_at: None,
       updated_at: None,
       owner_type: Some("PRODUCT"),
+      market_localizable_content: [],
     ),
     ProductMetafieldRecord(
       id: "gid://shopify/Metafield/origin",
@@ -2350,6 +2351,7 @@ fn metafield_store() -> store.Store {
       created_at: None,
       updated_at: None,
       owner_type: Some("PRODUCT"),
+      market_localizable_content: [],
     ),
   ])
 }

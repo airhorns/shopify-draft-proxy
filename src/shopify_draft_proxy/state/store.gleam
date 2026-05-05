@@ -4675,6 +4675,55 @@ pub fn list_effective_markets(store: Store) -> List(MarketRecord) {
   )
 }
 
+fn market_localization_key(
+  resource_id: String,
+  market_id: String,
+  key: String,
+) -> String {
+  resource_id <> "::" <> market_id <> "::" <> key
+}
+
+pub fn upsert_staged_market_localizations(
+  store: Store,
+  records: List(MarketLocalizationRecord),
+) -> Store {
+  let staged = store.staged_state
+  let next_bucket =
+    list.fold(records, staged.market_localizations, fn(acc, record) {
+      dict.insert(
+        acc,
+        market_localization_key(
+          record.resource_id,
+          record.market_id,
+          record.key,
+        ),
+        record,
+      )
+    })
+  Store(
+    ..store,
+    staged_state: StagedState(..staged, market_localizations: next_bucket),
+  )
+}
+
+pub fn list_effective_market_localizations(
+  store: Store,
+  resource_id: String,
+) -> List(MarketLocalizationRecord) {
+  dict.merge(
+    store.base_state.market_localizations,
+    store.staged_state.market_localizations,
+  )
+  |> dict.values
+  |> list.filter(fn(record) { record.resource_id == resource_id })
+  |> list.sort(fn(left, right) {
+    case string.compare(left.market_id, right.market_id) {
+      order.Eq -> string.compare(left.key, right.key)
+      other -> other
+    }
+  })
+}
+
 pub fn upsert_staged_market(
   store: Store,
   record: MarketRecord,
