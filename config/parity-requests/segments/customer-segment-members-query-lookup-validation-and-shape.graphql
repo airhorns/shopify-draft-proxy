@@ -1,0 +1,7 @@
+query CustomerSegmentMembersQueryLookupValidationAndShape($id: ID!) {
+  customerSegmentMembersQuery(id: $id) {
+    id
+    currentCount
+    done
+  }
+}

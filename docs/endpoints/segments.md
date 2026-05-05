@@ -40,8 +40,8 @@ Staged mutations:
 - `segmentDelete` records local deletion state and removes the segment from downstream detail, catalog, and count reads.
 - Captured validation coverage currently includes blank names, blank/invalid query strings, unknown IDs, missing required GraphQL arguments, and delete-after-delete/unknown delete behavior.
 - `customerSegmentMembersQueryCreate` stages a local query job and retains the original raw mutation request in the
-  mutation log for commit replay. The creation payload follows the captured async shape (`currentCount: 0`,
-  `done: false`), while the stored local job is immediately readable with the evaluated count and `done: true`.
+  mutation log for commit replay. New jobs follow Shopify's initial async shape in both the creation payload and
+  immediate downstream lookup (`status: INITIALIZED`, `currentCount: 0`, `done: false`).
 - Member-query evaluation is intentionally narrow and evidence-backed. The proxy currently supports:
   - `number_of_orders = N`, `>`, `>=`, `<`, and `<=`
   - `customer_tags CONTAINS 'tag'`
@@ -72,9 +72,6 @@ Staged mutations:
 
 ### Validation anchors
 
-- Segment reads: `tests/integration/segment-query-shapes.test.ts`
-- Segment lifecycle: `tests/integration/segment-lifecycle-flow.test.ts`
-- Customer segment members: `tests/integration/customer-segment-member-flow.test.ts`
 - Conformance fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments/segments-baseline.json`
 - Segment lifecycle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json`
 - Customer segment member fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-lifecycle.json`
@@ -84,5 +81,5 @@ Staged mutations:
 - Customer segment member parity spec: `config/parity-specs/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar parity spec: `config/parity-specs/segments/segment-query-grammar-not-contains.json`
 - Segment query grammar capture script: `scripts/capture-segment-query-grammar-conformance.ts`
-- HAR-458 review coverage: `tests/integration/customer-segment-member-flow.test.ts` covers segmentId-backed member query
-  jobs, direct query reads, and accepted-but-unmodeled filter storage boundaries.
+- HAR-458 review coverage includes segmentId-backed member query jobs, direct query reads, and accepted-but-unmodeled
+  filter storage boundaries.

@@ -1,0 +1,19 @@
+mutation InventorySetQuantitiesNameValidationSetup($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+      variants(first: 1) {
+        nodes {
+          id
+          inventoryItem {
+            id
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

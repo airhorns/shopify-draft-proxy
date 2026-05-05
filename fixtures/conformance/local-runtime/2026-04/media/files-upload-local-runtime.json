@@ -28,7 +28,16 @@
               "createdAt": "2024-01-01T00:00:01.000Z",
               "fileStatus": "UPLOADED",
               "filename": "local-runtime.jpg",
-              "image": null
+              "image": {
+                "url": "https://cdn.example.com/local-runtime.jpg",
+                "width": null,
+                "height": null
+              },
+              "preview": {
+                "image": {
+                  "url": "https://cdn.example.com/local-runtime.jpg"
+                }
+              }
             }
           ],
           "userErrors": []
@@ -47,7 +56,16 @@
               "createdAt": "2024-01-01T00:00:01.000Z",
               "fileStatus": "UPLOADED",
               "filename": "local-runtime.jpg",
-              "image": null
+              "image": {
+                "url": "https://cdn.example.com/local-runtime.jpg",
+                "width": null,
+                "height": null
+              },
+              "preview": {
+                "image": {
+                  "url": "https://cdn.example.com/local-runtime.jpg"
+                }
+              }
             }
           ],
           "pageInfo": {

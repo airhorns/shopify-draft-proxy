@@ -1,0 +1,60 @@
+{
+  "scenarioId": "media-file-create-then-image-read",
+  "operationNames": ["fileCreate", "files"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-then-image-read.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-create-then-image-read-create.graphql",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-708 captures a public-URL Files API MediaImage create followed by an immediate reverse-ordered top-level files read so the newly-created file is the first node even on a non-empty disposable shop. Shopify 2026-04 returned a fresh fileStatus of UPLOADED in the create payload, then PROCESSING on the immediate files read in this capture. The proxy keeps the original URL available through local MediaImage.image/preview immediately because it has no external asynchronous processing queue to wait on. Shopify's immediate image materialization and status transition remain timing-dependent, so image/preview payload object differences and the immediate read status are documented as local processing divergence while ID/timestamp/alt/read-after-write shape remain strict.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$[0].id",
+        "matcher": "shopify-gid:MediaImage",
+        "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
+      },
+      {
+        "path": "$[0].createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live creation timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "file-create-image-payload",
+        "capturePath": "$.create.response.data.fileCreate.files",
+        "proxyPath": "$.data.fileCreate.files",
+        "excludedPaths": ["$[0].image", "$[0].preview"]
+      },
+      {
+        "name": "immediate-files-image-read",
+        "capturePath": "$.readAfterCreate.response.data.files.nodes[0]",
+        "proxyPath": "$.data.files.nodes[0]",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live creation timestamp."
+          }
+        ],
+        "excludedPaths": ["$.fileStatus", "$.image", "$.preview"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-create-then-image-read-read.graphql"
+        }
+      }
+    ]
+  }
+}

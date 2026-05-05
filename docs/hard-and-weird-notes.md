@@ -158,6 +158,9 @@ HAR-408 captured 2026-04 request-contract drift on `harry-test-heelo.myshopify.c
   `changeFromQuantity`.
 - `inventorySetQuantities` also requires `@idempotent(key:)`, rejects `ignoreCompareQuantity` as an
   undefined input field, and each `InventorySetQuantityInput` includes `changeFromQuantity`.
+- `inventory-quantity-idempotency-directive-2026-04` replays both successful quantity roots through
+  documents with field-level `@idempotent(key:)`; `inventory-idempotency-directive-lifecycle-2026-04`
+  covers the same directive shape for `inventoryActivate` and `inventoryDeactivate`.
 - Missing `changeFromQuantity` fails as a top-level `INVALID_FIELD_ARGUMENTS` error before resolver
   side effects.
 - Missing `@idempotent` fails as a top-level `BAD_REQUEST` error with `data.<root>: null` once the
@@ -1776,6 +1779,7 @@ A small Shopify-specific shape wrinkle worth preserving:
 
 - `tagsAdd` usefully accepts either `[String!]!` values or a comma-separated string in practice, so local staging should normalize both into one trimmed, deduplicated tag list
 - `tagsRemove` is narrower; a good first pass can require an explicit array and ignore unknown/non-member tags rather than fabricating errors for no-op removals
+- HAR-583's live `productUpdate` tag-normalization capture found that tag identity and returned tag text are not the same thing. Shopify trims tag edges, deduplicates case-insensitively, and uses a whitespace-collapsed identity for matching, but it preserved the first kept tag's casing and internal whitespace in the returned `Product.tags` array (`" big   sale "` came back as `"big   sale"`). The same capture returned a top-level `MAX_INPUT_SIZE_EXCEEDED` error for 251 submitted tags and a payload `Product tags is invalid` userError for a 256-character tag.
 
 ## 39. `inventoryItemUpdate` is a useful first inventory metadata mutation, and its unknown-id error message is product-worded
 
@@ -1877,7 +1881,7 @@ Observed behavior from live writes:
 Practical rule for the proxy:
 
 - `available` remains the only quantity name that should mutate `productVariant.inventoryQuantity` and the mirrored synthetic `on_hand` change rows
-- Shopify's current valid mutation names on this host are narrower than the broader inventory-level read names: `available`, `damaged`, `incoming`, `quality_control`, `reserved`, and `safety_stock` were accepted, while `on_hand` was rejected as an invalid mutation name even though it still appears on downstream `inventoryLevels` reads
+- HAR-568 updates this older note for `inventoryAdjustQuantities`: real Shopify accepts direct `on_hand` and `committed` adjustment names in addition to the previously captured non-available names, so adjust/move/set validators must stay split by mutation root instead of sharing one inventory quantity-name union.
 - for non-available mutation names, each change needs its own `ledgerDocumentUri`; Shopify returned that requirement even when the quantity name itself was invalid
 - omitting required nested change inputs such as `inventoryItemId`, `locationId`, or `delta` did **not** yield mutation-scoped `userErrors`; Shopify failed variable coercion first and returned top-level GraphQL `INVALID_VARIABLE` errors naming the exact `changes.<index>.<field>` path
 - by contrast, an unknown-but-present inventory item id did reach the mutation resolver and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'inventoryItemId']` with message `The specified inventory item could not be found.`
@@ -2217,7 +2221,7 @@ company/contact/location create, update, delete, assignment, revoke, address,
 tax, staff, and welcome-email behavior need local lifecycle modeling before
 runtime support.
 
-- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by safe 2026-04 validation captures for missing `@idempotent` and active stocked delete rejection, while happy-path lifecycle captures still require a disposable location setup
+- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by 2026-04 disposable-location success capture, 2026-04 missing-`@idempotent` validation capture, 2026-01 no-directive success capture, and active stocked delete rejection evidence
 - `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
@@ -2239,13 +2243,17 @@ HAR-170 enabled local staging for `locationActivate`, `locationDeactivate`, and 
 
 Live evidence refreshed on this host:
 
-- Admin GraphQL 2026-04 returns a top-level `BAD_REQUEST` error when `locationActivate` or `locationDeactivate` omits the required `@idempotent` directive, with `data.<root>: null`
+- Admin GraphQL 2026-04 returns a top-level `BAD_REQUEST` error when `locationActivate` or `locationDeactivate` omits the required field-level `@idempotent` directive, with `data.<root>: null`; local staging keeps the directive optional for numeric routes before `2026-04`
+- Admin GraphQL 2026-04 rejects operation-level `@idempotent` with `directiveCannotBeApplied`; lifecycle success capture uses field-level `@idempotent`, and the local required-directive check treats operation-level directives as absent
+- `location-activate-deactivate-with-idempotency-directive` is the executable location lifecycle parity spec for field-level `@idempotent(key:)`; sibling inventory idempotency specs prove the same parser/directive shape across other documented idempotent mutation fields
+- Admin GraphQL 2026-01 accepts `locationDeactivate` without `@idempotent` for the same disposable location shape
+- deactivating and reactivating a disposable non-online-fulfilling, unstocked location keeps `activatable: true`, `deactivatable: true`, and `shipsInventory: false` while flipping `isActive` and `deletable`
 - deleting an active stocked location returns both `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` userErrors without mutating the location
 
 Practical rule for the proxy:
 
 - keep lifecycle success paths local and never proxy them upstream at runtime
-- require `@idempotent(key: "...")` before activate/deactivate staging
+- require field-level `@idempotent(key: "...")` before activate/deactivate staging only on numeric Admin API routes `>= 2026-04`
 - require a valid active destination location before locally deactivating a stocked location, then move effective inventory levels to that destination
 - tombstone successful `locationDelete` results so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
 
@@ -2826,6 +2834,9 @@ Captured facts:
 - `inventoryProperties.quantityNames` returned `available`, `committed`, `damaged`, `incoming`, `on_hand`, `quality_control`, `reserved`, and `safety_stock`; `on_hand` is composed from the component names while `incoming` is separate
 - `inventorySetQuantities` in 2025-01 still exposes deprecated `ignoreCompareQuantity`; omitting both compare data and `ignoreCompareQuantity: true` returns a user error at `["input", "ignoreCompareQuantity"]`
 - a successful available set with `ignoreCompareQuantity: true` returned `available` changes plus mirrored `on_hand` changes, left `quantityAfterChange` null, and echoed `referenceDocumentUri`
+- HAR-568 live validation captures refined the set-name boundary: `inventorySetQuantities` accepts only `available` and `on_hand`; broader read names such as `damaged` and `committed` return `INVALID_NAME` at `["input", "name"]` with the exact message `The quantity name must be either 'available' or 'on_hand'.`
+- Direct `name: "on_hand"` set writes are valid and returned paired `available` and `on_hand` change rows in the mutation payload.
+- `quantity: 1_000_000_001` returns `INVALID_QUANTITY_TOO_HIGH`; duplicate `inventoryItemId` + `locationId` rows return one `NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR` userError per duplicate row at each row's `locationId`.
 - immediate downstream `inventoryItem.variant.inventoryQuantity` summed available quantities across the active levels, but `product.totalInventory` stayed at the prior value
 - `inventoryMoveQuantities` is not a cross-location transfer primitive: moving between different locations returned `The quantities can't be moved between different locations.`
 - same-location available-to-damaged move succeeded, returned a negative `available` change and a positive `damaged` change, accepted a ledger URI on the damaged terminal, kept `on_hand` unchanged, reduced variant available quantity, and left product total stale
@@ -2914,8 +2925,13 @@ Captured facts:
 - partial `fulfillmentOrderMove` creates a new moved fulfillment order at the destination location while the original fulfillment order remains open with the remaining quantity; the payload reports the same original record as `originalFulfillmentOrder` and `remainingFulfillmentOrder`
 - `fulfillmentOrderReportProgress` changes an open merchant-managed fulfillment order to `IN_PROGRESS` and adds `MARK_AS_OPEN`; `fulfillmentOrderOpen` changes it back to `OPEN`
 - `fulfillmentOrderCancel` closes the original fulfillment order, empties its line items, and returns a replacement open fulfillment order carrying the remaining line item quantity
+- HAR-573 re-recording showed `fulfillmentOrderCancel` immediately after `fulfillmentOrderReportProgress` returns `userErrors[{ field: ["id"], message: "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." }]`, while a second cancel against the already-cancelled fulfillment order returns `field: null` with `"Fulfillment order is not in cancelable request state and can't be canceled."`
+- the same HAR-573 capture showed `fulfillmentOrderCancel` after a `fulfillmentOrderOpen` / `fulfillmentOrderClose` sequence can still succeed and create a replacement fulfillment order; do not treat every `CLOSED` status as the same lifecycle state without checking how it became closed
 - nested `Order.fulfillmentOrders` does not accept `includeClosed`; that argument belongs to the top-level `fulfillmentOrders` root
 - the captured merchant-managed setup returns guardrails for unsupported branches: reschedule requires a scheduled fulfillment order, close requires an API fulfillment service, and the attempted included-location reroute returned a Shopify internal error instead of a success payload
+- HAR-552 live capture showed the multiple-holds API currently allows 10 active holds by the same requesting app on one fulfillment order; the 11th active hold attempt returns `FULFILLMENT_ORDER_HOLD_LIMIT_REACHED`. Older notes or tickets that describe a cap of 2 should be treated as stale unless a newer capture proves a version-specific change.
+- `fulfillmentOrderHold` validation failures for duplicate handle, not-splittable partial hold, hold limit, zero quantity, and duplicate line-item IDs returned `fulfillmentHold: null`, `fulfillmentOrder: null`, and `remainingFulfillmentOrder: null` in the captured 2026-04 payload.
+- After a partial hold, Shopify reports the held fulfillment-order line-item `totalQuantity` / `remainingQuantity` as the held quantity while the nested order line item's `fulfillableQuantity` reflects the remaining fulfillable order-line quantity. The split-off remaining fulfillment order reports the same nested `fulfillableQuantity`.
 
 Practical rule:
 

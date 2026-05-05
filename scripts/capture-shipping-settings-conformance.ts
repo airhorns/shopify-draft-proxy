@@ -222,6 +222,14 @@ const beforePickupRead = await runGraphqlCapture(localPickupReadQuery, { locatio
 const beforePickupSettings = readRecord(
   readPath(capturePayload(beforePickupRead), ['data', 'location', 'localPickupSettingsV2']),
 );
+const customPickupTimeVariables = {
+  localPickupSettings: {
+    locationId: targetLocationId,
+    pickupTime: 'CUSTOM',
+    instructions: 'HAR-567 custom pickup time',
+  },
+};
+const customPickupTimeEnable = await runGraphqlCapture(localPickupEnableMutation, customPickupTimeVariables);
 const enableVariables = {
   localPickupSettings: {
     locationId: targetLocationId,
@@ -312,6 +320,7 @@ const capture = {
   captures: {
     availability,
     beforePickupRead,
+    customPickupTimeEnable,
     enable,
     afterEnableRead,
     disable,

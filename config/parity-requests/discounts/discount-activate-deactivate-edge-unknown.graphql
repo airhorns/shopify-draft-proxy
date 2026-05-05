@@ -1,0 +1,12 @@
+mutation DiscountActivateDeactivateEdgeUnknown {
+  discountCodeActivate(id: "gid://shopify/DiscountCodeNode/0") {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

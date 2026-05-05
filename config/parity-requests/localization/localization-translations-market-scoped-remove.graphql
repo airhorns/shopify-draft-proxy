@@ -1,0 +1,23 @@
+mutation LocalizationTranslationsMarketScopedRemove(
+  $resourceId: ID!
+  $keys: [String!]!
+  $locales: [String!]!
+  $marketIds: [ID!]!
+) {
+  translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales, marketIds: $marketIds) {
+    translations {
+      key
+      value
+      locale
+      outdated
+      market {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

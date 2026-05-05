@@ -1,0 +1,63 @@
+{
+  "scenarioId": "admin-platform-flow-trigger-receive-validation",
+  "operationNames": ["flowTriggerReceive"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "side-effect-safety"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-body-conflict.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-735 executable validation parity for flowTriggerReceive argument guardrails. The body/handle conflict, omitted handle, payload-only missing-handle, empty-handle string, and captured unknown-handle branches are compared against Shopify captures. UTF-8 JSON byte-size boundary behavior is runtime-test-backed.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "body-and-handle-conflict",
+        "capturePath": "$.captures.flowTriggerReceiveBodyAndHandleConflict.result.payload.data.flowTriggerReceive",
+        "proxyPath": "$.data.flowTriggerReceive",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "empty-handle-empty-body",
+        "capturePath": "$.captures.flowTriggerReceiveEmptyHandleEmptyBody.result.payload.data.flowTriggerReceive",
+        "proxyPath": "$.data.flowTriggerReceive",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-empty-body-empty-handle.graphql"
+        }
+      },
+      {
+        "name": "payload-only-no-handle",
+        "capturePath": "$.captures.flowTriggerReceivePayloadOnlyNoHandle.result.payload.data.flowTriggerReceive",
+        "proxyPath": "$.data.flowTriggerReceive",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-payload-only.graphql"
+        }
+      },
+      {
+        "name": "empty-handle-string",
+        "capturePath": "$.captures.flowTriggerReceiveEmptyHandleString.result.payload.data.flowTriggerReceive",
+        "proxyPath": "$.data.flowTriggerReceive",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-empty-handle.graphql"
+        }
+      },
+      {
+        "name": "unknown-handle",
+        "capturePath": "$.captures.flowTriggerReceiveInvalid.result.payload.data.flowTriggerReceive",
+        "proxyPath": "$.data.flowTriggerReceive",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-invalid.graphql"
+        }
+      }
+    ]
+  }
+}

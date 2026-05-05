@@ -1,0 +1,12 @@
+mutation ProductUpdateTagNormalization($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product {
+      id
+      tags
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

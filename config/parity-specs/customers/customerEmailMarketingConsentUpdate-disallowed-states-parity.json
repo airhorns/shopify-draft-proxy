@@ -1,0 +1,71 @@
+{
+  "scenarioId": "customer-email-marketing-consent-disallowed-states-parity",
+  "operationNames": ["customerEmailMarketingConsentUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-email-marketing-consent-update-parity.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/parity_test.gleam", "gleam/test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerEmailMarketingConsentUpdate-parity.graphql",
+    "variablesCapturePath": "$.validation.matrix[12].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for customerEmailMarketingConsentUpdate disallowed marketingState values captured from Shopify 2026-04: NOT_SUBSCRIBED, REDACTED, and INVALID all return top-level resolver errors with extensions.code INVALID and a null mutation payload. These branches reject before the proxy stages local consent state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "not-subscribed-errors",
+        "capturePath": "$.validation.matrix[12].response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions.code"]
+      },
+      {
+        "name": "not-subscribed-data",
+        "capturePath": "$.validation.matrix[12].response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "redacted-errors",
+        "capturePath": "$.validation.matrix[13].response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions.code"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerEmailMarketingConsentUpdate-parity.graphql",
+          "variablesCapturePath": "$.validation.matrix[13].variables"
+        }
+      },
+      {
+        "name": "redacted-data",
+        "capturePath": "$.validation.matrix[13].response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerEmailMarketingConsentUpdate-parity.graphql",
+          "variablesCapturePath": "$.validation.matrix[13].variables"
+        }
+      },
+      {
+        "name": "invalid-errors",
+        "capturePath": "$.validation.matrix[14].response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions.code"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerEmailMarketingConsentUpdate-parity.graphql",
+          "variablesCapturePath": "$.validation.matrix[14].variables"
+        }
+      },
+      {
+        "name": "invalid-data",
+        "capturePath": "$.validation.matrix[14].response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerEmailMarketingConsentUpdate-parity.graphql",
+          "variablesCapturePath": "$.validation.matrix[14].variables"
+        }
+      }
+    ]
+  }
+}

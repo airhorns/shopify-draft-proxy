@@ -1,0 +1,197 @@
+{
+  "capturedAt": "2026-05-05T01:56:39.826Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "bothQueryAndSegmentIdRejected",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateValidationAndShape($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "segmentId": "gid://shopify/Segment/1",
+            "query": "number_of_orders > 0"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "code": "INVALID",
+                  "message": "Providing both segment_id and query is not supported."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "neitherQueryNorSegmentIdRejected",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateValidationAndShape($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {}
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "code": "INVALID",
+                  "message": "You must provide one of segment_id or query."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "queryCreateInitialized",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateValidationAndShape($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "query": "number_of_orders > 0"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": {
+                "id": "gid://shopify/CustomerSegmentMembersQuery/a7ddb611-4825-11f1-80bb-a2fb9145f67f",
+                "currentCount": 0,
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentIdCreateInitialized",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateValidationAndShape($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "segmentId": "gid://shopify/Segment/648233779506"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": {
+                "id": "gid://shopify/CustomerSegmentMembersQuery/a80b1671-4825-11f1-be20-eee824b4857f",
+                "currentCount": 0,
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "queryLookupCreatedInitialized",
+      "request": {
+        "query": "#graphql\n  query CustomerSegmentMembersQueryLookupValidationAndShape($id: ID!) {\n    customerSegmentMembersQuery(id: $id) {\n      id\n      currentCount\n      done\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/CustomerSegmentMembersQuery/a7ddb611-4825-11f1-80bb-a2fb9145f67f"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQuery": {
+              "id": "gid://shopify/CustomerSegmentMembersQuery/a7ddb611-4825-11f1-80bb-a2fb9145f67f",
+              "currentCount": 0,
+              "done": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "HAR-714 live evidence for customerSegmentMembersQueryCreate validation when both or neither input selectors are supplied.",
+    "`CustomerSegmentMembersQuery.status` was not selectable on the configured 2025-01 or 2026-04 Admin schema during capture; runtime tests cover the local projected status field.",
+    "A disposable segment is created only to capture the segmentId-backed success branch, then deleted during cleanup.",
+    "CustomerSegmentMembersQuery jobs are Shopify async query state and do not have a cleanup mutation."
+  ],
+  "upstreamCalls": []
+}

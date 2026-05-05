@@ -1,0 +1,45 @@
+{
+  "cases": [
+    {
+      "name": "priceListCreate DKK success",
+      "variables": {
+        "input": {
+          "name": "Denmark",
+          "currency": "DKK",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32261898546",
+                "currency": "DKK",
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 10
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "mutation": "priceListDelete",
+    "deletedId": "gid://shopify/PriceList/32261898546",
+    "userErrors": []
+  },
+  "upstreamCalls": []
+}

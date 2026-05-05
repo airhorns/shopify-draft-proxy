@@ -1,0 +1,9 @@
+mutation FulfillmentServiceDeleteTransferInvalidDestination($id: ID!, $destinationLocationId: ID!) {
+  fulfillmentServiceDelete(id: $id, destinationLocationId: $destinationLocationId, inventoryAction: TRANSFER) {
+    deletedId
+    userErrors {
+      field
+      message
+    }
+  }
+}

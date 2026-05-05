@@ -1,0 +1,12 @@
+mutation SavedSearchDeleteShopPayload($input: SavedSearchDeleteInput!) {
+  savedSearchDelete(input: $input) {
+    deletedSavedSearchId
+    shop {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -71,7 +71,7 @@
             "customerSegmentMembersQuery": {
               "id": "gid://shopify/CustomerSegmentMembersQuery/91e8c96a-41d1-11f1-a5b0-f6c00c588c59",
               "currentCount": 0,
-              "done": true
+              "done": false
             }
           }
         }
@@ -132,6 +132,7 @@
     }
   ],
   "notes": [
+    "HAR-714 live evidence in customer-segment-members-query-create-validation-and-shape.json confirms immediate customerSegmentMembersQuery lookup stays done=false/currentCount=0 after creation; this executable empty-query scenario uses that immediate shape.",
     "A separate live setup/cleanup run created three disposable tagged customers and a segment on harry-test-heelo.myshopify.com, captured query-job polling to done=true, two-page member pagination with totalCount=3, segmentId member reads, membership isMember=true, then deleted the segment and customers.",
     "Local parity keeps the executable generic scenario to the empty numeric query branch; runtime integration tests cover staged positive pagination and membership with deterministic local IDs."
   ],

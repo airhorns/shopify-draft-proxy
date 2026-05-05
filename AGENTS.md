@@ -54,7 +54,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 
 ## Development rules
 
-- The runtime is **Gleam**, under `gleam/src/shopify_draft_proxy/`,
+- The runtime is **Gleam**, under `src/shopify_draft_proxy/`,
   compiling to both Erlang/BEAM and JavaScript. Build/recording/registry
   scripts under `scripts/` are TypeScript (`tsx`).
 - Keep runtime state in memory unless the project scope explicitly expands.
@@ -88,7 +88,7 @@ request) -> #(Response, DraftProxy)`). Embedders own the value;
   executable behavior, schema validation, discovery semantics, or comparison
   contracts instead.
 - For coverage-map-only registry work, do not add tests whose only signal is
-  that specific roots exist in `config/operation-registry.json`, have a
+  that specific roots exist in the operation registry, have a
   particular `domain`, `implemented: false`, empty `runtimeTests`, or also
   appear in the checked-in root introspection fixture. Those assertions are
   just restating the edited JSON. Use existing schema/conformance discovery
@@ -119,7 +119,7 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   even when the fixture was captured from a real store.
 - Conformance parity scenarios are discovered by convention from
   `config/parity-specs/*.json` and executed by the Gleam parity runner
-  (`gleam/test/parity_test.gleam`, surfaced through `pnpm gleam:test` on
+  (`test/parity_test.gleam`, surfaced through `pnpm gleam:test` on
   both JS and Erlang targets). Each scenario runs the proxy in
   LiveHybrid mode against a recorded `upstreamCalls` cassette in the
   capture file (cassette-playback model — see `docs/parity-runner.md`).
@@ -169,6 +169,10 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   `.mjs` for `.mts`, `.cjs` for `.cts`). Do not import local modules with
   source extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces
   this with oxlint's `import/extensions` rule.
+- Do not add files to linter/formatter ignore lists just because formatting
+  changes test fixtures or parity requests. Format the files, then fix the
+  affected tests, captures, specs, or code so the formatted files remain
+  checked by the normal tooling.
 - In unattended or CI-like workspaces, prefer `corepack pnpm ...` for
   package scripts. Bare `pnpm` may not be on `PATH` even though the repo
   is configured for pnpm through Corepack.
@@ -178,14 +182,14 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   shared helper is genuinely needed, add it to the shared module and
   document it in `docs/helpers.md` in the same change.
 - Search implementations must use
-  `gleam/src/shopify_draft_proxy/search_query_parser.gleam` for Shopify
+  `src/shopify_draft_proxy/search_query_parser.gleam` for Shopify
   Admin `query:` parsing, execution, AST traversal, term-list guards,
   and primitive term matching. Endpoint modules provide only the
   domain-specific positive term matcher and documented Shopify quirks;
   do not add resource-local query parsers or duplicated traversal
   helpers.
 - Connection implementations must use
-  `gleam/src/shopify_draft_proxy/proxy/graphql_helpers.gleam` for
+  `src/shopify_draft_proxy/proxy/graphql_helpers.gleam` for
   cursor windowing, `nodes`/`edges` serialization, and selected
   `pageInfo` fields. Keep resource-specific sorting, filtering, cursor
   derivation, and node projection in the owning resource module, then
@@ -230,31 +234,23 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   not commit code, push a branch, or open a PR. Record the blocker in the Linear
   workpad and move the issue to Human Review.
 
-## Working in `gleam/` (the runtime)
+## Working in the Gleam runtime
 
-The proxy runtime lives under `gleam/src/shopify_draft_proxy/` and
-compiles to both Erlang/BEAM and JavaScript.
+The proxy runtime lives under `src/shopify_draft_proxy/` with tests under
+`test/`, and compiles to both Erlang/BEAM and JavaScript.
 
-- **Read first:** `GLEAM_PORT_INTENT.md` (non-negotiables) and the most
-  recent 2–3 entries at the top of `GLEAM_PORT_LOG.md` (running narrative).
-- **Skill:** `.agents/skills/gleam-port/SKILL.md` covers the
-  runtime-specific patterns (domain module surface, store slice shapes,
-  `MutationOutcome`, dispatcher wiring, synthetic-id mint helpers, FFI
-  shim layout, parity cassette playback). Use it whenever a task
-  touches `gleam/`.
+- **Read first:** `GLEAM_PORT_INTENT.md` (non-negotiables). Use
+  `GLEAM_PORT_LOG.md` only as historical context when older porting decisions
+  matter for the task.
 - **Generic Gleam idioms** (decoders, opaque types, OTP, etc.) live in
-  the separate `.agents/skills/gleam/SKILL.md`. The two skills are
-  complementary.
+  `.agents/skills/gleam/SKILL.md`.
 - **Both targets, every change:** `gleam test --target erlang` AND
   `gleam test --target javascript`. Drift between them is the most
   expensive bug class.
-- **Append a log entry** to `GLEAM_PORT_LOG.md` for every pass. The log
-  is the running narrative; `GLEAM_PORT_INTENT.md` stays stable.
 
-The legacy TypeScript runtime under `src/` is being retired
-domain-by-domain as Gleam ports reach parity. Do not add new behavior
-to `src/`; new operation handling, fidelity work, and domain
-expansions land in Gleam.
+The legacy TypeScript runtime has been removed. Do not add TypeScript
+runtime behavior back under `src/`; new operation handling, fidelity
+work, and domain expansions land in Gleam.
 
 ## Suggested workflow
 

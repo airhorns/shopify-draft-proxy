@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-29T01:46:14.683Z",
+  "capturedAt": "2026-05-05T01:58:36.108Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "captures": {
@@ -679,7 +679,7 @@
               "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1986,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -1186,6 +1186,17 @@
               },
               null
             ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 35,
+              "actualQueryCost": 34,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1966,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
