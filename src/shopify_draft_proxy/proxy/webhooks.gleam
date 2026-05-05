@@ -680,6 +680,12 @@ pub type UserError {
   UserError(field: List(String), message: String)
 }
 
+type UriInput {
+  UriAbsent
+  UriBlank
+  UriPresent(String)
+}
+
 /// Predicate matching `isWebhookSubscriptionMutationRoot`. Three
 /// top-level mutations the TS handler dispatches.
 pub fn is_webhook_subscription_mutation_root(name: String) -> Bool {
@@ -913,15 +919,7 @@ fn handle_create(
       let input = read_webhook_subscription_input(args)
       let user_errors = case input {
         Some(input_dict) ->
-          case normalize_uri_from_input(input_dict) {
-            Some(_) -> []
-            None -> [
-              UserError(
-                field: ["webhookSubscription", "callbackUrl"],
-                message: "Address can't be blank",
-              ),
-            ]
-          }
+          validate_webhook_subscription_input(input_dict, require_uri: True)
         None -> []
       }
       let #(record_opt, store_after, identity_after, staged_ids) = case
@@ -1018,9 +1016,11 @@ fn handle_update(
         Some(gid) -> store.get_effective_webhook_subscription_by_id(store, gid)
         None -> None
       }
-      let user_errors = case existing {
-        Some(_) -> []
-        None -> [
+      let user_errors = case existing, input {
+        Some(_), Some(input_dict) ->
+          validate_webhook_subscription_input(input_dict, require_uri: False)
+        Some(_), None -> []
+        None, _ -> [
           UserError(
             field: ["id"],
             message: "Webhook subscription does not exist",
@@ -1266,6 +1266,241 @@ fn read_webhook_subscription_input(
 
 // `read_optional_string` and `read_optional_string_array` come from
 // `proxy/mutation_helpers` (Pass 14 lift).
+
+fn validate_webhook_subscription_input(
+  input: Dict(String, root_field.ResolvedValue),
+  require_uri require_uri: Bool,
+) -> List(UserError) {
+  list.append(
+    validate_webhook_uri_input(input, require_uri),
+    validate_webhook_filter_input(input),
+  )
+}
+
+fn validate_webhook_uri_input(
+  input: Dict(String, root_field.ResolvedValue),
+  require_uri: Bool,
+) -> List(UserError) {
+  case read_uri_input(input), require_uri {
+    UriAbsent, True -> [blank_address_user_error()]
+    UriAbsent, False -> []
+    UriBlank, _ -> [blank_address_user_error()]
+    UriPresent(uri), _ -> validate_webhook_uri(uri)
+  }
+}
+
+fn read_uri_input(input: Dict(String, root_field.ResolvedValue)) -> UriInput {
+  case read_uri_input_field(input, "uri") {
+    UriAbsent -> read_uri_input_field(input, "callbackUrl")
+    found -> found
+  }
+}
+
+fn read_uri_input_field(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> UriInput {
+  case dict.get(input, name) {
+    Ok(root_field.StringVal(raw)) ->
+      case string.trim(raw) {
+        "" -> UriBlank
+        trimmed -> UriPresent(trimmed)
+      }
+    Ok(root_field.NullVal) -> UriBlank
+    _ -> UriAbsent
+  }
+}
+
+fn blank_address_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address can't be blank",
+  )
+}
+
+fn invalid_url_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is not a valid URL",
+  )
+}
+
+fn unsupported_protocol_user_error(protocol: String) -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address protocol " <> protocol <> " is not supported",
+  )
+}
+
+fn invalid_pubsub_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic",
+  )
+}
+
+fn invalid_arn_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is not a valid ARN",
+  )
+}
+
+fn address_too_long_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is too long",
+  )
+}
+
+fn validate_webhook_uri(uri: String) -> List(UserError) {
+  case string.byte_size(uri) > 4096 {
+    True -> [address_too_long_user_error()]
+    False ->
+      case string.starts_with(uri, "pubsub://") {
+        True -> validate_pubsub_uri(uri)
+        False ->
+          case string.starts_with(uri, "arn:aws:events:") {
+            True -> validate_eventbridge_arn(uri)
+            False -> validate_https_uri(uri)
+          }
+      }
+  }
+}
+
+fn validate_https_uri(uri: String) -> List(UserError) {
+  case string.starts_with(uri, "https://") {
+    False ->
+      case string.split_once(uri, "://") {
+        Ok(#(protocol, _)) -> [
+          unsupported_protocol_user_error(protocol <> "://"),
+        ]
+        Error(_) -> [invalid_url_user_error()]
+      }
+    True -> {
+      let host = https_uri_host(uri)
+      case host == "" || has_url_whitespace(uri) || is_disallowed_host(host) {
+        True -> [invalid_url_user_error()]
+        False -> []
+      }
+    }
+  }
+}
+
+fn https_uri_host(uri: String) -> String {
+  let without_scheme = string.drop_start(uri, 8)
+  without_scheme
+  |> split_before("/")
+  |> split_before("?")
+  |> split_before("#")
+  |> split_before(":")
+  |> string.lowercase
+}
+
+fn split_before(value: String, separator: String) -> String {
+  case string.split_once(value, separator) {
+    Ok(#(left, _)) -> left
+    Error(_) -> value
+  }
+}
+
+fn has_url_whitespace(value: String) -> Bool {
+  string.contains(value, " ")
+  || string.contains(value, "\t")
+  || string.contains(value, "\n")
+  || string.contains(value, "\r")
+}
+
+fn is_disallowed_host(host: String) -> Bool {
+  host == "localhost"
+  || host == "127.0.0.1"
+  || host == "0.0.0.0"
+  || host == "::1"
+  || string.ends_with(host, ".local")
+}
+
+fn validate_pubsub_uri(uri: String) -> List(UserError) {
+  let tail = string.drop_start(uri, 9)
+  case string.split_once(tail, ":") {
+    Ok(#(project, topic)) ->
+      case
+        project != ""
+        && topic != ""
+        && valid_pubsub_project(project)
+        && valid_pubsub_topic(topic)
+      {
+        True -> []
+        False -> [
+          unsupported_protocol_user_error("pubsub://"),
+          invalid_pubsub_user_error(),
+        ]
+      }
+    Error(_) -> [
+      unsupported_protocol_user_error("pubsub://"),
+      invalid_pubsub_user_error(),
+    ]
+  }
+}
+
+fn valid_pubsub_project(value: String) -> Bool {
+  valid_webhook_destination_token(
+    value,
+    "abcdefghijklmnopqrstuvwxyz0123456789-",
+  )
+}
+
+fn valid_pubsub_topic(value: String) -> Bool {
+  valid_webhook_destination_token(
+    value,
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~+%",
+  )
+}
+
+fn valid_webhook_destination_token(value: String, allowed: String) -> Bool {
+  case string.to_graphemes(value) {
+    [] -> False
+    chars -> list.all(chars, fn(char) { string.contains(allowed, char) })
+  }
+}
+
+fn validate_eventbridge_arn(uri: String) -> List(UserError) {
+  let parts = string.split(uri, ":")
+  case parts {
+    ["arn", "aws", "events", region, account, resource] ->
+      case
+        region != ""
+        && account != ""
+        && string.starts_with(resource, "event-bus/")
+        && string.drop_start(resource, 10) != ""
+      {
+        True -> []
+        False -> [invalid_arn_user_error()]
+      }
+    _ -> [invalid_arn_user_error()]
+  }
+}
+
+fn validate_webhook_filter_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.has_key(input, "filter") {
+    False -> []
+    True ->
+      case read_optional_string(input, "filter") {
+        Some(raw) ->
+          case string.trim(raw) {
+            "" -> []
+            _ -> [
+              UserError(
+                field: ["webhookSubscription", "filter"],
+                message: "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.",
+              ),
+            ]
+          }
+        None -> []
+      }
+  }
+}
 
 fn normalize_uri_from_input(
   input: Dict(String, root_field.ResolvedValue),
