@@ -22,7 +22,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, respond_to_query,
+  type MutationFieldResult, type MutationOutcome, MutationFieldResult,
+  MutationOutcome, respond_to_query,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
@@ -167,6 +168,7 @@ pub fn handle_query_request(
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  _request_path: String,
   document: String,
   variables: Dict(String, ResolvedValue),
   upstream: UpstreamContext,
@@ -282,14 +284,6 @@ fn handle_mutation_fields(
     identity: final_identity,
     staged_resource_ids: all_staged,
     log_drafts: all_drafts,
-  )
-}
-
-type MutationFieldResult {
-  MutationFieldResult(
-    key: String,
-    payload: Json,
-    staged_resource_ids: List(String),
   )
 }
 

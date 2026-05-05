@@ -50,6 +50,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser.{
   type SearchQueryTerm, SearchQueryTermListOptions,
 }
@@ -706,6 +707,7 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   process_mutation_with_api_client(
     store,
@@ -713,7 +715,7 @@ pub fn process_mutation(
     request_path,
     document,
     variables,
-    None,
+    app_identity.read_requesting_api_client_id(upstream.headers),
   )
 }
 

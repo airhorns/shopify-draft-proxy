@@ -20,6 +20,11 @@
 //// - `read_optional_string` / `read_optional_string_array` —
 ////   resolved-arg readers that ignore non-matching variants. Both
 ////   `webhooks` and `saved_searches` use these.
+//// - `MutationFieldResult` — the shared `{key, payload, staged_resource_ids}`
+////   shape used by simple-shape mutation handlers (segments, functions,
+////   privacy, gift_cards, localization, media). Domains with extra fields
+////   (top-level errors, log-draft toggles, store/identity threading) keep
+////   their local types.
 
 import gleam/dict.{type Dict}
 import gleam/int
@@ -1192,6 +1197,20 @@ pub fn parse_failed_outcome(
     identity: identity,
     staged_resource_ids: [],
     log_drafts: [],
+  )
+}
+
+/// Per-field result returned by simple mutation handlers. Shared by
+/// domains whose mutation roots fit a uniform shape: a JSON-serialised
+/// payload keyed under the response alias, plus the resource ids that
+/// were staged this turn. Domains with extra cross-cutting concerns
+/// (top-level errors, log-draft toggles, etc.) keep their own local
+/// type.
+pub type MutationFieldResult {
+  MutationFieldResult(
+    key: String,
+    payload: Json,
+    staged_resource_ids: List(String),
   )
 }
 

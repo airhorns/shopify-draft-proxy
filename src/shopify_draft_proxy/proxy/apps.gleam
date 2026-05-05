@@ -43,6 +43,7 @@ import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -906,9 +907,9 @@ pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   request_path: String,
-  origin: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -918,7 +919,7 @@ pub fn process_mutation(
         store,
         identity,
         request_path,
-        origin,
+        upstream.origin,
         document,
         fields,
         fragments,

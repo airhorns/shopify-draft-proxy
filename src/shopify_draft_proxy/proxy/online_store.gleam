@@ -299,14 +299,9 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
+  process_mutation_with_upstream(store, identity, document, variables, upstream)
 }
 
 pub fn process_mutation_with_upstream(
