@@ -554,33 +554,45 @@ pub fn store_credit_adjustments_validate_currency_amount_expiry_and_limits_test(
 
   assert_store_credit_error(
     proxy,
-    "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"2.00\", currencyCode: CAD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
-    "mismatching_currency",
+    "mutation { storeCreditAccountCredit(id: \"gid://shopify/StoreCreditAccount/3\", creditInput: { creditAmount: { amount: \"2.00\", currencyCode: CAD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
+    "MISMATCHING_CURRENCY",
+  )
+  let #(Response(status: cad_status, body: cad_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"2.00\", currencyCode: CAD } }) { storeCreditAccountTransaction { account { balance { amount currencyCode } owner { ... on Customer { id } } } balanceAfterTransaction { amount currencyCode } } userErrors { field message code } } }",
+    )
+  assert cad_status == 200
+  let cad_json = json.to_string(cad_body)
+  assert string.contains(cad_json, "\"userErrors\":[]")
+  assert string.contains(
+    cad_json,
+    "\"balanceAfterTransaction\":{\"amount\":\"2.0\",\"currencyCode\":\"CAD\"}",
   )
   assert_store_credit_error(
     proxy,
     "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"0.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
-    "negative_or_zero_amount",
+    "NEGATIVE_OR_ZERO_AMOUNT",
   )
   assert_store_credit_error(
     proxy,
     "mutation { storeCreditAccountDebit(id: \"gid://shopify/Customer/1\", debitInput: { debitAmount: { amount: \"-1.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
-    "negative_or_zero_amount",
+    "NEGATIVE_OR_ZERO_AMOUNT",
   )
   assert_store_credit_error(
     proxy,
     "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"1.00\", currencyCode: USD }, expiresAt: \"2000-01-01T00:00:00Z\" }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
-    "expires_at_in_past",
+    "EXPIRES_AT_IN_PAST",
   )
   assert_store_credit_error(
     proxy,
     "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"1.00\", currencyCode: XXX } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
-    "unsupported_currency",
+    "UNSUPPORTED_CURRENCY",
   )
   assert_store_credit_error(
     proxy,
     "mutation { storeCreditAccountDebit(id: \"gid://shopify/Customer/1\", debitInput: { debitAmount: { amount: \"99.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
-    "credit_limit_exceeded",
+    "INSUFFICIENT_FUNDS",
   )
 }
 

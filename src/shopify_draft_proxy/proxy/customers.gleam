@@ -5751,8 +5751,8 @@ fn handle_store_credit_adjustment(
                 True -> [
                   UserError(
                     [input_name, amount_key, "currencyCode"],
-                    "The currency provided does not match the currency of the store credit account.",
-                    Some("mismatching_currency"),
+                    "The currency provided does not match the currency of the store credit account",
+                    Some("MISMATCHING_CURRENCY"),
                   ),
                 ]
                 False -> []
@@ -5768,8 +5768,8 @@ fn handle_store_credit_adjustment(
                 True -> [
                   UserError(
                     [input_name, amount_key, "amount"],
-                    "Credit limit exceeded",
-                    Some("credit_limit_exceeded"),
+                    "The store credit account does not have sufficient funds to satisfy the request",
+                    Some("INSUFFICIENT_FUNDS"),
                   ),
                 ]
                 False -> []
@@ -5932,8 +5932,8 @@ fn store_credit_adjustment_input_errors(
     True -> [
       UserError(
         [input_name, amount_key, "amount"],
-        "Amount must be greater than zero",
-        Some("negative_or_zero_amount"),
+        "A positive amount must be used to credit a store credit account",
+        Some("NEGATIVE_OR_ZERO_AMOUNT"),
       ),
     ]
     False -> []
@@ -5946,7 +5946,7 @@ fn store_credit_adjustment_input_errors(
       UserError(
         [input_name, amount_key, "currencyCode"],
         "Currency is not supported",
-        Some("unsupported_currency"),
+        Some("UNSUPPORTED_CURRENCY"),
       ),
     ]
   }
@@ -5956,8 +5956,8 @@ fn store_credit_adjustment_input_errors(
         True -> [
           UserError(
             [input_name, "expiresAt"],
-            "Expiration must be in the future",
-            Some("expires_at_in_past"),
+            "The expiry date must be in the future",
+            Some("EXPIRES_AT_IN_PAST"),
           ),
         ]
         False -> []
@@ -6020,7 +6020,13 @@ fn resolve_store_credit_owner_account(
   money: Money,
   is_credit: Bool,
 ) -> StoreCreditAccountResolution {
-  case store.get_effective_store_credit_account_by_owner_id(store, owner_id) {
+  case
+    store.get_effective_store_credit_account_by_owner_id_and_currency(
+      store,
+      owner_id,
+      money.currency_code,
+    )
+  {
     Some(account) -> StoreCreditAccountResolved(account, identity)
     None ->
       case is_credit {
@@ -6065,12 +6071,12 @@ fn store_credit_account_not_found() -> UserError {
   UserError(
     ["id"],
     "Store credit account does not exist",
-    Some("account_not_found"),
+    Some("ACCOUNT_NOT_FOUND"),
   )
 }
 
 fn store_credit_owner_not_found() -> UserError {
-  UserError(["id"], "Owner does not exist", Some("owner_not_found"))
+  UserError(["id"], "Owner does not exist", Some("OWNER_NOT_FOUND"))
 }
 
 fn is_supported_store_credit_currency(currency_code: String) -> Bool {

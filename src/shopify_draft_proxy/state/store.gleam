@@ -10427,6 +10427,26 @@ pub fn get_effective_store_credit_account_by_owner_id(
   store: Store,
   owner_id: String,
 ) -> Option(StoreCreditAccountRecord) {
+  find_effective_store_credit_account(store, fn(account) {
+    account.customer_id == owner_id
+  })
+}
+
+pub fn get_effective_store_credit_account_by_owner_id_and_currency(
+  store: Store,
+  owner_id: String,
+  currency_code: String,
+) -> Option(StoreCreditAccountRecord) {
+  find_effective_store_credit_account(store, fn(account) {
+    account.customer_id == owner_id
+    && account.balance.currency_code == currency_code
+  })
+}
+
+fn find_effective_store_credit_account(
+  store: Store,
+  predicate: fn(StoreCreditAccountRecord) -> Bool,
+) -> Option(StoreCreditAccountRecord) {
   dict.keys(dict.merge(
     store.base_state.store_credit_accounts,
     store.staged_state.store_credit_accounts,
@@ -10435,7 +10455,7 @@ pub fn get_effective_store_credit_account_by_owner_id(
   |> list.find_map(fn(id) {
     case get_effective_store_credit_account_by_id(store, id) {
       Some(account) ->
-        case account.customer_id == owner_id {
+        case predicate(account) {
           True -> Ok(account)
           False -> Error(Nil)
         }
