@@ -61,7 +61,7 @@ Local staged mutations:
 - downstream `giftCard.transactions` read-after-write behavior after staged credit/debit lifecycle steps
 - explicit non-execution of notification roots because those roots send customer-visible side effects
 - create payload quirks used by the local serializer: Shopify returned a lower-case `giftCardCode` echo and bullet-masked `maskedCode` value for the captured explicit code
-- create validation quirks captured for HAR-692: duplicate explicit codes returned `field: ["input", "code"]`, `code: null`, and `message: "Code has already been taken"` on the 2025-01 fixture. HAR-686 makes the local gift-card `UserError` model require a code for every emitted user error, so the proxy now returns `TAKEN` for this duplicate-code branch and documents that single captured mismatch in the parity spec.
+- create validation quirks captured for HAR-692: duplicate explicit codes returned `field: ["input", "code"]`, `code: null`, and `message: "Code has already been taken"` on the 2025-01 fixture; the local proxy follows that captured public Admin API shape for this branch
 
 The fixture shows the current conformance credential can read gift cards, perform the core gift-card lifecycle with `read_gift_cards` and `write_gift_cards`, and exercise transaction reads/writes with `read_gift_card_transactions` and `write_gift_card_transactions`.
 

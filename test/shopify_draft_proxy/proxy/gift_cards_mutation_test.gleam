@@ -367,7 +367,7 @@ pub fn gift_card_create_rejects_duplicate_code_test() {
       "mutation { giftCardCreate(input: { initialValue: \"10\", code: \"valid code-123\" }) { giftCard { id } giftCardCode userErrors { field code message } } }",
     )
   assert body
-    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"code\"],\"code\":\"TAKEN\",\"message\":\"Code has already been taken\"}]}}}"
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"code\"],\"code\":null,\"message\":\"Code has already been taken\"}]}}}"
 }
 
 pub fn gift_card_create_rejects_missing_customer_test() {

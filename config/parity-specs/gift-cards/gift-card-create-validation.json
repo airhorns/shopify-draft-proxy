@@ -73,14 +73,7 @@
         "name": "duplicate code returns captured already-taken error after local success",
         "capturePath": "$.operations.createValidation.response.payload.data.duplicate",
         "proxyPath": "$.data.duplicate",
-        "selectedPaths": ["$.giftCard", "$.giftCardCode", "$.userErrors"],
-        "expectedDifferences": [
-          {
-            "path": "$[0].code",
-            "matcher": "exact-string:TAKEN",
-            "reason": "HAR-686 makes gift-card userError codes non-null locally; the existing 2025-01 duplicate-code capture returned null for this branch."
-          }
-        ]
+        "selectedPaths": ["$.giftCard", "$.giftCardCode", "$.userErrors"]
       },
       {
         "name": "auto generated code success preserves stable money and errors",
