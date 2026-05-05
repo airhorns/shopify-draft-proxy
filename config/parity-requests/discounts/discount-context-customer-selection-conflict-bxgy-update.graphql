@@ -1,0 +1,13 @@
+mutation DiscountContextCustomerSelectionConflictBxgyUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {
+  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
