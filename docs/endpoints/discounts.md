@@ -150,12 +150,5 @@ Staged discount bulk mutations:
 
 ### Validation anchors
 
-- Discount reads: `tests/integration/discount-query-shapes.test.ts`
-- Discount code-basic lifecycle: `tests/integration/discount-code-basic-lifecycle-flow.test.ts`
-- Automatic basic lifecycle staging: `tests/integration/discount-automatic-basic-flow.test.ts`
-- BXGY lifecycle staging: `tests/integration/discount-bxgy-flow.test.ts`
-- Free-shipping lifecycle staging: `tests/integration/discount-free-shipping-lifecycle-flow.test.ts`
-- Discount mutation validation: `tests/integration/discount-mutation-validation.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/discounts/discount*.json` and matching files under `config/parity-requests/discounts/`; singular detail fixtures are `discount-code-basic-detail-read.json` and `discount-automatic-basic-detail-read.json`, and lifecycle evidence includes `discount-bxgy-lifecycle.json` plus `discount-free-shipping-lifecycle.json`, under the 2026-04 conformance fixture domain directory.
-- Registry/coverage tests: `tests/unit/operation-registry.test.ts`, `tests/unit/graphql-operation-coverage.test.ts`
 - Capture helper tests: `tests/unit/discount-conformance-lib.test.ts`

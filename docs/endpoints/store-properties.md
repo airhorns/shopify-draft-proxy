@@ -71,11 +71,4 @@ Remaining gaps are intentional rather than silent support claims:
 
 ### Validation anchors
 
-- Shop reads: `tests/integration/shop-query-shapes.test.ts`
-- Shop policy mutation flow: `tests/integration/shop-policy-update-flow.test.ts`
-- Generic Node coverage for `ShopAddress` / `ShopPolicy`: `config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json` and `tests/integration/admin-platform-query-shapes.test.ts`
-- Location reads: `tests/integration/location-query-shapes.test.ts`
-- Fulfillment-service location linkage: `tests/integration/fulfillment-service-flow.test.ts`
-- Business entity and Shopify Payments account reads: `tests/integration/business-entity-query-shapes.test.ts`
-- Generic publishable slices: `tests/integration/product-draft-flow.test.ts`, `tests/integration/collection-draft-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/store-properties/shop*.json`, `config/parity-specs/store-properties/location*.json`, `config/parity-specs/store-properties/locations*.json`, `config/parity-specs/store-properties/business*.json`, `config/parity-specs/store-properties/publishable*.json`, and matching files under `config/parity-requests/store-properties/`

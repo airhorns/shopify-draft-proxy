@@ -41,7 +41,7 @@ This means the project is not just a request recorder. It must maintain a **stat
 
 ## Meta API requirements
 
-The proxy must expose a meta/control API on the same Koa server.
+The proxy must expose a meta/control API on the same HTTP server/adapter.
 
 Required operations:
 
@@ -129,8 +129,8 @@ Future agents should avoid turning this into any of the following:
 
 These are deliberate for v1:
 
-- TypeScript project
-- Koa server
+- Gleam runtime compiled to JavaScript and Erlang
+- Node HTTP adapter for JavaScript callers
 - strict TypeScript configuration
 - pnpm package manager
 - in-memory state only
