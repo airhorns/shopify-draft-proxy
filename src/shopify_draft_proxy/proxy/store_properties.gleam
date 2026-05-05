@@ -25,7 +25,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   SrcObject, SrcString, default_connection_page_info_options,
   default_connection_window_options, default_selected_field_options,
   get_document_fragments, get_field_response_key, get_selected_child_fields,
-  paginate_connection_items, project_graphql_value, serialize_connection,
+  paginate_connection_items, project_graphql_value, read_arg_bool,
+  read_arg_object, read_arg_string, read_arg_string_list, serialize_connection,
   src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -623,7 +624,7 @@ fn serialize_location_root(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let location = case read_string(args, "id") {
+  let location = case read_arg_string(args, "id") {
     Some(id) -> store.get_effective_store_property_location_by_id(store, id)
     None ->
       case store.list_effective_store_property_locations(store) {
@@ -647,7 +648,7 @@ fn serialize_location_by_identifier_result(
   let args = graphql_helpers.field_args(field, variables)
   case dict.get(args, "identifier") {
     Ok(root_field.ObjectVal(identifier)) ->
-      case read_string(identifier, "id") {
+      case read_arg_string(identifier, "id") {
         Some(id) ->
           QueryFieldResult(
             key: key,
@@ -742,7 +743,7 @@ fn serialize_business_entity_root(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  let entity = case read_string(args, "id") {
+  let entity = case read_arg_string(args, "id") {
     Some(id) -> store.get_business_entity_by_id(store, id)
     None ->
       find_primary_business_entity(store.list_effective_business_entities(store))
@@ -760,7 +761,7 @@ fn serialize_publishable_root(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
-  case read_string(args, "id") {
+  case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_publishable_by_id(store, id) {
         Some(record) -> project_store_property_record(record, field, fragments)
@@ -1245,7 +1246,7 @@ fn stage_location_lifecycle_mutation(
   upstream: UpstreamContext,
 ) -> GenericMutationResult {
   let args = graphql_helpers.field_args(field, variables)
-  let store = case read_string(args, "locationId") {
+  let store = case read_arg_string(args, "locationId") {
     Some(id) -> hydrate_location_if_missing(store, upstream, id)
     None -> store
   }
@@ -1274,10 +1275,11 @@ fn stage_location_add(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> GenericMutationResult {
   let args = graphql_helpers.field_args(field, variables)
-  let input = read_object(args, "input")
-  let name = input |> option.then(fn(values) { read_string(values, "name") })
+  let input = read_arg_object(args, "input")
+  let name =
+    input |> option.then(fn(values) { read_arg_string(values, "name") })
   let address =
-    input |> option.then(fn(values) { read_object(values, "address") })
+    input |> option.then(fn(values) { read_arg_object(values, "address") })
   case name, input, address {
     Some(value), Some(input_values), Some(address_values) ->
       case
@@ -1307,7 +1309,7 @@ fn stage_location_add(
             #(
               "fulfillsOnlineOrders",
               StorePropertyBool(
-                read_bool(input_values, "fulfillsOnlineOrders")
+                read_arg_bool(input_values, "fulfillsOnlineOrders")
                 |> option.unwrap(True),
               ),
             ),
@@ -1444,7 +1446,7 @@ fn location_add_address_data(
     "phone",
   ]
   |> list.filter_map(fn(field_name) {
-    case read_string(address, field_name) {
+    case read_arg_string(address, field_name) {
       Some(value) ->
         Ok(#(
           field_name,
@@ -1462,7 +1464,7 @@ fn location_add_address_data(
 fn validate_location_add_country_code(
   address: Dict(String, root_field.ResolvedValue),
 ) -> Result(String, Nil) {
-  case read_string(address, "countryCode") {
+  case read_arg_string(address, "countryCode") {
     Some(raw) -> {
       let code = string.uppercase(string.trim(raw))
       case list.contains(iso_3166_alpha2_country_codes, code) {
@@ -1477,8 +1479,8 @@ fn validate_location_add_country_code(
 fn location_add_capabilities(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Option(StorePropertyValue) {
-  let add = read_string_list(input, "capabilitiesToAdd")
-  let remove = read_string_list(input, "capabilitiesToRemove")
+  let add = read_arg_string_list(input, "capabilitiesToAdd")
+  let remove = read_arg_string_list(input, "capabilitiesToRemove")
   case add, remove {
     None, None -> None
     _, _ -> {
@@ -1501,16 +1503,16 @@ fn stage_location_edit(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> GenericMutationResult {
   let args = graphql_helpers.field_args(field, variables)
-  let id = read_string(args, "id")
+  let id = read_arg_string(args, "id")
   case id {
     Some(location_id) ->
       case
         store.get_effective_store_property_location_by_id(store, location_id)
       {
         Some(record) -> {
-          let input = read_object(args, "input")
+          let input = read_arg_object(args, "input")
           let next_data = case
-            input |> option.then(fn(values) { read_string(values, "name") })
+            input |> option.then(fn(values) { read_arg_string(values, "name") })
           {
             Some(name) ->
               dict.insert(record.data, "name", StorePropertyString(name))
@@ -1573,7 +1575,7 @@ fn stage_location_activate(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> GenericMutationResult {
   let args = graphql_helpers.field_args(field, variables)
-  case read_string(args, "locationId") {
+  case read_arg_string(args, "locationId") {
     Some(location_id) ->
       case
         store.get_effective_store_property_location_by_id(store, location_id)
@@ -1724,7 +1726,7 @@ fn stage_location_deactivate(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> GenericMutationResult {
   let args = graphql_helpers.field_args(field, variables)
-  case read_string(args, "locationId") {
+  case read_arg_string(args, "locationId") {
     Some(location_id) ->
       case
         store.get_effective_store_property_location_by_id(store, location_id)
@@ -1874,7 +1876,7 @@ fn stage_location_delete(
   upstream: UpstreamContext,
 ) -> GenericMutationResult {
   let args = graphql_helpers.field_args(field, variables)
-  let location_id = read_string(args, "locationId")
+  let location_id = read_arg_string(args, "locationId")
   case location_id {
     Some(id) -> {
       // Pattern 2: delete validation needs the prior Location row so
@@ -2318,7 +2320,7 @@ fn stage_publishable_mutation(
   upstream: UpstreamContext,
 ) -> GenericMutationResult {
   let args = graphql_helpers.field_args(field, variables)
-  let id = read_string(args, "id") |> option.unwrap("")
+  let id = read_arg_string(args, "id") |> option.unwrap("")
   let key = root_name <> ":" <> id
   // Pattern 2: generic publishable roots stage locally, but cold
   // LiveHybrid parity hydrates the captured post-publication
@@ -2950,11 +2952,11 @@ fn validate_shop_policy_input(
   input: Option(Dict(String, root_field.ResolvedValue)),
 ) -> PolicyValidation {
   let type_ = case input {
-    Some(values) -> read_string(values, "type")
+    Some(values) -> read_arg_string(values, "type")
     None -> None
   }
   let body = case input {
-    Some(values) -> read_string(values, "body")
+    Some(values) -> read_arg_string(values, "body")
     None -> None
   }
   let type_errors = case type_ {
@@ -2998,54 +3000,6 @@ fn invalid_type_error() -> ShopPolicyUserError {
     message: "Type is invalid",
     code: None,
   )
-}
-
-fn read_string(
-  values: Dict(String, root_field.ResolvedValue),
-  key: String,
-) -> Option(String) {
-  case dict.get(values, key) {
-    Ok(root_field.StringVal(value)) -> Some(value)
-    _ -> None
-  }
-}
-
-fn read_bool(
-  values: Dict(String, root_field.ResolvedValue),
-  key: String,
-) -> Option(Bool) {
-  case dict.get(values, key) {
-    Ok(root_field.BoolVal(value)) -> Some(value)
-    _ -> None
-  }
-}
-
-fn read_string_list(
-  values: Dict(String, root_field.ResolvedValue),
-  key: String,
-) -> Option(List(String)) {
-  case dict.get(values, key) {
-    Ok(root_field.ListVal(values)) ->
-      Some(
-        list.filter_map(values, fn(value) {
-          case value {
-            root_field.StringVal(item) -> Ok(item)
-            _ -> Error(Nil)
-          }
-        }),
-      )
-    _ -> None
-  }
-}
-
-fn read_object(
-  values: Dict(String, root_field.ResolvedValue),
-  key: String,
-) -> Option(Dict(String, root_field.ResolvedValue)) {
-  case dict.get(values, key) {
-    Ok(root_field.ObjectVal(value)) -> Some(value)
-    _ -> None
-  }
 }
 
 fn store_property_bool_field(
