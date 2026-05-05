@@ -1,0 +1,60 @@
+{
+  "scenarioId": "inventory-quantity-idempotency-directive-2026-04",
+  "operationNames": ["inventorySetQuantities", "inventoryAdjustQuantities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["idempotency-parity", "runtime-staging", "payload-shape", "route-version-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-quantity-contracts-2026-04.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-missing-set-change-from.graphql",
+    "variablesCapturePath": "$.missingSetChangeFromQuantity.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "set-with-field-idempotency-directive",
+        "capturePath": "$.inventorySetQuantities.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "selectedPaths": [
+          "$.inventoryAdjustmentGroup.reason",
+          "$.inventoryAdjustmentGroup.referenceDocumentUri",
+          "$.inventoryAdjustmentGroup.changes",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-set.graphql",
+          "variablesCapturePath": "$.inventorySetQuantities.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "adjust-with-field-idempotency-directive",
+        "capturePath": "$.inventoryAdjustQuantities.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "selectedPaths": [
+          "$.inventoryAdjustmentGroup.reason",
+          "$.inventoryAdjustmentGroup.referenceDocumentUri",
+          "$.inventoryAdjustmentGroup.changes",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-adjust.graphql",
+          "variablesCapturePath": "$.inventoryAdjustQuantities.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "set-missing-changeFromQuantity-still-sees-idempotency-directive",
+        "capturePath": "$.missingSetChangeFromQuantity.response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions.code"]
+      }
+    ]
+  },
+  "notes": "HAR-649 review-requested idempotency smoke coverage. This spec replays captured 2026-04 inventorySetQuantities and inventoryAdjustQuantities requests whose GraphQL documents put @idempotent(key:) directly on the mutation field, then compares the Shopify payload slices that depend on the directive being parsed before the versioned 2026-04 contract checks run."
+}

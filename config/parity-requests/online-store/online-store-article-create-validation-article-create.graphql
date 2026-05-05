@@ -1,0 +1,22 @@
+mutation OnlineStoreArticleCreateValidationArticleCreate($article: ArticleCreateInput!, $blog: ArticleBlogInput) {
+  articleCreate(article: $article, blog: $blog) {
+    article {
+      id
+      title
+      handle
+      author {
+        name
+      }
+      blog {
+        id
+        title
+        handle
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

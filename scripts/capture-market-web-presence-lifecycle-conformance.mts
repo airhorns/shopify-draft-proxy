@@ -102,9 +102,83 @@ const deleteMutation = `#graphql
   }
 `;
 
+const shopLocalesQuery = `#graphql
+  query MarketWebPresenceLocaleSetupRead {
+    shopLocales {
+      locale
+      published
+    }
+  }
+`;
+
+const enableLocaleMutation = `#graphql
+  mutation MarketWebPresenceLocaleSetupEnable($locale: String!) {
+    shopLocaleEnable(locale: $locale) {
+      shopLocale {
+        locale
+        name
+        primary
+        published
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const disableLocaleMutation = `#graphql
+  mutation MarketWebPresenceLocaleSetupDisable($locale: String!) {
+    shopLocaleDisable(locale: $locale) {
+      locale
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const updateLocaleMutation = `#graphql
+  mutation MarketWebPresenceLocaleSetupUpdate($locale: String!, $shopLocale: ShopLocaleInput!) {
+    shopLocaleUpdate(locale: $locale, shopLocale: $shopLocale) {
+      shopLocale {
+        locale
+        name
+        primary
+        published
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+type LocaleRestoreAction = { locale: string; kind: 'disable' } | { locale: string; kind: 'update'; published: boolean };
+
 function randomLetters(length: number): string {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz';
   return Array.from({ length }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+}
+
+function readUserErrors(payload: unknown, root: string): unknown[] {
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    !('data' in payload) ||
+    typeof payload.data !== 'object' ||
+    payload.data === null ||
+    !(root in payload.data) ||
+    typeof payload.data[root as keyof typeof payload.data] !== 'object' ||
+    payload.data[root as keyof typeof payload.data] === null
+  ) {
+    return [];
+  }
+  const rootPayload = payload.data[root as keyof typeof payload.data] as { userErrors?: unknown };
+  return Array.isArray(rootPayload.userErrors) ? rootPayload.userErrors : [];
 }
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
@@ -117,8 +191,70 @@ const { runGraphql } = createAdminGraphqlClient({
 
 const createSuffix = `har${randomLetters(10)}`;
 const updateSuffix = `har${randomLetters(10)}`;
+const multiLocaleSuffix = 'intl';
 let createdWebPresenceId: string | null = null;
+let multiLocaleWebPresenceId: string | null = null;
 let cleanupResponse: unknown = null;
+let multiLocaleCleanupResponse: unknown = null;
+const localeRestoreActions: LocaleRestoreAction[] = [];
+let localeCleanupResponses: Record<string, unknown> = {};
+
+async function ensureLocalesEnabled(locales: string[]): Promise<void> {
+  const payload = await runGraphql(shopLocalesQuery, {});
+  const existingLocales = new Map<string, { published: boolean }>(
+    (payload.data?.shopLocales ?? [])
+      .filter(
+        (locale: { locale?: unknown; published?: unknown }) =>
+          typeof locale.locale === 'string' && typeof locale.published === 'boolean',
+      )
+      .map((locale: { locale: string; published: boolean }) => [locale.locale, { published: locale.published }]),
+  );
+
+  for (const locale of locales) {
+    const existing = existingLocales.get(locale);
+    if (existing === undefined) {
+      localeRestoreActions.push({ locale, kind: 'disable' });
+      const enablePayload = await runGraphql(enableLocaleMutation, { locale });
+      const userErrors = readUserErrors(enablePayload, 'shopLocaleEnable');
+      if (userErrors.length > 0) {
+        throw new Error(`shopLocaleEnable(${locale}) failed: ${JSON.stringify(userErrors)}`);
+      }
+    } else if (!existing.published) {
+      localeRestoreActions.push({ locale, kind: 'update', published: existing.published });
+    } else {
+      continue;
+    }
+
+    const publishPayload = await runGraphql(updateLocaleMutation, {
+      locale,
+      shopLocale: { published: true },
+    });
+    const userErrors = readUserErrors(publishPayload, 'shopLocaleUpdate');
+    if (userErrors.length > 0) {
+      throw new Error(`shopLocaleUpdate(${locale}, published: true) failed: ${JSON.stringify(userErrors)}`);
+    }
+  }
+}
+
+async function restoreEnabledLocales(): Promise<Record<string, unknown>> {
+  const responses: Record<string, unknown> = {};
+  for (const action of localeRestoreActions.toReversed()) {
+    const payload =
+      action.kind === 'disable'
+        ? await runGraphql(disableLocaleMutation, { locale: action.locale })
+        : await runGraphql(updateLocaleMutation, {
+            locale: action.locale,
+            shopLocale: { published: action.published },
+          });
+    const root = action.kind === 'disable' ? 'shopLocaleDisable' : 'shopLocaleUpdate';
+    const userErrors = readUserErrors(payload, root);
+    if (userErrors.length > 0) {
+      throw new Error(`locale cleanup failed for ${action.locale}: ${JSON.stringify(userErrors)}`);
+    }
+    responses[action.locale] = payload;
+  }
+  return responses;
+}
 
 try {
   const baselineRead = await runGraphql(webPresencesReadQuery, { first: 20 });
@@ -149,6 +285,28 @@ try {
   cleanupResponse = deleteResponse;
   const readAfterDelete = await runGraphql(webPresencesReadQuery, { first: 20 });
 
+  await ensureLocalesEnabled(['fr', 'de']);
+  const multiLocaleCreateVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: ['fr', 'de'],
+      subfolderSuffix: multiLocaleSuffix,
+    },
+  };
+  const multiLocaleCreateResponse = await runGraphql(createMutation, multiLocaleCreateVariables);
+  multiLocaleWebPresenceId = multiLocaleCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!multiLocaleWebPresenceId) {
+    throw new Error(
+      `multi-locale webPresenceCreate did not return a disposable web presence id: ${JSON.stringify(
+        multiLocaleCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  multiLocaleCleanupResponse = await runGraphql(deleteMutation, { id: multiLocaleWebPresenceId });
+  localeCleanupResponses = await restoreEnabledLocales();
+
   const fixture = {
     capturedAt: new Date().toISOString(),
     storeDomain,
@@ -156,8 +314,10 @@ try {
     disposableSubfolderSuffixes: {
       created: createSuffix,
       updated: updateSuffix,
+      multiLocale: multiLocaleSuffix,
     },
-    scope: 'HAR-448 market web presence create/update/delete lifecycle parity',
+    scope:
+      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity',
     data: {
       webPresences: baselineRead.data?.webPresences,
     },
@@ -207,6 +367,15 @@ try {
           payload: readAfterDelete,
         },
       },
+      {
+        name: 'webPresenceCreateMultiLocaleRootUrls',
+        query: createMutation,
+        variables: multiLocaleCreateVariables,
+        response: {
+          status: 200,
+          payload: multiLocaleCreateResponse,
+        },
+      },
     ],
     cleanup: {
       webPresenceDelete: {
@@ -217,7 +386,44 @@ try {
           payload: cleanupResponse,
         },
       },
+      multiLocaleWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: multiLocaleWebPresenceId },
+        response: {
+          status: 200,
+          payload: multiLocaleCleanupResponse,
+        },
+      },
+      enabledLocaleCleanup: localeCleanupResponses,
     },
+    upstreamCalls: [
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: createVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: multiLocaleCreateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+    ],
   };
 
   const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'markets');
@@ -229,6 +435,14 @@ try {
   if (createdWebPresenceId && !cleanupResponse) {
     cleanupResponse = await runGraphql(deleteMutation, { id: createdWebPresenceId });
     console.error(JSON.stringify({ cleanupAfterFailure: cleanupResponse }, null, 2));
+  }
+  if (multiLocaleWebPresenceId && !multiLocaleCleanupResponse) {
+    multiLocaleCleanupResponse = await runGraphql(deleteMutation, { id: multiLocaleWebPresenceId });
+    console.error(JSON.stringify({ multiLocaleCleanupAfterFailure: multiLocaleCleanupResponse }, null, 2));
+  }
+  if (localeRestoreActions.length > 0 && Object.keys(localeCleanupResponses).length === 0) {
+    localeCleanupResponses = await restoreEnabledLocales();
+    console.error(JSON.stringify({ localeCleanupAfterFailure: localeCleanupResponses }, null, 2));
   }
   throw error;
 }

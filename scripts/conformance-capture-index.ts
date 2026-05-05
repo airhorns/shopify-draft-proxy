@@ -326,6 +326,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-linkage-parity.json`,
       `${CAPTURE_ROOT}inventory-inactive-level-lifecycle-2026-04.json`,
+      'config/parity-specs/products/inventory-idempotency-directive-lifecycle-2026-04.json',
       'blocker notes when store topology is insufficient',
     ],
     cleanupBehavior: 'Creates disposable products; some success paths require a second safe location before capture.',
@@ -616,6 +617,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-quantity-contracts-2026-04.json`,
       'config/parity-specs/products/inventory-quantity-contracts-2026-04.json',
+      'config/parity-specs/products/inventory-quantity-idempotency-directive-2026-04.json',
     ],
     cleanupBehavior: 'Creates one disposable product, records set/adjust quantity contract branches, then deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -688,14 +690,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'market-web-presence-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-web-presence-lifecycle-conformance.mts',
-    purpose: 'Web presence create/update/delete lifecycle and downstream top-level webPresences reads.',
+    purpose:
+      'Web presence create/update/delete lifecycle, downstream top-level webPresences reads, and multi-locale rootUrls.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-web-presence-lifecycle-parity.json`,
       'config/parity-specs/markets/web-presence-lifecycle-local-staging.json',
+      'config/parity-specs/markets/web-presence-root-urls-multi-locale.json',
     ],
     cleanupBehavior:
-      'Creates one disposable subfolder web presence, updates it, deletes it, and verifies the baseline read after cleanup.',
+      'Creates one disposable subfolder web presence, updates it, deletes it, records one multi-locale disposable web presence with subfolder suffix intl, deletes it, and verifies the baseline read after cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -755,6 +759,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'online-store',
+    captureId: 'online-store-article-create-validation',
+    scriptPath: 'scripts/capture-online-store-article-create-validation-conformance.ts',
+    purpose:
+      'articleCreate blog-reference and author validation branches plus valid blogId and author.name success behavior.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-article-create-validation.json`,
+      'config/parity-specs/online-store/online-store-article-create-validation.json',
+      'config/parity-requests/online-store/online-store-article-create-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog for blogId-backed branches, deletes the success-path article, then deletes the blog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'collections',
     captureId: 'collections',
     scriptPath: 'scripts/capture-collection-conformance.mts',
@@ -802,6 +822,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_locations', 'read_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}store-properties-*.json`, `${CAPTURE_ROOT}locations-*.json`],
     cleanupBehavior: 'Read-only by default; avoid merchant-topology writes without explicit cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
+    captureId: 'location-lifecycle',
+    scriptPath: 'scripts/capture-location-lifecycle-conformance.mts',
+    purpose: 'locationActivate/locationDeactivate idempotency and read-after-write lifecycle behavior.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-activate-deactivate-with-idempotency-directive.json`,
+      'config/parity-specs/store-properties/location-activate-deactivate-with-idempotency-directive.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable non-online-fulfilling location, deactivates/reactivates it, then deactivates and deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -867,6 +901,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}order-*.json`, 'order blocker notes when credential/store access is insufficient'],
     cleanupBehavior: 'Creates/cancels disposable orders only after credential and store-state probes pass.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-lifecycle-user-errors',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-lifecycle-user-errors-conformance.mts',
+    purpose:
+      'orderEditBegin/AddVariant/SetQuantity/Commit missing-resource userError payload roots for lifecycle validation.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-lifecycle-user-errors.json`,
+      'config/parity-specs/orders/orderEdit-lifecycle-userErrors.json',
+      'config/parity-requests/orders/orderEdit-lifecycle-userErrors-*.graphql',
+    ],
+    cleanupBehavior: 'Validation-only order-edit probes use missing Shopify GIDs and do not create merchant resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'shipping-fulfillments',
@@ -1003,6 +1053,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'discounts',
+    captureId: 'discount-combines-with-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-combines-with-validation-conformance.ts',
+    purpose:
+      'Discount combinesWith cart-line tag validation guardrails and free-shipping self-combine regression coverage.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [`${CAPTURE_ROOT}discount-combines-with-validation.json`],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'apps',
     captureId: 'app-billing',
     scriptPath: 'scripts/capture-app-billing-conformance.ts',
@@ -1110,6 +1172,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
     fixtureOutputs: [`${CAPTURE_ROOT}fulfillment-order-lifecycle.json`],
     cleanupBehavior: 'Cancels disposable order and records cleanup captures.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-delete-transfer',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-delete-transfer-conformance.ts',
+    purpose: 'fulfillmentServiceDelete TRANSFER destination validation and valid-delete behavior.',
+    requiredAuthScopes: ['read_fulfillments', 'write_fulfillments', 'read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-delete-transfer.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-delete-transfer.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable destination location and fulfillment service; attempts to deactivate/delete the destination location after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
