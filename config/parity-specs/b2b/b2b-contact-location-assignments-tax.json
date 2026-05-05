@@ -26,6 +26,7 @@
     "role-assignment",
     "address-lifecycle",
     "tax-settings",
+    "tax-settings-validation",
     "relationship-normalization"
   ],
   "liveCaptureFiles": [
@@ -41,7 +42,7 @@
     "tests/integration/b2b-company-lifecycle-flow.test.ts",
     "tests/integration/b2b-company-query-shapes.test.ts"
   ],
-  "notes": "Executable parity coverage for HAR-446 high-risk B2B contact/location relationships. The live fixture creates a disposable company, records Shopify's automatic main-contact Ordering only role assignment, exercises explicit contact/location role assignment and revoke roots, records billing-address assignment/delete, tax settings, contact/location updates, downstream relationship reads, and generic Node reads for CompanyAddress and CompanyContactRoleAssignment rows already present in local B2B state. `staffMembers(first:)` is access denied for the current conformance token, so staff assignment remains covered by runtime tests rather than live parity in this scenario.",
+  "notes": "Executable parity coverage for HAR-446 high-risk B2B contact/location relationships and HAR-616 companyLocationTaxSettingsUpdate enum validation. The live fixture creates a disposable company, records Shopify's automatic main-contact Ordering only role assignment, exercises explicit contact/location role assignment and revoke roots, records billing-address assignment/delete, tax settings, invalid tax exemption enum validation, contact/location updates, downstream relationship reads, and generic Node reads for CompanyAddress and CompanyContactRoleAssignment rows already present in local B2B state. `staffMembers(first:)` is access denied for the current conformance token, so staff assignment remains covered by runtime tests rather than live parity in this scenario.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -325,6 +326,20 @@
             "reason": "Live Shopify and local staging allocate different address IDs."
           }
         ]
+      },
+      {
+        "name": "tax-settings-invalid-enum-validation",
+        "capturePath": "$.taxUpdateUnknownEnum.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql",
+          "variables": {
+            "companyLocationId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" },
+            "exemptionsToAssign": { "fromCapturePath": "$.taxUpdateUnknownEnum.request.variables.exemptionsToAssign" }
+          }
+        },
+        "selectedPaths": ["$.errors[0].message", "$.errors[0].extensions.code", "$.errors[0].extensions.problems"],
+        "expectedDifferences": []
       },
       {
         "name": "tax-settings-payload",

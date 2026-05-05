@@ -1,0 +1,26 @@
+mutation StoreCreditConformanceCustomerCreate($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      email
+      displayName
+      storeCreditAccounts(first: 5) {
+        nodes {
+          id
+          balance {
+            amount
+            currencyCode
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

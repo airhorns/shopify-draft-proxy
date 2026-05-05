@@ -1870,7 +1870,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["storeCreditAccountCredit", "StoreCreditAccountCredit"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-317: stages credit adjustments only for existing normalized store credit accounts, updates local balance/transactions, returns captured unknown-id userErrors locally, and keeps the original raw mutation for commit replay without runtime Shopify writes.",
+        "HAR-635: stages credit adjustments for StoreCreditAccount, Customer, and CompanyLocation IDs; first owner credit creates a local account, validation returns snake-case Shopify-style userError codes, and original raw mutations are retained for commit replay without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(
@@ -1882,7 +1882,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["storeCreditAccountDebit", "StoreCreditAccountDebit"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-317: stages debit adjustments only for existing normalized store credit accounts, enforces local currency/funds checks, updates downstream balance/transactions, and keeps the original raw mutation for commit replay without runtime Shopify writes.",
+        "HAR-635: stages debit adjustments for StoreCreditAccount, Customer, and CompanyLocation IDs when a local account exists, enforces local currency/amount/limit checks with snake-case Shopify-style userError codes, updates downstream balance/transactions, and keeps the original raw mutation for commit replay without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(

@@ -191,7 +191,7 @@ function readStringAtPath(value: unknown, pathSegments: string[]): string | null
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'payments');
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'customers');
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -224,6 +224,8 @@ createdCustomerIds.add(customerId);
 
 let accountId: string | null = null;
 let cleanupDebitAmount = '0.00';
+let secondaryAccountId: string | null = null;
+let secondaryCleanupDebitAmount = '0.00';
 
 try {
   const setupCreditVariables = {
@@ -249,6 +251,92 @@ try {
       `storeCreditAccountCredit did not create/return an account id: ${JSON.stringify(setupCredit.payload, null, 2)}`,
     );
   }
+
+  const accountCurrencyMismatchVariables = {
+    id: accountId,
+    creditInput: {
+      creditAmount: {
+        amount: '2.00',
+        currencyCode: 'CAD',
+      },
+    },
+  };
+  const accountCurrencyMismatch = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    accountCurrencyMismatchVariables,
+  );
+  assertNoGraphqlFailure(accountCurrencyMismatch, 'storeCreditAccountCredit account-id currency mismatch');
+
+  const pastExpiryVariables = {
+    id: customerId,
+    creditInput: {
+      creditAmount: {
+        amount: '1.00',
+        currencyCode: 'USD',
+      },
+      expiresAt: '2000-01-01T00:00:00Z',
+    },
+  };
+  const pastExpiry = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, pastExpiryVariables);
+  assertNoGraphqlFailure(pastExpiry, 'storeCreditAccountCredit past expiresAt validation');
+
+  const zeroCreditVariables = {
+    id: customerId,
+    creditInput: {
+      creditAmount: {
+        amount: '0.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const zeroCredit = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, zeroCreditVariables);
+  assertNoGraphqlFailure(zeroCredit, 'storeCreditAccountCredit zero amount validation');
+
+  const ownerSecondCurrencyCreditVariables = {
+    id: customerId,
+    creditInput: {
+      creditAmount: {
+        amount: '2.00',
+        currencyCode: 'CAD',
+      },
+    },
+  };
+  const ownerSecondCurrencyCredit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    ownerSecondCurrencyCreditVariables,
+  );
+  assertNoUserErrors(
+    ownerSecondCurrencyCredit,
+    'storeCreditAccountCredit',
+    'storeCreditAccountCredit owner-id second-currency mutation',
+  );
+  secondaryAccountId = readStringAtPath(ownerSecondCurrencyCredit.payload, [
+    'data',
+    'storeCreditAccountCredit',
+    'storeCreditAccountTransaction',
+    'account',
+    'id',
+  ]);
+  secondaryCleanupDebitAmount =
+    readStringAtPath(ownerSecondCurrencyCredit.payload, [
+      'data',
+      'storeCreditAccountCredit',
+      'storeCreditAccountTransaction',
+      'balanceAfterTransaction',
+      'amount',
+    ]) ?? secondaryCleanupDebitAmount;
+
+  const overLimitDebitVariables = {
+    id: customerId,
+    debitInput: {
+      debitAmount: {
+        amount: '9999.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const overLimitDebit = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, overLimitDebitVariables);
+  assertNoGraphqlFailure(overLimitDebit, 'storeCreditAccountDebit over-limit validation');
 
   const creditVariables = {
     id: accountId,
@@ -292,10 +380,51 @@ try {
       createCustomer: record(CREATE_CUSTOMER_MUTATION, createCustomerVariables, createCustomer),
       createAccountCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, setupCreditVariables, setupCredit),
     },
+    validations: {
+      accountCurrencyMismatch: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        accountCurrencyMismatchVariables,
+        accountCurrencyMismatch,
+      ),
+      pastExpiry: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, pastExpiryVariables, pastExpiry),
+      zeroCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, zeroCreditVariables, zeroCredit),
+      ownerSecondCurrencyCredit: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        ownerSecondCurrencyCreditVariables,
+        ownerSecondCurrencyCredit,
+      ),
+      overLimitDebit: record(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, overLimitDebitVariables, overLimitDebit),
+    },
     mutation: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, creditVariables, credit),
     debit: record(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, debitVariables, debit),
     downstreamRead: record(STORE_CREDIT_ACCOUNT_READBACK_QUERY, readbackVariables, readback),
   };
+
+  if (secondaryAccountId) {
+    const cleanupSecondaryDebitVariables = {
+      id: secondaryAccountId,
+      debitInput: {
+        debitAmount: {
+          amount: secondaryCleanupDebitAmount,
+          currencyCode: 'CAD',
+        },
+      },
+    };
+    const cleanupSecondaryDebit = await runGraphqlRequest(
+      STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+      cleanupSecondaryDebitVariables,
+    );
+    cleanupRecords['debitSecondaryCurrencyBalance'] = record(
+      STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+      cleanupSecondaryDebitVariables,
+      cleanupSecondaryDebit,
+    );
+    assertNoUserErrors(
+      cleanupSecondaryDebit,
+      'storeCreditAccountDebit',
+      'storeCreditAccountDebit secondary currency cleanup debit',
+    );
+  }
 
   const cleanupDebitVariables = {
     id: accountId,

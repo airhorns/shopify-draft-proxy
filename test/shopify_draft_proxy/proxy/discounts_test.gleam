@@ -505,6 +505,118 @@ fn invalid_date_range_payload(
   <> "\",\"endsAt\"],\"message\":\"Ends at needs to be after starts_at\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
 }
 
+pub fn code_basic_update_rejects_code_change_after_redeem_code_bulk_add_test() {
+  let created =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Bulk rule\", code: \"BULK-RULE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let bulk_added =
+    run_mutation_from(
+      created.store,
+      created.identity,
+      "mutation { discountRedeemCodeBulkAdd(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codes: [\"BULK-ONE\", \"BULK-TWO\", \"BULK-THREE\", \"BULK-FOUR\", \"BULK-FIVE\"]) { bulkCreation { codesCount } userErrors { field message code extraInfo } } }",
+    )
+  let update =
+    run_mutation_from(
+      bulk_added.store,
+      bulk_added.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Bulk rule renamed\", code: \"BULK-RULE-NEW\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.2 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(update.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot update the code of a bulk discount.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+
+  let assert Ok(read) =
+    discounts.handle_discount_query(
+      update.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { ... on DiscountCodeBasic { title codes(first: 10) { nodes { code } } } } } byNewCode: codeDiscountNodeByCode(code: \"BULK-RULE-NEW\") { id } }",
+      dict.new(),
+    )
+
+  assert json.to_string(read)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"title\":\"Bulk rule\",\"codes\":{\"nodes\":[{\"code\":\"BULK-RULE\"},{\"code\":\"BULK-ONE\"},{\"code\":\"BULK-TWO\"},{\"code\":\"BULK-THREE\"},{\"code\":\"BULK-FOUR\"},{\"code\":\"BULK-FIVE\"}]}}},\"byNewCode\":null}"
+}
+
+pub fn code_basic_update_rejects_same_code_after_redeem_code_bulk_add_test() {
+  let created =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Bulk rule\", code: \"BULK-RULE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let bulk_added =
+    run_mutation_from(
+      created.store,
+      created.identity,
+      "mutation { discountRedeemCodeBulkAdd(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codes: [\"BULK-ONE\"]) { bulkCreation { codesCount } userErrors { field message code extraInfo } } }",
+    )
+  let update =
+    run_mutation_from(
+      bulk_added.store,
+      bulk_added.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Bulk rule renamed\", code: \"BULK-RULE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.2 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(update.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot update the code of a bulk discount.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_basic_update_rejects_code_taken_by_another_local_discount_test() {
+  let first =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"First\", code: \"TAKEN-ONE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let second =
+    run_mutation_from(
+      first.store,
+      first.identity,
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Second\", code: \"TAKEN-TWO\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let update =
+    run_mutation_from(
+      second.store,
+      second.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/3?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Second\", code: \"TAKEN-ONE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(update.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"code\"],\"message\":\"Code must be unique. Please try a different code.\",\"code\":\"TAKEN\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_basic_update_on_bxgy_discount_transitions_to_basic_test() {
+  let bxgy =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGY-TO-BASIC\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id codeDiscount { __typename } } userErrors { field message code extraInfo } } }",
+    )
+  let update =
+    run_mutation_from(
+      bxgy.store,
+      bxgy.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Now basic\", code: \"BXGY-TO-BASIC\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.2 }, items: { all: true } } }) { codeDiscountNode { codeDiscount { __typename ... on DiscountCodeBasic { title discountClasses customerGets { value { __typename ... on DiscountPercentage { percentage } } } } ... on DiscountCodeBxgy { title customerBuys { value { quantity } } } } } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(update.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"__typename\":\"DiscountCodeBasic\",\"title\":\"Now basic\",\"discountClasses\":[\"ORDER\"],\"customerGets\":{\"value\":{\"__typename\":\"DiscountPercentage\",\"percentage\":0.2}}}},\"userErrors\":[]}}}"
+
+  let assert Ok(read) =
+    discounts.handle_discount_query(
+      update.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { __typename ... on DiscountCodeBasic { title } ... on DiscountCodeBxgy { title } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(read)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"__typename\":\"DiscountCodeBasic\",\"title\":\"Now basic\"}}}"
+}
+
+pub fn code_basic_update_unknown_id_uses_invalid_error_code_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/0\", basicCodeDiscount: { title: \"Missing\", code: \"MISSING\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount does not exist\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
 pub fn code_basic_rejects_cart_line_tag_settings_for_order_class_test() {
   let outcome =
     run_mutation(
