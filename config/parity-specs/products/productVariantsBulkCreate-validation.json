@@ -1,0 +1,170 @@
+{
+  "scenarioId": "productVariantsBulkCreate-validation",
+  "operationNames": ["productCreate", "productOptionsCreate", "productVariantsBulkCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-atomicity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-parity-plan.graphql",
+    "variablesCapturePath": "$.captures.productCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-574 scalar validation parity for productVariantsBulkCreate. The primary request creates the local product, the first target adds matching Color/Size options, and each subsequent target replays one captured validation branch. Runtime tests assert rejected branches do not stage additional variants.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create-user-errors",
+        "capturePath": "$.captures.productCreate.result.payload.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "setup-options-user-errors",
+        "capturePath": "$.captures.setupOptions.result.payload.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation-options.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "options": { "fromCapturePath": "$.captures.setupOptions.variables.options" }
+          }
+        }
+      },
+      {
+        "name": "price-null-user-errors",
+        "capturePath": "$.captures.priceNull.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.priceNull.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "price-negative-user-errors",
+        "capturePath": "$.captures.priceNegative.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.priceNegative.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "price-too-large-user-errors",
+        "capturePath": "$.captures.priceTooLarge.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.priceTooLarge.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "compare-at-price-too-large-user-errors",
+        "capturePath": "$.captures.compareAtPriceTooLarge.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.compareAtPriceTooLarge.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "weight-negative-user-errors",
+        "capturePath": "$.captures.weightNegative.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.weightNegative.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "weight-too-large-user-errors",
+        "capturePath": "$.captures.weightTooLarge.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.weightTooLarge.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "inventory-too-high-user-errors",
+        "capturePath": "$.captures.inventoryTooHigh.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.inventoryTooHigh.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "sku-too-long-user-errors",
+        "capturePath": "$.captures.skuTooLong.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.skuTooLong.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "barcode-too-long-user-errors",
+        "capturePath": "$.captures.barcodeTooLong.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.barcodeTooLong.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "option-value-too-long-user-errors",
+        "capturePath": "$.captures.optionValueTooLong.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.optionValueTooLong.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "max-input-size-errors",
+        "capturePath": "$.captures.maxInputSize.result.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.maxInputSize.variables.variants" }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -292,6 +292,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'product-variant-scalar-validations',
+    scriptPath: 'scripts/capture-product-variant-scalar-validation-conformance.ts',
+    purpose:
+      'productVariantsBulkCreate scalar validation for price, compareAtPrice, weight, inventory, SKU, barcode, option value length, and max input size.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productVariantsBulkCreate-validation.json`,
+      'config/parity-specs/products/productVariantsBulkCreate-validation.json',
+      'config/parity-requests/products/productVariantsBulkCreate-validation*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, captures rejected validation branches, and deletes the product in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     captureId: 'inventory-item-mutations',
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',
@@ -736,6 +752,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_content', 'write_content'],
     fixtureOutputs: [`${CAPTURE_ROOT}online-store-content-search-filters.json`],
     cleanupBehavior: 'Creates disposable article, blog, and page records, then deletes them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-article-create-validation',
+    scriptPath: 'scripts/capture-online-store-article-create-validation-conformance.ts',
+    purpose:
+      'articleCreate blog-reference and author validation branches plus valid blogId and author.name success behavior.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-article-create-validation.json`,
+      'config/parity-specs/online-store/online-store-article-create-validation.json',
+      'config/parity-requests/online-store/online-store-article-create-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog for blogId-backed branches, deletes the success-path article, then deletes the blog.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

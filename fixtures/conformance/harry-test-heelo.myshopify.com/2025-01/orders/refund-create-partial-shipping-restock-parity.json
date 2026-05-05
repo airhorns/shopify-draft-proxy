@@ -1,0 +1,553 @@
+{
+  "variables": {
+    "input": {
+      "orderId": "gid://shopify/Order/8728457019698",
+      "note": "partial line item and shipping refund",
+      "notify": false,
+      "refundLineItems": [
+        {
+          "lineItemId": "gid://shopify/LineItem/19301562646834",
+          "quantity": 1,
+          "restockType": "RETURN",
+          "locationId": "gid://shopify/Location/112829759794"
+        }
+      ],
+      "shipping": {
+        "amount": "5.00"
+      },
+      "transactions": [
+        {
+          "amount": "15.00",
+          "gateway": "manual",
+          "kind": "REFUND",
+          "orderId": "gid://shopify/Order/8728457019698",
+          "parentId": "gid://shopify/OrderTransaction/10415451734322"
+        }
+      ]
+    }
+  },
+  "setup": {
+    "orderCreate": {
+      "variables": {
+        "order": {
+          "email": "hermes-refund-partial-shipping-restock-1777939697278@example.com",
+          "note": "refundCreate partial-shipping-restock parity seed order",
+          "tags": ["parity-probe", "refund-create", "partial-shipping-restock"],
+          "test": true,
+          "customAttributes": [
+            {
+              "key": "source",
+              "value": "hermes-refund-parity"
+            },
+            {
+              "key": "scenario",
+              "value": "partial-shipping-restock"
+            }
+          ],
+          "billingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Refund",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9",
+            "phone": "+14165550101"
+          },
+          "shippingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Refund",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9",
+            "phone": "+14165550101"
+          },
+          "shippingLines": [
+            {
+              "title": "Standard",
+              "code": "STANDARD",
+              "source": "hermes-refund-parity",
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "5.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "lineItems": [
+            {
+              "title": "Hermes refundable partial-shipping-restock item",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "sku": "hermes-refund-partial-shipping-restock-1777939697278"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8728457019698",
+              "name": "#1068",
+              "createdAt": "2026-05-05T00:08:17Z",
+              "updatedAt": "2026-05-05T00:08:17Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "note": "refundCreate partial-shipping-restock parity seed order",
+              "tags": ["parity-probe", "partial-shipping-restock", "refund-create"],
+              "customAttributes": [
+                {
+                  "key": "source",
+                  "value": "hermes-refund-parity"
+                },
+                {
+                  "key": "scenario",
+                  "value": "partial-shipping-restock"
+                }
+              ],
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "shippingLines": {
+                "nodes": [
+                  {
+                    "title": "Standard",
+                    "code": "STANDARD",
+                    "originalPriceSet": {
+                      "shopMoney": {
+                        "amount": "5.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19301562646834",
+                    "title": "Hermes refundable partial-shipping-restock item",
+                    "quantity": 2,
+                    "currentQuantity": 2,
+                    "sku": "hermes-refund-partial-shipping-restock-1777939697278",
+                    "variantTitle": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10415451734322",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "refunds": [],
+              "returns": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 41,
+            "actualQueryCost": 24,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1976,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "locations": {
+      "response": {
+        "data": {
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/112829759794",
+                "isActive": true,
+                "fulfillsOnlineOrders": true
+              },
+              {
+                "id": "gid://shopify/Location/106318463282",
+                "isActive": true,
+                "fulfillsOnlineOrders": true
+              },
+              {
+                "id": "gid://shopify/Location/106318430514",
+                "isActive": true,
+                "fulfillsOnlineOrders": true
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "refundCreate": {
+          "refund": {
+            "id": "gid://shopify/Refund/1023963562290",
+            "note": "partial line item and shipping refund",
+            "createdAt": "2026-05-05T00:08:18Z",
+            "updatedAt": "2026-05-05T00:08:19Z",
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "15.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "refundLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/RefundLineItem/648919712050",
+                  "quantity": 1,
+                  "restockType": "RETURN",
+                  "restocked": true,
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/19301562646834",
+                    "title": "Hermes refundable partial-shipping-restock item"
+                  },
+                  "subtotalSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "transactions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10415451767090",
+                  "kind": "REFUND",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "15.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "order": {
+            "id": "gid://shopify/Order/8728457019698",
+            "displayFinancialStatus": "PARTIALLY_REFUNDED",
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "15.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 33,
+          "actualQueryCost": 27,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1973,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/8728457019698"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8728457019698",
+          "name": "#1068",
+          "displayFinancialStatus": "PARTIALLY_REFUNDED",
+          "displayFulfillmentStatus": "UNFULFILLED",
+          "refunds": [
+            {
+              "id": "gid://shopify/Refund/1023963562290",
+              "note": "partial line item and shipping refund",
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "returns": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "transactions": [
+            {
+              "id": "gid://shopify/OrderTransaction/10415451734322",
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            {
+              "id": "gid://shopify/OrderTransaction/10415451767090",
+              "kind": "REFUND",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "totalRefundedSet": {
+            "shopMoney": {
+              "amount": "15.0",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8728457019698"
+      },
+      "query": "hand-synthesized from checked-in setup orderCreate response for refundCreate Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8728457019698",
+              "name": "#1068",
+              "createdAt": "2026-05-05T00:08:17Z",
+              "updatedAt": "2026-05-05T00:08:17Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "note": "refundCreate partial-shipping-restock parity seed order",
+              "tags": ["parity-probe", "partial-shipping-restock", "refund-create"],
+              "customAttributes": [
+                {
+                  "key": "source",
+                  "value": "hermes-refund-parity"
+                },
+                {
+                  "key": "scenario",
+                  "value": "partial-shipping-restock"
+                }
+              ],
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "shippingLines": {
+                "nodes": [
+                  {
+                    "title": "Standard",
+                    "code": "STANDARD",
+                    "originalPriceSet": {
+                      "shopMoney": {
+                        "amount": "5.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19301562646834",
+                    "title": "Hermes refundable partial-shipping-restock item",
+                    "quantity": 2,
+                    "currentQuantity": 2,
+                    "sku": "hermes-refund-partial-shipping-restock-1777939697278",
+                    "variantTitle": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10415451734322",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "refunds": [],
+              "returns": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
