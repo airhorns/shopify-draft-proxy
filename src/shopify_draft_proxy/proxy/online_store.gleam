@@ -1422,77 +1422,23 @@ fn update_theme(
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
   let id = input_string(args, "id")
-  case id {
-    Some(id) ->
-      case
-        store.get_effective_online_store_integration_by_id(outcome.store, id)
-      {
-        Some(existing) -> {
-          let current_role =
-            source_string_field(captured_to_source(existing.data), "role", "")
-          let publish_blocked =
-            root == "themePublish"
-            && is_publish_blocked_theme_role(current_role)
-          let input =
-            graphql_helpers.read_arg_object(args, "input")
-            |> option.unwrap(dict.new())
-          let role = case root {
-            "themePublish" -> Some("MAIN")
-            _ -> input_string(input, "role")
-          }
-          let name = input_string(input, "name")
-          case publish_blocked {
-            True ->
-              integration_payload_result(
-                outcome,
-                field,
-                fragments,
-                variables,
-                root,
-                "theme",
-                None,
-                [
-                  user_error(
-                    ["id"],
-                    "Theme cannot be published from role " <> current_role,
-                  ),
-                ],
-                outcome.store,
-                outcome.identity,
-                [],
-              )
-            False -> {
-              let data =
-                existing.data
-                |> maybe_insert_string("name", name)
-                |> maybe_insert_string("role", role)
-              let record = OnlineStoreIntegrationRecord(..existing, data: data)
-              let target_store = case root {
-                "themePublish" -> demote_previous_main_themes(outcome.store, id)
-                _ -> outcome.store
-              }
-              let #(_, store) =
-                store.upsert_staged_online_store_integration(
-                  target_store,
-                  record,
-                )
-              integration_payload_result(
-                outcome,
-                field,
-                fragments,
-                variables,
-                root,
-                "theme",
-                Some(record),
-                [],
-                store,
-                outcome.identity,
-                [id],
-              )
-            }
-          }
-        }
-        None ->
+  case lookup_integration_by_id(outcome.store, "theme", id) {
+    IntegrationFound(existing) -> {
+      let id = existing.id
+      let current_role =
+        source_string_field(captured_to_source(existing.data), "role", "")
+      let publish_blocked =
+        root == "themePublish" && is_publish_blocked_theme_role(current_role)
+      let input =
+        graphql_helpers.read_arg_object(args, "input")
+        |> option.unwrap(dict.new())
+      let role = case root {
+        "themePublish" -> Some("MAIN")
+        _ -> input_string(input, "role")
+      }
+      let name = input_string(input, "name")
+      case publish_blocked {
+        True ->
           integration_payload_result(
             outcome,
             field,
@@ -1501,13 +1447,45 @@ fn update_theme(
             root,
             "theme",
             None,
-            [user_error(["id"], "Theme does not exist")],
+            [
+              user_error(
+                ["id"],
+                "Theme cannot be published from role " <> current_role,
+              ),
+            ],
             outcome.store,
             outcome.identity,
             [],
           )
+        False -> {
+          let data =
+            existing.data
+            |> maybe_insert_string("name", name)
+            |> maybe_insert_string("role", role)
+          let record = OnlineStoreIntegrationRecord(..existing, data: data)
+          let target_store = case root {
+            "themePublish" -> demote_previous_main_themes(outcome.store, id)
+            _ -> outcome.store
+          }
+          let #(_, store) =
+            store.upsert_staged_online_store_integration(target_store, record)
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "theme",
+            Some(record),
+            [],
+            store,
+            outcome.identity,
+            [id],
+          )
+        }
       }
-    None ->
+    }
+    IntegrationInvalidId ->
       integration_payload_result(
         outcome,
         field,
@@ -1516,7 +1494,21 @@ fn update_theme(
         root,
         "theme",
         None,
-        [user_error(["id"], "Theme does not exist")],
+        [integration_invalid_id_error("theme")],
+        outcome.store,
+        outcome.identity,
+        [],
+      )
+    IntegrationMissing ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        root,
+        "theme",
+        None,
+        [integration_not_found_error("theme")],
         outcome.store,
         outcome.identity,
         [],
@@ -1793,53 +1785,34 @@ fn update_script_tag(
   let id = input_string(args, "id")
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  case id {
-    Some(id) ->
-      case
-        store.get_effective_online_store_integration_by_id(outcome.store, id)
-      {
-        Some(existing) -> {
-          let data =
-            existing.data
-            |> maybe_insert_string("src", input_string(input, "src"))
-            |> maybe_insert_string(
-              "displayScope",
-              input_string(input, "displayScope"),
-            )
-            |> maybe_insert_bool("cache", input_bool(input, "cache"))
-          let record = OnlineStoreIntegrationRecord(..existing, data: data)
-          let #(_, store) =
-            store.upsert_staged_online_store_integration(outcome.store, record)
-          integration_payload_result(
-            outcome,
-            field,
-            fragments,
-            variables,
-            "scriptTagUpdate",
-            "scriptTag",
-            Some(record),
-            [],
-            store,
-            outcome.identity,
-            [record.id],
-          )
-        }
-        None ->
-          integration_payload_result(
-            outcome,
-            field,
-            fragments,
-            variables,
-            "scriptTagUpdate",
-            "scriptTag",
-            None,
-            [user_error(["id"], "Script tag does not exist")],
-            outcome.store,
-            outcome.identity,
-            [],
-          )
-      }
-    None ->
+  case lookup_integration_by_id(outcome.store, "scriptTag", id) {
+    IntegrationFound(existing) -> {
+      let data =
+        existing.data
+        |> maybe_insert_string("src", input_string(input, "src"))
+        |> maybe_insert_string(
+          "displayScope",
+          input_string(input, "displayScope"),
+        )
+        |> maybe_insert_bool("cache", input_bool(input, "cache"))
+      let record = OnlineStoreIntegrationRecord(..existing, data: data)
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(outcome.store, record)
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        "scriptTagUpdate",
+        "scriptTag",
+        Some(record),
+        [],
+        store,
+        outcome.identity,
+        [record.id],
+      )
+    }
+    IntegrationInvalidId ->
       integration_payload_result(
         outcome,
         field,
@@ -1848,7 +1821,21 @@ fn update_script_tag(
         "scriptTagUpdate",
         "scriptTag",
         None,
-        [user_error(["id"], "Script tag does not exist")],
+        [integration_invalid_id_error("scriptTag")],
+        outcome.store,
+        outcome.identity,
+        [],
+      )
+    IntegrationMissing ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        "scriptTagUpdate",
+        "scriptTag",
+        None,
+        [integration_not_found_error("scriptTag")],
         outcome.store,
         outcome.identity,
         [],
@@ -1962,17 +1949,21 @@ fn update_pixel(
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
   let id = input_string(args, "id")
-  let existing = case id {
-    Some(id) ->
-      store.get_effective_online_store_integration_by_id(outcome.store, id)
+  let lookup = case id {
+    Some(_) -> lookup_integration_by_id(outcome.store, kind, id)
     None ->
-      first_option(store.list_effective_online_store_integrations(
-        outcome.store,
-        kind,
-      ))
+      case
+        first_option(store.list_effective_online_store_integrations(
+          outcome.store,
+          kind,
+        ))
+      {
+        Some(record) -> IntegrationFound(record)
+        None -> IntegrationMissing
+      }
   }
-  case existing {
-    Some(record) -> {
+  case lookup {
+    IntegrationFound(record) -> {
       let input =
         graphql_helpers.read_arg_object(args, kind)
         |> option.unwrap(dict.new())
@@ -2011,7 +2002,7 @@ fn update_pixel(
         [record.id],
       )
     }
-    None ->
+    IntegrationInvalidId ->
       integration_payload_result(
         outcome,
         field,
@@ -2020,7 +2011,21 @@ fn update_pixel(
         root,
         kind,
         None,
-        [web_pixel_user_error(["id"], "Pixel does not exist", None)],
+        [integration_invalid_id_error(kind)],
+        outcome.store,
+        outcome.identity,
+        [],
+      )
+    IntegrationMissing ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        root,
+        kind,
+        None,
+        [integration_not_found_error(kind)],
         outcome.store,
         outcome.identity,
         [],
@@ -2089,7 +2094,7 @@ fn update_server_pixel_endpoint(
         root,
         "serverPixel",
         None,
-        [user_error([], "Server pixel does not exist")],
+        [integration_not_found_error("serverPixel")],
         outcome.store,
         outcome.identity,
         [],
@@ -2289,41 +2294,24 @@ fn update_mobile_app(
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
   let id = input_string(args, "id")
-  case id {
-    Some(id) ->
-      case
-        store.get_effective_online_store_integration_by_id(outcome.store, id)
-      {
-        Some(record) ->
-          integration_payload_result(
-            outcome,
-            field,
-            fragments,
-            variables,
-            "mobilePlatformApplicationUpdate",
-            "mobilePlatformApplication",
-            Some(record),
-            [],
-            outcome.store,
-            outcome.identity,
-            [record.id],
-          )
-        None ->
-          integration_payload_result(
-            outcome,
-            field,
-            fragments,
-            variables,
-            "mobilePlatformApplicationUpdate",
-            "mobilePlatformApplication",
-            None,
-            [user_error(["id"], "Mobile platform application does not exist")],
-            outcome.store,
-            outcome.identity,
-            [],
-          )
-      }
-    None ->
+  case
+    lookup_integration_by_id(outcome.store, "mobilePlatformApplication", id)
+  {
+    IntegrationFound(record) ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        "mobilePlatformApplicationUpdate",
+        "mobilePlatformApplication",
+        Some(record),
+        [],
+        outcome.store,
+        outcome.identity,
+        [record.id],
+      )
+    IntegrationInvalidId ->
       integration_payload_result(
         outcome,
         field,
@@ -2332,7 +2320,21 @@ fn update_mobile_app(
         "mobilePlatformApplicationUpdate",
         "mobilePlatformApplication",
         None,
-        [user_error(["id"], "Mobile platform application does not exist")],
+        [integration_invalid_id_error("mobilePlatformApplication")],
+        outcome.store,
+        outcome.identity,
+        [],
+      )
+    IntegrationMissing ->
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        "mobilePlatformApplicationUpdate",
+        "mobilePlatformApplication",
+        None,
+        [integration_not_found_error("mobilePlatformApplication")],
         outcome.store,
         outcome.identity,
         [],
@@ -2350,19 +2352,24 @@ fn delete_integration(
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let id = input_string(graphql_helpers.field_args(field, variables), "id")
-  let #(deleted, errors, store) = case id {
-    Some(id) ->
-      case
-        store.get_effective_online_store_integration_by_id(outcome.store, id)
-      {
-        Some(_) -> #(
-          SrcString(id),
-          [],
-          store.delete_staged_online_store_integration(outcome.store, id),
-        )
-        None -> #(SrcNull, [integration_not_found_error(kind)], outcome.store)
-      }
-    None -> #(SrcNull, [integration_not_found_error(kind)], outcome.store)
+  let #(deleted, errors, store) = case
+    lookup_integration_by_id(outcome.store, kind, id)
+  {
+    IntegrationFound(record) -> #(
+      SrcString(record.id),
+      [],
+      store.delete_staged_online_store_integration(outcome.store, record.id),
+    )
+    IntegrationInvalidId -> #(
+      SrcNull,
+      [integration_invalid_id_error(kind)],
+      outcome.store,
+    )
+    IntegrationMissing -> #(
+      SrcNull,
+      [integration_not_found_error(kind)],
+      outcome.store,
+    )
   }
   let payload =
     project_payload_source(
@@ -3582,27 +3589,90 @@ fn web_pixel_taken_error() -> graphql_helpers.SourceValue {
   ])
 }
 
-fn web_pixel_user_error(
-  field: List(String),
-  message: String,
-  code: Option(String),
-) -> graphql_helpers.SourceValue {
-  src_object([
-    #("__typename", SrcString("WebPixelUserError")),
-    #("field", SrcList(list.map(field, SrcString))),
-    #("message", SrcString(message)),
-    #("code", case code {
-      Some(code) -> SrcString(code)
-      None -> SrcNull
-    }),
-  ])
+type IntegrationLookup {
+  IntegrationFound(OnlineStoreIntegrationRecord)
+  IntegrationInvalidId
+  IntegrationMissing
+}
+
+fn lookup_integration_by_id(
+  store_in: Store,
+  kind: String,
+  id: Option(String),
+) -> IntegrationLookup {
+  case id {
+    Some(id) ->
+      case valid_integration_gid(kind, id) {
+        False -> IntegrationInvalidId
+        True ->
+          case
+            store.get_effective_online_store_integration_by_id(store_in, id)
+          {
+            Some(record) if record.kind == kind -> IntegrationFound(record)
+            _ -> IntegrationMissing
+          }
+      }
+    None -> IntegrationMissing
+  }
+}
+
+fn valid_integration_gid(kind: String, id: String) -> Bool {
+  case string.split(id, on: "/") {
+    ["gid:", "", "shopify", type_name, tail] ->
+      type_name == integration_gid_type(kind) && tail != ""
+    _ -> False
+  }
+}
+
+fn integration_invalid_id_error(kind: String) -> graphql_helpers.SourceValue {
+  integration_user_error(kind, ["id"], "Invalid global id", "INVALID")
 }
 
 fn integration_not_found_error(kind: String) -> graphql_helpers.SourceValue {
+  integration_user_error(
+    kind,
+    ["id"],
+    integration_not_found_message(kind),
+    "NOT_FOUND",
+  )
+}
+
+fn integration_user_error(
+  kind: String,
+  field: List(String),
+  message: String,
+  code: String,
+) -> graphql_helpers.SourceValue {
+  case integration_user_error_typename(kind) {
+    Some(typename) ->
+      src_object([
+        #("__typename", SrcString(typename)),
+        #("field", SrcList(list.map(field, SrcString))),
+        #("message", SrcString(message)),
+        #("code", SrcString(code)),
+      ])
+    None -> user_error_with_code(field, message, code)
+  }
+}
+
+fn integration_user_error_typename(kind: String) -> Option(String) {
   case kind {
-    "webPixel" ->
-      web_pixel_user_error(["id"], "Integration does not exist", None)
-    _ -> user_error(["id"], "Integration does not exist")
+    "webPixel" -> Some("WebPixelUserError")
+    "scriptTag" -> Some("ScriptTagUserError")
+    "theme" -> Some("ThemeUserError")
+    _ -> None
+  }
+}
+
+fn integration_not_found_message(kind: String) -> String {
+  case kind {
+    "webPixel" -> "Pixel not found"
+    "scriptTag" -> "Script tag not found"
+    "theme" -> "Theme not found"
+    "serverPixel" -> "Server pixel not found"
+    "mobilePlatformApplication" -> "Mobile platform application not found"
+    "storefrontAccessToken" -> "Storefront access token not found"
+    _ -> "Integration not found"
   }
 }
 
