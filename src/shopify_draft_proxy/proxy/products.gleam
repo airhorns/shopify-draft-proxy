@@ -9322,7 +9322,7 @@ fn handle_product_create(
                   next_store,
                   identity_after_graph,
                   product.id,
-                  False,
+                  RecomputeProductTotalInventory,
                 )
               let synced_product = synced_product |> option.unwrap(product)
               mutation_result(
@@ -16031,7 +16031,7 @@ fn handle_product_variant_create(
                   next_store,
                   identity_after_variant,
                   product_id,
-                  False,
+                  RecomputeProductTotalInventory,
                 )
               mutation_result(
                 key,
@@ -16165,7 +16165,7 @@ fn handle_product_variant_update(
                   next_store,
                   identity_after_variant,
                   existing_variant.product_id,
-                  False,
+                  RecomputeProductTotalInventory,
                 )
               mutation_result(
                 key,
@@ -16273,7 +16273,7 @@ fn handle_product_variant_delete(
               next_store,
               identity,
               existing_variant.product_id,
-              False,
+              RecomputeProductTotalInventory,
             )
           mutation_result(
             key,
@@ -16467,7 +16467,7 @@ fn handle_product_variants_bulk_create_valid_size(
                   next_store,
                   identity_after_options,
                   product_id,
-                  False,
+                  RecomputeProductTotalInventory,
                 )
               mutation_result(
                 key,
@@ -16631,7 +16631,7 @@ fn handle_product_variants_bulk_update_valid_size(
                   next_store,
                   identity_after_variants,
                   product_id,
-                  False,
+                  RecomputeProductTotalInventory,
                 )
               mutation_result(
                 key,
@@ -16782,7 +16782,7 @@ fn handle_product_variants_bulk_delete(
                   next_store,
                   identity,
                   product_id,
-                  False,
+                  RecomputeProductTotalInventory,
                 )
               mutation_result(
                 key,
@@ -16884,7 +16884,7 @@ fn handle_product_variants_bulk_reorder(
                   next_store,
                   identity,
                   product_id,
-                  False,
+                  RecomputeProductTotalInventory,
                 )
               mutation_result(
                 key,
@@ -17383,7 +17383,7 @@ fn handle_inventory_item_update(
                   next_store,
                   identity,
                   variant.product_id,
-                  False,
+                  RecomputeProductTotalInventory,
                 )
               let updated_variant =
                 store.get_effective_variant_by_id(synced_store, variant.id)
@@ -25943,7 +25943,9 @@ fn apply_inventory_adjust_quantities(
           next_store,
           next_identity,
           group,
-          !require_change_from_quantity,
+          inventory_adjust_product_total_inventory_sync(
+            require_change_from_quantity,
+          ),
         )
       Ok(#(
         synced_store,
@@ -26039,7 +26041,7 @@ fn apply_inventory_set_quantities(
               next_store,
               next_identity,
               group,
-              False,
+              RecomputeProductTotalInventory,
             )
           Ok(#(
             synced_store,
@@ -26537,7 +26539,7 @@ fn apply_inventory_move_quantities(
           next_store,
           next_identity,
           group,
-          False,
+          RecomputeProductTotalInventory,
         )
       Ok(#(
         synced_store,
@@ -26803,11 +26805,25 @@ fn inventory_adjustment_staged_ids(
   ]
 }
 
+type ProductTotalInventorySync {
+  PreserveProductTotalInventory
+  RecomputeProductTotalInventory
+}
+
+fn inventory_adjust_product_total_inventory_sync(
+  require_change_from_quantity: Bool,
+) -> ProductTotalInventorySync {
+  case require_change_from_quantity {
+    True -> RecomputeProductTotalInventory
+    False -> PreserveProductTotalInventory
+  }
+}
+
 fn sync_product_summaries_for_inventory_group(
   store: Store,
   identity: SyntheticIdentityRegistry,
   group: InventoryAdjustmentGroup,
-  preserve_total_inventory: Bool,
+  total_inventory_sync: ProductTotalInventorySync,
 ) -> #(Store, SyntheticIdentityRegistry, List(String)) {
   let product_ids =
     group.changes
@@ -26829,7 +26845,7 @@ fn sync_product_summaries_for_inventory_group(
           current_store,
           current_identity,
           product_id,
-          preserve_total_inventory,
+          total_inventory_sync,
         )
       #(synced_store, synced_identity)
     })
@@ -27256,7 +27272,7 @@ fn sync_product_inventory_summary(
   store: Store,
   identity: SyntheticIdentityRegistry,
   product_id: String,
-  preserve_total_inventory: Bool,
+  total_inventory_sync: ProductTotalInventorySync,
 ) -> #(Option(ProductRecord), Store, SyntheticIdentityRegistry) {
   case store.get_effective_product_by_id(store, product_id) {
     None -> #(None, store, identity)
@@ -27274,9 +27290,9 @@ fn sync_product_inventory_summary(
           total_variants: summary.total_variants,
           has_only_default_variant: summary.has_only_default_variant,
           has_out_of_stock_variants: summary.has_out_of_stock_variants,
-          total_inventory: case preserve_total_inventory {
-            True -> product.total_inventory
-            False -> summary.total_inventory
+          total_inventory: case total_inventory_sync {
+            PreserveProductTotalInventory -> product.total_inventory
+            RecomputeProductTotalInventory -> summary.total_inventory
           },
           tracks_inventory: summary.tracks_inventory,
           updated_at: Some(updated_at),
