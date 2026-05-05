@@ -5279,45 +5279,72 @@ fn handle_email_consent(store, identity, field, fragments, variables) {
       case store.get_effective_customer_by_id(store, id) {
         Some(customer) -> {
           let consent = read_nested_object(input, "emailMarketingConsent")
-          let updated =
-            CustomerRecord(
-              ..customer,
-              default_email_address: Some(CustomerDefaultEmailAddressRecord(
-                email_address: customer.email,
-                marketing_state: read_obj_string(consent, "marketingState"),
-                marketing_opt_in_level: read_obj_string(
-                  consent,
-                  "marketingOptInLevel",
+          case customer.default_email_address {
+            Some(default_email_address) -> {
+              let updated =
+                CustomerRecord(
+                  ..customer,
+                  default_email_address: Some(CustomerDefaultEmailAddressRecord(
+                    email_address: default_email_address.email_address,
+                    marketing_state: read_obj_string(consent, "marketingState"),
+                    marketing_opt_in_level: read_obj_string(
+                      consent,
+                      "marketingOptInLevel",
+                    ),
+                    marketing_updated_at: read_obj_string(
+                      consent,
+                      "consentUpdatedAt",
+                    ),
+                  )),
+                  email_marketing_consent: make_email_consent_from(consent),
+                )
+              let #(_, next_store) = store.stage_update_customer(store, updated)
+              let payload =
+                customer_payload_json(
+                  next_store,
+                  "CustomerEmailMarketingConsentUpdatePayload",
+                  Some(updated),
+                  None,
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [id],
+                  "customerEmailMarketingConsentUpdate",
                 ),
-                marketing_updated_at: read_obj_string(
-                  consent,
-                  "consentUpdatedAt",
+                next_store,
+                identity,
+              )
+            }
+            None -> {
+              let payload =
+                customer_payload_json(
+                  store,
+                  "CustomerEmailMarketingConsentUpdatePayload",
+                  Some(customer),
+                  None,
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [],
+                  "customerEmailMarketingConsentUpdate",
                 ),
-              )),
-              email_marketing_consent: make_email_consent_from(consent),
-            )
-          let #(_, next_store) = store.stage_update_customer(store, updated)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerEmailMarketingConsentUpdatePayload",
-              Some(updated),
-              None,
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [id],
-              "customerEmailMarketingConsentUpdate",
-            ),
-            next_store,
-            identity,
-          )
+                store,
+                identity,
+              )
+            }
+          }
         }
         None ->
           customer_missing_result(
@@ -5360,47 +5387,79 @@ fn handle_sms_consent(store, identity, field, fragments, variables) {
       case store.get_effective_customer_by_id(store, id) {
         Some(customer) -> {
           let consent = read_nested_object(input, "smsMarketingConsent")
-          let updated =
-            CustomerRecord(
-              ..customer,
-              default_phone_number: Some(CustomerDefaultPhoneNumberRecord(
-                phone_number: customer.default_phone_number
-                  |> option.then(fn(v) { v.phone_number }),
-                marketing_state: read_obj_string(consent, "marketingState"),
-                marketing_opt_in_level: read_obj_string(
-                  consent,
-                  "marketingOptInLevel",
+          case customer.default_phone_number {
+            Some(default_phone_number) -> {
+              let updated =
+                CustomerRecord(
+                  ..customer,
+                  default_phone_number: Some(CustomerDefaultPhoneNumberRecord(
+                    phone_number: default_phone_number.phone_number,
+                    marketing_state: read_obj_string(consent, "marketingState"),
+                    marketing_opt_in_level: read_obj_string(
+                      consent,
+                      "marketingOptInLevel",
+                    ),
+                    marketing_updated_at: read_obj_string(
+                      consent,
+                      "consentUpdatedAt",
+                    ),
+                    marketing_collected_from: Some("OTHER"),
+                  )),
+                  sms_marketing_consent: make_sms_consent_from(consent),
+                )
+              let #(_, next_store) = store.stage_update_customer(store, updated)
+              let payload =
+                customer_payload_json(
+                  next_store,
+                  "CustomerSmsMarketingConsentUpdatePayload",
+                  Some(updated),
+                  None,
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [id],
+                  "customerSmsMarketingConsentUpdate",
                 ),
-                marketing_updated_at: read_obj_string(
-                  consent,
-                  "consentUpdatedAt",
+                next_store,
+                identity,
+              )
+            }
+            None -> {
+              let payload =
+                customer_payload_json(
+                  store,
+                  "CustomerSmsMarketingConsentUpdatePayload",
+                  None,
+                  None,
+                  None,
+                  [
+                    UserError(
+                      ["input", "smsMarketingConsent"],
+                      "A phone number is required to set the SMS consent state.",
+                      Some("INVALID"),
+                    ),
+                  ],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [],
+                  "customerSmsMarketingConsentUpdate",
                 ),
-                marketing_collected_from: Some("OTHER"),
-              )),
-              sms_marketing_consent: make_sms_consent_from(consent),
-            )
-          let #(_, next_store) = store.stage_update_customer(store, updated)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerSmsMarketingConsentUpdatePayload",
-              Some(updated),
-              None,
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [id],
-              "customerSmsMarketingConsentUpdate",
-            ),
-            next_store,
-            identity,
-          )
+                store,
+                identity,
+              )
+            }
+          }
         }
         None ->
           customer_missing_result(

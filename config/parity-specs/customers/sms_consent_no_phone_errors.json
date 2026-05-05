@@ -1,0 +1,128 @@
+{
+  "scenarioId": "customer-sms-consent-no-phone-errors",
+  "operationNames": ["customerCreate", "customerSmsMarketingConsentUpdate", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-sms-marketing-consent-update-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+    "apiVersion": "2026-04",
+    "variables": {
+      "input": {
+        "firstName": "Hermes",
+        "lastName": "ConsentEmailOnly",
+        "email": "hermes-consent-email-only-1777943566021@example.com"
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-771 parity slice for the captured 2026-04 customerSmsMarketingConsentUpdate branch where a customer has no default phone contact method. The mutation returns the captured INVALID userError and does not synthesize defaultPhoneNumber. A present-phone control in the same spec confirms the normal consent update path still stages defaultPhoneNumber marketing fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "email-only-setup-has-no-default-phone",
+        "capturePath": "$.validation.matrixPreconditions.emailOnlyCustomer.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.defaultPhoneNumber",
+          "$.customerCreate.userErrors"
+        ]
+      },
+      {
+        "name": "sms-consent-without-phone-errors",
+        "capturePath": "$.validation.matrix[6].response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSmsMarketingConsentUpdate-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "customerId": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "smsMarketingConsent": {
+                "fromCapturePath": "$.validation.matrix[6].variables.input.smsMarketingConsent"
+              }
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customerSmsMarketingConsentUpdate.customer",
+          "$.customerSmsMarketingConsentUpdate.userErrors"
+        ]
+      },
+      {
+        "name": "sms-consent-error-downstream-read",
+        "capturePath": "$.validation.matrixPreconditions.emailOnlyCustomer.data.customerCreate.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-consent-downstream-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            },
+            "query": "__customer_parity_no_match__",
+            "first": 5
+          }
+        },
+        "selectedPaths": ["$.email", "$.defaultPhoneNumber"]
+      },
+      {
+        "name": "sms-contact-control-setup",
+        "capturePath": "$.validation.matrixPreconditions.transitionCustomer.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "firstName": "Hermes",
+              "lastName": "ConsentTransition",
+              "email": "hermes-consent-transition-1777943566021@example.com",
+              "phone": "+14156666021"
+            }
+          }
+        },
+        "selectedPaths": ["$.customerCreate.customer.defaultPhoneNumber.phoneNumber", "$.customerCreate.userErrors"]
+      },
+      {
+        "name": "sms-contact-control-stages-consent",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSmsMarketingConsentUpdate-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "customerId": {
+                "fromProxyResponse": "sms-contact-control-setup",
+                "path": "$.data.customerCreate.customer.id"
+              },
+              "smsMarketingConsent": {
+                "fromCapturePath": "$.mutation.variables.input.smsMarketingConsent"
+              }
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customerSmsMarketingConsentUpdate.customer.defaultPhoneNumber.marketingState",
+          "$.customerSmsMarketingConsentUpdate.customer.defaultPhoneNumber.marketingOptInLevel",
+          "$.customerSmsMarketingConsentUpdate.customer.defaultPhoneNumber.marketingUpdatedAt",
+          "$.customerSmsMarketingConsentUpdate.customer.defaultPhoneNumber.marketingCollectedFrom",
+          "$.customerSmsMarketingConsentUpdate.userErrors"
+        ]
+      }
+    ]
+  }
+}
