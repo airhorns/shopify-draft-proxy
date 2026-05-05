@@ -1,7 +1,7 @@
 import gleam/dict.{type Dict}
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/orders
@@ -508,6 +508,14 @@ pub fn orders_order_edit_add_variant_payload_test() {
         cursor: None,
       ),
     ])
+    |> store.upsert_base_orders([
+      order_edit_test_order("gid://shopify/Order/7012", "PAID", None, [
+        order_edit_test_session(
+          "gid://shopify/Order/7012",
+          "gid://shopify/CalculatedOrder/10",
+        ),
+      ]),
+    ])
   let mutation =
     "
     mutation OrderEditExistingWorkflowAddVariantPayload(
@@ -619,9 +627,19 @@ pub fn orders_order_edit_add_variant_invalid_variant_payload_test() {
       ),
       #("allowDuplicates", root_field.BoolVal(False)),
     ])
+  let session_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order("gid://shopify/Order/7010", "PAID", None, [
+        order_edit_test_session(
+          "gid://shopify/Order/7010",
+          "gid://shopify/CalculatedOrder/1",
+        ),
+      ]),
+    ])
   let assert Ok(outcome) =
     orders.process_mutation(
-      store.new(),
+      session_store,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
@@ -631,6 +649,314 @@ pub fn orders_order_edit_add_variant_invalid_variant_payload_test() {
     == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"variantId\"],\"message\":\"can't convert Integer[0] to a positive Integer to use as an untrusted id\"}]}}}"
   assert outcome.staged_resource_ids == []
   assert outcome.log_drafts == []
+}
+
+pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
+  let begin =
+    "
+    mutation OrderEditBeginUserErrors($id: ID!) {
+      orderEditBegin(id: $id) {
+        calculatedOrder {
+          id
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+
+  let assert Ok(missing_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      begin,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/Order/0")),
+      ]),
+    )
+  assert json.to_string(missing_outcome.data)
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The order does not exist.\",\"code\":\"INVALID\"}]}}}"
+
+  let refunded_id = "gid://shopify/Order/7001"
+  let refunded_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order(refunded_id, "REFUNDED", None, []),
+    ])
+  let assert Ok(refunded_outcome) =
+    orders.process_mutation(
+      refunded_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      begin,
+      dict.from_list([#("id", root_field.StringVal(refunded_id))]),
+    )
+  assert json.to_string(refunded_outcome.data)
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The order cannot be edited.\",\"code\":\"INVALID\"}]}}}"
+
+  let cancel_id = "gid://shopify/Order/7002"
+  let cancel_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order(cancel_id, "PAID", None, []),
+    ])
+  let cancel =
+    "
+    mutation CancelForOrderEdit($orderId: ID!, $reason: OrderCancelReason!, $restock: Boolean!) {
+      orderCancel(orderId: $orderId, reason: $reason, restock: $restock) {
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let assert Ok(cancel_outcome) =
+    orders.process_mutation(
+      cancel_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      cancel,
+      dict.from_list([
+        #("orderId", root_field.StringVal(cancel_id)),
+        #("reason", root_field.StringVal("OTHER")),
+        #("restock", root_field.BoolVal(True)),
+      ]),
+    )
+  let assert Ok(canceled_begin_outcome) =
+    orders.process_mutation(
+      cancel_outcome.store,
+      cancel_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      begin,
+      dict.from_list([#("id", root_field.StringVal(cancel_id))]),
+    )
+  assert json.to_string(canceled_begin_outcome.data)
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The order cannot be edited.\",\"code\":\"INVALID\"}]}}}"
+
+  let existing_session_id = "gid://shopify/CalculatedOrder/99"
+  let existing_session_order_id = "gid://shopify/Order/7003"
+  let existing_session_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order(existing_session_order_id, "PAID", None, [
+        order_edit_test_session(existing_session_order_id, existing_session_id),
+      ]),
+    ])
+  let assert Ok(existing_session_outcome) =
+    orders.process_mutation(
+      existing_session_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      begin,
+      dict.from_list([
+        #("id", root_field.StringVal(existing_session_order_id)),
+      ]),
+    )
+  assert json.to_string(existing_session_outcome.data)
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"An edit is already in progress for this order\",\"code\":\"INVALID\"}]}}}"
+  assert existing_session_outcome.store == existing_session_store
+}
+
+pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
+  let add_variant =
+    "
+    mutation AddMissingVariant($id: ID!, $variantId: ID!, $quantity: Int!) {
+      orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {
+        calculatedOrder {
+          id
+        }
+        calculatedLineItem {
+          id
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let assert Ok(add_variant_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      add_variant,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #("variantId", root_field.StringVal("gid://shopify/ProductVariant/404")),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+    )
+  assert json.to_string(add_variant_outcome.data)
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
+
+  let session_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order("gid://shopify/Order/7011", "PAID", None, [
+        order_edit_test_session(
+          "gid://shopify/Order/7011",
+          "gid://shopify/CalculatedOrder/1",
+        ),
+      ]),
+    ])
+  let assert Ok(missing_variant_outcome) =
+    orders.process_mutation(
+      session_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      add_variant,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #("variantId", root_field.StringVal("gid://shopify/ProductVariant/404")),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+    )
+  assert json.to_string(missing_variant_outcome.data)
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"variantId\"],\"message\":\"Variant does not exist\",\"code\":\"INVALID\"}]}}}"
+
+  let set_quantity =
+    "
+    mutation SetMissingLine($id: ID!, $lineItemId: ID!, $quantity: Int!) {
+      orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {
+        calculatedOrder {
+          id
+        }
+        calculatedLineItem {
+          id
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let assert Ok(set_quantity_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      set_quantity,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #(
+          "lineItemId",
+          root_field.StringVal("gid://shopify/CalculatedLineItem/404"),
+        ),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+    )
+  assert json.to_string(set_quantity_outcome.data)
+    == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
+
+  let assert Ok(missing_line_outcome) =
+    orders.process_mutation(
+      session_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      set_quantity,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #(
+          "lineItemId",
+          root_field.StringVal("gid://shopify/CalculatedLineItem/404"),
+        ),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+    )
+  assert json.to_string(missing_line_outcome.data)
+    == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"lineItemId\"],\"message\":\"Line item does not exist\",\"code\":\"INVALID\"}]}}}"
+
+  let commit =
+    "
+    mutation CommitMissingCalculatedOrder($id: ID!) {
+      orderEditCommit(id: $id, notifyCustomer: false) {
+        order {
+          id
+        }
+        successMessages
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let assert Ok(commit_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      commit,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/404")),
+      ]),
+    )
+  assert json.to_string(commit_outcome.data)
+    == "{\"data\":{\"orderEditCommit\":{\"order\":null,\"successMessages\":[],\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
+}
+
+fn order_edit_test_order(
+  id: String,
+  display_financial_status: String,
+  cancelled_at: Option(String),
+  order_edit_sessions: List(types.CapturedJsonValue),
+) -> types.OrderRecord {
+  types.OrderRecord(
+    id: id,
+    cursor: None,
+    data: types.CapturedObject([
+      #("id", types.CapturedString(id)),
+      #("name", types.CapturedString("#7001")),
+      #(
+        "displayFinancialStatus",
+        types.CapturedString(display_financial_status),
+      ),
+      #("cancelledAt", case cancelled_at {
+        Some(timestamp) -> types.CapturedString(timestamp)
+        None -> types.CapturedNull
+      }),
+      #(
+        "lineItems",
+        types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+      ),
+      #("orderEditSessions", types.CapturedArray(order_edit_sessions)),
+    ]),
+  )
+}
+
+fn order_edit_test_session(
+  order_id: String,
+  calculated_order_id: String,
+) -> types.CapturedJsonValue {
+  types.CapturedObject([
+    #("id", types.CapturedString(calculated_order_id)),
+    #("originalOrderId", types.CapturedString(order_id)),
+    #("lineItems", types.CapturedObject([#("nodes", types.CapturedArray([]))])),
+    #(
+      "addedLineItems",
+      types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+    ),
+    #("shippingLines", types.CapturedArray([])),
+  ])
 }
 
 pub fn orders_order_edit_set_quantity_payload_test() {
@@ -691,6 +1017,15 @@ pub fn orders_order_edit_set_quantity_payload_test() {
                     ),
                   ]),
                 ]),
+              ),
+            ]),
+          ),
+          #(
+            "orderEditSessions",
+            types.CapturedArray([
+              order_edit_test_session(
+                order_id,
+                "gid://shopify/CalculatedOrder/1",
               ),
             ]),
           ),
