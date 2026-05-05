@@ -345,7 +345,7 @@ pub fn validation_create_active_cap_returns_user_error_and_stages_nothing_test()
       seed_function(store.new(), fn_record),
       fn_record,
       1,
-      10,
+      25,
     )
   let outcome =
     run_mutation_outcome(
@@ -354,8 +354,8 @@ pub fn validation_create_active_cap_returns_user_error_and_stages_nothing_test()
     )
 
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"enable\"],\"message\":\"Cannot have more than 10 active validation functions.\",\"code\":\"MAX_VALIDATIONS_ACTIVATED\"}]}}}"
-  assert list.length(store.list_effective_validations(outcome.store)) == 10
+    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[],\"message\":\"Cannot have more than 25 active validation functions.\",\"code\":\"MAX_VALIDATIONS_ACTIVATED\"}]}}}"
+  assert list.length(store.list_effective_validations(outcome.store)) == 25
 }
 
 pub fn validation_create_persists_metafields_for_downstream_reads_test() {
@@ -473,11 +473,11 @@ pub fn validation_update_reenable_enforces_active_cap_test() {
       seed_function(store.new(), fn_record),
       fn_record,
       1,
-      10,
+      25,
     )
   let inactive =
     ValidationRecord(
-      id: "gid://shopify/Validation/inactive-11",
+      id: "gid://shopify/Validation/inactive-26",
       title: Some("Inactive"),
       enable: Some(False),
       block_on_failure: Some(False),
@@ -491,15 +491,15 @@ pub fn validation_update_reenable_enforces_active_cap_test() {
   let outcome =
     run_mutation_outcome(
       seed_validation(seeded, inactive),
-      "mutation { validationUpdate(id: \"gid://shopify/Validation/inactive-11\", validation: { enable: true }) { validation { id enable } userErrors { field message code } } }",
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/inactive-26\", validation: { enable: true }) { validation { id enable } userErrors { field message code } } }",
     )
 
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"validationUpdate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"enable\"],\"message\":\"Cannot have more than 10 active validation functions.\",\"code\":\"MAX_VALIDATIONS_ACTIVATED\"}]}}}"
+    == "{\"data\":{\"validationUpdate\":{\"validation\":null,\"userErrors\":[{\"field\":[],\"message\":\"Cannot have more than 25 active validation functions.\",\"code\":\"MAX_VALIDATIONS_ACTIVATED\"}]}}}"
   let assert Some(unchanged) =
     store.get_effective_validation_by_id(
       outcome.store,
-      "gid://shopify/Validation/inactive-11",
+      "gid://shopify/Validation/inactive-26",
     )
   assert unchanged.enable == Some(False)
 }
