@@ -1,0 +1,70 @@
+{
+  "mutation": {
+    "variables": {
+      "synchronous": false,
+      "input": {
+        "title": "Hermes ProductSet Async 1777936367085",
+        "vendor": "Hermes",
+        "status": "DRAFT"
+      }
+    },
+    "response": {
+      "data": {
+        "productSet": {
+          "product": null,
+          "productSetOperation": {
+            "id": "gid://shopify/ProductSetOperation/79454830898",
+            "status": "CREATED",
+            "product": null,
+            "userErrors": []
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1582,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "operationRead": {
+    "variables": {
+      "id": "gid://shopify/ProductSetOperation/79454830898"
+    },
+    "response": {
+      "data": {
+        "productOperation": {
+          "__typename": "ProductSetOperation",
+          "status": "COMPLETE",
+          "product": {
+            "id": "gid://shopify/Product/10176764543282",
+            "title": "Hermes ProductSet Async 1777936367085",
+            "handle": "hermes-productset-async-1777936367085"
+          },
+          "id": "gid://shopify/ProductSetOperation/79454830898",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1698,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": null,
+  "upstreamCalls": []
+}
