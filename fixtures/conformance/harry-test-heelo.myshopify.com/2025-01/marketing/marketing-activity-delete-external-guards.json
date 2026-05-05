@@ -1,0 +1,334 @@
+{
+  "scenarioId": "marketing-activity-delete-external-guards",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-05-05T18:59:03.724Z",
+  "operations": {
+    "primary": {
+      "request": {
+        "query": "mutation MarketingActivityDeleteExternalGuards(\n  $createAfterDeleteAllInput: MarketingActivityCreateExternalInput!\n) {\n  noArgsDelete: marketingActivityDeleteExternal {\n    deletedMarketingActivityId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  deleteAllExternal: marketingActivitiesDeleteAllExternal {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  createAfterDeleteAll: marketingActivityCreateExternal(\n    input: $createAfterDeleteAllInput\n  ) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "createAfterDeleteAllInput": {
+            "title": "HAR-687 after-delete-all-1778007542630-1b27gp",
+            "remoteId": "har-687-after-delete-all-1778007542630-1b27gp",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/har-687/after-delete-all-1778007542630-1b27gp",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "urlParameterValue": "har687-after-delete-all-1778007542630-1b27gp",
+            "utm": {
+              "campaign": "har-687-after-delete-all-1778007542630-1b27gp",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "noArgsDelete": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Either the marketing activity ID or remote ID must be provided for the activity to be deleted.",
+                  "code": "INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS"
+                }
+              ]
+            },
+            "deleteAllExternal": {
+              "job": {
+                "id": "gid://shopify/Job/293dd354-cf07-4565-9a33-0793e7495a80",
+                "done": false
+              },
+              "userErrors": []
+            },
+            "createAfterDeleteAll": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Cannot perform this operation because a job to delete all external activities has been enqueued, which happens either from calling the marketingActivitiesDeleteAllExternal mutation or as a result of an app uninstall. Please either check the status of the job returned by the mutation or try again later.",
+                  "code": "DELETE_JOB_ENQUEUED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "blockerProbes": {
+    "parentChildSetup": {
+      "summary": "The disposable shop did not expose a recognized channelHandle, so creating a campaign-level parent external activity for child-event delete validation was blocked.",
+      "attempts": [
+        {
+          "name": "campaign-no-channel",
+          "variables": {
+            "input": {
+              "title": "HAR-687 parent-1778007542630-1b27gp",
+              "remoteId": "har-687-parent-1778007542630-1b27gp",
+              "status": "ACTIVE",
+              "remoteUrl": "https://example.com/har-687/parent-1778007542630-1b27gp",
+              "tactic": "NEWSLETTER",
+              "marketingChannelType": "EMAIL",
+              "urlParameterValue": "har687-parent-1778007542630-1b27gp",
+              "utm": {
+                "campaign": "har-687-parent-1778007542630-1b27gp",
+                "source": "email",
+                "medium": "newsletter"
+              },
+              "hierarchyLevel": "CAMPAIGN"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "marketingActivityCreateExternal": {
+                  "marketingActivity": null,
+                  "userErrors": [
+                    {
+                      "field": ["input"],
+                      "message": "Validation failed: Channel handle is needed when hierarchyLevel is set to 'campaign'",
+                      "code": null
+                    }
+                  ]
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 11,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1989,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "campaign-with-email",
+          "variables": {
+            "input": {
+              "title": "HAR-687 parent-email-1778007542630-1b27gp",
+              "remoteId": "har-687-parent-email-1778007542630-1b27gp",
+              "status": "ACTIVE",
+              "remoteUrl": "https://example.com/har-687/parent-email-1778007542630-1b27gp",
+              "tactic": "NEWSLETTER",
+              "marketingChannelType": "EMAIL",
+              "urlParameterValue": "har687-parent-email-1778007542630-1b27gp",
+              "utm": {
+                "campaign": "har-687-parent-email-1778007542630-1b27gp",
+                "source": "email",
+                "medium": "newsletter"
+              },
+              "hierarchyLevel": "CAMPAIGN",
+              "channelHandle": "email"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "marketingActivityCreateExternal": {
+                  "marketingActivity": null,
+                  "userErrors": [
+                    {
+                      "field": ["input"],
+                      "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                      "code": "INVALID_CHANNEL_HANDLE"
+                    }
+                  ]
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 11,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "campaign-with-app",
+          "variables": {
+            "input": {
+              "title": "HAR-687 parent-app-1778007542630-1b27gp",
+              "remoteId": "har-687-parent-app-1778007542630-1b27gp",
+              "status": "ACTIVE",
+              "remoteUrl": "https://example.com/har-687/parent-app-1778007542630-1b27gp",
+              "tactic": "NEWSLETTER",
+              "marketingChannelType": "EMAIL",
+              "urlParameterValue": "har687-parent-app-1778007542630-1b27gp",
+              "utm": {
+                "campaign": "har-687-parent-app-1778007542630-1b27gp",
+                "source": "email",
+                "medium": "newsletter"
+              },
+              "hierarchyLevel": "CAMPAIGN",
+              "channelHandle": "hermes-conformance-products"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "marketingActivityCreateExternal": {
+                  "marketingActivity": null,
+                  "userErrors": [
+                    {
+                      "field": ["input"],
+                      "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                      "code": "INVALID_CHANNEL_HANDLE"
+                    }
+                  ]
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 11,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "nativeDeleteSetup": {
+      "summary": "No non-external marketing activities were discoverable through Admin GraphQL in the disposable shop, and native success creation remains blocked by the missing deprecated MarketingActivityExtension recorded in marketing-native-activity-lifecycle.",
+      "inventory": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivities": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "preflight": {
+    "deleteAllIdleAttempts": [
+      {
+        "input": {
+          "title": "HAR-687 preflight-0-har-687-preflight-1778007542630-1b27gp",
+          "remoteId": "har-687-preflight-1778007542630-1b27gp-0",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/har-687/preflight-0-har-687-preflight-1778007542630-1b27gp",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "urlParameterValue": "har687-preflight-0-har-687-preflight-1778007542630-1b27gp",
+          "utm": {
+            "campaign": "har-687-preflight-0-har-687-preflight-1778007542630-1b27gp",
+            "source": "email",
+            "medium": "newsletter"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "marketingActivityCreateExternal": {
+                "marketingActivity": {
+                  "id": "gid://shopify/MarketingActivity/197032870194",
+                  "title": "HAR-687 preflight-0-har-687-preflight-1778007542630-1b27gp",
+                  "parentRemoteId": null,
+                  "hierarchyLevel": null,
+                  "marketingEvent": {
+                    "id": "gid://shopify/MarketingEvent/242389516594",
+                    "remoteId": "har-687-preflight-1778007542630-1b27gp-0",
+                    "channelHandle": null
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "cleanup": {
+    "createAfterDeleteAll": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

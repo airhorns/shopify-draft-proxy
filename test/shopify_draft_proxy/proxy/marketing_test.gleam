@@ -609,6 +609,186 @@ pub fn update_external_requires_a_selector_test() {
   )
 }
 
+pub fn delete_external_requires_selector_and_preserves_missing_record_error_test() {
+  let no_args =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityDeleteExternal { deletedMarketingActivityId userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let no_args_response = json.to_string(no_args.data)
+  assert string.contains(
+    no_args_response,
+    "\"deletedMarketingActivityId\":null",
+  )
+  assert string.contains(
+    no_args_response,
+    "\"code\":\"INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS\"",
+  )
+
+  let missing =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityDeleteExternal(remoteId: \"missing\") { deletedMarketingActivityId userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let missing_response = json.to_string(missing.data)
+  assert string.contains(
+    missing_response,
+    "\"deletedMarketingActivityId\":null",
+  )
+  assert string.contains(
+    missing_response,
+    "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
+  )
+}
+
+pub fn delete_external_rejects_native_and_parent_activities_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let native_id = "gid://shopify/MarketingActivity/701"
+  let parent_id = "gid://shopify/MarketingActivity/702"
+  let child_id = "gid://shopify/MarketingActivity/703"
+  let source =
+    store.upsert_base_marketing_activities(store.new(), [
+      non_external_activity(native_id, "native-remote"),
+      external_activity_with_details(
+        parent_id,
+        "parent-remote",
+        "Parent",
+        "channel-a",
+        "promo-parent",
+        "",
+        "CAMPAIGN",
+      ),
+      external_activity_with_details(
+        child_id,
+        "child-remote",
+        "Child",
+        "channel-a",
+        "promo-child",
+        "parent-remote",
+        "AD_GROUP",
+      ),
+    ])
+
+  let native_delete =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityDeleteExternal(marketingActivityId: \""
+        <> native_id
+        <> "\") { deletedMarketingActivityId userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let native_response = json.to_string(native_delete.data)
+  assert string.contains(native_response, "\"deletedMarketingActivityId\":null")
+  assert string.contains(native_response, "\"code\":\"ACTIVITY_NOT_EXTERNAL\"")
+  assert run(
+      native_delete.store,
+      "{ marketingActivity(id: \"" <> native_id <> "\") { id title } }",
+    )
+    == "{\"marketingActivity\":{\"id\":\""
+    <> native_id
+    <> "\",\"title\":\"Native\"}}"
+
+  let parent_delete =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityDeleteExternal(remoteId: \"parent-remote\") { deletedMarketingActivityId userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let parent_response = json.to_string(parent_delete.data)
+  assert string.contains(parent_response, "\"deletedMarketingActivityId\":null")
+  assert string.contains(
+    parent_response,
+    "\"code\":\"CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS\"",
+  )
+  assert run(
+      parent_delete.store,
+      "{ marketingActivity(id: \"" <> parent_id <> "\") { id title } }",
+    )
+    == "{\"marketingActivity\":{\"id\":\""
+    <> parent_id
+    <> "\",\"title\":\"Parent\"}}"
+}
+
+pub fn delete_all_external_in_flight_blocks_external_writes_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let create_doc =
+    "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { field message code } } }"
+  let created =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      create_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let delete_all =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      request_path,
+      "mutation { marketingActivitiesDeleteAllExternal { job { id done } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert store.has_marketing_delete_all_external_in_flight(delete_all.store)
+
+  let blocked_create =
+    marketing.process_mutation(
+      delete_all.store,
+      delete_all.identity,
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Blocked\", remoteId: \"remote-2\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"utm_campaign=blocked\", utm: { campaign: \"blocked\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let blocked_update =
+    marketing.process_mutation(
+      delete_all.store,
+      delete_all.identity,
+      request_path,
+      "mutation { marketingActivityUpdateExternal(remoteId: \"remote-1\", input: { title: \"Blocked\" }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let blocked_upsert =
+    marketing.process_mutation(
+      delete_all.store,
+      delete_all.identity,
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { title: \"Blocked\", remoteId: \"remote-3\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"utm_campaign=blocked\", utm: { campaign: \"blocked\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  assert string.contains(
+    json.to_string(blocked_create.data),
+    "\"code\":\"DELETE_JOB_ENQUEUED\"",
+  )
+  assert string.contains(
+    json.to_string(blocked_update.data),
+    "\"code\":\"DELETE_JOB_ENQUEUED\"",
+  )
+  assert string.contains(
+    json.to_string(blocked_upsert.data),
+    "\"code\":\"DELETE_JOB_ENQUEUED\"",
+  )
+}
+
 pub fn native_activity_validation_update_and_log_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let missing_doc =

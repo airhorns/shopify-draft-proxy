@@ -496,6 +496,7 @@ pub type StagedState {
     deleted_marketing_activity_ids: Dict(String, Bool),
     deleted_marketing_event_ids: Dict(String, Bool),
     deleted_marketing_engagement_ids: Dict(String, Bool),
+    marketing_delete_all_external_in_flight: Bool,
     validations: Dict(String, ValidationRecord),
     validation_order: List(String),
     deleted_validation_ids: Dict(String, Bool),
@@ -1024,6 +1025,7 @@ pub fn empty_staged_state() -> StagedState {
     deleted_marketing_activity_ids: dict.new(),
     deleted_marketing_event_ids: dict.new(),
     deleted_marketing_engagement_ids: dict.new(),
+    marketing_delete_all_external_in_flight: False,
     validations: dict.new(),
     validation_order: [],
     deleted_validation_ids: dict.new(),
@@ -7927,6 +7929,15 @@ pub fn stage_delete_all_external_marketing_activities(
         }
       },
     )
+  let staged = next_store.staged_state
+  let next_store =
+    Store(
+      ..next_store,
+      staged_state: StagedState(
+        ..staged,
+        marketing_delete_all_external_in_flight: True,
+      ),
+    )
   #(list.reverse(ids), next_store)
 }
 
@@ -8007,6 +8018,11 @@ pub fn has_staged_marketing_records(store: Store) -> Bool {
   || !list.is_empty(dict.keys(
     store.staged_state.deleted_marketing_engagement_ids,
   ))
+  || store.staged_state.marketing_delete_all_external_in_flight
+}
+
+pub fn has_marketing_delete_all_external_in_flight(store: Store) -> Bool {
+  store.staged_state.marketing_delete_all_external_in_flight
 }
 
 pub fn stage_marketing_engagement(

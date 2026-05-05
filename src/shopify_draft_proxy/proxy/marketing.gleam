@@ -905,36 +905,48 @@ fn marketing_activity_create_external(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  case has_attribution(input) {
-    False ->
+  case store.has_marketing_delete_all_external_in_flight(store) {
+    True ->
       validation_result(
         key,
         "marketingActivityCreateExternal",
-        [non_hierarchical_utm_error()],
+        [delete_job_enqueued_error()],
         store,
         identity,
       )
-    True ->
-      case read_value_string(input, "remoteId") {
-        Some(remote_id) ->
-          case
-            store.get_effective_marketing_activity_by_remote_id(
-              store,
-              remote_id,
-            )
-          {
-            Some(_) ->
-              validation_result(
-                key,
-                "marketingActivityCreateExternal",
-                [duplicate_external_activity_error()],
-                store,
-                identity,
-              )
+    False ->
+      case has_attribution(input) {
+        False ->
+          validation_result(
+            key,
+            "marketingActivityCreateExternal",
+            [non_hierarchical_utm_error()],
+            store,
+            identity,
+          )
+        True ->
+          case read_value_string(input, "remoteId") {
+            Some(remote_id) ->
+              case
+                store.get_effective_marketing_activity_by_remote_id(
+                  store,
+                  remote_id,
+                )
+              {
+                Some(_) ->
+                  validation_result(
+                    key,
+                    "marketingActivityCreateExternal",
+                    [duplicate_external_activity_error()],
+                    store,
+                    identity,
+                  )
+                None ->
+                  create_external_activity_success(store, identity, key, input)
+              }
             None ->
               create_external_activity_success(store, identity, key, input)
           }
-        None -> create_external_activity_success(store, identity, key, input)
       }
   }
 }
@@ -954,59 +966,143 @@ fn marketing_activity_update_external(
     read_utm(
       graphql_helpers.read_arg_object(args, "utm") |> option.unwrap(dict.new()),
     )
-  case has_remote_id || has_marketing_activity_id || has_utm_selector {
-    False ->
+  case store.has_marketing_delete_all_external_in_flight(store) {
+    True ->
       validation_result(
         key,
         "marketingActivityUpdateExternal",
-        [invalid_marketing_activity_external_arguments_error()],
+        [delete_job_enqueued_error()],
         store,
         identity,
       )
-    True -> {
-      let activity = case
-        graphql_helpers.read_arg_string_nonempty(args, "remoteId")
-      {
-        Some(remote_id) ->
-          store.get_effective_marketing_activity_by_remote_id(store, remote_id)
-        None ->
-          case
-            graphql_helpers.read_arg_string_nonempty(
-              args,
-              "marketingActivityId",
-            )
-          {
-            Some(id) ->
-              store.get_effective_marketing_activity_record_by_id(store, id)
-            None -> find_marketing_activity_by_utm(store, selector_utm)
-          }
-      }
-      case activity {
-        None ->
+    False ->
+      case has_remote_id || has_marketing_activity_id || has_utm_selector {
+        False ->
           validation_result(
             key,
             "marketingActivityUpdateExternal",
-            [marketing_activity_missing_error()],
+            [invalid_marketing_activity_external_arguments_error()],
             store,
             identity,
           )
-        Some(activity) -> {
-          let requested_utm =
-            graphql_helpers.read_arg_object(args, "utm")
-            |> option.unwrap(dict.new())
+        True -> {
+          let activity = case
+            graphql_helpers.read_arg_string_nonempty(args, "remoteId")
+          {
+            Some(remote_id) ->
+              store.get_effective_marketing_activity_by_remote_id(
+                store,
+                remote_id,
+              )
+            None ->
+              case
+                graphql_helpers.read_arg_string_nonempty(
+                  args,
+                  "marketingActivityId",
+                )
+              {
+                Some(id) ->
+                  store.get_effective_marketing_activity_record_by_id(store, id)
+                None -> find_marketing_activity_by_utm(store, selector_utm)
+              }
+          }
+          case activity {
+            None ->
+              validation_result(
+                key,
+                "marketingActivityUpdateExternal",
+                [marketing_activity_missing_error()],
+                store,
+                identity,
+              )
+            Some(activity) -> {
+              let requested_utm =
+                graphql_helpers.read_arg_object(args, "utm")
+                |> option.unwrap(dict.new())
+              case
+                validate_external_activity_update(
+                  store,
+                  activity,
+                  input,
+                  read_utm(requested_utm),
+                  !dict.is_empty(requested_utm),
+                )
+              {
+                Some(error) ->
+                  validation_result(
+                    key,
+                    "marketingActivityUpdateExternal",
+                    [error],
+                    store,
+                    identity,
+                  )
+                None ->
+                  update_external_activity_success(
+                    store,
+                    identity,
+                    key,
+                    activity,
+                    input,
+                  )
+              }
+            }
+          }
+        }
+      }
+  }
+}
+
+fn marketing_activity_upsert_external(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  case store.has_marketing_delete_all_external_in_flight(store) {
+    True ->
+      validation_result(
+        key,
+        "marketingActivityUpsertExternal",
+        [delete_job_enqueued_error()],
+        store,
+        identity,
+      )
+    False -> {
+      let existing = case read_value_string(input, "remoteId") {
+        Some(remote_id) ->
+          store.get_effective_marketing_activity_by_remote_id(store, remote_id)
+        None -> None
+      }
+      case existing {
+        None ->
+          case has_attribution(input) {
+            False ->
+              validation_result(
+                key,
+                "marketingActivityUpsertExternal",
+                [non_hierarchical_utm_error()],
+                store,
+                identity,
+              )
+            True ->
+              create_external_activity_success(store, identity, key, input)
+          }
+        Some(activity) ->
           case
             validate_external_activity_update(
               store,
               activity,
               input,
-              read_utm(requested_utm),
-              !dict.is_empty(requested_utm),
+              read_utm(input),
+              True,
             )
           {
             Some(error) ->
               validation_result(
                 key,
-                "marketingActivityUpdateExternal",
+                "marketingActivityUpsertExternal",
                 [error],
                 store,
                 identity,
@@ -1020,65 +1116,8 @@ fn marketing_activity_update_external(
                 input,
               )
           }
-        }
       }
     }
-  }
-}
-
-fn marketing_activity_upsert_external(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  key: String,
-  args: Dict(String, root_field.ResolvedValue),
-) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input =
-    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  let existing = case read_value_string(input, "remoteId") {
-    Some(remote_id) ->
-      store.get_effective_marketing_activity_by_remote_id(store, remote_id)
-    None -> None
-  }
-  case existing {
-    None ->
-      case has_attribution(input) {
-        False ->
-          validation_result(
-            key,
-            "marketingActivityUpsertExternal",
-            [non_hierarchical_utm_error()],
-            store,
-            identity,
-          )
-        True -> create_external_activity_success(store, identity, key, input)
-      }
-    Some(activity) ->
-      case
-        validate_external_activity_update(
-          store,
-          activity,
-          input,
-          read_utm(input),
-          True,
-        )
-      {
-        Some(error) ->
-          validation_result(
-            key,
-            "marketingActivityUpsertExternal",
-            [error],
-            store,
-            identity,
-          )
-        None ->
-          update_external_activity_success(
-            store,
-            identity,
-            key,
-            activity,
-            input,
-          )
-      }
   }
 }
 
@@ -1211,45 +1250,137 @@ fn marketing_activity_delete_external(
   key: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let activity = case
-    graphql_helpers.read_arg_string_nonempty(args, "remoteId")
-  {
-    Some(remote_id) ->
-      store.get_effective_marketing_activity_by_remote_id(store, remote_id)
-    None ->
-      case
-        graphql_helpers.read_arg_string_nonempty(args, "marketingActivityId")
-      {
-        Some(id) ->
-          store.get_effective_marketing_activity_record_by_id(store, id)
-        None -> None
-      }
-  }
-  case activity {
-    None ->
+  let remote_id = graphql_helpers.read_arg_string_nonempty(args, "remoteId")
+  let marketing_activity_id =
+    graphql_helpers.read_arg_string_nonempty(args, "marketingActivityId")
+  case remote_id, marketing_activity_id {
+    None, None ->
       validation_result(
         key,
         "marketingActivityDeleteExternal",
-        [marketing_activity_missing_error()],
+        [invalid_delete_activity_external_arguments_error()],
         store,
         identity,
       )
-    Some(activity) -> {
-      let next_store = store.stage_delete_marketing_activity(store, activity.id)
-      #(
-        MutationFieldResult(
-          key,
-          src_object([
-            #("deletedMarketingActivityId", SrcString(activity.id)),
-            #("userErrors", user_errors_source([])),
-          ]),
-          [activity.id],
-          True,
-        ),
-        next_store,
-        identity,
-      )
+    _, _ -> {
+      let activity = case remote_id {
+        Some(remote_id) ->
+          store.get_effective_marketing_activity_by_remote_id(store, remote_id)
+        None ->
+          case marketing_activity_id {
+            Some(id) ->
+              store.get_effective_marketing_activity_record_by_id(store, id)
+            None -> None
+          }
+      }
+      case activity {
+        None ->
+          validation_result(
+            key,
+            "marketingActivityDeleteExternal",
+            [marketing_activity_missing_error()],
+            store,
+            identity,
+          )
+        Some(activity) ->
+          case validate_external_activity_delete(store, activity) {
+            Some(error) ->
+              validation_result(
+                key,
+                "marketingActivityDeleteExternal",
+                [error],
+                store,
+                identity,
+              )
+            None -> {
+              let next_store =
+                store.stage_delete_marketing_activity(store, activity.id)
+              #(
+                MutationFieldResult(
+                  key,
+                  src_object([
+                    #("deletedMarketingActivityId", SrcString(activity.id)),
+                    #("userErrors", user_errors_source([])),
+                  ]),
+                  [activity.id],
+                  True,
+                ),
+                next_store,
+                identity,
+              )
+            }
+          }
+      }
     }
+  }
+}
+
+fn validate_external_activity_delete(
+  store: Store,
+  activity: MarketingRecord,
+) -> Option(UserError) {
+  case read_marketing_bool(activity.data, "isExternal") {
+    False -> Some(activity_not_external_error())
+    True ->
+      case has_child_marketing_events(store, activity) {
+        True -> Some(cannot_delete_activity_with_child_events_error())
+        False -> None
+      }
+  }
+}
+
+fn has_child_marketing_events(store: Store, activity: MarketingRecord) -> Bool {
+  case nested_marketing_event_has_children(activity) {
+    True -> True
+    False ->
+      store.list_effective_marketing_activities(store)
+      |> list.any(fn(candidate) {
+        candidate.id != activity.id
+        && references_parent_activity(candidate, activity)
+      })
+  }
+}
+
+fn nested_marketing_event_has_children(activity: MarketingRecord) -> Bool {
+  case read_marketing_object(activity.data, "marketingEvent") {
+    None -> False
+    Some(event) -> marketing_child_events_value_has_items(event)
+  }
+}
+
+fn marketing_child_events_value_has_items(
+  event: Dict(String, MarketingValue),
+) -> Bool {
+  case dict.get(event, "childEvents") {
+    Ok(MarketingList(values)) -> !list.is_empty(values)
+    Ok(MarketingObject(fields)) ->
+      marketing_child_events_connection_has_items(fields)
+    _ -> False
+  }
+}
+
+fn marketing_child_events_connection_has_items(
+  fields: Dict(String, MarketingValue),
+) -> Bool {
+  case dict.get(fields, "nodes") {
+    Ok(MarketingList(nodes)) -> !list.is_empty(nodes)
+    _ ->
+      case dict.get(fields, "edges") {
+        Ok(MarketingList(edges)) -> !list.is_empty(edges)
+        _ -> False
+      }
+  }
+}
+
+fn references_parent_activity(
+  candidate: MarketingRecord,
+  parent: MarketingRecord,
+) -> Bool {
+  read_marketing_string(candidate.data, "parentActivityId") == Some(parent.id)
+  || case marketing_remote_id(parent.data) {
+    Some(remote_id) ->
+      read_marketing_string(candidate.data, "parentRemoteId") == Some(remote_id)
+    None -> False
   }
 }
 
@@ -1622,11 +1753,35 @@ fn invalid_marketing_activity_external_arguments_error() -> UserError {
   )
 }
 
+fn invalid_delete_activity_external_arguments_error() -> UserError {
+  UserError(
+    field: None,
+    message: "Either the marketing activity ID or remote ID must be provided for the activity to be deleted.",
+    code: Some("INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS"),
+  )
+}
+
 fn activity_not_external_error() -> UserError {
   UserError(
     field: Some(["input"]),
     message: "Marketing activity is not external.",
     code: Some("ACTIVITY_NOT_EXTERNAL"),
+  )
+}
+
+fn cannot_delete_activity_with_child_events_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Cannot delete a marketing activity with child events.",
+    code: Some("CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"),
+  )
+}
+
+fn delete_job_enqueued_error() -> UserError {
+  UserError(
+    field: None,
+    message: "Cannot perform this operation because a job to delete all external activities has been enqueued, which happens either from calling the marketingActivitiesDeleteAllExternal mutation or as a result of an app uninstall. Please either check the status of the job returned by the mutation or try again later.",
+    code: Some("DELETE_JOB_ENQUEUED"),
   )
 }
 
