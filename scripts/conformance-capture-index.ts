@@ -144,6 +144,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-company-update-customer-since',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-company-update-customer-since-conformance.mts',
+    purpose:
+      'B2B companyUpdate customerSince create-only guard, including present timestamp, present alongside another update field, and present null inputs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-company-update-customer-since.json`,
+      'config/parity-specs/b2b/company_update_rejects_customer_since.json',
+      'config/parity-requests/b2b/b2b-company-update-customer-since-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable setup company with customerSince, records rejected update attempts and read-after-reject checks, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-external-id-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-external-id-validation-conformance.mts',
