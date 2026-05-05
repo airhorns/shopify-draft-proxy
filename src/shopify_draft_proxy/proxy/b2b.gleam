@@ -5220,16 +5220,23 @@ fn serialize_mutation_payload(
             })
             "companyLocationStaffMemberAssignments" -> #(
               key,
-              json.array(
-                payload.company_location_staff_member_assignments,
-                fn(item) {
-                  project_graphql_value(
-                    item,
-                    selected_children(child),
-                    fragments,
+              case
+                payload.user_errors,
+                payload.company_location_staff_member_assignments
+              {
+                [_, ..], [] -> json.null()
+                _, _ ->
+                  json.array(
+                    payload.company_location_staff_member_assignments,
+                    fn(item) {
+                      project_graphql_value(
+                        item,
+                        selected_children(child),
+                        fragments,
+                      )
+                    },
                   )
-                },
-              ),
+              },
             )
             "userErrors" -> #(
               key,
@@ -5277,10 +5284,17 @@ fn serialize_mutation_payload(
             )
             "deletedCompanyLocationStaffMemberAssignmentIds" -> #(
               key,
-              json.array(
-                payload.deleted_company_location_staff_member_assignment_ids,
-                json.string,
-              ),
+              case
+                payload.user_errors,
+                payload.deleted_company_location_staff_member_assignment_ids
+              {
+                [_, ..], [] -> json.null()
+                _, _ ->
+                  json.array(
+                    payload.deleted_company_location_staff_member_assignment_ids,
+                    json.string,
+                  )
+              },
             )
             "removedCompanyContactId" -> #(
               key,

@@ -107,6 +107,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-staff-assignment-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-staff-assignment-validation-conformance.ts',
+    purpose:
+      'B2B company location staff-member assignment validation for unknown StaffMember IDs and unknown CompanyLocationStaffMemberAssignment IDs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-staff-assignment-validation.json`,
+      'config/parity-specs/b2b/staff_assign_unknown_user.json',
+      'config/parity-specs/b2b/staff_remove_unknown_assignment.json',
+      'config/parity-requests/b2b/b2b-staff-assignment-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable company location, records validation failures that do not stage staff assignments, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The current conformance credential still receives ACCESS_DENIED for staffMembers(first:), so valid-staff partial-success assignment remains runtime-test-backed until an eligible staff catalog credential is available.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-string-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-string-validation-conformance.mts',

@@ -178,6 +178,47 @@ pub fn b2b_location_assign_staff_members_rejects_unknown_user_and_keeps_partial_
   )
 }
 
+pub fn b2b_location_assign_staff_members_returns_null_payload_when_all_staff_unknown_test() {
+  let unknown_staff_member_id = "gid://shopify/StaffMember/999"
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"HAR 761 Unknown Staff\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignStaffMembers(companyLocationId: \""
+        <> location_id
+        <> "\", staffMemberIds: [\""
+        <> unknown_staff_member_id
+        <> "\"]) { companyLocationStaffMemberAssignments { id staffMember { id } companyLocation { id } } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(
+    assign_json,
+    "\"companyLocationStaffMemberAssignments\":null",
+  )
+  assert string.contains(assign_json, "\"field\":[\"staffMemberIds\",\"0\"]")
+  assert string.contains(assign_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \""
+        <> location_id
+        <> "\") { staffMemberAssignments(first: 5) { nodes { id } } } }",
+    )
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"nodes\":[]")
+}
+
 pub fn b2b_location_remove_staff_members_rejects_unknown_assignment_and_keeps_partial_success_test() {
   let staff_member_id = "gid://shopify/StaffMember/102"
   let proxy =
@@ -241,6 +282,29 @@ pub fn b2b_location_remove_staff_members_rejects_unknown_assignment_and_keeps_pa
     )
   assert read_status == 200
   assert string.contains(json.to_string(read_body), "\"nodes\":[]")
+}
+
+pub fn b2b_location_remove_staff_members_returns_null_payload_when_all_assignments_unknown_test() {
+  let unknown_assignment_id =
+    "gid://shopify/CompanyLocationStaffMemberAssignment/999"
+  let #(Response(status: remove_status, body: remove_body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyLocationRemoveStaffMembers(companyLocationStaffMemberAssignmentIds: [\""
+        <> unknown_assignment_id
+        <> "\"]) { deletedCompanyLocationStaffMemberAssignmentIds userErrors { field message code } } }",
+    )
+  assert remove_status == 200
+  let remove_json = json.to_string(remove_body)
+  assert string.contains(
+    remove_json,
+    "\"deletedCompanyLocationStaffMemberAssignmentIds\":null",
+  )
+  assert string.contains(
+    remove_json,
+    "\"field\":[\"companyLocationStaffMemberAssignmentIds\",\"0\"]",
+  )
+  assert string.contains(remove_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
 }
 
 fn contact_ids(count: Int) -> List(String) {
