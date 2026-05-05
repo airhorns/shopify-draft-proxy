@@ -111,6 +111,85 @@ pub fn code_basic_create_is_readable_by_code_test() {
     == "{\"codeDiscountNodeByCode\":{\"codeDiscount\":{\"title\":\"Launch\",\"codes\":{\"nodes\":[{\"code\":\"LAUNCH10\"}]}}}}"
 }
 
+pub fn code_basic_status_uses_starts_and_ends_for_create_read_and_filters_test() {
+  let scheduled =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Future\", code: \"FUTURE2099\", startsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { status } } } userErrors { message } } }",
+    )
+  let expired =
+    run_mutation_from(
+      scheduled.store,
+      scheduled.identity,
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Past\", code: \"PAST2020\", startsAt: \"2019-01-01T00:00:00Z\", endsAt: \"2020-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { status } } } userErrors { message } } }",
+    )
+  let active =
+    run_mutation_from(
+      expired.store,
+      expired.identity,
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Now\", code: \"NOW2024\", startsAt: \"2020-01-01T00:00:00Z\", endsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { status } } } userErrors { message } } }",
+    )
+
+  assert json.to_string(scheduled.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"SCHEDULED\"}},\"userErrors\":[]}}}"
+  assert json.to_string(expired.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"EXPIRED\"}},\"userErrors\":[]}}}"
+  assert json.to_string(active.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"ACTIVE\"}},\"userErrors\":[]}}}"
+
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      active.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { ... on DiscountCodeBasic { status } } } scheduled: discountNodes(first: 5, query: \"status:scheduled\") { nodes { id } } expiredCount: discountNodesCount(query: \"status:expired\") { count precision } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"SCHEDULED\"}},\"scheduled\":{\"nodes\":[{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"}]},\"expiredCount\":{\"count\":1,\"precision\":\"EXACT\"}}"
+}
+
+pub fn automatic_basic_status_uses_starts_and_ends_for_create_and_read_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Future automatic\", startsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { automaticDiscount { ... on DiscountAutomaticBasic { status } } } userErrors { message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountAutomaticBasicCreate\":{\"automaticDiscountNode\":{\"automaticDiscount\":{\"status\":\"SCHEDULED\"}},\"userErrors\":[]}}}"
+
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      outcome.store,
+      "query { automaticDiscountNode(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\") { automaticDiscount { ... on DiscountAutomaticBasic { status } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"automaticDiscountNode\":{\"automaticDiscount\":{\"status\":\"SCHEDULED\"}}}"
+}
+
+pub fn code_bulk_deactivate_preserves_status_override_on_reads_test() {
+  let create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Active\", code: \"ACTIVE2024\", startsAt: \"2020-01-01T00:00:00Z\", endsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { status startsAt endsAt } } } userErrors { message } } }",
+    )
+  let bulk =
+    run_mutation_from(
+      create.store,
+      create.identity,
+      "mutation { discountCodeBulkDeactivate(ids: [\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"]) { job { done } userErrors { message } } }",
+    )
+
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      bulk.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { ... on DiscountCodeBasic { status startsAt endsAt } } } discountNodesCount(query: \"status:expired\") { count precision } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"EXPIRED\",\"startsAt\":\"2020-01-01T00:00:00Z\",\"endsAt\":\"2099-01-01T00:00:00Z\"}},\"discountNodesCount\":{\"count\":1,\"precision\":\"EXACT\"}}"
+}
+
 pub fn code_basic_timestamps_use_synthetic_clock_and_sort_by_recency_test() {
   let first =
     run_mutation(

@@ -542,9 +542,13 @@ fn filter_discounts(
             let status_ok = case string.contains(q, "status:active") {
               True -> record.status == "ACTIVE"
               False ->
-                case string.contains(q, "status:expired") {
-                  True -> record.status == "EXPIRED"
-                  False -> True
+                case string.contains(q, "status:scheduled") {
+                  True -> record.status == "SCHEDULED"
+                  False ->
+                    case string.contains(q, "status:expired") {
+                      True -> record.status == "EXPIRED"
+                      False -> True
+                    }
                 }
             }
             let type_ok = case string.contains(q, "type:app") {
@@ -1868,8 +1872,16 @@ fn build_discount_record(
     read_string(input, "code")
     |> option.or(read_string(input, "codePrefix"))
     |> option.or(existing |> option.then(fn(r) { r.code }))
+  let owner_field = case owner_kind {
+    "automatic" -> "automaticDiscount"
+    _ -> "codeDiscount"
+  }
+  let starts_at =
+    input_or_existing_discount_source(input, existing, owner_field, "startsAt")
+  let ends_at =
+    input_or_existing_discount_source(input, existing, owner_field, "endsAt")
   let status =
-    existing |> option.map(fn(r) { r.status }) |> option.unwrap("ACTIVE")
+    derive_discount_status(starts_at, ends_at, synthetic_now(identity))
   let typename = typename_for(owner_kind, discount_type)
   let #(code_source, next_identity) =
     code_connection_for_record(identity, code, existing)
@@ -1887,8 +1899,8 @@ fn build_discount_record(
         #("title", SrcString(title)),
         #("status", SrcString(status)),
         #("summary", SrcString(summary_for(input, discount_type))),
-        #("startsAt", resolved_to_source(read_value(input, "startsAt"))),
-        #("endsAt", resolved_to_source(read_value(input, "endsAt"))),
+        #("startsAt", starts_at),
+        #("endsAt", ends_at),
         #("createdAt", SrcString(created_at)),
         #("updatedAt", SrcString(mutation_timestamp)),
         #("asyncUsageCount", SrcInt(0)),
@@ -1953,10 +1965,6 @@ fn build_discount_record(
         #("appDiscountType", app_discount_type_source(store, input)),
       ]),
     )
-  let owner_field = case owner_kind {
-    "automatic" -> "automaticDiscount"
-    _ -> "codeDiscount"
-  }
   #(
     DiscountRecord(
       id: id,
@@ -1977,6 +1985,90 @@ fn build_discount_record(
     ),
     next_identity,
   )
+}
+
+fn input_or_existing_discount_source(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(DiscountRecord),
+  owner_field: String,
+  name: String,
+) -> SourceValue {
+  case dict.get(input, name) {
+    Ok(value) -> resolved_to_source(value)
+    Error(_) ->
+      existing_discount_source(existing, owner_field, name)
+      |> option.unwrap(SrcNull)
+  }
+}
+
+fn existing_discount_source(
+  existing: Option(DiscountRecord),
+  owner_field: String,
+  name: String,
+) -> Option(SourceValue) {
+  existing
+  |> option.then(fn(record) {
+    case captured_to_source(record.payload) {
+      SrcObject(node) ->
+        case dict.get(node, owner_field) {
+          Ok(SrcObject(discount)) ->
+            dict.get(discount, name) |> option.from_result
+          _ -> None
+        }
+      _ -> None
+    }
+  })
+}
+
+fn synthetic_now(identity: SyntheticIdentityRegistry) -> String {
+  iso_timestamp.format_iso(identity.next_synthetic_time)
+}
+
+fn derive_discount_status(
+  starts_at: SourceValue,
+  ends_at: SourceValue,
+  now: String,
+) -> String {
+  case iso_timestamp.parse_iso(now) {
+    Ok(now_ms) ->
+      derive_discount_status_ms(
+        source_timestamp_ms(starts_at),
+        source_timestamp_ms(ends_at),
+        now_ms,
+      )
+    Error(_) -> "ACTIVE"
+  }
+}
+
+fn derive_discount_status_ms(
+  starts_at: Option(Int),
+  ends_at: Option(Int),
+  now_ms: Int,
+) -> String {
+  case starts_at, ends_at {
+    Some(starts_ms), Some(ends_ms)
+      if starts_ms > now_ms && ends_ms >= starts_ms
+    -> "SCHEDULED"
+    Some(starts_ms), None if starts_ms > now_ms -> "SCHEDULED"
+    Some(starts_ms), Some(ends_ms)
+      if ends_ms <= now_ms && starts_ms <= ends_ms
+    -> "EXPIRED"
+    None, Some(ends_ms) if ends_ms <= now_ms -> "EXPIRED"
+    Some(starts_ms), Some(ends_ms) if starts_ms <= now_ms && ends_ms > now_ms ->
+      "ACTIVE"
+    Some(starts_ms), None if starts_ms <= now_ms -> "ACTIVE"
+    None, Some(ends_ms) if ends_ms > now_ms -> "ACTIVE"
+    None, None -> "ACTIVE"
+    _, _ -> "ACTIVE"
+  }
+}
+
+fn source_timestamp_ms(value: SourceValue) -> Option(Int) {
+  case value {
+    SrcString(timestamp) ->
+      iso_timestamp.parse_iso(timestamp) |> option.from_result
+    _ -> None
+  }
 }
 
 fn typename_for(owner_kind: String, discount_type: String) -> String {
@@ -3285,26 +3377,13 @@ fn set_record_status(
     Some(record) -> {
       let #(updated_at, next_identity) =
         synthetic_identity.make_synthetic_timestamp(identity)
-      let transition_timestamp = case status {
-        "ACTIVE" ->
-          case record.status {
-            "ACTIVE" -> None
-            _ -> Some(updated_at)
-          }
-        "EXPIRED" -> Some(updated_at)
-        _ -> None
-      }
       let #(record, next_store) =
         store.stage_discount(
           store,
           DiscountRecord(
             ..record,
             status: status,
-            payload: update_payload_status(
-                record.payload,
-                status,
-                transition_timestamp,
-              )
+            payload: update_payload_status(record.payload, status, None)
               |> update_payload_updated_at(updated_at),
           ),
         )

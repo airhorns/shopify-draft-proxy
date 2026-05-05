@@ -1685,6 +1685,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-status-time-window-derivation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-status-time-window-derivation-conformance.ts',
+    purpose:
+      'DiscountCodeBasic status derivation from startsAt/endsAt for create payloads, downstream reads, and status filters.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-status-time-window-derivation.json`,
+      'config/parity-specs/discounts/discount-status-time-window-derivation.json',
+      'config/parity-requests/discounts/discount-status-time-window-derivation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable code discounts with scheduled, expired, and active windows, then deletes them after read/filter capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-validation-conformance.ts',
