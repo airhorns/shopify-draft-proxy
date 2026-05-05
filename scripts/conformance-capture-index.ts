@@ -1558,6 +1558,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'gift-cards',
+    captureId: 'gift-card-transaction-validation',
+    scriptPath: 'scripts/capture-gift-card-transaction-validation-conformance.ts',
+    purpose:
+      'Gift-card credit/debit transaction validation for expired, deactivated, mismatched-currency, processedAt bounds, and typed success payloads.',
+    requiredAuthScopes: [
+      'read_gift_cards',
+      'write_gift_cards',
+      'read_gift_card_transactions',
+      'write_gift_card_transactions',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-transaction-validation.json`,
+      'config/parity-specs/gift-cards/gift-card-transaction-validation.json',
+      'config/parity-requests/gift-cards/gift-card-transaction-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable active, expired, and deactivated gift cards; deactivates any setup cards not already deactivated during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'customers',
     captureId: 'customers',
     scriptPath: 'scripts/capture-customer-conformance.mts',
