@@ -1,0 +1,570 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "accessScopes": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "setup": {
+    "products": [
+      {
+        "id": "gid://shopify/Product/10176763724082",
+        "title": "HAR-599 BXGY buy product 1777935893444"
+      },
+      {
+        "id": "gid://shopify/Product/10176763756850",
+        "title": "HAR-599 BXGY get product 1777935893444"
+      }
+    ]
+  },
+  "validation": {
+    "query": "mutation DiscountBxgyDisallowedValueShapes(\n  $codePercentage: DiscountCodeBxgyInput!\n  $codeDiscountAmount: DiscountCodeBxgyInput!\n  $codeSubscription: DiscountCodeBxgyInput!\n  $codeOneTime: DiscountCodeBxgyInput!\n  $automaticPercentage: DiscountAutomaticBxgyInput!\n  $automaticDiscountAmount: DiscountAutomaticBxgyInput!\n  $automaticSubscription: DiscountAutomaticBxgyInput!\n  $automaticOneTime: DiscountAutomaticBxgyInput!\n) {\n  codePercentage: discountCodeBxgyCreate(bxgyCodeDiscount: $codePercentage) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDiscountAmount: discountCodeBxgyCreate(bxgyCodeDiscount: $codeDiscountAmount) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeSubscription: discountCodeBxgyCreate(bxgyCodeDiscount: $codeSubscription) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeOneTime: discountCodeBxgyCreate(bxgyCodeDiscount: $codeOneTime) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticPercentage: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticPercentage) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticDiscountAmount: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticDiscountAmount) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticSubscription: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticSubscription) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticOneTime: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticOneTime) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+    "variables": {
+      "codePercentage": {
+        "title": "HAR-599 code BXGY PCT 1777935893444",
+        "code": "HAR599PCT1777935893444",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": {
+          "productDiscounts": true,
+          "orderDiscounts": false,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerBuys": {
+          "value": {
+            "quantity": "1"
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+            }
+          }
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.5
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+            }
+          }
+        }
+      },
+      "codeDiscountAmount": {
+        "title": "HAR-599 code BXGY AMT 1777935893444",
+        "code": "HAR599AMT1777935893444",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": {
+          "productDiscounts": true,
+          "orderDiscounts": false,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerBuys": {
+          "value": {
+            "quantity": "1"
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+            }
+          }
+        },
+        "customerGets": {
+          "value": {
+            "discountAmount": {
+              "amount": "5.00",
+              "appliesOnEachItem": false
+            }
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+            }
+          }
+        }
+      },
+      "codeSubscription": {
+        "title": "HAR-599 code BXGY SUB 1777935893444",
+        "code": "HAR599SUB1777935893444",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": {
+          "productDiscounts": true,
+          "orderDiscounts": false,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerBuys": {
+          "value": {
+            "quantity": "1"
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+            }
+          }
+        },
+        "customerGets": {
+          "value": {
+            "discountOnQuantity": {
+              "quantity": "1",
+              "effect": {
+                "percentage": 0.5
+              }
+            }
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+            }
+          },
+          "appliesOnSubscription": true
+        }
+      },
+      "codeOneTime": {
+        "title": "HAR-599 code BXGY OTP 1777935893444",
+        "code": "HAR599OTP1777935893444",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": {
+          "productDiscounts": true,
+          "orderDiscounts": false,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerBuys": {
+          "value": {
+            "quantity": "1"
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+            }
+          }
+        },
+        "customerGets": {
+          "value": {
+            "discountOnQuantity": {
+              "quantity": "1",
+              "effect": {
+                "percentage": 0.5
+              }
+            }
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+            }
+          },
+          "appliesOnOneTimePurchase": false
+        }
+      },
+      "automaticPercentage": {
+        "title": "HAR-599 automatic BXGY PCT 1777935893444",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": {
+          "productDiscounts": true,
+          "orderDiscounts": false,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerBuys": {
+          "value": {
+            "quantity": "1"
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+            }
+          }
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.5
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+            }
+          }
+        }
+      },
+      "automaticDiscountAmount": {
+        "title": "HAR-599 automatic BXGY AMT 1777935893444",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": {
+          "productDiscounts": true,
+          "orderDiscounts": false,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerBuys": {
+          "value": {
+            "quantity": "1"
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+            }
+          }
+        },
+        "customerGets": {
+          "value": {
+            "discountAmount": {
+              "amount": "5.00",
+              "appliesOnEachItem": false
+            }
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+            }
+          }
+        }
+      },
+      "automaticSubscription": {
+        "title": "HAR-599 automatic BXGY SUB 1777935893444",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": {
+          "productDiscounts": true,
+          "orderDiscounts": false,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerBuys": {
+          "value": {
+            "quantity": "1"
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+            }
+          }
+        },
+        "customerGets": {
+          "value": {
+            "discountOnQuantity": {
+              "quantity": "1",
+              "effect": {
+                "percentage": 0.5
+              }
+            }
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+            }
+          },
+          "appliesOnSubscription": true
+        }
+      },
+      "automaticOneTime": {
+        "title": "HAR-599 automatic BXGY OTP 1777935893444",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": {
+          "productDiscounts": true,
+          "orderDiscounts": false,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerBuys": {
+          "value": {
+            "quantity": "1"
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+            }
+          }
+        },
+        "customerGets": {
+          "value": {
+            "discountOnQuantity": {
+              "quantity": "1",
+              "effect": {
+                "percentage": 0.5
+              }
+            }
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+            }
+          },
+          "appliesOnOneTimePurchase": false
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "codePercentage": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["bxgyCodeDiscount", "customerGets", "value", "percentage"],
+              "message": "Only discountOnQuantity permitted with bxgy discounts.",
+              "code": "INVALID",
+              "extraInfo": null
+            },
+            {
+              "field": ["bxgyCodeDiscount", "customerGets", "value", "discountOnQuantity", "quantity"],
+              "message": "Quantity cannot be blank.",
+              "code": "BLANK",
+              "extraInfo": null
+            }
+          ]
+        },
+        "codeDiscountAmount": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["bxgyCodeDiscount", "customerGets", "value", "discountAmount"],
+              "message": "Only discountOnQuantity permitted with bxgy discounts.",
+              "code": "INVALID",
+              "extraInfo": null
+            },
+            {
+              "field": ["bxgyCodeDiscount", "customerGets", "value", "discountOnQuantity", "quantity"],
+              "message": "Quantity cannot be blank.",
+              "code": "BLANK",
+              "extraInfo": null
+            }
+          ]
+        },
+        "codeSubscription": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["bxgyCodeDiscount", "customerGets", "appliesOnSubscription"],
+              "message": "This field is not supported by bxgy discounts.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "codeOneTime": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["bxgyCodeDiscount", "customerGets", "appliesOnOneTimePurchase"],
+              "message": "This field is not supported by bxgy discounts.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "automaticPercentage": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["automaticBxgyDiscount", "customerGets", "value", "percentage"],
+              "message": "Only discountOnQuantity permitted with bxgy discounts.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "automaticDiscountAmount": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["automaticBxgyDiscount", "customerGets", "value", "discountAmount"],
+              "message": "Only discountOnQuantity permitted with bxgy discounts.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "automaticSubscription": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["automaticBxgyDiscount", "customerGets", "appliesOnSubscription"],
+              "message": "This field is not supported by automatic bxgy discounts.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "automaticOneTime": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["automaticBxgyDiscount", "customerGets", "appliesOnOneTimePurchase"],
+              "message": "This field is not supported by automatic bxgy discounts.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 80,
+          "actualQueryCost": 80,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1920,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10176763756850",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1934,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10176763724082",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
