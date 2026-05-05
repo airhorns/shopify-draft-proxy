@@ -8,8 +8,8 @@
   ],
   "runtimeTestFiles": [
     "tests/integration/webhook-subscription-query-shapes.test.ts",
-    "gleam/test/parity_test.gleam",
-    "gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam"
+    "test/parity_test.gleam",
+    "test/shopify_draft_proxy/proxy/webhooks_test.gleam"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/webhooks/webhook-subscription-catalog-read.graphql",

@@ -154,6 +154,3 @@ App configuration/TOML webhooks remain out of scope. Shopify's Admin GraphQL sub
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
 - `corepack pnpm typecheck`
-- `corepack pnpm vitest run tests/integration/webhook-subscription-mutation-flow.test.ts`
-- `corepack pnpm vitest run tests/integration/webhook-subscription-query-shapes.test.ts`
-- `corepack pnpm vitest run tests/unit/webhook-subscription-conformance-fixture.test.ts`

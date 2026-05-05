@@ -1,0 +1,20 @@
+mutation DiscountActivateDeactivateEdgeActivate($id: ID!) {
+  discountCodeActivate(id: $id) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          startsAt
+          endsAt
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

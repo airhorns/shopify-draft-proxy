@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-create-dkk.json"
   ],
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/markets/price-list-create-dkk.graphql",
     "variablesCapturePath": "$.cases[0].variables",

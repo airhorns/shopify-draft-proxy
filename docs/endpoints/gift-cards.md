@@ -77,7 +77,6 @@ The fixture shows the current conformance credential can read gift cards, perfor
 
 ### Validation
 
-- `corepack pnpm vitest run tests/integration/gift-card-flow.test.ts`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
 - `corepack pnpm typecheck`

@@ -87,7 +87,6 @@ Local staged mutations:
 
 ### Validation anchors
 
-- Runtime behavior: `tests/integration/order-return-flow.test.ts`
 - Executable parity: `config/parity-specs/orders/return-lifecycle-local-staging.json`
 - HAR-370 executable parity:
   `config/parity-specs/orders/return-reverse-logistics-local-staging.json`,

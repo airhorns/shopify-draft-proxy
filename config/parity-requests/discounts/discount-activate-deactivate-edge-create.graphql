@@ -1,0 +1,21 @@
+mutation DiscountActivateDeactivateEdgeCreate($input: DiscountCodeBasicInput!) {
+  discountCodeBasicCreate(basicCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          startsAt
+          endsAt
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

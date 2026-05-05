@@ -56,8 +56,8 @@ jobs:
       - name: Restore Gleam build cache
         uses: actions/cache@v4
         with:
-          path: gleam/build
-          key: ${{ runner.os }}-otp-${{ env.OTP_VERSION }}-gleam-${{ env.GLEAM_VERSION }}-build-${{ hashFiles('gleam/gleam.toml', 'gleam/manifest.toml', 'gleam/src/**/*.gleam', 'gleam/test/**/*.gleam') }}
+          path: build
+          key: ${{ runner.os }}-otp-${{ env.OTP_VERSION }}-gleam-${{ env.GLEAM_VERSION }}-build-${{ hashFiles('gleam.toml', 'manifest.toml', 'src/**/*.gleam', 'test/**/*.gleam') }}
           restore-keys: |
             ${{ runner.os }}-otp-${{ env.OTP_VERSION }}-gleam-${{ env.GLEAM_VERSION }}-build-
 
