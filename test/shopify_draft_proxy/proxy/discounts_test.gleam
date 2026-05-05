@@ -12,8 +12,8 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type DiscountRecord, type SavedSearchRecord,
-  CapturedNull, CapturedObject, CapturedString, DiscountRecord,
-  SavedSearchRecord,
+  type ShopifyFunctionRecord, CapturedNull, CapturedObject, CapturedString,
+  DiscountRecord, SavedSearchRecord, ShopifyFunctionRecord,
 }
 
 fn run_mutation(document: String) -> mutation_helpers.MutationOutcome {
@@ -22,6 +22,42 @@ fn run_mutation(document: String) -> mutation_helpers.MutationOutcome {
 
 fn subscription_store() -> store.Store {
   store.set_shop_sells_subscriptions(store.new(), True)
+}
+
+fn discount_function_store() -> store.Store {
+  store.upsert_base_shopify_functions(store.new(), [
+    shopify_function(
+      "gid://shopify/ShopifyFunction/discount-local",
+      "discount-local",
+      Some("DISCOUNT"),
+    ),
+  ])
+}
+
+fn mismatched_function_store() -> store.Store {
+  store.upsert_base_shopify_functions(store.new(), [
+    shopify_function(
+      "gid://shopify/ShopifyFunction/cart-transformer",
+      "cart-transformer",
+      Some("CART_TRANSFORM"),
+    ),
+  ])
+}
+
+fn shopify_function(
+  id: String,
+  handle: String,
+  api_type: Option(String),
+) -> ShopifyFunctionRecord {
+  ShopifyFunctionRecord(
+    id: id,
+    title: Some(handle <> " title"),
+    handle: Some(handle),
+    api_type: api_type,
+    description: Some(handle <> " description"),
+    app_key: Some("app-key"),
+    app: None,
+  )
 }
 
 fn run_mutation_from(
@@ -371,6 +407,117 @@ pub fn code_discount_creates_reject_missing_and_blank_codes_test() {
     == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"code\"],\"message\":\"Code can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
 }
 
+pub fn app_discount_creates_validate_function_identifiers_test() {
+  let missing_code =
+    run_mutation(
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APP\", startsAt: \"2026-04-25T00:00:00Z\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let multiple_code =
+    run_mutation(
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APP\", startsAt: \"2026-04-25T00:00:00Z\", functionId: \"gid://shopify/ShopifyFunction/discount-local\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let unknown_code =
+    run_mutation(
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APP\", startsAt: \"2026-04-25T00:00:00Z\", functionId: \"gid://shopify/ShopifyFunction/missing\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let wrong_api_code =
+    run_mutation_from(
+      mismatched_function_store(),
+      synthetic_identity.new(),
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APP\", startsAt: \"2026-04-25T00:00:00Z\", functionId: \"gid://shopify/ShopifyFunction/cart-transformer\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let missing_automatic =
+    run_mutation(
+      "mutation { discountAutomaticAppCreate(automaticAppDiscount: { title: \"Auto\", startsAt: \"2026-04-25T00:00:00Z\" }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let unknown_automatic =
+    run_mutation(
+      "mutation { discountAutomaticAppCreate(automaticAppDiscount: { title: \"Auto\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"missing-discount\" }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(missing_code.data)
+    == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"functionHandle\"],\"message\":\"Function id can't be blank.\",\"code\":\"MISSING_FUNCTION_IDENTIFIER\",\"extraInfo\":null}]}}}"
+  assert json.to_string(multiple_code.data)
+    == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\"],\"message\":\"Only one of functionId or functionHandle is allowed.\",\"code\":\"MULTIPLE_FUNCTION_IDENTIFIERS\",\"extraInfo\":null}]}}}"
+  assert json.to_string(unknown_code.data)
+    == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"functionId\"],\"message\":\"Function gid://shopify/ShopifyFunction/missing not found. Ensure that it is released in the current app (347082227713), and that the app is installed.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(wrong_api_code.data)
+    == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"functionId\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [product_discounts, order_discounts, shipping_discounts, discount].\",\"code\":null,\"extraInfo\":null}]}}}"
+  assert json.to_string(missing_automatic.data)
+    == "{\"data\":{\"discountAutomaticAppCreate\":{\"automaticAppDiscount\":null,\"userErrors\":[{\"field\":[\"automaticAppDiscount\",\"functionHandle\"],\"message\":\"Function id can't be blank.\",\"code\":\"MISSING_FUNCTION_IDENTIFIER\",\"extraInfo\":null}]}}}"
+  assert json.to_string(unknown_automatic.data)
+    == "{\"data\":{\"discountAutomaticAppCreate\":{\"automaticAppDiscount\":null,\"userErrors\":[{\"field\":[\"automaticAppDiscount\",\"functionHandle\"],\"message\":\"Function missing-discount not found. Ensure that it is released in the current app (347082227713), and that the app is installed.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn app_discount_updates_validate_function_identifiers_test() {
+  let code_create =
+    run_mutation_from(
+      discount_function_store(),
+      synthetic_identity.new(),
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APP\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_create =
+    run_mutation_from(
+      code_create.store,
+      code_create.identity,
+      "mutation { discountAutomaticAppCreate(automaticAppDiscount: { title: \"Auto\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\" }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+
+  let missing_code_update =
+    run_mutation_from(
+      automatic_create.store,
+      automatic_create.identity,
+      "mutation { discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"App update\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let multiple_code_update =
+    run_mutation_from(
+      automatic_create.store,
+      automatic_create.identity,
+      "mutation { discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"App update\", functionId: \"gid://shopify/ShopifyFunction/discount-local\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let unknown_automatic_update =
+    run_mutation_from(
+      automatic_create.store,
+      automatic_create.identity,
+      "mutation { discountAutomaticAppUpdate(id: \"gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic\", automaticAppDiscount: { title: \"Auto update\", functionHandle: \"missing-discount\" }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let wrong_api_store =
+    store.upsert_base_shopify_functions(automatic_create.store, [
+      shopify_function(
+        "gid://shopify/ShopifyFunction/cart-transformer",
+        "cart-transformer",
+        Some("CART_TRANSFORM"),
+      ),
+    ])
+  let wrong_api_automatic_update =
+    run_mutation_from(
+      wrong_api_store,
+      automatic_create.identity,
+      "mutation { discountAutomaticAppUpdate(id: \"gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic\", automaticAppDiscount: { title: \"Auto update\", functionHandle: \"cart-transformer\" }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(missing_code_update.data)
+    == "{\"data\":{\"discountCodeAppUpdate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"functionHandle\"],\"message\":\"Function id can't be blank.\",\"code\":\"MISSING_FUNCTION_IDENTIFIER\",\"extraInfo\":null}]}}}"
+  assert json.to_string(multiple_code_update.data)
+    == "{\"data\":{\"discountCodeAppUpdate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\"],\"message\":\"Only one of functionId or functionHandle is allowed.\",\"code\":\"MULTIPLE_FUNCTION_IDENTIFIERS\",\"extraInfo\":null}]}}}"
+  assert json.to_string(unknown_automatic_update.data)
+    == "{\"data\":{\"discountAutomaticAppUpdate\":{\"automaticAppDiscount\":null,\"userErrors\":[{\"field\":[\"automaticAppDiscount\",\"functionHandle\"],\"message\":\"Function missing-discount not found. Ensure that it is released in the current app (347082227713), and that the app is installed.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(wrong_api_automatic_update.data)
+    == "{\"data\":{\"discountAutomaticAppUpdate\":{\"automaticAppDiscount\":null,\"userErrors\":[{\"field\":[\"automaticAppDiscount\",\"functionHandle\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [product_discounts, order_discounts, shipping_discounts, discount].\",\"code\":null,\"extraInfo\":null}]}}}"
+}
+
+pub fn app_discount_create_with_valid_function_still_stages_test() {
+  let outcome =
+    run_mutation_from(
+      discount_function_store(),
+      synthetic_identity.new(),
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APP\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId appDiscountType { functionId title } } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":{\"discountId\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"appDiscountType\":{\"functionId\":\"discount-local\",\"title\":\"discount-local title\"}},\"userErrors\":[]}}}"
+}
+
 pub fn code_discount_creates_reject_code_format_constraints_test() {
   let long_code = string.repeat("x", times: 256)
   let long_basic =
@@ -620,7 +767,16 @@ pub fn update_discount_inputs_reject_inverted_date_ranges_test() {
   list.each(cases, fn(test_case) {
     let #(root, node_field, input_name, create_document, update_document) =
       test_case
-    let create_outcome = run_mutation(create_document)
+    let initial_store = case input_name {
+      "codeAppDiscount" | "automaticAppDiscount" -> discount_function_store()
+      _ -> store.new()
+    }
+    let create_outcome =
+      run_mutation_from(
+        initial_store,
+        synthetic_identity.new(),
+        create_document,
+      )
     let update_outcome =
       run_mutation_from(
         create_outcome.store,

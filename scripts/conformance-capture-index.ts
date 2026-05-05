@@ -2089,6 +2089,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-app-function-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-app-function-validation-conformance.ts',
+    purpose: 'App-discount functionId/functionHandle missing, multiple, unknown, and wrong-API validation guardrails.',
+    requiredAuthScopes: [
+      'read_discounts',
+      'write_discounts',
+      'shopifyFunctions read access',
+      'released non-discount Shopify Function in the installed conformance app for wrong-API validation',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-app-function-validation.json`,
+      'config/parity-specs/discounts/discount-app-function-validation.json',
+      'config/parity-requests/discounts/discount-app-function-validation.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-bulk-selector-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-bulk-selector-validation-conformance.ts',
