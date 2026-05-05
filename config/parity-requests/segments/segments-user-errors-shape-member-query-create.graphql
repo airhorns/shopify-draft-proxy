@@ -1,0 +1,13 @@
+mutation CustomerSegmentMembersQueryCreateUserErrorsShape($input: CustomerSegmentMembersQueryInput!) {
+  customerSegmentMembersQueryCreate(input: $input) {
+    customerSegmentMembersQuery {
+      id
+    }
+    userErrors {
+      __typename
+      field
+      code
+      message
+    }
+  }
+}
