@@ -1,0 +1,209 @@
+{
+  "capturedAt": "2026-05-05T19:40:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "livePaymentCredentialSideEffects": false,
+  "notes": "HAR-642 local-runtime evidence for customerPaymentMethodCreditCardCreate validation and read-after-write behavior. The conformance credential lacks customer payment-method scopes and live card-vault success paths are sensitive, so the fixture uses cassette-hydrated customer shells and strict local comparison.",
+  "variables": {
+    "blankBilling": {
+      "customerId": "gid://shopify/Customer/8801",
+      "sessionId": "sess_valid",
+      "billingAddress": {
+        "address1": null,
+        "city": null,
+        "zip": null,
+        "country": null,
+        "province": null
+      }
+    },
+    "missingSession": {
+      "customerId": "gid://shopify/Customer/8801",
+      "billingAddress": {
+        "address1": "1 Main St",
+        "city": "New York",
+        "zip": "10001",
+        "country": "US",
+        "province": "NY"
+      }
+    },
+    "processing": {
+      "customerId": "gid://shopify/Customer/8801",
+      "sessionId": "shopify-draft-proxy:processing",
+      "billingAddress": {
+        "address1": "1 Main St",
+        "city": "New York",
+        "zip": "10001",
+        "country": "US",
+        "province": "NY"
+      }
+    },
+    "success": {
+      "customerId": "gid://shopify/Customer/8801",
+      "sessionId": "sess_valid",
+      "billingAddress": {
+        "firstName": "Ada",
+        "lastName": "Lovelace",
+        "address1": "1 Main St",
+        "city": "New York",
+        "zip": "10001",
+        "country": "US",
+        "province": "NY"
+      }
+    },
+    "readAfter": {
+      "id": "gid://shopify/CustomerPaymentMethod/3"
+    }
+  },
+  "expected": {
+    "blankBilling": {
+      "data": {
+        "customerPaymentMethodCreditCardCreate": {
+          "customerPaymentMethod": null,
+          "processing": false,
+          "userErrors": [
+            {
+              "field": ["billing_address", "address1"],
+              "message": "can't be blank",
+              "code": "BLANK"
+            },
+            {
+              "field": ["billing_address", "city"],
+              "message": "can't be blank",
+              "code": "BLANK"
+            },
+            {
+              "field": ["billing_address", "zip"],
+              "message": "can't be blank",
+              "code": "BLANK"
+            },
+            {
+              "field": ["billing_address", "country_code"],
+              "message": "can't be blank",
+              "code": "BLANK"
+            },
+            {
+              "field": ["billing_address", "province_code"],
+              "message": "can't be blank",
+              "code": "BLANK"
+            }
+          ]
+        }
+      }
+    },
+    "missingSession": {
+      "errors": [
+        {
+          "message": "Field 'customerPaymentMethodCreditCardCreate' is missing required arguments: sessionId",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "path": [
+            "mutation CustomerPaymentMethodCreditCardCreateMissingSession",
+            "customerPaymentMethodCreditCardCreate"
+          ],
+          "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "customerPaymentMethodCreditCardCreate",
+            "arguments": "sessionId"
+          }
+        }
+      ]
+    },
+    "processing": {
+      "data": {
+        "customerPaymentMethodCreditCardCreate": {
+          "customerPaymentMethod": null,
+          "processing": true,
+          "userErrors": []
+        }
+      }
+    },
+    "success": {
+      "data": {
+        "customerPaymentMethodCreditCardCreate": {
+          "customerPaymentMethod": {
+            "id": "gid://shopify/CustomerPaymentMethod/3",
+            "instrument": {
+              "__typename": "CustomerCreditCard",
+              "billingAddress": {
+                "firstName": "Ada",
+                "lastName": "Lovelace",
+                "address1": "1 Main St",
+                "city": "New York",
+                "zip": "10001",
+                "countryCodeV2": "US",
+                "provinceCode": "NY"
+              }
+            },
+            "customer": {
+              "id": "gid://shopify/Customer/8801"
+            }
+          },
+          "processing": false,
+          "userErrors": []
+        }
+      }
+    },
+    "readAfter": {
+      "data": {
+        "customerPaymentMethod": {
+          "id": "gid://shopify/CustomerPaymentMethod/3",
+          "instrument": {
+            "__typename": "CustomerCreditCard",
+            "billingAddress": {
+              "firstName": "Ada",
+              "lastName": "Lovelace",
+              "address1": "1 Main St",
+              "city": "New York",
+              "zip": "10001",
+              "countryCodeV2": "US",
+              "provinceCode": "NY"
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerPaymentMethodHydrate",
+      "variables": {
+        "customerIds": ["gid://shopify/Customer/8801"],
+        "customerPaymentMethodIds": []
+      },
+      "query": "local-runtime customer payment method hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/source",
+              "name": "Payment Source Shop",
+              "myshopifyDomain": "payment-source.myshopify.com",
+              "url": "https://payment-source.myshopify.com",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/payment-source.myshopify.com",
+                "host": "payment-source.myshopify.com",
+                "url": "https://payment-source.myshopify.com",
+                "sslEnabled": true
+              }
+            },
+            "customers": [
+              {
+                "id": "gid://shopify/Customer/8801",
+                "email": "payment-one@example.com",
+                "displayName": "Payment One",
+                "state": "ENABLED"
+              }
+            ],
+            "customerPaymentMethods": []
+          }
+        }
+      }
+    }
+  ]
+}

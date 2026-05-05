@@ -63,6 +63,8 @@ const customization_app_id: String = "347082227713"
 
 const duplication_prefix: String = "shopify-draft-proxy:customer-payment-method-duplication:"
 
+const credit_card_processing_session_id: String = "shopify-draft-proxy:processing"
+
 const payment_terms_creation_unsuccessful_code: String = "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
 
 const payment_terms_update_unsuccessful_code: String = "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
@@ -2372,14 +2374,59 @@ fn instrument_from_hydrate_node(
   ))
 }
 
-fn scrubbed_credit_card_instrument() -> CustomerPaymentMethodInstrumentRecord {
+fn scrubbed_credit_card_instrument(
+  billing_address: Dict(String, root_field.ResolvedValue),
+) -> CustomerPaymentMethodInstrumentRecord {
   CustomerPaymentMethodInstrumentRecord(
     type_name: "CustomerCreditCard",
-    data: dict.from_list([
-      #("lastDigits", "__null"),
-      #("maskedNumber", "__null"),
-    ]),
+    data: dict.from_list(list.append(
+      [
+        #("lastDigits", "__null"),
+        #("maskedNumber", "__null"),
+      ],
+      billing_address_data(billing_address),
+    )),
   )
+}
+
+fn billing_address_data(
+  billing_address: Dict(String, root_field.ResolvedValue),
+) -> List(#(String, String)) {
+  [
+    #("firstName", first_nonempty_string(billing_address, ["firstName"])),
+    #("lastName", first_nonempty_string(billing_address, ["lastName"])),
+    #("company", first_nonempty_string(billing_address, ["company"])),
+    #("address1", first_nonempty_string(billing_address, ["address1"])),
+    #("address2", first_nonempty_string(billing_address, ["address2"])),
+    #("city", first_nonempty_string(billing_address, ["city"])),
+    #("zip", first_nonempty_string(billing_address, ["zip"])),
+    #("phone", first_nonempty_string(billing_address, ["phone"])),
+    #("country", first_nonempty_string(billing_address, ["country"])),
+    #(
+      "countryCodeV2",
+      first_nonempty_string(billing_address, [
+        "countryCode",
+        "country_code",
+        "country",
+      ]),
+    ),
+    #("province", first_nonempty_string(billing_address, ["province"])),
+    #(
+      "provinceCode",
+      first_nonempty_string(billing_address, [
+        "provinceCode",
+        "province_code",
+        "province",
+      ]),
+    ),
+  ]
+  |> list.flat_map(fn(entry) {
+    let #(key, value) = entry
+    case value {
+      Some(value) -> [#("billingAddress." <> key, value)]
+      None -> []
+    }
+  })
 }
 
 fn scrubbed_paypal_instrument(
@@ -2445,22 +2492,56 @@ fn create_credit_card_payment_method(
         [#("processing", SrcBool(False))],
       )
     Ok(customer) -> {
-      let #(record, next_identity) =
-        create_payment_method_record(
-          identity,
-          customer.id,
-          Some(scrubbed_credit_card_instrument()),
-        )
-      payment_method_result(
-        store.stage_customer_payment_method(store, record),
-        next_identity,
-        field,
-        fragments,
-        "customerPaymentMethodCreditCardCreate",
-        Some(record),
-        [],
-        [#("processing", SrcBool(False))],
-      )
+      let errors = credit_card_input_errors(args)
+      case errors {
+        [_, ..] ->
+          payment_method_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "customerPaymentMethodCreditCardCreate",
+            None,
+            errors,
+            [#("processing", SrcBool(False))],
+          )
+        [] -> {
+          case credit_card_processing(args) {
+            True ->
+              payment_method_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "customerPaymentMethodCreditCardCreate",
+                None,
+                [],
+                [#("processing", SrcBool(True))],
+              )
+            False -> {
+              let billing_address =
+                graphql_helpers.read_arg_object(args, "billingAddress")
+                |> option.unwrap(dict.new())
+              let #(record, next_identity) =
+                create_payment_method_record(
+                  identity,
+                  customer.id,
+                  Some(scrubbed_credit_card_instrument(billing_address)),
+                )
+              payment_method_result(
+                store.stage_customer_payment_method(store, record),
+                next_identity,
+                field,
+                fragments,
+                "customerPaymentMethodCreditCardCreate",
+                Some(record),
+                [],
+                [#("processing", SrcBool(False))],
+              )
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -2492,22 +2573,93 @@ fn update_credit_card_payment_method(
         [#("processing", SrcBool(False))],
       )
     Ok(current) -> {
-      let updated =
-        CustomerPaymentMethodRecord(
-          ..current,
-          instrument: Some(scrubbed_credit_card_instrument()),
-        )
-      payment_method_result(
-        store.stage_customer_payment_method(store, updated),
-        identity,
-        field,
-        fragments,
-        "customerPaymentMethodCreditCardUpdate",
-        Some(updated),
-        [],
-        [#("processing", SrcBool(False))],
-      )
+      let errors = credit_card_input_errors(args)
+      case errors {
+        [_, ..] ->
+          payment_method_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "customerPaymentMethodCreditCardUpdate",
+            None,
+            errors,
+            [#("processing", SrcBool(False))],
+          )
+        [] -> {
+          case credit_card_processing(args) {
+            True ->
+              payment_method_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "customerPaymentMethodCreditCardUpdate",
+                None,
+                [],
+                [#("processing", SrcBool(True))],
+              )
+            False -> {
+              let billing_address =
+                graphql_helpers.read_arg_object(args, "billingAddress")
+                |> option.unwrap(dict.new())
+              let updated =
+                CustomerPaymentMethodRecord(
+                  ..current,
+                  instrument: Some(scrubbed_credit_card_instrument(
+                    billing_address,
+                  )),
+                )
+              payment_method_result(
+                store.stage_customer_payment_method(store, updated),
+                identity,
+                field,
+                fragments,
+                "customerPaymentMethodCreditCardUpdate",
+                Some(updated),
+                [],
+                [#("processing", SrcBool(False))],
+              )
+            }
+          }
+        }
+      }
     }
+  }
+}
+
+fn credit_card_input_errors(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  list.append(session_id_blank_errors(args), billing_address_blank_errors(args))
+}
+
+fn session_id_blank_errors(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case graphql_helpers.read_arg_string_nonempty(args, "sessionId") {
+    Some(_) -> []
+    None -> [
+      payment_method_error(
+        "sessionId",
+        "Session ID can't be blank",
+        "REQUIRED_INPUT_FIELD",
+      ),
+    ]
+  }
+}
+
+fn credit_card_processing(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case graphql_helpers.read_arg_string(args, "sessionId") {
+    Some(session_id) ->
+      session_id == credit_card_processing_session_id
+      || string.starts_with(
+        session_id,
+        credit_card_processing_session_id <> ":",
+      )
+    None -> False
   }
 }
 
@@ -2947,15 +3099,15 @@ fn billing_address_blank_errors(
     graphql_helpers.read_arg_object(args, "billingAddress")
     |> option.unwrap(dict.new())
   [
-    #("address1", "address1"),
-    #("city", "city"),
-    #("zip", "zip"),
-    #("countryCode", "country_code"),
-    #("provinceCode", "province_code"),
+    #(["address1"], "address1"),
+    #(["city"], "city"),
+    #(["zip"], "zip"),
+    #(["countryCode", "country_code", "country"], "country_code"),
+    #(["provinceCode", "province_code", "province"], "province_code"),
   ]
   |> list.filter_map(fn(field_pair) {
-    let #(input_name, field_name) = field_pair
-    case graphql_helpers.read_arg_string_nonempty(address, input_name) {
+    let #(input_names, field_name) = field_pair
+    case first_nonempty_string(address, input_names) {
       Some(_) -> Error(Nil)
       None ->
         Ok(UserError(
@@ -2965,6 +3117,19 @@ fn billing_address_blank_errors(
         ))
     }
   })
+}
+
+fn first_nonempty_string(
+  input: Dict(String, root_field.ResolvedValue),
+  keys: List(String),
+) -> Option(String) {
+  list.find_map(keys, fn(key) {
+    case read_string_field(input, key) {
+      Some(value) -> Ok(value)
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
 }
 
 fn create_payment_method_from_duplication_data(
@@ -4585,6 +4750,7 @@ pub fn instrument_source(
     #("__typename", SrcString(instrument.type_name)),
     #("lastDigits", nullable_data_string(instrument.data, "lastDigits")),
     #("maskedNumber", nullable_data_string(instrument.data, "maskedNumber")),
+    #("billingAddress", billing_address_source(instrument.data)),
     #(
       "paypalAccountEmail",
       nullable_data_string(instrument.data, "paypalAccountEmail"),
@@ -4595,6 +4761,33 @@ pub fn instrument_source(
       _ -> SrcNull
     }),
   ])
+}
+
+fn billing_address_source(data: Dict(String, String)) -> SourceValue {
+  case dict.get(data, "billingAddress.address1") {
+    Ok(_) ->
+      src_object([
+        #("firstName", nullable_data_string(data, "billingAddress.firstName")),
+        #("lastName", nullable_data_string(data, "billingAddress.lastName")),
+        #("company", nullable_data_string(data, "billingAddress.company")),
+        #("address1", nullable_data_string(data, "billingAddress.address1")),
+        #("address2", nullable_data_string(data, "billingAddress.address2")),
+        #("city", nullable_data_string(data, "billingAddress.city")),
+        #("zip", nullable_data_string(data, "billingAddress.zip")),
+        #("phone", nullable_data_string(data, "billingAddress.phone")),
+        #("country", nullable_data_string(data, "billingAddress.country")),
+        #(
+          "countryCodeV2",
+          nullable_data_string(data, "billingAddress.countryCodeV2"),
+        ),
+        #("province", nullable_data_string(data, "billingAddress.province")),
+        #(
+          "provinceCode",
+          nullable_data_string(data, "billingAddress.provinceCode"),
+        ),
+      ])
+    Error(_) -> SrcNull
+  }
 }
 
 fn nullable_data_string(

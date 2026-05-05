@@ -1,0 +1,19 @@
+query CustomerPaymentMethodCreditCardCreateValidationRead($id: ID!) {
+  customerPaymentMethod(id: $id) {
+    id
+    instrument {
+      __typename
+      ... on CustomerCreditCard {
+        billingAddress {
+          firstName
+          lastName
+          address1
+          city
+          zip
+          countryCodeV2
+          provinceCode
+        }
+      }
+    }
+  }
+}
