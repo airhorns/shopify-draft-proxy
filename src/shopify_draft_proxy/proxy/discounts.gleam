@@ -1498,7 +1498,7 @@ fn bulk_job_payload(
   let args =
     root_field.get_field_arguments(field, variables)
     |> result.unwrap(dict.new())
-  let user_errors = validate_bulk_selector(root, args)
+  let user_errors = validate_bulk_selector(store, root, args)
   case user_errors {
     [_, ..] -> {
       let payload =
@@ -2958,6 +2958,7 @@ fn invalid_id_errors(
 }
 
 fn validate_bulk_selector(
+  store: Store,
   root: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> List(SourceValue) {
@@ -2966,19 +2967,95 @@ fn validate_bulk_selector(
     + selector_present(args, "search")
     + selector_present(args, "savedSearchId")
     + selector_present(args, "saved_search_id")
-  case count > 1 {
-    True -> [
+  case count {
+    0 -> [
       user_error_null_field(
-        case root {
-          "discountAutomaticBulkDelete" ->
-            "Only one of IDs, search argument or saved search ID is allowed."
-          _ -> "Only one of 'ids', 'search' or 'saved_search_id' is allowed."
-        },
+        bulk_missing_selector_message(root),
+        "MISSING_ARGUMENT",
+      ),
+    ]
+    n if n > 1 -> [
+      user_error_null_field(
+        bulk_too_many_selector_message(root),
         "TOO_MANY_ARGUMENTS",
       ),
     ]
-    False -> []
+    _ ->
+      list.append(
+        validate_bulk_search_selector(root, args),
+        validate_bulk_saved_search_selector(store, root, args),
+      )
   }
+}
+
+fn bulk_missing_selector_message(root: String) -> String {
+  case root {
+    "discountAutomaticBulkDelete" ->
+      "One of IDs, search argument or saved search ID is required."
+    _ -> "Missing expected argument key: 'ids', 'search' or 'saved_search_id'."
+  }
+}
+
+fn bulk_too_many_selector_message(root: String) -> String {
+  case root {
+    "discountAutomaticBulkDelete" ->
+      "Only one of IDs, search argument or saved search ID is allowed."
+    _ -> "Only one of 'ids', 'search' or 'saved_search_id' is allowed."
+  }
+}
+
+fn validate_bulk_search_selector(
+  root: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_string(args, "search") {
+    Some(search) -> {
+      case string.trim(search) {
+        "" ->
+          case root {
+            "discountAutomaticBulkDelete" -> []
+            _ -> [user_error(["search"], "'Search' can't be blank.", "BLANK")]
+          }
+        _ -> []
+      }
+    }
+    _ -> []
+  }
+}
+
+fn validate_bulk_saved_search_selector(
+  store: Store,
+  root: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_bulk_saved_search_id(args) {
+    Some(id) ->
+      case store.get_effective_saved_search_by_id(store, id) {
+        Some(record) if record.resource_type == "PRICE_RULE" -> []
+        _ -> [
+          user_error(
+            ["savedSearchId"],
+            bulk_invalid_saved_search_message(root),
+            "INVALID",
+          ),
+        ]
+      }
+    None -> []
+  }
+}
+
+fn bulk_invalid_saved_search_message(root: String) -> String {
+  case root {
+    "discountAutomaticBulkDelete" -> "Invalid savedSearchId."
+    _ -> "Invalid 'saved_search_id'."
+  }
+}
+
+fn read_bulk_saved_search_id(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  read_string(args, "savedSearchId")
+  |> option.or(read_string(args, "saved_search_id"))
 }
 
 fn selector_present(
