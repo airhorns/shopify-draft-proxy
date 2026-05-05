@@ -1,0 +1,14 @@
+mutation LocalizationShopLocaleEnableUserErrors($locale: String!) {
+  shopLocaleEnable(locale: $locale) {
+    shopLocale {
+      locale
+      name
+      primary
+      published
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

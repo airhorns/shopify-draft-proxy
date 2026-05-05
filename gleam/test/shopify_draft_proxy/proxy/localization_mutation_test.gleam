@@ -110,10 +110,20 @@ pub fn shop_locale_enable_unknown_locale_returns_user_error_test() {
   let body =
     run(
       store.new(),
-      "mutation { shopLocaleEnable(locale: \"xx\") { shopLocale { locale } userErrors { field message } } }",
+      "mutation { shopLocaleEnable(locale: \"xx\") { shopLocale { locale } userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"shopLocaleEnable\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"Locale is invalid\"}]}}}"
+    == "{\"data\":{\"shopLocaleEnable\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"The locale doesn't exist.\",\"code\":\"SHOP_LOCALE_DOES_NOT_EXIST\"}]}}}"
+}
+
+pub fn shop_locale_enable_primary_returns_user_error_test() {
+  let body =
+    run(
+      store.new(),
+      "mutation { shopLocaleEnable(locale: \"en\") { shopLocale { locale } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"shopLocaleEnable\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"The primary locale of your store can't be changed through this endpoint.\",\"code\":\"CAN_NOT_MUTATE_PRIMARY_LOCALE\"}]}}}"
 }
 
 // ---------- shopLocaleUpdate ----------
@@ -135,11 +145,21 @@ pub fn shop_locale_update_unknown_locale_returns_user_error_test() {
   let body =
     run(
       store.new(),
-      "mutation { shopLocaleUpdate(locale: \"de\", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message } } }",
+      "mutation { shopLocaleUpdate(locale: \"de\", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } } }",
     )
   // "de" is in the available catalog but not enabled, so update fails.
   assert body
-    == "{\"data\":{\"shopLocaleUpdate\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"Locale is invalid\"}]}}}"
+    == "{\"data\":{\"shopLocaleUpdate\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"The locale doesn't exist.\",\"code\":\"SHOP_LOCALE_DOES_NOT_EXIST\"}]}}}"
+}
+
+pub fn shop_locale_update_primary_unpublish_returns_user_error_test() {
+  let body =
+    run(
+      store.new(),
+      "mutation { shopLocaleUpdate(locale: \"en\", shopLocale: { published: false }) { shopLocale { locale } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"shopLocaleUpdate\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"The primary locale of your store can't be changed through this endpoint.\",\"code\":\"CAN_NOT_MUTATE_PRIMARY_LOCALE\"}]}}}"
 }
 
 // ---------- shopLocaleDisable ----------
@@ -162,10 +182,20 @@ pub fn shop_locale_disable_primary_returns_user_error_test() {
   let body =
     run(
       store.new(),
-      "mutation { shopLocaleDisable(locale: \"en\") { locale userErrors { field message } } }",
+      "mutation { shopLocaleDisable(locale: \"en\") { locale userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"shopLocaleDisable\":{\"locale\":\"en\",\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"Locale is invalid\"}]}}}"
+    == "{\"data\":{\"shopLocaleDisable\":{\"locale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"The primary locale of your store can't be changed through this endpoint.\",\"code\":\"CAN_NOT_MUTATE_PRIMARY_LOCALE\"}]}}}"
+}
+
+pub fn shop_locale_disable_unknown_locale_returns_user_error_test() {
+  let body =
+    run(
+      store.new(),
+      "mutation { shopLocaleDisable(locale: \"de\") { locale userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"shopLocaleDisable\":{\"locale\":\"de\",\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"The locale doesn't exist.\",\"code\":\"SHOP_LOCALE_DOES_NOT_EXIST\"}]}}}"
 }
 
 // ---------- translationsRegister ----------

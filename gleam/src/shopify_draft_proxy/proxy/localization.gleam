@@ -72,11 +72,11 @@ pub type MutationOutcome {
   )
 }
 
-/// Validation user-error variant. Translation register/remove emits
-/// errors with `code`; shopLocale lifecycle emits errors without one.
+/// Validation user-error variant. Shopify user errors serialize their
+/// enum-like codes as SCREAMING_SNAKE strings.
 type AnyUserError {
   TranslationError(field: List(String), message: String, code: String)
-  ShopLocaleError(field: List(String), message: String)
+  ShopLocaleError(field: List(String), message: String, code: String)
 }
 
 /// One translatable content slot on a translatable resource. `digest`
@@ -622,6 +622,14 @@ fn get_shop_locale(
       |> list.find(fn(candidate) { candidate.locale == locale })
       |> option.from_result
   }
+}
+
+fn primary_locale_for(store_in: Store) -> String {
+  list_shop_locales(store_in, None)
+  |> list.find(fn(locale) { locale.primary })
+  |> option.from_result
+  |> option.map(fn(locale) { locale.locale })
+  |> option.unwrap("en")
 }
 
 // ---------------------------------------------------------------------------
@@ -1538,14 +1546,14 @@ fn handle_shop_locale_enable(
     Some(s) -> s
     None -> ""
   }
-  case locale_name(store_in, locale) {
-    None -> {
+  case locale == primary_locale_for(store_in), locale_name(store_in, locale) {
+    True, _ -> {
       let payload =
         project_shop_locale_payload(
           field,
           None,
           None,
-          [invalid_locale_error()],
+          [primary_locale_error()],
           "ShopLocaleEnablePayload",
         )
       #(
@@ -1554,7 +1562,22 @@ fn handle_shop_locale_enable(
         identity,
       )
     }
-    Some(name) -> {
+    False, None -> {
+      let payload =
+        project_shop_locale_payload(
+          field,
+          None,
+          None,
+          [shop_locale_does_not_exist_error()],
+          "ShopLocaleEnablePayload",
+        )
+      #(
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
+        store_in,
+        identity,
+      )
+    }
+    False, Some(name) -> {
       let market_web_presence_ids = case
         read_optional_string_array(args, "marketWebPresenceIds")
       {
@@ -1612,12 +1635,8 @@ fn handle_shop_locale_update(
     None -> ""
   }
   let existing = get_shop_locale(store_in, locale)
-  let has_locale_name = case locale_name(store_in, locale) {
-    Some(_) -> True
-    None -> False
-  }
-  case existing, has_locale_name {
-    Some(current), True -> {
+  case existing {
+    Some(current) -> {
       let input = read_input_object(args, "shopLocale")
       let market_web_presence_ids = case
         read_optional_string_array(input, "marketWebPresenceIds")
@@ -1629,38 +1648,65 @@ fn handle_shop_locale_update(
         Some(b) -> b
         None -> current.published
       }
-      let record =
-        ShopLocaleRecord(
-          locale: current.locale,
-          name: current.name,
-          primary: current.primary,
-          published: published,
-          market_web_presence_ids: market_web_presence_ids,
-        )
-      let #(_, store_after) = store.stage_shop_locale(store_in, record)
-      let payload =
-        project_shop_locale_payload(
-          field,
-          Some(record),
-          None,
-          [],
-          "ShopLocaleUpdatePayload",
-        )
-      #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-          shop_locale_staged_id(record),
-        ]),
-        store_after,
-        identity,
-      )
+      case current.primary && !published {
+        True -> {
+          let payload =
+            project_shop_locale_payload(
+              field,
+              None,
+              None,
+              [primary_locale_error()],
+              "ShopLocaleUpdatePayload",
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [],
+            ),
+            store_in,
+            identity,
+          )
+        }
+        False -> {
+          let record =
+            ShopLocaleRecord(
+              locale: current.locale,
+              name: current.name,
+              primary: current.primary,
+              published: published,
+              market_web_presence_ids: market_web_presence_ids,
+            )
+          let #(_, store_after) = store.stage_shop_locale(store_in, record)
+          let payload =
+            project_shop_locale_payload(
+              field,
+              Some(record),
+              None,
+              [],
+              "ShopLocaleUpdatePayload",
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [
+                shop_locale_staged_id(record),
+              ],
+            ),
+            store_after,
+            identity,
+          )
+        }
+      }
     }
-    _, _ -> {
+    None -> {
       let payload =
         project_shop_locale_payload(
           field,
           None,
           None,
-          [invalid_locale_error()],
+          [shop_locale_does_not_exist_error()],
           "ShopLocaleUpdatePayload",
         )
       #(
@@ -1686,16 +1732,23 @@ fn handle_shop_locale_disable(
     None -> ""
   }
   let existing = get_shop_locale(store_in, locale)
-  let has_locale_name = case locale_name(store_in, locale) {
-    Some(_) -> True
-    None -> False
-  }
-  let primary = case existing {
-    Some(record) -> record.primary
-    None -> False
-  }
-  case existing, has_locale_name, primary {
-    Some(_), True, False -> {
+  case existing {
+    Some(record) if record.primary -> {
+      let payload =
+        project_shop_locale_payload(
+          field,
+          None,
+          None,
+          [primary_locale_error()],
+          "ShopLocaleDisablePayload",
+        )
+      #(
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
+        store_in,
+        identity,
+      )
+    }
+    Some(_) -> {
       let #(_, store_after_disable) =
         store.disable_shop_locale(store_in, locale)
       let #(_, store_after) =
@@ -1714,13 +1767,13 @@ fn handle_shop_locale_disable(
         identity,
       )
     }
-    _, _, _ -> {
+    None -> {
       let payload =
         project_shop_locale_payload(
           field,
           None,
           Some(locale),
-          [invalid_locale_error()],
+          [shop_locale_does_not_exist_error()],
           "ShopLocaleDisablePayload",
         )
       #(
@@ -1732,8 +1785,20 @@ fn handle_shop_locale_disable(
   }
 }
 
-fn invalid_locale_error() -> AnyUserError {
-  ShopLocaleError(field: ["locale"], message: "Locale is invalid")
+fn shop_locale_does_not_exist_error() -> AnyUserError {
+  ShopLocaleError(
+    field: ["locale"],
+    message: "The locale doesn't exist.",
+    code: "SHOP_LOCALE_DOES_NOT_EXIST",
+  )
+}
+
+fn primary_locale_error() -> AnyUserError {
+  ShopLocaleError(
+    field: ["locale"],
+    message: "The primary locale of your store can't be changed through this endpoint.",
+    code: "CAN_NOT_MUTATE_PRIMARY_LOCALE",
+  )
 }
 
 fn shop_locale_staged_id(record: ShopLocaleRecord) -> String {
@@ -1812,7 +1877,10 @@ fn serialize_user_errors(
                 key,
                 json.string(code),
               )
-              "code", ShopLocaleError(..) -> #(key, json.null())
+              "code", ShopLocaleError(code: code, ..) -> #(
+                key,
+                json.string(code),
+              )
               _, _ -> #(key, json.null())
             }
           _ -> #(key, json.null())
