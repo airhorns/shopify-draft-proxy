@@ -1773,6 +1773,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'shipping-user-error-codes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-shipping-user-error-codes-conformance.ts',
+    purpose:
+      'Typed carrier-service userError.code parity for blank-create and unknown-id update/delete validation branches.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shipping-user-error-codes.json`,
+      'config/parity-specs/shipping-fulfillments/shipping-user-error-codes.json',
+    ],
+    cleanupBehavior: 'No persistent setup or cleanup; all captures are validation-only carrier-service branches.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'delivery-profiles',
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
     purpose: 'Delivery profile read/write lifecycle behavior.',
