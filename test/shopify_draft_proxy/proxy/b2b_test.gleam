@@ -242,7 +242,7 @@ pub fn b2b_company_create_rejects_external_id_validation_and_duplicate_test() {
   assert duplicate_status == 200
   let duplicate_json = json.to_string(duplicate_body)
   assert string.contains(duplicate_json, "\"company\":null")
-  assert string.contains(duplicate_json, "\"code\":\"DUPLICATE_EXTERNAL_ID\"")
+  assert string.contains(duplicate_json, "\"code\":\"TAKEN\"")
 }
 
 pub fn b2b_company_update_validates_external_id_and_duplicate_test() {
@@ -276,7 +276,7 @@ pub fn b2b_company_update_validates_external_id_and_duplicate_test() {
   assert duplicate_status == 200
   let duplicate_json = json.to_string(duplicate_body)
   assert string.contains(duplicate_json, "\"company\":null")
-  assert string.contains(duplicate_json, "\"code\":\"DUPLICATE_EXTERNAL_ID\"")
+  assert string.contains(duplicate_json, "\"code\":\"TAKEN\"")
 
   let long_external_id = string.repeat("x", times: 65)
   let #(Response(status: long_status, body: long_body, ..), proxy) =
@@ -427,10 +427,7 @@ pub fn b2b_location_create_and_update_validates_external_id_test() {
   assert duplicate_status == 200
   let duplicate_json = json.to_string(duplicate_body)
   assert string.contains(duplicate_json, "\"companyLocation\":null")
-  assert string.contains(
-    duplicate_json,
-    "\"code\":\"DUPLICATE_LOCATION_EXTERNAL_ID\"",
-  )
+  assert string.contains(duplicate_json, "\"code\":\"TAKEN\"")
 
   let #(Response(status: self_status, body: self_body, ..), proxy) =
     graphql(
@@ -456,10 +453,7 @@ pub fn b2b_location_create_and_update_validates_external_id_test() {
   assert update_status == 200
   let update_json = json.to_string(update_body)
   assert string.contains(update_json, "\"companyLocation\":null")
-  assert string.contains(
-    update_json,
-    "\"code\":\"DUPLICATE_LOCATION_EXTERNAL_ID\"",
-  )
+  assert string.contains(update_json, "\"code\":\"TAKEN\"")
 }
 
 pub fn b2b_location_create_uses_shipping_address1_name_fallback_test() {

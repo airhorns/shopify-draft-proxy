@@ -237,10 +237,13 @@ parity spec.
 HAR-608 adds local `externalId` guardrails for company and company-location
 create/update mutations. The proxy enforces Shopify's 64-character maximum,
 rejects characters outside the captured `ExternalIdValidator` allow-list with
-`INVALID` and `external_id_contains_invalid_chars` detail, and checks staged
-per-shop uniqueness before writing local B2B state. Duplicate company external
-IDs return `DUPLICATE_EXTERNAL_ID`; duplicate company-location external IDs
-return `DUPLICATE_LOCATION_EXTERNAL_ID`. Update mutations use the same checks
-while allowing the current record to retain its own unchanged external ID. This
-coverage is runtime-test backed; no parity spec was added without a checked-in
-live capture.
+`INVALID`, and checks staged per-shop uniqueness before writing local B2B state.
+The public Admin API's `BusinessCustomerUserError` exposes `field`, `message`,
+and `code`; internal validator detail remains covered by runtime tests when
+selected locally. The 2026-04 live capture for
+`b2b-external-id-validation` shows duplicate company and company-location
+external IDs returning Shopify's observable `TAKEN` code, so the proxy emits
+`TAKEN` for normal duplicate externalId validation rather than the lower-level
+DB-conflict enum names. Update mutations use the same checks while allowing the
+current record to retain its own unchanged external ID. Executable parity specs
+cover charset, too-long, duplicate-company, and duplicate-location branches.

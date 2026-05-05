@@ -57,6 +57,8 @@ const external_id_max_length = 64
 
 const external_id_invalid_chars_detail = "external_id_contains_invalid_chars"
 
+const external_id_invalid_chars_message = "External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\\/?<>_-~,.;:'`\""
+
 const company_contact_maximum_cap = 10_000
 
 pub type B2BError {
@@ -1487,16 +1489,28 @@ fn validate_external_id_field(
 ) -> List(UserError) {
   case read_string(input, "externalId") {
     Some(value) -> {
-      validate_length(
-        value,
-        "externalId",
-        prefix,
-        "External ID",
-        external_id_max_length,
-      )
+      validate_external_id_length(value, prefix)
       |> list.append(validate_external_id_charset(value, prefix))
     }
     None -> []
+  }
+}
+
+fn validate_external_id_length(
+  value: String,
+  prefix: List(String),
+) -> List(UserError) {
+  case string.length(value) > external_id_max_length {
+    True -> [
+      user_error(
+        Some(field_path(prefix, "externalId")),
+        "External Id must be "
+          <> int.to_string(external_id_max_length)
+          <> " characters or less.",
+        user_error_code.too_long,
+      ),
+    ]
+    False -> []
   }
 }
 
@@ -1509,7 +1523,7 @@ fn validate_external_id_charset(
     False -> [
       detailed_user_error(
         Some(field_path(prefix, "externalId")),
-        "External ID contains invalid characters",
+        external_id_invalid_chars_message,
         user_error_code.invalid,
         external_id_invalid_chars_detail,
       ),
@@ -1987,8 +2001,8 @@ fn validate_duplicate_company_external_id(
         True -> [
           user_error(
             Some(field_path(prefix, "externalId")),
-            "External ID has already been taken.",
-            user_error_code.duplicate_external_id,
+            "External id has already been taken.",
+            user_error_code.taken,
           ),
         ]
         False -> []
@@ -2011,8 +2025,8 @@ fn validate_duplicate_location_external_id(
         True -> [
           user_error(
             Some(field_path(prefix, "externalId")),
-            "External ID has already been taken.",
-            user_error_code.duplicate_location_external_id,
+            "External id has already been taken.",
+            user_error_code.taken,
           ),
         ]
         False -> []
