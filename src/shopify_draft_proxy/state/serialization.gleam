@@ -2925,6 +2925,7 @@ fn customer_segment_members_query_json(
     #("id", json.string(record.id)),
     #("query", optional_string(record.query)),
     #("segmentId", optional_string(record.segment_id)),
+    #("status", json.string(record.status)),
     #("currentCount", json.int(record.current_count)),
     #("done", json.bool(record.done)),
   ])
@@ -5911,12 +5912,14 @@ fn customer_segment_members_query_decoder() -> Decoder(
   use id <- decode.field("id", decode.string)
   use query <- optional_string_field("query")
   use segment_id <- optional_string_field("segmentId")
+  use status <- optional_field("status", "INITIALIZED", decode.string)
   use current_count <- decode.field("currentCount", decode.int)
   use done <- decode.field("done", decode.bool)
   decode.success(types.CustomerSegmentMembersQueryRecord(
     id: id,
     query: query,
     segment_id: segment_id,
+    status: status,
     current_count: current_count,
     done: done,
   ))
