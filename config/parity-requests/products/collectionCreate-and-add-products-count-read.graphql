@@ -1,0 +1,16 @@
+query HAR594CollectionProductsCount($id: ID!) {
+  collection(id: $id) {
+    id
+    productsCount {
+      count
+      precision
+    }
+    products(first: 5) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+  }
+}

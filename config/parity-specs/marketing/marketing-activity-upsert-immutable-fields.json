@@ -1,0 +1,85 @@
+{
+  "scenarioId": "marketing-activity-upsert-immutable-fields",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "local-staging", "marketing-activity-immutability"],
+  "operationNames": [
+    "marketingActivityCreateExternal",
+    "marketingActivityUpsertExternal",
+    "marketingActivityUpdateExternal"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-upsert-immutable-fields.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-immutable-create.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "child-create",
+        "capturePath": "$.cases[0].response.payload.data.marketingActivityCreateExternal",
+        "proxyPath": "$.data.marketingActivityCreateExternal"
+      },
+      {
+        "name": "update-success-by-remote-id",
+        "capturePath": "$.cases[1].response.payload.data.marketingActivityUpdateExternal",
+        "proxyPath": "$.data.marketingActivityUpdateExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-immutable-update.graphql",
+          "variablesCapturePath": "$.cases[1].variables"
+        }
+      },
+      {
+        "name": "upsert-immutable-channel-handle",
+        "capturePath": "$.cases[2].response.payload.data.marketingActivityUpsertExternal",
+        "proxyPath": "$.data.marketingActivityUpsertExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-immutable-upsert.graphql",
+          "variablesCapturePath": "$.cases[2].variables"
+        }
+      },
+      {
+        "name": "upsert-immutable-url-parameter",
+        "capturePath": "$.cases[3].response.payload.data.marketingActivityUpsertExternal",
+        "proxyPath": "$.data.marketingActivityUpsertExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-immutable-upsert.graphql",
+          "variablesCapturePath": "$.cases[3].variables"
+        }
+      },
+      {
+        "name": "upsert-immutable-utm",
+        "capturePath": "$.cases[4].response.payload.data.marketingActivityUpsertExternal",
+        "proxyPath": "$.data.marketingActivityUpsertExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-immutable-upsert.graphql",
+          "variablesCapturePath": "$.cases[4].variables"
+        }
+      },
+      {
+        "name": "upsert-invalid-parent-remote-id",
+        "capturePath": "$.cases[5].response.payload.data.marketingActivityUpsertExternal",
+        "proxyPath": "$.data.marketingActivityUpsertExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-immutable-upsert.graphql",
+          "variablesCapturePath": "$.cases[5].variables"
+        }
+      },
+      {
+        "name": "upsert-immutable-hierarchy-level",
+        "capturePath": "$.cases[6].response.payload.data.marketingActivityUpsertExternal",
+        "proxyPath": "$.data.marketingActivityUpsertExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-immutable-upsert.graphql",
+          "variablesCapturePath": "$.cases[6].variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-681 captures live Shopify userErrors for external marketing activity immutable fields this disposable shop can exercise: channel handle, URL parameter, UTM, invalid parent remote ID, and hierarchy level. Runtime tests cover the immutable-parent-id branch with staged synthetic parent events because the current conformance app/store has no recognized channel handle, and live Shopify requires a recognized channel handle to create the campaign-level parent activity needed for that branch. Cleanup deletes every disposable remote ID after capture."
+}

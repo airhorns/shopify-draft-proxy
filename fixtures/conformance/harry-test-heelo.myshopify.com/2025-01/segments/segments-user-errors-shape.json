@@ -1,0 +1,244 @@
+{
+  "capturedAt": "2026-05-05T17:47:37.502Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "segmentCreateBlankNameAndQuery",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateUserErrorsShape($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n      }\n      userErrors {\n        __typename\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "",
+          "query": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "__typename": "UserError",
+                  "field": ["name"],
+                  "message": "Name can't be blank"
+                },
+                {
+                  "__typename": "UserError",
+                  "field": ["query"],
+                  "message": "Query can't be blank"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateSetup",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateUserErrorsShape($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n      }\n      userErrors {\n        __typename\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "HAR-712 user errors har712-user-errors-1778003256374",
+          "query": "number_of_orders >= 1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648277492018"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateEmptyInput",
+      "request": {
+        "query": "#graphql\n  mutation SegmentUpdateUserErrorsShape($id: ID!) {\n    segmentUpdate(id: $id) {\n      segment {\n        id\n      }\n      userErrors {\n        __typename\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648277492018"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentUpdate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "__typename": "UserError",
+                  "field": null,
+                  "message": "At least one attribute to change must be present"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteBogusId",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteUserErrorsShape($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        __typename\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/999999999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": null,
+              "userErrors": [
+                {
+                  "__typename": "UserError",
+                  "field": ["id"],
+                  "message": "Segment does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "memberQueryBothSelectorsRejected",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateUserErrorsShape($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n      }\n      userErrors {\n        __typename\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "segmentId": "gid://shopify/Segment/1",
+            "query": "number_of_orders > 0"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": null,
+              "userErrors": [
+                {
+                  "__typename": "CustomerSegmentMembersQueryUserError",
+                  "field": ["input"],
+                  "code": "INVALID",
+                  "message": "Providing both segment_id and query is not supported."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "memberQueryNeitherSelectorRejected",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateUserErrorsShape($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n      }\n      userErrors {\n        __typename\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {}
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": null,
+              "userErrors": [
+                {
+                  "__typename": "CustomerSegmentMembersQueryUserError",
+                  "field": ["input"],
+                  "code": "INVALID",
+                  "message": "You must provide one of segment_id or query."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "HAR-712 live evidence for segment and customerSegmentMembersQueryCreate userErrors shape.",
+    "Shopify UserError for segmentCreate/segmentUpdate/segmentDelete exposes __typename, field, and message; selecting code on UserError is rejected by the live schema, so default code:null behavior is covered by runtime tests.",
+    "segmentUpdateEmptyInput uses one disposable live segment for the id-only validation branch, then deletes it during cleanup.",
+    "CustomerSegmentMembersQueryUserError exposes code and returns INVALID for selector validation branches."
+  ],
+  "upstreamCalls": []
+}

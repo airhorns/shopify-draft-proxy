@@ -74,6 +74,14 @@ export const operationRegistryEntrySchema = z.strictObject({
 export const operationRegistrySchema = z.array(operationRegistryEntrySchema);
 export type OperationRegistryEntry = z.infer<typeof operationRegistryEntrySchema>;
 
+export const localSetupSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('seedSegments'),
+    count: z.number().int().nonnegative(),
+  }),
+]);
+export type LocalSetup = z.infer<typeof localSetupSchema>;
+
 export const parityProxyRequestSpecSchema = z.strictObject({
   documentPath: z.string().nullable().optional(),
   variablesPath: z.string().nullable().optional(),
@@ -83,7 +91,9 @@ export const parityProxyRequestSpecSchema = z.strictObject({
     .string()
     .regex(/^\d{4}-\d{2}$/u)
     .optional(),
+  headers: z.record(z.string(), z.string()).optional(),
   waitBeforeMs: z.number().int().nonnegative().optional(),
+  localSetups: z.array(localSetupSchema).optional(),
 });
 export type ProxyRequestSpec = z.infer<typeof parityProxyRequestSpecSchema>;
 
@@ -92,7 +102,11 @@ export const matcherSchema = z.union([
   z.literal('non-empty-string'),
   z.literal('any-number'),
   z.literal('iso-timestamp'),
+  z.literal('storefront-access-token'),
   z.string().regex(/^shopify-gid:[A-Za-z][A-Za-z0-9]*$/),
+  z.string().regex(/^shop-policy-url-base:https:\/\/[^/\s]+(?:\/[^\s]*)?$/),
+  z.string().regex(/^exact-string:.+$/),
+  z.string().regex(/^regex:\^.+$/),
 ]);
 export type Matcher = z.infer<typeof matcherSchema>;
 

@@ -1,0 +1,61 @@
+{
+  "scenarioId": "removeFromReturn-quantity-validation",
+  "operationNames": ["returnCreate", "removeFromReturn"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "user-errors-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/orders/return-quantity-validation.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/return-create-quantity-validation.graphql",
+    "variablesCapturePath": "$.returnCreateForRemoval.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "remove-from-return-over-quantity",
+        "capturePath": "$.expected.removeFromReturnOverQuantity",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/remove-from-return-quantity-validation.graphql",
+          "variables": {
+            "returnId": {
+              "fromPrimaryProxyPath": "$.data.returnCreate.return.id"
+            },
+            "returnLineItems": [
+              {
+                "returnLineItemId": {
+                  "fromPrimaryProxyPath": "$.data.returnCreate.return.returnLineItems.nodes[0].id"
+                },
+                "quantity": 4
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "remove-from-return-zero-quantity",
+        "capturePath": "$.expected.removeFromReturnZeroQuantity",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/remove-from-return-quantity-validation.graphql",
+          "variables": {
+            "returnId": {
+              "fromPrimaryProxyPath": "$.data.returnCreate.return.id"
+            },
+            "returnLineItems": [
+              {
+                "returnLineItemId": {
+                  "fromPrimaryProxyPath": "$.data.returnCreate.return.returnLineItems.nodes[0].id"
+                },
+                "quantity": 0
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "notes": "HAR-589 executable local-runtime parity for removeFromReturn quantity validation. The primary request stages a return line with quantity 3; follow-up removals for 4 and 0 must fail with quantity userErrors and leave the return null in the mutation payload."
+}

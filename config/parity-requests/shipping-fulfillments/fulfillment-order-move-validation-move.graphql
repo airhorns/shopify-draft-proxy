@@ -1,0 +1,49 @@
+fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {
+  id
+  status
+  requestStatus
+  updatedAt
+  assignedLocation {
+    name
+    location {
+      id
+      name
+    }
+  }
+  lineItems(first: 5) {
+    nodes {
+      id
+      totalQuantity
+      remainingQuantity
+      lineItem {
+        id
+        title
+        quantity
+        fulfillableQuantity
+      }
+    }
+  }
+}
+
+mutation FulfillmentOrderMoveValidationMove(
+  $id: ID!
+  $newLocationId: ID!
+  $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]
+) {
+  fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $fulfillmentOrderLineItems) {
+    movedFulfillmentOrder {
+      ...FulfillmentOrderMoveValidationFields
+    }
+    originalFulfillmentOrder {
+      ...FulfillmentOrderMoveValidationFields
+    }
+    remainingFulfillmentOrder {
+      ...FulfillmentOrderMoveValidationFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

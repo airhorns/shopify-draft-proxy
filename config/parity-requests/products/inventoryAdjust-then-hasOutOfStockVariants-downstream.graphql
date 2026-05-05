@@ -1,0 +1,30 @@
+query InventoryAdjustDerivedFieldsDownstream($id: ID!) {
+  product(id: $id) {
+    id
+    totalVariants
+    hasOnlyDefaultVariant
+    hasOutOfStockVariants
+    tracksInventory
+    totalInventory
+    variants(first: 5) {
+      nodes {
+        inventoryQuantity
+        inventoryItem {
+          tracked
+          inventoryLevels(first: 5) {
+            nodes {
+              location {
+                id
+                name
+              }
+              quantities(names: ["available", "on_hand"]) {
+                name
+                quantity
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

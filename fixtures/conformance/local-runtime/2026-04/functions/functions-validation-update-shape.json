@@ -1,0 +1,229 @@
+{
+  "scenarioId": "functions-validation-update-shape",
+  "capturedAt": "2026-05-05T06:40:00.000Z",
+  "source": "local-runtime",
+  "apiVersion": "2026-04",
+  "summary": "Executable local parity fixture for HAR-703 validationUpdate input shape, active cap, and metafield persistence.",
+  "primary": {
+    "response": {
+      "data": {
+        "rebindSubject": {
+          "validation": {
+            "id": "gid://shopify/Validation/2",
+            "enable": false,
+            "blockOnFailure": false,
+            "functionId": "gid://shopify/ShopifyFunction/validation-alpha"
+          },
+          "userErrors": []
+        },
+        "active10": {
+          "validation": {
+            "id": "gid://shopify/Validation/12",
+            "enable": true,
+            "blockOnFailure": false,
+            "functionId": "gid://shopify/ShopifyFunction/validation-alpha"
+          },
+          "userErrors": []
+        },
+        "inactiveCapSubject": {
+          "validation": {
+            "id": "gid://shopify/Validation/13",
+            "enable": false,
+            "blockOnFailure": false,
+            "functionId": "gid://shopify/ShopifyFunction/validation-alpha"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "rebind": {
+    "response": {
+      "errors": [
+        {
+          "message": "Field 'functionId' is not defined on ValidationUpdateInput",
+          "locations": [
+            {
+              "line": 2,
+              "column": 43
+            }
+          ],
+          "path": ["mutation ValidationUpdateRebind", "validationUpdate", "validation", "functionId"],
+          "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "functionId"
+          }
+        }
+      ]
+    }
+  },
+  "maxActive": {
+    "response": {
+      "data": {
+        "validationUpdate": {
+          "validation": null,
+          "userErrors": [
+            {
+              "field": ["enable"],
+              "message": "Cannot have more than 10 active validation functions.",
+              "code": "MAX_VALIDATIONS_ACTIVATED"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "metafields": {
+    "response": {
+      "data": {
+        "validationUpdate": {
+          "validation": {
+            "id": "gid://shopify/Validation/2",
+            "enable": false,
+            "blockOnFailure": false,
+            "functionId": "gid://shopify/ShopifyFunction/validation-alpha",
+            "metafields": {
+              "nodes": [
+                {
+                  "namespace": "custom",
+                  "key": "mode",
+                  "value": "strict"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "validationsConnection": {
+    "response": {
+      "data": {
+        "validations": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Validation/2",
+              "metafields": {
+                "nodes": [
+                  {
+                    "namespace": "custom",
+                    "key": "mode",
+                    "value": "strict"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/3",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/4",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/5",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/6",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/7",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/8",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/9",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/10",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/11",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/12",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/13",
+              "metafields": {
+                "nodes": []
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "runtimeContract": {
+    "supportedMutationsStageLocally": true,
+    "validationUpdateRejectsFunctionRebindInput": true,
+    "validationUpdateEnforcesActiveCap": true,
+    "validationUpdatePersistsMetafields": true,
+    "externalShopifyFunctionsExecuted": false
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "validation-alpha",
+        "apiType": "VALIDATION"
+      },
+      "query": "hand-synthesized ShopifyFunction lookup for validation update shape fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/validation-alpha",
+                  "title": "Validation Alpha",
+                  "handle": "validation-alpha",
+                  "apiType": "VALIDATION"
+                },
+                {
+                  "id": "gid://shopify/ShopifyFunction/validation-beta",
+                  "title": "Validation Beta",
+                  "handle": "validation-beta",
+                  "apiType": "VALIDATION"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

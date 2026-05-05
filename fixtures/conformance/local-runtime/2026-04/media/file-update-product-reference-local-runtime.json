@@ -10,10 +10,10 @@
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-update-parity.json"
   ],
   "evidence": [
-    "Snapshot-mode fileCreate stages a Files API MediaImage record without upstream fetch.",
-    "fileUpdate.referencesToAdd attaches the file to an existing product as product media.",
-    "The attached file remains visible through top-level files reads and becomes visible through downstream product.media reads.",
-    "No external staged-upload byte transfer is required for this local lifecycle slice."
+    "Snapshot-mode fileCreate stages a Files API MediaImage record in UPLOADED state.",
+    "fileUpdate.referencesToAdd still validates the referenced product through LiveHybrid hydration.",
+    "fileUpdate rejects the non-ready file with NON_READY_STATE and does not attach product media.",
+    "Downstream product.media remains empty and top-level files preserves the original UPLOADED file."
   ],
   "create": {
     "response": {
@@ -42,17 +42,14 @@
     "response": {
       "data": {
         "fileUpdate": {
-          "files": [
+          "files": [],
+          "userErrors": [
             {
-              "id": "gid://shopify/MediaImage/2",
-              "alt": "Attached file media",
-              "fileStatus": "READY",
-              "image": {
-                "url": "https://cdn.example.com/file-reference-ready.jpg"
-              }
+              "field": ["files"],
+              "message": "Non-ready files cannot be updated.",
+              "code": "NON_READY_STATE"
             }
-          ],
-          "userErrors": []
+          ]
         }
       }
     }
@@ -64,27 +61,12 @@
           "id": "gid://shopify/Product/429001",
           "title": "File reference target",
           "media": {
-            "nodes": [
-              {
-                "id": "gid://shopify/MediaImage/2",
-                "alt": "Attached file media",
-                "mediaContentType": "IMAGE",
-                "status": "READY",
-                "preview": {
-                  "image": {
-                    "url": "https://cdn.example.com/file-reference-ready.jpg"
-                  }
-                },
-                "image": {
-                  "url": "https://cdn.example.com/file-reference-ready.jpg"
-                }
-              }
-            ],
+            "nodes": [],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "cursor:gid://shopify/Product/429001:media:0",
-              "endCursor": "cursor:gid://shopify/Product/429001:media:0"
+              "startCursor": null,
+              "endCursor": null
             }
           }
         }
@@ -98,12 +80,12 @@
           "nodes": [
             {
               "id": "gid://shopify/MediaImage/2",
-              "alt": "Attached file media",
+              "alt": "Reference source",
               "createdAt": "2024-01-01T00:00:01.000Z",
-              "fileStatus": "READY",
+              "fileStatus": "UPLOADED",
               "filename": "reference-source.jpg",
               "image": {
-                "url": "https://cdn.example.com/file-reference-ready.jpg",
+                "url": "https://cdn.example.com/reference-source.jpg",
                 "width": null,
                 "height": null
               }

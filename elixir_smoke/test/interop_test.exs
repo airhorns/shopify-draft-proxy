@@ -9,6 +9,7 @@ defmodule ShopifyDraftProxy.InteropTest do
     config = ShopifyDraftProxy.config(proxy)
     assert %ShopifyDraftProxy.Response{status: 200, body: config_body} = config
     assert config_body =~ ~s("readMode":"snapshot")
+    assert config_body =~ ~s("unsupportedMutationMode":"passthrough")
 
     create =
       ShopifyDraftProxy.graphql(proxy, ~s|
@@ -122,11 +123,13 @@ defmodule ShopifyDraftProxy.InteropTest do
     proxy =
       ShopifyDraftProxy.with_config(
         read_mode: :live_hybrid,
+        unsupported_mutation_mode: :reject,
         shopify_admin_origin: "https://my-shop.myshopify.com"
       )
 
     config = ShopifyDraftProxy.config(proxy)
     assert config.body =~ ~s("readMode":"live-hybrid")
+    assert config.body =~ ~s("unsupportedMutationMode":"reject")
     assert config.body =~ ~s("shopifyAdminOrigin":"https://my-shop.myshopify.com")
   end
 
@@ -241,7 +244,9 @@ defmodule ShopifyDraftProxy.InteropTest do
     next =
       ShopifyDraftProxy.graphql(
         restored,
-        saved_search_create_query("id")
+        # Keep the smoke focused on identity continuity. Reusing the first name
+        # now correctly exercises saved-search uniqueness instead.
+        saved_search_create_query("id", "Smoke Restored")
       )
 
     # After restore, the next mint reuses the dump's counter. The first mutation
@@ -277,7 +282,7 @@ defmodule ShopifyDraftProxy.InteropTest do
     assert length(registry) >= 60
   end
 
-  defp saved_search_create_query(selection) do
-    ~s|mutation { savedSearchCreate(input: { name: "Smoke", query: "tag:vip", resourceType: ORDER }) { savedSearch { #{selection} } userErrors { field message } } }|
+  defp saved_search_create_query(selection, name \\ "Smoke") do
+    ~s|mutation { savedSearchCreate(input: { name: "#{name}", query: "tag:vip", resourceType: ORDER }) { savedSearch { #{selection} } userErrors { field message } } }|
   end
 end

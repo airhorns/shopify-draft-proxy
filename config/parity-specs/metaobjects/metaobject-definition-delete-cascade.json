@@ -1,0 +1,140 @@
+{
+  "scenarioId": "metaobject-definition-delete-cascade",
+  "operationNames": [
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metaobjectDefinitionDelete",
+    "metaobjectDefinition",
+    "metaobjectDefinitionByType",
+    "metaobject",
+    "metaobjectByHandle",
+    "metaobjects"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-delete-cascade.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-definition-lifecycle-create.graphql",
+    "variablesCapturePath": "$.setup[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-definition-payload",
+        "capturePath": "$.setup[0].response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the captured live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "create-first-entry-payload",
+        "capturePath": "$.setup[1].response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-delete-cascade-entry-create.graphql",
+          "variablesCapturePath": "$.setup[1].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
+        "name": "create-second-entry-payload",
+        "capturePath": "$.setup[2].response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-delete-cascade-entry-create.graphql",
+          "variablesCapturePath": "$.setup[2].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
+        "name": "delete-definition-payload",
+        "capturePath": "$.cascadeDelete[0].response.data.metaobjectDefinitionDelete",
+        "proxyPath": "$.data.metaobjectDefinitionDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-lifecycle-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy deletes the synthetic staged definition ID while Shopify deleted the captured live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "downstream-after-definition-delete-read",
+        "capturePath": "$.downstreamReads[0].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-delete-cascade-read.graphql",
+          "variables": {
+            "definitionId": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "type": {
+              "fromCapturePath": "$.seed.type"
+            },
+            "firstId": {
+              "fromProxyResponse": "create-first-entry-payload",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "secondId": {
+              "fromProxyResponse": "create-second-entry-payload",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "firstHandle": {
+              "fromCapturePath": "$.downstreamReads[0].request.variables.firstHandle"
+            },
+            "secondHandle": {
+              "fromCapturePath": "$.downstreamReads[0].request.variables.secondHandle"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "HAR-675 captured live Shopify Admin GraphQL 2026-04 behavior for deleting a disposable metaobject definition with two associated entries. Shopify returned the deleted definition GID with no userErrors, and immediate downstream reads by definition id, type, metaobject id, metaobject handle, and type catalog all returned null or empty connection results. The fixture also includes a MetaobjectDefinitionHydrateByType cassette entry for cold create-path hydration; the delete step itself must not call upstream at runtime."
+}

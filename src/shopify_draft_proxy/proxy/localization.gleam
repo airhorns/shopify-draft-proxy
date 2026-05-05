@@ -32,26 +32,30 @@ import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
-  SelectedFieldOptions, SerializeConnectionConfig,
-  default_connection_page_info_options, default_connection_window_options,
-  default_selected_field_options, get_document_fragments, get_field_response_key,
-  paginate_connection_items, serialize_connection, serialize_empty_connection,
+  SelectedFieldOptions, SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt,
+  SrcList, SrcNull, SrcObject, SrcString, default_connection_page_info_options,
+  default_connection_window_options, default_selected_field_options,
+  get_document_fragments, get_field_response_key, paginate_connection_items,
+  project_graphql_value, serialize_connection, serialize_empty_connection,
+  src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, read_optional_string_array,
-  single_root_log_draft,
+  type MutationFieldResult, type MutationOutcome, MutationFieldResult,
+  MutationOutcome, read_optional_string_array, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type LocaleRecord, type ProductMetafieldRecord, type ProductRecord,
-  type ShopLocaleRecord, type TranslationRecord, LocaleRecord, ShopLocaleRecord,
+  type CapturedJsonValue, type LocaleRecord, type ProductMetafieldRecord,
+  type ProductRecord, type ShopLocaleRecord, type TranslationRecord,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, LocaleRecord, ShopLocaleRecord,
   TranslationRecord,
 }
 
@@ -68,6 +72,77 @@ pub type LocalizationError {
 type AnyUserError {
   TranslationError(field: List(String), message: String, code: String)
   ShopLocaleError(field: List(String), message: String, code: String)
+}
+
+const max_keys_per_translation_mutation = 100
+
+pub type TranslationErrorCode {
+  FailsResourceValidation
+  InvalidKeyForModel
+  InvalidLocaleForShop
+  InvalidTranslatableContent
+  InvalidValueForHandleTranslation
+  MarketCustomContentNotAllowed
+  MarketDoesNotExist
+  ResourceNotFound
+  ResourceNotMarketCustomizable
+  TooManyKeysForResource
+  ValueMatchesOriginalContent
+}
+
+pub fn translation_error_code_allow_list() -> List(String) {
+  [
+    "FAILS_RESOURCE_VALIDATION",
+    "INVALID_KEY_FOR_MODEL",
+    "INVALID_LOCALE_FOR_SHOP",
+    "INVALID_TRANSLATABLE_CONTENT",
+    "INVALID_VALUE_FOR_HANDLE_TRANSLATION",
+    "MARKET_CUSTOM_CONTENT_NOT_ALLOWED",
+    "MARKET_DOES_NOT_EXIST",
+    "RESOURCE_NOT_FOUND",
+    "RESOURCE_NOT_MARKET_CUSTOMIZABLE",
+    "TOO_MANY_KEYS_FOR_RESOURCE",
+    "VALUE_MATCHES_ORIGINAL_CONTENT",
+  ]
+}
+
+pub fn emitted_translation_mutation_error_codes() -> List(String) {
+  [
+    translation_error_code_to_string(FailsResourceValidation),
+    translation_error_code_to_string(InvalidKeyForModel),
+    translation_error_code_to_string(InvalidLocaleForShop),
+    translation_error_code_to_string(InvalidTranslatableContent),
+    translation_error_code_to_string(ResourceNotFound),
+    translation_error_code_to_string(TooManyKeysForResource),
+  ]
+}
+
+fn translation_error_code_to_string(code: TranslationErrorCode) -> String {
+  case code {
+    FailsResourceValidation -> "FAILS_RESOURCE_VALIDATION"
+    InvalidKeyForModel -> "INVALID_KEY_FOR_MODEL"
+    InvalidLocaleForShop -> "INVALID_LOCALE_FOR_SHOP"
+    InvalidTranslatableContent -> "INVALID_TRANSLATABLE_CONTENT"
+    InvalidValueForHandleTranslation -> "INVALID_VALUE_FOR_HANDLE_TRANSLATION"
+    MarketCustomContentNotAllowed -> "MARKET_CUSTOM_CONTENT_NOT_ALLOWED"
+    MarketDoesNotExist -> "MARKET_DOES_NOT_EXIST"
+    ResourceNotFound -> "RESOURCE_NOT_FOUND"
+    ResourceNotMarketCustomizable -> "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
+    TooManyKeysForResource -> "TOO_MANY_KEYS_FOR_RESOURCE"
+    ValueMatchesOriginalContent -> "VALUE_MATCHES_ORIGINAL_CONTENT"
+  }
+}
+
+fn translation_error(
+  field: List(String),
+  message: String,
+  code: TranslationErrorCode,
+) -> AnyUserError {
+  TranslationError(
+    field: field,
+    message: message,
+    code: translation_error_code_to_string(code),
+  )
 }
 
 /// One translatable content slot on a translatable resource. `digest`
@@ -522,6 +597,7 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  _upstream: UpstreamContext,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store_in, identity, err)
@@ -978,16 +1054,23 @@ fn serialize_locale(locale: LocaleRecord, field: Selection) -> Json {
 fn serialize_shop_locales_root(
   store_in: Store,
   field: Selection,
-  _fragments: FragmentMap,
+  fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
   let published = graphql_helpers.read_arg_bool(args, "published")
   let locales = list_shop_locales(store_in, published)
-  json.array(locales, fn(locale) { serialize_shop_locale(locale, field) })
+  json.array(locales, fn(locale) {
+    serialize_shop_locale(store_in, locale, field, fragments)
+  })
 }
 
-fn serialize_shop_locale(locale: ShopLocaleRecord, field: Selection) -> Json {
+fn serialize_shop_locale(
+  store_in: Store,
+  locale: ShopLocaleRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
   let entries =
     list.map(selections_of(field), fn(selection) {
       let key = get_field_response_key(selection)
@@ -999,13 +1082,58 @@ fn serialize_shop_locale(locale: ShopLocaleRecord, field: Selection) -> Json {
             "primary" -> #(key, json.bool(locale.primary))
             "published" -> #(key, json.bool(locale.published))
             "__typename" -> #(key, json.string("ShopLocale"))
-            "marketWebPresences" -> #(key, json.preprocessed_array([]))
+            "marketWebPresences" -> #(
+              key,
+              serialize_market_web_presences(
+                store_in,
+                locale,
+                selection,
+                fragments,
+              ),
+            )
             _ -> #(key, json.null())
           }
         _ -> #(key, json.null())
       }
     })
   json.object(entries)
+}
+
+fn serialize_market_web_presences(
+  store_in: Store,
+  locale: ShopLocaleRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let sources =
+    list.map(locale.market_web_presence_ids, fn(id) {
+      market_web_presence_source(store_in, id)
+    })
+  project_graphql_value(SrcList(sources), selections_of(field), fragments)
+}
+
+fn market_web_presence_source(store_in: Store, id: String) {
+  case store.get_effective_web_presence_by_id(store_in, id) {
+    Some(record) -> captured_json_source(record.data)
+    None ->
+      src_object([
+        #("id", SrcString(id)),
+        #("__typename", SrcString("MarketWebPresence")),
+        #(
+          "defaultLocale",
+          shop_locale_reference_source(store_in, primary_locale_for(store_in)),
+        ),
+      ])
+  }
+}
+
+fn shop_locale_reference_source(store_in: Store, locale: String) {
+  src_object([
+    #("locale", SrcString(locale)),
+    #("name", SrcString(locale_name(store_in, locale) |> option.unwrap(locale))),
+    #("primary", SrcBool(locale == primary_locale_for(store_in))),
+    #("published", SrcBool(True)),
+  ])
 }
 
 // translatableResource
@@ -1260,10 +1388,10 @@ fn serialize_translations_for_resource(
 }
 
 fn serialize_translation(
-  _store_in: Store,
+  store_in: Store,
   translation: TranslationRecord,
   field: Selection,
-  _fragments: FragmentMap,
+  fragments: FragmentMap,
 ) -> Json {
   let entries =
     list.map(selections_of(field), fn(selection) {
@@ -1279,7 +1407,12 @@ fn serialize_translation(
             "__typename" -> #(key, json.string("Translation"))
             "market" -> #(
               key,
-              serialize_translation_market(translation.market_id, selection),
+              serialize_translation_market(
+                store_in,
+                translation.market_id,
+                selection,
+                fragments,
+              ),
             )
             _ -> #(key, json.null())
           }
@@ -1290,27 +1423,27 @@ fn serialize_translation(
 }
 
 fn serialize_translation_market(
+  store_in: Store,
   market_id: Option(String),
   field: Selection,
+  fragments: FragmentMap,
 ) -> Json {
   case market_id {
     None -> json.null()
-    Some(id) -> {
-      let entries =
-        list.map(selections_of(field), fn(selection) {
-          let key = get_field_response_key(selection)
-          case selection {
-            Field(name: name, ..) ->
-              case name.value {
-                "id" -> #(key, json.string(id))
-                "__typename" -> #(key, json.string("Market"))
-                _ -> #(key, json.null())
-              }
-            _ -> #(key, json.null())
-          }
-        })
-      json.object(entries)
-    }
+    Some(id) ->
+      project_graphql_value(
+        market_source(store_in, id),
+        selections_of(field),
+        fragments,
+      )
+  }
+}
+
+fn market_source(store_in: Store, id: String) {
+  case store.get_effective_market_by_id(store_in, id) {
+    Some(record) -> captured_json_source(record.data)
+    None ->
+      src_object([#("id", SrcString(id)), #("__typename", SrcString("Market"))])
   }
 }
 
@@ -1425,14 +1558,6 @@ fn serialize_resource_connection(
 // Mutation handlers
 // ---------------------------------------------------------------------------
 
-type MutationFieldResult {
-  MutationFieldResult(
-    key: String,
-    payload: Json,
-    staged_resource_ids: List(String),
-  )
-}
-
 fn handle_mutation_fields(
   store_in: Store,
   identity: SyntheticIdentityRegistry,
@@ -1452,6 +1577,7 @@ fn handle_mutation_fields(
                 current_store,
                 current_identity,
                 field,
+                fragments,
                 variables,
               ))
             "shopLocaleUpdate" ->
@@ -1459,6 +1585,7 @@ fn handle_mutation_fields(
                 current_store,
                 current_identity,
                 field,
+                fragments,
                 variables,
               ))
             "shopLocaleDisable" ->
@@ -1466,6 +1593,7 @@ fn handle_mutation_fields(
                 current_store,
                 current_identity,
                 field,
+                fragments,
                 variables,
               ))
             "translationsRegister" ->
@@ -1548,6 +1676,7 @@ fn handle_shop_locale_enable(
   store_in: Store,
   identity: SyntheticIdentityRegistry,
   field: Selection,
+  fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
@@ -1560,11 +1689,13 @@ fn handle_shop_locale_enable(
     True, _ -> {
       let payload =
         project_shop_locale_payload(
+          store_in,
           field,
           None,
           None,
           [primary_locale_error()],
           "ShopLocaleEnablePayload",
+          fragments,
         )
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -1575,11 +1706,13 @@ fn handle_shop_locale_enable(
     False, None -> {
       let payload =
         project_shop_locale_payload(
+          store_in,
           field,
           None,
           None,
           [shop_locale_does_not_exist_error()],
           "ShopLocaleEnablePayload",
+          fragments,
         )
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -1599,26 +1732,24 @@ fn handle_shop_locale_enable(
         Some(record) -> record.primary
         None -> False
       }
-      let existing_published = case existing {
-        Some(record) -> record.published
-        None -> False
-      }
       let record =
         ShopLocaleRecord(
           locale: locale,
           name: name,
           primary: existing_primary,
-          published: existing_published,
+          published: False,
           market_web_presence_ids: market_web_presence_ids,
         )
       let #(_, store_after) = store.stage_shop_locale(store_in, record)
       let payload =
         project_shop_locale_payload(
+          store_after,
           field,
           Some(record),
           None,
           [],
           "ShopLocaleEnablePayload",
+          fragments,
         )
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
@@ -1636,6 +1767,7 @@ fn handle_shop_locale_update(
   store_in: Store,
   identity: SyntheticIdentityRegistry,
   field: Selection,
+  fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
@@ -1662,11 +1794,13 @@ fn handle_shop_locale_update(
         True -> {
           let payload =
             project_shop_locale_payload(
+              store_in,
               field,
               None,
               None,
               [primary_locale_error()],
               "ShopLocaleUpdatePayload",
+              fragments,
             )
           #(
             MutationFieldResult(
@@ -1690,11 +1824,13 @@ fn handle_shop_locale_update(
           let #(_, store_after) = store.stage_shop_locale(store_in, record)
           let payload =
             project_shop_locale_payload(
+              store_after,
               field,
               Some(record),
               None,
               [],
               "ShopLocaleUpdatePayload",
+              fragments,
             )
           #(
             MutationFieldResult(
@@ -1713,11 +1849,13 @@ fn handle_shop_locale_update(
     None -> {
       let payload =
         project_shop_locale_payload(
+          store_in,
           field,
           None,
           None,
           [shop_locale_does_not_exist_error()],
           "ShopLocaleUpdatePayload",
+          fragments,
         )
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -1733,6 +1871,7 @@ fn handle_shop_locale_disable(
   store_in: Store,
   identity: SyntheticIdentityRegistry,
   field: Selection,
+  fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
@@ -1746,11 +1885,13 @@ fn handle_shop_locale_disable(
     Some(record) if record.primary -> {
       let payload =
         project_shop_locale_payload(
+          store_in,
           field,
           None,
           None,
           [primary_locale_error()],
           "ShopLocaleDisablePayload",
+          fragments,
         )
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -1765,11 +1906,13 @@ fn handle_shop_locale_disable(
         store.remove_translations_for_locale(store_after_disable, locale)
       let payload =
         project_shop_locale_payload(
+          store_after,
           field,
           None,
           Some(locale),
           [],
           "ShopLocaleDisablePayload",
+          fragments,
         )
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -1780,11 +1923,13 @@ fn handle_shop_locale_disable(
     None -> {
       let payload =
         project_shop_locale_payload(
+          store_in,
           field,
           None,
-          Some(locale),
+          None,
           [shop_locale_does_not_exist_error()],
           "ShopLocaleDisablePayload",
+          fragments,
         )
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -1826,11 +1971,13 @@ fn read_input_object(
 }
 
 fn project_shop_locale_payload(
+  store_in: Store,
   field: Selection,
   shop_locale: Option(ShopLocaleRecord),
   locale: Option(String),
   errors: List(AnyUserError),
   _typename: String,
+  fragments: FragmentMap,
 ) -> Json {
   let entries =
     list.map(selections_of(field), fn(selection) {
@@ -1839,7 +1986,8 @@ fn project_shop_locale_payload(
         Field(name: name, ..) ->
           case name.value {
             "shopLocale" -> #(key, case shop_locale {
-              Some(record) -> serialize_shop_locale(record, selection)
+              Some(record) ->
+                serialize_shop_locale(store_in, record, selection, fragments)
               None -> json.null()
             })
             "locale" -> #(key, case locale {
@@ -1913,17 +2061,19 @@ fn handle_translations_register(
   let resource_validation = validate_resource(store_in, args)
   let initial_errors = resource_validation.1
   let inputs = read_translation_inputs(args)
-  let blank_errors = case inputs {
-    [] -> [
-      TranslationError(
-        field: ["translations"],
-        message: "At least one translation is required",
-        code: "BLANK",
+  let has_too_many_keys =
+    list.length(inputs) > max_keys_per_translation_mutation
+  let length_errors = case has_too_many_keys {
+    True -> [
+      translation_error(
+        ["resourceId"],
+        "Too many keys for resource - maximum 100 per mutation",
+        TooManyKeysForResource,
       ),
     ]
-    _ -> []
+    False -> []
   }
-  let errors = list.append(initial_errors, blank_errors)
+  let errors = list.append(initial_errors, length_errors)
 
   let #(translations, errors, identity_after) = case resource_validation.0 {
     Some(resource) ->
@@ -1937,31 +2087,27 @@ fn handle_translations_register(
     None -> #([], errors, identity)
   }
 
-  let #(store_after, staged_ids) = case errors {
-    [] -> {
-      let store_after =
-        list.fold(translations, store_in, fn(acc, t) {
-          let #(_, next) = store.stage_translation(acc, t)
-          next
-        })
-      let ids =
-        list.map(translations, fn(t) {
-          store.translation_storage_key(
-            t.resource_id,
-            t.locale,
-            t.key,
-            t.market_id,
-          )
-        })
-      #(store_after, ids)
-    }
-    _ -> #(store_in, [])
-  }
-
   let translations_for_payload = case errors {
     [] -> Some(translations)
-    _ -> None
+    _ ->
+      case resource_validation.0, has_too_many_keys {
+        Some(_), False -> Some(translations)
+        _, _ -> None
+      }
   }
+  let staged_translations = case translations_for_payload {
+    Some(rows) -> rows
+    None -> []
+  }
+  let store_after =
+    list.fold(staged_translations, store_in, fn(acc, t) {
+      let #(_, next) = store.stage_translation(acc, t)
+      next
+    })
+  let staged_ids =
+    list.map(staged_translations, fn(t) {
+      store.translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+    })
   let payload =
     project_translations_payload(
       store_after,
@@ -2008,37 +2154,19 @@ fn handle_translations_remove(
     None -> []
   }
 
-  let key_errors = case keys {
-    [] -> [
-      TranslationError(
-        field: ["translationKeys"],
-        message: "At least one translation key is required",
-        code: "BLANK",
-      ),
-    ]
-    _ -> []
-  }
-  let locale_errors = case locales {
-    [] -> [
-      TranslationError(
-        field: ["locales"],
-        message: "At least one locale is required",
-        code: "BLANK",
-      ),
-    ]
-    _ -> []
-  }
-  let resource_errors = case resource {
-    Some(record) -> {
+  let has_empty_remove_target = list.is_empty(keys) || list.is_empty(locales)
+  let resource_errors = case resource, has_empty_remove_target {
+    _, True -> []
+    Some(record), False -> {
       let key_validation =
         list.flat_map(keys, fn(k) {
           case content_has_key(record.content, k) {
             True -> []
             False -> [
-              TranslationError(
-                field: ["translationKeys"],
-                message: "Key " <> k <> " is not translatable for this resource",
-                code: "INVALID_KEY_FOR_MODEL",
+              translation_error(
+                ["translationKeys"],
+                "Key " <> k <> " is not translatable for this resource",
+                InvalidKeyForModel,
               ),
             ]
           }
@@ -2049,17 +2177,13 @@ fn handle_translations_remove(
         })
       list.append(key_validation, locale_validation)
     }
-    None -> []
+    None, False -> []
   }
 
-  let errors =
-    list.append(
-      initial_errors,
-      list.append(key_errors, list.append(locale_errors, resource_errors)),
-    )
+  let errors = list.append(initial_errors, resource_errors)
 
-  let #(removed, store_after) = case errors, resource {
-    [], Some(record) -> {
+  let #(removed, store_after) = case errors, resource, has_empty_remove_target {
+    [], Some(record), False -> {
       let market_targets = case market_ids {
         [] -> [None]
         _ -> list.map(market_ids, Some)
@@ -2086,12 +2210,12 @@ fn handle_translations_remove(
         })
       #(removed, store_acc)
     }
-    _, _ -> #([], store_in)
+    _, _, _ -> #([], store_in)
   }
 
-  let translations_for_payload = case errors {
-    [] -> Some(removed)
-    _ -> None
+  let translations_for_payload = case errors, has_empty_remove_target, removed {
+    [], False, [_, ..] -> Some(removed)
+    _, _, _ -> None
   }
   let payload =
     project_translations_payload(
@@ -2114,26 +2238,26 @@ fn validate_resource(
 ) -> #(Option(TranslatableResource), List(AnyUserError)) {
   case graphql_helpers.read_arg_string(args, "resourceId") {
     None -> #(None, [
-      TranslationError(
-        field: ["resourceId"],
-        message: "Resource does not exist",
-        code: "RESOURCE_NOT_FOUND",
+      translation_error(
+        ["resourceId"],
+        "Resource does not exist",
+        ResourceNotFound,
       ),
     ])
     Some("") -> #(None, [
-      TranslationError(
-        field: ["resourceId"],
-        message: "Resource does not exist",
-        code: "RESOURCE_NOT_FOUND",
+      translation_error(
+        ["resourceId"],
+        "Resource does not exist",
+        ResourceNotFound,
       ),
     ])
     Some(resource_id) ->
       case resource_exists_for_validation(store_in, resource_id) {
         None -> #(None, [
-          TranslationError(
-            field: ["resourceId"],
-            message: "Resource " <> resource_id <> " does not exist",
-            code: "RESOURCE_NOT_FOUND",
+          translation_error(
+            ["resourceId"],
+            "Resource " <> resource_id <> " does not exist",
+            ResourceNotFound,
           ),
         ])
         Some(record) -> #(Some(record), [])
@@ -2149,10 +2273,10 @@ fn validate_locale_errors(
   case get_shop_locale(store_in, locale) {
     Some(_) -> []
     None -> [
-      TranslationError(
-        field: field_path,
-        message: "Locale is not enabled for this shop",
-        code: "INVALID_LOCALE_FOR_SHOP",
+      translation_error(
+        field_path,
+        "Locale is not enabled for this shop",
+        InvalidLocaleForShop,
       ),
     ]
   }
@@ -2195,18 +2319,18 @@ fn validate_and_build_translations(
           case get_shop_locale(store_in, loc) {
             Some(_) -> #(Some(loc), [])
             None -> #(Some(loc), [
-              TranslationError(
-                field: list.append(prefix, ["locale"]),
-                message: "Locale is not enabled for this shop",
-                code: "INVALID_LOCALE_FOR_SHOP",
+              translation_error(
+                list.append(prefix, ["locale"]),
+                "Locale is not enabled for this shop",
+                InvalidLocaleForShop,
               ),
             ])
           }
         None -> #(None, [
-          TranslationError(
-            field: list.append(prefix, ["locale"]),
-            message: "Locale is not enabled for this shop",
-            code: "INVALID_LOCALE_FOR_SHOP",
+          translation_error(
+            list.append(prefix, ["locale"]),
+            "Locale is not enabled for this shop",
+            InvalidLocaleForShop,
           ),
         ])
       }
@@ -2219,10 +2343,10 @@ fn validate_and_build_translations(
       let key_errors = case content {
         Ok(_) -> []
         Error(_) -> [
-          TranslationError(
-            field: list.append(prefix, ["key"]),
-            message: "Key " <> key <> " is not translatable for this resource",
-            code: "INVALID_KEY_FOR_MODEL",
+          translation_error(
+            list.append(prefix, ["key"]),
+            "Key " <> key <> " is not translatable for this resource",
+            InvalidKeyForModel,
           ),
         ]
       }
@@ -2231,19 +2355,19 @@ fn validate_and_build_translations(
         Some(v) ->
           case v {
             "" -> [
-              TranslationError(
-                field: list.append(prefix, ["value"]),
-                message: "Value can't be blank",
-                code: "BLANK",
+              translation_error(
+                list.append(prefix, ["value"]),
+                "Value can't be blank",
+                FailsResourceValidation,
               ),
             ]
             _ -> []
           }
         None -> [
-          TranslationError(
-            field: list.append(prefix, ["value"]),
-            message: "Value can't be blank",
-            code: "BLANK",
+          translation_error(
+            list.append(prefix, ["value"]),
+            "Value can't be blank",
+            FailsResourceValidation,
           ),
         ]
       }
@@ -2256,10 +2380,10 @@ fn validate_and_build_translations(
               case actual == supplied {
                 True -> []
                 False -> [
-                  TranslationError(
-                    field: list.append(prefix, ["translatableContentDigest"]),
-                    message: "Translatable content digest does not match the resource content",
-                    code: "INVALID_TRANSLATABLE_CONTENT",
+                  translation_error(
+                    list.append(prefix, ["translatableContentDigest"]),
+                    "Translatable content hash is invalid",
+                    InvalidTranslatableContent,
                   ),
                 ]
               }
@@ -2278,8 +2402,8 @@ fn validate_and_build_translations(
         [], Some(_), Some(_), Ok(_) -> True
         _, _, _, _ -> False
       }
-      case can_record, errors_acc, maybe_locale, value, content {
-        True, [], Some(loc), Some(v), Ok(c) -> {
+      case can_record, maybe_locale, value, content {
+        True, Some(loc), Some(v), Ok(c) -> {
           let #(timestamp, identity_next) =
             synthetic_identity.make_synthetic_timestamp(identity_acc)
           let supplied_digest_value = case supplied_digest {
@@ -2303,12 +2427,7 @@ fn validate_and_build_translations(
             )
           #(index + 1, new_errors, [record, ..translations_acc], identity_next)
         }
-        _, _, _, _, _ -> #(
-          index + 1,
-          new_errors,
-          translations_acc,
-          identity_acc,
-        )
+        _, _, _, _ -> #(index + 1, new_errors, translations_acc, identity_acc)
       }
     })
   #(list.reverse(translations_rev), errors_after, identity_after)
@@ -2341,6 +2460,26 @@ fn project_translations_payload(
       }
     })
   json.object(entries)
+}
+
+fn captured_json_source(value: CapturedJsonValue) {
+  case value {
+    CapturedNull -> SrcNull
+    CapturedBool(value) -> SrcBool(value)
+    CapturedInt(value) -> SrcInt(value)
+    CapturedFloat(value) -> SrcFloat(value)
+    CapturedString(value) -> SrcString(value)
+    CapturedArray(items) -> SrcList(list.map(items, captured_json_source))
+    CapturedObject(fields) ->
+      SrcObject(
+        fields
+        |> list.map(fn(pair) {
+          let #(key, item) = pair
+          #(key, captured_json_source(item))
+        })
+        |> dict.from_list,
+      )
+  }
 }
 
 fn optional_string_json(value: Option(String)) -> Json {

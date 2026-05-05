@@ -1,0 +1,9 @@
+query AppSubscriptionActivationRead {
+  currentAppInstallation {
+    activeSubscriptions {
+      id
+      status
+      currentPeriodEnd
+    }
+  }
+}

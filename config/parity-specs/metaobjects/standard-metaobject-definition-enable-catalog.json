@@ -1,0 +1,170 @@
+{
+  "scenarioId": "standard-metaobject-definition-enable-catalog",
+  "operationNames": ["standardMetaobjectDefinitionEnable", "metaobjectDefinition", "metaobjectDefinitionByType"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/standard-metaobject-definition-enable-catalog.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/standard-metaobject-templates.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql",
+    "apiVersion": "2026-04",
+    "variables": {
+      "type": "shopify--qa-pair"
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-682 standardMetaobjectDefinitionEnable catalog parity. The proxy stages supported enables locally from the checked-in 2026-04 catalog fixture, returns Shopify's RECORD_NOT_FOUND branch for unknown templates, and mirrors the captured idempotent duplicate-enable response without runtime Shopify writes. The 2026-04 public Admin schema on the capture shop does not expose MetaobjectFieldDefinition.id, so field definition IDs are not selected in this executable parity scenario.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metaobjectDefinition.id",
+        "matcher": "shopify-gid:MetaobjectDefinition",
+        "reason": "The proxy stages a synthetic definition ID instead of Shopify's live definition ID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "enable-qa-pair",
+        "capturePath": "$.qaPair.response.data.standardMetaobjectDefinitionEnable",
+        "proxyPath": "$.data.standardMetaobjectDefinitionEnable"
+      },
+      {
+        "name": "read-qa-pair",
+        "capturePath": "$.qaPairRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.standardMetaobjectDefinitionEnable.metaobjectDefinition.id"
+            },
+            "type": "shopify--qa-pair"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byId.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy read sees the locally staged synthetic definition ID."
+          },
+          {
+            "path": "$.byType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy read sees the locally staged synthetic definition ID."
+          }
+        ]
+      },
+      {
+        "name": "enable-color-pattern",
+        "capturePath": "$.colorPattern.response.data.standardMetaobjectDefinitionEnable",
+        "proxyPath": "$.data.standardMetaobjectDefinitionEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "type": "shopify--color-pattern"
+          }
+        }
+      },
+      {
+        "name": "read-color-pattern",
+        "capturePath": "$.colorPatternRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "enable-color-pattern",
+              "path": "$.data.standardMetaobjectDefinitionEnable.metaobjectDefinition.id"
+            },
+            "type": "shopify--color-pattern"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byId.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy read sees the locally staged synthetic definition ID."
+          },
+          {
+            "path": "$.byType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy read sees the locally staged synthetic definition ID."
+          }
+        ]
+      },
+      {
+        "name": "enable-material",
+        "capturePath": "$.material.response.data.standardMetaobjectDefinitionEnable",
+        "proxyPath": "$.data.standardMetaobjectDefinitionEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "type": "shopify--material"
+          }
+        }
+      },
+      {
+        "name": "read-material",
+        "capturePath": "$.materialRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "enable-material",
+              "path": "$.data.standardMetaobjectDefinitionEnable.metaobjectDefinition.id"
+            },
+            "type": "shopify--material"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byId.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy read sees the locally staged synthetic definition ID."
+          },
+          {
+            "path": "$.byType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy read sees the locally staged synthetic definition ID."
+          }
+        ]
+      },
+      {
+        "name": "unknown-template-record-not-found",
+        "capturePath": "$.unknown.response.data.standardMetaobjectDefinitionEnable.userErrors",
+        "proxyPath": "$.data.standardMetaobjectDefinitionEnable.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "type": "shopify--unknown-template"
+          }
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "duplicate-enable-idempotent",
+        "capturePath": "$.duplicateSecond.response.data.standardMetaobjectDefinitionEnable",
+        "proxyPath": "$.data.standardMetaobjectDefinitionEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "type": "shopify--qa-pair"
+          }
+        },
+        "expectedDifferences": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+mutation SavedSearchCreateMissingResourceType {
+  savedSearchCreate(input: { name: "Missing resource type", query: "tag:missing-resource-type" }) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
