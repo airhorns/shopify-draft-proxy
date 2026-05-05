@@ -1,0 +1,89 @@
+{
+  "scenarioId": "online-store/body-script-verbatim-2026-04",
+  "operationNames": ["blogCreate", "pageCreate", "page", "articleCreate", "article"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "html-body-fidelity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/online-store/online-store-body-script-verbatim.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-body-script-blog-create.graphql",
+    "variablesCapturePath": "$.interactions[0].request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-741 resolves the body-scrubber source mismatch for Admin API 2026-04. Live Shopify preserved page/article body HTML script blocks and event attributes verbatim in create payloads and immediate detail reads; the executable replay compares those body fields without masking them. Volatile IDs are intentionally excluded.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate setup provides article parent",
+        "capturePath": "$.interactions[0].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": ["$.blog.title", "$.blog.handle", "$.userErrors"]
+      },
+      {
+        "name": "pageCreate preserves script body and derives bodySummary with script text",
+        "capturePath": "$.interactions[1].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "selectedPaths": ["$.page.title", "$.page.body", "$.page.bodySummary", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-body-script-page-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.interactions[1].request.variables"
+        }
+      },
+      {
+        "name": "page read after create preserves script body",
+        "capturePath": "$.interactions[2].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.page.body", "$.page.bodySummary"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-body-script-page-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "pageCreate preserves script body and derives bodySummary with script text",
+              "path": "$.data.pageCreate.page.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "articleCreate preserves script body",
+        "capturePath": "$.interactions[3].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "selectedPaths": ["$.article.title", "$.article.body", "$.article.summary", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-body-script-article-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "article": {
+              "title": { "fromCapturePath": "$.interactions[3].request.variables.article.title" },
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "author": { "fromCapturePath": "$.interactions[3].request.variables.article.author" },
+              "body": { "fromCapturePath": "$.interactions[3].request.variables.article.body" }
+            }
+          }
+        }
+      },
+      {
+        "name": "article read after create preserves script body",
+        "capturePath": "$.interactions[4].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.article.body", "$.article.summary"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-body-script-article-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "articleCreate preserves script body",
+              "path": "$.data.articleCreate.article.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
