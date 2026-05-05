@@ -55,12 +55,12 @@ const variantLookupDocument = `#graphql
 `;
 
 const variantLookupResponse = await runGraphql(variantLookupDocument, {});
-const productNodes = readArray(asRecord(variantLookupResponse.data)?.products, 'nodes');
-const variantNodes = productNodes.flatMap((productValue) => readArray(asRecord(productValue)?.variants, 'nodes'));
+const productNodes = readArray(asRecord(variantLookupResponse.data)?.['products'], 'nodes');
+const variantNodes = productNodes.flatMap((productValue) => readArray(asRecord(productValue)?.['variants'], 'nodes'));
 const shippingVariant = variantNodes
   .map(asRecord)
-  .find((variant) => variant && asRecord(variant.inventoryItem)?.requiresShipping !== false);
-const shippingVariantId = typeof shippingVariant?.id === 'string' ? shippingVariant.id : null;
+  .find((variant) => variant && asRecord(variant['inventoryItem'])?.['requiresShipping'] !== false);
+const shippingVariantId = typeof shippingVariant?.['id'] === 'string' ? shippingVariant['id'] : null;
 
 if (!shippingVariantId) {
   throw new Error('Unable to find a product variant with requiresShipping != false for HAR-580 capture.');
