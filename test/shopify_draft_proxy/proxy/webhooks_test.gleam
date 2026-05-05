@@ -789,6 +789,14 @@ pub fn webhook_subscription_create_rejects_kafka_uri_test() {
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol kafka:// is not supported\"},{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address is not a valid kafka topic\"}]}}}"
 }
 
+pub fn webhook_subscription_create_http_uri_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"http://example.com\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol http:// is not supported\"}]}}}"
+}
+
 pub fn webhook_subscription_create_accepts_callback_url_alias_test() {
   // Real Shopify accepts `callbackUrl` on `WebhookSubscriptionInput` as a
   // legacy alias for `uri`. The proxy used to read only `uri`, fabricating
@@ -822,24 +830,75 @@ pub fn webhook_subscription_create_null_topic_top_level_error_test() {
     == "{\"errors\":[{\"message\":\"Argument 'topic' on Field 'webhookSubscriptionCreate' has an invalid value (null). Expected type 'WebhookSubscriptionTopic!'.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"webhookSubscriptionCreate\",\"topic\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"topic\"}}]}"
 }
 
-pub fn webhook_subscription_update_modifies_record_test() {
-  // Seed a base record
+fn seed_update_store() -> store.Store {
   let r =
     make_record(
       "gid://shopify/WebhookSubscription/1",
       Some("ORDERS_CREATE"),
-      Some("https://old"),
+      Some("https://old.example.com/hook"),
       Some("JSON"),
       Some("2024-01-01T00:00:00Z"),
       Some("2024-01-01T00:00:00Z"),
-      Some(WebhookHttpEndpoint(callback_url: Some("https://old"))),
+      Some(
+        WebhookHttpEndpoint(callback_url: Some("https://old.example.com/hook")),
+      ),
     )
-  let s = store.upsert_base_webhook_subscriptions(store.new(), [r])
+  store.upsert_base_webhook_subscriptions(store.new(), [r])
+}
+
+pub fn webhook_subscription_update_modifies_record_test() {
+  let s = seed_update_store()
   let document =
-    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"https://new\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"https://new.example.com/hook\" }) { webhookSubscription { id uri } userErrors { field message } } }"
   let body = run_mutation(s, document)
   assert body
-    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new.example.com/hook\"},\"userErrors\":[]}}}"
+}
+
+pub fn webhook_subscription_update_blank_uri_user_error_leaves_record_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seed_update_store(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id uri } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://old.example.com/hook\"}}"
+}
+
+pub fn webhook_subscription_update_blank_callback_url_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { callbackUrl: \"\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let body = run_mutation(seed_update_store(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
+}
+
+pub fn webhook_subscription_update_http_uri_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"http://example.com\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let body = run_mutation(seed_update_store(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol http:// is not supported\"}]}}}"
+}
+
+pub fn webhook_subscription_update_invalid_pubsub_uri_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"pubsub://valid-project:\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let body = run_mutation(seed_update_store(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol pubsub:// is not supported\"},{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic\"}]}}}"
+}
+
+pub fn webhook_subscription_update_invalid_filter_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { filter: \"invalid_field:*\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let body = run_mutation(seed_update_store(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"filter\"],\"message\":\"The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.\"}]}}}"
 }
 
 pub fn webhook_subscription_update_rejects_cloud_uri_validation_errors_test() {

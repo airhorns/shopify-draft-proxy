@@ -960,11 +960,11 @@ fn handle_create(
       let input = read_webhook_subscription_input(args)
       let user_errors = case input {
         Some(input_dict) ->
-          case read_uri_input(input_dict) {
-            UriPresent(uri) ->
-              validate_webhook_subscription_uri(uri, requesting_api_client_id)
-            UriAbsent | UriBlank -> [blank_callback_url_user_error()]
-          }
+          validate_webhook_subscription_input(
+            input_dict,
+            require_uri: True,
+            requesting_api_client_id: requesting_api_client_id,
+          )
         None -> []
       }
       let #(record_opt, store_after, identity_after, staged_ids) = case
@@ -1062,17 +1062,15 @@ fn handle_update(
         Some(gid) -> store.get_effective_webhook_subscription_by_id(store, gid)
         None -> None
       }
-      let user_errors = case existing {
-        Some(_) ->
-          case input {
-            Some(input_dict) ->
-              validate_webhook_subscription_update_uri(
-                input_dict,
-                requesting_api_client_id,
-              )
-            None -> []
-          }
-        None -> [
+      let user_errors = case existing, input {
+        Some(_), Some(input_dict) ->
+          validate_webhook_subscription_input(
+            input_dict,
+            require_uri: False,
+            requesting_api_client_id: requesting_api_client_id,
+          )
+        Some(_), None -> []
+        None, _ -> [
           UserError(
             field: ["id"],
             message: "Webhook subscription does not exist",
@@ -1319,78 +1317,158 @@ fn read_webhook_subscription_input(
 // `read_optional_string` and `read_optional_string_array` come from
 // `proxy/mutation_helpers` (Pass 14 lift).
 
-fn normalize_uri_from_input(
+fn validate_webhook_subscription_input(
   input: Dict(String, root_field.ResolvedValue),
-) -> Option(String) {
-  // Real Shopify exposes `callbackUrl` on `WebhookSubscriptionInput` as a
-  // (deprecated) alias for `uri` — confirmed by introspecting the 2025-01
-  // schema with `includeDeprecated: true`. Reading only `uri` made the
-  // proxy fabricate a misleading "Address can't be blank" userError when
-  // callers used the deprecated field name. (`callback_url` and `endpoint`
-  // are NOT real input fields and were stripped after the introspection
-  // check; they were artifacts of the search-query alias list in this
-  // module.)
-  case read_uri_input(input) {
-    UriPresent(uri) -> Some(uri)
-    UriAbsent | UriBlank -> None
+  require_uri require_uri: Bool,
+  requesting_api_client_id requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  list.append(
+    validate_webhook_uri_input(input, require_uri, requesting_api_client_id),
+    validate_webhook_filter_input(input),
+  )
+}
+
+fn validate_webhook_uri_input(
+  input: Dict(String, root_field.ResolvedValue),
+  require_uri: Bool,
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  case read_uri_input(input), require_uri {
+    UriAbsent, True -> [blank_address_user_error()]
+    UriAbsent, False -> []
+    UriBlank, _ -> [blank_address_user_error()]
+    UriPresent(uri), _ -> validate_webhook_uri(uri, requesting_api_client_id)
   }
 }
 
 fn read_uri_input(input: Dict(String, root_field.ResolvedValue)) -> UriInput {
-  read_first_uri_field(input, ["uri", "callbackUrl"], False)
+  case read_uri_input_field(input, "uri") {
+    UriAbsent -> read_uri_input_field(input, "callbackUrl")
+    found -> found
+  }
 }
 
-fn read_first_uri_field(
+fn read_uri_input_field(
   input: Dict(String, root_field.ResolvedValue),
-  names: List(String),
-  seen_blank: Bool,
+  name: String,
 ) -> UriInput {
-  case names {
-    [] ->
-      case seen_blank {
-        True -> UriBlank
-        False -> UriAbsent
+  case dict.get(input, name) {
+    Ok(root_field.StringVal(raw)) ->
+      case string.trim(raw) {
+        "" -> UriBlank
+        trimmed -> UriPresent(trimmed)
       }
-    [name, ..rest] ->
-      case dict.get(input, name) {
-        Ok(root_field.StringVal(raw)) ->
-          case string.trim(raw) {
-            "" -> read_first_uri_field(input, rest, True)
-            trimmed -> UriPresent(trimmed)
-          }
-        _ -> read_first_uri_field(input, rest, seen_blank)
-      }
+    Ok(root_field.NullVal) -> UriBlank
+    _ -> UriAbsent
   }
 }
 
-fn validate_webhook_subscription_update_uri(
-  input: Dict(String, root_field.ResolvedValue),
-  requesting_api_client_id: Option(String),
-) -> List(UserError) {
-  case read_uri_input(input) {
-    UriAbsent -> []
-    UriBlank -> [blank_callback_url_user_error()]
-    UriPresent(uri) ->
-      validate_webhook_subscription_uri(uri, requesting_api_client_id)
-  }
+fn blank_address_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address can't be blank",
+  )
 }
 
-fn validate_webhook_subscription_uri(
+fn invalid_url_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is not a valid URL",
+  )
+}
+
+fn unsupported_protocol_user_error(protocol: String) -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address protocol " <> protocol <> " is not supported",
+  )
+}
+
+fn invalid_pubsub_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic",
+  )
+}
+
+fn address_too_long_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is too long",
+  )
+}
+
+fn validate_webhook_uri(
   uri: String,
   requesting_api_client_id: Option(String),
 ) -> List(UserError) {
-  case string.starts_with(uri, "pubsub://") {
-    True -> validate_pubsub_uri(uri)
+  case string.byte_size(uri) > 4096 {
+    True -> [address_too_long_user_error()]
     False ->
-      case string.starts_with(uri, "arn:aws:events:") {
-        True -> validate_eventbridge_arn(uri, requesting_api_client_id)
+      case string.starts_with(uri, "pubsub://") {
+        True -> validate_pubsub_uri(uri)
         False ->
-          case string.starts_with(uri, "kafka://") {
-            True -> kafka_user_errors()
-            False -> []
+          case string.starts_with(uri, "arn:aws:events:") {
+            True -> validate_eventbridge_arn(uri, requesting_api_client_id)
+            False ->
+              case string.starts_with(uri, "kafka://") {
+                True -> kafka_user_errors()
+                False -> validate_https_uri(uri)
+              }
           }
       }
   }
+}
+
+fn validate_https_uri(uri: String) -> List(UserError) {
+  case string.starts_with(uri, "https://") {
+    False ->
+      case string.split_once(uri, "://") {
+        Ok(#(protocol, _)) -> [
+          unsupported_protocol_user_error(protocol <> "://"),
+        ]
+        Error(_) -> [invalid_url_user_error()]
+      }
+    True -> {
+      let host = https_uri_host(uri)
+      case host == "" || has_url_whitespace(uri) || is_disallowed_host(host) {
+        True -> [invalid_url_user_error()]
+        False -> []
+      }
+    }
+  }
+}
+
+fn https_uri_host(uri: String) -> String {
+  let without_scheme = string.drop_start(uri, 8)
+  without_scheme
+  |> split_before("/")
+  |> split_before("?")
+  |> split_before("#")
+  |> split_before(":")
+  |> string.lowercase
+}
+
+fn split_before(value: String, separator: String) -> String {
+  case string.split_once(value, separator) {
+    Ok(#(left, _)) -> left
+    Error(_) -> value
+  }
+}
+
+fn has_url_whitespace(value: String) -> Bool {
+  string.contains(value, " ")
+  || string.contains(value, "\t")
+  || string.contains(value, "\n")
+  || string.contains(value, "\r")
+}
+
+fn is_disallowed_host(host: String) -> Bool {
+  host == "localhost"
+  || host == "127.0.0.1"
+  || host == "0.0.0.0"
+  || host == "::1"
+  || string.ends_with(host, ".local")
 }
 
 fn validate_pubsub_uri(uri: String) -> List(UserError) {
@@ -1415,6 +1493,36 @@ fn validate_pubsub_uri(uri: String) -> List(UserError) {
       }
     Error(_) -> pubsub_format_user_errors()
   }
+}
+
+fn pubsub_format_user_errors() -> List(UserError) {
+  [
+    unsupported_protocol_user_error("pubsub://"),
+    invalid_pubsub_user_error(),
+  ]
+}
+
+fn valid_gcp_project_id(project: String) -> Bool {
+  case all_digits(project) {
+    True -> True
+    False -> {
+      let length = string.length(project)
+      length >= 6
+      && length <= 30
+      && starts_with_lowercase_alpha(project)
+      && !string.ends_with(project, "-")
+      && all_gcp_project_chars(project)
+    }
+  }
+}
+
+fn valid_gcp_topic_id(topic: String) -> Bool {
+  let length = string.length(topic)
+  length >= 3
+  && length <= 255
+  && starts_with_alpha(topic)
+  && !string.starts_with(string.lowercase(topic), "goog")
+  && all_gcp_topic_chars(topic)
 }
 
 fn validate_eventbridge_arn(
@@ -1479,29 +1587,6 @@ fn valid_aws_region(region: String) -> Bool {
   }
 }
 
-fn valid_gcp_project_id(project: String) -> Bool {
-  case all_digits(project) {
-    True -> True
-    False -> {
-      let length = string.length(project)
-      length >= 6
-      && length <= 30
-      && starts_with_lowercase_alpha(project)
-      && !string.ends_with(project, "-")
-      && all_gcp_project_chars(project)
-    }
-  }
-}
-
-fn valid_gcp_topic_id(topic: String) -> Bool {
-  let length = string.length(topic)
-  length >= 3
-  && length <= 255
-  && starts_with_alpha(topic)
-  && !string.starts_with(string.lowercase(topic), "goog")
-  && all_gcp_topic_chars(topic)
-}
-
 fn starts_with_lowercase_alpha(value: String) -> Bool {
   case string.pop_grapheme(value) {
     Ok(#(first, _)) -> is_lowercase_alpha(first)
@@ -1551,31 +1636,11 @@ fn is_digit(grapheme: String) -> Bool {
   string.contains("0123456789", grapheme)
 }
 
-fn blank_callback_url_user_error() -> UserError {
-  UserError(
-    field: ["webhookSubscription", "callbackUrl"],
-    message: "Address can't be blank",
-  )
-}
-
 fn invalid_address_user_error() -> UserError {
   UserError(
     field: ["webhookSubscription", "callbackUrl"],
     message: "Address is invalid",
   )
-}
-
-fn pubsub_format_user_errors() -> List(UserError) {
-  [
-    UserError(
-      field: ["webhookSubscription", "callbackUrl"],
-      message: "Address protocol pubsub:// is not supported",
-    ),
-    UserError(
-      field: ["webhookSubscription", "callbackUrl"],
-      message: "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic",
-    ),
-  ]
 }
 
 fn gcp_project_id_user_error() -> UserError {
@@ -1618,10 +1683,7 @@ fn eventbridge_wrong_api_client_user_error(
 
 fn kafka_user_errors() -> List(UserError) {
   [
-    UserError(
-      field: ["webhookSubscription", "callbackUrl"],
-      message: "Address protocol kafka:// is not supported",
-    ),
+    unsupported_protocol_user_error("kafka://"),
     UserError(
       field: ["webhookSubscription", "callbackUrl"],
       message: "Address is not a valid kafka topic",
@@ -1644,6 +1706,45 @@ fn read_requesting_api_client_id(
   case found {
     Ok(value) -> Some(value)
     Error(_) -> None
+  }
+}
+
+fn validate_webhook_filter_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.has_key(input, "filter") {
+    False -> []
+    True ->
+      case read_optional_string(input, "filter") {
+        Some(raw) ->
+          case string.trim(raw) {
+            "" -> []
+            _ -> [
+              UserError(
+                field: ["webhookSubscription", "filter"],
+                message: "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.",
+              ),
+            ]
+          }
+        None -> []
+      }
+  }
+}
+
+fn normalize_uri_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  // Real Shopify exposes `callbackUrl` on `WebhookSubscriptionInput` as a
+  // (deprecated) alias for `uri` — confirmed by introspecting the 2025-01
+  // schema with `includeDeprecated: true`. Reading only `uri` made the
+  // proxy fabricate a misleading "Address can't be blank" userError when
+  // callers used the deprecated field name. (`callback_url` and `endpoint`
+  // are NOT real input fields and were stripped after the introspection
+  // check; they were artifacts of the search-query alias list in this
+  // module.)
+  case read_uri_input(input) {
+    UriPresent(uri) -> Some(uri)
+    UriAbsent | UriBlank -> None
   }
 }
 

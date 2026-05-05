@@ -462,6 +462,45 @@ pub fn graphql_saved_search_create_missing_input_test() {
     == "{\"errors\":[{\"message\":\"Field 'savedSearchCreate' is missing required arguments: input\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"savedSearchCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"savedSearchCreate\",\"arguments\":\"input\"}}]}"
 }
 
+pub fn graphql_saved_search_create_missing_required_input_fields_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { resourceType: PRODUCT }) { savedSearch { id name query resourceType } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Argument 'name' on InputObject 'SavedSearchCreateInput' is required. Expected type String!\",\"locations\":[{\"line\":1,\"column\":37}],\"path\":[\"mutation\",\"savedSearchCreate\",\"input\",\"name\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"name\",\"argumentType\":\"String!\",\"inputObjectType\":\"SavedSearchCreateInput\"}},{\"message\":\"Argument 'query' on InputObject 'SavedSearchCreateInput' is required. Expected type String!\",\"locations\":[{\"line\":1,\"column\":37}],\"path\":[\"mutation\",\"savedSearchCreate\",\"input\",\"query\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"query\",\"argumentType\":\"String!\",\"inputObjectType\":\"SavedSearchCreateInput\"}}]}"
+}
+
+pub fn graphql_saved_search_create_missing_resource_type_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"X\\\", query: \\\"tag:promo\\\" }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Argument 'resourceType' on InputObject 'SavedSearchCreateInput' is required. Expected type SearchResultType!\",\"locations\":[{\"line\":1,\"column\":37}],\"path\":[\"mutation\",\"savedSearchCreate\",\"input\",\"resourceType\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"resourceType\",\"argumentType\":\"SearchResultType!\",\"inputObjectType\":\"SavedSearchCreateInput\"}}]}"
+}
+
+pub fn graphql_saved_search_create_empty_query_allowed_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Empty query\\\", query: \\\"\\\", resourceType: PRODUCT }) { savedSearch { id name query resourceType } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Empty query\",\"query\":\"\",\"resourceType\":\"PRODUCT\"},\"userErrors\":[]}}}"
+}
+
 pub fn graphql_saved_search_create_blank_name_test() {
   let proxy = draft_proxy.new()
   let request =
@@ -473,6 +512,19 @@ pub fn graphql_saved_search_create_blank_name_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name can't be blank\"}]}}}"
+}
+
+pub fn graphql_saved_search_create_too_long_name_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"12345678901234567890123456789012345678901\\\", query: \\\"tag:promo\\\", resourceType: ORDER }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name is too long (maximum is 40 characters)\"}]}}}"
 }
 
 pub fn graphql_saved_search_create_unsupported_resource_type_test() {
@@ -644,6 +696,33 @@ pub fn graphql_saved_search_update_unknown_id_test() {
     == "{\"data\":{\"savedSearchUpdate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Saved Search does not exist\"}]}}}"
 }
 
+pub fn graphql_saved_search_update_missing_id_test() {
+  let proxy = draft_proxy.new()
+  let update_body =
+    "{\"query\":\"mutation { savedSearchUpdate(input: { name: \\\"X\\\" }) { savedSearch { id } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(update_body))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Argument 'id' on InputObject 'SavedSearchUpdateInput' is required. Expected type ID!\",\"locations\":[{\"line\":1,\"column\":37}],\"path\":[\"mutation\",\"savedSearchUpdate\",\"input\",\"id\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"id\",\"argumentType\":\"ID!\",\"inputObjectType\":\"SavedSearchUpdateInput\"}}]}"
+}
+
+pub fn graphql_saved_search_update_empty_query_allowed_test() {
+  let proxy = draft_proxy.new()
+  let #(_, proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
+  let update_body =
+    "{\"query\":\"mutation { savedSearchUpdate(input: { id: \\\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\\\", query: \\\"\\\" }) { savedSearch { id name query resourceType } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(update_body))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchUpdate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Promo orders\",\"query\":\"\",\"resourceType\":\"ORDER\"},\"userErrors\":[]}}}"
+}
+
 pub fn graphql_saved_search_update_blank_name_returns_existing_test() {
   let proxy = draft_proxy.new()
   let #(_, proxy) =
@@ -714,6 +793,17 @@ pub fn graphql_saved_search_delete_unknown_id_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"savedSearchDelete\":{\"deletedSavedSearchId\":null,\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Saved Search does not exist\"}]}}}"
+}
+
+pub fn graphql_saved_search_delete_missing_id_test() {
+  let proxy = draft_proxy.new()
+  let delete_body =
+    "{\"query\":\"mutation { savedSearchDelete(input: {}) { deletedSavedSearchId userErrors { field message } } }\"}"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(delete_body))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Argument 'id' on InputObject 'SavedSearchDeleteInput' is required. Expected type ID!\",\"locations\":[{\"line\":1,\"column\":37}],\"path\":[\"mutation\",\"savedSearchDelete\",\"input\",\"id\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"id\",\"argumentType\":\"ID!\",\"inputObjectType\":\"SavedSearchDeleteInput\"}}]}"
 }
 
 pub fn graphql_saved_search_delete_unknown_id_includes_shop_test() {
