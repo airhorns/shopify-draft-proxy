@@ -1,9 +1,12 @@
 //// Stateful Gleam port of the metafields/metafield-definitions slice.
 ////
-//// The module intentionally keeps the owner-scoped metafield model narrow:
-//// Product, ProductVariant, Collection, and Customer owner IDs are accepted
-//// for local metafield staging/reads; broader HasMetafields families stay
-//// unsupported until their owning domains have evidence and state.
+//// The module intentionally keeps the owner-scoped metafield value model
+//// narrow: Product, ProductVariant, Collection, and Customer owner IDs are
+//// accepted for local metafield staging/reads; broader HasMetafields families
+//// stay unsupported until their owning domains have evidence and state.
+//// Metafield definition records are owner-type scoped, so definition
+//// create/update/delete can stage non-product owner types without broadening
+//// the metafield value model.
 
 import gleam/dict.{type Dict}
 import gleam/int
@@ -641,6 +644,20 @@ fn serialize_metafield_definitions_connection(
       read_optional_string(args, "sortKey"),
       read_optional_bool(args, "reverse") |> option.unwrap(False),
     )
+  serialize_definition_records_connection(
+    store_in,
+    definitions,
+    field,
+    variables,
+  )
+}
+
+fn serialize_definition_records_connection(
+  store_in: Store,
+  definitions: List(MetafieldDefinitionRecord),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
   let window =
     paginate_connection_items(
       definitions,
@@ -1130,7 +1147,7 @@ fn serialize_owner_selection(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
   owner_id: String,
-  _owner_type: String,
+  owner_type: String,
 ) -> Json {
   json.object(
     list.map(
@@ -1157,6 +1174,13 @@ fn serialize_owner_selection(
                   selection,
                   variables,
                 )
+              "metafieldDefinitions" ->
+                serialize_owner_metafield_definitions_connection(
+                  store_in,
+                  owner_type,
+                  selection,
+                  variables,
+                )
               "variants" ->
                 serialize_product_variants_from_metafields(
                   store_in,
@@ -1170,6 +1194,29 @@ fn serialize_owner_selection(
         #(key, value)
       },
     ),
+  )
+}
+
+fn serialize_owner_metafield_definitions_connection(
+  store_in: Store,
+  owner_type: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = read_args(field, variables)
+  let definitions =
+    store.list_effective_metafield_definitions(store_in)
+    |> list.filter(fn(definition) { definition.owner_type == owner_type })
+    |> apply_definition_filters(args)
+    |> sort_definitions(
+      read_optional_string(args, "sortKey"),
+      read_optional_bool(args, "reverse") |> option.unwrap(False),
+    )
+  serialize_definition_records_connection(
+    store_in,
+    definitions,
+    field,
+    variables,
   )
 }
 
@@ -1652,7 +1699,7 @@ fn serialize_definition_create_root(
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = read_args(field, variables)
   let input = read_object(args, "definition")
-  let errors = validate_product_owner_definition_input(input, True)
+  let errors = validate_definition_input(input, True)
   case errors {
     [_, ..] -> #(
       serialize_definition_mutation_payload(
@@ -1727,7 +1774,7 @@ fn serialize_definition_update_root(
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = read_args(field, variables)
   let input = read_object(args, "definition")
-  let errors = validate_product_owner_definition_input(input, False)
+  let errors = validate_definition_input(input, False)
   case errors {
     [_, ..] -> #(
       serialize_definition_mutation_payload(
@@ -2023,7 +2070,7 @@ fn serialize_definition_unpin_root(
   }
 }
 
-fn validate_product_owner_definition_input(
+fn validate_definition_input(
   input: Dict(String, root_field.ResolvedValue),
   create: Bool,
 ) -> List(UserError) {
@@ -2042,17 +2089,7 @@ fn validate_product_owner_definition_input(
         None -> Ok(blank_definition_error(field_name))
       }
     })
-  let owner_type_error = case read_optional_string(input, "ownerType") {
-    Some("PRODUCT") | None -> []
-    Some(_) -> [
-      UserError(
-        field: Some(["definition", "ownerType"]),
-        message: "Only PRODUCT metafield definitions are supported locally.",
-        code: "UNSUPPORTED_OWNER_TYPE",
-      ),
-    ]
-  }
-  list.append(errors, owner_type_error)
+  errors
 }
 
 fn blank_definition_error(field_name: String) -> UserError {
