@@ -2214,7 +2214,11 @@ fn validate_discount_input(
   require_code: Bool,
   ignored_discount_id: Option(String),
 ) -> List(SourceValue) {
-  let errors = validate_discount_code_input(input_name, input, require_code)
+  let errors =
+    list.append(
+      validate_discount_code_input(input_name, input, require_code),
+      validate_context_customer_selection_conflict(input_name, input),
+    )
   let errors = case read_string(input, "code") {
     Some(code) ->
       case errors {
@@ -2285,6 +2289,35 @@ fn validate_discount_input(
     "basicCodeDiscount" ->
       list.append(errors, validate_basic_refs(input_name, input))
     _ -> errors
+  }
+}
+
+fn validate_context_customer_selection_conflict(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case
+    input_value_is_present(input, "context"),
+    input_value_is_present(input, "customerSelection")
+  {
+    True, True -> [
+      user_error(
+        [input_name, "context"],
+        "Only one of context or customerSelection can be provided.",
+        "INVALID",
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn input_value_is_present(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(input, name) {
+    Ok(root_field.NullVal) | Error(_) -> False
+    Ok(_) -> True
   }
 }
 

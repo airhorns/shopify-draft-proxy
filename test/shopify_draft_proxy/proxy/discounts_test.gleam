@@ -334,6 +334,115 @@ pub fn automatic_discount_creates_do_not_require_codes_test() {
   assert string.contains(body, "\"userErrors\":[]")
 }
 
+pub fn create_discount_inputs_reject_context_customer_selection_conflicts_test() {
+  let cases = [
+    #(
+      "discountCodeBasicCreate",
+      "codeDiscountNode",
+      "basicCodeDiscount",
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic conflict\", code: \"CONFLICT-BASIC\", startsAt: \"2026-04-25T00:00:00Z\", context: { customers: { add: [\"gid://shopify/Customer/1\"] } }, customerSelection: { customers: { add: [\"gid://shopify/Customer/2\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+    ),
+    #(
+      "discountCodeBxgyCreate",
+      "codeDiscountNode",
+      "bxgyCodeDiscount",
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY conflict\", code: \"CONFLICT-BXGY\", startsAt: \"2026-04-25T00:00:00Z\", context: { customers: { add: [\"gid://shopify/Customer/1\"] } }, customerSelection: { customers: { add: [\"gid://shopify/Customer/2\"] } }, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+    ),
+    #(
+      "discountCodeFreeShippingCreate",
+      "codeDiscountNode",
+      "freeShippingCodeDiscount",
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping conflict\", code: \"CONFLICT-SHIP\", startsAt: \"2026-04-25T00:00:00Z\", context: { customers: { add: [\"gid://shopify/Customer/1\"] } }, customerSelection: { customers: { add: [\"gid://shopify/Customer/2\"] } }, destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code } } }",
+    ),
+    #(
+      "discountCodeAppCreate",
+      "codeAppDiscount",
+      "codeAppDiscount",
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App conflict\", code: \"CONFLICT-APP\", startsAt: \"2026-04-25T00:00:00Z\", context: { customers: { add: [\"gid://shopify/Customer/1\"] } }, customerSelection: { customers: { add: [\"gid://shopify/Customer/2\"] } }, functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code } } }",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(root, node_field, input_name, document) = test_case
+    let outcome = run_mutation(document)
+
+    assert json.to_string(outcome.data)
+      == context_customer_selection_conflict_payload(
+        root,
+        node_field,
+        input_name,
+      )
+  })
+}
+
+pub fn update_discount_inputs_reject_context_customer_selection_conflicts_test() {
+  let cases = [
+    #(
+      "discountCodeBasicUpdate",
+      "codeDiscountNode",
+      "basicCodeDiscount",
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic valid\", code: \"CONFLICT-BASIC-UP\", startsAt: \"2026-04-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Basic conflict update\", code: \"CONFLICT-BASIC-UP\", startsAt: \"2026-04-25T00:00:00Z\", context: { customers: { add: [\"gid://shopify/Customer/1\"] } }, customerSelection: { customers: { add: [\"gid://shopify/Customer/2\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+    ),
+    #(
+      "discountCodeBxgyUpdate",
+      "codeDiscountNode",
+      "bxgyCodeDiscount",
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY valid\", code: \"CONFLICT-BXGY-UP\", startsAt: \"2026-04-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { discountCodeBxgyUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", bxgyCodeDiscount: { title: \"BXGY conflict update\", code: \"CONFLICT-BXGY-UP\", startsAt: \"2026-04-25T00:00:00Z\", context: { customers: { add: [\"gid://shopify/Customer/1\"] } }, customerSelection: { customers: { add: [\"gid://shopify/Customer/2\"] } }, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+    ),
+    #(
+      "discountCodeFreeShippingUpdate",
+      "codeDiscountNode",
+      "freeShippingCodeDiscount",
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping valid\", code: \"CONFLICT-SHIP-UP\", startsAt: \"2026-04-01T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { discountCodeFreeShippingUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", freeShippingCodeDiscount: { title: \"Shipping conflict update\", code: \"CONFLICT-SHIP-UP\", startsAt: \"2026-04-25T00:00:00Z\", context: { customers: { add: [\"gid://shopify/Customer/1\"] } }, customerSelection: { customers: { add: [\"gid://shopify/Customer/2\"] } }, destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code } } }",
+    ),
+    #(
+      "discountCodeAppUpdate",
+      "codeAppDiscount",
+      "codeAppDiscount",
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App valid\", code: \"CONFLICT-APP-UP\", startsAt: \"2026-04-01T00:00:00Z\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code } } }",
+      "mutation { discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"App conflict update\", code: \"CONFLICT-APP-UP\", startsAt: \"2026-04-25T00:00:00Z\", context: { customers: { add: [\"gid://shopify/Customer/1\"] } }, customerSelection: { customers: { add: [\"gid://shopify/Customer/2\"] } }, functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code } } }",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(root, node_field, input_name, create_document, update_document) =
+      test_case
+    let create_outcome = run_mutation(create_document)
+    let update_outcome =
+      run_mutation_from(
+        create_outcome.store,
+        create_outcome.identity,
+        update_document,
+      )
+
+    assert json.to_string(update_outcome.data)
+      == context_customer_selection_conflict_payload(
+        root,
+        node_field,
+        input_name,
+      )
+  })
+}
+
+pub fn code_basic_create_keeps_single_buyer_selection_inputs_valid_test() {
+  let context_only =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Context only\", code: \"CONTEXT-ONLY\", startsAt: \"2026-04-25T00:00:00Z\", context: { customers: { add: [\"gid://shopify/Customer/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+    )
+  let customer_selection_only =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Selection only\", code: \"SELECTION-ONLY\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { customers: { add: [\"gid://shopify/Customer/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(context_only.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+  assert json.to_string(customer_selection_only.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+}
+
 pub fn create_discount_inputs_reject_inverted_date_ranges_test() {
   let cases = [
     #(
@@ -503,6 +612,20 @@ fn invalid_date_range_payload(
   <> "\":null,\"userErrors\":[{\"field\":[\""
   <> input_name
   <> "\",\"endsAt\"],\"message\":\"Ends at needs to be after starts_at\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+fn context_customer_selection_conflict_payload(
+  root: String,
+  node_field: String,
+  input_name: String,
+) -> String {
+  "{\"data\":{\""
+  <> root
+  <> "\":{\""
+  <> node_field
+  <> "\":null,\"userErrors\":[{\"field\":[\""
+  <> input_name
+  <> "\",\"context\"],\"message\":\"Only one of context or customerSelection can be provided.\",\"code\":\"INVALID\"}]}}}"
 }
 
 pub fn code_basic_update_rejects_code_change_after_redeem_code_bulk_add_test() {
