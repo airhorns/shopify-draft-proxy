@@ -34,7 +34,7 @@ HAR-364 implements local staging for these roots. Supported runtime requests no 
 
 The app domain uses dedicated normalized state buckets for app identity, current app installation, access scopes, app subscriptions, subscription line items, one-time purchases, usage records, and delegated-token metadata. This keeps side-effect-heavy app behavior separate from product and shop state while preserving read-after-write consistency for app installation billing/access reads.
 
-Billing and delegated-token mutation handlers synthesize local confirmation URLs and delegated tokens, then stage the derived records in memory without sending runtime writes to Shopify. Delegated-token raw values are intentionally not stored in meta-visible state; the proxy retains only a SHA-256 hash and redacted preview for local destroy lookup and inspection.
+Billing and delegated-token mutation handlers synthesize local confirmation URLs and delegated tokens, then stage the derived records in memory without sending runtime writes to Shopify. Delegated-token raw values are intentionally not stored in meta-visible state; the proxy retains only a SHA-256 hash, redacted preview, owning app id, and parent access-token hash for local destroy lookup, hierarchy checks, and inspection.
 
 Live-hybrid app installation reads can hydrate this local app model from upstream read responses. Snapshot and local-only reads return Shopify-like null/empty structures when no app installation state has been staged or hydrated.
 
@@ -64,8 +64,8 @@ Current modeled behavior:
   record cannot be resolved as `APPLICATION_CANNOT_BE_FOUND`, and an app record
   without an installed current installation as `APP_NOT_INSTALLED`.
 - `appUninstall` marks the current staged/hydrated installation uninstalled; downstream `currentAppInstallation` reads return `null`.
-- `delegateAccessTokenCreate` accepts the current `delegateAccessScope` list input, returns the validated scope handles through the payload's `accessScopes` list, and stores only a SHA-256 hash plus redacted preview in meta-visible state. Empty scope lists, non-positive `expiresIn`, catalog-unknown scope handles, and active delegate-token parents return Shopify-like user errors without staging a new token. The older local fixture shape using `input.accessScopes` remains tolerated only when `delegateAccessScope` is absent; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current list-shaped `delegateAccessScope` input.
-- `delegateAccessTokenDestroy` matches the raw token against the stored hash, marks it destroyed locally, and returns `ACCESS_TOKEN_NOT_FOUND` when repeated or unknown.
+- `delegateAccessTokenCreate` accepts the current `delegateAccessScope` list input, returns the validated scope handles through the payload's `accessScopes` list, and stores the owning app id plus parent access-token hash alongside the token hash/preview. Empty scope lists, non-positive `expiresIn`, catalog-unknown scope handles, and active delegate-token parents return Shopify-like user errors without staging a new token. The older local fixture shape using `input.accessScopes` remains tolerated only when `delegateAccessScope` is absent; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current list-shaped `delegateAccessScope` input.
+- `delegateAccessTokenDestroy` matches the raw token against the stored hash, checks the caller app id and parent/delegate token hierarchy, marks allowed delegate tokens destroyed locally, and returns a non-null `shop` payload. Unknown or repeated tokens return `ACCESS_TOKEN_NOT_FOUND` with `field: null` and `Access token does not exist.` Parent access-token self-destroy returns `CAN_ONLY_DELETE_DELEGATE_TOKENS` with `Can only delete delegate tokens.` Cross-app and non-parent delegate hierarchy attempts return `ACCESS_DENIED`; all error paths leave token state unchanged and emit a failed log draft.
 
 The implementation does not perform real billing, merchant approval, app uninstall, app grant changes, or delegated-token changes during normal runtime.
 
@@ -73,7 +73,9 @@ The implementation does not perform real billing, merchant approval, app uninsta
 
 Admin GraphQL 2026-04 billing docs and public app examples continue to treat billing create/update flows as confirmation-URL handoffs. The proxy's synthetic confirmation URLs intentionally prove the local lifecycle boundary without pretending that merchant approval, charge activation, subscription proration, usage-charge billing, or app-plan enforcement happened in Shopify.
 
-Delegate access token docs use the `delegateAccessScope` create input as a list and return the selected permissions through the token payload's `accessScopes` list. The local runtime accepts that current input shape, stores only token hash/preview metadata, and treats a non-destroyed delegated token hash matching the active request token as a delegate parent for conservative local validation. The executable runtime test and `delegate-access-token-create-validation` parity spec cover `delegateAccessScope` validation; the broad app-billing local-runtime parity replay continues to use the already-recorded `accessScopes` request shape so replay evidence is not silently changed without a fresh capture.
+Delegate access token docs use the `delegateAccessScope` create input as a list and return the selected permissions through the token payload's `accessScopes` list. The local runtime accepts that current input shape, stores token hash/preview plus owning app and parent-token metadata, and treats a non-destroyed delegated token hash matching the active request token as a delegate parent for conservative local validation. The executable runtime test and `delegate-access-token-create-validation` parity spec cover `delegateAccessScope` validation; the broad app-billing local-runtime parity replay continues to use the already-recorded `accessScopes` request shape so replay evidence is not silently changed without a fresh capture.
+
+Delegate destroy uses `X-Shopify-Access-Token` or `Authorization: Bearer ...` as the active caller token. Test and parity harnesses can set `x-shopify-draft-proxy-api-client-id` to model the caller app id; otherwise the proxy falls back to the current local app installation, then to the synthetic local app id for legacy local-runtime fixtures.
 
 `appRevokeAccessScopes` and `appUninstall` are locally staged only as downstream app-installation state changes. Real app grant revocation and app uninstall side effects remain external Shopify/app-installation events that can only happen later through explicit commit replay or intentional live conformance work on a disposable shop.
 
@@ -86,7 +88,17 @@ Delegate access token docs use the `delegateAccessScope` create input as a list 
 
 The local proxy uses synthetic confirmation URLs containing `signature=shopify-draft-proxy-local-redacted`; these URLs are not real Shopify approval links and should still be treated as sensitive in examples and fixtures. Delegated tokens are returned only in the mutation payload and are intentionally absent from `__meta/state`.
 
-Live success-path captures for billing approval, uninstall, app grant revocation, and delegated-token creation/destruction remain blocked unless a disposable app/store credential is explicitly approved for those external effects. The local runtime fixture records that blocker and the integration test covers strict local behavior instead of mutating a real shop.
+Live success-path captures for billing approval, uninstall, and app grant revocation remain blocked unless a disposable app/store credential is explicitly approved for those external effects. Delegated-token create/destroy success and cleanup are covered by HAR-749/HAR-751 disposable-shop probes, while broader app-billing local-runtime evidence continues to cover strict local behavior without mutating a real shop during normal runtime.
+
+HAR-751 live probes against `harry-test-heelo.myshopify.com` on 2026-05-05
+confirmed the public Admin GraphQL 2026-04 destroy payloads for missing token,
+parent-token self destroy, sibling hierarchy denial, successful destroy, and
+repeat destroy. Shopify returned uppercase error codes, `field: null`,
+`Access token does not exist.`, and `Can only delete delegate tokens.` The
+checked-in `delegate-access-token-destroy-codes` parity spec replays those
+stable payload branches locally and uses focused Gleam tests for failed-log /
+no-state assertions plus the cross-app denial branch, which still needs a
+second disposable app credential for live capture.
 
 HAR-749 captured live 2026-04 `delegateAccessTokenCreate` validation against
 `harry-test-heelo.myshopify.com` on 2026-05-05. The checked-in
@@ -133,5 +145,6 @@ The capture records:
 - `config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json`
 - `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
 - `config/parity-specs/apps/app-subscription-trial-extend-validation.json`
+- `config/parity-specs/apps/delegate-access-token-destroy-codes.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

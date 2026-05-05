@@ -1,0 +1,137 @@
+{
+  "capturedAt": "2026-05-05T21:30:00.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenario": "delegate-access-token-destroy-codes",
+  "notes": [
+    "HAR-751 live probes captured the public Admin GraphQL 2026-04 response shape for missing token, parent-token self destroy, sibling hierarchy denial, successful destroy, and repeat destroy.",
+    "Raw parent and delegate tokens are intentionally omitted; parity replay creates synthetic delegate tokens locally and uses request headers to model caller token identity.",
+    "Cross-app denial remains local-runtime evidence until the harness has a second disposable app credential; it uses the same ACCESS_DENIED payload shape as the captured hierarchy denial."
+  ],
+  "evidence": {
+    "live": {
+      "expected": {
+        "missing": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": false,
+              "shop": {
+                "id": "gid://shopify/Shop/92891250994",
+                "name": "harry-test-heelo"
+              },
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Access token does not exist.",
+                  "code": "ACCESS_TOKEN_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        },
+        "success": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": true,
+              "shop": {
+                "id": "gid://shopify/Shop/92891250994",
+                "name": "harry-test-heelo"
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "repeat": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": false,
+              "shop": {
+                "id": "gid://shopify/Shop/92891250994",
+                "name": "harry-test-heelo"
+              },
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Access token does not exist.",
+                  "code": "ACCESS_TOKEN_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        },
+        "parentSelf": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": false,
+              "shop": {
+                "id": "gid://shopify/Shop/92891250994",
+                "name": "harry-test-heelo"
+              },
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Can only delete delegate tokens.",
+                  "code": "CAN_ONLY_DELETE_DELEGATE_TOKENS"
+                }
+              ]
+            }
+          }
+        },
+        "siblingHierarchy": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": false,
+              "shop": {
+                "id": "gid://shopify/Shop/92891250994",
+                "name": "harry-test-heelo"
+              },
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Access denied.",
+                  "code": "ACCESS_DENIED"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "localRuntime": {
+      "expected": {
+        "delegateCreate": {
+          "data": {
+            "delegateAccessTokenCreate": {
+              "delegateAccessToken": {
+                "accessToken": "shpat_delegate_proxy_redacted",
+                "accessScopes": ["read_products"],
+                "createdAt": "2026-05-05T21:30:00.000Z",
+                "expiresIn": 3600
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "crossApp": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": false,
+              "shop": {
+                "id": "gid://shopify/Shop/92891250994",
+                "name": "harry-test-heelo"
+              },
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Access denied.",
+                  "code": "ACCESS_DENIED"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

@@ -1,0 +1,14 @@
+mutation DelegateAccessTokenDestroyCodes($token: String!) {
+  delegateAccessTokenDestroy(accessToken: $token) {
+    status
+    shop {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
