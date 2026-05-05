@@ -567,6 +567,27 @@ pub fn b2b_location_create_rejects_billing_and_tax_guardrails_test() {
   )
   assert string.contains(missing_json, "\"code\":\"INVALID_INPUT\"")
 
+  let #(
+    Response(status: missing_shipping_status, body: missing_shipping_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Missing Shipping\", billingSameAsShipping: true, billingAddress: { address1: \"Bill\" }, shippingAddress: null }) { companyLocation { id } userErrors { field message code } } }",
+    )
+  assert missing_shipping_status == 200
+  let missing_shipping_json = json.to_string(missing_shipping_body)
+  assert string.contains(missing_shipping_json, "\"companyLocation\":null")
+  assert string.contains(
+    missing_shipping_json,
+    "\"field\":[\"input\",\"shippingAddress\"]",
+  )
+  assert string.contains(
+    missing_shipping_json,
+    "\"message\":\"Shipping address is required when billing same as shipping is true.\"",
+  )
+  assert string.contains(missing_shipping_json, "\"code\":\"INVALID_INPUT\"")
+
   let #(Response(status: tax_status, body: tax_body, ..), proxy) =
     graphql(
       proxy,
@@ -590,6 +611,7 @@ pub fn b2b_location_create_rejects_billing_and_tax_guardrails_test() {
   )
   assert !string.contains(read_json, "Conflict")
   assert !string.contains(read_json, "Missing Billing")
+  assert !string.contains(read_json, "Missing Shipping")
   assert !string.contains(read_json, "Null Tax")
 }
 
@@ -820,6 +842,40 @@ pub fn b2b_location_assign_address_rejects_duplicate_address_types_test() {
   assert string.contains(assign_json, "\"field\":null")
   assert string.contains(assign_json, "\"message\":\"Invalid input.\"")
   assert string.contains(assign_json, "\"code\":\"INVALID_INPUT\"")
+}
+
+pub fn b2b_location_assign_address_rejects_empty_address_types_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignAddress(locationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", address: { address1: \"123 Main\" }, addressTypes: []) { addresses { id address1 } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"addresses\":null")
+  assert string.contains(assign_json, "\"field\":null")
+  assert string.contains(
+    assign_json,
+    "\"message\":\"Address types cannot be empty.\"",
+  )
+  assert string.contains(assign_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { billingAddress { id } shippingAddress { id } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"billingAddress\":null")
+  assert string.contains(read_json, "\"shippingAddress\":null")
 }
 
 pub fn b2b_address_delete_clears_shared_billing_shipping_anchor_test() {

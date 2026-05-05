@@ -1689,10 +1689,26 @@ fn has_explicit_null_field(
 fn validate_billing_same_as_shipping(
   input: Dict(String, root_field.ResolvedValue),
   prefix: List(String),
+  require_shipping_address: Bool,
 ) -> List(UserError) {
   let billing_address_present =
     has_non_empty_object_field(input, "billingAddress")
+  let shipping_address_present =
+    has_non_empty_object_field(input, "shippingAddress")
+  let shipping_address_required_missing =
+    require_shipping_address && !shipping_address_present
+  let shipping_address_explicit_null =
+    has_explicit_null_field(input, "shippingAddress")
   case read_bool(input, "billingSameAsShipping") {
+    Some(True)
+      if shipping_address_required_missing || shipping_address_explicit_null
+    -> [
+      user_error(
+        Some(field_path(prefix, "shippingAddress")),
+        "Shipping address is required when billing same as shipping is true.",
+        user_error_code.invalid_input,
+      ),
+    ]
     Some(True) if billing_address_present -> [
       user_error(
         Some(field_path(prefix, "billingAddress")),
@@ -1803,6 +1819,7 @@ fn validate_contact_input(
 fn validate_location_input(
   input: Dict(String, root_field.ResolvedValue),
   prefix: List(String),
+  require_shipping_address: Bool,
 ) -> #(Dict(String, root_field.ResolvedValue), List(UserError)) {
   let input = sanitize_name_field(input)
   let errors =
@@ -1824,7 +1841,11 @@ fn validate_location_input(
       notes_max_length,
       True,
     ))
-    |> list.append(validate_billing_same_as_shipping(input, prefix))
+    |> list.append(validate_billing_same_as_shipping(
+      input,
+      prefix,
+      require_shipping_address,
+    ))
     |> list.append(validate_tax_exempt_input(input, prefix))
     |> list.append(validate_external_id_field(input, prefix))
   #(input, errors)
@@ -2741,10 +2762,14 @@ fn handle_company_create(
   let #(company_input, company_errors) =
     validate_company_input(read_object(input, "company"), ["input", "company"])
   let #(location_input, location_errors) =
-    validate_location_input(read_object(input, "companyLocation"), [
-      "input",
-      "companyLocation",
-    ])
+    validate_location_input(
+      read_object(input, "companyLocation"),
+      [
+        "input",
+        "companyLocation",
+      ],
+      True,
+    )
   let company_errors =
     company_errors
     |> list.append(
@@ -3734,7 +3759,7 @@ fn handle_location_create(
         Some(company) -> {
           let raw_input = read_object(args, "input")
           let #(input, validation_errors) =
-            validate_location_input(raw_input, ["input"])
+            validate_location_input(raw_input, ["input"], True)
           let validation_errors =
             validation_errors
             |> list.append(
@@ -3786,7 +3811,11 @@ fn handle_location_update(
       case store.get_effective_b2b_company_location_by_id(store, id) {
         Some(location) -> {
           let #(input, validation_errors) =
-            validate_location_input(read_object(args, "input"), ["input"])
+            validate_location_input(
+              read_object(args, "input"),
+              ["input"],
+              False,
+            )
           let validation_errors =
             validation_errors
             |> list.append(
@@ -4583,14 +4612,14 @@ fn handle_assign_address(
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
           let address_types = read_string_list(args, "addressTypes")
-          case has_duplicate_strings(address_types) {
-            True ->
+          case address_types {
+            [] ->
               RootResult(
                 Payload(
                   ..empty_payload([
                     user_error(
                       None,
-                      "Invalid input.",
+                      "Address types cannot be empty.",
                       user_error_code.invalid_input,
                     ),
                   ]),
@@ -4600,33 +4629,16 @@ fn handle_assign_address(
                 identity,
                 [],
               )
-            False -> {
-              let #(address, identity) =
-                address_from_input(identity, read_object(args, "address"), None)
-              let #(data, addresses) =
-                list.fold(address_types, #(location.data, []), fn(acc, typ) {
-                  let #(data, addresses) = acc
-                  case typ {
-                    "BILLING" -> #(
-                      put_source(data, "billingAddress", address),
-                      list.append(addresses, [address]),
-                    )
-                    "SHIPPING" -> #(
-                      put_source(data, "shippingAddress", address),
-                      list.append(addresses, [address]),
-                    )
-                    _ -> acc
-                  }
-                })
-              case addresses {
-                [] ->
+            _ ->
+              case has_duplicate_strings(address_types) {
+                True ->
                   RootResult(
                     Payload(
                       ..empty_payload([
                         user_error(
-                          Some(["addressTypes"]),
-                          "Address type is invalid",
-                          user_error_code.invalid,
+                          None,
+                          "Invalid input.",
+                          user_error_code.invalid_input,
                         ),
                       ]),
                       addresses: [],
@@ -4635,19 +4647,63 @@ fn handle_assign_address(
                     identity,
                     [],
                   )
-                _ -> {
-                  let updated = B2BCompanyLocationRecord(..location, data: data)
-                  let #(updated, store) =
-                    store.upsert_staged_b2b_company_location(store, updated)
-                  RootResult(
-                    Payload(..empty_payload([]), addresses: addresses),
-                    store,
-                    identity,
-                    list.append([updated.id], list.map(addresses, source_id)),
-                  )
+                False -> {
+                  let #(address, identity) =
+                    address_from_input(
+                      identity,
+                      read_object(args, "address"),
+                      None,
+                    )
+                  let #(data, addresses) =
+                    list.fold(address_types, #(location.data, []), fn(acc, typ) {
+                      let #(data, addresses) = acc
+                      case typ {
+                        "BILLING" -> #(
+                          put_source(data, "billingAddress", address),
+                          list.append(addresses, [address]),
+                        )
+                        "SHIPPING" -> #(
+                          put_source(data, "shippingAddress", address),
+                          list.append(addresses, [address]),
+                        )
+                        _ -> acc
+                      }
+                    })
+                  case addresses {
+                    [] ->
+                      RootResult(
+                        Payload(
+                          ..empty_payload([
+                            user_error(
+                              Some(["addressTypes"]),
+                              "Address type is invalid",
+                              user_error_code.invalid,
+                            ),
+                          ]),
+                          addresses: [],
+                        ),
+                        store,
+                        identity,
+                        [],
+                      )
+                    _ -> {
+                      let updated =
+                        B2BCompanyLocationRecord(..location, data: data)
+                      let #(updated, store) =
+                        store.upsert_staged_b2b_company_location(store, updated)
+                      RootResult(
+                        Payload(..empty_payload([]), addresses: addresses),
+                        store,
+                        identity,
+                        list.append(
+                          [updated.id],
+                          list.map(addresses, source_id),
+                        ),
+                      )
+                    }
+                  }
                 }
               }
-            }
           }
         }
         None ->
