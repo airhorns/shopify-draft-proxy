@@ -1,0 +1,15 @@
+mutation SavedSearchCreateEmptyQuery($input: SavedSearchCreateInput!) {
+  savedSearchCreate(input: $input) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

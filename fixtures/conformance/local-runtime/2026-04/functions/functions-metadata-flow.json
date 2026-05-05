@@ -207,13 +207,23 @@
         "handle": "validation-local",
         "apiType": "VALIDATION"
       },
-      "query": "hand-synthesized empty ShopifyFunction lookup for local validation handle",
+      "query": "hand-synthesized ShopifyFunction lookup for local validation handle",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "shopifyFunctions": {
-              "nodes": []
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/validation-local",
+                  "title": "Validation Local",
+                  "handle": "validation-local",
+                  "apiType": "VALIDATION",
+                  "description": null,
+                  "appKey": null,
+                  "app": null
+                }
+              ]
             }
           }
         }
@@ -225,13 +235,23 @@
         "handle": "cart-transform-local",
         "apiType": "CART_TRANSFORM"
       },
-      "query": "hand-synthesized empty ShopifyFunction lookup for local cart-transform handle",
+      "query": "hand-synthesized ShopifyFunction lookup for local cart-transform handle",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "shopifyFunctions": {
-              "nodes": []
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/cart-transform-local",
+                  "title": "Cart Transform Local",
+                  "handle": "cart-transform-local",
+                  "apiType": "CART_TRANSFORM",
+                  "description": null,
+                  "appKey": null,
+                  "app": null
+                }
+              ]
             }
           }
         }

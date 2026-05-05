@@ -12,7 +12,10 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/ast.{
+  type Location, type ObjectField, type Selection, Field, NullValue, ObjectField,
+  ObjectValue, SelectionSet,
+}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -25,8 +28,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, read_optional_string, respond_to_query,
-  single_root_log_draft,
+  type MutationOutcome, MutationOutcome, find_argument, read_optional_string,
+  respond_to_query, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
@@ -475,11 +478,13 @@ pub fn process_mutation(
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
+      let operation_path = get_operation_path_label(document)
       handle_mutation_fields(
         store,
         identity,
         request_path,
         document,
+        operation_path,
         fields,
         fragments,
         variables,
@@ -489,6 +494,46 @@ pub fn process_mutation(
 }
 
 fn handle_mutation_fields(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  operation_path: String,
+  fields: List(Selection),
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationOutcome {
+  let validation_errors =
+    validate_required_saved_search_input_fields(
+      fields,
+      operation_path,
+      document,
+    )
+  case validation_errors {
+    [_, ..] ->
+      MutationOutcome(
+        data: json.object([
+          #("errors", json.preprocessed_array(validation_errors)),
+        ]),
+        store: store,
+        identity: identity,
+        staged_resource_ids: [],
+        log_drafts: [],
+      )
+    [] ->
+      handle_valid_mutation_fields(
+        store,
+        identity,
+        request_path,
+        document,
+        fields,
+        fragments,
+        variables,
+      )
+  }
+}
+
+fn handle_valid_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
   request_path: String,
@@ -574,6 +619,239 @@ fn handle_mutation_fields(
   MutationOutcome(
     ..outcome,
     data: graphql_helpers.wrap_data(json.object(entries)),
+  )
+}
+
+fn get_operation_path_label(document: String) -> String {
+  case parse_operation.parse_operation(document) {
+    Ok(parsed) -> {
+      let kind = case parsed.type_ {
+        parse_operation.QueryOperation -> "query"
+        parse_operation.MutationOperation -> "mutation"
+      }
+      case parsed.name {
+        Some(name) -> kind <> " " <> name
+        None -> kind
+      }
+    }
+    Error(_) -> "mutation"
+  }
+}
+
+fn validate_required_saved_search_input_fields(
+  fields: List(Selection),
+  operation_path: String,
+  document: String,
+) -> List(Json) {
+  list.fold(fields, [], fn(errors, field) {
+    case field {
+      Field(name: name, ..) -> {
+        let field_errors =
+          required_input_field_errors(
+            name.value,
+            operation_path,
+            document,
+            field,
+          )
+        case field_errors {
+          [] -> errors
+          _ -> list.append(errors, field_errors)
+        }
+      }
+      _ -> errors
+    }
+  })
+}
+
+fn required_input_field_errors(
+  root_name: String,
+  operation_path: String,
+  document: String,
+  field: Selection,
+) -> List(Json) {
+  let required_fields = case root_name {
+    "savedSearchCreate" -> [
+      #("resourceType", "SearchResultType!", "SavedSearchCreateInput"),
+      #("name", "String!", "SavedSearchCreateInput"),
+      #("query", "String!", "SavedSearchCreateInput"),
+    ]
+    "savedSearchUpdate" -> [#("id", "ID!", "SavedSearchUpdateInput")]
+    "savedSearchDelete" -> [#("id", "ID!", "SavedSearchDeleteInput")]
+    _ -> []
+  }
+  case required_fields {
+    [] -> []
+    _ ->
+      case inline_input_object(field) {
+        None -> []
+        Some(input_object) -> {
+          let InlineInputObject(fields: input_fields, loc: loc) = input_object
+          list.filter_map(required_fields, fn(required) {
+            let #(field_name, expected_type, input_object_type) = required
+            case find_object_field(input_fields, field_name) {
+              None ->
+                Ok(build_missing_required_input_field_error(
+                  root_name,
+                  field_name,
+                  expected_type,
+                  input_object_type,
+                  operation_path,
+                  loc,
+                  document,
+                ))
+              Some(ObjectField(value: NullValue(..), ..)) ->
+                Ok(build_null_required_input_field_error(
+                  root_name,
+                  field_name,
+                  expected_type,
+                  input_object_type,
+                  operation_path,
+                  loc,
+                  document,
+                ))
+              Some(_) -> Error(Nil)
+            }
+          })
+        }
+      }
+  }
+}
+
+type InlineInputObject {
+  InlineInputObject(fields: List(ObjectField), loc: Option(Location))
+}
+
+fn inline_input_object(field: Selection) -> Option(InlineInputObject) {
+  let arguments = case field {
+    Field(arguments: args, ..) -> args
+    _ -> []
+  }
+  case find_argument(arguments, "input") {
+    Some(argument) ->
+      case argument.value {
+        ObjectValue(fields: fields, loc: loc) ->
+          Some(InlineInputObject(fields: fields, loc: loc))
+        _ -> None
+      }
+    None -> None
+  }
+}
+
+fn find_object_field(
+  fields: List(ObjectField),
+  name: String,
+) -> Option(ObjectField) {
+  case fields {
+    [] -> None
+    [first, ..rest] -> {
+      let ObjectField(name: field_name, ..) = first
+      case field_name.value == name {
+        True -> Some(first)
+        False -> find_object_field(rest, name)
+      }
+    }
+  }
+}
+
+fn build_missing_required_input_field_error(
+  root_name: String,
+  field_name: String,
+  expected_type: String,
+  input_object_type: String,
+  operation_path: String,
+  loc: Option(Location),
+  document: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Argument '"
+        <> field_name
+        <> "' on InputObject '"
+        <> input_object_type
+        <> "' is required. Expected type "
+        <> expected_type,
+      ),
+    ),
+  ]
+  let with_locations = case loc {
+    Some(location) ->
+      list.append(base, [
+        #("locations", graphql_helpers.locations_json(location, document)),
+      ])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, root_name, "input", field_name],
+          json.string,
+        ),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("missingRequiredInputObjectAttribute")),
+          #("argumentName", json.string(field_name)),
+          #("argumentType", json.string(expected_type)),
+          #("inputObjectType", json.string(input_object_type)),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn build_null_required_input_field_error(
+  root_name: String,
+  field_name: String,
+  expected_type: String,
+  input_object_type: String,
+  operation_path: String,
+  loc: Option(Location),
+  document: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Argument '"
+        <> field_name
+        <> "' on InputObject '"
+        <> input_object_type
+        <> "' has an invalid value (null). Expected type '"
+        <> expected_type
+        <> "'.",
+      ),
+    ),
+  ]
+  let with_locations = case loc {
+    Some(location) ->
+      list.append(base, [
+        #("locations", graphql_helpers.locations_json(location, document)),
+      ])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, root_name, "input", field_name],
+          json.string,
+        ),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("InputObject")),
+          #("argumentName", json.string(field_name)),
+        ]),
+      ),
+    ]),
   )
 }
 
@@ -981,30 +1259,6 @@ fn validate_saved_search_input(
                     ),
                   ])
                 _, _ -> errors
-              }
-          }
-        False -> errors
-      }
-      let errors = case dict.has_key(fields, "query") {
-        True ->
-          case read_optional_string(fields, "query") {
-            None ->
-              list.append(errors, [
-                UserError(
-                  field: Some(["input", "query"]),
-                  message: "Query can't be blank",
-                ),
-              ])
-            Some(query) ->
-              case string.trim(query) {
-                "" ->
-                  list.append(errors, [
-                    UserError(
-                      field: Some(["input", "query"]),
-                      message: "Query can't be blank",
-                    ),
-                  ])
-                _ -> errors
               }
           }
         False -> errors
