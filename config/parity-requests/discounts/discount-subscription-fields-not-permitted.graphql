@@ -1,0 +1,184 @@
+mutation DiscountSubscriptionFieldsNotPermitted {
+  basicSub: discountCodeBasicCreate(
+    basicCodeDiscount: {
+      title: "Sub gated"
+      code: "SUB-GATED"
+      startsAt: "2026-04-25T00:00:00Z"
+      customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true }
+    }
+  ) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  basicBlank: discountCodeBasicCreate(
+    basicCodeDiscount: {
+      title: "Sub blank"
+      code: "SUB-BLANK"
+      startsAt: "2026-04-25T00:00:00Z"
+      customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: null }
+    }
+  ) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  freeShippingSub: discountCodeFreeShippingCreate(
+    freeShippingCodeDiscount: {
+      title: "Free shipping sub gated"
+      code: "SHIP-SUB-GATED"
+      startsAt: "2026-04-25T00:00:00Z"
+      destination: { all: true }
+      appliesOnSubscription: true
+    }
+  ) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  freeShippingRecurring: discountCodeFreeShippingCreate(
+    freeShippingCodeDiscount: {
+      title: "Free shipping recurring gated"
+      code: "SHIP-REC-GATED"
+      startsAt: "2026-04-25T00:00:00Z"
+      destination: { all: true }
+      recurringCycleLimit: 2
+    }
+  ) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBasicSub: discountAutomaticBasicCreate(
+    automaticBasicDiscount: {
+      title: "Automatic basic sub gated"
+      startsAt: "2026-04-25T00:00:00Z"
+      customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true }
+    }
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBasicRecurring: discountAutomaticBasicCreate(
+    automaticBasicDiscount: {
+      title: "Automatic basic recurring gated"
+      startsAt: "2026-04-25T00:00:00Z"
+      recurringCycleLimit: 2
+      customerGets: { value: { percentage: 0.1 }, items: { all: true } }
+    }
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticFreeShippingSkip: discountAutomaticFreeShippingCreate(
+    freeShippingAutomaticDiscount: {
+      title: "Automatic shipping skip"
+      startsAt: "2026-04-25T00:00:00Z"
+      destination: { all: true }
+      appliesOnSubscription: true
+      appliesOnOneTimePurchase: false
+      recurringCycleLimit: 2
+    }
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  setupBasic: discountCodeBasicCreate(
+    basicCodeDiscount: {
+      title: "Setup basic"
+      code: "SETUP-BASIC-SUB"
+      startsAt: "2026-04-25T00:00:00Z"
+      customerGets: { value: { percentage: 0.1 }, items: { all: true } }
+    }
+  ) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  setupFreeShipping: discountCodeFreeShippingCreate(
+    freeShippingCodeDiscount: {
+      title: "Setup shipping"
+      code: "SETUP-SHIP-SUB"
+      startsAt: "2026-04-25T00:00:00Z"
+      destination: { all: true }
+    }
+  ) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  setupAutomaticBasic: discountAutomaticBasicCreate(
+    automaticBasicDiscount: {
+      title: "Setup automatic basic"
+      startsAt: "2026-04-25T00:00:00Z"
+      customerGets: { value: { percentage: 0.1 }, items: { all: true } }
+    }
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

@@ -24,6 +24,7 @@
     "selected-fields",
     "read-after-write",
     "role-assignment",
+    "partial-success",
     "address-lifecycle",
     "tax-settings",
     "tax-settings-validation",
@@ -42,7 +43,7 @@
     "tests/integration/b2b-company-lifecycle-flow.test.ts",
     "tests/integration/b2b-company-query-shapes.test.ts"
   ],
-  "notes": "Executable parity coverage for HAR-446 high-risk B2B contact/location relationships and HAR-616 companyLocationTaxSettingsUpdate enum validation. The live fixture creates a disposable company, records Shopify's automatic main-contact Ordering only role assignment, exercises explicit contact/location role assignment and revoke roots, records billing-address assignment/delete, tax settings, invalid tax exemption enum validation, contact/location updates, downstream relationship reads, and generic Node reads for CompanyAddress and CompanyContactRoleAssignment rows already present in local B2B state. `staffMembers(first:)` is access denied for the current conformance token, so staff assignment remains covered by runtime tests rather than live parity in this scenario.",
+  "notes": "Executable parity coverage for HAR-446 high-risk B2B contact/location relationships, HAR-756 bulk role assign/revoke partial success on public payload fields, and HAR-616 companyLocationTaxSettingsUpdate enum validation. The live fixture creates a disposable company, records Shopify's automatic main-contact Ordering only role assignment, exercises explicit contact/location role assignment and revoke roots, captures bulk assign/revoke partial successes with indexed RESOURCE_NOT_FOUND userErrors, records billing-address assignment/delete, tax settings, invalid tax exemption enum validation, contact/location updates, downstream relationship reads, and generic Node reads for CompanyAddress and CompanyContactRoleAssignment rows already present in local B2B state. `staffMembers(first:)` is access denied for the current conformance token, so staff assignment remains covered by runtime tests rather than live parity in this scenario.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -116,8 +117,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-location-create.graphql",
           "variables": {
-            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
-            "input": { "fromCapturePath": "$.extraLocationCreate.request.variables.input" }
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.extraLocationCreate.request.variables.input"
+            }
           }
         },
         "expectedDifferences": [
@@ -140,8 +145,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-location-create.graphql",
           "variables": {
-            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
-            "input": { "fromCapturePath": "$.contactBulkLocationCreate.request.variables.input" }
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.contactBulkLocationCreate.request.variables.input"
+            }
           }
         },
         "expectedDifferences": [
@@ -164,8 +173,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-location-create.graphql",
           "variables": {
-            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
-            "input": { "fromCapturePath": "$.locationBulkLocationCreate.request.variables.input" }
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationBulkLocationCreate.request.variables.input"
+            }
           }
         },
         "expectedDifferences": [
@@ -188,8 +201,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-assign-role.graphql",
           "variables": {
-            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
-            "companyContactRoleId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[0].id" },
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "companyContactRoleId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[0].id"
+            },
             "companyLocationId": {
               "fromProxyResponse": "single-location-create-payload",
               "path": "$.data.companyLocationCreate.companyLocation.id"
@@ -226,7 +243,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-contact-assign-roles.graphql",
           "variables": {
-            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
             "rolesToAssign": [
               {
                 "companyContactRoleId": {
@@ -276,7 +295,9 @@
             },
             "rolesToAssign": [
               {
-                "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
+                "companyContactId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+                },
                 "companyContactRoleId": {
                   "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[1].id"
                 }
@@ -314,9 +335,15 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-address.graphql",
           "variables": {
-            "locationId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" },
-            "address": { "fromCapturePath": "$.assignAddress.request.variables.address" },
-            "addressTypes": { "fromCapturePath": "$.assignAddress.request.variables.addressTypes" }
+            "locationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "address": {
+              "fromCapturePath": "$.assignAddress.request.variables.address"
+            },
+            "addressTypes": {
+              "fromCapturePath": "$.assignAddress.request.variables.addressTypes"
+            }
           }
         },
         "expectedDifferences": [
@@ -334,8 +361,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql",
           "variables": {
-            "companyLocationId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" },
-            "exemptionsToAssign": { "fromCapturePath": "$.taxUpdateUnknownEnum.request.variables.exemptionsToAssign" }
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "exemptionsToAssign": {
+              "fromCapturePath": "$.taxUpdateUnknownEnum.request.variables.exemptionsToAssign"
+            }
           }
         },
         "selectedPaths": ["$.errors[0].message", "$.errors[0].extensions.code", "$.errors[0].extensions.problems"],
@@ -348,11 +379,21 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql",
           "variables": {
-            "companyLocationId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" },
-            "taxRegistrationId": { "fromCapturePath": "$.taxUpdate.request.variables.taxRegistrationId" },
-            "taxExempt": { "fromCapturePath": "$.taxUpdate.request.variables.taxExempt" },
-            "exemptionsToAssign": { "fromCapturePath": "$.taxUpdate.request.variables.exemptionsToAssign" },
-            "exemptionsToRemove": { "fromCapturePath": "$.taxUpdate.request.variables.exemptionsToRemove" }
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "taxRegistrationId": {
+              "fromCapturePath": "$.taxUpdate.request.variables.taxRegistrationId"
+            },
+            "taxExempt": {
+              "fromCapturePath": "$.taxUpdate.request.variables.taxExempt"
+            },
+            "exemptionsToAssign": {
+              "fromCapturePath": "$.taxUpdate.request.variables.exemptionsToAssign"
+            },
+            "exemptionsToRemove": {
+              "fromCapturePath": "$.taxUpdate.request.variables.exemptionsToRemove"
+            }
           }
         },
         "expectedDifferences": [
@@ -370,8 +411,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-contact-update.graphql",
           "variables": {
-            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
-            "input": { "fromCapturePath": "$.contactUpdate.request.variables.input" }
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "input": {
+              "fromCapturePath": "$.contactUpdate.request.variables.input"
+            }
           }
         },
         "expectedDifferences": [
@@ -393,7 +438,9 @@
               "fromProxyResponse": "single-location-create-payload",
               "path": "$.data.companyLocationCreate.companyLocation.id"
             },
-            "input": { "fromCapturePath": "$.locationUpdate.request.variables.input" }
+            "input": {
+              "fromCapturePath": "$.locationUpdate.request.variables.input"
+            }
           }
         },
         "expectedDifferences": [
@@ -411,8 +458,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-read.graphql",
           "variables": {
-            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
-            "companyLocationId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" },
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
             "singleAssignmentLocationId": {
               "fromProxyResponse": "single-location-create-payload",
               "path": "$.data.companyLocationCreate.companyLocation.id"
@@ -618,13 +669,238 @@
         ]
       },
       {
+        "name": "contact-partial-location-create-payload",
+        "capturePath": "$.contactPartialLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.contactPartialLocationCreate.request.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "location-partial-location-create-payload",
+        "capturePath": "$.locationPartialLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationPartialLocationCreate.request.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "assign-contact-roles-partial-payload",
+        "capturePath": "$.assignContactRolesPartial.response.data.companyContactAssignRoles",
+        "proxyPath": "$.data.companyContactAssignRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-contact-assign-roles.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "rolesToAssign": [
+              {
+                "companyContactRoleId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[0].id"
+                },
+                "companyLocationId": {
+                  "fromProxyResponse": "contact-partial-location-create-payload",
+                  "path": "$.data.companyLocationCreate.companyLocation.id"
+                }
+              },
+              {
+                "companyContactRoleId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[0].id"
+                },
+                "companyLocationId": {
+                  "fromCapturePath": "$.assignContactRolesPartial.request.variables.rolesToAssign[1].companyLocationId"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.roleAssignments[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different role assignment IDs."
+          },
+          {
+            "path": "$.roleAssignments[*].companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The proxy assignment targets the locally staged contact ID."
+          },
+          {
+            "path": "$.roleAssignments[*].role.id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "The proxy assignment targets the locally staged role ID."
+          },
+          {
+            "path": "$.roleAssignments[*].companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy assignment targets the locally staged location ID."
+          }
+        ]
+      },
+      {
+        "name": "assign-location-roles-partial-payload",
+        "capturePath": "$.assignLocationRolesPartial.response.data.companyLocationAssignRoles",
+        "proxyPath": "$.data.companyLocationAssignRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-location-assign-roles.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "location-partial-location-create-payload",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "rolesToAssign": [
+              {
+                "companyContactId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+                },
+                "companyContactRoleId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[1].id"
+                }
+              },
+              {
+                "companyContactId": {
+                  "fromCapturePath": "$.assignLocationRolesPartial.request.variables.rolesToAssign[1].companyContactId"
+                },
+                "companyContactRoleId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[1].id"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.roleAssignments[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different role assignment IDs."
+          },
+          {
+            "path": "$.roleAssignments[*].companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The proxy assignment targets the locally staged contact ID."
+          },
+          {
+            "path": "$.roleAssignments[*].role.id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "The proxy assignment targets the locally staged role ID."
+          },
+          {
+            "path": "$.roleAssignments[*].companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy assignment targets the locally staged location ID."
+          }
+        ]
+      },
+      {
+        "name": "revoke-contact-roles-partial-payload",
+        "capturePath": "$.revokeContactRolesPartial.response.data.companyContactRevokeRoles",
+        "proxyPath": "$.data.companyContactRevokeRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-contact-revoke-roles.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "roleAssignmentIds": [
+              {
+                "fromCapturePath": "$.revokeContactRolesPartial.request.variables.roleAssignmentIds[0]"
+              },
+              {
+                "fromProxyResponse": "assign-contact-roles-partial-payload",
+                "path": "$.data.companyContactAssignRoles.roleAssignments[0].id"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.revokedRoleAssignmentIds[*]",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "The proxy revokes the locally staged assignment ID."
+          }
+        ]
+      },
+      {
+        "name": "revoke-location-roles-partial-payload",
+        "capturePath": "$.revokeLocationRolesPartial.response.data.companyLocationRevokeRoles",
+        "proxyPath": "$.data.companyLocationRevokeRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-location-revoke-roles.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "location-partial-location-create-payload",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "rolesToRevoke": [
+              {
+                "fromCapturePath": "$.revokeLocationRolesPartial.request.variables.rolesToRevoke[0]"
+              },
+              {
+                "fromProxyResponse": "assign-location-roles-partial-payload",
+                "path": "$.data.companyLocationAssignRoles.roleAssignments[0].id"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.revokedRoleAssignmentIds[*]",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "The proxy revokes the locally staged assignment ID."
+          }
+        ]
+      },
+      {
         "name": "revoke-single-role-payload",
         "capturePath": "$.revokeSingle.response.data.companyContactRevokeRole",
         "proxyPath": "$.data.companyContactRevokeRole",
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-revoke-role.graphql",
           "variables": {
-            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
             "companyContactRoleAssignmentId": {
               "fromProxyResponse": "assign-single-role-payload",
               "path": "$.data.companyContactAssignRole.companyContactRoleAssignment.id"
@@ -646,7 +922,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-contact-revoke-roles.graphql",
           "variables": {
-            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
             "roleAssignmentIds": [
               {
                 "fromProxyResponse": "assign-contact-roles-payload",
@@ -718,8 +996,12 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-read-after-revoke.graphql",
           "variables": {
-            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
-            "companyLocationId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" }
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
           }
         },
         "expectedDifferences": [

@@ -60,6 +60,15 @@ Shared helpers for Shopify resource ID handling.
 
 Use this module before adding resource-local GID tail parsers, canonical ID builders, or Shopify resource ID comparators.
 
+## `src/shopify_draft_proxy/state/store.gleam`
+
+Shared in-memory store helpers for cross-domain shop capability reads.
+
+- `shop_sells_subscriptions` reads the effective staged/base `ShopRecord.features.sellsSubscriptions` capability and defaults missing synthetic shop state to `False`
+- `set_shop_sells_subscriptions` configures the effective shop capability for tests and local-runtime parity scenarios without introducing ambient/global shop state
+
+Use these helpers when validation depends on whether the synthetic shop sells subscriptions. Endpoint handlers should not add resource-local copies of the shop capability default.
+
 ## `src/shopify_draft_proxy/proxy/upstream_query.gleam`
 
 Shared chokepoint for runtime reads that need upstream Shopify data.
