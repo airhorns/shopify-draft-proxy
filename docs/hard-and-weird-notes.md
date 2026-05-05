@@ -2625,7 +2625,19 @@ Captured mutation-scoped `DiscountUserError` branches:
 - combining collection entitlements with product/product-variant entitlements returns a `CONFLICT` error on `['basicCodeDiscount', 'customerGets', 'items', 'collections', 'add']`, while invalid product and variant GIDs also return separate `INVALID` entries
 - BXGY roots reject all-items customer-get/customer-buy payloads and blank titles with root-specific field prefixes (`bxgyCodeDiscount` vs `automaticBxgyDiscount`)
 - free-shipping roots reject all discount-class combinesWith flags; code free shipping also reported blank title, while the captured automatic free-shipping branch only reported invalid combinesWith for the same blank-title payload
-- unknown `discountCodeBasicUpdate` IDs return `field: ['id']`, message `Discount does not exist`, and `code: null`
+- HAR-605 update-only source review found Shopify's internal
+  `discountCodeBasicUpdate` path builds update errors through
+  `DiscountUserError.errors_from_hash`, whose default code is `INVALID`.
+  The current public 2026-04 conformance store still returned `code: null`
+  for unknown IDs and for the bulk-rule code-change branch, so parity specs
+  document that live-vs-source drift explicitly while the local proxy follows
+  the ticketed `INVALID` contract.
+- after `discountRedeemCodeBulkAdd`, Shopify only rejects a
+  `discountCodeBasicUpdate` carrying a `code` field once the bulk-added redeem code is
+  query-visible; immediate update attempts before bulk processing can still
+  succeed on the live store
+- `discountCodeBasicUpdate` against a `DiscountCodeBxgy` record coerces the
+  record to `DiscountCodeBasic` instead of preserving the prior type
 - code and automatic bulk roots use different wording for mutually exclusive selector errors even though both use `code: 'TOO_MANY_ARGUMENTS'`
 
 Access-scope note:
