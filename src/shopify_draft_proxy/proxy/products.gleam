@@ -5145,6 +5145,61 @@ type ProductUserError {
   ProductUserError(field: List(String), message: String, code: Option(String))
 }
 
+pub const product_user_error_code_blank = "BLANK"
+
+pub const product_user_error_code_invalid = "INVALID"
+
+pub const product_user_error_code_taken = "TAKEN"
+
+pub const product_user_error_code_greater_than = "GREATER_THAN"
+
+pub const product_user_error_code_less_than = "LESS_THAN"
+
+pub const product_user_error_code_inclusion = "INCLUSION"
+
+pub const product_user_error_code_not_a_number = "NOT_A_NUMBER"
+
+pub const product_user_error_code_product_does_not_exist = "PRODUCT_DOES_NOT_EXIST"
+
+pub const product_user_error_code_product_not_found = "PRODUCT_NOT_FOUND"
+
+pub const product_user_error_code_product_variant_does_not_exist = "PRODUCT_VARIANT_DOES_NOT_EXIST"
+
+pub const product_user_error_code_invalid_inventory_item = "INVALID_INVENTORY_ITEM"
+
+pub const product_user_error_code_invalid_location = "INVALID_LOCATION"
+
+pub const product_user_error_code_invalid_name = "INVALID_NAME"
+
+pub const product_user_error_code_invalid_quantity_negative = "INVALID_QUANTITY_NEGATIVE"
+
+pub const product_user_error_code_invalid_quantity_too_high = "INVALID_QUANTITY_TOO_HIGH"
+
+pub const product_user_error_code_invalid_quantity_too_low = "INVALID_QUANTITY_TOO_LOW"
+
+fn product_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> ProductUserError {
+  ProductUserError(field, message, Some(code))
+}
+
+fn blank_product_user_error(
+  field: List(String),
+  message: String,
+) -> ProductUserError {
+  product_user_error(field, message, product_user_error_code_blank)
+}
+
+fn product_does_not_exist_user_error(field: List(String)) -> ProductUserError {
+  product_user_error(
+    field,
+    "Product does not exist",
+    product_user_error_code_product_does_not_exist,
+  )
+}
+
 type BulkVariantUserError {
   BulkVariantUserError(
     field: Option(List(String)),
@@ -9153,7 +9208,7 @@ fn handle_product_options_create(
               store,
               None,
               [
-                ProductUserError(["productId"], "Product does not exist", None),
+                product_does_not_exist_user_error(["productId"]),
               ],
               field,
               fragments,
@@ -9311,7 +9366,7 @@ fn handle_product_options_delete(
               store,
               [],
               None,
-              [ProductUserError(["productId"], "Product not found", None)],
+              [product_does_not_exist_user_error(["productId"])],
               field,
               fragments,
             ),
@@ -9365,7 +9420,7 @@ fn handle_product_options_reorder(
             product_options_reorder_payload(
               store,
               None,
-              [ProductUserError(["productId"], "Product not found", None)],
+              [product_does_not_exist_user_error(["productId"])],
               field,
               fragments,
             ),
@@ -9450,10 +9505,10 @@ fn handle_product_change_status(
                       store,
                       None,
                       [
-                        ProductUserError(
+                        product_user_error(
                           ["productId"],
                           "Product does not exist",
-                          None,
+                          product_user_error_code_product_not_found,
                         ),
                       ],
                       field,
@@ -9581,7 +9636,9 @@ fn handle_product_update(
                 product_update_payload(
                   store,
                   None,
-                  [ProductUserError(["id"], "Product does not exist", None)],
+                  [
+                    ProductUserError(["id"], "Product does not exist", None),
+                  ],
                   field,
                   fragments,
                 ),
@@ -9597,7 +9654,9 @@ fn handle_product_update(
                     product_update_payload(
                       store,
                       None,
-                      [ProductUserError(["id"], "Product does not exist", None)],
+                      [
+                        ProductUserError(["id"], "Product does not exist", None),
+                      ],
                       field,
                       fragments,
                     ),
@@ -16749,7 +16808,7 @@ fn handle_product_variants_bulk_reorder(
             product_variants_bulk_reorder_payload(
               store,
               None,
-              [ProductUserError(["productId"], "Product not found", None)],
+              [product_does_not_exist_user_error(["productId"])],
               field,
               fragments,
             ),
@@ -16973,40 +17032,61 @@ fn handle_inventory_activate(
     Ok(_) -> True
     Error(_) -> False
   }
-  let resolved = case inventory_item_id, location_id {
-    Some(inventory_item_id), Some(location_id) -> {
+  let variant = case inventory_item_id {
+    Some(inventory_item_id) ->
+      store.find_effective_variant_by_inventory_item_id(
+        store,
+        inventory_item_id,
+      )
+    None -> None
+  }
+  let resolved = case inventory_item_id, location_id, variant {
+    Some(_), Some(location_id), Some(variant) ->
       case
-        store.find_effective_variant_by_inventory_item_id(
-          store,
-          inventory_item_id,
-        )
+        find_inventory_level(variant_inventory_levels(variant), location_id)
       {
-        Some(variant) ->
-          case
-            find_inventory_level(variant_inventory_levels(variant), location_id)
-          {
-            Some(level) -> Some(#(variant, level))
-            None -> None
-          }
+        Some(level) -> Some(#(variant, level))
         None -> None
       }
-    }
-    _, _ -> None
+    _, _, _ -> None
   }
-  let user_errors = case resolved, available_supplied {
-    Some(#(_, level)), True -> {
-      case inventory_level_is_active(level) {
-        True -> [
-          ProductUserError(
-            ["available"],
-            "Not allowed to set available quantity when the item is already active at the location.",
-            None,
-          ),
-        ]
-        False -> []
+  let user_errors = case inventory_item_id, location_id, variant {
+    None, _, _ -> [
+      product_user_error(
+        ["inventoryItemId"],
+        "Inventory item does not exist",
+        product_user_error_code_invalid_inventory_item,
+      ),
+    ]
+    Some(_), _, None -> [
+      product_user_error(
+        ["inventoryItemId"],
+        "Inventory item does not exist",
+        product_user_error_code_invalid_inventory_item,
+      ),
+    ]
+    _, None, _ -> [
+      product_user_error(
+        ["locationId"],
+        "Location does not exist",
+        product_user_error_code_invalid_location,
+      ),
+    ]
+    _, _, _ ->
+      case resolved, available_supplied {
+        Some(#(_, level)), True ->
+          case inventory_level_is_active(level) {
+            True -> [
+              ProductUserError(
+                ["available"],
+                "Not allowed to set available quantity when the item is already active at the location.",
+                None,
+              ),
+            ]
+            False -> []
+          }
+        _, _ -> []
       }
-    }
-    _, _ -> []
   }
   let activation_result = case resolved, user_errors {
     Some(#(variant, level)), [] -> {
@@ -17636,7 +17716,8 @@ fn product_update_validation_error(
   case read_string_field(input, "title") {
     Some(title) ->
       case string.length(string.trim(title)) == 0 {
-        True -> Some(ProductUserError(["title"], "Title can't be blank", None))
+        True ->
+          Some(blank_product_user_error(["title"], "Title can't be blank"))
         False -> product_update_handle_validation_error(input)
       }
     None -> product_update_handle_validation_error(input)
@@ -17668,10 +17749,11 @@ fn product_create_validation_error(
   case read_string_field(input, "title") {
     Some(title) ->
       case string.length(string.trim(title)) == 0 {
-        True -> Some(ProductUserError(["title"], "Title can't be blank", None))
+        True ->
+          Some(blank_product_user_error(["title"], "Title can't be blank"))
         False -> product_create_handle_validation_error(input)
       }
-    None -> Some(ProductUserError(["title"], "Title can't be blank", None))
+    None -> Some(blank_product_user_error(["title"], "Title can't be blank"))
   }
 }
 
@@ -17777,9 +17859,7 @@ fn collection_create_validation_errors(
   input: Dict(String, ResolvedValue),
 ) -> List(ProductUserError) {
   let title_errors = case read_non_empty_string_field(input, "title") {
-    None -> [
-      ProductUserError(["input", "title"], "Collection title is required", None),
-    ]
+    None -> [blank_product_user_error(["title"], "Title can't be blank")]
     Some(title) -> collection_title_validation_errors(title)
   }
   list.append(title_errors, collection_handle_validation_errors(input))
@@ -26013,21 +26093,21 @@ fn inventory_set_quantity_bounds_errors(
       ProductUserError(
         list.append(path, ["quantity"]),
         "The quantity can't be higher than 1,000,000,000.",
-        Some("INVALID_QUANTITY_TOO_HIGH"),
+        Some(product_user_error_code_invalid_quantity_too_high),
       ),
     ]
     quantity if quantity < min_inventory_quantity -> [
       ProductUserError(
         list.append(path, ["quantity"]),
         "The quantity can't be lower than -1,000,000,000.",
-        Some("INVALID_QUANTITY_TOO_LOW"),
+        Some(product_user_error_code_invalid_quantity_too_low),
       ),
     ]
     quantity if quantity < 0 -> [
       ProductUserError(
         list.append(path, ["quantity"]),
         "The quantity can't be negative.",
-        Some("INVALID_QUANTITY_NEGATIVE"),
+        Some(product_user_error_code_invalid_quantity_negative),
       ),
     ]
     _ -> []
@@ -26043,14 +26123,14 @@ fn inventory_quantity_bounds_errors(
       ProductUserError(
         path,
         "The quantity can't be higher than 1,000,000,000.",
-        Some("INVALID_QUANTITY_TOO_HIGH"),
+        Some(product_user_error_code_invalid_quantity_too_high),
       ),
     ]
     quantity if quantity < min_inventory_quantity -> [
       ProductUserError(
         path,
         "The quantity can't be lower than -1,000,000,000.",
-        Some("INVALID_QUANTITY_TOO_LOW"),
+        Some(product_user_error_code_invalid_quantity_too_low),
       ),
     ]
     _ -> []
@@ -26864,7 +26944,7 @@ fn invalid_inventory_set_quantity_name_error() -> ProductUserError {
   ProductUserError(
     ["input", "name"],
     "The quantity name must be either 'available' or 'on_hand'.",
-    Some("INVALID_NAME"),
+    Some(product_user_error_code_invalid_name),
   )
 }
 

@@ -1,8 +1,8 @@
 pub const invalid = "INVALID"
 
-pub const duplicated_fulfillment_order_line_items = "DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"
-
 pub const duplicate_fulfillment_hold_handle = "DUPLICATE_FULFILLMENT_HOLD_HANDLE"
+
+pub const duplicated_fulfillment_order_line_items = "DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"
 
 pub const fulfillment_order_hold_limit_reached = "FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"
 

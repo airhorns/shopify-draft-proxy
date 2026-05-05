@@ -274,6 +274,53 @@ pub fn product_options_delete_restores_default_option_state_test() {
     == 1
 }
 
+pub fn product_user_error_shape_validation_branches_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { productCreate(product: { title: \\\"\\\" }) { product { id } userErrors { field message code } } }",
+      ),
+    )
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+
+  let #(Response(status: options_status, body: options_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { productOptionsDelete(productId: \\\"gid://shopify/Product/missing\\\", options: [\\\"gid://shopify/ProductOption/missing\\\"]) { deletedOptionsIds product { id } userErrors { field message code } } }",
+      ),
+    )
+  assert options_status == 200
+  assert json.to_string(options_body)
+    == "{\"data\":{\"productOptionsDelete\":{\"deletedOptionsIds\":[],\"product\":null,\"userErrors\":[{\"field\":[\"productId\"],\"message\":\"Product does not exist\",\"code\":\"PRODUCT_DOES_NOT_EXIST\"}]}}}"
+
+  let #(Response(status: collection_status, body: collection_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { collectionCreate(input: { title: \\\"\\\" }) { collection { id } userErrors { field message code } } }",
+      ),
+    )
+  assert collection_status == 200
+  assert json.to_string(collection_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+
+  let #(Response(status: activate_status, body: activate_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/missing\\\", locationId: \\\"gid://shopify/Location/missing\\\") { inventoryLevel { id } userErrors { field message code } } }",
+      ),
+    )
+  assert activate_status == 200
+  assert json.to_string(activate_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"inventoryItemId\"],\"message\":\"Inventory item does not exist\",\"code\":\"INVALID_INVENTORY_ITEM\"}]}}}"
+}
+
 pub fn product_options_reorder_reorders_variants_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())

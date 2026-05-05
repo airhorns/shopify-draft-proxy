@@ -1,0 +1,13 @@
+mutation ProductUserErrorShapeProductOptionsDelete($productId: ID!, $options: [ID!]!) {
+  productOptionsDelete(productId: $productId, options: $options) {
+    deletedOptionsIds
+    product {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

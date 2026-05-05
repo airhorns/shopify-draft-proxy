@@ -1,0 +1,12 @@
+mutation ProductUserErrorShapeProductOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
+  productOptionsCreate(productId: $productId, options: $options) {
+    product {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
