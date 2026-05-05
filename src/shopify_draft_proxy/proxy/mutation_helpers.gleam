@@ -33,8 +33,8 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Argument, type Location, type Selection, Argument, Field, ListValue,
-  NullValue, ObjectValue, StringValue, VariableValue,
+  type Argument, type Location, type Selection, Argument, EnumValue, Field,
+  ListValue, NullValue, ObjectValue, StringValue, VariableValue,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parser as graphql_parser
@@ -861,18 +861,27 @@ fn validate_literal_bound_args(
       Argument(name: arg_name, value: value, ..) ->
         case find_schema_arg(mutation.args, arg_name.value) {
           None -> []
-          Some(schema_arg) ->
+          Some(schema_arg) -> {
+            let path = [
+              StringSegment(operation_path),
+              StringSegment(operation_name),
+              StringSegment(arg_name.value),
+            ]
             collect_literal_unknown_field_errors(
               value,
               schema_arg.type_,
               schema,
-              [
-                StringSegment(operation_path),
-                StringSegment(operation_name),
-                StringSegment(arg_name.value),
-              ],
+              path,
               source_body,
             )
+            |> list.append(collect_literal_enum_value_errors(
+              value,
+              schema_arg.type_,
+              schema,
+              path,
+              source_body,
+            ))
+          }
         }
     }
   })
@@ -950,6 +959,115 @@ fn collect_literal_unknown_field_errors(
           }
       }
   }
+}
+
+fn collect_literal_enum_value_errors(
+  value: ast.Value,
+  schema_type: mutation_schema.SchemaType,
+  schema: MutationSchema,
+  path: List(PathSegment),
+  source_body: String,
+) -> List(Json) {
+  case schema_type {
+    mutation_schema.NonNullType(of: inner) ->
+      collect_literal_enum_value_errors(value, inner, schema, path, source_body)
+    mutation_schema.ListType(of: inner) ->
+      case value {
+        ListValue(values: values, ..) ->
+          list.index_map(values, fn(item, index) {
+            collect_literal_enum_value_errors(
+              item,
+              inner,
+              schema,
+              list.append(path, [IntSegment(index)]),
+              source_body,
+            )
+          })
+          |> list.flatten
+        _ -> []
+      }
+    mutation_schema.NamedType(name: type_name) ->
+      case dict.get(enum_value_sets(), type_name) {
+        Ok(allowed) ->
+          validate_literal_enum_value(value, allowed, path, source_body)
+        Error(_) ->
+          case
+            mutation_schema_lookup.get_input_object(schema, type_name),
+            value
+          {
+            Some(io), ObjectValue(fields: fields, ..) ->
+              list.flat_map(fields, fn(object_field) {
+                let ast.ObjectField(name: field_name, value: child, ..) =
+                  object_field
+                case
+                  find_schema_input_field(io.input_fields, field_name.value)
+                {
+                  Some(schema_field) ->
+                    collect_literal_enum_value_errors(
+                      child,
+                      schema_field.type_,
+                      schema,
+                      list.append(path, [StringSegment(field_name.value)]),
+                      source_body,
+                    )
+                  None -> []
+                }
+              })
+            _, _ -> []
+          }
+      }
+  }
+}
+
+fn validate_literal_enum_value(
+  value: ast.Value,
+  allowed: List(String),
+  path: List(PathSegment),
+  source_body: String,
+) -> List(Json) {
+  case value {
+    StringValue(value: raw, loc: loc, ..) | EnumValue(value: raw, loc: loc) ->
+      case list.contains(allowed, raw) {
+        True -> []
+        False -> [
+          build_literal_coercion_error(
+            "Expected \""
+              <> raw
+              <> "\" to be one of: "
+              <> string.join(allowed, ", "),
+            path,
+            loc,
+            source_body,
+          ),
+        ]
+      }
+    _ -> []
+  }
+}
+
+fn build_literal_coercion_error(
+  message: String,
+  path: List(PathSegment),
+  loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [#("message", json.string(message))]
+  let with_locations = case locations_payload(loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #("path", path_segments_to_json(path)),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("CoercionError")),
+        ]),
+      ),
+    ]),
+  )
 }
 
 /// For each top-level arg whose AST value is a `VariableValue`,
@@ -1220,6 +1338,7 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "PRICE_DESC",
     ]),
     #("CountryCode", country_code_values()),
+    #("TaxExemption", tax_exemption_values()),
   ])
 }
 
@@ -1229,6 +1348,83 @@ fn country_code_values() -> List(String) {
 
 fn country_code_values_message() -> String {
   "AF, AX, AL, DZ, AD, AO, AI, AG, AR, AM, AW, AC, AU, AT, AZ, BS, BH, BD, BB, BY, BE, BZ, BJ, BM, BT, BO, BA, BW, BV, BR, IO, BN, BG, BF, BI, KH, CA, CV, BQ, KY, CF, TD, CL, CN, CX, CC, CO, KM, CG, CD, CK, CR, HR, CU, CW, CY, CZ, CI, DK, DJ, DM, DO, EC, EG, SV, GQ, ER, EE, SZ, ET, FK, FO, FJ, FI, FR, GF, PF, TF, GA, GM, GE, DE, GH, GI, GR, GL, GD, GP, GT, GG, GN, GW, GY, HT, HM, VA, HN, HK, HU, IS, IN, ID, IR, IQ, IE, IM, IL, IT, JM, JP, JE, JO, KZ, KE, KI, KP, XK, KW, KG, LA, LV, LB, LS, LR, LY, LI, LT, LU, MO, MG, MW, MY, MV, ML, MT, MQ, MR, MU, YT, MX, MD, MC, MN, ME, MS, MA, MZ, MM, NA, NR, NP, NL, AN, NC, NZ, NI, NE, NG, NU, NF, MK, NO, OM, PK, PS, PA, PG, PY, PE, PH, PN, PL, PT, QA, CM, RE, RO, RU, RW, BL, SH, KN, LC, MF, PM, WS, SM, ST, SA, SN, RS, SC, SL, SG, SX, SK, SI, SB, SO, ZA, GS, KR, SS, ES, LK, VC, SD, SR, SJ, SE, CH, SY, TW, TJ, TZ, TH, TL, TG, TK, TO, TT, TA, TN, TR, TM, TC, TV, UG, UA, AE, GB, US, UM, UY, UZ, VU, VE, VN, VG, WF, EH, YE, ZM, ZW, ZZ"
+}
+
+pub fn tax_exemption_values() -> List(String) {
+  [
+    "CA_STATUS_CARD_EXEMPTION",
+    "CA_BC_RESELLER_EXEMPTION",
+    "CA_MB_RESELLER_EXEMPTION",
+    "CA_SK_RESELLER_EXEMPTION",
+    "CA_DIPLOMAT_EXEMPTION",
+    "CA_BC_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_MB_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_NS_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_PE_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_SK_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION",
+    "CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION",
+    "CA_BC_SUB_CONTRACTOR_EXEMPTION",
+    "CA_SK_SUB_CONTRACTOR_EXEMPTION",
+    "CA_BC_CONTRACTOR_EXEMPTION",
+    "CA_SK_CONTRACTOR_EXEMPTION",
+    "CA_ON_PURCHASE_EXEMPTION",
+    "CA_MB_FARMER_EXEMPTION",
+    "CA_NS_FARMER_EXEMPTION",
+    "CA_SK_FARMER_EXEMPTION",
+    "EU_REVERSE_CHARGE_EXEMPTION_RULE",
+    "US_AL_RESELLER_EXEMPTION",
+    "US_AK_RESELLER_EXEMPTION",
+    "US_AZ_RESELLER_EXEMPTION",
+    "US_AR_RESELLER_EXEMPTION",
+    "US_CA_RESELLER_EXEMPTION",
+    "US_CO_RESELLER_EXEMPTION",
+    "US_CT_RESELLER_EXEMPTION",
+    "US_DE_RESELLER_EXEMPTION",
+    "US_FL_RESELLER_EXEMPTION",
+    "US_GA_RESELLER_EXEMPTION",
+    "US_HI_RESELLER_EXEMPTION",
+    "US_ID_RESELLER_EXEMPTION",
+    "US_IL_RESELLER_EXEMPTION",
+    "US_IN_RESELLER_EXEMPTION",
+    "US_IA_RESELLER_EXEMPTION",
+    "US_KS_RESELLER_EXEMPTION",
+    "US_KY_RESELLER_EXEMPTION",
+    "US_LA_RESELLER_EXEMPTION",
+    "US_ME_RESELLER_EXEMPTION",
+    "US_MD_RESELLER_EXEMPTION",
+    "US_MA_RESELLER_EXEMPTION",
+    "US_MI_RESELLER_EXEMPTION",
+    "US_MN_RESELLER_EXEMPTION",
+    "US_MS_RESELLER_EXEMPTION",
+    "US_MO_RESELLER_EXEMPTION",
+    "US_MT_RESELLER_EXEMPTION",
+    "US_NE_RESELLER_EXEMPTION",
+    "US_NV_RESELLER_EXEMPTION",
+    "US_NH_RESELLER_EXEMPTION",
+    "US_NJ_RESELLER_EXEMPTION",
+    "US_NM_RESELLER_EXEMPTION",
+    "US_NY_RESELLER_EXEMPTION",
+    "US_NC_RESELLER_EXEMPTION",
+    "US_ND_RESELLER_EXEMPTION",
+    "US_OH_RESELLER_EXEMPTION",
+    "US_OK_RESELLER_EXEMPTION",
+    "US_OR_RESELLER_EXEMPTION",
+    "US_PA_RESELLER_EXEMPTION",
+    "US_RI_RESELLER_EXEMPTION",
+    "US_SC_RESELLER_EXEMPTION",
+    "US_SD_RESELLER_EXEMPTION",
+    "US_TN_RESELLER_EXEMPTION",
+    "US_TX_RESELLER_EXEMPTION",
+    "US_UT_RESELLER_EXEMPTION",
+    "US_VT_RESELLER_EXEMPTION",
+    "US_VA_RESELLER_EXEMPTION",
+    "US_WA_RESELLER_EXEMPTION",
+    "US_WV_RESELLER_EXEMPTION",
+    "US_WI_RESELLER_EXEMPTION",
+    "US_WY_RESELLER_EXEMPTION",
+    "US_DC_RESELLER_EXEMPTION",
+  ]
 }
 
 fn build_invalid_variable_problems_error(

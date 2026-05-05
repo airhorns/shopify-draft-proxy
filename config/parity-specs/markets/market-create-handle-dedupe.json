@@ -1,0 +1,54 @@
+{
+  "scenarioId": "market-create-handle-dedupe",
+  "operationNames": ["marketCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-create-handle-dedupe.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-create-handle-dedupe.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-622 live Admin GraphQL 2026-04 capture creates a disposable Europe market, proves exact duplicate names are rejected with TAKEN before handle generation, then creates a distinct Europe! market that slug-collides and receives Shopify's generated handle europe-1. Cleanup deletes the created markets in reverse order. The local proxy replays these marketCreate requests as staged local mutations without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.market.id",
+        "matcher": "shopify-gid:Market",
+        "reason": "The local proxy generates deterministic synthetic Market ids while the capture stores disposable live Shopify Market ids."
+      }
+    ],
+    "targets": [
+      {
+        "name": "first-market-create-handle",
+        "capturePath": "$.cases[0].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate"
+      },
+      {
+        "name": "duplicate-name-rejected-before-handle-dedupe",
+        "capturePath": "$.cases[1].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-create-handle-dedupe.graphql",
+          "variablesCapturePath": "$.cases[1].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "second-market-create-deduped-handle",
+        "capturePath": "$.cases[2].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-create-handle-dedupe.graphql",
+          "variablesCapturePath": "$.cases[2].variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

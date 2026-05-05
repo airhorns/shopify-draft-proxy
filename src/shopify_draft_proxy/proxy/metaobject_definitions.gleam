@@ -36,6 +36,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/metafield_values
+import shopify_draft_proxy/proxy/metaobject_standard_templates_data as standard_templates
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome, read_optional_string,
   single_root_log_draft,
@@ -1046,33 +1047,30 @@ fn handle_definition_delete(
           identity,
         )
         Some(definition) -> {
-          let count = option.unwrap(definition.metaobjects_count, 0)
-          case count > 0 {
-            True -> {
-              let user_error =
-                UserError(
-                  field: Some(["id"]),
-                  message: "Local proxy cannot delete a metaobject definition with associated metaobjects until entry cascade behavior is modeled.",
-                  code: "UNSUPPORTED",
-                  element_key: None,
-                  element_index: None,
-                )
-              #(
-                definition_delete_result(key, field, None, [user_error]),
-                store,
-                identity,
-              )
-            }
-            False -> {
-              let next_store =
-                delete_staged_metaobject_definition(store, definition_id)
-              #(
-                definition_delete_result(key, field, Some(definition_id), []),
-                next_store,
-                identity,
-              )
-            }
-          }
+          let cascaded_metaobject_ids =
+            list_effective_metaobjects_by_type(store, definition.type_)
+            |> list.map(fn(metaobject) { metaobject.id })
+          let store_after_entries =
+            list.fold(cascaded_metaobject_ids, store, fn(acc, metaobject_id) {
+              delete_staged_metaobject(acc, metaobject_id)
+            })
+          let next_store =
+            delete_staged_metaobject_definition(
+              store_after_entries,
+              definition_id,
+            )
+          let staged_ids = list.append([definition_id], cascaded_metaobject_ids)
+          #(
+            definition_delete_result_with_staged_ids(
+              key,
+              field,
+              Some(definition_id),
+              [],
+              staged_ids,
+            ),
+            next_store,
+            identity,
+          )
         }
       }
   }
@@ -1091,13 +1089,7 @@ fn handle_standard_definition_enable(
     None -> {
       let payload =
         definition_payload(field, fragments, None, [
-          UserError(
-            Some(["type"]),
-            "A standard metaobject definition wasn't found for the specified type.",
-            "TEMPLATE_NOT_FOUND",
-            None,
-            None,
-          ),
+          standard_template_record_not_found_error(),
         ])
       #(MutationFieldResult(key, payload, [], [], []), store, identity)
     }
@@ -1106,36 +1098,40 @@ fn handle_standard_definition_enable(
         None -> {
           let payload =
             definition_payload(field, fragments, None, [
-              UserError(
-                Some(["type"]),
-                "A standard metaobject definition wasn't found for the specified type.",
-                "TEMPLATE_NOT_FOUND",
-                None,
-                None,
-              ),
+              standard_template_record_not_found_error(),
             ])
           #(MutationFieldResult(key, payload, [], [], []), store, identity)
         }
         Some(template) -> {
-          let #(definition, next_identity) = case
-            find_effective_metaobject_definition_by_type(store, type_)
-          {
-            Some(existing) -> #(existing, identity)
-            None -> build_standard_definition(identity, template)
+          case find_effective_metaobject_definition_by_type(store, type_) {
+            Some(existing) -> {
+              let payload =
+                definition_payload(field, fragments, Some(existing), [])
+              #(MutationFieldResult(key, payload, [], [], []), store, identity)
+            }
+            None -> {
+              let #(definition, next_identity) =
+                build_standard_definition(identity, template)
+              let #(staged, next_store) =
+                upsert_staged_metaobject_definition(store, definition)
+              let payload =
+                definition_payload(field, fragments, Some(staged), [])
+              #(
+                MutationFieldResult(key, payload, [staged.id], [], [
+                  log_draft("standardMetaobjectDefinitionEnable", [staged.id]),
+                ]),
+                next_store,
+                next_identity,
+              )
+            }
           }
-          let #(staged, next_store) =
-            upsert_staged_metaobject_definition(store, definition)
-          let payload = definition_payload(field, fragments, Some(staged), [])
-          #(
-            MutationFieldResult(key, payload, [staged.id], [], [
-              log_draft("standardMetaobjectDefinitionEnable", [staged.id]),
-            ]),
-            next_store,
-            next_identity,
-          )
         }
       }
   }
+}
+
+fn standard_template_record_not_found_error() -> UserError {
+  UserError(Some(["type"]), "Record not found", "RECORD_NOT_FOUND", None, None)
 }
 
 fn handle_metaobject_create(
@@ -2951,44 +2947,20 @@ fn is_app_reserved_resolved_definition_type(type_: String) -> Bool {
 
 fn standard_template(
   type_: String,
-) -> Option(#(String, String, String, List(MetaobjectFieldDefinitionRecord))) {
-  case type_ {
-    "shopify--qa-pair" ->
-      Some(
-        #("shopify--qa-pair", "Q&A pair", "question", [
-          MetaobjectFieldDefinitionRecord(
-            "question",
-            Some("Question"),
-            None,
-            Some(True),
-            MetaobjectDefinitionTypeRecord(
-              "single_line_text_field",
-              Some("TEXT"),
-            ),
-            [],
-          ),
-          MetaobjectFieldDefinitionRecord(
-            "answer",
-            Some("Answer"),
-            None,
-            Some(True),
-            MetaobjectDefinitionTypeRecord(
-              "multi_line_text_field",
-              Some("TEXT"),
-            ),
-            [],
-          ),
-        ]),
-      )
-    _ -> None
+) -> Option(standard_templates.StandardMetaobjectTemplate) {
+  case
+    standard_templates.templates()
+    |> list.find(fn(template) { template.type_ == type_ })
+  {
+    Ok(template) -> Some(template)
+    Error(_) -> None
   }
 }
 
 fn build_standard_definition(
   identity: SyntheticIdentityRegistry,
-  template: #(String, String, String, List(MetaobjectFieldDefinitionRecord)),
+  template: standard_templates.StandardMetaobjectTemplate,
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry) {
-  let #(type_, name, display_name_key, fields) = template
   let #(id, after_id) =
     synthetic_identity.make_proxy_synthetic_gid(
       identity,
@@ -2998,18 +2970,18 @@ fn build_standard_definition(
   #(
     MetaobjectDefinitionRecord(
       id: id,
-      type_: type_,
-      name: Some(name),
-      description: None,
-      display_name_key: Some(display_name_key),
-      access: default_definition_access(),
-      capabilities: default_definition_capabilities(),
-      field_definitions: fields,
-      has_thumbnail_field: Some(False),
+      type_: template.type_,
+      name: Some(template.name),
+      description: template.description,
+      display_name_key: Some(template.display_name_key),
+      access: template.access,
+      capabilities: template.capabilities,
+      field_definitions: template.field_definitions,
+      has_thumbnail_field: template.has_thumbnail_field,
       metaobjects_count: Some(0),
       standard_template: Some(MetaobjectStandardTemplateRecord(
-        Some(type_),
-        Some(name),
+        Some(template.type_),
+        Some(template.name),
       )),
       created_at: Some(now),
       updated_at: Some(now),
@@ -4829,6 +4801,22 @@ fn definition_delete_result(
   deleted_id: Option(String),
   user_errors: List(UserError),
 ) -> MutationFieldResult {
+  definition_delete_result_with_staged_ids(
+    key,
+    field,
+    deleted_id,
+    user_errors,
+    option_string_to_list(deleted_id),
+  )
+}
+
+fn definition_delete_result_with_staged_ids(
+  key: String,
+  field: Selection,
+  deleted_id: Option(String),
+  user_errors: List(UserError),
+  staged_resource_ids: List(String),
+) -> MutationFieldResult {
   let source =
     src_object([
       #("deletedId", graphql_helpers.option_string_source(deleted_id)),
@@ -4837,10 +4825,12 @@ fn definition_delete_result(
   MutationFieldResult(
     key,
     project_selection(source, field, dict.new()),
-    option_string_to_list(deleted_id),
+    staged_resource_ids,
     [],
     case deleted_id {
-      Some(id) -> [log_draft("metaobjectDefinitionDelete", [id])]
+      Some(_) -> [
+        log_draft("metaobjectDefinitionDelete", staged_resource_ids),
+      ]
       None -> []
     },
   )

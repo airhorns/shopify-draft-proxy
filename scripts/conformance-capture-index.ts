@@ -77,7 +77,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-lifecycle-conformance.mts',
     purpose:
-      'B2B company lifecycle, customer-as-contact assignment, main-contact assignment/revocation, bulk delete, explicit delete, and post-delete empty reads.',
+      'B2B company lifecycle, customer-as-contact assignment, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads.',
     requiredAuthScopes: ['read_companies', 'write_companies', 'read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-company-contact-main-delete.json`,
@@ -906,6 +906,42 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-delete-cascade',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-delete-cascade-conformance.ts',
+    purpose:
+      'Metaobject definition delete cascade with two associated entries plus immediate downstream definition, id, handle, and type-catalog reads.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-delete-cascade.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-delete-cascade.json',
+      'config/parity-requests/metaobjects/metaobject-definition-delete-cascade-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable definition and two rows, deletes the definition during the scenario, then best-effort deletes any remaining rows/definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'standard-metaobject-definition-enable-catalog',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',
+    purpose:
+      'Standard metaobject definition template catalog, successful enablement, unknown-template RECORD_NOT_FOUND, idempotent duplicate enable, and read-after-enable behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-metaobject-templates.json`,
+      `${CAPTURE_ROOT}standard-metaobject-definition-enable-catalog.json`,
+      'src/shopify_draft_proxy/proxy/metaobject_standard_templates_data.gleam',
+      'config/parity-specs/metaobjects/standard-metaobject-definition-enable-catalog.json',
+      'config/parity-requests/metaobjects/standard-metaobject-definition-enable-*.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily enables standard definitions on the disposable shop, captures their payloads, and deletes every created definition after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-field-validation-matrix',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-field-validation-matrix-conformance.ts',
@@ -1170,6 +1206,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/product-contextual-pricing-price-list-read.json',
     ],
     cleanupBehavior: 'Adds a disposable product fixed price to the Mexico price list, then deletes it after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'market-create-handle-dedupe',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-handle-dedupe-conformance.mts',
+    purpose: 'marketCreate generated handle slug dedupe for distinct names that collide after Shopify slugification.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-create-handle-dedupe.json`,
+      'config/parity-specs/markets/market-create-handle-dedupe.json',
+      'config/parity-requests/markets/market-create-handle-dedupe.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable Europe and Europe! markets, records duplicate-name validation and generated handle dedupe, then deletes created markets in reverse creation order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

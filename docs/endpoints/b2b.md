@@ -74,9 +74,13 @@ catalog state. `companyAssignCustomerAsContact` stores the provided customer ID
 as that contact reference only after resolving the customer from the effective
 local customer registry. It rejects unknown customers, customers without an
 email address, duplicate customer/contact assignments on the same company, and
-companies that have reached the 10,000-contact cap. `companyRevokeMainContact`
-clears all local `isMainContact` flags and downstream `Company.mainContact`
-reads return `null`, matching the captured Shopify 2026-04 behavior.
+companies that have reached the 10,000-contact cap. Main-contact lifecycle
+stores a single `Company.mainContactId` pointer; returned
+`CompanyContact.isMainContact` values are derived from that pointer.
+`companyRevokeMainContact` clears only the company pointer and downstream
+`Company.mainContact` reads return `null`, matching the captured Shopify
+2026-04 behavior. `companyAssignMainContact` returns `INVALID_INPUT` when the
+provided contact belongs to a different company.
 
 Contact create/update inputs are prepared before staging to mirror Shopify's
 B2B contact input handling. Supported local paths normalize valid phone numbers
@@ -114,7 +118,12 @@ Company location tax settings are written by
 `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`
 shape. The proxy also preserves the earlier flat fields used by local tests for
 compatibility with the staged record data, but `taxSettings` is the
-live-captured 2026-04 readback shape.
+live-captured 2026-04 readback shape. The flat mutation arguments follow
+Shopify's validation boundary: invalid `TaxExemption` variable values are
+rejected as top-level GraphQL `INVALID_VARIABLE` errors before the local
+resolver runs, an update with no tax settings knob returns `NO_INPUT` at
+`companyLocationId`, and explicit `taxExempt: null` returns `INVALID_INPUT` at
+`taxExempt`.
 
 Company location create/update input validation enforces HAR-612's
 `billingSameAsShipping` and `billingAddress` guardrails before local staging:
