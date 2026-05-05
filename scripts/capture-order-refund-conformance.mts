@@ -37,6 +37,7 @@ const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion,
 const partialFixturePath = path.join(fixtureDir, 'refund-create-partial-shipping-restock-parity.json');
 const fullFixturePath = path.join(fixtureDir, 'refund-create-full-parity.json');
 const overRefundFixturePath = path.join(fixtureDir, 'refund-create-over-refund-user-errors.json');
+const userErrorsAndQuantitiesFixturePath = path.join(fixtureDir, 'refund-create-user-errors-and-quantities.json');
 const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -157,6 +158,73 @@ function makeOrderVariables(stamp: number, scenario: string, lineItemQuantity = 
   };
 }
 
+function makeUserErrorsOrderVariables(stamp: number): Record<string, unknown> {
+  return {
+    order: {
+      email: `hermes-refund-user-errors-${stamp}@example.com`,
+      note: 'refundCreate userErrors and quantities parity seed order',
+      tags: ['parity-probe', 'refund-create', 'user-errors-and-quantities'],
+      test: true,
+      shippingLines: [
+        {
+          title: 'Standard',
+          code: 'STANDARD',
+          source: 'hermes-refund-parity',
+          priceSet: {
+            shopMoney: {
+              amount: '5.00',
+              currencyCode: 'CAD',
+            },
+          },
+        },
+      ],
+      lineItems: [
+        {
+          title: `Hermes refundable line A ${stamp}`,
+          quantity: 2,
+          priceSet: {
+            shopMoney: {
+              amount: '10.00',
+              currencyCode: 'CAD',
+            },
+          },
+          requiresShipping: true,
+          taxable: false,
+          sku: `hermes-refund-a-${stamp}`,
+        },
+        {
+          title: `Hermes refundable line B ${stamp}`,
+          quantity: 2,
+          priceSet: {
+            shopMoney: {
+              amount: '10.00',
+              currencyCode: 'CAD',
+            },
+          },
+          requiresShipping: true,
+          taxable: false,
+          sku: `hermes-refund-b-${stamp}`,
+        },
+      ],
+      transactions: [
+        {
+          kind: 'SALE',
+          status: 'SUCCESS',
+          gateway: 'manual',
+          test: true,
+          amountSet: {
+            shopMoney: {
+              amount: '45.00',
+              currencyCode: 'CAD',
+            },
+          },
+        },
+      ],
+    },
+    options: null,
+  };
+}
+
 const orderCreateMutation = `#graphql
   mutation RefundCaptureOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
     orderCreate(order: $order, options: $options) {
@@ -173,6 +241,7 @@ const orderCreateMutation = `#graphql
         subtotalPriceSet { shopMoney { amount currencyCode } }
         currentTotalPriceSet { shopMoney { amount currencyCode } }
         totalPriceSet { shopMoney { amount currencyCode } }
+        totalReceivedSet { shopMoney { amount currencyCode } }
         totalRefundedSet { shopMoney { amount currencyCode } }
         shippingLines(first: 5) {
           nodes {
@@ -186,6 +255,7 @@ const orderCreateMutation = `#graphql
             id
             title
             quantity
+            currentQuantity
             sku
             variantTitle
             originalUnitPriceSet { shopMoney { amount currencyCode } }
@@ -201,6 +271,28 @@ const orderCreateMutation = `#graphql
         refunds {
           id
           note
+          totalRefundedSet { shopMoney { amount currencyCode } }
+          refundLineItems(first: 5) {
+            nodes {
+              id
+              quantity
+              restockType
+              lineItem {
+                id
+                title
+              }
+              subtotalSet { shopMoney { amount currencyCode } }
+            }
+          }
+          transactions(first: 5) {
+            nodes {
+              id
+              kind
+              status
+              gateway
+              amountSet { shopMoney { amount currencyCode } }
+            }
+          }
         }
         returns(first: 5) {
           nodes { id status }
@@ -282,6 +374,87 @@ const orderReadAfterRefund = `#graphql
   }
 `;
 
+const orderHydrateRead = `#graphql
+  query OrdersOrderHydrateCapture($id: ID!) {
+    order(id: $id) {
+      id
+      name
+      createdAt
+      updatedAt
+      displayFinancialStatus
+      displayFulfillmentStatus
+      note
+      tags
+      totalOutstandingSet { shopMoney { amount currencyCode } }
+      totalReceivedSet { shopMoney { amount currencyCode } }
+      totalRefundedSet { shopMoney { amount currencyCode } }
+      currentTotalPriceSet { shopMoney { amount currencyCode } }
+      totalPriceSet { shopMoney { amount currencyCode } }
+      shippingLines(first: 5) {
+        nodes {
+          id
+          title
+          code
+          source
+          originalPriceSet { shopMoney { amount currencyCode } }
+          discountedPriceSet { shopMoney { amount currencyCode } }
+        }
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          title
+          name
+          quantity
+          currentQuantity
+          sku
+          variantTitle
+          originalUnitPriceSet { shopMoney { amount currencyCode } }
+          originalTotalSet { shopMoney { amount currencyCode } }
+          variant { id title sku }
+        }
+      }
+      transactions {
+        id
+        kind
+        status
+        gateway
+        amountSet { shopMoney { amount currencyCode } }
+      }
+      refunds {
+        id
+        note
+        totalRefundedSet { shopMoney { amount currencyCode } }
+        refundLineItems(first: 10) {
+          nodes {
+            id
+            quantity
+            restockType
+            lineItem {
+              id
+              title
+            }
+            subtotalSet { shopMoney { amount currencyCode } }
+          }
+        }
+        transactions(first: 10) {
+          nodes {
+            id
+            kind
+            status
+            gateway
+            amountSet { shopMoney { amount currencyCode } }
+          }
+        }
+      }
+      returns(first: 5) {
+        nodes { id status }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  }
+`;
+
 async function captureScenario({
   scenario,
   lineItemQuantity,
@@ -292,6 +465,9 @@ async function captureScenario({
   const orderVariables = makeOrderVariables(stamp, scenario, lineItemQuantity);
   const orderCreate = await runGraphql(orderCreateMutation, orderVariables);
   const order = orderCreate.payload?.data?.orderCreate?.order;
+  if (!order?.id) {
+    throw new Error(`Missing ${scenario}.order.id from orderCreate response: ${JSON.stringify(orderCreate.payload)}`);
+  }
   const orderId = requirePath(order?.id, `${scenario}.order.id`);
   const lineItemId = requirePath(order?.lineItems?.nodes?.[0]?.id, `${scenario}.lineItem.id`);
   const saleTransactionId = order?.transactions?.[0]?.id ?? null;
@@ -330,6 +506,21 @@ async function captureScenario({
       variables: { id: orderId },
       response: downstreamRead.payload,
     },
+    upstreamCalls: [
+      {
+        operationName: 'OrdersOrderHydrate',
+        variables: { id: orderId },
+        query: 'hand-synthesized from checked-in setup orderCreate response for refundCreate Pattern 2 hydration',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              order,
+            },
+          },
+        },
+      },
+    ],
   });
 
   return {
@@ -432,6 +623,165 @@ const overRefund = await captureScenario({
   }),
 });
 
+async function captureUserErrorsAndQuantities(): Promise<Record<string, unknown>> {
+  const stamp = Date.now();
+  const orderVariables = makeUserErrorsOrderVariables(stamp);
+  const orderCreate = await runGraphql(orderCreateMutation, orderVariables);
+  const order = orderCreate.payload?.data?.orderCreate?.order;
+  const orderId = requirePath(order?.id, 'userErrorsAndQuantities.order.id');
+  const lineItemAId = requirePath(order?.lineItems?.nodes?.[0]?.id, 'userErrorsAndQuantities.lineItemA.id');
+  const saleTransactionId = order?.transactions?.[0]?.id ?? null;
+  const initialRefundVariables = {
+    input: {
+      orderId,
+      note: 'initial partial refund for line A',
+      notify: false,
+      refundLineItems: [
+        {
+          lineItemId: lineItemAId,
+          quantity: 1,
+          restockType: 'NO_RESTOCK',
+        },
+      ],
+      transactions: [
+        {
+          amount: '10.00',
+          gateway: 'manual',
+          kind: 'REFUND',
+          orderId,
+          parentId: saleTransactionId,
+        },
+      ],
+    },
+  };
+  const initialRefund = await runGraphql(refundCreateMutation, initialRefundVariables);
+  const hydrateOrder = await runGraphql(orderHydrateRead, { id: orderId });
+  const hydratedOrder = requirePath(hydrateOrder.payload?.data?.order, 'userErrorsAndQuantities.hydratedOrder');
+  const unknownOrderVariables = {
+    input: {
+      orderId: `gid://shopify/Order/999999${stamp}`,
+    },
+  };
+  const unknownOrder = await runGraphql(refundCreateMutation, unknownOrderVariables);
+  const overRefundQuantityVariables = {
+    input: {
+      orderId,
+      note: 'invalid over refundable line quantity',
+      notify: false,
+      allowOverRefunding: true,
+      refundLineItems: [
+        {
+          lineItemId: lineItemAId,
+          quantity: 3,
+          restockType: 'NO_RESTOCK',
+        },
+      ],
+    },
+  };
+  const overRefundQuantityLineItem = await runGraphql(refundCreateMutation, overRefundQuantityVariables);
+  const overRefundAmountVariables = {
+    input: {
+      orderId,
+      note: 'invalid over refund amount',
+      notify: false,
+      transactions: [
+        {
+          amount: '999.00',
+          gateway: 'manual',
+          kind: 'REFUND',
+          orderId,
+          parentId: saleTransactionId,
+        },
+      ],
+    },
+  };
+  const overRefundAmountNoAllow = await runGraphql(refundCreateMutation, overRefundAmountVariables);
+  const overRefundAllowedVariables = {
+    input: {
+      ...overRefundAmountVariables.input,
+      allowOverRefunding: true,
+      note: 'allowed over refund amount',
+    },
+  };
+  const overRefundAllowed = await runGraphql(refundCreateMutation, overRefundAllowedVariables);
+
+  await writeJson(userErrorsAndQuantitiesFixturePath, {
+    setup: {
+      orderCreate: {
+        variables: orderVariables,
+        response: orderCreate.payload,
+      },
+      initialRefund: {
+        variables: initialRefundVariables,
+        response: initialRefund.payload,
+      },
+      hydrateOrder: {
+        variables: { id: orderId },
+        response: hydrateOrder.payload,
+      },
+    },
+    unknownOrder: {
+      variables: unknownOrderVariables,
+      response: unknownOrder.payload,
+    },
+    overRefundQuantityLineItem: {
+      variables: overRefundQuantityVariables,
+      response: overRefundQuantityLineItem.payload,
+    },
+    overRefundAmountNoAllow: {
+      variables: overRefundAmountVariables,
+      response: overRefundAmountNoAllow.payload,
+    },
+    overRefundAllowed: {
+      variables: overRefundAllowedVariables,
+      response: overRefundAllowed.payload,
+    },
+    upstreamCalls: [
+      {
+        operationName: 'OrdersOrderHydrate',
+        variables: {
+          id: unknownOrderVariables.input.orderId,
+        },
+        query: 'captured unknown order hydrate for refundCreate userErrors and quantities',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              order: null,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'OrdersOrderHydrate',
+        variables: { id: orderId },
+        query: 'captured post-initial-refund order hydrate for refundCreate userErrors and quantities',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              order: hydratedOrder,
+            },
+          },
+        },
+      },
+    ],
+  });
+
+  return {
+    scenario: 'user-errors-and-quantities',
+    fixturePath: userErrorsAndQuantitiesFixturePath,
+    orderId,
+    unknownOrderUserErrors: unknownOrder.payload?.data?.refundCreate?.userErrors ?? null,
+    overRefundQuantityUserErrors: overRefundQuantityLineItem.payload?.data?.refundCreate?.userErrors ?? null,
+    overRefundAmountUserErrors: overRefundAmountNoAllow.payload?.data?.refundCreate?.userErrors ?? null,
+    overRefundAllowedUserErrors: overRefundAllowed.payload?.data?.refundCreate?.userErrors ?? null,
+    overRefundAllowedRefundId: overRefundAllowed.payload?.data?.refundCreate?.refund?.id ?? null,
+  };
+}
+
+const userErrorsAndQuantities = await captureUserErrorsAndQuantities();
+
 console.log(
   JSON.stringify(
     {
@@ -439,6 +789,7 @@ console.log(
       partial,
       full,
       overRefund,
+      userErrorsAndQuantities,
     },
     null,
     2,
