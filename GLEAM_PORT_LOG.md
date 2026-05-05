@@ -9,7 +9,52 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-05 - Pass 205: HAR-571 fulfillment service delete transfer contract
+## 2026-05-05 - Pass 210: HAR-486 review feedback cleanup
+
+Addresses follow-up review on the final cutover PR now that the Gleam runtime is
+the repository authority.
+
+| Module / area                                                           | Change                                                                                               |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `.agents/skills/gleam-port/`                                            | Removes the obsolete incremental-port skill and references now that final cutover is underway.       |
+| `src/shopify_draft_proxy/proxy/operation_registry_data.gleam`           | Becomes the single operation-registry source of truth.                                               |
+| `config/operation-registry.json` / `scripts/sync-operation-registry.sh` | Deletes the duplicated JSON registry and the generator that previously mirrored JSON into Gleam.     |
+| `scripts/support/operation-registry.ts`                                 | Reads and validates the checked-in Gleam registry source for TypeScript conformance/status tooling.  |
+| `docs/endpoints/**`                                                     | Removes endpoint validation bullets that only pointed at the generic parity runner path.             |
+| `package.json` / registry tests                                         | Repoints `gleam:registry:check` at the Gleam source parser and operation-registry executable checks. |
+
+Validation:
+
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm typecheck`
+- `corepack pnpm test` (8 files passed; 1505 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm vitest run tests/unit/order-editing-live-support.test.ts`
+- `corepack pnpm conformance:check` (1487 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
+  (411/411 strict parity scenarios, 0 capture-only)
+- `corepack pnpm gleam:port:coverage` (411 strict executable parity specs)
+- `corepack pnpm gleam:test:js` (902 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
+  (OTP 28, 893 passed)
+- `corepack pnpm build`
+- `corepack pnpm gleam:smoke:js` (5 passed)
+- `corepack pnpm elixir:smoke` (17 passed, 1 live test excluded)
+- `git diff --check && git diff --cached --check`
+
+### Findings
+
+- No runtime or JS shim code imports `koa` or `@koa/router`; the removed package
+  dependencies are no longer needed after the Node HTTP adapter cutover.
+- The operation-registry JSON was only a tooling data source after runtime
+  cutover. TypeScript tooling now reads the Gleam data module directly, so there
+  is one checked-in registry to maintain.
+
+---
+
+## 2026-05-05 - Pass 209: HAR-571 fulfillment service delete transfer contract
 
 Aligns `fulfillmentServiceDelete` local staging with the destination-location
 contract required for transfer deletes and keeps fulfillment-order downstream
@@ -17,11 +62,11 @@ reads coherent after a service is removed.
 
 | Module / fixture                                                                                                                                                                                                    | Change                                                                                                                                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam`                                                                                                                                                   | Parses `inventoryAction`, validates `destinationLocationId` for TRANSFER against active merchant-managed locations, returns the captured invalid-destination userError shape, and stages fulfillment-order effects. |
-| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam`                                                                                                                                             | Adds focused coverage for missing/invalid TRANSFER destinations, TRANSFER reassignment, KEEP closure, and selected `userErrors.code`.                                                                               |
+| `src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam`                                                                                                                                                         | Parses `inventoryAction`, validates `destinationLocationId` for TRANSFER against active merchant-managed locations, returns the captured invalid-destination userError shape, and stages fulfillment-order effects. |
+| `test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam`                                                                                                                                                   | Adds focused coverage for missing/invalid TRANSFER destinations, TRANSFER reassignment, KEEP closure, and selected `userErrors.code`.                                                                               |
 | `scripts/capture-fulfillment-service-delete-transfer-conformance.ts` / `scripts/conformance-capture-index.ts`                                                                                                       | Adds aggregate-indexed live capture for invalid destination and valid transfer delete evidence on Admin GraphQL 2026-04.                                                                                            |
 | `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-delete-transfer.json` / `config/parity-specs/shipping-fulfillments/fulfillment-service-delete-transfer.json` | Records executable parity evidence for the captured invalid-destination userError and valid transfer delete branch.                                                                                                 |
-| `config/operation-registry.json` / `gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam`                                                                                                              | Updates the support notes and regenerated Gleam registry mirror for the stronger delete contract.                                                                                                                   |
+| `src/shopify_draft_proxy/proxy/operation_registry_data.gleam`                                                                                                                                                       | Updates the support notes for the stronger delete contract.                                                                                                                                                         |
 | `docs/endpoints/shipping-fulfillments.md`                                                                                                                                                                           | Documents the supported destination validation, local reassignment/closure effects, and remaining inventory-quantity fixture boundary.                                                                              |
 
 Validation:
@@ -31,12 +76,12 @@ Validation:
   userError shape
 - `corepack pnpm conformance:capture -- --run fulfillment-service-delete-transfer`
 - `corepack pnpm parity:record fulfillment-service-delete-transfer`
-- `cd gleam && gleam test --target javascript -- shipping_fulfillments_test parity_test`
+- `gleam test --target javascript -- shipping_fulfillments_test parity_test`
   (860 passed)
-- `cd gleam && gleam test --target javascript` (860 passed)
-- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+- `gleam test --target javascript` (860 passed)
+- `gleam test --target erlang` failed on host OTP 25 with the
   known `gleam_json` OTP 27+ requirement
-- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
   (OTP 28, 851 passed)
 - `corepack pnpm gleam:format:check`
 - `corepack pnpm conformance:check` (1443 passed)
@@ -76,34 +121,95 @@ Validation:
 
 ---
 
-## 2026-05-04 - Pass 204: HAR-562 order edit user-error payloads
+## 2026-05-05 - Pass 208: HAR-573 fulfillment order cancel parity guardrails
+
+Tightens local `fulfillmentOrderCancel` staging so manually progressed or
+otherwise non-cancellable fulfillment orders return Shopify-shaped user errors
+instead of silently closing and replacing the order, and adds replayable parity
+evidence for the guardrail branches.
+
+| Module / fixture                                                                                                                                                                                                                             | Change                                                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam`                                                                                                                                                                                  | Adds cancel precondition checks for status/requestStatus and local manual-progress markers, emits Shopify-captured field/message values plus locally selected error codes, and preserves successful replacement staging. |
+| `src/shopify_draft_proxy/proxy/orders.gleam`                                                                                                                                                                                                 | Applies the same cancel guard to order-owned fulfillment-order lifecycle mutations and carries the manual-progress marker through report/open transitions.                                                               |
+| `scripts/capture-fulfillment-order-lifecycle-conformance.ts` / `fixtures/conformance/**/shipping-fulfillments/fulfillment-order-lifecycle.json` / `config/parity-specs/shipping-fulfillments/fulfillment-order-lifecycle-local-staging.json` | Captures and replays cancel-after-progress and cancel-after-cancel guardrails so future API-version recording can re-prove parity.                                                                                       |
+| `test/shopify_draft_proxy/proxy/orders_test.gleam` / `test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam`                                                                                                                       | Covers rejected already-cancelled/non-cancellable cancels, rejected manually progress-reported cancels, direct handler behavior, and the existing replacement fulfillment-order read-after-write path.                   |
+| `docs/endpoints/orders.md` / `docs/endpoints/shipping-fulfillments.md` / `docs/hard-and-weird-notes.md`                                                                                                                                      | Documents the HAR-573 cancel boundary, captured user-error payloads, and the closed-after-open/close nuance.                                                                                                             |
+
+Validation:
+
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:probe`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:capture -- --run fulfillment-order-lifecycle`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm parity:record fulfillment-order-lifecycle-local-staging`
+- `gleam test --target javascript -- fulfillment_order_cancel`
+  (858 passed after parity refresh)
+- `gleam test --target javascript` (905 passed after merging
+  `origin/main@0eeb512d`)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 896 passed after merging `origin/main@0eeb512d`)
+- `corepack pnpm conformance:check` (1486 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2350 passed after merging
+  `origin/main@0eeb512d`)
+- `git diff --check`
+
+### Findings
+
+- Shopify returns `field: ["id"]` with
+  `Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.`
+  after manual progress, and `field: null` with the non-cancelable request-state
+  message for a second cancel against an already-cancelled fulfillment order.
+- A fulfillment order can still be cancelable after an open/close sequence, so
+  local guardrails key off request/status plus manual-progress state instead of
+  treating every observed `CLOSED` state as identical.
+- Successful cancel behavior remains local-only staging: the original
+  fulfillment order is closed, its line items are cleared, and an `OPEN`
+  replacement fulfillment order carries the remaining work for downstream
+  mutation/read consistency.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation used the
+  established OTP 28 container fallback.
+- Shopify Admin 2026-04 introspection exposes generic `UserError` for the
+  selected cancel error surface, while this ticket requires the documented
+  code-shaped local values when clients select `code`.
+
+---
+
+## 2026-05-05 - Pass 207: HAR-562 order edit user-error payloads
 
 Aligns the Gleam order-edit handlers with Shopify's mutation payload contract
 for local user-error branches without sending supported mutations upstream.
 
 | Module / fixture                                                                                                                                                              | Change                                                                                                                                                                                                                                                                                                                                       |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                                                                                                                            | Replaces `data.<root>: null` order-edit early-outs with selected payload objects containing nullable resource fields and `userErrors`, adds `INVALID` codes, blocks begin for refunded/voided/cancelled orders, rejects a second open session per order, and prioritizes missing calculated-order sessions before add/set target validation. |
-| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`                                                                                                                      | Adds focused coverage for missing begin order, refunded and locally cancelled begin orders, existing open session rejection, unknown variant, unknown calculated line item, missing calculated-order add/set/commit branches, and successful edit-session add/set flows.                                                                     |
+| `src/shopify_draft_proxy/proxy/orders.gleam`                                                                                                                                  | Replaces `data.<root>: null` order-edit early-outs with selected payload objects containing nullable resource fields and `userErrors`, adds `INVALID` codes, blocks begin for refunded/voided/cancelled orders, rejects a second open session per order, and prioritizes missing calculated-order sessions before add/set target validation. |
+| `test/shopify_draft_proxy/proxy/orders_test.gleam`                                                                                                                            | Adds focused coverage for missing begin order, refunded and locally cancelled begin orders, existing open session rejection, unknown variant, unknown calculated line item, missing calculated-order add/set/commit branches, and successful edit-session add/set flows.                                                                     |
 | `config/parity-specs/orders/orderEdit-lifecycle-userErrors.json` / `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-lifecycle-user-errors.json` | Adds captured strict parity evidence for order-edit missing-resource payload roots.                                                                                                                                                                                                                                                          |
 | `scripts/capture-order-edit-lifecycle-user-errors-conformance.mts` / `scripts/conformance-capture-index.ts`                                                                   | Registers the order-edit user-error capture path in the aggregate conformance index.                                                                                                                                                                                                                                                         |
 | `docs/endpoints/orders.md`                                                                                                                                                    | Updates order-edit coverage notes so concurrent-session, missing-resource, and unknown target user-error branches are no longer listed as open gaps.                                                                                                                                                                                         |
 
 Validation:
 
-- `cd gleam && gleam test --target javascript -- orders_order_edit_begin_user_error_payload_shapes_test orders_order_edit_unknown_resource_user_error_payload_shapes_test orders_order_edit_add_variant_invalid_variant_payload_test orders_order_edit_set_quantity_payload_test orders_order_edit_begin_payload_test orders_order_edit_missing_id_validation_guardrails_test`
+- `gleam test --target javascript -- orders_order_edit_begin_user_error_payload_shapes_test orders_order_edit_unknown_resource_user_error_payload_shapes_test orders_order_edit_add_variant_invalid_variant_payload_test orders_order_edit_set_quantity_payload_test orders_order_edit_begin_payload_test orders_order_edit_missing_id_validation_guardrails_test`
   (853 passed)
 - `corepack pnpm conformance:probe`
 - `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:probe`
 - `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm tsx scripts/capture-order-edit-lifecycle-user-errors-conformance.mts`
 - `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm parity:record orderEdit-lifecycle-userErrors`
-- `cd gleam && gleam test --target javascript -- parity_test` (853 passed)
+- `gleam test --target javascript -- parity_test` (853 passed)
 - `corepack pnpm gleam:format:check`
-- `cd gleam && gleam test --target javascript` (870 passed after merging
+- `gleam test --target javascript` (870 passed after merging
   `origin/main`)
-- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+- `gleam test --target erlang` failed on host OTP 25 with the
   known `gleam_json` OTP 27+ requirement
-- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
   (OTP 28, 861 passed after merging `origin/main`)
 - `corepack pnpm conformance:capture:check` (9 passed)
 - `corepack pnpm conformance:check` (1452 passed)
@@ -131,7 +237,7 @@ Validation:
 
 ---
 
-## 2026-05-04 - Pass 204: HAR-557 articleCreate validation fidelity
+## 2026-05-05 - Pass 207: HAR-557 articleCreate validation fidelity
 
 Aligns Online Store `articleCreate` with Shopify validation behavior for blog
 reference and author input errors before local staging. The handler now rejects
@@ -142,8 +248,8 @@ failure.
 
 | Module / fixture                                                                                                                 | Change                                                                                                                            |
 | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/online_store.gleam`                                                                         | Adds pre-staging articleCreate validation and failed mutation-log outcomes for rejected validation branches.                      |
-| `gleam/test/shopify_draft_proxy/proxy/online_store_test.gleam`                                                                   | Covers missing blog reference, ambiguous blog, missing author, ambiguous author, no-staging behavior, and the valid success path. |
+| `src/shopify_draft_proxy/proxy/online_store.gleam`                                                                               | Adds pre-staging articleCreate validation and failed mutation-log outcomes for rejected validation branches.                      |
+| `test/shopify_draft_proxy/proxy/online_store_test.gleam`                                                                         | Covers missing blog reference, ambiguous blog, missing author, ambiguous author, no-staging behavior, and the valid success path. |
 | `scripts/capture-online-store-article-create-validation-conformance.ts` / `scripts/conformance-capture-index.ts`                 | Adds an aggregate-indexed live capture for the validation branches and valid blogId plus author.name success path.                |
 | `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-article-create-validation.json`           | Records live Shopify validation payloads and disposable blog/article cleanup.                                                     |
 | `config/parity-specs/online-store/online-store-article-create-validation.json` / `config/parity-requests/online-store/*.graphql` | Adds executable parity evidence for the captured validation and success payloads.                                                 |
@@ -154,10 +260,10 @@ Validation:
 - one-off live Admin GraphQL 2025-01 probes for `BLOG_REFERENCE_REQUIRED`,
   `AMBIGUOUS_BLOG`, `AUTHOR_FIELD_REQUIRED`, and `AMBIGUOUS_AUTHOR`
 - `corepack pnpm conformance:capture -- --run online-store-article-create-validation`
-- `cd gleam && gleam test --target javascript -- online_store_test`
-- `cd gleam && gleam test --target javascript -- parity_test`
-- `cd gleam && gleam test --target javascript` (857 passed)
-- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+- `gleam test --target javascript -- online_store_test`
+- `gleam test --target javascript -- parity_test`
+- `gleam test --target javascript` (857 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
   (OTP 28, 848 passed)
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:capture:check`
@@ -182,6 +288,171 @@ Validation:
 ### Risks / open items
 
 - Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-05 - Pass 206: HAR-486 root format check hardening
+
+Hardens the promoted root layout against stale CI cache artifacts from the old
+`gleam/` project directory. CI can restore an ignored `gleam/build` cache before
+linting; the root `gleam:format` scripts now target only checked-in `src` and
+`test` Gleam source trees, and `.gitignore` documents the retired cache path.
+
+| Module / area              | Change                                                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------- |
+| `package.json`             | Narrows `gleam:format` and `gleam:format:check` to `src test`.                         |
+| `.github/workflows/ci.yml` | Moves the Gleam build cache from retired `gleam/build` to root `build`.                |
+| `.gitignore`               | Ignores the retired `gleam/build/` cache path that CI may still restore temporarily.   |
+| `docs/gleam-runtime.md`    | Documents root-layout format commands that avoid generated or cached dependency trees. |
+
+Validation:
+
+- Reproduction before the fix: PR CI run `25350901724` failed in
+  `corepack pnpm lint` because `gleam format --check` traversed restored
+  `./gleam/build/packages/**` dependency files.
+- Fixed stale-cache proof: created an ignored unformatted
+  `gleam/build/packages/stale/src/stale.gleam`; `corepack pnpm
+gleam:format:check` passed because it checks only `src test`; removed the
+  temporary `gleam/` tree afterward.
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm typecheck`
+- `corepack pnpm test` (8 files passed; 1468 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm conformance:check` (1450 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
+  (399/399 strict parity scenarios, 0 capture-only)
+- `corepack pnpm gleam:port:coverage` (399 strict executable parity specs)
+- `corepack pnpm gleam:test:js` (868 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
+  (OTP 28, 859 passed)
+- `corepack pnpm build`
+- `corepack pnpm gleam:smoke:js` (5 passed)
+- `corepack pnpm elixir:smoke` (17 passed, 1 live test excluded)
+- `git diff --check && git diff --cached --check`
+
+### Findings
+
+- Narrowing the format command is preferable to clearing CI caches because it
+  keeps package dependency artifacts outside the project source validation
+  boundary in both local and CI environments.
+- The CI build cache must follow the promoted root layout; otherwise restored
+  cache contents can recreate the retired `gleam/` tree before validation.
+
+### Risks / open items
+
+- Host Erlang is still OTP 25 in this workspace, so local Erlang validation
+  requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 205: HAR-486 root Gleam layout promotion
+
+Moves the promoted Gleam project out of the transitional `gleam/` directory and
+into the repository root so the final cutover layout matches the runtime
+authority documented for HAR-486. The root now owns `gleam.toml`, `manifest.toml`,
+`src/`, `test/`, `js/`, and `elixir_smoke/`; the old `gleam/` directory is
+removed.
+
+| Module / area                                 | Change                                                                                                 |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `src/` / `test/`                              | Move the Gleam runtime and gleeunit coverage to root-level project paths.                              |
+| `js/` / `elixir_smoke/`                       | Move the JavaScript shim and Elixir smoke consumer to root-level package paths.                        |
+| `scripts/sync-*.sh`                           | Move generated-data sync scripts to `scripts/` and regenerate registry/schema Gleam mirrors.           |
+| `package.json` / tests / conformance tooling  | Repoint scripts, fixtures, registry evidence, and integration tests at the root Gleam project layout.  |
+| `AGENTS.md` / `.agents/skills/**` / `docs/**` | Update agent guidance and runtime docs so new work targets the root Gleam project instead of `gleam/`. |
+
+Validation:
+
+- `corepack pnpm typecheck`
+- `corepack pnpm test` (8 files passed; 1452 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm conformance:check` (1434 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
+  (393/393 strict parity scenarios, 0 capture-only)
+- `corepack pnpm gleam:port:coverage` (393 strict executable parity specs)
+- `corepack pnpm gleam:test:js` (855 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
+  (OTP 28, 846 passed)
+- `corepack pnpm build`
+- `corepack pnpm gleam:smoke:js` (5 passed)
+- `corepack pnpm elixir:smoke` (17 passed, 1 live test excluded)
+- `git diff --check`
+
+### Findings
+
+- The root package can now run the Gleam build, JS shim build, parity runner,
+  and Elixir smoke without changing into a nested project directory.
+- Generated registry and mutation-schema mirrors remain deterministic after the
+  script move.
+
+### Risks / open items
+
+- Host Erlang is still OTP 25 in this workspace, so local Erlang validation
+  requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 204: HAR-486 final Gleam runtime cutover
+
+Promotes the Gleam implementation to the repository runtime authority and
+removes the legacy TypeScript proxy runtime. The root package now exports the
+Gleam-backed JavaScript shim under `js/dist`, launch scripts use the Node
+HTTP adapter, and the root `src/` runtime tree is gone. Remaining TypeScript is
+tooling or interop code: conformance capture/report scripts, registry helpers,
+and the JavaScript shim.
+
+| Module / area                                    | Change                                                                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `package.json` / `tsconfig.json`                 | Points package `main`/`types`/exports, dev/start/build/typecheck/test scripts at the Gleam-backed JS shim.    |
+| `src/**`                                         | Deletes the legacy TypeScript app, Koa adapter, proxy dispatcher, domain handlers, state, and store code.     |
+| `scripts/support/**`                             | Moves retained JSON-schema, registry, GraphQL-parser, and Shopify helper code out of root `src`.              |
+| `tests/**`                                       | Removes retired TypeScript runtime tests and keeps JS shim, launch, registry, and conformance tooling checks. |
+| `config/operation-registry.json`                 | Repoints implemented runtime evidence away from deleted TS tests to the executable Gleam parity runner.       |
+| `docs/**` / `README.md` / `GLEAM_PORT_INTENT.md` | Documents that runtime authority is now Gleam and TypeScript is limited to tooling/interop boundaries.        |
+
+Validation:
+
+- `corepack pnpm test` (8 files passed; 1452 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm conformance:check` (1434 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm gleam:registry:check` (666 registry entries in sync)
+- `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
+  (393/393 strict parity scenarios, 0 capture-only)
+- `corepack pnpm gleam:port:coverage` (393 strict executable parity specs)
+- `corepack pnpm build`
+- `corepack pnpm gleam:test:js` (855 passed)
+- `corepack pnpm gleam:test:erlang` failed on host OTP 25 with the known
+  `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
+  (OTP 28, 846 passed)
+- `corepack pnpm gleam:smoke:js` first attempt timed out in one
+  `/__meta/health` interop test after 5s; immediate rerun passed (5 passed)
+- `corepack pnpm elixir:smoke` (17 passed, 1 live test excluded)
+- `git diff --check`
+
+### Findings
+
+- Pass 195 made the final cutover possible: the Gleam parity runner now executes
+  every checked-in parity spec as required evidence with no expected-failure
+  manifest or skipped parity mode.
+- Registry `runtimeTests` cannot keep pointing at deleted TypeScript runtime
+  tests. The final registry evidence path is the strict Gleam parity corpus,
+  and the retained operation-registry test now verifies implemented runtime-test
+  paths exist on disk.
+- The root `src/` tree no longer carries runtime code. TypeScript support code
+  that scripts still need lives under `scripts/support`.
+
+### Risks / open items
+
+- Host Erlang is still OTP 25 in this workspace, so local Erlang validation
   requires the established OTP 28 container fallback.
 
 ---
@@ -406,6 +677,8 @@ Validation:
 - Public Admin API setup cannot create suspended products, and the parity runner
   intentionally has no base-state seed hook. Suspended-product behavior is
   covered by focused Gleam runtime tests instead of a live parity cassette.
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
 
 ---
 

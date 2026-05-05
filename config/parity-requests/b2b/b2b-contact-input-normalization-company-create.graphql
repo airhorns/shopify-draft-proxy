@@ -1,0 +1,21 @@
+mutation HAR614CompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      contacts(first: 5) {
+        nodes {
+          id
+          locale
+          title
+          isMainContact
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

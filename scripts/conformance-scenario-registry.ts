@@ -3,13 +3,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   conformanceScenarioOverridesSchema,
-  operationRegistrySchema,
   parseJsonFileWithSchema,
   paritySpecSchema,
   type ConformanceScenarioOverride,
   type OperationRegistryEntry,
   type ParitySpec,
-} from '../src/json-schemas.js';
+} from './support/json-schemas.js';
+import { loadOperationRegistryFromSource } from './support/operation-registry.js';
 
 export const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -111,7 +111,7 @@ export function loadConformanceScenarios(repoRoot = defaultRepoRoot): Conformanc
 }
 
 export function loadOperationRegistry(repoRoot = defaultRepoRoot): OperationRegistryEntry[] {
-  return parseJsonFileWithSchema(path.join(repoRoot, 'config', 'operation-registry.json'), operationRegistrySchema);
+  return loadOperationRegistryFromSource(repoRoot);
 }
 
 function addScenarioForOperation(
