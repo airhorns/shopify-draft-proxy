@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 201: HAR-557 articleCreate validation fidelity
+## 2026-05-04 - Pass 203: HAR-557 articleCreate validation fidelity
 
 Aligns Online Store `articleCreate` with Shopify validation behavior for blog
 reference and author input errors before local staging. The handler now rejects
@@ -61,6 +61,127 @@ Validation:
 
 - Host Erlang remains OTP 25 in this workspace, so Erlang validation still
   requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 202: HAR-599 BXGY disallowed value validation
+
+Aligns local BXGY validation with live Shopify for `customerGets.value` branch
+selection and subscription purchase flags. Code and automatic BXGY now reject
+`percentage` / `discountAmount` value branches before staging, and both reject
+`customerGets.appliesOnSubscription` / `appliesOnOneTimePurchase` with the
+captured code-vs-automatic messages. Code BXGY also mirrors Shopify's captured
+secondary blank `discountOnQuantity.quantity` userError when the submitted value
+omits `discountOnQuantity`.
+
+| Module / fixture                                                                                                      | Change                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/discounts.gleam`                                                                 | Adds BXGY value-branch, missing discount-on-quantity quantity, and subscription-flag guardrails.                       |
+| `gleam/test/shopify_draft_proxy/proxy/discounts_test.gleam`                                                           | Covers code and automatic create/update validation for value branches and subscription flags.                          |
+| `scripts/capture-discount-bxgy-disallowed-value-shapes-conformance.ts` / `scripts/conformance-capture-index.ts`       | Adds an aggregate-indexed capture that creates two temporary products, records rejected BXGY branches, then cleans up. |
+| `config/parity-specs/discounts/discount-bxgy-disallowed-value-shapes.json` / matching request and conformance fixture | Adds executable strict JSON parity for the captured userErrors.                                                        |
+| `docs/endpoints/discounts.md`                                                                                         | Documents the captured BXGY validation boundary and capture script.                                                    |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `corepack pnpm conformance:capture -- --run discount-bxgy-disallowed-value-shapes`
+- `cd gleam && gleam test --target javascript -- discounts_test parity_test`
+- `cd gleam && gleam test --target erlang -- discounts_test parity_test` failed on
+  host OTP 25 with the known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- discounts_test parity_test'`
+  (OTP 28, 847 passed)
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (856 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 847 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2298 passed)
+- `git diff --check`
+
+### Findings
+
+- Live 2026-04 Shopify returns `Only discountOnQuantity permitted with bxgy
+discounts.`, not the older wording in the ticket body.
+- Live 2026-04 Shopify rejects automatic BXGY `customerGets` subscription flags
+  with an automatic-specific unsupported-field message, so the local proxy now
+  treats those fields as invalid for both code and automatic BXGY.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 201: HAR-601 productSet validator and async operation fidelity
+
+Aligns `productSet` with captured Shopify guardrails for shape validation,
+existing-product references, and asynchronous `ProductSetOperation` polling.
+The mutation now rejects over-large variant and inventory-quantity arrays with
+Shopify's top-level `MAX_INPUT_SIZE_EXCEEDED` error shape, returns structured
+user errors for missing or suspended existing products, shares existing product
+field validation before staging, and records async productSet operations so
+`productOperation(id:)` can read the completed local result.
+
+| Module / fixture                                                                                                                         | Change                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                                                                                     | Adds productSet shape guardrails, existing-product lookup errors, suspended-product errors, shared product field validation, and async operation state. |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                                                                                        | Persists product operation user-error codes for `productOperation` reads.                                                                               |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam`                                                                      | Covers variant, option, option-value, file, inventory-quantity, missing-product, suspended-product, and async operation behavior.                       |
+| `scripts/capture-product-set-validator-conformance.ts` / `scripts/conformance-capture-index.ts`                                          | Adds the aggregate-indexed live capture for productSet validator and async operation evidence.                                                          |
+| `config/parity-specs/products/productSet-*` / `config/parity-requests/products/productSet-*` / `fixtures/conformance/**/products/*.json` | Adds executable parity specs and cassettes for shape guardrails, unknown-product validation, and async operation polling.                               |
+| `docs/endpoints/products.md`                                                                                                             | Documents the productSet validator limits, reference errors, suspended-product branch, and async operation semantics.                                   |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `corepack pnpm conformance:capture -- --run product-set-validator`
+- `corepack pnpm parity:record productSet-shape-validator-parity`
+- `corepack pnpm parity:record productSet-async-operation-parity`
+- `cd gleam && gleam test --target javascript -- products_mutation_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+- `corepack pnpm conformance:check` (1436 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm typecheck`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm gleam:test` ran the JavaScript target successfully (854
+  passed) before the host Erlang target failed on the known local OTP 25
+  runtime issue
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 845 passed)
+- `cd gleam && gleam test --target javascript` (854 passed)
+- `cd gleam && gleam test --target javascript -- parity_test` after
+  `parity:record` (854 passed)
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2300 passed)
+- `git diff --check`
+
+### Findings
+
+- Shopify returns top-level `MAX_INPUT_SIZE_EXCEEDED` errors with no `data`
+  envelope for `productSet` arrays above 2048 variants and 250
+  `inventoryQuantities`; source `locations` are parser-specific and ignored in
+  the parity contract.
+- Missing existing-product references return payload user errors on the
+  referenced input field, while suspended effective local products are modeled
+  as `INVALID_PRODUCT` on `["input"]`.
+- `productSet(synchronous: false)` returns a `CREATED` operation with no
+  product immediately, then `productOperation(id:)` observes the completed
+  staged product in the same proxy session.
+
+### Risks / open items
+
+- Public Admin API setup cannot create suspended products, and the parity runner
+  intentionally has no base-state seed hook. Suspended-product behavior is
+  covered by focused Gleam runtime tests instead of a live parity cassette.
 
 ---
 

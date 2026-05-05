@@ -1,0 +1,59 @@
+{
+  "scenarioId": "productSet-async-operation-parity",
+  "operationNames": ["productSet", "productOperation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "async-operation-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-async-operation-parity.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productSet-async-operation-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-601 live 2025-01 capture for productSet(synchronous: false): the mutation returns a CREATED ProductSetOperation with product null, and a follow-up productOperation(id:) returns COMPLETE with the resulting product. Operation and product IDs are expected differences because the proxy mints local synthetic IDs.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "async-mutation-created-operation",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productSet.productSetOperation.id",
+            "matcher": "shopify-gid:ProductSetOperation",
+            "reason": "The proxy mints a local ProductSetOperation GID."
+          }
+        ]
+      },
+      {
+        "name": "async-operation-read-complete",
+        "capturePath": "$.operationRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-operation-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productSet.productSetOperation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.productOperation.id",
+            "matcher": "shopify-gid:ProductSetOperation",
+            "reason": "The proxy mints a local ProductSetOperation GID."
+          },
+          {
+            "path": "$.productOperation.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy mints a local Product GID."
+          }
+        ]
+      }
+    ]
+  }
+}
