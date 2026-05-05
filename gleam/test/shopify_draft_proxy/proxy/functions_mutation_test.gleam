@@ -11,6 +11,7 @@ import gleam/json
 import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -23,16 +24,17 @@ import shopify_draft_proxy/state/types.{
 fn run_mutation_outcome(
   store_in: store.Store,
   document: String,
-) -> functions.MutationOutcome {
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
   let request_path = "/admin/api/2025-01/graphql.json"
-  let assert Ok(outcome) =
+  let outcome =
     functions.process_mutation(
       store_in,
       identity,
       request_path,
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   let #(logged_store, logged_identity) =
     mutation_helpers.record_log_drafts(
@@ -43,7 +45,7 @@ fn run_mutation_outcome(
       dict.new(),
       outcome.log_drafts,
     )
-  functions.MutationOutcome(
+  mutation_helpers.MutationOutcome(
     ..outcome,
     store: logged_store,
     identity: logged_identity,

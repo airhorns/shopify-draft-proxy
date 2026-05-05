@@ -15,6 +15,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/b2b_user_error_codes as user_error_code
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type ConnectionWindow, type FragmentMap, type SourceValue,
   SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
@@ -25,7 +26,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_empty_connection, source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -49,18 +50,12 @@ pub type B2BError {
   ParseFailed(root_field.RootFieldError)
 }
 
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 type UserError {
-  UserError(field: Option(List(String)), message: String, code: String)
+  UserError(
+    field: Option(List(String)),
+    message: String,
+    code: user_error_code.Code,
+  )
 }
 
 type Payload {
@@ -320,64 +315,72 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, B2BError) {
-  use fields <- result.try(
-    root_field.get_root_fields(document)
-    |> result.map_error(ParseFailed),
-  )
-  let fragments = get_document_fragments(document)
-  let initial = #([], store, identity, [], [])
-  let #(entries, final_store, final_identity, staged_ids, drafts) =
-    list.fold(fields, initial, fn(acc, field) {
-      let #(data_entries, current_store, current_identity, all_ids, all_drafts) =
-        acc
-      case field {
-        Field(name: name, ..) -> {
-          let result =
-            dispatch_mutation_root(
-              current_store,
-              current_identity,
-              name.value,
-              field,
-              variables,
-            )
-          let payload_json =
-            serialize_mutation_payload(
-              result.store,
-              result.payload,
-              field,
-              fragments,
-              variables,
-            )
-          let draft =
-            single_root_log_draft(
-              name.value,
-              result.staged_ids,
-              status_for(result),
-              domain,
-              "stage-locally",
-              Some("Staged locally in the in-memory B2B company draft store."),
-            )
-          #(
-            list.append(data_entries, [
-              #(get_field_response_key(field), payload_json),
-            ]),
-            result.store,
-            result.identity,
-            list.append(all_ids, result.staged_ids),
-            list.append(all_drafts, [draft]),
-          )
-        }
-        _ -> acc
-      }
-    })
-  Ok(MutationOutcome(
-    data: json.object([#("data", json.object(entries))]),
-    store: final_store,
-    identity: final_identity,
-    staged_resource_ids: staged_ids,
-    log_drafts: drafts,
-  ))
+) -> MutationOutcome {
+  case root_field.get_root_fields(document) {
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      let initial = #([], store, identity, [], [])
+      let #(entries, final_store, final_identity, staged_ids, drafts) =
+        list.fold(fields, initial, fn(acc, field) {
+          let #(
+            data_entries,
+            current_store,
+            current_identity,
+            all_ids,
+            all_drafts,
+          ) = acc
+          case field {
+            Field(name: name, ..) -> {
+              let result =
+                dispatch_mutation_root(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  variables,
+                )
+              let payload_json =
+                serialize_mutation_payload(
+                  result.store,
+                  result.payload,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_ids,
+                  status_for(result),
+                  domain,
+                  "stage-locally",
+                  Some(
+                    "Staged locally in the in-memory B2B company draft store.",
+                  ),
+                )
+              #(
+                list.append(data_entries, [
+                  #(get_field_response_key(field), payload_json),
+                ]),
+                result.store,
+                result.identity,
+                list.append(all_ids, result.staged_ids),
+                list.append(all_drafts, [draft]),
+              )
+            }
+            _ -> acc
+          }
+        })
+      MutationOutcome(
+        data: json.object([#("data", json.object(entries))]),
+        store: final_store,
+        identity: final_identity,
+        staged_resource_ids: staged_ids,
+        log_drafts: drafts,
+      )
+    }
+  }
 }
 
 fn empty_payload(errors: List(UserError)) -> Payload {
@@ -1291,7 +1294,11 @@ fn source_string(value: SourceValue) -> String {
   }
 }
 
-fn user_error(field: Option(List(String)), message: String, code: String) {
+fn user_error(
+  field: Option(List(String)),
+  message: String,
+  code: user_error_code.Code,
+) {
   UserError(field: field, message: message, code: code)
 }
 
@@ -1299,7 +1306,7 @@ fn resource_not_found(field: List(String)) {
   user_error(
     Some(field),
     "Resource requested does not exist.",
-    "RESOURCE_NOT_FOUND",
+    user_error_code.resource_not_found,
   )
 }
 
@@ -1480,7 +1487,11 @@ fn normalize_contact_phone_input(
           [],
         )
         Error(_) -> #(input, [
-          user_error(Some(["input", "phone"]), "Phone is invalid", "INVALID"),
+          user_error(
+            Some(["input", "phone"]),
+            "Phone is invalid",
+            user_error_code.invalid,
+          ),
         ])
       }
     _ -> #(input, [])
@@ -1498,7 +1509,7 @@ fn validate_contact_locale_input(
           user_error(
             Some(["input", "locale"]),
             "Invalid locale format.",
-            "INVALID",
+            user_error_code.invalid,
           ),
         ]
       }
@@ -1516,7 +1527,7 @@ fn validate_contact_notes_input(
           user_error(
             Some(["input", "note"]),
             "Notes cannot contain HTML tags",
-            "CONTAINS_HTML_TAGS",
+            user_error_code.contains_html_tags,
           ),
         ]
         False -> []
@@ -1537,7 +1548,7 @@ fn validate_contact_duplicate_email(
           user_error(
             Some(["input", "email"]),
             "Email address has already been taken.",
-            "TAKEN",
+            user_error_code.taken,
           ),
         ]
         False -> []
@@ -1558,7 +1569,7 @@ fn validate_contact_duplicate_phone(
           user_error(
             Some(["input", "phone"]),
             "Phone number has already been taken.",
-            "TAKEN",
+            user_error_code.taken,
           ),
         ]
         False -> []
@@ -2025,7 +2036,7 @@ fn handle_company_create(
           user_error(
             Some(["input", "company", "name"]),
             "Name can't be blank",
-            "BLANK",
+            user_error_code.blank,
           ),
         ]),
         store,
@@ -2145,7 +2156,7 @@ fn handle_company_update(
                   user_error(
                     Some(["input", "name"]),
                     "Name can't be blank",
-                    "BLANK",
+                    user_error_code.blank,
                   ),
                 ]),
                 store,
@@ -2409,7 +2420,7 @@ fn handle_contact_update(
                 user_error(
                   Some(["companyContactId"]),
                   "The company contact doesn't exist.",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               company_contact: None,
@@ -2426,7 +2437,7 @@ fn handle_contact_update(
             user_error(
               Some(["companyContactId"]),
               "The company contact doesn't exist.",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           company_contact: None,
@@ -2488,7 +2499,7 @@ fn handle_contact_delete(
                 user_error(
                   Some(["companyContactId"]),
                   "The company contact doesn't exist.",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               deleted_company_contact_id: None,
@@ -2505,7 +2516,7 @@ fn handle_contact_delete(
             user_error(
               Some(["companyContactId"]),
               "The company contact doesn't exist.",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           deleted_company_contact_id: None,
@@ -2546,7 +2557,7 @@ fn handle_contacts_delete(
               user_error(
                 Some(["companyContactIds"]),
                 "The company contact doesn't exist.",
-                "RESOURCE_NOT_FOUND",
+                user_error_code.resource_not_found,
               ),
             ]),
           )
@@ -2652,7 +2663,7 @@ fn handle_contact_remove_from_company(
                 user_error(
                   Some(["companyContactId"]),
                   "The company contact doesn't exist.",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               removed_company_contact_id: None,
@@ -2669,7 +2680,7 @@ fn handle_contact_remove_from_company(
             user_error(
               Some(["companyContactId"]),
               "The company contact doesn't exist.",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           removed_company_contact_id: None,
@@ -2865,7 +2876,7 @@ fn handle_location_update(
                 user_error(
                   Some(["input"]),
                   "The company location doesn't exist",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               company_location: None,
@@ -2882,7 +2893,7 @@ fn handle_location_update(
             user_error(
               Some(["input"]),
               "The company location doesn't exist",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           company_location: None,
@@ -2947,7 +2958,7 @@ fn handle_location_delete(
                 user_error(
                   Some(["companyLocationId"]),
                   "The company location doesn't exist",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               deleted_company_location_id: None,
@@ -2964,7 +2975,7 @@ fn handle_location_delete(
             user_error(
               Some(["companyLocationId"]),
               "The company location doesn't exist",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           deleted_company_location_id: None,
@@ -3005,7 +3016,7 @@ fn handle_locations_delete(
               user_error(
                 Some(["companyLocationIds"]),
                 "The company location doesn't exist",
-                "RESOURCE_NOT_FOUND",
+                user_error_code.resource_not_found,
               ),
             ]),
           )
@@ -3523,7 +3534,7 @@ fn handle_assign_address(
                     user_error(
                       Some(["addressTypes"]),
                       "Address type is invalid",
-                      "INVALID",
+                      user_error_code.invalid,
                     ),
                   ]),
                   addresses: [],
@@ -3831,7 +3842,7 @@ fn handle_tax_settings_update(
                 user_error(
                   Some(["companyLocationId"]),
                   "The company location doesn't exist",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               company_location: None,
@@ -3848,7 +3859,7 @@ fn handle_tax_settings_update(
             user_error(
               Some(["companyLocationId"]),
               "The company location doesn't exist",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           company_location: None,
@@ -4065,7 +4076,7 @@ fn serialize_user_error(
         None -> SrcNull
       }),
       #("message", SrcString(error.message)),
-      #("code", SrcString(error.code)),
+      #("code", SrcString(user_error_code.value(error.code))),
     ])
   project_source(source, field, fragments)
 }

@@ -1,7 +1,9 @@
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/string
 import shopify_draft_proxy/proxy/b2b
+import shopify_draft_proxy/proxy/b2b_user_error_codes
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
@@ -247,4 +249,37 @@ pub fn b2b_contact_create_and_update_reject_duplicate_email_and_phone_test() {
     phone_update_json,
     "\"field\":[\"input\",\"phone\"],\"message\":\"Phone number has already been taken.\",\"code\":\"TAKEN\"",
   )
+}
+
+pub fn b2b_business_customer_user_error_code_snapshot_test() {
+  let shopify_business_customer_user_error_codes = [
+    "RESOURCE_NOT_FOUND",
+    "TAKEN",
+    "INVALID_INPUT",
+    "LIMIT_REACHED",
+    "NO_INPUT",
+    "INTERNAL_ERROR",
+    "INVALID",
+    "BLANK",
+    "TOO_LONG",
+    "CONTAINS_HTML_TAGS",
+    "INVALID_LOCALE_FORMAT",
+    "DUPLICATE_EXTERNAL_ID",
+    "DUPLICATE_EMAIL_ADDRESS",
+    "DUPLICATE_PHONE_NUMBER",
+    "CUSTOMER_NOT_FOUND",
+    "CUSTOMER_ALREADY_A_CONTACT",
+    "CUSTOMER_EMAIL_MUST_EXIST",
+    "COMPANY_CONTACT_MAX_CAP_REACHED",
+    "ROLE_ASSIGNMENTS_MAX_CAP_REACHED",
+    "ONE_ROLE_ALREADY_ASSIGNED",
+    "CONTACT_DOES_NOT_MATCH_COMPANY",
+    "EXISTING_ORDERS",
+  ]
+  let proxy_codes = b2b_user_error_codes.all_values()
+
+  assert proxy_codes == shopify_business_customer_user_error_codes
+  assert list.all(proxy_codes, fn(code) {
+    list.contains(shopify_business_customer_user_error_codes, code)
+  })
 }

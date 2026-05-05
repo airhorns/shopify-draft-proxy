@@ -149,6 +149,19 @@
             }
           }
         },
+        "cancelAgain": {
+          "data": {
+            "appSubscriptionCancel": {
+              "appSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Cannot transition status via :cancel from :cancelled"
+                }
+              ]
+            }
+          }
+        },
         "billingRead": {
           "data": {
             "currentAppInstallation": {
@@ -288,7 +301,7 @@
             "userErrors": [
               {
                 "field": ["id"],
-                "message": "Subscription not found"
+                "message": "Couldn't find RecurringApplicationCharge"
               }
             ]
           }
@@ -302,7 +315,8 @@
         "appSubscriptionLineItemUpdate returns the staged subscription and a synthetic confirmationUrl.",
         "appUsageRecordCreate returns a staged usage record linked to the staged usage line item.",
         "appSubscriptionTrialExtend updates staged trialDays.",
-        "appSubscriptionCancel returns the staged subscription with status CANCELLED."
+        "appSubscriptionCancel returns the staged subscription with status CANCELLED.",
+        "Repeating appSubscriptionCancel on that CANCELLED subscription returns an InvalidTransitionError-shaped userError."
       ],
       "downstreamReads": [
         "currentAppInstallation.allSubscriptions reads the staged subscription and usage record.",

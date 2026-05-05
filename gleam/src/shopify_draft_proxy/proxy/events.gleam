@@ -3,14 +3,20 @@
 //// keeps the captured no-data contract explicit: every recognised root
 //// field maps to `null`, an empty connection, or a zero-count payload.
 
+import gleam/dict.{type Dict}
 import gleam/json.{type Json}
 import gleam/list
 import gleam/result
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   default_selected_field_options, get_field_response_key,
   get_selected_child_fields, serialize_empty_connection,
+}
+import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
 }
 
 /// Errors specific to the events handler. Currently just propagates
@@ -84,4 +90,20 @@ fn serialize_exact_zero_count(field: Selection) -> Json {
 pub fn process(document: String) -> Result(Json, EventsError) {
   use data <- result.try(handle_events_query(document))
   Ok(graphql_helpers.wrap_data(data))
+}
+
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  _variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  mutation_helpers.respond_to_query(
+    proxy,
+    process(document),
+    "Failed to handle events query",
+  )
 }

@@ -6,14 +6,20 @@
 //// smallest read-only domain handler in the codebase and exercises
 //// the new `project_graphql_object` helper end to end.
 
+import gleam/dict.{type Dict}
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{Some}
 import gleam/result
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type SourceValue, SrcBool, SrcNull, SrcString, src_object,
+}
+import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
 }
 
 pub type DeliverySettingsError {
@@ -99,4 +105,20 @@ fn project_settings(
 pub fn process(document: String) -> Result(Json, DeliverySettingsError) {
   use data <- result.try(handle_delivery_settings_query(document))
   Ok(graphql_helpers.wrap_data(data))
+}
+
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  _variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  mutation_helpers.respond_to_query(
+    proxy,
+    process(document),
+    "Failed to handle delivery settings query",
+  )
 }

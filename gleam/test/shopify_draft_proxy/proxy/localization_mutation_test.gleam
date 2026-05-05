@@ -10,6 +10,7 @@ import gleam/dict
 import gleam/json
 import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/localization
+import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{ShopLocaleRecord, TranslationRecord}
@@ -17,9 +18,9 @@ import shopify_draft_proxy/state/types.{ShopLocaleRecord, TranslationRecord}
 fn run_outcome(
   store_in: store.Store,
   document: String,
-) -> localization.MutationOutcome {
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
-  let assert Ok(outcome) =
+  let outcome =
     localization.process_mutation(
       store_in,
       identity,
