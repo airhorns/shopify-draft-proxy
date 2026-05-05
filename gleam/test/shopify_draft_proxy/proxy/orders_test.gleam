@@ -318,6 +318,7 @@ pub fn orders_access_denied_guardrails_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -3868,6 +3869,7 @@ pub fn orders_order_create_validation_guardrails_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -3896,10 +3898,173 @@ pub fn orders_order_create_validation_guardrails_test() {
       variables,
     )
   assert json.to_string(no_line_items_outcome.data)
-    == "{\"data\":{\"orderCreate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"lineItems\"],\"message\":\"Line items must have at least one line item\"}]}}}"
+    == "{\"data\":{\"orderCreate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"lineItems\"],\"message\":\"Line items must have at least one line item\",\"code\":\"INVALID\"}]}}}"
   assert no_line_items_outcome.staged_resource_ids == []
   assert no_line_items_outcome.log_drafts == []
   assert store.list_effective_orders(no_line_items_outcome.store) == []
+
+  let extended =
+    "
+    mutation OrderCreateValidationMatrixExtended(
+      $futureProcessedAt: OrderCreateOrderInput!
+      $redundantCustomer: OrderCreateOrderInput!
+      $lineItemTaxLineMissingRate: OrderCreateOrderInput!
+      $shippingLineTaxLineMissingRate: OrderCreateOrderInput!
+    ) {
+      futureProcessedAt: orderCreate(order: $futureProcessedAt) {
+        order { id }
+        userErrors { field message code }
+      }
+      redundantCustomer: orderCreate(order: $redundantCustomer) {
+        order { id }
+        userErrors { field message code }
+      }
+      lineItemTaxLineMissingRate: orderCreate(order: $lineItemTaxLineMissingRate) {
+        order { id }
+        userErrors { field message code }
+      }
+      shippingLineTaxLineMissingRate: orderCreate(order: $shippingLineTaxLineMissingRate) {
+        order { id }
+        userErrors { field message code }
+      }
+    }
+  "
+  let extended_variables =
+    dict.from_list([
+      #(
+        "futureProcessedAt",
+        order_create_test_order([
+          #("processedAt", root_field.StringVal("2099-01-01T00:00:00Z")),
+        ]),
+      ),
+      #(
+        "redundantCustomer",
+        order_create_test_order([
+          #("customerId", root_field.StringVal("gid://shopify/Customer/1")),
+          #(
+            "customer",
+            root_field.ObjectVal(
+              dict.from_list([
+                #(
+                  "toUpsert",
+                  root_field.ObjectVal(
+                    dict.from_list([
+                      #("email", root_field.StringVal("redundant@example.com")),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+      #(
+        "lineItemTaxLineMissingRate",
+        order_create_test_order([
+          #(
+            "lineItems",
+            root_field.ListVal([
+              order_create_test_line_item([
+                #(
+                  "taxLines",
+                  root_field.ListVal([
+                    root_field.ObjectVal(
+                      dict.from_list([
+                        #("priceSet", order_create_test_money("1.00")),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+      #(
+        "shippingLineTaxLineMissingRate",
+        order_create_test_order([
+          #(
+            "shippingLines",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("title", root_field.StringVal("Standard")),
+                  #("priceSet", order_create_test_money("5.00")),
+                  #(
+                    "taxLines",
+                    root_field.ListVal([
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("priceSet", order_create_test_money("1.00")),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let assert Ok(extended_outcome) =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      extended,
+      extended_variables,
+    )
+  assert json.to_string(extended_outcome.data)
+    == "{\"data\":{\"futureProcessedAt\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"processedAt\"],\"message\":\"Processed at must not be in the future\",\"code\":\"PROCESSED_AT_INVALID\"}]},\"redundantCustomer\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\"],\"message\":\"Cannot specify both customerId and customer\",\"code\":\"REDUNDANT_CUSTOMER_FIELDS\"}]},\"lineItemTaxLineMissingRate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"lineItems\",0,\"taxLines\",0,\"rate\"],\"message\":\"Tax line rate must be provided\",\"code\":\"TAX_LINE_RATE_MISSING\"}]},\"shippingLineTaxLineMissingRate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"shippingLines\",0,\"taxLines\",0,\"rate\"],\"message\":\"Tax line rate must be provided\",\"code\":\"TAX_LINE_RATE_MISSING\"}]}}}"
+  assert extended_outcome.staged_resource_ids == []
+  assert extended_outcome.log_drafts == []
+  assert store.list_effective_orders(extended_outcome.store) == []
+}
+
+fn order_create_test_order(
+  overrides: List(#(String, root_field.ResolvedValue)),
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list(list.append(
+      [
+        #("email", root_field.StringVal("hermes-order-validation@example.com")),
+        #("lineItems", root_field.ListVal([order_create_test_line_item([])])),
+      ],
+      overrides,
+    )),
+  )
+}
+
+fn order_create_test_line_item(
+  overrides: List(#(String, root_field.ResolvedValue)),
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list(list.append(
+      [
+        #("title", root_field.StringVal("Validation custom item")),
+        #("quantity", root_field.IntVal(1)),
+        #("priceSet", order_create_test_money("1.00")),
+      ],
+      overrides,
+    )),
+  )
+}
+
+fn order_create_test_money(amount: String) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #(
+        "shopMoney",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("amount", root_field.StringVal(amount)),
+            #("currencyCode", root_field.StringVal("USD")),
+          ]),
+        ),
+      ),
+    ]),
+  )
 }
 
 pub fn orders_order_create_stages_selected_order_and_downstream_read_test() {
