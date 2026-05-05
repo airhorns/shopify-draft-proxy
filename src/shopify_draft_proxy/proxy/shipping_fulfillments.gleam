@@ -3469,29 +3469,52 @@ fn handle_fulfillment_event_create(
   case read_string(input, "fulfillmentId") {
     Some(fulfillment_id) ->
       case store.get_effective_fulfillment_by_id(draft_store, fulfillment_id) {
-        Some(fulfillment) -> {
-          let #(event_id, identity) =
-            synthetic_identity.make_synthetic_gid(identity, "FulfillmentEvent")
-          let event = fulfillment_event_value(event_id, input)
-          let updated = update_fulfillment_for_event(fulfillment, event, input)
-          let #(staged, next_store) =
-            store.stage_upsert_fulfillment(draft_store, updated)
-          #(
-            MutationFieldResult(
-              key: key,
-              payload: fulfillment_event_payload_json(
+        Some(fulfillment) ->
+          case validate_fulfillment_event_create_input(fulfillment, input) {
+            Some(user_error) ->
+              fulfillment_event_user_error_result(
+                draft_store,
+                identity,
                 field,
                 fragments,
-                Some(event),
-                [],
-              ),
-              errors: [],
-              staged_resource_ids: [staged.id, event_id],
-            ),
-            next_store,
-            identity,
-          )
-        }
+                user_error,
+              )
+            None -> {
+              let #(event_id, identity) =
+                synthetic_identity.make_synthetic_gid(
+                  identity,
+                  "FulfillmentEvent",
+                )
+              let event = fulfillment_event_value(event_id, input)
+              let updated = update_fulfillment_for_event(fulfillment, event)
+              let #(staged, next_store) =
+                store.stage_upsert_fulfillment(draft_store, updated)
+              let #(next_store, identity, staged_resource_ids) =
+                maybe_append_fulfillment_event_timeline(
+                  next_store,
+                  identity,
+                  staged,
+                  event,
+                  input,
+                  [staged.id, event_id],
+                )
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: fulfillment_event_payload_json(
+                    field,
+                    fragments,
+                    Some(event),
+                    [],
+                  ),
+                  errors: [],
+                  staged_resource_ids: staged_resource_ids,
+                ),
+                next_store,
+                identity,
+              )
+            }
+          }
         None ->
           fulfillment_event_missing_result(
             draft_store,
@@ -3503,6 +3526,90 @@ fn handle_fulfillment_event_create(
     None ->
       fulfillment_event_missing_result(draft_store, identity, field, fragments)
   }
+}
+
+type FulfillmentEventUserError {
+  FulfillmentEventUserError(field: List(String), message: String, code: String)
+}
+
+fn validate_fulfillment_event_create_input(
+  fulfillment: FulfillmentRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(FulfillmentEventUserError) {
+  case fulfillment_event_fulfillment_is_cancelled(fulfillment) {
+    True ->
+      Some(FulfillmentEventUserError(
+        field: ["fulfillmentEvent", "fulfillmentId"],
+        message: "Fulfillment is cancelled.",
+        code: "fulfillment_cancelled",
+      ))
+    False ->
+      case read_string(input, "status") {
+        Some(status) ->
+          case valid_fulfillment_event_status(status) {
+            True -> None
+            False ->
+              Some(FulfillmentEventUserError(
+                field: ["fulfillmentEvent", "status"],
+                message: "Status is invalid.",
+                code: "invalid_status",
+              ))
+          }
+        None ->
+          Some(FulfillmentEventUserError(
+            field: ["fulfillmentEvent", "status"],
+            message: "Status is invalid.",
+            code: "invalid_status",
+          ))
+      }
+  }
+}
+
+fn fulfillment_event_fulfillment_is_cancelled(
+  fulfillment: FulfillmentRecord,
+) -> Bool {
+  captured_string_field(fulfillment.data, "status") == Some("CANCELLED")
+  || captured_string_field(fulfillment.data, "displayStatus")
+  == Some("CANCELED")
+}
+
+fn valid_fulfillment_event_status(status: String) -> Bool {
+  case status {
+    "LABEL_PRINTED"
+    | "LABEL_PURCHASED"
+    | "ATTEMPTED_DELIVERY"
+    | "READY_FOR_PICKUP"
+    | "CONFIRMED"
+    | "IN_TRANSIT"
+    | "OUT_FOR_DELIVERY"
+    | "DELAYED"
+    | "DELIVERED"
+    | "CARRIER_PICKED_UP"
+    | "FAILURE" -> True
+    _ -> False
+  }
+}
+
+fn fulfillment_event_user_error_result(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  user_error: FulfillmentEventUserError,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: fulfillment_event_payload_json(field, fragments, None, [
+        fulfillment_event_user_error_source(user_error),
+      ]),
+      errors: [],
+      staged_resource_ids: [],
+    ),
+    draft_store,
+    identity,
+  )
 }
 
 fn handle_reverse_delivery_create_with_shipping(
@@ -7980,13 +8087,11 @@ fn fulfillment_event_missing_result(
     MutationFieldResult(
       key: key,
       payload: fulfillment_event_payload_json(field, fragments, None, [
-        src_object([
-          #(
-            "field",
-            SrcList([SrcString("fulfillmentEvent"), SrcString("fulfillmentId")]),
-          ),
-          #("message", SrcString("Fulfillment does not exist.")),
-        ]),
+        fulfillment_event_user_error_source(FulfillmentEventUserError(
+          field: ["fulfillmentEvent", "fulfillmentId"],
+          message: "Fulfillment does not exist.",
+          code: "fulfillment_not_found",
+        )),
       ]),
       errors: [],
       staged_resource_ids: [],
@@ -7994,6 +8099,17 @@ fn fulfillment_event_missing_result(
     draft_store,
     identity,
   )
+}
+
+fn fulfillment_event_user_error_source(
+  user_error: FulfillmentEventUserError,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("FulfillmentEventCreateUserError")),
+    #("field", SrcList(list.map(user_error.field, SrcString))),
+    #("message", SrcString(user_error.message)),
+    #("code", SrcString(user_error.code)),
+  ])
 }
 
 fn reverse_delivery_payload_json(
@@ -8299,12 +8415,15 @@ fn fulfillment_event_value(
   id: String,
   input: Dict(String, root_field.ResolvedValue),
 ) -> CapturedJsonValue {
+  let created_at = synthetic_timestamp_string()
+  let happened_at =
+    read_string(input, "happenedAt") |> option.unwrap(created_at)
   CapturedObject([
     #("id", CapturedString(id)),
     #("status", option_to_captured_string(read_string(input, "status"))),
     #("message", option_to_captured_string(read_string(input, "message"))),
-    #("happenedAt", option_to_captured_string(read_string(input, "happenedAt"))),
-    #("createdAt", CapturedString(synthetic_timestamp_string())),
+    #("happenedAt", CapturedString(happened_at)),
+    #("createdAt", CapturedString(created_at)),
     #(
       "estimatedDeliveryAt",
       option_to_captured_string(read_string(input, "estimatedDeliveryAt")),
@@ -8325,7 +8444,6 @@ fn fulfillment_event_value(
 fn update_fulfillment_for_event(
   fulfillment: FulfillmentRecord,
   event: CapturedJsonValue,
-  input: Dict(String, root_field.ResolvedValue),
 ) -> FulfillmentRecord {
   let events =
     list.append(captured_array_field(fulfillment.data, "events", "nodes"), [
@@ -8333,15 +8451,19 @@ fn update_fulfillment_for_event(
     ])
   let updates = [
     #("events", captured_event_connection(events)),
-    #("displayStatus", option_to_captured_string(read_string(input, "status"))),
+    #(
+      "displayStatus",
+      option_to_captured_string(captured_string_field(event, "status")),
+    ),
     #(
       "estimatedDeliveryAt",
-      option_to_captured_string(read_string(input, "estimatedDeliveryAt")),
+      captured_field(event, "estimatedDeliveryAt")
+        |> option.unwrap(CapturedNull),
     ),
   ]
   let updates = case
-    read_string(input, "status"),
-    read_string(input, "happenedAt")
+    captured_string_field(event, "status"),
+    captured_string_field(event, "happenedAt")
   {
     Some("IN_TRANSIT"), Some(happened_at) ->
       list.append(updates, [#("inTransitAt", CapturedString(happened_at))])
@@ -8353,6 +8475,89 @@ fn update_fulfillment_for_event(
     ..fulfillment,
     data: captured_upsert_fields(fulfillment.data, updates),
   )
+}
+
+fn maybe_append_fulfillment_event_timeline(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  fulfillment: FulfillmentRecord,
+  event: CapturedJsonValue,
+  input: Dict(String, root_field.ResolvedValue),
+  staged_resource_ids: List(String),
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  case record_timeline_event_requested(input), fulfillment.order_id {
+    True, Some(order_id) ->
+      case store.get_effective_shipping_order_by_id(draft_store, order_id) {
+        Some(order) -> {
+          let #(timeline_id, identity) =
+            synthetic_identity.make_synthetic_gid(identity, "BasicEvent")
+          let timeline_event =
+            fulfillment_event_timeline_event(timeline_id, fulfillment.id, event)
+          let updated_order =
+            ShippingOrderRecord(
+              ..order,
+              data: append_order_timeline_event(order.data, timeline_event),
+            )
+          let #(_, next_store) =
+            store.stage_upsert_shipping_order(draft_store, updated_order)
+          #(
+            next_store,
+            identity,
+            list.append(staged_resource_ids, [order.id, timeline_id]),
+          )
+        }
+        None -> #(draft_store, identity, staged_resource_ids)
+      }
+    _, _ -> #(draft_store, identity, staged_resource_ids)
+  }
+}
+
+fn record_timeline_event_requested(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  read_bool(input, "record_timeline_event")
+  |> option.or(read_bool(input, "recordTimelineEvent"))
+  |> option.unwrap(False)
+}
+
+fn fulfillment_event_timeline_event(
+  id: String,
+  fulfillment_id: String,
+  event: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let message =
+    captured_string_field(event, "message")
+    |> option.unwrap(fulfillment_event_timeline_message(event))
+  CapturedObject([
+    #("__typename", CapturedString("BasicEvent")),
+    #("id", CapturedString(id)),
+    #("action", CapturedString("fulfillment_event_create")),
+    #("message", CapturedString(message)),
+    #(
+      "createdAt",
+      captured_field(event, "createdAt") |> option.unwrap(CapturedNull),
+    ),
+    #("subjectId", CapturedString(fulfillment_id)),
+    #("subjectType", CapturedString("FULFILLMENT")),
+  ])
+}
+
+fn fulfillment_event_timeline_message(event: CapturedJsonValue) -> String {
+  case captured_string_field(event, "status") {
+    Some(status) -> "Fulfillment event " <> status <> " was recorded."
+    None -> "Fulfillment event was recorded."
+  }
+}
+
+fn append_order_timeline_event(
+  order: CapturedJsonValue,
+  timeline_event: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let events =
+    list.append(captured_array_field(order, "events", "nodes"), [
+      timeline_event,
+    ])
+  captured_upsert_fields(order, [#("events", captured_event_connection(events))])
 }
 
 fn captured_event_connection(
