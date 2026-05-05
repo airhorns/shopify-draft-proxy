@@ -12,17 +12,18 @@ const config: AppConfig = {
   port: 0,
   shopifyAdminOrigin: 'https://shopify.com',
 };
+const adapterTimeoutMs = 20_000;
 
 beforeAll(() => {
   execFileSync('gleam', ['build', '--target', 'javascript'], {
     cwd: new URL('../..', import.meta.url),
     stdio: 'pipe',
   });
-});
+}, adapterTimeoutMs);
 
 beforeAll(async () => {
   ({ createApp: createGleamApp } = await import('../../js/src/index.js'));
-});
+}, adapterTimeoutMs);
 
 async function withGleamServer<T>(run: (origin: string) => Promise<T>): Promise<T> {
   const server = createGleamApp(config).listen(0, '127.0.0.1');
