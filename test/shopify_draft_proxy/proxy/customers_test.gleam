@@ -384,6 +384,80 @@ pub fn marketing_consent_update_allowed_states_still_stage_test() {
   assert_sms_consent_state_stages("PENDING")
 }
 
+pub fn customer_create_requires_email_for_inline_email_consent_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation { customerCreate(input: { phone: \"+14155550123\", emailMarketingConsent: { marketingState: SUBSCRIBED } }) { customer { id email } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"customer\":null")
+  assert string.contains(
+    body_json,
+    "\"userErrors\":[{\"field\":[\"emailMarketingConsent\"],\"message\":\"An email address is required to set the email marketing consent state.\"}]",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
+pub fn customer_create_requires_phone_for_inline_sms_consent_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation { customerCreate(input: { email: \"missing-phone@example.com\", smsMarketingConsent: { marketingState: SUBSCRIBED } }) { customer { id phone } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"customer\":null")
+  assert string.contains(
+    body_json,
+    "\"userErrors\":[{\"field\":[\"smsMarketingConsent\"],\"message\":\"A phone number is required to set the SMS consent state.\"}]",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
+pub fn customer_create_rejects_disallowed_inline_consent_state_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation { customerCreate(input: { email: \"redacted-create@example.com\", emailMarketingConsent: { marketingState: REDACTED } }) { customer { id email } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"errors\":[")
+  assert string.contains(
+    body_json,
+    "\"message\":\"Cannot specify REDACTED as a marketing state input\"",
+  )
+  assert string.contains(body_json, "\"extensions\":{\"code\":\"INVALID\"}")
+  assert string.contains(body_json, "\"path\":[\"customerCreate\"]")
+  assert string.contains(body_json, "\"data\":{\"customerCreate\":null}")
+  assert_log_omits_root(proxy, "customerCreate")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
+pub fn customer_create_allows_not_subscribed_inline_consent_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation { customerCreate(input: { email: \"not-subscribed@example.com\", phone: \"+13127004572\", emailMarketingConsent: { marketingState: NOT_SUBSCRIBED }, smsMarketingConsent: { marketingState: NOT_SUBSCRIBED } }) { customer { id emailMarketingConsent { marketingState } smsMarketingConsent { marketingState } } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"userErrors\":[]")
+  assert string.contains(
+    body_json,
+    "\"emailMarketingConsent\":{\"marketingState\":\"NOT_SUBSCRIBED\"}",
+  )
+  assert string.contains(
+    body_json,
+    "\"smsMarketingConsent\":{\"marketingState\":\"NOT_SUBSCRIBED\"}",
+  )
+  assert_log_contains_root(proxy, "customerCreate")
+}
+
 fn assert_email_consent_state_rejected(state: String) {
   let proxy = consent_customer_proxy()
   let mutation =
@@ -546,6 +620,30 @@ fn assert_log_omits_root(proxy: draft_proxy.DraftProxy, root_name: String) {
     draft_proxy.process_request(proxy, log_request)
   assert log_status == 200
   assert !string.contains(json.to_string(log_body), root_name)
+}
+
+fn assert_log_contains_root(proxy: draft_proxy.DraftProxy, root_name: String) {
+  let log_request =
+    Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(proxy, log_request)
+  assert log_status == 200
+  assert string.contains(json.to_string(log_body), root_name)
+}
+
+fn assert_next_customer_create_uses_first_customer_id(
+  proxy: draft_proxy.DraftProxy,
+) {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"after-validation@example.com\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert status == 200
+  assert string.contains(
+    json.to_string(body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\"}",
+  )
 }
 
 fn opt_in_level_for_state(state: String) -> String {

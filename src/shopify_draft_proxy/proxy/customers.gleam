@@ -1974,11 +1974,7 @@ fn handle_mutation_fields(
   upstream: UpstreamContext,
 ) -> MutationOutcome {
   case
-    first_disallowed_marketing_consent_update_state_error(
-      fields,
-      variables,
-      document,
-    )
+    first_disallowed_marketing_consent_state_error(fields, variables, document)
   {
     Some(#(root_name, error_json, include_null_data)) -> {
       let entries = case include_null_data {
@@ -2036,7 +2032,7 @@ fn handle_mutation_fields(
   }
 }
 
-fn first_disallowed_marketing_consent_update_state_error(
+fn first_disallowed_marketing_consent_state_error(
   fields: List(Selection),
   variables: Dict(String, root_field.ResolvedValue),
   document: String,
@@ -2046,57 +2042,153 @@ fn first_disallowed_marketing_consent_update_state_error(
     [field, ..rest] ->
       case field {
         Field(name: name, ..) as selected_field ->
-          case marketing_consent_input_key(name.value) {
-            Some(consent_key) -> {
-              let args = graphql_helpers.field_args(selected_field, variables)
-              let input =
-                graphql_helpers.read_arg_object(args, "input")
-                |> option.unwrap(dict.new())
-              let consent = read_nested_object(input, consent_key)
-              case read_obj_string(consent, "marketingState") {
-                Some(value) ->
-                  case is_allowed_marketing_consent_update_state(value) {
-                    True ->
-                      first_disallowed_marketing_consent_update_state_error(
-                        rest,
-                        variables,
-                        document,
-                      )
-                    False -> {
-                      let #(error_json, include_null_data) =
-                        marketing_consent_update_state_error(
-                          name.value,
-                          consent_key,
-                          value,
-                          input,
-                          selected_field,
-                          document,
-                        )
-                      Some(#(name.value, error_json, include_null_data))
-                    }
-                  }
+          case name.value {
+            "customerCreate" ->
+              case
+                customer_create_marketing_consent_state_error(
+                  selected_field,
+                  variables,
+                  document,
+                )
+              {
+                Some(error) -> Some(#("customerCreate", error, True))
                 None ->
-                  first_disallowed_marketing_consent_update_state_error(
+                  first_disallowed_marketing_consent_state_error(
                     rest,
                     variables,
                     document,
                   )
               }
-            }
-            None ->
-              first_disallowed_marketing_consent_update_state_error(
-                rest,
-                variables,
-                document,
-              )
+            _ ->
+              case marketing_consent_input_key(name.value) {
+                Some(consent_key) -> {
+                  let args =
+                    graphql_helpers.field_args(selected_field, variables)
+                  let input =
+                    graphql_helpers.read_arg_object(args, "input")
+                    |> option.unwrap(dict.new())
+                  let consent = read_nested_object(input, consent_key)
+                  case read_obj_string(consent, "marketingState") {
+                    Some(value) ->
+                      case is_allowed_marketing_consent_update_state(value) {
+                        True ->
+                          first_disallowed_marketing_consent_state_error(
+                            rest,
+                            variables,
+                            document,
+                          )
+                        False -> {
+                          let #(error_json, include_null_data) =
+                            marketing_consent_state_error(
+                              name.value,
+                              consent_key,
+                              value,
+                              input,
+                              selected_field,
+                              document,
+                            )
+                          Some(#(name.value, error_json, include_null_data))
+                        }
+                      }
+                    None ->
+                      first_disallowed_marketing_consent_state_error(
+                        rest,
+                        variables,
+                        document,
+                      )
+                  }
+                }
+                None ->
+                  first_disallowed_marketing_consent_state_error(
+                    rest,
+                    variables,
+                    document,
+                  )
+              }
           }
         _ ->
-          first_disallowed_marketing_consent_update_state_error(
+          first_disallowed_marketing_consent_state_error(
             rest,
             variables,
             document,
           )
       }
+  }
+}
+
+fn customer_create_marketing_consent_state_error(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  document: String,
+) -> Option(Json) {
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  case
+    customer_create_disallowed_consent_state(input, "emailMarketingConsent")
+  {
+    Some(#(consent_key, state)) ->
+      Some(marketing_consent_resolver_error(
+        "customerCreate",
+        consent_key,
+        state,
+        field,
+        document,
+      ))
+    None ->
+      case
+        customer_create_disallowed_consent_state(input, "smsMarketingConsent")
+      {
+        Some(#(consent_key, state)) ->
+          Some(marketing_consent_resolver_error(
+            "customerCreate",
+            consent_key,
+            state,
+            field,
+            document,
+          ))
+        None -> None
+      }
+  }
+}
+
+fn customer_create_disallowed_consent_state(
+  input: Dict(String, root_field.ResolvedValue),
+  consent_key: String,
+) -> Option(#(String, String)) {
+  let consent = read_nested_object(input, consent_key)
+  case read_obj_string(consent, "marketingState") {
+    Some(state) ->
+      case is_allowed_marketing_consent_create_state(state) {
+        True -> None
+        False -> Some(#(consent_key, state))
+      }
+    None -> None
+  }
+}
+
+fn marketing_consent_resolver_error(
+  root_name: String,
+  _consent_key: String,
+  state: String,
+  field: Selection,
+  document: String,
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string("Cannot specify " <> state <> " as a marketing state input"),
+    ),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
+    #("extensions", json.object([#("code", json.string("INVALID"))])),
+    #("path", json.array([json.string(root_name)], fn(x) { x })),
+  ])
+}
+
+fn is_allowed_marketing_consent_create_state(state: String) -> Bool {
+  case state {
+    "SUBSCRIBED" | "UNSUBSCRIBED" | "PENDING" | "NOT_SUBSCRIBED" -> True
+    _ -> False
   }
 }
 
@@ -2115,7 +2207,7 @@ fn is_allowed_marketing_consent_update_state(state: String) -> Bool {
   }
 }
 
-fn marketing_consent_update_state_error(
+fn marketing_consent_state_error(
   root_name: String,
   consent_key: String,
   state: String,
@@ -2135,17 +2227,13 @@ fn marketing_consent_update_state_error(
       False,
     )
     _, _ -> #(
-      json.object([
-        #(
-          "message",
-          json.string(
-            "Cannot specify " <> state <> " as a marketing state input",
-          ),
-        ),
-        #("locations", graphql_helpers.field_locations_json(field, document)),
-        #("extensions", json.object([#("code", json.string("INVALID"))])),
-        #("path", json.array([json.string(root_name)], fn(x) { x })),
-      ]),
+      marketing_consent_resolver_error(
+        root_name,
+        consent_key,
+        state,
+        field,
+        document,
+      ),
       True,
     )
   }
@@ -3707,21 +3795,61 @@ fn validate_customer_create(
 ) -> List(UserError) {
   let email = read_obj_string(input, "email")
   let phone = read_obj_string(input, "phone")
+  let consent_required_errors =
+    customer_create_consent_required_errors(input, email, phone)
   let presence_errors = case email, phone {
-    None, None -> [
+    None, None ->
+      case consent_required_errors {
+        [] -> [
+          UserError(
+            field: [],
+            message: "A name, phone number, or email address must be present",
+            code: None,
+          ),
+        ]
+        _ -> []
+      }
+    _, _ -> []
+  }
+  let local_errors = validate_customer_input_fields(store, input, None)
+  list.append(
+    list.append(
+      list.append(presence_errors, consent_required_errors),
+      local_errors,
+    ),
+    validate_upstream_duplicate_customer(input, local_errors, None, upstream),
+  )
+}
+
+fn customer_create_consent_required_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  email: Option(String),
+  phone: Option(String),
+) -> List(UserError) {
+  let email_errors = case
+    has_nested_object(input, "emailMarketingConsent"),
+    email
+  {
+    True, None -> [
       UserError(
-        field: [],
-        message: "A name, phone number, or email address must be present",
+        field: ["emailMarketingConsent"],
+        message: "An email address is required to set the email marketing consent state.",
         code: None,
       ),
     ]
     _, _ -> []
   }
-  let local_errors = validate_customer_input_fields(store, input, None)
-  list.append(
-    list.append(presence_errors, local_errors),
-    validate_upstream_duplicate_customer(input, local_errors, None, upstream),
-  )
+  let sms_errors = case has_nested_object(input, "smsMarketingConsent"), phone {
+    True, None -> [
+      UserError(
+        field: ["smsMarketingConsent"],
+        message: "A phone number is required to set the SMS consent state.",
+        code: None,
+      ),
+    ]
+    _, _ -> []
+  }
+  list.append(email_errors, sms_errors)
 }
 
 fn validate_upstream_duplicate_customer(
