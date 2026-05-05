@@ -278,6 +278,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}file-acknowledge-update-failed-parity.json`,
       `${LOCAL_RUNTIME_ROOT}file-acknowledge-update-failed-local-runtime.json`,
       'config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json',
+      'config/parity-specs/media/media-file-acknowledge-update-failed-semantics.json',
     ],
     cleanupBehavior: 'Deletes disposable files created for READY acknowledgement and FAILED validation branches.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

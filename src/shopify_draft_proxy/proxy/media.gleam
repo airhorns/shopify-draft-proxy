@@ -539,15 +539,13 @@ fn handle_file_acknowledge_update_failed(
     })
   case errors {
     [] -> {
-      let #(acknowledged, next_identity) =
-        map_with_identity(file_ids, identity, fn(current_identity, file_id) {
+      let acknowledged =
+        list.filter_map(file_ids, fn(file_id) {
           case get_effective_file_like_record(store, file_id) {
-            Some(file) ->
-              acknowledge_file_update_failure(current_identity, file)
-            None -> #(file_not_found_placeholder(file_id), current_identity)
+            Some(file) -> Ok(file)
+            None -> Error(Nil)
           }
         })
-      let next_store = store.upsert_staged_files(store, acknowledged)
       #(
         MutationFieldResult(
           key: key,
@@ -559,8 +557,8 @@ fn handle_file_acknowledge_update_failed(
           ),
           staged_resource_ids: list.map(acknowledged, fn(file) { file.id }),
         ),
-        next_store,
-        next_identity,
+        store,
+        identity,
       )
     }
     _ -> #(
@@ -765,6 +763,8 @@ fn file_source(file: FileRecord) -> SourceValue {
     #("filename", graphql_helpers.option_string_source(file.filename)),
     #("image", file_image_source(file)),
     #("preview", file_preview_source(file)),
+    #("mediaErrors", SrcList([])),
+    #("mediaWarnings", SrcList([])),
   ])
 }
 
@@ -1027,22 +1027,6 @@ fn update_file_record(
       |> option.or(Some(file.original_source))
       |> option.unwrap(""),
     filename: read_string_field(input, "filename") |> option.or(file.filename),
-  )
-}
-
-fn acknowledge_file_update_failure(
-  identity: SyntheticIdentityRegistry,
-  file: FileRecord,
-) -> #(FileRecord, SyntheticIdentityRegistry) {
-  let #(timestamp, next_identity) =
-    synthetic_identity.make_synthetic_timestamp(identity)
-  #(
-    FileRecord(
-      ..file,
-      file_status: "READY",
-      update_failure_acknowledged_at: Some(timestamp),
-    ),
-    next_identity,
   )
 }
 
@@ -1312,22 +1296,6 @@ fn file_record_from_product_media(media: ProductMediaRecord) -> FileRecord {
     image_url: media.image_url |> option.or(media.preview_image_url),
     image_width: media.image_width,
     image_height: media.image_height,
-    update_failure_acknowledged_at: None,
-  )
-}
-
-fn file_not_found_placeholder(file_id: String) -> FileRecord {
-  FileRecord(
-    id: file_id,
-    alt: None,
-    content_type: None,
-    created_at: "2024-01-01T00:00:00.000Z",
-    file_status: "READY",
-    filename: None,
-    original_source: "",
-    image_url: None,
-    image_width: None,
-    image_height: None,
     update_failure_acknowledged_at: None,
   )
 }
