@@ -41,7 +41,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext, empty_upstream_context,
+  type UpstreamContext,
 }
 import shopify_draft_proxy/search_query_parser.{type SearchQueryTerm}
 import shopify_draft_proxy/shopify/resource_ids
@@ -1144,29 +1144,13 @@ fn empty_payload(user_errors: List(UserError)) -> GiftCardPayload {
 }
 
 /// Process a gift-cards mutation document.
-pub fn process_mutation(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> MutationOutcome {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
 
 /// Pattern 2: update/credit/debit/deactivate and notification roots need the
 /// prior upstream gift-card record before they can stage or short-circuit local
 /// effects for an existing Shopify gift card. Snapshot mode/no transport falls
 /// back to the local-only not-found behavior; LiveHybrid parity installs a
 /// cassette for this narrow read.
-pub fn process_mutation_with_upstream(
+pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   _request_path: String,

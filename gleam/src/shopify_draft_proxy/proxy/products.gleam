@@ -50,7 +50,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
 import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext, empty_upstream_context,
+  type UpstreamContext,
 }
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
@@ -5154,24 +5154,8 @@ type MutationFieldResult {
   )
 }
 
-pub fn process_mutation(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, ResolvedValue),
-) -> MutationOutcome {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
 
-pub fn process_mutation_with_upstream(
+pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   request_path: String,

@@ -1931,22 +1931,8 @@ fn job_source(job_id: String, status: String) -> SourceValue {
   ])
 }
 
-pub fn process_mutation(
-  proxy: DraftProxy,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> MutationOutcome {
-  process_mutation_with_upstream(
-    proxy,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
 
-pub fn process_mutation_with_upstream(
+pub fn process_mutation(
   proxy: DraftProxy,
   request_path: String,
   document: String,

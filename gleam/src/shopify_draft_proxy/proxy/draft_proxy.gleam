@@ -814,7 +814,7 @@ fn route_mutation_to_domain(
     }
     Ok(FunctionsDomain) -> {
       let outcome =
-        functions.process_mutation_with_upstream(
+        functions.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -839,7 +839,7 @@ fn route_mutation_to_domain(
     }
     Ok(GiftCardsDomain) -> {
       let outcome =
-        gift_cards.process_mutation_with_upstream(
+        gift_cards.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -864,7 +864,7 @@ fn route_mutation_to_domain(
     }
     Ok(DiscountsDomain) -> {
       let outcome =
-        discounts.process_mutation_with_upstream(
+        discounts.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -929,7 +929,7 @@ fn route_mutation_to_domain(
     }
     Ok(MetafieldDefinitionsDomain) -> {
       let outcome =
-        metafield_definitions.process_mutation_with_upstream(
+        metafield_definitions.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -974,7 +974,7 @@ fn route_mutation_to_domain(
     }
     Ok(MetaobjectDefinitionsDomain) -> {
       let outcome =
-        metaobject_definitions.process_mutation_with_upstream(
+        metaobject_definitions.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -1019,7 +1019,7 @@ fn route_mutation_to_domain(
     }
     Ok(BulkOperationsDomain) -> {
       let outcome =
-        bulk_operations.process_mutation_with_upstream(
+        bulk_operations.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -1044,7 +1044,7 @@ fn route_mutation_to_domain(
     }
     Ok(MarketsDomain) -> {
       let outcome =
-        markets.process_mutation_with_upstream(
+        markets.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           query,
@@ -1068,7 +1068,7 @@ fn route_mutation_to_domain(
     }
     Ok(MediaDomain) -> {
       let outcome =
-        media.process_mutation_with_upstream(
+        media.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           query,
@@ -1132,7 +1132,7 @@ fn route_mutation_to_domain(
     }
     Ok(StorePropertiesDomain) -> {
       let outcome =
-        store_properties.process_mutation_with_upstream(
+        store_properties.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -1155,7 +1155,7 @@ fn route_mutation_to_domain(
     }
     Ok(ProductsDomain) -> {
       let outcome =
-        products.process_mutation_with_upstream(
+        products.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -1180,7 +1180,7 @@ fn route_mutation_to_domain(
     }
     Ok(PrivacyDomain) -> {
       let outcome =
-        privacy.process_mutation_with_upstream(
+        privacy.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -1205,7 +1205,7 @@ fn route_mutation_to_domain(
     }
     Ok(CustomersDomain) -> {
       let outcome =
-        customers.process_mutation_with_upstream(
+        customers.process_mutation(
           proxy,
           request_path,
           query,
@@ -1227,7 +1227,7 @@ fn route_mutation_to_domain(
     }
     Ok(PaymentsDomain) -> {
       let outcome =
-        payments.process_mutation_with_upstream(
+        payments.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -1252,7 +1252,7 @@ fn route_mutation_to_domain(
     }
     Ok(ShippingFulfillmentsDomain) -> {
       let outcome =
-        shipping_fulfillments.process_mutation_with_upstream(
+        shipping_fulfillments.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,
@@ -1277,7 +1277,7 @@ fn route_mutation_to_domain(
     }
     Ok(OrdersDomain) -> {
       let outcome =
-        orders.process_mutation_with_upstream(
+        orders.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
           request_path,

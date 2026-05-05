@@ -21,6 +21,7 @@ import shopify_draft_proxy/state/types.{
   ShippingPackageRecord, ShippingPackageWeightRecord, StorePropertyBool,
   StorePropertyNull, StorePropertyRecord, StorePropertyString,
 }
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 
 fn package(id: String, name: String, default: Bool) -> ShippingPackageRecord {
   ShippingPackageRecord(
@@ -371,6 +372,7 @@ pub fn shipping_package_update_stages_local_record_test() {
       "/admin/api/2025-01/graphql.json",
       "mutation UpdatePackage($id: ID!, $shippingPackage: CustomShippingPackageInput!) { shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } } }",
       variables,
+      empty_upstream_context(),
     )
 
   assert json.to_string(outcome.data)
@@ -394,6 +396,7 @@ pub fn shipping_package_make_default_clears_previous_default_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/ShippingPackage/2")),
       ]),
+      empty_upstream_context(),
     )
 
   let assert Some(first) =
@@ -420,6 +423,7 @@ pub fn shipping_package_delete_marks_staged_deletion_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/ShippingPackage/1")),
       ]),
+      empty_upstream_context(),
     )
 
   assert json.to_string(outcome.data)
@@ -446,6 +450,7 @@ pub fn shipping_package_update_unknown_id_returns_resource_not_found_test() {
       "/admin/api/2025-01/graphql.json",
       "mutation UpdatePackage($id: ID!, $shippingPackage: CustomShippingPackageInput!) { shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } } }",
       variables,
+      empty_upstream_context(),
     )
 
   assert json.to_string(outcome.data)
@@ -477,6 +482,7 @@ pub fn carrier_service_create_update_read_and_delete_lifecycle_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name formattedName callbackUrl active supportsServiceDiscovery } userErrors { field message } } }",
       dict.from_list([#("input", create_input)]),
+      empty_upstream_context(),
     )
 
   let assert [created_id] = create_outcome.staged_resource_ids
@@ -512,6 +518,7 @@ pub fn carrier_service_create_update_read_and_delete_lifecycle_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation UpdateCarrier($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id name active supportsServiceDiscovery } userErrors { field message } } }",
       dict.from_list([#("input", update_input)]),
+      empty_upstream_context(),
     )
 
   let assert Some(updated) =
@@ -547,6 +554,7 @@ pub fn carrier_service_create_update_read_and_delete_lifecycle_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation DeleteCarrier($id: ID!) { carrierServiceDelete(id: $id) { deletedId userErrors { field message } } }",
       dict.from_list([#("id", root_field.StringVal(created_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(delete_outcome.data)
     == "{\"data\":{\"carrierServiceDelete\":{\"deletedId\":\""
@@ -569,6 +577,7 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation InvalidCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message } } }",
       dict.from_list([#("input", blank_input)]),
+      empty_upstream_context(),
     )
   assert json.to_string(create_outcome.data)
     == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider name can't be blank\"}]}}}"
@@ -590,6 +599,7 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation UnknownCarrier($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id } userErrors { field message } } }",
       dict.from_list([#("input", unknown_update)]),
+      empty_upstream_context(),
     )
   assert json.to_string(update_outcome.data)
     == "{\"data\":{\"carrierServiceUpdate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"The carrier or app could not be found.\"}]}}}"
@@ -606,6 +616,7 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
           root_field.StringVal("gid://shopify/DeliveryCarrierService/999"),
         ),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(delete_outcome.data)
     == "{\"data\":{\"carrierServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The carrier or app could not be found.\"}]}}}"
@@ -793,6 +804,7 @@ pub fn delivery_profile_lifecycle_stages_create_update_remove_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation CreateDeliveryProfile($profile: DeliveryProfileInput!) { deliveryProfileCreate(profile: $profile) { profile { id name version originLocationCount zoneCountryCount activeMethodDefinitionsCount productVariantsCount { count precision } profileItems(first: 5) { nodes { product { id title } variants(first: 5) { nodes { id title } } } } profileLocationGroups { locationGroup { id locations(first: 5) { nodes { id name } } } locationGroupZones(first: 5) { nodes { zone { id name } methodDefinitions(first: 5) { nodes { id name active rateProvider { ... on DeliveryRateDefinition { id price { amount currencyCode } } } methodConditions { id field operator conditionCriteria { __typename ... on Weight { value unit } } } } } } } } } userErrors { field message } } }",
       dict.from_list([#("profile", create_profile)]),
+      empty_upstream_context(),
     )
   let create_json = json.to_string(create_outcome.data)
   assert string.contains(
@@ -914,6 +926,7 @@ pub fn delivery_profile_lifecycle_stages_create_update_remove_test() {
         #("id", root_field.StringVal("gid://shopify/DeliveryProfile/1")),
         #("profile", update_profile),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(update_outcome.data)
     == "{\"data\":{\"deliveryProfileUpdate\":{\"profile\":{\"id\":\"gid://shopify/DeliveryProfile/1\",\"name\":\"Local custom shipping updated\",\"version\":2,\"originLocationCount\":2,\"zoneCountryCount\":1,\"activeMethodDefinitionsCount\":1,\"productVariantsCount\":{\"count\":0,\"precision\":\"EXACT\"},\"profileItems\":{\"nodes\":[]}},\"userErrors\":[]}}}"
@@ -927,6 +940,7 @@ pub fn delivery_profile_lifecycle_stages_create_update_remove_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/DeliveryProfile/1")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(remove_outcome.data)
     == "{\"data\":{\"deliveryProfileRemove\":{\"job\":{\"id\":\"gid://shopify/Job/7\",\"done\":false},\"userErrors\":[]}}}"
@@ -960,6 +974,7 @@ pub fn delivery_profile_lifecycle_validation_branches_test() {
           ),
         ),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(create_outcome.data)
     == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"name\"],\"message\":\"Add a profile name\"}]}}}"
@@ -981,6 +996,7 @@ pub fn delivery_profile_lifecycle_validation_branches_test() {
           ),
         ),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(update_outcome.data)
     == "{\"data\":{\"deliveryProfileUpdate\":{\"profile\":null,\"userErrors\":[{\"field\":null,\"message\":\"Profile could not be updated.\"}]}}}"
@@ -994,6 +1010,7 @@ pub fn delivery_profile_lifecycle_validation_branches_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/DeliveryProfile/999")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(missing_remove_outcome.data)
     == "{\"data\":{\"deliveryProfileRemove\":{\"job\":null,\"userErrors\":[{\"field\":null,\"message\":\"The Delivery Profile cannot be found for the shop.\"}]}}}"
@@ -1010,6 +1027,7 @@ pub fn delivery_profile_lifecycle_validation_branches_test() {
           root_field.StringVal("gid://shopify/DeliveryProfile/125254992178"),
         ),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(default_remove_outcome.data)
     == "{\"data\":{\"deliveryProfileRemove\":{\"job\":null,\"userErrors\":[{\"field\":null,\"message\":\"Cannot delete the default profile.\"}]}}}"
@@ -1031,6 +1049,7 @@ pub fn local_pickup_enable_disable_updates_downstream_location_read_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation EnablePickup($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) { locationLocalPickupEnable(localPickupSettings: $localPickupSettings) { localPickupSettings { pickupTime instructions } userErrors { field message code } } }",
       dict.from_list([#("localPickupSettings", local_pickup_settings)]),
+      empty_upstream_context(),
     )
 
   assert json.to_string(enable_outcome.data)
@@ -1056,6 +1075,7 @@ pub fn local_pickup_enable_disable_updates_downstream_location_read_test() {
       dict.from_list([
         #("locationId", root_field.StringVal("gid://shopify/Location/10")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(disable_outcome.data)
     == "{\"data\":{\"locationLocalPickupDisable\":{\"locationId\":\"gid://shopify/Location/10\",\"userErrors\":[]}}}"
@@ -1090,6 +1110,7 @@ pub fn local_pickup_unknown_location_returns_active_location_error_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation EnablePickup($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) { locationLocalPickupEnable(localPickupSettings: $localPickupSettings) { localPickupSettings { pickupTime instructions } userErrors { field message code } } }",
       dict.from_list([#("localPickupSettings", local_pickup_settings)]),
+      empty_upstream_context(),
     )
 
   assert json.to_string(outcome.data)
@@ -1111,6 +1132,7 @@ pub fn local_pickup_inactive_location_returns_active_location_error_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation EnablePickup($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) { locationLocalPickupEnable(localPickupSettings: $localPickupSettings) { localPickupSettings { pickupTime instructions } userErrors { field message code } } }",
       dict.from_list([#("localPickupSettings", local_pickup_settings)]),
+      empty_upstream_context(),
     )
 
   assert json.to_string(outcome.data)
@@ -1133,6 +1155,7 @@ pub fn local_pickup_custom_pickup_time_returns_code_error_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation EnablePickup($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) { locationLocalPickupEnable(localPickupSettings: $localPickupSettings) { localPickupSettings { pickupTime instructions } userErrors { field message code } } }",
       dict.from_list([#("localPickupSettings", local_pickup_settings)]),
+      empty_upstream_context(),
     )
 
   assert json.to_string(outcome.data)
@@ -1168,6 +1191,7 @@ pub fn local_pickup_accepts_captured_multi_day_standard_values_test() {
       dict.from_list([
         #("localPickupSettings", two_to_four_days_settings),
       ]),
+      empty_upstream_context(),
     )
 
   assert json.to_string(two_to_four_days_outcome.data)
@@ -1190,6 +1214,7 @@ pub fn local_pickup_accepts_captured_multi_day_standard_values_test() {
       dict.from_list([
         #("localPickupSettings", five_or_more_days_settings),
       ]),
+      empty_upstream_context(),
     )
 
   assert json.to_string(five_or_more_days_outcome.data)
@@ -1204,6 +1229,7 @@ pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation CreateFs($name: String!) { fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) { fulfillmentService { id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory } } userErrors { field message } } }",
       dict.from_list([#("name", root_field.StringVal("Hermes FS"))]),
+      empty_upstream_context(),
     )
   let assert [created, ..] =
     store.list_effective_fulfillment_services(create_outcome.store)
@@ -1243,6 +1269,7 @@ pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
         #("id", root_field.StringVal(created.id)),
         #("name", root_field.StringVal("Hermes FS Updated")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(update_outcome.data)
     == "{\"data\":{\"fulfillmentServiceUpdate\":{\"fulfillmentService\":{\"id\":\""
@@ -1258,6 +1285,7 @@ pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation DeleteFs($id: ID!) { fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) { deletedId userErrors { field message } } }",
       dict.from_list([#("id", root_field.StringVal(created.id))]),
+      empty_upstream_context(),
     )
   let deleted_id =
     string.split(created.id, "?") |> list.first |> result.unwrap(created.id)
@@ -1291,6 +1319,7 @@ pub fn fulfillment_service_validation_branches_return_user_errors_test() {
           root_field.StringVal("https://example.com/fulfillment-service"),
         ),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(create_outcome.data)
     == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name can't be blank\"},{\"field\":[\"callbackUrl\"],\"message\":\"Callback url is not allowed\"}]}}}"
@@ -1304,6 +1333,7 @@ pub fn fulfillment_service_validation_branches_return_user_errors_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/FulfillmentService/999")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(update_outcome.data)
     == "{\"data\":{\"fulfillmentServiceUpdate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment service could not be found.\"}]}}}"
@@ -1317,6 +1347,7 @@ pub fn fulfillment_service_validation_branches_return_user_errors_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/FulfillmentService/999")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(delete_outcome.data)
     == "{\"data\":{\"fulfillmentServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment service could not be found.\"}]}}}"
@@ -1387,6 +1418,7 @@ pub fn fulfillment_event_create_stages_event_and_downstream_read_test() {
           ),
         ),
       ]),
+      empty_upstream_context(),
     )
 
   let assert [updated_fulfillment, ..] =
@@ -1446,6 +1478,7 @@ pub fn reverse_delivery_lifecycle_and_detail_reads_stage_locally_test() {
           ]),
         ),
       ]),
+      empty_upstream_context(),
     )
   let create_json = json.to_string(create_outcome.data)
   assert string.contains(create_json, "\"userErrors\":[]")
@@ -1468,6 +1501,7 @@ pub fn reverse_delivery_lifecycle_and_detail_reads_stage_locally_test() {
       dict.from_list([
         #("reverseDeliveryId", root_field.StringVal(reverse_delivery_id)),
       ]),
+      empty_upstream_context(),
     )
   assert string.contains(json.to_string(update_outcome.data), "\"TRACK-2\"")
 
@@ -1494,6 +1528,7 @@ pub fn reverse_delivery_lifecycle_and_detail_reads_stage_locally_test() {
           ]),
         ),
       ]),
+      empty_upstream_context(),
     )
   let dispose_json = json.to_string(dispose_outcome.data)
   assert string.contains(dispose_json, "\"remainingQuantity\":0")
@@ -1541,6 +1576,7 @@ pub fn order_edit_shipping_line_roots_stage_calculated_order_test() {
           ),
         ),
       ]),
+      empty_upstream_context(),
     )
   let add_json = json.to_string(add_outcome.data)
   assert string.contains(add_json, "\"amount\":\"14.0\"")
@@ -1567,6 +1603,7 @@ pub fn order_edit_shipping_line_roots_stage_calculated_order_test() {
           ),
         ),
       ]),
+      empty_upstream_context(),
     )
   let update_json = json.to_string(update_outcome.data)
   assert string.contains(update_json, "\"amount\":\"16.0\"")
@@ -1583,6 +1620,7 @@ pub fn order_edit_shipping_line_roots_stage_calculated_order_test() {
         #("id", root_field.StringVal(calculated_order_id)),
         #("shippingLineId", root_field.StringVal(shipping_line_id)),
       ]),
+      empty_upstream_context(),
     )
   let remove_json = json.to_string(remove_outcome.data)
   assert string.contains(remove_json, "\"amount\":\"10.0\"")

@@ -17,6 +17,7 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type GiftCardRecord, type Money, GiftCardRecord, Money,
 }
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 
 // ----------- Helpers -----------
 
@@ -32,6 +33,7 @@ fn run_mutation_outcome(
       "/admin/api/2025-01/graphql.json",
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   outcome
 }

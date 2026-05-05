@@ -17,6 +17,7 @@ import shopify_draft_proxy/state/types.{
   type ShopifyFunctionRecord, type ValidationRecord, ShopifyFunctionRecord,
   ValidationRecord,
 }
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 
 // ----------- Helpers -----------
 
@@ -33,6 +34,7 @@ fn run_mutation_outcome(
       request_path,
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   let #(logged_store, logged_identity) =
     mutation_helpers.record_log_drafts(

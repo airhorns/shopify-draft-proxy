@@ -6,6 +6,7 @@ import shopify_draft_proxy/proxy/discounts
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 
 fn run_mutation(document: String) -> mutation_helpers.MutationOutcome {
   let outcome =
@@ -15,6 +16,7 @@ fn run_mutation(document: String) -> mutation_helpers.MutationOutcome {
       "/admin/api/2026-04/graphql.json",
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   outcome
 }

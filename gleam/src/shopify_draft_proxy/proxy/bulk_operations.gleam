@@ -366,24 +366,8 @@ type MutationFieldResult {
   )
 }
 
-pub fn process_mutation(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> MutationOutcome {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
 
-pub fn process_mutation_with_upstream(
+pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   request_path: String,
@@ -1183,6 +1167,7 @@ fn process_import_lines(
                   request_path,
                   mutation,
                   line_variables,
+                  empty_upstream_context(),
                 )
               let staged_this_line = outcome.staged_resource_ids
               let next_log_drafts = case staged_this_line {

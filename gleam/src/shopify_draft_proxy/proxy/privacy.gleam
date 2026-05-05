@@ -21,7 +21,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext, empty_upstream_context,
+  type UpstreamContext,
 }
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -54,24 +54,8 @@ pub fn is_privacy_mutation_root(name: String) -> Bool {
   }
 }
 
-pub fn process_mutation(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> MutationOutcome {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
 
-pub fn process_mutation_with_upstream(
+pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   _request_path: String,

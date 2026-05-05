@@ -605,35 +605,12 @@ type MutationFieldResult {
 
 /// Process a functions mutation document. Mirrors
 /// `handleFunctionMutation`.
-pub fn process_mutation(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> MutationOutcome {
-  case root_field.get_root_fields(document) {
-    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
-    Ok(fields) -> {
-      let fragments = get_document_fragments(document)
-      handle_mutation_fields(
-        store,
-        identity,
-        request_path,
-        document,
-        fields,
-        fragments,
-        variables,
-      )
-    }
-  }
-}
 
 /// Pattern 2: dispatched LiveHybrid function metadata mutations first
 /// try to hydrate referenced ShopifyFunction owner/app metadata from
 /// upstream, then stage the mutation locally. Snapshot/no-transport
 /// paths fall back to the existing local synthetic Function record.
-pub fn process_mutation_with_upstream(
+pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   request_path: String,

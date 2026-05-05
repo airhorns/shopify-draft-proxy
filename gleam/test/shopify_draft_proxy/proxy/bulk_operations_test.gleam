@@ -13,6 +13,7 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type ProductRecord, BulkOperationRecord, ProductRecord, ProductSeoRecord,
 }
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 
 fn empty_vars() {
   dict.new()
@@ -173,6 +174,7 @@ pub fn run_query_stages_completed_operation_and_log_test() {
       request_path,
       document,
       empty_vars(),
+      empty_upstream_context(),
     )
   let outcome = record_drafts(outcome, request_path, document)
   let response = json.to_string(outcome.data)
@@ -204,6 +206,7 @@ pub fn run_query_exports_product_jsonl_and_metadata_test() {
       request_path,
       document,
       empty_vars(),
+      empty_upstream_context(),
     )
   let response = json.to_string(outcome.data)
   assert string.contains(response, "\"status\":\"COMPLETED\"")
@@ -227,6 +230,7 @@ pub fn run_query_without_connection_returns_shopify_error_test() {
       request_path,
       document,
       empty_vars(),
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries must contain at least one connection.\",\"code\":\"INVALID\"}]}}}"
@@ -251,6 +255,7 @@ pub fn run_mutation_missing_upload_stages_failed_job_test() {
       request_path,
       document,
       variables,
+      empty_upstream_context(),
     )
   let response = json.to_string(outcome.data)
   assert string.contains(response, "\"status\":\"FAILED\"")
@@ -289,6 +294,7 @@ pub fn run_mutation_unsupported_inner_root_fails_locally_test() {
       request_path,
       document,
       variables,
+      empty_upstream_context(),
     )
   let response = json.to_string(outcome.data)
   assert string.contains(response, "\"status\":\"FAILED\"")
@@ -330,6 +336,7 @@ pub fn run_mutation_product_create_import_stages_product_and_result_test() {
       request_path,
       document,
       variables,
+      empty_upstream_context(),
     )
   let response = json.to_string(outcome.data)
   assert string.contains(response, "\"status\":\"COMPLETED\"")
@@ -394,6 +401,7 @@ pub fn cancel_staged_terminal_and_missing_operations_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { running: bulkOperationCancel(id: \"gid://shopify/BulkOperation/401\") { bulkOperation { id status completedAt } userErrors { field message } } terminal: bulkOperationCancel(id: \"gid://shopify/BulkOperation/402\") { bulkOperation { id status } userErrors { field message } } missing: bulkOperationCancel(id: \"gid://shopify/BulkOperation/0\") { bulkOperation { id } userErrors { field message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   let response = json.to_string(outcome.data)
   assert string.contains(
