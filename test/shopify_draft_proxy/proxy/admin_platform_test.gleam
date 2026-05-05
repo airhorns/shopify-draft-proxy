@@ -8,7 +8,7 @@ import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/admin_platform
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/mutation_helpers
-import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
+import shopify_draft_proxy/proxy/proxy_state.{type Request, Request, Response}
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
@@ -695,16 +695,99 @@ pub fn backup_region_update_validation_does_not_log_test() {
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
-      "mutation { backupRegionUpdate(region: { countryCode: ZZ }) { backupRegion { id } userErrors { field message code } } }",
+      "mutation { backupRegionUpdate(region: { countryCode: ZZ }) { backupRegion { id } userErrors { __typename field message code } } }",
       empty_vars(),
       empty_upstream_context(),
     )
 
   let body = json.to_string(outcome.data)
   assert string.contains(body, "\"backupRegion\":null")
+  assert string.contains(body, "\"__typename\":\"MarketUserError\"")
+  assert !string.contains(body, "\"__typename\":\"UserError\"")
   assert string.contains(body, "\"message\":\"Region not found.\"")
   assert string.contains(body, "\"code\":\"REGION_NOT_FOUND\"")
   assert store.get_log(outcome.store) == []
+}
+
+pub fn backup_region_update_missing_country_code_coercion_error_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_mutation_request(
+        "mutation { backupRegionUpdate(region: {}) { backupRegion { id } userErrors { field code } } }",
+      ),
+    )
+
+  let serialized = json.to_string(body)
+  assert status == 200
+  assert string.contains(serialized, "\"errors\"")
+  assert string.contains(
+    serialized,
+    "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' is required. Expected type CountryCode!",
+  )
+  assert string.contains(
+    serialized,
+    "\"code\":\"missingRequiredInputObjectAttribute\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"path\":[\"mutation\",\"backupRegionUpdate\",\"region\",\"countryCode\"]",
+  )
+  assert !string.contains(serialized, "\"data\"")
+  assert !string.contains(serialized, "REGION_NOT_FOUND")
+  assert store.get_log(proxy.store) == []
+}
+
+pub fn backup_region_update_null_country_code_coercion_error_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_mutation_request(
+        "mutation { backupRegionUpdate(region: { countryCode: null }) { backupRegion { id } userErrors { field code } } }",
+      ),
+    )
+
+  let serialized = json.to_string(body)
+  assert status == 200
+  assert string.contains(serialized, "\"errors\"")
+  assert string.contains(
+    serialized,
+    "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value (null). Expected type 'CountryCode!'.",
+  )
+  assert string.contains(
+    serialized,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(serialized, "\"typeName\":\"InputObject\"")
+  assert !string.contains(serialized, "\"data\"")
+  assert !string.contains(serialized, "REGION_NOT_FOUND")
+  assert store.get_log(proxy.store) == []
+}
+
+pub fn backup_region_update_numeric_country_code_coercion_error_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_mutation_request(
+        "mutation { backupRegionUpdate(region: { countryCode: 42 }) { backupRegion { id } userErrors { field code } } }",
+      ),
+    )
+
+  let serialized = json.to_string(body)
+  assert status == 200
+  assert string.contains(serialized, "\"errors\"")
+  assert string.contains(
+    serialized,
+    "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value (42). Expected type 'CountryCode!'.",
+  )
+  assert string.contains(
+    serialized,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(serialized, "\"typeName\":\"InputObject\"")
+  assert !string.contains(serialized, "\"data\"")
+  assert !string.contains(serialized, "REGION_NOT_FOUND")
+  assert store.get_log(proxy.store) == []
 }
 
 pub fn flow_utility_mutations_stage_without_sensitive_state_test() {
@@ -846,6 +929,119 @@ pub fn flow_trigger_receive_validation_matches_shopify_test() {
   assert conflict.staged_resource_ids == []
 }
 
+pub fn flow_trigger_receive_body_only_validates_json_and_schema_test() {
+  let invalid_json =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"not json\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let invalid_json_body = json.to_string(invalid_json.data)
+  assert string.contains(invalid_json_body, "\"field\":[\"body\"]")
+  assert string.contains(
+    invalid_json_body,
+    "Errors validating schema:\\n  unexpected token 'not' at line 1 column 1\\n",
+  )
+  assert invalid_json.staged_resource_ids == []
+  assert invalid_json.store.staged_state.admin_platform_flow_trigger_order == []
+
+  let properties_not_object =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"properties\\\":\\\"oops\\\"}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let properties_not_object_body = json.to_string(properties_not_object.data)
+  assert string.contains(properties_not_object_body, "\"field\":[\"body\"]")
+  assert string.contains(
+    properties_not_object_body,
+    "Errors validating schema:\\n  Type error for field 'properties': oops is not an Object.\\n",
+  )
+  assert properties_not_object.staged_resource_ids == []
+
+  let missing_resource_url =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"resources\\\":[{\\\"name\\\":\\\"x\\\"}],\\\"properties\\\":{}}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let missing_resource_url_body = json.to_string(missing_resource_url.data)
+  assert string.contains(missing_resource_url_body, "\"field\":[\"body\"]")
+  assert string.contains(
+    missing_resource_url_body,
+    "Errors validating schema:\\n  Required field missing: 'url'.\\n",
+  )
+  assert missing_resource_url.staged_resource_ids == []
+
+  let whitespace_body =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"   \") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let whitespace_body_json = json.to_string(whitespace_body.data)
+  assert string.contains(whitespace_body_json, "\"field\":[\"handle\"]")
+  assert string.contains(
+    whitespace_body_json,
+    "`handle` and `payload` arguments are required",
+  )
+  assert whitespace_body.staged_resource_ids == []
+}
+
+pub fn flow_trigger_receive_body_only_success_uses_canonical_payload_test() {
+  let compact =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{}}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let compact_body = json.to_string(compact.data)
+  assert string.contains(compact_body, "\"userErrors\":[]")
+  assert list.length(compact.staged_resource_ids) == 1
+
+  let spaced =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{  \\\"trigger_id\\\" : \\\"abc\\\", \\\"properties\\\" : {} }\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let spaced_body = json.to_string(spaced.data)
+  assert string.contains(spaced_body, "\"userErrors\":[]")
+  assert list.length(spaced.staged_resource_ids) == 1
+
+  let compact_record = only_flow_trigger_record(compact)
+  let spaced_record = only_flow_trigger_record(spaced)
+  assert compact_record.handle == "legacy-body"
+  assert compact_record.payload_bytes == spaced_record.payload_bytes
+  assert compact_record.payload_sha256 == spaced_record.payload_sha256
+}
+
+fn only_flow_trigger_record(outcome: mutation_helpers.MutationOutcome) {
+  let staged = outcome.store.staged_state
+  let assert [record_id] = staged.admin_platform_flow_trigger_order
+  let assert Ok(record) =
+    dict.get(staged.admin_platform_flow_triggers, record_id)
+  record
+}
+
 pub fn flow_trigger_receive_accepts_non_local_handle_test() {
   let outcome =
     admin_platform.process_mutation(
@@ -937,6 +1133,15 @@ fn backup_region_update_document(code: String) -> String {
   "mutation { backupRegionUpdate(region: { countryCode: "
   <> code
   <> " }) { backupRegion { id name code } userErrors { field message code } } }"
+}
+
+fn graphql_mutation_request(query: String) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2026-04/graphql.json",
+    headers: dict.new(),
+    body: "{\"query\":" <> json.to_string(json.string(query)) <> "}",
+  )
 }
 
 fn harry_test_backed_regions() -> List(#(String, String, String)) {

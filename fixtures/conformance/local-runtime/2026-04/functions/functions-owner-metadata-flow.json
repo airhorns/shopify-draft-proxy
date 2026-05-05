@@ -109,8 +109,8 @@
           "validation": {
             "id": "gid://shopify/Validation/2",
             "title": "Owned validation renamed",
-            "enable": true,
-            "blockOnFailure": true,
+            "enable": false,
+            "blockOnFailure": false,
             "functionId": "gid://shopify/ShopifyFunction/validation-owned",
             "functionHandle": "validation-owned",
             "updatedAt": "2024-01-01T00:00:05.000Z",
@@ -134,8 +134,8 @@
       "validation": {
         "id": "gid://shopify/Validation/2",
         "title": "Owned validation renamed",
-        "enable": true,
-        "blockOnFailure": true,
+        "enable": false,
+        "blockOnFailure": false,
         "functionId": "gid://shopify/ShopifyFunction/validation-owned",
         "functionHandle": "validation-owned",
         "shopifyFunction": {

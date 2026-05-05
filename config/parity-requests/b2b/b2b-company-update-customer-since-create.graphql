@@ -1,0 +1,14 @@
+mutation B2BCustomerSinceCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      customerSince
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

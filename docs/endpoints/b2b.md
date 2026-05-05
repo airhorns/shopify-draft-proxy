@@ -133,6 +133,19 @@ duplicate role, foreign/missing role, foreign/missing location, successful main
 contact delete, and completed B2B order-history delete rejection branches as
 strict replayable parity evidence.
 
+HAR-754 aligns bulk B2B resolver `userErrors.field` paths with Shopify's
+string-indexed list paths. Bulk company/contact/location deletes, role
+assignment/revoke roots, and location staff assignment/removal roots report
+failed entries at paths such as `["companyContactIds", "1"]` or
+`["rolesToAssign", "0", "companyLocationId"]` while preserving top-level
+single-ID field paths on the single-resource mutation surfaces. The 2026-04
+capture records the Shopify quirk that `companyLocationAssignRoles` reports
+missing contact/role entries at the indexed list item path (for example
+`["rolesToAssign", "0"]`) rather than at a nested sub-field. Staff assignment
+still does not synthesize a broader staff catalog, but missing staff-member and
+staff-assignment IDs use Shopify's indexed user error paths and null payload
+shape for the failed list-valued fields.
+
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
 `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`
@@ -295,3 +308,12 @@ external IDs returning Shopify's observable `TAKEN` code, so the proxy emits
 DB-conflict enum names. Update mutations use the same checks while allowing the
 current record to retain its own unchanged external ID. Executable parity specs
 cover charset, too-long, duplicate-company, and duplicate-location branches.
+
+HAR-760 adds the captured create-only `customerSince` guard for
+`companyUpdate`. Shopify 2026-04 accepts `customerSince` on `companyCreate` but
+rejects `companyUpdate(input.customerSince)` whenever the key is present,
+including `null`, with `INVALID_INPUT`, field `["input", "customerSince"]`, and
+message `This field may only be set on creation.` The checked-in parity
+scenario records timestamp-only, mixed `name` plus `customerSince`, and
+`customerSince: null` updates; each rejected update is followed by a company
+read proving the original `name` and `customerSince` stayed unchanged.

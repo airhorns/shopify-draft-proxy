@@ -1,0 +1,11 @@
+mutation BackupRegionUpdateMissingCountryCode {
+  backupRegionUpdate(region: {}) {
+    backupRegion {
+      id
+    }
+    userErrors {
+      field
+      code
+    }
+  }
+}

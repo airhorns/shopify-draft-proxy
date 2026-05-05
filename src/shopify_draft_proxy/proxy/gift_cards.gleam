@@ -2057,17 +2057,9 @@ fn handle_gift_card_update(
                 [error],
               )
             None -> {
-              let changed =
-                gift_card_update_changes_record(
-                  current,
-                  new_note,
-                  new_template,
-                  new_expires,
-                  new_customer,
-                  new_recipient_id,
-                  new_recipient_attributes,
-                )
-              case changed {
+              let has_update_argument =
+                gift_card_update_has_editable_argument(input)
+              case has_update_argument {
                 False ->
                   gift_card_update_error_result(
                     key,
@@ -2710,21 +2702,20 @@ fn gift_card_update_customer_user_error(
   }
 }
 
-fn gift_card_update_changes_record(
-  current: GiftCardRecord,
-  note: Option(String),
-  template_suffix: Option(String),
-  expires_on: Option(String),
-  customer_id: Option(String),
-  recipient_id: Option(String),
-  recipient_attributes: Option(GiftCardRecipientAttributesRecord),
+fn gift_card_update_has_editable_argument(
+  input: Dict(String, root_field.ResolvedValue),
 ) -> Bool {
-  note != current.note
-  || template_suffix != current.template_suffix
-  || expires_on != current.expires_on
-  || customer_id != current.customer_id
-  || recipient_id != current.recipient_id
-  || recipient_attributes != current.recipient_attributes
+  [
+    "note",
+    "expiresOn",
+    "customerId",
+    "templateSuffix",
+    "recipientId",
+    "recipientAttributes",
+    "crossCurrencyRedemptionStrategy",
+    "notify",
+  ]
+  |> list.any(fn(field) { dict_has_key(input, field) })
 }
 
 fn gift_card_update_missing_arguments_user_error() -> UserError {

@@ -1,0 +1,38 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-operation-in-progress",
+  "operationNames": ["bulkOperationCancel", "bulkOperationRunMutation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/bulk-operations/bulk-operation-run-mutation-operation-in-progress.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+    "variablesCapturePath": "$.cancelAttempt.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cancel-hydrates-mutation-operation-as-non-terminal",
+        "capturePath": "$.cancelAttempt.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel"
+      },
+      {
+        "name": "second-mutation-run-operation-in-progress",
+        "capturePath": "$.secondRun.response.data.bulkOperationRunMutation",
+        "proxyPath": "$.data.bulkOperationRunMutation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-operation-in-progress.graphql",
+          "variablesCapturePath": "$.secondRun.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-752 captures Shopify Admin GraphQL 2025-01 returning OPERATION_IN_PROGRESS for two consecutive bulkOperationRunMutation calls using two uploaded JSONL variable files. The executable comparison hydrates the captured first mutation operation through bulkOperationCancel and then proves the local throttle response before staged upload lookup, without localSetups or seeded state."
+}
