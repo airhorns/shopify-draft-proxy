@@ -1,0 +1,130 @@
+mutation DiscountBulkSelectorValidation($codeIds: [ID!], $automaticIds: [ID!], $search: String, $savedSearchId: ID) {
+  codeActivateEmpty: discountCodeBulkActivate {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeActivateBlank: discountCodeBulkActivate(search: "") {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeActivateTooMany: discountCodeBulkActivate(ids: $codeIds, search: $search) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeActivateSavedSearch: discountCodeBulkActivate(savedSearchId: $savedSearchId) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeactivateEmpty: discountCodeBulkDeactivate {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeactivateBlank: discountCodeBulkDeactivate(search: "") {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeactivateTooMany: discountCodeBulkDeactivate(ids: $codeIds, search: $search) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeactivateSavedSearch: discountCodeBulkDeactivate(savedSearchId: $savedSearchId) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeleteEmpty: discountCodeBulkDelete {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeleteBlank: discountCodeBulkDelete(search: "") {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeleteTooMany: discountCodeBulkDelete(ids: $codeIds, search: $search) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeleteSavedSearch: discountCodeBulkDelete(savedSearchId: $savedSearchId) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDeleteEmpty: discountAutomaticBulkDelete {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDeleteBlank: discountAutomaticBulkDelete(search: "") {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDeleteTooMany: discountAutomaticBulkDelete(ids: $automaticIds, search: $search) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDeleteSavedSearch: discountAutomaticBulkDelete(savedSearchId: $savedSearchId) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

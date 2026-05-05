@@ -22,6 +22,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/crypto
@@ -895,6 +896,10 @@ const minimum_one_time_purchase_amount = 0.5
 
 const minimum_one_time_purchase_amount_label = "0.50"
 
+type DecimalAmount {
+  DecimalAmount(sign: Int, whole: String, fraction: String)
+}
+
 type MutationFieldResult {
   MutationFieldResult(
     key: String,
@@ -1675,11 +1680,15 @@ fn stage_valid_purchase_create(
     )
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let status = case is_test {
+    True -> "ACTIVE"
+    False -> "PENDING"
+  }
   let purchase =
     AppOneTimePurchaseRecord(
       id: purchase_gid,
       name: name,
-      status: "PENDING",
+      status: status,
       is_test: is_test,
       created_at: timestamp,
       price: price,
@@ -1761,15 +1770,25 @@ fn handle_subscription_create(
     )
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity_after_lis)
+  let is_test =
+    graphql_helpers.read_arg_bool(args, "test")
+    |> option.unwrap(False)
+  let status = case is_test {
+    True -> "ACTIVE"
+    False -> "PENDING"
+  }
+  let current_period_end = case status {
+    "ACTIVE" -> compute_current_period_end(timestamp, line_items, args)
+    _ -> None
+  }
   let subscription =
     AppSubscriptionRecord(
       id: sub_gid,
       name: option.unwrap(graphql_helpers.read_arg_string(args, "name"), ""),
-      status: "PENDING",
-      is_test: graphql_helpers.read_arg_bool(args, "test")
-        |> option.unwrap(False),
+      status: status,
+      is_test: is_test,
       trial_days: graphql_helpers.read_arg_int(args, "trialDays"),
-      current_period_end: None,
+      current_period_end: current_period_end,
       created_at: timestamp,
       line_item_ids: list.map(line_items, fn(li) { li.id }),
     )
@@ -1781,6 +1800,11 @@ fn handle_subscription_create(
       all_subscription_ids: list.append(installation.all_subscription_ids, [
         subscription.id,
       ]),
+      active_subscription_ids: case subscription.status {
+        "ACTIVE" ->
+          append_unique(installation.active_subscription_ids, subscription.id)
+        _ -> installation.active_subscription_ids
+      },
     )
   let #(_, store_staged) =
     store.stage_app_installation(store_after_sub, updated_installation)
@@ -1970,101 +1994,353 @@ fn handle_line_item_update(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let line_item_id = graphql_helpers.read_arg_string(args, "id")
-  let line_item = case line_item_id {
-    Some(id) -> store.get_effective_app_subscription_line_item_by_id(store, id)
-    None -> None
+  case line_item_id {
+    Some(id) -> {
+      case valid_app_subscription_line_item_gid(id) {
+        False ->
+          line_item_update_failed(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            UserError(
+              field: ["id"],
+              message: "Invalid app subscription line item id",
+              code: None,
+            ),
+          )
+        True ->
+          handle_valid_line_item_update(
+            key,
+            store,
+            identity,
+            origin,
+            field,
+            fragments,
+            args,
+            id,
+          )
+      }
+    }
+    None ->
+      line_item_update_failed(
+        key,
+        store,
+        identity,
+        field,
+        fragments,
+        UserError(
+          field: ["id"],
+          message: "Invalid app subscription line item id",
+          code: None,
+        ),
+      )
   }
+}
+
+fn handle_valid_line_item_update(
+  key: String,
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  origin: String,
+  field: Selection,
+  fragments: FragmentMap,
+  args: Dict(String, root_field.ResolvedValue),
+  line_item_id: String,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let line_item =
+    store.get_effective_app_subscription_line_item_by_id(
+      draft_store,
+      line_item_id,
+    )
   let subscription = case line_item {
     Some(li) ->
-      store.get_effective_app_subscription_by_id(store, li.subscription_id)
+      store.get_effective_app_subscription_by_id(
+        draft_store,
+        li.subscription_id,
+      )
     None -> None
   }
   case line_item, subscription {
     Some(li), Some(sub) -> {
       let capped = read_money_input(args, "cappedAmount")
-      let updated_pricing = case li.plan.pricing_details {
+      case li.plan.pricing_details {
         AppRecurringPricing(..) ->
-          // TS allows updating cappedAmount on a recurring line item by
-          // shallow-merging onto the existing pricing details. The Gleam
-          // model has no field for that on AppRecurringPricing, so we
-          // fall through and leave it unchanged. (Realistic shape is
-          // AppUsagePricing — that's what the TS shop emits.)
-          li.plan.pricing_details
+          line_item_update_failed(
+            key,
+            draft_store,
+            identity,
+            field,
+            fragments,
+            UserError(
+              field: ["cappedAmount"],
+              message: "Only usage-pricing line items support cappedAmount updates",
+              code: None,
+            ),
+          )
         AppUsagePricing(
+          capped_amount: current_capped,
           balance_used: balance,
           interval: interval,
           terms: terms,
-          ..,
         ) ->
-          AppUsagePricing(
-            capped_amount: capped,
-            balance_used: balance,
-            interval: interval,
-            terms: terms,
-          )
+          case capped.currency_code != current_capped.currency_code {
+            True ->
+              line_item_update_failed(
+                key,
+                draft_store,
+                identity,
+                field,
+                fragments,
+                UserError(
+                  field: ["cappedAmount"],
+                  message: "Capped amount currency mismatch. Expected "
+                    <> current_capped.currency_code,
+                  code: None,
+                ),
+              )
+            False ->
+              case
+                decimal_amount_greater_than(
+                  capped.amount,
+                  current_capped.amount,
+                )
+              {
+                False ->
+                  line_item_update_failed(
+                    key,
+                    draft_store,
+                    identity,
+                    field,
+                    fragments,
+                    UserError(
+                      field: ["cappedAmount"],
+                      message: "The capped amount must be greater than the existing capped amount",
+                      code: None,
+                    ),
+                  )
+                True -> {
+                  let updated_pricing =
+                    AppUsagePricing(
+                      capped_amount: capped,
+                      balance_used: balance,
+                      interval: interval,
+                      terms: terms,
+                    )
+                  let updated_line_item =
+                    AppSubscriptionLineItemRecord(
+                      ..li,
+                      plan: AppSubscriptionLineItemPlan(
+                        pricing_details: updated_pricing,
+                      ),
+                    )
+                  let #(_, store_after_li) =
+                    store.stage_app_subscription_line_item(
+                      draft_store,
+                      updated_line_item,
+                    )
+                  let payload =
+                    project_subscription_payload(
+                      store_after_li,
+                      Some(sub),
+                      Some(confirmation_url(
+                        origin,
+                        "RecurringApplicationCharge",
+                        sub.id,
+                      )),
+                      [],
+                      field,
+                      fragments,
+                    )
+                  let draft =
+                    make_log_draft(
+                      "appSubscriptionLineItemUpdate",
+                      [updated_line_item.id],
+                      store.Staged,
+                    )
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: payload,
+                      staged_resource_ids: [updated_line_item.id],
+                      log_drafts: [draft],
+                    ),
+                    store_after_li,
+                    identity,
+                  )
+                }
+              }
+          }
       }
-      let updated_line_item =
-        AppSubscriptionLineItemRecord(
-          ..li,
-          plan: AppSubscriptionLineItemPlan(pricing_details: updated_pricing),
-        )
-      let #(_, store_after_li) =
-        store.stage_app_subscription_line_item(store, updated_line_item)
-      let payload =
-        project_subscription_payload(
-          store_after_li,
-          Some(sub),
-          Some(confirmation_url(origin, "RecurringApplicationCharge", sub.id)),
-          [],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft(
-          "appSubscriptionLineItemUpdate",
-          [updated_line_item.id],
-          store.Staged,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [updated_line_item.id],
-          log_drafts: [draft],
-        ),
-        store_after_li,
+    }
+    _, _ ->
+      line_item_update_failed(
+        key,
+        draft_store,
         identity,
+        field,
+        fragments,
+        UserError(
+          field: ["id"],
+          message: "Subscription line item not found",
+          code: None,
+        ),
+      )
+  }
+}
+
+fn line_item_update_failed(
+  key: String,
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  user_error: UserError,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload =
+    project_subscription_payload(
+      draft_store,
+      None,
+      None,
+      [user_error],
+      field,
+      fragments,
+    )
+  let draft = make_log_draft("appSubscriptionLineItemUpdate", [], store.Failed)
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [],
+      log_drafts: [draft],
+    ),
+    draft_store,
+    identity,
+  )
+}
+
+fn valid_app_subscription_line_item_gid(id: String) -> Bool {
+  let prefix = "gid://shopify/AppSubscriptionLineItem/"
+  case string.starts_with(id, prefix) {
+    False -> False
+    True -> {
+      let tail = string.drop_start(id, string.length(prefix))
+      let resource_id = case string.split_once(tail, "?") {
+        Ok(#(head, _)) -> head
+        Error(_) -> tail
+      }
+      string.length(resource_id) > 0 && !string.contains(resource_id, "/")
+    }
+  }
+}
+
+fn decimal_amount_greater_than(left: String, right: String) -> Bool {
+  case parse_decimal_amount(left), parse_decimal_amount(right) {
+    Some(left), Some(right) -> compare_decimal_amounts(left, right) == order.Gt
+    _, _ -> False
+  }
+}
+
+fn parse_decimal_amount(value: String) -> Option(DecimalAmount) {
+  let trimmed = string.trim(value)
+  let #(sign, unsigned) = case string.starts_with(trimmed, "-") {
+    True -> #(-1, string.drop_start(trimmed, 1))
+    False ->
+      case string.starts_with(trimmed, "+") {
+        True -> #(1, string.drop_start(trimmed, 1))
+        False -> #(1, trimmed)
+      }
+  }
+  let #(whole_raw, fraction) = case string.split_once(unsigned, ".") {
+    Ok(#(whole, fraction)) -> #(whole, fraction)
+    Error(_) -> #(unsigned, "")
+  }
+  let whole = case whole_raw {
+    "" -> "0"
+    _ -> whole_raw
+  }
+  case
+    string.length(unsigned) > 0
+    && all_decimal_digits(whole)
+    && all_decimal_digits(fraction)
+  {
+    True ->
+      Some(DecimalAmount(
+        sign: sign,
+        whole: normalize_decimal_whole(whole),
+        fraction: fraction,
+      ))
+    False -> None
+  }
+}
+
+fn all_decimal_digits(value: String) -> Bool {
+  list.all(string.to_graphemes(value), is_decimal_digit)
+}
+
+fn is_decimal_digit(grapheme: String) -> Bool {
+  case grapheme {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    _ -> False
+  }
+}
+
+fn normalize_decimal_whole(value: String) -> String {
+  do_normalize_decimal_whole(string.to_graphemes(value))
+}
+
+fn do_normalize_decimal_whole(graphemes: List(String)) -> String {
+  case graphemes {
+    ["0", ..rest] -> do_normalize_decimal_whole(rest)
+    [] -> "0"
+    _ -> string.join(graphemes, "")
+  }
+}
+
+fn compare_decimal_amounts(
+  left: DecimalAmount,
+  right: DecimalAmount,
+) -> order.Order {
+  case int.compare(left.sign, right.sign) {
+    order.Eq ->
+      case left.sign {
+        -1 -> invert_order(compare_unsigned_decimal_amounts(left, right))
+        _ -> compare_unsigned_decimal_amounts(left, right)
+      }
+    other -> other
+  }
+}
+
+fn compare_unsigned_decimal_amounts(
+  left: DecimalAmount,
+  right: DecimalAmount,
+) -> order.Order {
+  case int.compare(string.length(left.whole), string.length(right.whole)) {
+    order.Eq -> {
+      let scale =
+        int.max(string.length(left.fraction), string.length(right.fraction))
+      string.compare(
+        left.whole <> right_pad_fraction(left.fraction, scale),
+        right.whole <> right_pad_fraction(right.fraction, scale),
       )
     }
-    _, _ -> {
-      let payload =
-        project_subscription_payload(
-          store,
-          None,
-          None,
-          [
-            UserError(
-              field: ["id"],
-              message: "Subscription line item not found",
-              code: None,
-            ),
-          ],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft("appSubscriptionLineItemUpdate", [], store.Failed)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-          log_drafts: [draft],
-        ),
-        store,
-        identity,
-      )
-    }
+    other -> other
+  }
+}
+
+fn right_pad_fraction(value: String, scale: Int) -> String {
+  case string.length(value) >= scale {
+    True -> value
+    False -> right_pad_fraction(value <> "0", scale)
+  }
+}
+
+fn invert_order(value: order.Order) -> order.Order {
+  case value {
+    order.Lt -> order.Gt
+    order.Eq -> order.Eq
+    order.Gt -> order.Lt
   }
 }
 
@@ -2282,74 +2558,252 @@ fn handle_usage_record_create(
   }
   case line_item {
     None -> {
-      let payload =
-        project_usage_record_payload(
-          store,
-          None,
-          [
-            UserError(
-              field: ["subscriptionLineItemId"],
-              message: "Subscription line item not found",
-              code: None,
-            ),
-          ],
-          field,
-          fragments,
-        )
-      let draft = make_log_draft("appUsageRecordCreate", [], store.Failed)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-          log_drafts: [draft],
+      usage_record_create_failure(key, store, identity, field, fragments, [
+        UserError(
+          field: ["subscriptionLineItemId"],
+          message: "Subscription line item not found",
+          code: None,
         ),
-        store,
-        identity,
-      )
+      ])
     }
     Some(li) -> {
-      let #(record_gid, identity_after_id) =
-        synthetic_identity.make_synthetic_gid(identity, "AppUsageRecord")
-      let #(timestamp, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let record =
-        AppUsageRecord(
-          id: record_gid,
-          subscription_line_item_id: li.id,
-          description: option.unwrap(
-            graphql_helpers.read_arg_string(args, "description"),
-            "",
-          ),
-          price: read_money_input(args, "price"),
-          created_at: timestamp,
-          idempotency_key: graphql_helpers.read_arg_string(
-            args,
-            "idempotencyKey",
-          ),
-        )
-      let #(_, store_after) = store.stage_app_usage_record(store, record)
-      let payload =
-        project_usage_record_payload(
-          store_after,
-          Some(record),
-          [],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft("appUsageRecordCreate", [record.id], store.Staged)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [record.id],
-          log_drafts: [draft],
-        ),
-        store_after,
-        identity_after_ts,
-      )
+      let idempotency_key =
+        graphql_helpers.read_arg_string(args, "idempotencyKey")
+      case idempotency_key_too_long(idempotency_key) {
+        True ->
+          usage_record_create_failure(key, store, identity, field, fragments, [
+            UserError(
+              field: ["idempotencyKey"],
+              message: "Idempotency key must be at most 255 characters",
+              code: None,
+            ),
+          ])
+        False ->
+          case li.plan.pricing_details {
+            AppRecurringPricing(..) ->
+              usage_record_create_failure(
+                key,
+                store,
+                identity,
+                field,
+                fragments,
+                [
+                  UserError(
+                    field: ["subscriptionLineItemId"],
+                    message: "Subscription line item must use usage pricing",
+                    code: None,
+                  ),
+                ],
+              )
+            AppUsagePricing(
+              capped_amount: capped,
+              balance_used: balance,
+              interval: interval,
+              terms: terms,
+            ) -> {
+              case
+                find_usage_record_by_idempotency_key(
+                  store,
+                  li.id,
+                  idempotency_key,
+                )
+              {
+                Some(record) -> {
+                  let payload =
+                    project_usage_record_payload(
+                      store,
+                      Some(record),
+                      [],
+                      field,
+                      fragments,
+                    )
+                  let draft =
+                    make_log_draft(
+                      "appUsageRecordCreate",
+                      [record.id],
+                      store.Staged,
+                    )
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: payload,
+                      staged_resource_ids: [record.id],
+                      log_drafts: [draft],
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+                None -> {
+                  let price = read_money_input(args, "price")
+                  case price.currency_code == capped.currency_code {
+                    False ->
+                      usage_record_create_failure(
+                        key,
+                        store,
+                        identity,
+                        field,
+                        fragments,
+                        [
+                          UserError(
+                            field: ["price", "currencyCode"],
+                            message: "Currency code must match capped amount currency",
+                            code: None,
+                          ),
+                        ],
+                      )
+                    True -> {
+                      let proposed_balance = money_add(balance, price)
+                      case money_amount_greater_than(proposed_balance, capped) {
+                        True ->
+                          usage_record_create_failure(
+                            key,
+                            store,
+                            identity,
+                            field,
+                            fragments,
+                            [
+                              UserError(
+                                field: [],
+                                message: "Total price exceeds balance remaining",
+                                code: None,
+                              ),
+                            ],
+                          )
+                        False -> {
+                          let updated_pricing =
+                            AppUsagePricing(
+                              capped_amount: capped,
+                              balance_used: proposed_balance,
+                              interval: interval,
+                              terms: terms,
+                            )
+                          let updated_line_item =
+                            AppSubscriptionLineItemRecord(
+                              ..li,
+                              plan: AppSubscriptionLineItemPlan(
+                                pricing_details: updated_pricing,
+                              ),
+                            )
+                          let #(_, store_after_balance) =
+                            store.stage_app_subscription_line_item(
+                              store,
+                              updated_line_item,
+                            )
+                          let #(record_gid, identity_after_id) =
+                            synthetic_identity.make_synthetic_gid(
+                              identity,
+                              "AppUsageRecord",
+                            )
+                          let #(timestamp, identity_after_ts) =
+                            synthetic_identity.make_synthetic_timestamp(
+                              identity_after_id,
+                            )
+                          let record =
+                            AppUsageRecord(
+                              id: record_gid,
+                              subscription_line_item_id: li.id,
+                              description: option.unwrap(
+                                graphql_helpers.read_arg_string(
+                                  args,
+                                  "description",
+                                ),
+                                "",
+                              ),
+                              price: price,
+                              created_at: timestamp,
+                              idempotency_key: idempotency_key,
+                            )
+                          let #(_, store_after) =
+                            store.stage_app_usage_record(
+                              store_after_balance,
+                              record,
+                            )
+                          let payload =
+                            project_usage_record_payload(
+                              store_after,
+                              Some(record),
+                              [],
+                              field,
+                              fragments,
+                            )
+                          let draft =
+                            make_log_draft(
+                              "appUsageRecordCreate",
+                              [record.id],
+                              store.Staged,
+                            )
+                          #(
+                            MutationFieldResult(
+                              key: key,
+                              payload: payload,
+                              staged_resource_ids: [record.id],
+                              log_drafts: [draft],
+                            ),
+                            store_after,
+                            identity_after_ts,
+                          )
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+      }
     }
+  }
+}
+
+fn usage_record_create_failure(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  user_errors: List(UserError),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload =
+    project_usage_record_payload(store, None, user_errors, field, fragments)
+  let draft = make_log_draft("appUsageRecordCreate", [], store.Failed)
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [],
+      log_drafts: [draft],
+    ),
+    store,
+    identity,
+  )
+}
+
+fn idempotency_key_too_long(key: Option(String)) -> Bool {
+  case key {
+    Some(key) -> string.length(key) > 255
+    None -> False
+  }
+}
+
+fn find_usage_record_by_idempotency_key(
+  store: Store,
+  line_item_id: String,
+  key: Option(String),
+) -> Option(AppUsageRecord) {
+  case key {
+    None -> None
+    Some(key) ->
+      case
+        store.list_effective_app_usage_records_for_line_item(
+          store,
+          line_item_id,
+        )
+        |> list.find(fn(record) { record.idempotency_key == Some(key) })
+      {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
   }
 }
 
@@ -2612,6 +3066,72 @@ fn normalize_currency(code: String) -> String {
   string.uppercase(string.trim(code))
 }
 
+fn money_add(left: Money, right: Money) -> Money {
+  let scale = int.max(decimal_scale(left.amount), decimal_scale(right.amount))
+  let amount =
+    decimal_format(
+      decimal_to_scaled(left.amount, scale)
+        + decimal_to_scaled(right.amount, scale),
+      scale,
+    )
+  Money(amount: amount, currency_code: left.currency_code)
+}
+
+fn money_amount_greater_than(left: Money, right: Money) -> Bool {
+  let scale = int.max(decimal_scale(left.amount), decimal_scale(right.amount))
+  decimal_to_scaled(left.amount, scale) > decimal_to_scaled(right.amount, scale)
+}
+
+fn decimal_scale(amount: String) -> Int {
+  case string.split_once(string.trim(amount), ".") {
+    Ok(#(_, fractional)) -> string.length(fractional)
+    Error(_) -> 0
+  }
+}
+
+fn decimal_to_scaled(amount: String, scale: Int) -> Int {
+  let trimmed = string.trim(amount)
+  let #(whole, fractional) = case string.split_once(trimmed, ".") {
+    Ok(parts) -> parts
+    Error(_) -> #(trimmed, "")
+  }
+  let whole_value = int.parse(whole) |> result.unwrap(0)
+  let fractional_value = case scale {
+    0 -> 0
+    _ ->
+      fractional
+      |> string.pad_end(to: scale, with: "0")
+      |> string.slice(at_index: 0, length: scale)
+      |> int.parse
+      |> result.unwrap(0)
+  }
+  whole_value * decimal_multiplier(scale) + fractional_value
+}
+
+fn decimal_format(value: Int, scale: Int) -> String {
+  case scale {
+    0 -> int.to_string(value)
+    _ -> {
+      let multiplier = decimal_multiplier(scale)
+      let whole = int.divide(value, by: multiplier) |> result.unwrap(0)
+      let fractional =
+        int.remainder(value, by: multiplier)
+        |> result.unwrap(0)
+        |> int.absolute_value
+      int.to_string(whole)
+      <> "."
+      <> string.pad_start(int.to_string(fractional), to: scale, with: "0")
+    }
+  }
+}
+
+fn decimal_multiplier(scale: Int) -> Int {
+  case scale <= 0 {
+    True -> 1
+    False -> 10 * decimal_multiplier(scale - 1)
+  }
+}
+
 fn read_line_item_plan(
   identity: SyntheticIdentityRegistry,
   input: Dict(String, root_field.ResolvedValue),
@@ -2673,6 +3193,55 @@ fn read_line_item_plan(
       plan: AppSubscriptionLineItemPlan(pricing_details: pricing),
     )
   #(record, identity_after)
+}
+
+fn compute_current_period_end(
+  activated_at: String,
+  line_items: List(AppSubscriptionLineItemRecord),
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  let trial_days =
+    graphql_helpers.read_arg_int(args, "trialDays")
+    |> option.unwrap(0)
+  let interval = subscription_interval(line_items)
+  case iso_timestamp.parse_iso(activated_at) {
+    Ok(ms) ->
+      Some(iso_timestamp.format_iso(
+        ms + days_to_ms(interval_days(interval) + trial_days),
+      ))
+    Error(_) -> None
+  }
+}
+
+fn subscription_interval(
+  line_items: List(AppSubscriptionLineItemRecord),
+) -> String {
+  case line_items {
+    [first, ..] ->
+      case first.plan.pricing_details {
+        AppRecurringPricing(interval: interval, ..) -> interval
+        AppUsagePricing(interval: interval, ..) -> interval
+      }
+    [] -> "EVERY_30_DAYS"
+  }
+}
+
+fn interval_days(interval: String) -> Int {
+  case interval {
+    "ANNUAL" -> 365
+    _ -> 30
+  }
+}
+
+fn days_to_ms(days: Int) -> Int {
+  days * 24 * 60 * 60 * 1000
+}
+
+fn append_unique(values: List(String), value: String) -> List(String) {
+  case list.contains(values, value) {
+    True -> values
+    False -> list.append(values, [value])
+  }
 }
 
 fn make_log_draft(

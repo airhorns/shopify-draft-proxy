@@ -1,0 +1,204 @@
+{
+  "scenarioId": "metafield-definition-create-input-validation",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-05T00:00:00.000Z",
+  "notes": "Validation-only fixture for HAR-693 metafieldDefinitionCreate guardrails. Length, invalid-character, unknown-type, and name-length payloads mirror live 2025-01 conformance probes. Reserved namespace cases encode the ticket's protected-namespace contract because the current conformance app is allowed to create these definitions in the disposable shop.",
+  "cases": {
+    "shortNamespace": {
+      "request": {
+        "variables": {
+          "definition": {
+            "namespace": "ab",
+            "key": "x",
+            "ownerType": "PRODUCT",
+            "name": "X",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "namespace"],
+                "message": "Namespace is too short (minimum is 3 characters)",
+                "code": "TOO_SHORT"
+              },
+              {
+                "field": ["definition", "key"],
+                "message": "Key is too short (minimum is 2 characters)",
+                "code": "TOO_SHORT"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "invalidCharacterNamespace": {
+      "request": {
+        "variables": {
+          "definition": {
+            "namespace": "my space",
+            "key": "valid_key",
+            "ownerType": "PRODUCT",
+            "name": "X",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "namespace"],
+                "message": "Namespace contains one or more invalid characters.",
+                "code": "INVALID_CHARACTER"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "invalidCharacterKey": {
+      "request": {
+        "variables": {
+          "definition": {
+            "namespace": "loyalty",
+            "key": "bad.key!",
+            "ownerType": "PRODUCT",
+            "name": "X",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "key"],
+                "message": "Key contains one or more invalid characters.",
+                "code": "INVALID_CHARACTER"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "unknownType": {
+      "request": {
+        "variables": {
+          "definition": {
+            "namespace": "loyalty",
+            "key": "tier",
+            "ownerType": "PRODUCT",
+            "name": "Tier",
+            "type": "totally_made_up_type"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "type"],
+                "message": "Type name totally_made_up_type is not a valid type. Valid types are: antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference.",
+                "code": "INCLUSION"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "reservedNamespaceShopifyStandard": {
+      "request": {
+        "variables": {
+          "definition": {
+            "namespace": "shopify_standard",
+            "key": "xx",
+            "ownerType": "PRODUCT",
+            "name": "X",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "namespace"],
+                "message": "Namespace shopify_standard is reserved.",
+                "code": "RESERVED"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "reservedNamespaceProtected": {
+      "request": {
+        "variables": {
+          "definition": {
+            "namespace": "protected",
+            "key": "xx",
+            "ownerType": "PRODUCT",
+            "name": "X",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "namespace"],
+                "message": "Namespace protected is reserved.",
+                "code": "RESERVED"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "nameTooLong": {
+      "request": {
+        "variables": {
+          "definition": {
+            "namespace": "loyalty",
+            "key": "longname",
+            "ownerType": "PRODUCT",
+            "name": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "name"],
+                "message": "Name is too long (maximum is 255 characters)",
+                "code": "TOO_LONG"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

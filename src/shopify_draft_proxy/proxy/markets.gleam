@@ -2267,7 +2267,7 @@ fn handle_web_presence_update(
     Some(id_value) ->
       case store.get_effective_web_presence_by_id(store, id_value) {
         Some(_) -> {
-          let errors = web_presence_create_errors(store, input)
+          let errors = web_presence_update_errors(store, input)
           case errors {
             [] -> {
               let data = web_presence_data(store, id_value, input)
@@ -2568,6 +2568,21 @@ fn web_presence_create_errors(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
+  web_presence_input_errors(store, input, True)
+}
+
+fn web_presence_update_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  web_presence_input_errors(store, input, False)
+}
+
+fn web_presence_input_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  require_route: Bool,
+) -> List(CapturedJsonValue) {
   let domain_errors = case
     graphql_helpers.read_arg_string_nonempty(input, "domainId")
   {
@@ -2584,11 +2599,67 @@ fn web_presence_create_errors(
       }
     None -> []
   }
-  let locale_errors = case
-    graphql_helpers.read_arg_string_nonempty(input, "defaultLocale")
-  {
+  let default_locale_errors = web_presence_default_locale_errors(input)
+  let route_and_suffix_errors = case domain_errors, default_locale_errors {
+    [], [] ->
+      list.append(
+        web_presence_route_errors(input, require_route),
+        web_presence_subfolder_suffix_errors(input),
+      )
+    _, _ -> []
+  }
+  [
+    domain_errors,
+    default_locale_errors,
+    web_presence_alternate_locale_errors(input),
+    route_and_suffix_errors,
+  ]
+  |> list.flatten
+}
+
+fn web_presence_route_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  require_route: Bool,
+) -> List(CapturedJsonValue) {
+  let domain_id = graphql_helpers.read_arg_string_nonempty(input, "domainId")
+  let suffix =
+    graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
+  case domain_id, suffix {
+    Some(_), Some(_) -> [
+      user_error(
+        ["input"],
+        "Cannot have both subfolder suffix and domain",
+        "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN",
+      ),
+    ]
+    None, None ->
+      case require_route {
+        True -> [
+          user_error(
+            ["input"],
+            "Requires domain or subfolder",
+            "REQUIRES_DOMAIN_OR_SUBFOLDER",
+          ),
+        ]
+        False -> []
+      }
+    _, _ -> []
+  }
+}
+
+fn web_presence_default_locale_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string(input, "defaultLocale") {
+    Some("") -> [
+      user_error(
+        ["input", "defaultLocale"],
+        "Default locale can't be blank",
+        "CANNOT_SET_DEFAULT_LOCALE_TO_NULL",
+      ),
+    ]
     Some(locale) ->
-      case locale == "en" {
+      case valid_web_presence_locale(locale) {
         True -> []
         False -> [
           user_error(
@@ -2598,9 +2669,112 @@ fn web_presence_create_errors(
           ),
         ]
       }
+    None -> [
+      user_error(
+        ["input", "defaultLocale"],
+        "Default locale can't be blank",
+        "CANNOT_SET_DEFAULT_LOCALE_TO_NULL",
+      ),
+    ]
+  }
+}
+
+fn web_presence_alternate_locale_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  read_arg_string_array(input, "alternateLocales")
+  |> option.unwrap([])
+  |> list.index_fold([], fn(errors, locale, index) {
+    case valid_web_presence_locale(locale) {
+      True -> errors
+      False ->
+        list.append(errors, [
+          user_error(
+            ["input", "alternateLocales", int.to_string(index)],
+            "Invalid locale codes: " <> locale,
+            "INVALID",
+          ),
+        ])
+    }
+  })
+}
+
+fn web_presence_subfolder_suffix_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix") {
+    Some(suffix) -> {
+      let length_errors = case subfolder_suffix_letter_count(suffix) < 2 {
+        True -> [
+          user_error(
+            ["input", "subfolderSuffix"],
+            "Subfolder suffix must be at least 2 letters",
+            "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS",
+          ),
+        ]
+        False -> []
+      }
+      let script_errors = case is_web_presence_script_code(suffix) {
+        True -> [
+          user_error(
+            ["input", "subfolderSuffix"],
+            "Subfolder suffix cannot be script code",
+            "SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE",
+          ),
+        ]
+        False -> []
+      }
+      list.append(length_errors, script_errors)
+    }
     None -> []
   }
-  list.append(domain_errors, locale_errors)
+}
+
+fn valid_web_presence_locale(locale: String) -> Bool {
+  list.contains(shopify_i18n_language_codes(), locale)
+}
+
+fn shopify_i18n_language_codes() -> List(String) {
+  [
+    "af", "ak", "sq", "am", "ar", "hy", "as", "az", "bm", "bn", "eu", "be", "bs",
+    "br", "bg", "my", "ca", "ckb", "ce", "zh-CN", "zh-TW", "kw", "hr", "cs",
+    "da", "nl", "dz", "en", "eo", "et", "ee", "fo", "fil", "fi", "fr", "fr-CA",
+    "ff", "gl", "lg", "ka", "de", "el", "gu", "ha", "he", "hi", "hu", "is", "ig",
+    "id", "ia", "ga", "it", "ja", "jv", "kl", "kn", "ks", "kk", "km", "ki", "rw",
+    "ko", "ku", "ky", "lo", "lv", "ln", "lt", "lu", "lb", "mk", "mg", "ms", "ml",
+    "mt", "gv", "mr", "mn", "mi", "ne", "nd", "se", "no", "nb", "nn", "or", "om",
+    "os", "ps", "fa", "pl", "pt-BR", "pt-PT", "pa", "qu", "ro", "rm", "rn", "ru",
+    "sg", "sa", "sc", "gd", "sr", "sn", "ii", "sd", "si", "sk", "sl", "so", "es",
+    "su", "sw", "sv", "tg", "ta", "tt", "te", "th", "bo", "ti", "to", "tr", "tk",
+    "uk", "ur", "ug", "uz", "vi", "cy", "fy", "wo", "xh", "yi", "yo", "zu",
+  ]
+}
+
+fn subfolder_suffix_letter_count(value: String) -> Int {
+  value
+  |> string.to_graphemes
+  |> list.filter(is_ascii_alpha)
+  |> list.length
+}
+
+fn is_ascii_alpha(grapheme: String) -> Bool {
+  string.contains(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    grapheme,
+  )
+}
+
+fn is_web_presence_script_code(value: String) -> Bool {
+  list.contains(
+    [
+      "Arab", "Armn", "Beng", "Bopo", "Brai", "Cyrl", "Deva", "Ethi", "Geor",
+      "Grek", "Gujr", "Guru", "Hang", "Hani", "Hans", "Hant", "Hebr", "Hira",
+      "Jpan", "Kana", "Khmr", "Knda", "Kore", "Laoo", "Latn", "Mlym", "Mong",
+      "Mymr", "Orya", "Sinh", "Taml", "Telu", "Tfng", "Thaa", "Thai", "Tibt",
+      "Yiii",
+    ],
+    value,
+  )
 }
 
 fn web_presence_data(

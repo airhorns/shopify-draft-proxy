@@ -537,6 +537,12 @@ fn segment_to_source(record: SegmentRecord) -> SourceValue {
       "lastEditDate",
       graphql_helpers.option_string_source(record.last_edit_date),
     ),
+    #("tagMigrated", SrcBool(False)),
+    #("valid", SrcBool(True)),
+    #("percentageSnapshot", SrcNull),
+    #("percentageSnapshotUpdatedAt", SrcNull),
+    #("translation", SrcNull),
+    #("author", SrcNull),
   ])
 }
 

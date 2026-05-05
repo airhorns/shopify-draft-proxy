@@ -39,6 +39,7 @@ Shared custom-data value normalization helpers for metafields and metaobject fie
 
 - Shopify-like `jsonValue` projection for scalar, JSON, measurement, rating, date-time, decimal, reference-list, and list custom-data field types
 - canonicalization for staged custom-data value strings where Shopify rewrites input values
+- Shopify-like metaobject field input validation for scalar, measurement, rating, URL/color/date/time, reference, text min/max, and list custom-data field values
 - measurement type predicates for serializers that need measurement-specific display behavior
 
 Use this module before adding resource-local custom-data parsers or serializers.

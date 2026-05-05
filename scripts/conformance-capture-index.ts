@@ -564,6 +564,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'metafield-definition-update-delete-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-update-delete-preconditions-conformance.mts',
+    purpose:
+      'metafieldDefinitionDelete deleteAllAssociatedMetafields behavior and metafieldDefinitionUpdate identifier preconditions on product-owned definitions.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-update-delete-preconditions.json`,
+      'config/parity-specs/metafields/metafield-definition-update-delete-preconditions.json',
+      'config/parity-requests/metafields/metafield-definition-update-delete-preconditions-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable products and product-owned definitions, deletes definitions during the scenario, then deletes any remaining definitions and products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-graph-mutations',
     scriptPath: 'scripts/capture-product-graph-mutation-conformance.mts',
@@ -807,6 +824,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Validation branches create no records; successful app-prefixed and duplicate-case setup definitions are deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-field-validation-matrix',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-field-validation-matrix-conformance.ts',
+    purpose:
+      'MetaobjectCreate and metaobjectUpdate custom-data field value validation for scalar, measurement, reference, rating, URL/color/date/time, text max, and list field types.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-field-validation-matrix.json`,
+      'config/parity-specs/metaobjects/metaobject-field-validation-matrix.json',
+      'config/parity-requests/metaobjects/metaobject-field-validation-matrix-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and setup entry; rejected branches create no rows except captured scalar coercion branches, which are deleted during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1641,6 +1675,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}discount-code-required-blank-validation.json`,
     ],
     cleanupBehavior: 'Validation-oriented; deletes any created disposable discount artifacts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-bulk-selector-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-bulk-selector-validation-conformance.ts',
+    purpose:
+      'Discount bulk selector missing, blank search, mutually exclusive selector, and saved-search validation guardrails.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-bulk-selector-validation.json`,
+      'config/parity-specs/discounts/discount-bulk-selector-validation.json',
+    ],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

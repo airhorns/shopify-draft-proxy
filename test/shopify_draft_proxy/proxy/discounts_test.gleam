@@ -11,8 +11,9 @@ import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type DiscountRecord, CapturedNull, CapturedObject,
-  CapturedString, DiscountRecord,
+  type CapturedJsonValue, type DiscountRecord, type SavedSearchRecord,
+  CapturedNull, CapturedObject, CapturedString, DiscountRecord,
+  SavedSearchRecord,
 }
 
 fn run_mutation(document: String) -> mutation_helpers.MutationOutcome {
@@ -32,6 +33,65 @@ fn run_mutation_from(
     dict.new(),
     empty_upstream_context(),
   )
+}
+
+fn price_rule_saved_search(id: String) -> SavedSearchRecord {
+  SavedSearchRecord(
+    id: id,
+    legacy_resource_id: "98765",
+    name: "Price rule search",
+    query: "status:active",
+    resource_type: "PRICE_RULE",
+    search_terms: "",
+    filters: [],
+    cursor: None,
+  )
+}
+
+pub fn bulk_selector_validation_matches_captured_code_roots_test() {
+  let outcome =
+    run_mutation(
+      "mutation { activateMissing: discountCodeBulkActivate { userErrors { field message code extraInfo } } activateBlank: discountCodeBulkActivate(search: \"\") { userErrors { field message code extraInfo } } activateSaved: discountCodeBulkActivate(savedSearchId: \"gid://shopify/SavedSearch/0\") { userErrors { field message code extraInfo } } deactivateTooMany: discountCodeBulkDeactivate(ids: [\"gid://shopify/DiscountCodeNode/0\"], search: \"status:active\") { userErrors { field message code extraInfo } } deleteMissing: discountCodeBulkDelete { userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"activateMissing\":{\"userErrors\":[{\"field\":null,\"message\":\"Missing expected argument key: 'ids', 'search' or 'saved_search_id'.\",\"code\":\"MISSING_ARGUMENT\",\"extraInfo\":null}]},\"activateBlank\":{\"userErrors\":[{\"field\":[\"search\"],\"message\":\"'Search' can't be blank.\",\"code\":\"BLANK\",\"extraInfo\":null}]},\"activateSaved\":{\"userErrors\":[{\"field\":[\"savedSearchId\"],\"message\":\"Invalid 'saved_search_id'.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"deactivateTooMany\":{\"userErrors\":[{\"field\":null,\"message\":\"Only one of 'ids', 'search' or 'saved_search_id' is allowed.\",\"code\":\"TOO_MANY_ARGUMENTS\",\"extraInfo\":null}]},\"deleteMissing\":{\"userErrors\":[{\"field\":null,\"message\":\"Missing expected argument key: 'ids', 'search' or 'saved_search_id'.\",\"code\":\"MISSING_ARGUMENT\",\"extraInfo\":null}]}}}"
+}
+
+pub fn bulk_selector_validation_matches_captured_automatic_delete_test() {
+  let outcome =
+    run_mutation(
+      "mutation { missing: discountAutomaticBulkDelete { userErrors { field message code extraInfo } } blank: discountAutomaticBulkDelete(search: \"\") { userErrors { field message code extraInfo } } tooMany: discountAutomaticBulkDelete(ids: [\"gid://shopify/DiscountAutomaticNode/0\"], search: \"status:active\") { userErrors { field message code extraInfo } } saved: discountAutomaticBulkDelete(savedSearchId: \"gid://shopify/SavedSearch/0\") { userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"missing\":{\"userErrors\":[{\"field\":null,\"message\":\"One of IDs, search argument or saved search ID is required.\",\"code\":\"MISSING_ARGUMENT\",\"extraInfo\":null}]},\"blank\":{\"userErrors\":[]},\"tooMany\":{\"userErrors\":[{\"field\":null,\"message\":\"Only one of IDs, search argument or saved search ID is allowed.\",\"code\":\"TOO_MANY_ARGUMENTS\",\"extraInfo\":null}]},\"saved\":{\"userErrors\":[{\"field\":[\"savedSearchId\"],\"message\":\"Invalid savedSearchId.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn bulk_selector_validation_accepts_known_price_rule_saved_search_test() {
+  let base_store =
+    store.upsert_base_saved_searches(store.new(), [
+      price_rule_saved_search("gid://shopify/SavedSearch/98765"),
+    ])
+  let outcome =
+    run_mutation_from(
+      base_store,
+      synthetic_identity.new(),
+      "mutation { discountCodeBulkActivate(savedSearchId: \"gid://shopify/SavedSearch/98765\") { userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeBulkActivate\":{\"userErrors\":[]}}}"
+}
+
+pub fn bulk_selector_validation_keeps_unknown_ids_success_noop_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountCodeBulkActivate(ids: [\"gid://shopify/DiscountCodeNode/0\"]) { userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeBulkActivate\":{\"userErrors\":[]}}}"
 }
 
 pub fn code_basic_create_is_readable_by_code_test() {

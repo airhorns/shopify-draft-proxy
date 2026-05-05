@@ -1,0 +1,13 @@
+mutation AppRevokeAccessScopesFakeScope {
+  appRevokeAccessScopes(scopes: ["fake_scope"]) {
+    revoked {
+      handle
+      description
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

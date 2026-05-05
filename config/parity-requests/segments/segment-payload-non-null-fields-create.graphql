@@ -1,0 +1,23 @@
+mutation SegmentPayloadNonNullFieldsCreate($name: String!, $query: String!) {
+  segmentCreate(name: $name, query: $query) {
+    segment {
+      id
+      name
+      query
+      creationDate
+      lastEditDate
+      tagMigrated
+      valid
+      percentageSnapshot
+      percentageSnapshotUpdatedAt
+      translation
+      author {
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

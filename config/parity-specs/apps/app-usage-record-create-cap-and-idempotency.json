@@ -1,0 +1,156 @@
+{
+  "scenarioId": "app-usage-record-create-cap-and-idempotency",
+  "operationNames": ["appSubscriptionCreate", "appUsageRecordCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/apps/app-usage-record-create-cap-and-idempotency.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql",
+    "variables": {
+      "lineItems": [
+        {
+          "plan": {
+            "appUsagePricingDetails": {
+              "cappedAmount": {
+                "amount": 5,
+                "currencyCode": "USD"
+              },
+              "terms": "usage terms"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "subscription-create-usage-line-item",
+        "capturePath": "$.evidence.parity.expected.subscriptionCreate.data.appSubscriptionCreate",
+        "proxyPath": "$.data.appSubscriptionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.confirmationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic local confirmation URL instead of a real Shopify billing approval URL."
+          },
+          {
+            "path": "$.appSubscription.id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy generates stable session-local subscription IDs."
+          },
+          {
+            "path": "$.appSubscription.lineItems[*].id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy generates stable session-local subscription line-item IDs."
+          }
+        ]
+      },
+      {
+        "name": "usage-record-create-success",
+        "capturePath": "$.evidence.parity.expected.usageCreate.data.appUsageRecordCreate",
+        "proxyPath": "$.data.appUsageRecordCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appUsageRecordCreate-cap-success.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.lineItems[0].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.appUsageRecord.id",
+            "matcher": "shopify-gid:AppUsageRecord",
+            "reason": "The proxy generates stable session-local usage record IDs."
+          },
+          {
+            "path": "$.appUsageRecord.subscriptionLineItem.id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy links usage records to the locally staged subscription line item."
+          }
+        ]
+      },
+      {
+        "name": "usage-record-create-over-cap",
+        "capturePath": "$.evidence.parity.expected.overCap.data.appUsageRecordCreate",
+        "proxyPath": "$.data.appUsageRecordCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appUsageRecordCreate-cap-over-limit.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.lineItems[0].id"
+            }
+          }
+        }
+      },
+      {
+        "name": "usage-record-create-long-idempotency-key",
+        "capturePath": "$.evidence.parity.expected.longKey.data.appUsageRecordCreate",
+        "proxyPath": "$.data.appUsageRecordCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appUsageRecordCreate-long-idempotency-key.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.lineItems[0].id"
+            },
+            "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        }
+      },
+      {
+        "name": "usage-record-create-idempotency-reuse",
+        "capturePath": "$.evidence.parity.expected.duplicate.data.appUsageRecordCreate",
+        "proxyPath": "$.data.appUsageRecordCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appUsageRecordCreate-cap-success.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.lineItems[0].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.appUsageRecord.id",
+            "matcher": "shopify-gid:AppUsageRecord",
+            "reason": "The proxy returns the previously staged usage record for the reused idempotency key."
+          },
+          {
+            "path": "$.appUsageRecord.subscriptionLineItem.id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy links usage records to the locally staged subscription line item."
+          }
+        ]
+      },
+      {
+        "name": "usage-record-create-balance-readback",
+        "capturePath": "$.evidence.parity.expected.billingRead.data.currentAppInstallation",
+        "proxyPath": "$.data.currentAppInstallation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-usage-record-create-cap-read.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.allSubscriptions.nodes[*].lineItems[*].usageRecords.nodes[*].id",
+            "matcher": "shopify-gid:AppUsageRecord",
+            "reason": "The proxy generates stable session-local usage record IDs."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-634 executable local-runtime parity covers usage-record cap rejection, long idempotency key validation, idempotency-key reuse, no-upstream local staging, and balanceUsed/usageRecords read-after-write behavior. A live billing approval capture remains unsuitable for routine unattended runs because it requires disposable app billing setup and merchant approval side effects."
+}

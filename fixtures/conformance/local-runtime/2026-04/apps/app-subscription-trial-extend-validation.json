@@ -5,8 +5,8 @@
   "scenario": "app-subscription-trial-extend-validation",
   "notes": [
     "Runtime fixture enforced by test/shopify_draft_proxy/proxy/apps_mutation_test.gleam.",
-    "The generic parity runner covers days bounds, unknown id, and PENDING subscription validation by threading state from a local appSubscriptionCreate request.",
-    "Forced ACTIVE success and ACTIVE expired-trial branches are covered by the runtime test file because the parity runner does not pre-seed or force-update app subscription status."
+    "The generic parity runner covers days bounds, unknown id, and PENDING subscription validation by threading state from an explicit non-test local appSubscriptionCreate request.",
+    "Test-charge ACTIVE success and ACTIVE expired-trial branches are covered by the runtime test file because HAR-653 auto-activates test subscriptions locally."
   ],
   "operationNames": ["appSubscriptionCreate", "appSubscriptionTrialExtend"],
   "evidence": {
