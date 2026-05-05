@@ -6,6 +6,7 @@
 ////   {
 ////     "scenarioId": "...",
 ////     "liveCaptureFiles": ["fixtures/.../capture.json"],
+////     "setup": [{ ... optional setup proxy requests ... }],
 ////     "proxyRequest": {                                <-- primary
 ////       "documentPath": "config/parity-requests/.../op.graphql",
 ////       "apiVersion": "2026-04",
@@ -96,6 +97,7 @@ pub type Spec {
   Spec(
     scenario_id: String,
     capture_file: String,
+    setup_requests: List(ProxyRequest),
     proxy_request: ProxyRequest,
     targets: List(Target),
     expected_differences: List(ExpectedDifference),
@@ -117,6 +119,11 @@ pub fn decode(source: String) -> Result(Spec, DecodeError) {
 fn spec_decoder() -> Decoder(Spec) {
   use scenario_id <- decode.field("scenarioId", decode.string)
   use captures <- decode.field("liveCaptureFiles", decode.list(decode.string))
+  use setup_requests <- decode.optional_field(
+    "setup",
+    [],
+    decode.list(proxy_request_decoder()),
+  )
   use proxy_request <- decode.field("proxyRequest", proxy_request_decoder())
   use comparison <- decode.field("comparison", comparison_decoder())
   use operation_names <- decode.optional_field(
@@ -129,6 +136,7 @@ fn spec_decoder() -> Decoder(Spec) {
       decode.success(Spec(
         scenario_id: scenario_id,
         capture_file: first,
+        setup_requests: setup_requests,
         proxy_request: proxy_request,
         targets: comparison.0,
         expected_differences: comparison.1,
@@ -142,6 +150,7 @@ fn empty_spec() -> Spec {
   Spec(
     scenario_id: "",
     capture_file: "",
+    setup_requests: [],
     proxy_request: ProxyRequest(
       document_path: "",
       variables: NoVariables,

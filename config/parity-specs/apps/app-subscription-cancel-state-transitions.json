@@ -1,0 +1,83 @@
+{
+  "scenarioId": "app-subscription-cancel-state-transitions",
+  "operationNames": ["appSubscriptionCancel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/apps/app-subscription-cancel-state-transitions.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "setup": [
+    {
+      "documentPath": "config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql",
+      "variables": {
+        "lineItems": [
+          {
+            "plan": {
+              "appUsagePricingDetails": {
+                "cappedAmount": {
+                  "amount": 100,
+                  "currencyCode": "USD"
+                },
+                "terms": "usage terms"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appSubscriptionCancel-state-transition.graphql",
+    "variables": {
+      "id": {
+        "fromCapturePath": "$.evidence.setup.createdSubscriptionId"
+      }
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cancel-pending-subscription-payload",
+        "capturePath": "$.evidence.expected.cancelPending.data.appSubscriptionCancel",
+        "proxyPath": "$.data.appSubscriptionCancel",
+        "selectedPaths": ["$.appSubscription.status", "$.userErrors"],
+        "expectedDifferences": [
+          {
+            "path": "$.appSubscription.id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The setup-created local subscription id is deterministic in proxy replay and not a live Shopify id."
+          }
+        ]
+      },
+      {
+        "name": "cancelled-subscription-user-error",
+        "capturePath": "$.evidence.expected.cancelAgain.data.appSubscriptionCancel",
+        "proxyPath": "$.data.appSubscriptionCancel",
+        "selectedPaths": ["$.appSubscription", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionCancel-state-transition.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.evidence.setup.createdSubscriptionId"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-subscription-user-error",
+        "capturePath": "$.evidence.expected.unknownCancel.data.appSubscriptionCancel",
+        "proxyPath": "$.data.appSubscriptionCancel",
+        "selectedPaths": ["$.appSubscription", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionCancel-state-transition.graphql",
+          "variablesCapturePath": "$.evidence.expected.unknownCancel.variables"
+        }
+      }
+    ]
+  },
+  "notes": "The setup request stages the local subscription so operationNames can stay scoped to appSubscriptionCancel while the primary and follow-up requests exercise the cancel state machine. Runtime tests cover ACTIVE success plus EXPIRED, DECLINED, and FROZEN invalid-transition pre-states because the current conformance app cannot execute live Billing API mutations."
+}

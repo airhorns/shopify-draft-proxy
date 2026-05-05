@@ -1,0 +1,12 @@
+mutation AppSubscriptionCancelStateTransition($id: ID!) {
+  appSubscriptionCancel(id: $id, prorate: true) {
+    appSubscription {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

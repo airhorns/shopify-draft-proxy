@@ -145,6 +145,7 @@ pub fn run_with_config(
     capture,
     config.debug,
   ))
+  use proxy <- result.try(run_setup_requests(config, parsed, capture, proxy))
   use primary_doc <- result.try(
     read_file(resolve(config, parsed.proxy_request.document_path)),
   )
@@ -230,6 +231,52 @@ fn build_proxy(
         |> draft_proxy.with_default_registry()
         |> draft_proxy.with_upstream_transport(transport)
       Ok(proxy)
+    }
+  }
+}
+
+fn run_setup_requests(
+  config: RunnerConfig,
+  parsed: Spec,
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> Result(DraftProxy, RunError) {
+  run_setup_requests_loop(config, parsed.setup_requests, capture, proxy, 1)
+}
+
+fn run_setup_requests_loop(
+  config: RunnerConfig,
+  requests: List(spec.ProxyRequest),
+  capture: JsonValue,
+  proxy: DraftProxy,
+  index: Int,
+) -> Result(DraftProxy, RunError) {
+  case requests {
+    [] -> Ok(proxy)
+    [request, ..rest] -> {
+      let context = "<setup " <> int.to_string(index) <> ">"
+      use document <- result.try(
+        read_file(resolve(config, request.document_path)),
+      )
+      use variables <- result.try(resolve_variables(
+        config,
+        request.variables,
+        capture,
+        None,
+        None,
+        dict.new(),
+        context,
+      ))
+      let variables = replace_customer_one_variables(capture, variables)
+      use #(_response, next_proxy, _executed) <- result.try(execute(
+        proxy,
+        document,
+        variables,
+        context,
+        request.api_version,
+        config.debug,
+      ))
+      run_setup_requests_loop(config, rest, capture, next_proxy, index + 1)
     }
   }
 }
